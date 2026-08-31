@@ -4334,7 +4334,19 @@ class _PlayerScreenState extends State<PlayerScreen>
   void _onSeekEnd(double value) {
     if (_touchLocked) return;
     final target = Duration(milliseconds: value.round());
+    final wasCompleted = _completed;
     _seekBackend(target);
+    // After seeking away from the end, clear the completed flag and resume
+    // playback — otherwise the replay icon stays and the video never starts.
+    if (wasCompleted) {
+      _completed = false;
+      final mpv = _mpvPlayer;
+      if (_mpvReady && mpv != null) {
+        unawaited(mpv.play());
+      } else {
+        _exo?.play();
+      }
+    }
     _dragging = false;
     _dragValue = value;
     _showControls();
