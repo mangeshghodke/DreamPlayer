@@ -110,6 +110,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _mpvResolution;
   int? _mpvAudioChannels;
   bool _mpvSubtitleOn = false;
+  /// Current subtitle lines from mpv, rendered by our own overlay instead of
+  /// media_kit's built-in SubtitleView (which lands in the letterbox bar).
+  List<String> _mpvSubtitleLines = [];
+  /// Cached subtitle style (size/color/background/outline) shared with Media3.
+  SubtitleStyle _subtitleStyle = const SubtitleStyle();
   double _mpvBrightness = 1.0;
   double _mpvZoomScale = 1.0;
   /// Last hwdec value applied to the mpv instance ('auto-safe', 'mediacodec',
@@ -414,7 +419,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Push the saved subtitle appearance (size/color/background/outline +
       // cue delay) so native rendering matches Settings from frame one.
       try {
-        await exo.setSubtitleStyle(await SubtitleStyle.load());
+        final style = await SubtitleStyle.load();
+        await exo.setSubtitleStyle(style);
+        _subtitleStyle = style;
       } catch (_) {}
       try {
         await exo.setAudioBoost(_audioBoost);
@@ -1160,6 +1167,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     _mpvSubs.add(player.stream.track.listen((t) {
       if (!mounted) return;
       _mpvSubtitleOn = t.subtitle.id != 'no' && t.subtitle.id != 'auto';
+      setState(() {});
+    }));
+    _mpvSubs.add(player.stream.subtitle.listen((lines) {
+      if (!mounted) return;
+      _mpvSubtitleLines = lines.where((l) => l.trim().isNotEmpty).toList();
       setState(() {});
     }));
     _mpvSubs.add(player.stream.width.listen((v) {
@@ -4080,6 +4092,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     try {
                       final style = await SubtitleStyle.load();
                       await _exo?.setSubtitleStyle(style);
+                      _subtitleStyle = style;
                       final delayChanged = style.delayMs != _subtitleDelayMs;
                       _subtitleDelayMs = style.delayMs;
                       if (delayChanged &&
@@ -4420,6 +4433,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       final updated = style.copyWith(delayMs: ms);
       await updated.save();
       await _exo?.setSubtitleStyle(updated);
+      _subtitleStyle = updated;
       if (Platform.isAndroid && !_mpvReady && (_subtitleTracks.isNotEmpty || _subtitleOn)) {
         await _reopenAt(_position, _duration);
       }
@@ -4787,7 +4801,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           controls: NoVideoControls,
                           subtitleViewConfiguration:
                               const SubtitleViewConfiguration(
-                            padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+                            visible: false,
                           ),
                         ),
                       ),
@@ -4801,7 +4815,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       controls: NoVideoControls,
                       subtitleViewConfiguration:
                           const SubtitleViewConfiguration(
-                        padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+                        visible: false,
                       ),
                     ),
                   ))
@@ -4827,6 +4841,69 @@ class _PlayerScreenState extends State<PlayerScreen>
                     .withValues(alpha: (1.0 - _mpvBrightness).clamp(0.0, 1.0)),
               ),
             ),
+          ),
+        // Custom subtitle overlay for MPV — replaces media_kit's built-in
+        // SubtitleView which fills the entire Video widget (including letterbox
+        // bars). This overlay computes the actual video content area and pins
+        // the subtitle text at its bottom edge, matching Media3's placement.
+        if (_mpvReady && _mpvSubtitleLines.isNotEmpty)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final sw = constraints.maxWidth;
+              final sh = constraints.maxHeight;
+              if (sw <= 0 || sh <= 0) return const SizedBox.shrink();
+              // Compute the video content rect (BoxFit.contain logic).
+              final vw = _mpvPlayer?.state.width?.toDouble() ?? sw;
+              final vh = _mpvPlayer?.state.height?.toDouble() ?? sh;
+              final videoAspect = vw / vh;
+              final containerAspect = sw / sh;
+              double left, top, w, h;
+              if (videoAspect > containerAspect) {
+                w = sw;
+                h = sw / videoAspect;
+                left = 0;
+                top = (sh - h) / 2;
+              } else {
+                h = sh;
+                w = sh * videoAspect;
+                left = (sw - w) / 2;
+                top = 0;
+              }
+              // Font size: match Media3's 0.18 fraction of video view height.
+              final fontSize =
+                  (h * 0.18 * _subtitleStyle.sizeMultiplier).clamp(12.0, 300.0);
+              return Stack(
+                children: [
+                  Positioned(
+                    left: left + 16,
+                    right: sw - left - w + 16,
+                    bottom: sh - top - h + 8,
+                    child: Text(
+                      _mpvSubtitleLines.join('\n'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _subtitleStyle.color,
+                        fontSize: fontSize,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                        backgroundColor: _subtitleStyle.hasBackground
+                            ? _subtitleStyle.backgroundColor
+                            : null,
+                        shadows: _subtitleStyle.outline
+                            ? [
+                                const Shadow(
+                                  color: Colors.black,
+                                  blurRadius: 4,
+                                  offset: Offset(2, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
       ],
     );
