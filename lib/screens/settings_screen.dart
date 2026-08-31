@@ -55,6 +55,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _badgeAudio = true;
   bool _badgeResolution = false;
   bool _badgeVideoCodec = false;
+  bool _badgeSpatialAudio = true;
+  bool _badgeServerTranscode = true;
 
   @override
   void initState() {
@@ -126,6 +128,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _badgeAudio = f.audio;
           _badgeResolution = f.resolution;
           _badgeVideoCodec = f.videoCodec;
+          _badgeSpatialAudio = f.spatialAudio;
+          _badgeServerTranscode = f.serverTranscode;
         });
       }
     } catch (_) {}
@@ -479,43 +483,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               if (_badgeEnabled) ...[
-                CheckboxListTile(
-                  secondary: const Icon(Icons.high_quality, size: 20),
-                  title: const Text('HDR format'),
-                  subtitle: const Text('DV / HDR10 / HDR10+ / HLG / SDR'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
+                  child: Text(
+                    'Format',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                _BadgeToggle(
+                  icon: Icons.high_quality,
+                  label: 'HDR',
+                  subtitle: 'DV / HDR10 / HDR10+ / HLG / SDR',
                   value: _badgeHdr,
-                  onChanged: (value) async {
-                    await BadgePrefs.setHdr(value ?? true);
-                    if (mounted) setState(() => _badgeHdr = value ?? true);
+                  onChanged: (v) async {
+                    await BadgePrefs.setHdr(v);
+                    if (mounted) setState(() => _badgeHdr = v);
                   },
                 ),
-                CheckboxListTile(
-                  secondary: const Icon(Icons.audiotrack, size: 20),
-                  title: const Text('Audio codec'),
-                  subtitle: const Text('E-AC3 / DTS-HD / TrueHD / AAC / FLAC'),
+                _BadgeToggle(
+                  icon: Icons.audiotrack,
+                  label: 'Audio codec',
+                  subtitle: 'E-AC3 · 5.1 / DTS-HD · 7.1 / AAC …',
                   value: _badgeAudio,
-                  onChanged: (value) async {
-                    await BadgePrefs.setAudio(value ?? true);
-                    if (mounted) setState(() => _badgeAudio = value ?? true);
+                  onChanged: (v) async {
+                    await BadgePrefs.setAudio(v);
+                    if (mounted) setState(() => _badgeAudio = v);
                   },
                 ),
-                CheckboxListTile(
-                  secondary: const Icon(Icons.aspect_ratio, size: 20),
-                  title: const Text('Resolution'),
-                  value: _badgeResolution,
-                  onChanged: (value) async {
-                    await BadgePrefs.setResolution(value ?? false);
-                    if (mounted) setState(() => _badgeResolution = value ?? false);
-                  },
-                ),
-                CheckboxListTile(
-                  secondary: const Icon(Icons.videocam, size: 20),
-                  title: const Text('Video codec'),
-                  subtitle: const Text('HEVC / H.264 / AV1'),
+                _BadgeToggle(
+                  icon: Icons.videocam,
+                  label: 'Video codec',
+                  subtitle: 'HEVC / H.264 / AV1',
                   value: _badgeVideoCodec,
-                  onChanged: (value) async {
-                    await BadgePrefs.setVideoCodec(value ?? false);
-                    if (mounted) setState(() => _badgeVideoCodec = value ?? false);
+                  onChanged: (v) async {
+                    await BadgePrefs.setVideoCodec(v);
+                    if (mounted) setState(() => _badgeVideoCodec = v);
+                  },
+                ),
+                _BadgeToggle(
+                  icon: Icons.aspect_ratio,
+                  label: 'Resolution',
+                  value: _badgeResolution,
+                  onChanged: (v) async {
+                    await BadgePrefs.setResolution(v);
+                    if (mounted) setState(() => _badgeResolution = v);
+                  },
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
+                  child: Text(
+                    'Playback',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                _BadgeToggle(
+                  icon: Icons.spatial_audio,
+                  label: 'Spatial audio',
+                  value: _badgeSpatialAudio,
+                  onChanged: (v) async {
+                    await BadgePrefs.setSpatialAudio(v);
+                    if (mounted) setState(() => _badgeSpatialAudio = v);
+                  },
+                ),
+                _BadgeToggle(
+                  icon: Icons.sync,
+                  label: 'Server transcoding',
+                  value: _badgeServerTranscode,
+                  onChanged: (v) async {
+                    await BadgePrefs.setServerTranscode(v);
+                    if (mounted) setState(() => _badgeServerTranscode = v);
                   },
                 ),
               ],
@@ -953,6 +995,48 @@ class _SimklConnectDialogState extends State<_SimklConnectDialog> {
         ),
       ),
       actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel'))],
+    );
+  }
+}
+
+/// Compact badge toggle row — icon + label + optional subtitle + switch.
+/// Much lighter than a full CheckboxListTile: 40px height, no checkbox.
+class _BadgeToggle extends StatelessWidget {
+  const _BadgeToggle({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: 40,
+      child: ListTile(
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        leading: Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+        title: Text(label, style: const TextStyle(fontSize: 14)),
+        subtitle: subtitle != null
+            ? Text(subtitle!, style: const TextStyle(fontSize: 11))
+            : null,
+        trailing: Switch.adaptive(
+          value: value,
+          onChanged: onChanged,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        onTap: () => onChanged(!value),
+      ),
     );
   }
 }

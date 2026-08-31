@@ -159,6 +159,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _badgeAudio = true;
   bool _badgeResolution = false;
   bool _badgeVideoCodec = false;
+  bool _badgeSpatialAudio = true;
+  bool _badgeServerTranscode = true;
 
   /// True once a media has loaded on this screen (video size/codecs/duration
   /// seen). Survives a native state reset (IDLE event after the platform view
@@ -444,6 +446,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       _badgeAudio = bf.audio;
       _badgeResolution = bf.resolution;
       _badgeVideoCodec = bf.videoCodec;
+      _badgeSpatialAudio = bf.spatialAudio;
+      _badgeServerTranscode = bf.serverTranscode;
     } catch (_) {}
     _markedWatched = false;
     _autoPlayFired = false;
@@ -4624,6 +4628,18 @@ class _PlayerScreenState extends State<PlayerScreen>
       } else {
         if (_badgeHdr) chips.add(hdrChip);
         if (_badgeAudio && audioChip != null) chips.add(audioChip);
+        if (_badgeSpatialAudio && Platform.isAndroid && _liveSpatial == 'on') {
+          chips.add(const FormatChip(
+            label: 'Spatial',
+            color: Color(0xFF26A69A),
+          ));
+        }
+        if (_badgeServerTranscode && _transcodeActive) {
+          chips.add(const FormatChip(
+            label: 'Transcoding',
+            color: Color(0xFFEF5350),
+          ));
+        }
       }
     }
 
