@@ -16,22 +16,34 @@ const String exoPlayerViewType = 'dreamplayer/exo_player';
 /// How the video fills the playback view.
 ///
 /// Maps to Media3 `AspectRatioFrameLayout` resize modes on Android and AVPlayer
-/// `videoGravity` on iOS.
+/// `videoGravity` on iOS. Matches Nova Video Player's "Format" menu options:
+/// Original, Fullscreen, Stretched, Crop, 4:3, 16:9, 1.85:1, 2.39:1.
 enum VideoFitMode {
-  /// Letterbox: whole frame visible, black bars where the aspect differs.
+  /// Source aspect ratio (letterbox on the screen).
   fit(0),
 
+  /// Fullscreen: keep display dimensions, ignore AR (remove black bars by
+  /// cropping). Equivalent to Nova's `FULL_SCREEN`.
+  fullscreen(1),
+
   /// Crop to fill: fills the view, keeps aspect, cuts off overflow.
-  crop(1),
+  /// Equivalent to Media3 `RESIZE_MODE_ZOOM`.
+  crop(2),
 
   /// Stretch: distorts the frame to fill the view exactly.
-  stretch(2),
-
-  /// Crop to a fixed 16:9 box (zoomed in from the source aspect).
-  ratio16x9(3),
+  stretch(3),
 
   /// Crop to a fixed 4:3 box.
-  ratio4x3(4);
+  ratio4x3(4),
+
+  /// Crop to a fixed 16:9 box.
+  ratio16x9(5),
+
+  /// Crop to a fixed 1.85:1 box (cinema / US widescreen).
+  ratio185(6),
+
+  /// Crop to a fixed 2.39:1 box (CinemaScope / anamorphic).
+  ratio239(7);
 
   const VideoFitMode(this.value);
 
@@ -40,10 +52,25 @@ enum VideoFitMode {
 
   String get label => switch (this) {
     fit => 'Fit',
+    fullscreen => 'Fullscreen',
     crop => 'Crop to screen',
     stretch => 'Stretch to screen',
-    ratio16x9 => '16:9',
     ratio4x3 => '4:3',
+    ratio16x9 => '16:9',
+    ratio185 => '1.85:1',
+    ratio239 => '2.39:1',
+  };
+
+  /// Floating-point aspect ratio for the fixed-ratio modes, used by
+  /// `ForcedAspectPlayerView` to letterbox the source. Null for the
+  /// non-fixed modes (fit/crop/stretch/fullscreen are handled by the
+  /// native resize modes directly).
+  double? get fixedAspect => switch (this) {
+    ratio4x3 => 4.0 / 3.0,
+    ratio16x9 => 16.0 / 9.0,
+    ratio185 => 1.85,
+    ratio239 => 2.39,
+    _ => null,
   };
 
   static VideoFitMode fromValue(int? value) => VideoFitMode.values.firstWhere(

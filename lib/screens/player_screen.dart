@@ -1353,7 +1353,8 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// Applies a picker-chosen [VideoFitMode] to whichever engine is live; mpv
   /// mode maps the box modes onto the Flutter-side `Video` fit + a forced
-  /// aspect box.
+  /// aspect box. Matches Nova Video Player's "Format" options: Original,
+  /// Fullscreen, Stretched, Crop, 4:3, 16:9, 1.85:1, 2.39:1.
   void _applyFitMode(VideoFitMode mode) {
     if (!mounted) return;
     setState(() {
@@ -1363,18 +1364,28 @@ class _PlayerScreenState extends State<PlayerScreen>
           case VideoFitMode.fit:
             _mpvFit = BoxFit.contain;
             _mpvAspect = null;
+          case VideoFitMode.fullscreen:
+            // Keep display dims, ignore AR — same visual as stretch.
+            _mpvFit = BoxFit.fill;
+            _mpvAspect = null;
           case VideoFitMode.crop:
             _mpvFit = BoxFit.cover;
             _mpvAspect = null;
           case VideoFitMode.stretch:
             _mpvFit = BoxFit.fill;
             _mpvAspect = null;
-          case VideoFitMode.ratio16x9:
-            _mpvFit = BoxFit.cover;
-            _mpvAspect = 16 / 9;
           case VideoFitMode.ratio4x3:
             _mpvFit = BoxFit.cover;
             _mpvAspect = 4 / 3;
+          case VideoFitMode.ratio16x9:
+            _mpvFit = BoxFit.cover;
+            _mpvAspect = 16 / 9;
+          case VideoFitMode.ratio185:
+            _mpvFit = BoxFit.cover;
+            _mpvAspect = 1.85;
+          case VideoFitMode.ratio239:
+            _mpvFit = BoxFit.cover;
+            _mpvAspect = 2.39;
         }
         _mpvZoomScale = 1.0;
       }

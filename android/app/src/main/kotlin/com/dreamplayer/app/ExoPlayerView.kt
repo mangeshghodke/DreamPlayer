@@ -1914,24 +1914,41 @@ class ExoPlayerView(
     }
 
     private fun applyFitMode(mode: Int) {
+        // Matches the VideoFitMode enum in lib/services/exo_player.dart.
         when (mode) {
-            1 -> { // Crop to screen (keeps aspect, fills view)
+            0 -> { // Fit (letterbox)
                 playerView.forcedAspect = null
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
-            2 -> { // Stretch to screen (distorts)
+            1 -> { // Fullscreen (keep display dims, ignore AR — remove black bars)
                 playerView.forcedAspect = null
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             }
-            3 -> { // 16:9 crop
-                playerView.forcedAspect = 16f / 9f
+            2 -> { // Crop to screen (keeps aspect, fills view, cuts off overflow)
+                playerView.forcedAspect = null
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             }
-            4 -> { // 4:3 crop
+            3 -> { // Stretch to screen (distorts the frame)
+                playerView.forcedAspect = null
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            }
+            4 -> { // 4:3
                 playerView.forcedAspect = 4f / 3f
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             }
-            else -> { // Fit (letterbox)
+            5 -> { // 16:9
+                playerView.forcedAspect = 16f / 9f
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            }
+            6 -> { // 1.85:1 (cinema)
+                playerView.forcedAspect = 1.85f
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            }
+            7 -> { // 2.39:1 (CinemaScope)
+                playerView.forcedAspect = 2.39f
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            }
+            else -> { // Unknown — default to Fit
                 playerView.forcedAspect = null
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
