@@ -507,9 +507,19 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// failed, switch to software once, reopen at the current position, and
   /// remember the original mode so we can restore it on the next open or
   /// when the screen is disposed.
-  Future<void> _trySoftwareDecodeFallback() async {
-    if (_swRetried) return;
-    if (_decoderMode == DecoderMode.sw) return;
+  ///
+  /// If software has already been tried (or was the active mode), the file is
+  /// genuinely undecodable on any MediaCodec path — hand it to the mpv fallback
+  /// instead of leaving the player stuck on “retrying with software…”. The
+  /// yuv444p12le Kakegurui files (HEVC Rext 12-bit 444) hit exactly this: even
+  /// the software MediaCodec decoder (c2.android.hevc.decoder) advertises no
+  /// 12-bit 444 support, so the second decode error must cascade to mpv rather
+  /// than being swallowed.
+  Future<void> _trySoftwareDecodeFallback(String fallbackError) async {
+    if (_swRetried || _decoderMode == DecoderMode.sw) {
+      _setTerminalError(fallbackError);
+      return;
+    }
     _swRetried = true;
     _decoderOverride ??= _decoderMode;
     _decoderMode = DecoderMode.sw;
@@ -1255,9 +1265,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Video decoder failed (commonly: a device that advertises HEVC Main10
       // support in its hardware decoder but then errors mid-playback). VLC
       // and mpv use FFmpeg software decode and play these files fine, so we
-      // reopen once with software decode and let the user keep watching.
+      // reopen once with software decode and let the user keep watching. If
+      // software was already tried (e.g. yuv444p12le Rext 12-bit 444, which
+      // no MediaCodec decoder handles), cascade to the mpv fallback.
       if (isVideoDecodeError(code)) {
-        _trySoftwareDecodeFallback();
+        _trySoftwareDecodeFallback(friendly);
         return;
       }
       _setTerminalError(friendly);

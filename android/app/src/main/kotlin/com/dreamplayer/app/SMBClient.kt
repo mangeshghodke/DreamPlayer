@@ -294,11 +294,15 @@ class SMBClient(private val context: Context) {
         )
     }
 
-    private val executor = Executors.newSingleThreadExecutor()
+    // 4-thread pool: directory listings + share probes + open-share can run in
+    // parallel. SingleThread was the stall source — browsing a folder queued
+    // behind a slow listShares probe. Nova's FileCoreLibrary uses a cached pool
+    // for the same reason (jcifs-ng CIFSContext child per call is thread-safe).
+    private val executor = Executors.newFixedThreadPool(4)
 
-    /// Discovery + reachability probes are fast and must NOT block the single
-    /// browse executor (a slow scan would stall folder browsing), so they get
-    /// their own pool and run concurrently.
+    /// Discovery + reachability probes are fast and must NOT block the browse
+    /// executor (a slow scan would stall folder browsing), so they get their
+    /// own pool and run concurrently.
     private val quickExecutor = Executors.newCachedThreadPool()
 
     fun configure(channel: MethodChannel) {
