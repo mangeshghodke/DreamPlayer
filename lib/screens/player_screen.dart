@@ -1172,7 +1172,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     _mpvSubs.add(player.stream.subtitle.listen((lines) {
       if (!mounted) return;
       _mpvSubtitleLines = lines.where((l) => l.trim().isNotEmpty).toList();
-      _mpvSubtitleOn = _mpvSubtitleLines.isNotEmpty;
       setState(() {});
     }));
     _mpvSubs.add(player.stream.width.listen((v) {
