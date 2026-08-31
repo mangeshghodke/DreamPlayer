@@ -33,3 +33,35 @@ class ResumeStore {
     await prefs.remove(_prefix + key);
   }
 }
+
+/// Persists which playback engine was last used for a given video so the
+/// details-screen resume button can highlight the matching engine.
+///
+/// Values are plain strings (`"media3"` or `"mpv"`) so this store has no
+/// dependency on the `PlayEngine` enum defined in player_screen.
+class LastEngineStore {
+  LastEngineStore._();
+
+  static const String _prefix = 'last_engine_';
+
+  /// Returns `"media3"` or `"mpv"` if the engine was recorded, null otherwise.
+  static Future<String?> load(String key) async {
+    if (key.isEmpty) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final val = prefs.getString(_prefix + key);
+    if (val == null || val.isEmpty) return null;
+    return val;
+  }
+
+  static Future<void> save(String key, String engine) async {
+    if (key.isEmpty || engine.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefix + key, engine);
+  }
+
+  static Future<void> clear(String key) async {
+    if (key.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefix + key);
+  }
+}

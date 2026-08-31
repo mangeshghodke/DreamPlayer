@@ -3,6 +3,22 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.3.9
+
+### Added
+
+- **Two play engines, your choice — "Play with MPV" (Android)** — the TMDb details screen now offers a second, user-selected engine next to the primary Play button. `Play with MPV` starts the bundled libmpv engine up front (no ExoPlayer backend at all), so any file that Media3's hardware/software decode can't open (12-bit HEVC Rext 4:4:4 like the `yuv444p12le` Kakegurui files, corrupt containers, unknown codecs) plays through libmpv's bundled FFmpeg instead — pick the engine before you hit the wall. mpv runs **hardware-first** (`hwdec=auto-safe` over MediaCodec) and falls back to its own FFmpeg software decode when the hardware can't handle a stream. Renders into a Flutter texture, so it is **SDR-only** — Dolby Vision / HDR10(+) files keep the Media3 engine (the chip in the row tells you: "SDR only — no Dolby Vision / HDR"). The ⓘ info sheet labels the active engine `Engine · libmpv`. iOS keeps a single Play (AetherEngine); the MPV option is Android-only.
+- **MPV audio passthrough config (Android)** — the mpv engine switches to the AudioTrack audio output and enables SpDIF passthrough for `ac3,eac3,dts,dts-hd,truehd` (Dolby Atmos / DTS-HD / DTS / AC3 / TrueHD). When the active output device can't take a bitstream (phone speakers, Bluetooth earbuds) libmpv transparently decodes to PCM, so audio always plays.
+- **"Try with MPV" on the Media3 error surface (Android)** — when the native engine reaches a terminal error that its own software-decode fallback couldn't recover from, the error overlay now shows a `Try with MPV` button that hands the same file to the libmpv engine on the spot.
+- **Resume button highlights the engine that played last** — the TMDb details screen now tracks which engine (Media3 or MPV) was last used per video via `LastEngineStore`. When a video was last played through MPV, the MPV button shows "Resume from m:ss (MPV)" with a highlighted tint, and the main Play button stays plain. When last played through Media3 (or never played), the main button shows "Resume from m:ss" as before.
+
+### Changed
+
+- **Media3 no longer auto-switches to mpv.** The old behavior (a terminal Media3 decode error silently flipped the whole screen to the mpv fallback) is gone: the native engine now exhausts its own software-decode retries and then shows the error, and the choice to switch engines is always the user's (up front on the details screen, or via `Try with MPV` on the error surface).
+- **MPV surface attach race fixed** — replaced the brittle 150ms delay before `player.play()` with `controller.platform.future` (deterministic signal from the native surface attach). hwdec + audio output are now configured AFTER the surface is attached but BEFORE `player.play()`, so MediaCodec hwdec gets a valid surface from the first decoded frame (fixes the "Both surface and native_window are NULL" race, matching mpv-android's attach-before-decode pattern).
+- **MPV auto software decode for transport streams and legacy containers** — files with extensions `.m2ts`, `.ts`, `.m2t`, `.m2p`, `.vob`, `.mpg`, `.mpeg`, `.wmv`, `.rmvb`, `.flv`, `.ogv`, `.dat` now force `hwdec=no` in the mpv engine regardless of the user's decoder mode setting, because these containers routinely stall or fail under MediaCodec hardware decode (e.g. the Dolby Atmos `.m2ts` test file hung on the first frame with hwdec). The decoder mode toggle in the ⋮ sheet still works for overriding.
+- **SMB loopback read cap lowered to 256 KiB** — `SmbHttpProxy.kt` CHUNK reduced from 1 MiB to 256 KiB, the empirically-safe SMB read size that matches the NAS's negotiated MaxReadSize and prevents mid-stream `SmbRandomAccessFile.read` failures that truncated the HTTP body and surfaced in mpv as "http: Stream ends prematurely".
+
 ## 0.3.8
 
 ### Added

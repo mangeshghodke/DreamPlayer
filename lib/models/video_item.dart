@@ -268,6 +268,37 @@ class VideoItem {
     );
   }
 
+  /// A copy of this item with [externalSubtitles] replaced by [subs].
+  /// Used by the mpv primary-engine path, which resolves the subtitles before
+  /// the engine opens (mirroring the Media3 `open()` flow).
+  VideoItem withExternalSubtitles(List<VideoExternalSub> subs) {
+    return VideoItem(
+      id: id,
+      title: title,
+      path: path,
+      uri: uri,
+      resumeKey: resumeKey,
+      duration: duration,
+      sizeBytes: sizeBytes,
+      resolution: resolution,
+      videoCodec: videoCodec,
+      hdrHint: hdrHint,
+      audioCodec: audioCodec,
+      audioProfile: audioProfile,
+      audioChannels: audioChannels,
+      subtitleUri: subtitleUri,
+      httpHeaders: httpHeaders,
+      allowSelfSigned: allowSelfSigned,
+      jellyfinServerId: jellyfinServerId,
+      jellyfinItemId: jellyfinItemId,
+      webdavServerId: webdavServerId,
+      ftpServerId: ftpServerId,
+      externalSubtitles: subs,
+      chapters: chapters,
+      isTranscoded: isTranscoded,
+    );
+  }
+
   String? get videoCodecLabel {
     final label = formatVideoCodec(videoCodec);
     return label == 'Unknown' ? null : label;

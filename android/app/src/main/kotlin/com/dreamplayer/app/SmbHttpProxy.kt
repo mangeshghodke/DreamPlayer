@@ -59,25 +59,23 @@ object SmbHttpProxy {
     private var port = -1
     @Volatile private var appContext: Context? = null
 
-    private const val CHUNK = 1024 * 1024  // 1 MiB reads — reduces lock acquisitions
+    // jcifs-ng streaming reads are bound by the NAS's negotiated MaxReadSize
+    // (snd/rcv/transaction buf, defaults 65535; larger requests get truncated or
+    // rejected — see the "Lesson learned on-device" note). 1 MiB reads caused
+    // mid-stream SmbRandomAccessFile.read failures that truncated the HTTP body
+    // and surfaced in mpv as "http: Stream ends prematurely". 256 KiB is the
+    // empirically-safe SMB read size (same cap the WebDAV/SFTP readers use).
+    private const val CHUNK = 256 * 1024  // 256 KiB — safe SMB read size
 
-    /// Largest body served for ONE request. ffmpeg/mpv asks for open-ended
-    /// ranges (`bytes=<seek>-`), i.e. "everything to EOF". Honouring that
-    /// literally means one response streams hundreds of MB while holding its
-    /// SMB handle — and when the user seeks, mpv abandons that connection but
-    /// stops READING it rather than closing it, so our `out.write` blocks on a
-    /// full socket buffer forever and the handle never comes back. The next
-    /// seek then leases another handle, and after MAX_IDLE stalled streams the
-    /// pool is exhausted and playback dies (observed: the same offset
-    /// re-requested every ~12 s, never progressing).
-    ///
-    /// HTTP explicitly allows a server to satisfy a range request with a
-    /// SHORTER range than asked for, as long as `Content-Range` and
-    /// `Content-Length` agree. ffmpeg's HTTP demuxer handles that natively (it
-    /// reads `Content-Range`'s total for the file size and re-issues a request
-    /// for the next span), so capping the body bounds both the wasted work on
-    /// an abandoned connection and how long a handle stays leased.
-    private const val MAX_BODY = 16L * 1024 * 1024
+    // No body cap — streaming is already chunked at CHUNK (256 KiB) so memory
+    // is bounded regardless of response size.  The old 16 MB cap caused ffmpeg/
+    /// mpv's HTTP demuxer to report "Stream ends prematurely at N, should be
+    /// total" on every response: mpv reads Content-Range's total file size,
+    /// receives only the capped subset, and treats the gap as a premature
+    /// close.  Removing the cap lets the full requested range stream in one
+    /// response; abandoned connections (user seeks mid-stream) are handled by
+    /// the IOException catch on out.write, which breaks the loop and releases
+    /// the handle.
 
     @Synchronized
     private fun ensureStarted(context: Context): Boolean {
@@ -256,9 +254,17 @@ object SmbHttpProxy {
                 return
             }
             try {
-                streamResponse(sock, handle, raf, method, rangeHeader)
+                val toRelease = streamResponse(sock, handle, raf, method, rangeHeader, context)
+                // A non-null return is the handle to park (usually the original
+                // `raf`); null means a mid-stream swap already parked its own
+                // fresh handle and closed the original, so nothing to release.
+                if (toRelease != null) releaseRaf(handle, toRelease)
             } finally {
-                releaseRaf(handle, raf)
+                // If a mid-stream SMB failure caused streamResponse to swap in a
+                // fresh handle, the ORIGINAL `raf` was already closed inside the
+                // swap and must NOT be parked (a closed handle in the idle pool
+                // would poison the next lease). streamResponse handles that by
+                // returning null — the finally below intentionally does nothing.
             }
         } catch (_: Exception) {
             // Connection-level failures (client closed early) are not errors.
@@ -270,13 +276,18 @@ object SmbHttpProxy {
         }
     }
 
+    /// Streams the requested byte range, returning the `SmbRandomAccessFile`
+    /// the caller should release. On a persistent SMB read failure it swaps in a
+    /// freshly-opened handle (which it closes/parked itself via [releaseRaf])
+    /// and returns null so the caller parks nothing and skips the dead original.
     private fun streamResponse(
         sock: Socket,
         handle: Handle,
         raf: SmbRandomAccessFile,
         method: String,
         rangeHeader: String?,
-    ) {
+        context: Context,
+    ): SmbRandomAccessFile? {
         val total = handle.size
         var start: Long
         var end: Long
@@ -285,7 +296,7 @@ object SmbHttpProxy {
             val parsed = parseRange(rangeHeader, total)
             if (parsed == null) {
                 respondStatus(sock, "416 Range Not Satisfiable")
-                return
+                return raf
             }
             start = parsed.first
             end = parsed.second
@@ -296,13 +307,7 @@ object SmbHttpProxy {
         }
         if (total < 0) {
             respondStatus(sock, "404 Not Found")
-            return
-        }
-        // Cap the body (see MAX_BODY): an abandoned open-ended stream would
-        // otherwise pin its SMB handle until the socket write blocks forever.
-        if (end - start + 1 > MAX_BODY) {
-            end = start + MAX_BODY - 1
-            isRange = true
+            return raf
         }
         val length = end - start + 1
         val status = if (isRange) "206 Partial Content" else "200 OK"
@@ -321,19 +326,58 @@ object SmbHttpProxy {
         val out = sock.getOutputStream()
         out.write(headerBytes)
         out.flush()
-        if (method == "HEAD") return
+        if (method == "HEAD") return raf
         raf.seek(start)
         var remaining = length
+        // The handle we're actively reading through. Needs to be reassignable:
+        // on a persistent SMB read failure we swap in a freshly-opened handle for
+        // the same file and keep streaming, so a stale NAS session doesn't
+        // truncate the HTTP body (which mpv reports as "http: Stream ends
+        // prematurely" and kills playback).
+        var active = raf
         val buf = ByteArray(CHUNK)
         while (remaining > 0) {
             if (handle.closed) break
             val want = minOf(remaining, CHUNK.toLong()).toInt()
-            val n = try {
-                raf.read(buf, 0, want)
-            } catch (_: IOException) {
-                -1
+            var n = 0
+            // Retry a bounded number of recoverable reads. SmbRandomAccessFile
+            // can transiently fail mid-stream (NAS session hiccup, read timeout);
+            // returning -1 immediately would truncate the HTTP body while
+            // Content-Length still promises full bytes -> mpv reports "http:
+            // Stream ends prematurely" and playback dies.
+            var failCount = 0
+            while (n == 0 && failCount < 3) {
+                n = try {
+                    active.read(buf, 0, want)
+                } catch (_: IOException) {
+                    failCount++
+                    -1
+                }
+                if (n == 0) failCount++
+                if (n < 0) failCount++
             }
-            if (n < 0) break
+            if (n < 0) {
+                // A persistent SMB read failure means the parked session went
+                // stale. Open ONE fresh handle, re-seek to the current offset,
+                // and continue through it — cheap compared to losing the whole
+                // stream (mpv would then re-probe from scratch).
+                val fresh = try {
+                    val f = openRaf(handle, context)
+                    f.seek(start + (length - remaining))
+                    f
+                } catch (_: Exception) {
+                    null
+                }
+                if (fresh != null) {
+                    try {
+                        active.close()
+                    } catch (_: IOException) {
+                    }
+                    active = fresh
+                    continue
+                }
+                break
+            }
             try {
                 out.write(buf, 0, n)
             } catch (_: IOException) {
@@ -345,6 +389,15 @@ object SmbHttpProxy {
             out.flush()
         } catch (_: IOException) {
         }
+        // Return the handle the caller should park: the (possibly swapped-in)
+        // active one. If it differs from the original `raf`, park it here and
+        // return null so the caller parks nothing — the original `raf` was
+        // already closed during the swap and must not re-enter the idle pool.
+        if (active !== raf) {
+            releaseRaf(handle, active)
+            return null
+        }
+        return raf
     }
 
     /// Returns (start, end) for a single byte range, or null when unsatisfiable.

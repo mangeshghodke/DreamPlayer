@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io' show Platform;
 
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
@@ -64,6 +65,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// Saved playhead for this video (mirrors the player's resume lookup), used
   /// to label the action button "Resume from m:ss" instead of "Play".
   Duration? _resumePosition;
+
+  /// Which engine was last used to play this video (`"media3"` or `"mpv"`).
+  /// When set, the matching button is tinted so the user sees which engine
+  /// will resume from the saved position.
+  String? _lastEngine;
 
   /// Folder mode only: the folder's direct entries (files + subfolders).
   List<FileEntry> _entries = const [];
@@ -410,7 +416,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// "basically finished" ones.
   Future<void> _loadResume() async {
     if (_resumeKey.isEmpty) return;
-    var position = await ResumeStore.positionFor(_resumeKey);
+    final results = await Future.wait([
+      ResumeStore.positionFor(_resumeKey),
+      LastEngineStore.load(_resumeKey),
+    ]);
+    var position = results[0] as Duration?;
+    _lastEngine = results[1] as String?;
     if (position != null && position < const Duration(seconds: 10)) {
       position = null;
     }
@@ -460,17 +471,69 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     await _loadDetailsAndSeasons();
   }
 
-  Future<void> _play({bool fromBeginning = false}) async {
+  Future<void> _play({
+    bool fromBeginning = false,
+    PlayEngine engine = PlayEngine.media3,
+  }) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PlayerScreen(
           video: widget.video!,
           startFromBeginning: fromBeginning,
+          initialEngine: engine,
         ),
       ),
     );
     // The playhead may have moved (or the video finished) — refresh the label.
     await _loadResume();
+  }
+
+  /// The libmpv engine is Android-only (iOS playback is AetherEngine), so the
+  /// "Play with MPV" option only shows on Android — iOS keeps its single Play.
+  bool get showMpvOption => Platform.isAndroid;
+
+  /// The secondary engine button: picks libmpv up front, before any Media3
+  /// backend is created. mpv runs hardware-first (`hwdec=auto-safe`) and falls
+  /// back to its own FFmpeg software decode — a full second main player, not a
+  /// fallback. Renders SDR (Flutter texture): no Dolby Vision / HDR there.
+  ///
+  /// When the user previously played this video via mpv, the button is tinted
+  /// and carries the "Resume from m:ss" label so the user knows which engine
+  /// holds the saved playhead.
+  List<Widget> _mpvButton({required Duration? resume}) {
+    final isLastEngine = _lastEngine == 'mpv' && resume != null;
+    final label = isLastEngine
+        ? 'Resume from ${_formatClock(resume)} (MPV)'
+        : 'Play with MPV';
+    final icon = const Icon(Icons.video_settings_outlined);
+    return [
+      const SizedBox(height: 8),
+      isLastEngine
+          ? FilledButton.icon(
+              onPressed: () => _play(engine: PlayEngine.mpv),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+              ),
+              icon: icon,
+              label: Text(label, overflow: TextOverflow.ellipsis),
+            )
+          : OutlinedButton.icon(
+              onPressed: () => _play(engine: PlayEngine.mpv),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+              icon: icon,
+              label: Text(label, overflow: TextOverflow.ellipsis),
+            ),
+      const SizedBox(height: 4),
+      const Text(
+        'SDR only — no Dolby Vision / HDR (Media3 handles those)',
+        style: TextStyle(fontSize: 11, color: Colors.white54),
+        textAlign: TextAlign.center,
+      ),
+    ];
   }
 
   /// Folder mode: open an entry. Subfolders go into [FolderScreen] (deep
@@ -610,47 +673,64 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                 // Always reachable: a metadata failure (or a slow lookup) must
                 // never block playing the video, whatever the metadata state.
                 child: resume != null
-                    ? Row(
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: _play,
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(52),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: _play,
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(52),
+                                  ),
+                                  icon: const Icon(Icons.play_arrow),
+                                  label: Text(
+                                    _lastEngine == 'mpv'
+                                        ? 'Play'
+                                        : 'Resume from ${_formatClock(resume)}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                               ),
-                              icon: const Icon(Icons.play_arrow),
-                              label: Text(
-                                'Resume from ${_formatClock(resume)}',
-                                overflow: TextOverflow.ellipsis,
+                              const SizedBox(width: 12),
+                              // Icon-only tonal sibling of the Resume button
+                              // (label removed per feedback — the replay glyph is
+                              // the affordance; the tooltip keeps the meaning
+                              // discoverable on hover/long-press).
+                              Tooltip(
+                                message: 'Watch from beginning',
+                                child: FilledButton.tonal(
+                                  onPressed: () =>
+                                      _play(fromBeginning: true),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size(52, 52),
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                  child: const Icon(Icons.replay),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          // Icon-only tonal sibling of the Resume button
-                          // (label removed per feedback — the replay glyph is
-                          // the affordance; the tooltip keeps the meaning
-                          // discoverable on hover/long-press).
-                          Tooltip(
-                            message: 'Watch from beginning',
-                            child: FilledButton.tonal(
-                              onPressed: () =>
-                                  _play(fromBeginning: true),
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size(52, 52),
-                                padding: EdgeInsets.zero,
-                              ),
-                              child: const Icon(Icons.replay),
-                            ),
-                          ),
+                          if (showMpvOption)
+                            ..._mpvButton(resume: resume),
                         ],
                       )
-                    : FilledButton.icon(
-                        onPressed: _play,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                        ),
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Play'),
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: _play,
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(52),
+                            ),
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Play'),
+                          ),
+                          if (showMpvOption) ..._mpvButton(resume: null),
+                        ],
                       ),
               ),
             )

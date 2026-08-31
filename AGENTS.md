@@ -211,32 +211,51 @@ A video player app supporting:
     Files app keep their access scope for the playback session. Opening a file
     auto-plays it: the intent pushes `PlayerScreen`, whose `open()` runs with
     `autoplay: true`.
-- **libmpv (media_kit) fallback engine (2026-08-29, on-device verified)** —
-  when the native ExoPlayer engine surfaces a terminal error that the existing
-  IO-retry path can't recover (e.g. a hardware-decoder failure that has already
-  been downgraded to software once, a corrupt container, or a codec no ExoPlayer
-  renderer can find), the same `PlayerScreen` flips to a bundled **libmpv**
-  instance — `media_kit: ^1.2.6` + `media_kit_video: ^2.0.1` +
-  `media_kit_libs_android_video: ^1.3.8` in `pubspec.yaml`; the engine renders into a
-  Flutter `Texture` (media_kit's `VideoController`) and drives the SAME UI
-  (transport, seekbar, gestures, auto-hide, ended-routing, resume). It cannot
-  do DV/HDR (Flutter textures have no HDR path), so the native engine keeps
-  the project goal — the fallback exists so a user gets a working player
-  instead of an error overlay when the native engine can't. **iOS does NOT
-  fall back** (AetherEngine handles everything AetherEngine supports;
-  iOS-only-codec AVPlayer failures bubble up normally).
-  - **When it engages**: any `PlaybackException` whose code is in
-    `isVideoDecodeError` (`player_error.dart`) — `ERROR_CODE_DECODING_FAILED`,
-    `…_DECODER_INIT_FAILED`, `…_DECODER_QUERY_FAILED`,
-    `…_DECODING_FORMAT_UNSUPPORTED`,
-    `…_DECODING_FORMAT_EXCEEDS_CAPABILITIES`,
-    `…_DECODING_RESOURCES_RECLAIMED` — AFTER the existing
-    software-decoder auto-fallback has already run, OR for terminal IO errors
-    on a corrupt container. The Dart side tears down the ExoPlayer platform
-    view and mounts a `Texture` widget in its slot; a one-time toast banner
-    tells the user "This video isn't supported by the built-in player, so the
-    fallback player is being used." A small `Engine · libmpv (software)` chip
-    in the ⓘ info sheet shows the active engine.
+- **libmpv (media_kit) engine (2026-08-29 on-device verified; 2026-08-31 reworked
+  from "fallback" into a user-chosen SECOND engine)** — the same `PlayerScreen`
+  can run either engine in one build: **Media3** (native ExoPlayer platform
+  view, DV/HDR-capable) and **libmpv** (`media_kit: ^1.2.6` +
+  `media_kit_video: ^2.0.1` + `media_kit_libs_android_video: ^1.3.8`;
+  renders into a Flutter `Texture` via media_kit's `VideoController`). Both
+  drive the SAME UI (transport, seekbar, gestures, auto-hide, ended-routing,
+  resume, PiP, chapters, CC sheet). The engine is chosen by the USER: the TMDb
+  details screen offers **Play** (Media3) and **Play with MPV** (libmpv),
+  and the Media3 error surface offers **Try with MPV**.
+  - **No auto-switch (2026-08-31)**: Media3 NO LONGER auto-falls back to mpv.
+    On a terminal error after its own software-decoder retry, the error surface
+    appears with a manual `Try with MPV` button. The 0.3.8 auto-cascade
+    (`_maybeMpvFallback`) was deleted. `PlayEngine { media3, mpv }` +
+    `PlayerScreen.initialEngine` (`_engine`) decided in `_init` BEFORE any
+    backend is created: `PlayEngine.mpv` skips the ExoPlayer platform view
+    entirely and calls `_startMpvPrimary()` (resolves external subs +
+    resume position, then `_startMpvFallback(automatic: false)`). The details
+    screen's `_play({engine})` passes the choice. iOS keeps a single Play
+    (AetherEngine); everything mpv is `Platform.isAndroid`-gated.
+  - **mpv is hardware-first, not software**: media_kit's VideoController sets
+    `hwdec=auto-safe` (MediaCodec for h264/hevc/mpeg4/mpeg2video/vp8/vp9/av1)
+    so libmpv uses the hardware decoder by default and drops to its bundled
+    FFmpeg software decode only when the hardware can't handle a stream. The
+    trivia in older notes ("libmpv (software)") was about the fallback being
+    software-only; as a primary engine it is hardware-backed like Media3.
+  - **Audio passthrough (`_configureMpvAudio`)**: media_kit hardcodes
+    `ao=opensles` (stereo-only on many SoCs). The bundled libmpv `.so` ships
+    the Android **AudioTrack** output + the **spdif** decoder, so on mpv start
+    `NativePlayer.setProperty` switches `ao='audiotrack'` (best-effort
+    try/catch — failure keeps opensles) and sets
+    `audio-spdif='ac3,eac3,dts,dts-hd,truehd'` for Dolby Atmos / AC3 / DTS /
+    DTS-HD / TrueHD passthrough on capable outputs; mpv transparently
+    PCM-decodes when the sink can't take a bitstream. `NativePlayer` is reached
+    via `player.platform` (public `Player` API has no `setProperty`).
+  - **Limits (unchanged)**: can't do DV/HDR (Flutter textures have no HDR
+    path) — `Engine · libmpv` + `SDR (MPV)` in the info sheet and the details
+    row caption "SDR only — no Dolby Vision / HDR" keep that honest, and
+    Media3 stays the DV/HDR engine. **iOS does NOT run mpv** (AetherEngine
+    handles everything AetherEngine supports; iOS-only-codec AVPlayer failures
+    bubble up normally).
+  - **Primary-path subs**: `_startMpvPrimary` resolves sibling sidecars via
+    `_resolveExternalSubtitles` and stamps them on `_current` with
+    `withExternalSubtitles(...)` so `_attachMpvExternalSubtitles` picks them
+    up (the old auto-fallback path relied on browser-carried subs only).
   - **SMB → loopback HTTP bridge (`SmbHttpProxy.kt`)**: jcifs-ng only talks to
     Media3-native `DataSource`s; libmpv can't read `smb://`. Solution: a tiny
     HTTP/1.1 server (`ServerSocket` accept loop, one daemon thread per
@@ -255,13 +274,13 @@ A video player app supporting:
   - **External subtitles (`_attachMpvExternalSubtitles`)**: mpv's own
     `sub-auto=exact` only scans sidecars next to a local video file — for
     SMB loopback URLs / http(s) sources there is no directory to scan, so the
-    Media3 path's resolved external subs have to be added explicitly. Order:
-    non-default subs first via raw `sub-add <uri> <title> <lang>` (so they
-    populate mpv's `track-list` for the CC sheet to pick from), then the
-    default track last via `SubtitleTrack.uri(…)` (`setSubtitleTrack`) so
-    mpv's final selected track is the one the Media3 path would have
-    selected. `_mpvSubtitleOn` reflects the current selection. Mirrors
-    Media3's **external > embedded always** priority rule.
+    resolved external subs have to be added explicitly. Order: non-default
+    subs first via raw `sub-add <uri> <title> <lang>` (so they populate mpv's
+    `track-list` for the CC sheet to pick from), then the default track last
+    via `SubtitleTrack.uri(…)` (`setSubtitleTrack`) so mpv's final selected
+    track is the one the Media3 path would have selected. `_mpvSubtitleOn`
+    reflects the current selection. Mirrors Media3's
+    **external > embedded always** priority rule.
   - **Picture-in-picture for the fallback engine (`PipManager.kt`,
     `MpvPipService`)**: A Flutter texture receives no touches in pip, so the
     Media3 path's normal player chrome is useless there. New
@@ -330,7 +349,7 @@ A video player app supporting:
 | SMB client (iPad) | **removed (2026-08)** | In-app SMB (AMSMB2 browse + AetherEngineSMB playback) was retired; NAS playback is WebDAV / Jellyfin / Files-app "Open with". `AetherEngineSMB` still ships for WebDAV's `ByteRangeSource`. |
 | Android audio decode | Media3 `FFmpegAudioRenderer` (ffmpeg extension) | DTS, DTS-HD, E-AC3, AC3, TrueHD — same bundled-FFmpeg approach Nova uses. |
 | Reference architecture | **Nova Video Player** (`nova-video-player/aos-AVP`) | See "Playback research notes". |
-| **Fallback engine (Android)** | **media_kit + libmpv** (FFmpeg software decode, Flutter `Texture` render) | Engaged automatically when the native engine surfaces a terminal decode error after the existing software-decoder auto-fallback has run. Renders into a Flutter texture so no DV/HDR — by design, the native engine keeps the project goal. Ships `libmpv.so` via `media_kit_libs_android_video` — Android-only, so iOS doesn't pull in `Mpv.framework` (which breaks SideStore's `ldid` signer). iOS does not fall back. |
+| **Second engine (Android)** | **media_kit + libmpv** (hardware-first via `hwdec=auto-safe`, FFmpeg software fallback, Flutter `Texture` render) | **User-chosen** second engine: `Play with MPV` on the TMDb details screen (or `Try with MPV` on the Media3 error surface). Renders into a Flutter texture so no DV/HDR — by design, Media3 keeps the project goal. Ships `libmpv.so` via `media_kit_libs_android_video` — Android-only, so iOS doesn't pull in `Mpv.framework` (which breaks SideStore's `ldid` signer). iOS does not run mpv. |
 | Permissions | `permission_handler` | Runtime `READ_MEDIA_VIDEO` request on video open |
 | Refresh rate | `flutter_displaymode` | Selects highest refresh mode at startup |
 

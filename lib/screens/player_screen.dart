@@ -48,7 +48,12 @@ enum _SwipeType { brightness, volume }
 enum _PanAxis { horizontal, vertical }
 
 class PlayerScreen extends StatefulWidget {
-  const PlayerScreen({super.key, required this.video, this.startFromBeginning = false});
+  const PlayerScreen({
+    super.key,
+    required this.video,
+    this.startFromBeginning = false,
+    this.initialEngine = PlayEngine.media3,
+  });
 
   final VideoItem video;
 
@@ -56,9 +61,21 @@ class PlayerScreen extends StatefulWidget {
   /// beginning of the video (the "Watch from beginning" entry point).
   final bool startFromBeginning;
 
+  /// Which playback engine to start with: the native ExoPlayer/Media3
+  /// platform view (hardware-first, software fallback, DV/HDR) or the bundled
+  /// libmpv (media_kit) engine (hardware-first via `hwdec=auto-safe`, its own
+  /// internal software fallback, SDR-only Flutter texture).
+  final PlayEngine initialEngine;
+
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
+
+/// The active playback engine. Media3 is the default (and handles DV/HDR);
+/// libmpv (media_kit) is the user-pickable second engine — chosen up front on
+/// the details screen ("Play with MPV") or from the Media3 error surface
+/// ("Try with MPV"). Media3 never auto-switches to mpv.
+enum PlayEngine { media3, mpv }
 
 class _PlayerScreenState extends State<PlayerScreen>
     with WidgetsBindingObserver {
@@ -67,18 +84,18 @@ class _PlayerScreenState extends State<PlayerScreen>
   PlaybackController? _exo;
   StreamSubscription<ExoPlayerEvent>? _exoSub;
 
-  /// libmpv (media_kit) fallback engine, engaged automatically when the native
-  /// engine reaches a terminal error. It replaces the [ExoPlayerView] in the
-  /// video slot and drives the SAME player UI (transport, seekbar, gestures,
-  /// auto-hide, ended-routing, resume) — the user keeps their normal player.
-  /// Renders into a Flutter texture, so no DV/HDR — appropriate, since the
-  /// fallback exists for content/decoders the native engine can't show.
+  /// libmpv (media_kit) second engine, engaged only by explicit user choice —
+  /// `PlayEngine.mpv` from the details screen or "Try with MPV" on the Media3
+  /// error surface. It replaces the [ExoPlayerView] in the video slot and
+  /// drives the SAME player UI (transport, seekbar, gestures, auto-hide,
+  /// ended-routing, resume) — the user keeps their normal player. Renders into
+  /// a Flutter texture, so no DV/HDR by design; runs hardware-first
+  /// (`hwdec=auto-safe`) with its own FFmpeg software fallback.
   Player? _mpvPlayer;
   VideoController? _mpvController;
   bool _mpvActive = false;
   bool _mpvFailed = false;
   String? _mpvError;
-  bool _mpvFallbackTried = false;
   final List<StreamSubscription<Object?>> _mpvSubs = [];
   BoxFit _mpvFit = BoxFit.contain;
   /// Forced aspect ratio applied in mpv mode for the 16:9 / 4:3 aspect modes
@@ -93,6 +110,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _mpvSubtitleOn = false;
   double _mpvBrightness = 1.0;
   double _mpvZoomScale = 1.0;
+  /// Last hwdec value applied to the mpv instance ('auto-safe', 'mediacodec',
+  /// 'no'). Displayed in the ⓘ info sheet so the user can see whether mpv is
+  /// using hardware or software decoding.
+  String _mpvHwdecMode = 'auto-safe';
   /// Active SMB loopback-bridge token (see [SmbHttpProxy] / `startLoopback`);
   /// null when the fallback's current source isn't served through the bridge.
   String? _mpvProxyToken;
@@ -101,6 +122,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// load, and is replaced by the server-transcoded variant when the Jellyfin
   /// transcode fallback fires.
   late VideoItem _current = widget.video;
+
+  /// Engine chosen by the user on the details screen ("Play" = Media3,
+  /// "Play with MPV" = libmpv). Media3 is the default and is also used for
+  /// every non-details entry point (intents, "Open with", play-next).
+  late final PlayEngine _engine = widget.initialEngine;
 
   bool _controlsVisible = true;
   bool _fullscreen = false;
@@ -283,7 +309,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   String get _resumeKey =>
       _current.resumeKey ?? _current.path ?? _current.uri ?? '';
 
-  bool get _backendReady => _exo != null;
+  /// True when a playback backend (Media3 or mpv) is alive and can accept
+  /// transport commands (play/pause, seek). The center buttons use this to
+  /// decide whether they are enabled or greyed out.
+  bool get _backendReady => _exo != null || _mpvReady;
 
   /// True while the mpv fallback owns the video slot and its output is alive.
   bool get _mpvReady =>
@@ -324,26 +353,45 @@ class _PlayerScreenState extends State<PlayerScreen>
       unawaited(Permission.notification.request());
     }
     try {
-      final exo = ExoPlayerController();
-      _exo = exo;
-      _exoSub = exo.events.listen(_onExoEvent);
+      // Persisted prefs shared by both engines (fit, speed, gestures,
+      // play-next / repeat / shuffle) — resolve before choosing a backend.
       try {
         _fitMode = await FitModeStore.load();
         _playbackSpeed = await PlaybackSpeedStore.load();
-        _audioBoost = await PlaybackBoostStore.load();
-        _nightMode = await NightModeStore.load();
         _swipeEnabled = await areSwipeGesturesEnabled();
-        _subtitleDelayMs = (await SubtitleStyle.load()).delayMs;
         _autoPlayNext = await isAutoPlayNextEnabled();
         _repeat = await PlaybackModesStore.loadRepeat();
         _shuffle = await PlaybackModesStore.loadShuffle();
-        _decoderMode = await DecoderModeStore.load();
-        // Repeat one loops natively on Android (no ended event); iOS handles
-        // the restart from the Dart ended-handler.
-        unawaited(exo.setRepeatMode(_repeat.index));
       } catch (_) {
-        // Persistence unavailable; keep the default fit.
+        // Persistence unavailable; keep the defaults.
       }
+
+      // The user chose the libmpv engine on the details screen ("Play with
+      // MPV"): start it directly — no ExoPlayer platform view, and no auto
+      // jump to mpv later. libmpv itself runs hardware-first
+      // (`hwdec=auto-safe`, MediaCodec) and falls back to its bundled FFmpeg
+      // software decode when the hardware can't decode a stream.
+      if (_engine == PlayEngine.mpv) {
+        await _startMpvPrimary();
+        unawaited(LastEngineStore.save(_resumeKey, 'mpv'));
+        return;
+      }
+
+      try {
+        _audioBoost = await PlaybackBoostStore.load();
+        _nightMode = await NightModeStore.load();
+        _subtitleDelayMs = (await SubtitleStyle.load()).delayMs;
+        _decoderMode = await DecoderModeStore.load();
+      } catch (_) {}
+
+      final exo = ExoPlayerController();
+      _exo = exo;
+      _exoSub = exo.events.listen(_onExoEvent);
+      // Repeat one loops natively on Android (no ended event); iOS handles
+      // the restart from the Dart ended-handler.
+      try {
+        unawaited(exo.setRepeatMode(_repeat.index));
+      } catch (_) {}
       // Push the saved subtitle appearance (size/color/background/outline +
       // cue delay) so native rendering matches Settings from frame one.
       try {
@@ -355,6 +403,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       } catch (_) {}
       if (mounted) setState(() {});
       await _openCurrent();
+      unawaited(LastEngineStore.save(_resumeKey, 'media3'));
       // Save the original screen brightness so we can restore it on dispose.
       // On Android this is automatic (Window brightness reverts when the
       // activity closes); on iOS UIScreen.main.brightness persists within
@@ -509,12 +558,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// when the screen is disposed.
   ///
   /// If software has already been tried (or was the active mode), the file is
-  /// genuinely undecodable on any MediaCodec path — hand it to the mpv fallback
-  /// instead of leaving the player stuck on “retrying with software…”. The
-  /// yuv444p12le Kakegurui files (HEVC Rext 12-bit 444) hit exactly this: even
-  /// the software MediaCodec decoder (c2.android.hevc.decoder) advertises no
-  /// 12-bit 444 support, so the second decode error must cascade to mpv rather
-  /// than being swallowed.
+  /// genuinely undecodable on any MediaCodec path — surface the terminal error
+  /// so the user can switch engines with "Try with MPV" (the yuv444p12le
+  /// Kakegurui files, HEVC Rext 12-bit 444, hit exactly this: even the
+  /// software MediaCodec decoder advertises no 12-bit 444 support).
   Future<void> _trySoftwareDecodeFallback(String fallbackError) async {
     if (_swRetried || _decoderMode == DecoderMode.sw) {
       _setTerminalError(fallbackError);
@@ -523,33 +570,68 @@ class _PlayerScreenState extends State<PlayerScreen>
     _swRetried = true;
     _decoderOverride ??= _decoderMode;
     _decoderMode = DecoderMode.sw;
-    await DecoderModeStore.save(DecoderMode.sw);
+    // The SW mode is in-memory only (flows to the native player through the
+    // `decoderMode` open-channel arg on the reopen below) — deliberately NOT
+    // persisted to DecoderModeStore, so a force-kill can't leak a one-file
+    // software fallback into the next session as the user's decoder default.
+    // The user's real preference (Auto/HW/SW) stays untouched in the store.
     _error = 'Hardware decoder failed — retrying with software…';
     setState(() {});
     _reopenAt(_position, _duration);
   }
 
-  /// Terminal-error hook: on a media error the native stack can't resolve
-  /// (after the transcode + software-decode retries are exhausted), switch the
-  /// same screen over to the bundled libmpv fallback engine and keep playing.
-  /// Fires at most once per video and only when there is a source mpv can read.
-  void _maybeMpvFallback() {
-    if (_mpvFallbackTried || _mpvActive || _inTests) return;
+  /// Manual engine switch from the Media3 error surface ("Try with MPV"
+  /// button). Media3 never auto-jumps to mpv — the user's pick on the details
+  /// screen, or this explicit tap, are the only ways the mpv engine engages.
+  Future<void> _startMpvManual() async {
+    if (_mpvActive || _inTests) return;
+    if (!Platform.isAndroid) return;
     if (_mpvSourceFor(_current).isEmpty) return;
-    _mpvFallbackTried = true;
-    debugPrint('mpvFallback: engaging automatic fallback');
-    unawaited(_startMpvFallback());
+    debugPrint('mpv: engaging by user choice');
+    unawaited(_startMpvFallback(automatic: false));
   }
 
-  /// Sets a terminal backend error and, when the native stack cannot play the
-  /// file at all, continues in the mpv fallback instead of leaving the user at
-  /// a dead error screen.
+  /// Sets a terminal backend error. Media3 does NOT auto-fallback to mpv
+  /// anymore — the error surface shows a "Try with MPV" button instead, and
+  /// the details screen offers both engines up front.
   void _setTerminalError(String message) {
     if (mounted) setState(() => _error = message);
-    _maybeMpvFallback();
   }
 
-  Future<void> _startMpvFallback() async {
+  /// Starts the libmpv engine as the user's chosen PRIMARY player (details
+  /// screen "Play with MPV"): no ExoPlayer backend is created at all. Mirrors
+  /// the Media3 open-flow — resolve external subtitles (sidecar auto-pairing)
+  /// and the resume position — then hand the file to mpv, which decodes
+  /// hardware-first (`hwdec=auto-safe`) with its own internal FFmpeg software
+  /// fallback.
+  Future<void> _startMpvPrimary() async {
+    if (_inTests) return;
+    try {
+      final subs = await _resolveExternalSubtitles(_current);
+      if (subs.isNotEmpty) _current = _current.withExternalSubtitles(subs);
+      Duration? resume;
+      if (!widget.startFromBeginning) {
+        resume = await ResumeStore.positionFor(_resumeKey);
+        // Skip trivial positions and "basically finished" ones.
+        if (resume != null && resume < const Duration(seconds: 10)) {
+          resume = null;
+        }
+        if (resume != null &&
+            _current.duration > Duration.zero &&
+            _current.duration - resume < const Duration(seconds: 5)) {
+          resume = null;
+        }
+        if (resume != null) _position = resume;
+      }
+      await _startMpvFallback(automatic: false);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Could not start the MPV engine: $e');
+      }
+    }
+  }
+
+  Future<void> _startMpvFallback({bool automatic = true}) async {
     // The fallback is Android-only — iOS uses AetherEngine and its own
     // codec/error paths. Belt-and-braces: never instantiate libmpv on iOS.
     if (_mpvActive || _inTests) return;
@@ -586,23 +668,97 @@ class _PlayerScreenState extends State<PlayerScreen>
       // in the VideoController constructor; a failure there would otherwise
       // throw into the void and leave a black screen with no error.
       unawaited(controller.platform.future.then<void>(
-        (_) => debugPrint('mpvFallback: video output attached'),
+        (_) => debugPrint('mpv: video output attached'),
         onError: (Object e, StackTrace st) {
-          debugPrint('mpvFallback: video output attach failed: $e\n$st');
+          debugPrint('mpv: video output attach failed: $e\n$st');
           _markMpvFailed('The fallback video output couldn\'t start: $e');
         },
       ));
-      // Brief, honest signal that playback continued in a different engine.
-      final messenger = ScaffoldMessenger.of(context);
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text('This video isn\'t supported by the built-in player, so the fallback player is being used.'),
-          duration: Duration(seconds: 3),
-        ));
+      if (automatic && mounted) {
+        // Brief, honest signal that playback continued in a different engine.
+        final messenger = ScaffoldMessenger.of(context);
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(
+            content: Text('This video isn\'t supported by the built-in player, so the fallback player is being used.'),
+            duration: Duration(seconds: 3),
+          ));
+      }
       await _mpvOpen(player, _current, _position.inMilliseconds);
     } catch (e) {
-      _markMpvFailed('Fallback player couldn\'t start: $e');
+      _markMpvFailed('The MPV engine couldn\'t start: $e');
+    }
+  }
+
+  /// Configures the libmpv engine for wide multichannel + bitstream
+  /// passthrough on Android.
+  ///
+  /// media_kit's default `ao=opensles` downmixes to stereo on many SoCs and
+  /// cannot carry a compressed bitstream. The bundled libmpv (verified in the
+  /// `media_kit_libs_android_video` `.so`) also ships the Android **AudioTrack**
+  /// output — the AO used by mpv-android for passthrough — and the **spdif**
+  /// decoder for AC3 / E-AC3(Dolby Atmos) / DTS / DTS-HD / TrueHD. We switch
+  /// to it and enable SpDIF passthrough for those codecs. When the active
+  /// output device can't accept the raw bitstream (phone speakers, BT earbuds)
+  /// libmpv falls back to PCM decode, so audio always plays.
+  Future<void> _configureMpvAudio(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer || _inTests) return;
+    // Apply the user's decoder choice (Auto/Hardware/Software) as hwdec.
+    await _applyMpvHwdec(player);
+    // `ao` is an init-time option; media_kit set `opensles`. A runtime
+    // override is best-effort — if mpv rejects it the OpenSL output stays and
+    // passthrough simply degrades to PCM.
+    try {
+      await platform.setProperty('ao', 'audiotrack');
+      debugPrint('mpv: audio output = audiotrack');
+    } catch (e) {
+      debugPrint('mpv: ao=audiotrack unavailable, keeping opensles: $e');
+    }
+    // audio-spdif is intentionally omitted — it tells mpv to try SPDIF
+    // bitstream passthrough for compressed codecs. On phones (no SPDIF
+    // hardware) this always fails and falls back to software decode, but
+    // during audio track switches the SPDIF renegotiation stalls the audio
+    // reinit (AudioTrack stuck in FLUSHED state → no audio → video sync
+    // stalls). Without audio-spdif, mpv always software-decodes these
+    // codecs through its bundled FFmpeg, which works reliably on all
+    // outputs. Real SPDIF/HDMI passthrough is handled by the Media3
+    // engine's `audio_passthrough` setting.
+  }
+
+  /// Maps the user's [DecoderMode] onto libmpv's `hwdec` property.
+  ///
+  /// libmpv runs hardware-first by default (`auto-safe` = use the hardware
+  /// decoder whenever it can handle the stream, falling back to its bundled
+  /// FFmpeg software decode only when it can't — the same behavior as the
+  /// Media3 engine's "Auto"). The ⋮ sheet lets the user force hardware
+  /// (`mediacodec`) or software (`no`) for both engines.
+  Future<void> _applyMpvHwdec(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer || _inTests) return;
+    // Containers whose muxing/codec patterns routinely stall or fail under
+    // MediaCodec hwdec — transport streams, legacy formats, and MPEG-PS.
+    // Force software decode for these so mpv uses its bundled FFmpeg decoder
+    // instead of the device hardware, which may hang on the first frame
+    // (audio + video stuck, position frozen at 0:00).
+    final ext = _current.path?.split('.').last.toLowerCase() ??
+        _current.uri?.split('.').last.toLowerCase() ??
+        '';
+    final swOnly = const {
+      'm2ts', 'ts', 'm2t', 'm2p', 'vob', 'mpg', 'mpeg',
+      'wmv', 'rmvb', 'flv', 'ogv', 'dat',
+    }.contains(ext);
+    final value = switch (_decoderMode) {
+      DecoderMode.hw => 'mediacodec',
+      DecoderMode.sw => 'no',
+      _ => swOnly ? 'no' : 'auto-safe',
+    };
+    try {
+      await platform.setProperty('hwdec', value);
+      _mpvHwdecMode = value;
+      debugPrint('mpv: hwdec = $value${swOnly ? ' (sw-only container: .$ext)' : ''}');
+    } catch (e) {
+      debugPrint('mpv: hwdec=$value unavailable: $e');
     }
   }
 
@@ -611,7 +767,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _reloadMpv(VideoItem video, int startMs) async {
     final p = _mpvPlayer;
     if (p == null || _inTests) return;
-    _mpvFallbackTried = true;
     _mpvFailed = false;
     _mpvError = null;
     _current = video;
@@ -643,7 +798,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // it down before pointing mpv at the next source.
     await _stopMpvProxy();
     final src = _mpvSourceFor(video);
-    debugPrint('mpvFallback: opening source: $src');
+    debugPrint('mpv: opening source: $src');
     if (src.isEmpty) {
       _markMpvFailed('No playable source for this video.');
       return;
@@ -662,14 +817,143 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       if (!mounted) return;
     }
+    // Detect transport-stream / MPEG-PS extensions BEFORE opening so we can
+    // force the lavf demuxer. mpv's native TS demuxer can't handle Blu-ray
+    // m2ts packets (192-byte with 4-byte timestamp prefix) — it gets stuck
+    // scanning the same file offset repeatedly, never finding a sync point.
+    final ext = video.path?.split('.').last.toLowerCase() ??
+        video.uri?.split('.').last.toLowerCase() ??
+        '';
+    final useLavfDemuxer = const {
+      'm2ts', 'ts', 'm2t', 'm2p', 'vob', 'mpg', 'mpeg',
+    }.contains(ext);
+    try {
+      final platform = player.platform;
+      if (platform is NativePlayer && !_inTests) {
+        if (useLavfDemuxer) {
+          await platform.setProperty('demuxer', 'lavf');
+          debugPrint('mpv: demuxer = lavf (transport stream: .$ext)');
+        }
+      }
+    } catch (e) {
+      debugPrint('mpv: demuxer override unavailable: $e');
+    }
+    // Set hwdec BEFORE opening the file.  media_kit defaults to auto-safe,
+    // which creates a hardware decoder during open() — before the surface
+    // exists — causing "h264_mediacodec: Both surface and native_window are
+    // NULL".  Setting hwdec first means mpv uses the correct decoder pipeline
+    // from the very first frame (no wasted HW init + teardown on open).
+    try {
+      await _applyMpvHwdec(player);
+    } catch (e) {
+      debugPrint('mpv: hwdec pre-open unavailable: $e');
+    }
     try {
       final start = Duration(milliseconds: startMs);
+      // 1. Open PAUSED: the native mpv context is created here, but the
+      //    Android texture surface (`wid`) is not yet attached — it attaches
+      //    asynchronously after the Video widget mounts and the platform
+      //    layer calls setSurfaceSize. Decoding before the surface exists
+      //    causes "h264_mediacodec: Both surface and native_window are NULL"
+      //    (the same race mpv-android avoids by attaching the surface before
+      //    loadfile). Opening paused lets us wait for the surface below.
       await player.open(
         Media(playable, start: startMs > 0 ? start : null),
-        play: true,
+        play: false,
       );
+      // 2. Wait for the native surface to actually attach.
+      //
+      //    controller.platform.future resolves at VideoOutputManager.create —
+      //    that only means the Android texture ID was registered with Flutter,
+      //    NOT that the rendering Surface exists. The actual Surface is created
+      //    asynchronously by Flutter's GPU backend when the Texture widget
+      //    renders, firing onSurfaceTextureAvailable → setSurfaceSize.
+      //    Between those two events can be several seconds (observed 3.2s on
+      //    OnePlus CPH2573). Decoding into a NULL surface hangs immediately.
+      //
+      //    We solve this by waiting for BOTH signals:
+      //    a) controller.platform.future (texture ID registered)
+      //    b) controller.platform.rect becoming non-null/non-zero
+      //       (Surface created and sized — the ValueNotifier set by
+      //       onSurfaceTextureAvailable in VideoOutput.java)
+      final controller = _mpvController;
+      if (controller == null) {
+        _markMpvFailed('Video controller lost before surface attach.');
+        return;
+      }
+      // a) Wait for the texture ID.
+      try {
+        await controller.platform.future.timeout(
+          const Duration(seconds: 5),
+        );
+      } catch (e) {
+        debugPrint('mpv: texture attach: $e (proceeding anyway)');
+      }
+      if (!mounted) return;
+      // b) Wait for the Surface (rect set by onSurfaceTextureAvailable).
+      //
+      //    VideoController exposes a top-level `rect` ValueNotifier<Rect?>
+      //    that mirrors the platform controller's rect. It becomes non-null
+      //    when onSurfaceTextureAvailable fires and setSurfaceSize is called
+      //    — that's when the Android Surface actually exists.
+      //
+      //    On some devices the surface can take 5+ seconds to be created
+      //    (observed 5.3s on OnePlus CPH2573 during repeated re-opens).
+      //    Use a generous timeout and a post-timeout safety net: if the
+      //    rect arrived during the timeout's final milliseconds, the
+      //    completer may have just missed it — check once more.
+      final rect = controller.rect;
+      if (rect.value == null || rect.value == Rect.zero) {
+        final surfaceReady = Completer<void>();
+        late VoidCallback listener;
+        listener = () {
+          if (rect.value != null &&
+              rect.value != Rect.zero &&
+              !surfaceReady.isCompleted) {
+            rect.removeListener(listener);
+            surfaceReady.complete();
+          }
+        };
+        rect.addListener(listener);
+        try {
+          await surfaceReady.future.timeout(const Duration(seconds: 10));
+          debugPrint(
+            'mpv: surface ready '
+            '(${rect.value?.width.toInt()}x${rect.value?.height.toInt()})',
+          );
+        } catch (e) {
+          // The timeout fired, but the surface may have arrived in the last
+          // few milliseconds — give it one more frame to settle.
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+          if (rect.value != null && rect.value != Rect.zero) {
+            debugPrint(
+              'mpv: surface ready (late) '
+              '(${rect.value?.width.toInt()}x${rect.value?.height.toInt()})',
+            );
+          } else {
+            debugPrint('mpv: surface not ready after 10s: $e (proceeding)');
+          }
+          rect.removeListener(listener);
+        }
+      } else {
+        debugPrint(
+          'mpv: surface already attached '
+          '(${rect.value?.width.toInt()}x${rect.value?.height.toInt()})',
+        );
+      }
+      if (!mounted) return;
+      // 3. Configure hwdec + audio output BEFORE playing. The native mpv
+      //    context is alive (created by open), so setProperty calls succeed.
+      //    hwdec must be set before the first frame is decoded — setting it
+      //    after play() starts means the first frames decode with the wrong
+      //    pipeline (e.g. hardware decode for a software-only container like
+      //    .m2ts, which hangs on the first frame).
+      await _configureMpvAudio(player);
+      // 4. Now play — the Surface is attached and the decoder pipeline is
+      //    correctly configured for this file.
+      await player.play();
     } catch (e) {
-      _markMpvFailed('Fallback player couldn\'t open this file: $e');
+      _markMpvFailed('The MPV engine couldn\'t open this file: $e');
       return;
     }
     // mpv's own `sub-auto=exact` would discover sidecar files next to a local
@@ -736,7 +1020,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
       }
     } catch (e) {
-      debugPrint('mpvFallback: failed to add subtitle ${s.label}: $e');
+      debugPrint('mpv: failed to add subtitle ${s.label}: $e');
     }
   }
 
@@ -770,7 +1054,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _mpvFailed = true;
     _mpvError = message;
     _buffering = false;
-    debugPrint('mpvFallback: failed: $message');
+    debugPrint('mpv: failed: $message');
     if (mounted) setState(() {});
   }
 
@@ -848,7 +1132,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       setState(() {});
     }));
     _mpvSubs.add(player.stream.error.listen((msg) {
-      debugPrint('mpvFallback: playback error: $msg');
+      debugPrint('mpv: playback error: $msg');
       if (!mounted) return;
       _markMpvFailed('Fallback player error: $msg');
     }));
@@ -1032,6 +1316,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// native ended path: sleep "end of video" → repeat one → repeat all /
   /// shuffle → auto-play-next (all continuing inside mpv).
   void _onMpvEnded() {
+    _error = null; // clear any lingering error so replay icon shows
     if (!_markedWatched) {
       _markedWatched = true;
       final key = _resumeKey;
@@ -1225,6 +1510,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     _buffered = e.buffered;
     _buffering = e.buffering;
     _completed = e.ended;
+    // When the video finishes, clear any lingering error (e.g. the software
+    // fallback banner or a transient IO message) so the replay icon shows
+    // instead of the retry-button error surface.
+    if (_completed) _error = null;
     // Reset retry counter once playback is healthy (playing + no error).
     if (_playing && !_retrying) _ioRetries = 0;
     if (e.error != null && e.error!.isNotEmpty) {
@@ -2436,13 +2725,16 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (sourceUrl.isNotEmpty && sourceUrl != video.title)
         (label: 'URL', value: sourceUrl),
       if (fileSize != null) (label: 'File size', value: fileSize),
-      (label: 'HDR', value: _mpvReady ? 'SDR (fallback)' : _hdrLabel),
+      (label: 'HDR', value: _mpvReady ? 'SDR (MPV)' : _hdrLabel),
       if (_videoCodecInfoLabel != null)
         (label: 'Video', value: _videoCodecInfoLabel!),
       if (_resolutionInfoLabel != null)
         (label: 'Resolution', value: _resolutionInfoLabel!),
       if (_mpvReady)
-        (label: 'Engine', value: 'libmpv (software)')
+        (
+          label: 'Decoder',
+          value: 'libmpv · ${_mpvHwdecMode == "no" ? "software" : _mpvHwdecMode == "mediacodec" ? "hardware" : "hardware (auto)"}',
+        )
       else if (Platform.isAndroid && _liveDecoderName != null)
         (
           label: 'Decoder',
@@ -3681,11 +3973,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                   },
                   ),
                   const Divider(color: Colors.white12, height: 1),
-                  // Video decoder mode is a Media3/hardware-decoder concern; the mpv
-                  // fallback always software-decodes, so the section is hidden
-                  // there to avoid a no-op control.
-                  if (defaultTargetPlatform == TargetPlatform.android &&
-                      !_mpvReady) ...[
+                  // Video decoder mode (Auto/Hardware/Software). Applies to
+                  // both engines: Media3 via the native MediaCodecSelector,
+                  // libmpv via the `hwdec` property. Android-only UI.
+                  if (defaultTargetPlatform == TargetPlatform.android) ...[
                     _tvListTile(
                       leading: const Icon(Icons.memory, color: Colors.white70),
                       title: const Text('Video decoder', style: TextStyle(color: Colors.white)),
@@ -3718,6 +4009,15 @@ class _PlayerScreenState extends State<PlayerScreen>
                                     setState(() => _decoderMode = m);
                                     setSheet(() {});
                                     await DecoderModeStore.save(m);
+                                    if (_mpvReady) {
+                                      // Live-apply hwdec on the running mpv
+                                      // engine; no reopen needed.
+                                      if (mounted) {
+                                        await _applyMpvHwdec(_mpvPlayer!);
+                                        if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                                      }
+                                      return;
+                                    }
                                     // Live: reopen at same position so the
                                     // fresh MediaCodecSelector query picks the
                                     // new decoder (HW vs SW) immediately.
@@ -4501,20 +4801,86 @@ class _PlayerScreenState extends State<PlayerScreen>
                   child: _mpvActive
                       ? Padding(
                           padding: const EdgeInsets.all(24),
-                          child: Text(
-                            _mpvError!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white70),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _mpvError!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white70),
+                              ),
+                              const SizedBox(height: 20),
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  _mpvFailed = false;
+                                  _mpvError = null;
+                                  setState(() {});
+                                  _reloadMpv(_current, _position.inMilliseconds);
+                                },
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: const BorderSide(
+                                      color: Colors.white38),
+                                ),
+                              ),
+                            ],
                           ),
                         )
                       : _error != null
                           ? Padding(
                               padding: const EdgeInsets.all(24),
-                              child: Text(
-                                _error!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                    color: Colors.white70),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _error!,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        color: Colors.white70),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  // Retry reopens the file with Media3;
+                                  // "Try with MPV" switches engines.
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed: () {
+                                          _error = null;
+                                          _ioRetries = 0;
+                                          _retrying = false;
+                                          setState(() {});
+                                          _reopenAt(_position, _duration);
+                                        },
+                                        icon: const Icon(Icons.refresh),
+                                        label: const Text('Retry'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.white,
+                                          side: const BorderSide(
+                                              color: Colors.white38),
+                                        ),
+                                      ),
+                                      if (Platform.isAndroid &&
+                                          _mpvSourceFor(_current).isNotEmpty) ...[
+                                        const SizedBox(width: 12),
+                                        OutlinedButton.icon(
+                                          onPressed: _mpvActive
+                                              ? null
+                                              : () => _startMpvManual(),
+                                          icon: const Icon(Icons.play_arrow),
+                                          label: const Text('Try with MPV'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.white,
+                                            side: const BorderSide(
+                                                color: Colors.white38),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
                               ),
                             )
                           : const Icon(
