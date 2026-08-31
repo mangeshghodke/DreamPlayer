@@ -14,6 +14,7 @@ import '../models/hdr_format.dart';
 import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/badge_prefs.dart';
+import '../services/audio_track_store.dart';
 import '../services/exo_player.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
@@ -161,6 +162,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _badgeVideoCodec = false;
   bool _badgeSpatialAudio = true;
   bool _badgeServerTranscode = true;
+
+  /// Saved audio track to restore after the next open (index for Media3,
+  /// track id string for MPV). Set from [AudioTrackStore] in [_openCurrent]
+  /// and consumed when the first track event arrives.
+  dynamic _pendingAudioTrackRestore;
 
   /// True once a media has loaded on this screen (video size/codecs/duration
   /// seen). Survives a native state reset (IDLE event after the platform view
@@ -472,6 +478,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     // stops showing the resume button for this engine.
     if (widget.startFromBeginning) {
       await _clearResume();
+      final engine = (_engine == PlayEngine.mpv || _mpvActive) ? 'mpv' : 'media3';
+      await AudioTrackStore.clear(_resumeKey, engine: engine);
     }
     Duration? resume;
     if (!_inTests && !widget.startFromBeginning) {
@@ -487,6 +495,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         resume = null;
       }
     }
+    // Load the saved audio track to restore after tracks arrive.
+    // Skip when "Watch from beginning" — the user wants the default track.
+    _pendingAudioTrackRestore = widget.startFromBeginning
+        ? null
+        : await AudioTrackStore.load(
+            _resumeKey,
+            engine: (_engine == PlayEngine.mpv || _mpvActive) ? 'mpv' : 'media3',
+          );
     final externalSubs = await _resolveExternalSubtitles(video);
     final readingLang = await SubtitlePrefs.loadReadingLanguage();
     try {
@@ -1126,6 +1142,17 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (!mounted) return;
       _mpvTracks = t;
       _syncMpvTrackMeta();
+      // Restore the user's chosen audio track on first tracks event after open.
+      if (_pendingAudioTrackRestore is String && t.audio.isNotEmpty) {
+        final restoreId = _pendingAudioTrackRestore as String;
+        _pendingAudioTrackRestore = null;
+        for (final tr in t.audio) {
+          if (tr.id == restoreId) {
+            player.setAudioTrack(tr);
+            break;
+          }
+        }
+      }
       setState(() {});
     }));
     _mpvSubs.add(player.stream.track.listen((t) {
@@ -1662,6 +1689,14 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     _audioTracks = e.audioTracks;
     _selectedAudioTrackIndex = e.selectedAudioTrack;
+    // Restore the user's chosen audio track on first track event after open.
+    if (_pendingAudioTrackRestore != null && _audioTracks.isNotEmpty) {
+      final restore = _pendingAudioTrackRestore;
+      _pendingAudioTrackRestore = null;
+      if (restore is int && restore >= 0 && restore < _audioTracks.length) {
+        _exo?.selectAudioTrack(restore);
+      }
+    }
     if (e.chapters.isNotEmpty) _chapters = e.chapters;
 
     // Watched state: a video that played to the end is marked watched so
@@ -2541,6 +2576,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Native side switches the track; onTracksChanged re-emits with the new
       // codec/channels, which updates the top-bar audio chip automatically.
       _exo?.selectAudioTrack(choice);
+      AudioTrackStore.save(_resumeKey, engine: 'media3', trackIndex: choice);
     }
   }
 
@@ -2614,6 +2650,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
     if (choice != null && choice.id != selected) {
       await player.setAudioTrack(choice);
+      AudioTrackStore.save(_resumeKey, engine: 'mpv', trackIndex: choice.id);
     }
   }
 
