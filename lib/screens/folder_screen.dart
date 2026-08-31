@@ -227,13 +227,27 @@ class _FolderScreenState extends State<FolderScreen> {
   /// re-search. Never blocks the list.
   void _prefetchMeta(List<FileEntry> entries) {
     final service = TmdService.instance;
+    // Flux-style fallback: when a file has only a generic episode name
+    // (`Episode01.mkv`, `01.mkv`) and the folder name looks like a show,
+    // inherit it as the series name so TMDB can find the right show.
+    final parentName = _parentFolderName();
     for (final entry in entries) {
       if (entry.isDirectory) continue;
-      service.resolve(_toVideoItem(entry)).catchError((_) {
+      service.resolve(_toVideoItem(entry), parentFolderName: parentName).catchError((_) {
         // Best-effort; a TMDB failure just leaves the row without a poster.
         return null;
       });
     }
+  }
+
+  /// Folder name one level above [_currentPath] — the immediate parent.
+  /// Empty string when we are AT the root (no parent to inherit).
+  String _parentFolderName() {
+    final folder = widget.folder;
+    final atRoot = _currentPath == folder.path;
+    if (atRoot) return folder.name;
+    final segments = _currentPath.split('/').where((s) => s.isNotEmpty).toList();
+    return segments.isEmpty ? folder.name : segments.last;
   }
 
   /// Jellyfin variant: prefetch each playable under the same key its tap uses

@@ -153,6 +153,75 @@ void main() {
       // it from the search query.
       expect(parsed.title, isNotEmpty);
     });
+
+    group('Flux-style parent folder fallback', () {
+      test('Episode01.mkv inside "Kakegurui Twin(2021)" → seriesName=Kakegurui Twin, year=2021', () {
+        final parsed = ParsedFileName.parse(
+          'Episode01.mkv',
+          parentFolderName: 'Kakegurui Twin(2021)',
+        );
+        expect(parsed.seriesName, 'Kakegurui Twin');
+        expect(parsed.year, 2021);
+        expect(parsed.title, isNotEmpty);
+      });
+
+      test('Episode 02.mkv inside "Breaking Bad (2008)" inherits series + year', () {
+        final parsed = ParsedFileName.parse(
+          'Episode 02.mkv',
+          parentFolderName: 'Breaking Bad (2008)',
+        );
+        expect(parsed.seriesName, 'Breaking Bad');
+        expect(parsed.year, 2008);
+      });
+
+      test('does NOT inherit when the file already has SxxExx', () {
+        // The file is explicit about its series via SxxExx — the parent
+        // folder name should not overwrite the file's seriesName.
+        final parsed = ParsedFileName.parse(
+          'Wrong.Show.S02E03.mkv',
+          parentFolderName: 'Right Show (2020)',
+        );
+        expect(parsed.seriesName, 'Wrong Show');
+      });
+
+      test('does NOT inherit when the parent folder has SxxExx (it is an episode)', () {
+        // A parent folder named `Show.S02E05` is itself an episode, so it
+        // should not be treated as the show name.
+        final parsed = ParsedFileName.parse(
+          'something.mkv',
+          parentFolderName: 'Show.S02E05',
+        );
+        expect(parsed.seriesName, isNull);
+      });
+
+      test('parent folder with only a season tag inherits series + season', () {
+        // Folder "Show.Name.Season.1" should provide the series name.
+        // We don't extract season number from the folder (the file already
+        // has its own season).
+        final parsed = ParsedFileName.parse(
+          '01.mkv',
+          parentFolderName: 'Show.Name.Season.1.1080p',
+        );
+        expect(parsed.seriesName, isNotNull);
+      });
+
+      test('parent folder without year: only seriesName inherits', () {
+        final parsed = ParsedFileName.parse(
+          'ep1.mkv',
+          parentFolderName: 'Some Anime',
+        );
+        expect(parsed.seriesName, 'Some Anime');
+        expect(parsed.year, isNull);
+      });
+
+      test('parent folder name with no year and explicit file year keeps file year', () {
+        final parsed = ParsedFileName.parse(
+          'ep1.mkv',
+          parentFolderName: 'Some Anime',
+        );
+        expect(parsed.year, isNull);
+      });
+    });
   });
 
   group('TmdStore', () {

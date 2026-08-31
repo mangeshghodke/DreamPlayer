@@ -565,7 +565,7 @@ class ParsedFileName {
     'nf', 'netflix', 'amzn', 'amazon', 'hbo', 'hulu', 'hdhub4u', 'hdbr',
   ];
 
-  static ParsedFileName parse(String fileName) {
+  static ParsedFileName parse(String fileName, {String? parentFolderName}) {
     var name = fileName.trim();
     final dot = name.lastIndexOf('.');
     if (dot > 0) {
@@ -679,15 +679,47 @@ class ParsedFileName {
     }
 
     final title = _cleanName(name);
+    // Flux-style fallback: when the file is just an episode number
+    // (`Episode01.mkv`, `01.mkv`) or has no searchable title, fall back to
+    // the parent folder's name as the series name. The folder is typically
+    // named `Show.Name.(2021)` or `Show.Name.Season.1` — same parser rules
+    // apply, but we don't try to extract an episode number from the folder
+    // (we already have one from the file).
+    String? effectiveSeriesName = seriesName;
+    if (effectiveSeriesName == null &&
+        parentFolderName != null &&
+        parentFolderName.isNotEmpty &&
+        !_hasEpisodePattern(parentFolderName)) {
+      final folderParsed = parse(parentFolderName);
+      effectiveSeriesName = folderParsed.title.isNotEmpty
+          ? folderParsed.title
+          : _cleanName(parentFolderName);
+      // If the folder carried a year (e.g. `Kakegurui Twin(2021)`), use it
+      // for the TMDB search too — `search/tv` supports a first_air_date_year.
+      if (year == null && folderParsed.year != null) {
+        year = folderParsed.year;
+      }
+    }
     return ParsedFileName(
-      title: title.isEmpty ? (seriesName ?? _fallbackTitle(fileName)) : title,
+      title: title.isEmpty
+          ? (effectiveSeriesName ?? _fallbackTitle(fileName))
+          : title,
       year: year,
       isEpisode: isEpisode,
-      seriesName: seriesName == null ? null : _cleanName(seriesName),
+      seriesName:
+          effectiveSeriesName == null ? null : _cleanName(effectiveSeriesName),
       season: season,
       episode: episode,
     );
   }
+
+  /// Quick test: does [text] contain any of the episode markers? Used to
+  /// avoid inheriting the file's episode tag from a parent folder name.
+  static bool _hasEpisodePattern(String text) =>
+      _episodePattern.hasMatch(text) ||
+      _episodeShortPattern.hasMatch(text) ||
+      _episodeLongPattern.hasMatch(text) ||
+      _episodeSePattern.hasMatch(text);
 
   static String _cleanName(String raw) {
     var cleaned = raw;
@@ -1206,7 +1238,7 @@ class TmdService extends ChangeNotifier {
   /// Concurrent calls for the same key share one in-flight search (the second
   /// caller awaits the first's future) so a prefetch racing a tap never yields
   /// a false "no match".
-  Future<TmdMeta?> resolve(VideoItem video) async {
+  Future<TmdMeta?> resolve(VideoItem video, {String? parentFolderName}) async {
     final identityKey = TmdStore.identityKeyFor(video);
     if (identityKey.isEmpty) return null;
     await ensureLoaded();
@@ -1219,7 +1251,10 @@ class TmdService extends ChangeNotifier {
       return inFlight;
     }
 
-    final parsed = ParsedFileName.parse(video.title);
+    final parsed = ParsedFileName.parse(
+      video.title,
+      parentFolderName: parentFolderName,
+    );
     if (parsed.title.isEmpty) return null;
 
     final future = _resolveNow(identityKey, parsed);
