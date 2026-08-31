@@ -1166,7 +1166,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     }));
     _mpvSubs.add(player.stream.track.listen((t) {
       if (!mounted) return;
-      _mpvSubtitleOn = t.subtitle.id != 'no' && t.subtitle.id != 'auto';
+      // 'no' = subtitles explicitly off; 'auto' = mpv auto-selected a track
+      // (subtitles ARE displaying); any other id = user manually selected one.
+      _mpvSubtitleOn = t.subtitle.id != 'no';
       setState(() {});
     }));
     _mpvSubs.add(player.stream.subtitle.listen((lines) {
@@ -2696,6 +2698,14 @@ class _PlayerScreenState extends State<PlayerScreen>
     final tracks = _mpvTracks.subtitle
         .where((t) => t.id != 'no')
         .toList();
+    // When mpv is in 'auto' mode, find the first REAL embedded track
+    // (mpv auto-selects the first one); the 'auto' entry itself is not a
+    // selectable subtitle track.
+    final autoSelected = player.state.track.subtitle.id == 'auto'
+        ? tracks
+            .where((t) => !t.uri && t.id != 'no' && t.id != 'auto')
+            .firstOrNull
+        : null;
     const onlineSentinel = -3;
     const loadSentinel = -2;
     const downloadedBase = -10;
@@ -2765,7 +2775,9 @@ class _PlayerScreenState extends State<PlayerScreen>
               ),
               for (final t in tracks.where((t) => t.id != 'auto'))
                 () {
-                  final isSelected = !t.uri && player.state.track.subtitle.id == t.id;
+                  final currentId = player.state.track.subtitle.id;
+                  final isSelected = !t.uri &&
+                      (currentId == t.id || t == autoSelected);
                   final title = t.title?.trim();
                   final lang = languageName(t.language ?? '');
                   return _tvListTile(
@@ -4869,11 +4881,13 @@ class _PlayerScreenState extends State<PlayerScreen>
                 left = (sw - w) / 2;
                 top = 0;
               }
-              // Font size: Media3 uses 0.18 of the *entire PlayerView* height
-              // (which includes controls). The MPV overlay is inside the video
-              // content area only (~50% of PlayerView), so halve the fraction.
+              // Font size: match Media3 SubtitleView.DEFAULT_TEXT_SIZE_FRACTION
+              // (0.0533) × video height × user size multiplier (S=0.8/M=1.0/L=1.25/XL=1.5).
+              // Verified via javap on media3-ui-1.10.1: defaultTextSize=0.0533f,
+              // bottomPaddingFraction=0.08f. ExoPlayerView.kt applies
+              // 0.0533 * sizeMult to the SubtitleView inside AspectRatioFrameLayout.
               final fontSize =
-                  (h * 0.09 * _subtitleStyle.sizeMultiplier).clamp(12.0, 300.0);
+                  (h * 0.0533 * _subtitleStyle.sizeMultiplier).clamp(12.0, 300.0);
               return Stack(
                 children: [
                   Positioned(
