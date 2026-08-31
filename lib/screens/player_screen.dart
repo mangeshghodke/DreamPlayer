@@ -444,6 +444,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       return;
     }
+    // "Watch from beginning" clears the saved position so the details screen
+    // stops showing the resume button for this engine.
+    if (widget.startFromBeginning) {
+      await _clearResume();
+    }
     Duration? resume;
     if (!_inTests && !widget.startFromBeginning) {
       resume = await ResumeStore.positionFor(_resumeKey, engine: 'media3');
@@ -1336,7 +1341,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         unawaited(_maybeAutoPlayNext());
       }
     }
-    _clearResume();
+    // Resume is intentionally NOT cleared on completion — the details screen
+    // needs the saved position to show the resume button and the replay icon.
+    // Resume is cleared when the user explicitly chooses "Watch from beginning".
   }
 
   void _maybeSaveMpvResume(Duration pos) {
@@ -1670,10 +1677,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
 
     // Resume bookmark: persist every ~5s while playing, and immediately when
-    // playback pauses/stops. A finished video clears its bookmark (it ended,
-    // so there is nothing left to resume).
+    // playback pauses/stops. A finished video keeps its bookmark — the details
+    // screen shows the replay icon when the user navigates back.
     if (e.ended) {
-      _clearResume();
+      // No-op: resume persists for the details screen replay icon.
     } else {
       final now = DateTime.now();
       if (_playing &&
