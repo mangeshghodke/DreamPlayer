@@ -475,7 +475,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     Duration? resume;
     if (!_inTests && !widget.startFromBeginning) {
-      resume = await ResumeStore.positionFor(_resumeKey, engine: 'media3');
+      // Read the resume position for the ACTIVE engine (not hardcoded to
+      // 'media3' — MPV saves under 'mpv' and would be missed).
+      final engine = (_engine == PlayEngine.mpv || _mpvActive) ? 'mpv' : 'media3';
+      resume = await ResumeStore.positionFor(_resumeKey, engine: engine);
       // Skip trivial positions and "basically finished" ones.
       if (resume != null && resume < const Duration(seconds: 10)) resume = null;
       if (resume != null &&
@@ -1990,7 +1993,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
-      _saveResume(_position);
+      // Query the native player's ACTUAL position — the Dart-side _position
+      // can be stale if no events fired since the last pause.
+      _persistPositionOnBackground();
     }
     // Background playback: audio KEEPS PLAYING when the app is backgrounded
     // or the screen locks — that's the MediaSession + foreground-service
@@ -1999,6 +2004,37 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (state == AppLifecycleState.resumed) {
       _reopenAfterBackground();
     }
+  }
+
+  /// Save the current position to prefs on background. Queries the native
+  /// player for the real position (not the Dart-side `_position` which can be
+  /// stale when paused). Falls back to `_position` when the native query fails.
+  Future<void> _persistPositionOnBackground() async {
+    Duration pos = _position;
+    // Media3: query the native player's live position.
+    final exo = _exo;
+    if (exo != null) {
+      try {
+        final state = await exo.getState();
+        if (state != null && state.positionMs > 0) {
+          pos = Duration(milliseconds: state.positionMs);
+          _position = pos; // sync Dart-side too
+        }
+      } catch (_) {}
+    }
+    // MPV: query the mpv player's live position.
+    final mpv = _mpvPlayer;
+    if (mpv != null && _mpvActive) {
+      try {
+        // player.stream.position is the live position from media_kit.
+        final mpvPos = mpv.state.position;
+        if (mpvPos > Duration.zero) {
+          pos = mpvPos;
+          _position = pos; // sync Dart-side too
+        }
+      } catch (_) {}
+    }
+    _saveResume(pos);
   }
 
   /// Media3 `Player.STATE_IDLE`: the native player lost its media (e.g. the
@@ -2017,25 +2053,40 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// keeps playing), it is left untouched — a user-paused player stays
   /// paused instead of being force-played.
   Future<void> _reopenAfterBackground() async {
+    // --- Media3 path ---
     final exo = _exo;
-    if (exo == null || _inTests) return;
-    // Give the surface / platform view a moment to be recreated on resume.
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    if (!mounted || _exo != exo) return;
-    var state = await exo.getState();
-    if (!mounted) return;
-    if (state == null) {
-      // Platform view not attached yet; retry once before giving up.
-      await Future<void>.delayed(const Duration(milliseconds: 600));
+    if (exo != null && !_mpvActive) {
+      // Give the surface / platform view a moment to be recreated on resume.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (!mounted || _exo != exo) return;
+      var state = await exo.getState();
       if (!mounted) return;
-      state = await exo.getState();
-      if (!mounted || state == null) return;
+      if (state == null) {
+        // Platform view not attached yet; retry once before giving up.
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (!mounted) return;
+        state = await exo.getState();
+        if (!mounted || state == null) return;
+      }
+      // Guard on media having been loaded (and not already finished) so a freshly
+      // opened screen or an ended movie isn't spuriously reopened.
+      if (state.state == _nativeStateIdle && _hadMedia && !_completed) {
+        // `open` autoplays and re-applies the saved resume position.
+        await _openCurrent();
+      }
+      return;
     }
-    // Guard on media having been loaded (and not already finished) so a freshly
-    // opened screen or an ended movie isn't spuriously reopened.
-    if (state.state == _nativeStateIdle && _hadMedia && !_completed) {
-      // `open` autoplays and re-applies the saved resume position.
-      await _openCurrent();
+    // --- MPV path ---
+    // If MPV is active but the player / controller is gone, the OS killed the
+    // texture while backgrounded. Reopen from the saved resume position.
+    if (_mpvActive && _hadMedia && !_completed && !_inTests) {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      // If the controller is null or the player has no media, reopen.
+      final mpvReady = _mpvController != null && _mpvPlayer != null;
+      if (!mpvReady) {
+        await _openCurrent();
+      }
     }
   }
 
