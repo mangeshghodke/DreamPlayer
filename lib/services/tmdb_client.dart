@@ -623,13 +623,7 @@ class ParsedFileName {
       }
     }
 
-    final episodeMatch = _episodePattern.firstMatch(name);
-    final shortEpisodeMatch = _episodeShortPattern.firstMatch(name);
-    final longEpisodeMatch = _episodeLongPattern.firstMatch(name);
-    final seEpisodeMatch = _episodeSePattern.firstMatch(name);
-    final seasonOnlyMatch = _seasonOnlyPattern.firstMatch(name);
-
-    final yearMatch = _yearPattern.firstMatch(name);
+final yearMatch = _yearPattern.firstMatch(name);
     int? year;
     if (yearMatch != null && yearMatch.start > 0) {
       // Flux-style guard: the year MUST NOT be at position 0 — otherwise
@@ -639,6 +633,18 @@ class ParsedFileName {
       year = int.parse(yearMatch.group(0)!);
       name = name.replaceAll(yearMatch.group(0)!, ' ');
     }
+
+    // The year-strip above shrinks the string by 3 chars, shifting every
+    // offset after the year. Run the episode regexes against the *trimmed*
+    // name so `substring(0, m.start)` below uses fresh offsets. Otherwise
+    // `Kakegurui Twin (2021) S01E01.mkv` ends up with
+    // `seriesName = "Kakegurui Twin ( ) S01"` because the stale start leaks
+    // `S01` into the series name and the TMDB search silently 404s.
+    final episodeMatch = _episodePattern.firstMatch(name);
+    final shortEpisodeMatch = _episodeShortPattern.firstMatch(name);
+    final longEpisodeMatch = _episodeLongPattern.firstMatch(name);
+    final seEpisodeMatch = _episodeSePattern.firstMatch(name);
+    final seasonOnlyMatch = _seasonOnlyPattern.firstMatch(name);
 
     var isEpisode = false;
     String? seriesName;

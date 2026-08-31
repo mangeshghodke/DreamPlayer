@@ -65,6 +65,33 @@ void main() {
       expect(parsed.episode, 2);
     });
 
+    test('seriesName excludes stale Sxx tag when year is inside parens', () {
+      // Regression: `Kakegurui Twin (2021) S01E01.mkv` used to yield
+      // `seriesName = "Kakegurui Twin S01"` because the year strip shifted
+      // offsets, but the regex match positions stayed stale — so substring(0,
+      // m.start) leaked `S01` into the series name and TMDB search 404'd.
+      final parsed = ParsedFileName.parse('Kakegurui Twin (2021) S01E01.mkv');
+      expect(parsed.seriesName, 'Kakegurui Twin');
+      expect(parsed.year, 2021);
+      expect(parsed.isEpisode, isTrue);
+      expect(parsed.season, 1);
+      expect(parsed.episode, 1);
+    });
+
+    test('seriesName excludes stale Sxx tag with other show/year combos', () {
+      final p1 = ParsedFileName.parse('Show (2013) S02E04.mkv');
+      expect(p1.seriesName, 'Show');
+      expect(p1.year, 2013);
+      expect(p1.season, 2);
+      expect(p1.episode, 4);
+
+      final p2 = ParsedFileName.parse('Stranger Things (2016) S04E09.mkv');
+      expect(p2.seriesName, 'Stranger Things');
+      expect(p2.year, 2016);
+      expect(p2.season, 4);
+      expect(p2.episode, 9);
+    });
+
     test('episode labels are empty for movies', () {
       final parsed = ParsedFileName.parse('Inception.2010.1080p.mkv');
       expect(parsed.isEpisode, isFalse);
