@@ -385,6 +385,22 @@ class TmdMatch {
   final double score;
 }
 
+/// One entry from TMDB's `/{id}/translations` endpoint, narrowed to the
+/// three fields DreamPlayer cares about (title, tagline, overview) so the
+/// fallback decision tree can stay terse.
+class TmdTranslation {
+  const TmdTranslation({
+    required this.language,
+    required this.title,
+    required this.tagline,
+    required this.overview,
+  });
+  final String language;
+  final String title;
+  final String tagline;
+  final String overview;
+}
+
 /// Cached per-video metadata (what the card shows + optional full details +
 /// optional per-season episode data for TV shows).
 class TmdMeta {
@@ -519,6 +535,14 @@ class ParsedFileName {
   static final RegExp _episodePattern = RegExp(r'\bS(\d{1,2})E(\d{1,2})\b', caseSensitive: false);
   static final RegExp _episodeShortPattern =
       RegExp(r'\b(\d{1,2})x(\d{1,3})\b', caseSensitive: false);
+  // Flux-style extra patterns: `se1ep2`, `season1episode2` (separators
+  // optional). Matches `House.Season1Episode02.mkv`, `Show.Se1Ep2.mkv`,
+  // `show.name.season01.episode02.1080p.mkv`, etc.
+  static final RegExp _episodeLongPattern = RegExp(
+      r'\b[Ss]eason\s*\.?\s*(\d{1,2})\s*\.?\s*[Ee]pisode\s*\.?\s*(\d{1,4})\b');
+  static final RegExp _episodeSePattern = RegExp(
+      r'\b[Ss]e\s*\.?\s*(\d{1,2})\s*\.?\s*[Ee]p\s*\.?\s*(\d{1,4})\b',
+      caseSensitive: false);
 
   /// Bare season tag (`S02`, `S1`) — used by TV-season folder names like
   /// `HOUSE.S02.1080p...`. There's no episode number, so this is a whole
@@ -601,11 +625,17 @@ class ParsedFileName {
 
     final episodeMatch = _episodePattern.firstMatch(name);
     final shortEpisodeMatch = _episodeShortPattern.firstMatch(name);
+    final longEpisodeMatch = _episodeLongPattern.firstMatch(name);
+    final seEpisodeMatch = _episodeSePattern.firstMatch(name);
     final seasonOnlyMatch = _seasonOnlyPattern.firstMatch(name);
 
     final yearMatch = _yearPattern.firstMatch(name);
     int? year;
-    if (yearMatch != null) {
+    if (yearMatch != null && yearMatch.start > 0) {
+      // Flux-style guard: the year MUST NOT be at position 0 — otherwise
+      // `2001.A.Space.Odyssey.1080p.mkv` would falsely extract 2001 as the
+      // year. Same reason we look for a word boundary before the year.
+      // (Already enforced by `\b`; this also drops a leading-year match.)
       year = int.parse(yearMatch.group(0)!);
       name = name.replaceAll(yearMatch.group(0)!, ' ');
     }
@@ -626,6 +656,20 @@ class ParsedFileName {
       episode = int.parse(shortEpisodeMatch.group(2)!);
       seriesName = name.substring(0, shortEpisodeMatch.start).trim();
       name = name.replaceAll(shortEpisodeMatch.group(0)!, ' ');
+    } else if (longEpisodeMatch != null) {
+      // Flux-style: `House.Season1Episode02.mkv`
+      isEpisode = true;
+      season = int.parse(longEpisodeMatch.group(1)!);
+      episode = int.parse(longEpisodeMatch.group(2)!);
+      seriesName = name.substring(0, longEpisodeMatch.start).trim();
+      name = name.replaceAll(longEpisodeMatch.group(0)!, ' ');
+    } else if (seEpisodeMatch != null) {
+      // Flux-style: `Show.Se1Ep2.mkv`
+      isEpisode = true;
+      season = int.parse(seEpisodeMatch.group(1)!);
+      episode = int.parse(seEpisodeMatch.group(2)!);
+      seriesName = name.substring(0, seEpisodeMatch.start).trim();
+      name = name.replaceAll(seEpisodeMatch.group(0)!, ' ');
     } else if (seasonOnlyMatch != null) {
       // Whole-season folder (`Show.S02.1080p...`): keep the season number for
       // context but drop the tag so the cleaned title stays searchable.
@@ -738,7 +782,98 @@ class TmdApi {
     final key = await effectiveApiKey();
     final endpoint = movie.kind == TmdKind.movie ? '/movie/${movie.id}' : '/tv/${movie.id}';
     final json = await _get('$endpoint?api_key=$key&language=en-US&append_to_response=credits');
-    return TmdDetails.fromJson(json, kind: movie.kind);
+    var details = TmdDetails.fromJson(json, kind: movie.kind);
+    // Flux-style translation fallback: if title or overview is blank (TMDB
+    // returns blanks for many non-English items in en-US), re-fetch the
+    // translations endpoint and pick the best available translation.
+    // This is genuinely better than our prior `append_to_response` approach
+    // for users with non-English content.
+    if (details.title.isEmpty || details.overview.isEmpty) {
+      final translation = await bestTranslation(movie);
+      if (translation != null) {
+        details = TmdDetails(
+          title: translation.title.isNotEmpty ? translation.title : details.title,
+          tagline: translation.tagline.isNotEmpty ? translation.tagline : details.tagline,
+          overview: translation.overview.isNotEmpty
+              ? translation.overview
+              : details.overview,
+          voteAverage: details.voteAverage,
+          voteCount: details.voteCount,
+          year: details.year,
+          runtimeMinutes: details.runtimeMinutes,
+          genres: details.genres,
+          cast: details.cast,
+          posterPath: details.posterPath,
+          backdropPath: details.backdropPath,
+          originalTitle: details.originalTitle,
+          numberOfSeasons: details.numberOfSeasons,
+          numberOfEpisodes: details.numberOfEpisodes,
+        );
+      }
+    }
+    return details;
+  }
+
+  /// Pulls the translations list for [movie] (movie or TV) and returns the
+  /// best matching translation: device locale first, English fallback, with
+  /// a non-blank overview. Returns null when no useful translation exists.
+  Future<TmdTranslation?> bestTranslation(TmdMovie movie) async {
+    final key = await effectiveApiKey();
+    if (key.isEmpty) return null;
+    final endpoint = movie.kind == TmdKind.movie
+        ? '/movie/${movie.id}/translations'
+        : '/tv/${movie.id}/translations';
+    final Map<String, dynamic> json;
+    try {
+      json = await _get('$endpoint?api_key=$key');
+    } on TmdException catch (_) {
+      return null;
+    } on SocketException {
+      return null;
+    } on TimeoutException {
+      return null;
+    }
+    final raw = json['translations'] as List? ?? const [];
+    final translations = raw
+        .whereType<Map<String, dynamic>>()
+        .map((t) {
+          final iso = t['iso_639_1'] as String? ?? '';
+          final data = t['data'] as Map<String, dynamic>?;
+          return TmdTranslation(
+            language: iso,
+            title: (data?['name'] as String? ?? '').trim(),
+            tagline: (data?['tagline'] as String? ?? '').trim(),
+            overview: (data?['overview'] as String? ?? '').trim(),
+          );
+        })
+        .where((t) => t.language.isNotEmpty)
+        .toList();
+    if (translations.isEmpty) return null;
+
+    // Device locale preference (e.g. `en_IN` → `en`). Empty string means
+    // the locale query failed or the device has no language code.
+    final lang = _deviceLanguage;
+    return translations.cast<TmdTranslation?>().firstWhere(
+          (t) =>
+              t != null &&
+              t.language == lang &&
+              t.overview.isNotEmpty,
+          orElse: () => translations.cast<TmdTranslation?>().firstWhere(
+                (t) => t != null && t.language == 'en' && t.overview.isNotEmpty,
+                orElse: () => translations.cast<TmdTranslation?>().firstWhere(
+                      (t) => t != null && t.overview.isNotEmpty,
+                      orElse: () => null,
+                    ),
+              ),
+        );
+  }
+
+  /// Two-letter device language (`en`, `hi`, `fr`, ...). Falls back to empty
+  /// string so the English fallback in [bestTranslation] takes over.
+  String get _deviceLanguage {
+    final locale = PlatformDispatcher.instance.locale;
+    final lang = locale.languageCode.toLowerCase();
+    return lang.isNotEmpty ? lang : '';
   }
 
   /// Episodes of one season (`/tv/{id}/season/{n}`), in one request. Empty when
