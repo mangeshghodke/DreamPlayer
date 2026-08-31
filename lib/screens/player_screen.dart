@@ -1172,6 +1172,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _mpvSubs.add(player.stream.subtitle.listen((lines) {
       if (!mounted) return;
       _mpvSubtitleLines = lines.where((l) => l.trim().isNotEmpty).toList();
+      _mpvSubtitleOn = _mpvSubtitleLines.isNotEmpty;
       setState(() {});
     }));
     _mpvSubs.add(player.stream.width.listen((v) {
@@ -4869,9 +4870,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                 left = (sw - w) / 2;
                 top = 0;
               }
-              // Font size: match Media3's 0.18 fraction of video view height.
+              // Font size: Media3 uses 0.18 of the *entire PlayerView* height
+              // (which includes controls). The MPV overlay is inside the video
+              // content area only (~50% of PlayerView), so halve the fraction.
               final fontSize =
-                  (h * 0.18 * _subtitleStyle.sizeMultiplier).clamp(12.0, 300.0);
+                  (h * 0.09 * _subtitleStyle.sizeMultiplier).clamp(12.0, 300.0);
               return Stack(
                 children: [
                   Positioned(
