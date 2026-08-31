@@ -50,8 +50,29 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   late final String _resumeKey = widget.folder == null
       ? (widget.video!.resumeKey ?? widget.video!.path ?? widget.video!.uri ?? '')
       : '';
+  /// When the video came from a plain file path (no library folder), the
+  /// parent folder's name is our only hint for episodes named just
+  /// `Episode01.mkv` / `01.mkv`. Pulls the last path segment and decodes
+  /// percent-escapes (URL-style SMB paths sometimes carry them).
+  String get _parentFolderNameFromPath => _computeParentFolderName();
   late final ParsedFileName _parsed =
       ParsedFileName.parse(widget.folder?.name ?? widget.video!.title);
+
+  String _computeParentFolderName() {
+    final path = widget.video!.path ?? widget.video!.uri ?? '';
+    if (path.isEmpty) return '';
+    // Strip query / fragment, then trailing slash.
+    var clean = path.split('?').first.split('#').first;
+    if (clean.endsWith('/')) clean = clean.substring(0, clean.length - 1);
+    final lastSlash = clean.lastIndexOf('/');
+    if (lastSlash < 0) return '';
+    final segment = clean.substring(lastSlash + 1);
+    try {
+      return Uri.decodeComponent(segment);
+    } catch (_) {
+      return segment;
+    }
+  }
   final TmdService _service = TmdService.instance;
 
   TmdMeta? _meta;
@@ -199,7 +220,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
             widget.folder!.name,
           );
         } else {
-          await _service.resolve(widget.video!);
+          await _service.resolve(
+            widget.video!,
+            parentFolderName: _parentFolderNameFromPath,
+          );
         }
         if (!mounted) return;
         final meta = _service.metaFor(_identityKey);
