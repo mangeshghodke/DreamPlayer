@@ -62,9 +62,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// at most once per screen (not on every rebuild/retry).
   bool _connectionErrorShown = false;
 
-  /// Saved playhead for this video (mirrors the player's resume lookup), used
-  /// to label the action button "Resume from m:ss" instead of "Play".
-  Duration? _resumePosition;
+  /// Saved playhead for this video per engine.
+  Duration? _resumePosition;     // Media3 playhead
+  Duration? _resumePositionMpv;  // MPV playhead
 
   /// Which engine was last used to play this video (`"media3"` or `"mpv"`).
   /// When set, the matching button is tinted so the user sees which engine
@@ -417,23 +417,34 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   Future<void> _loadResume() async {
     if (_resumeKey.isEmpty) return;
     final results = await Future.wait([
-      ResumeStore.positionFor(_resumeKey),
+      ResumeStore.positionFor(_resumeKey, engine: 'media3'),
+      ResumeStore.positionFor(_resumeKey, engine: 'mpv'),
       LastEngineStore.load(_resumeKey),
     ]);
     var position = results[0] as Duration?;
-    _lastEngine = results[1] as String?;
+    var positionMpv = results[1] as Duration?;
+    _lastEngine = results[2] as String?;
+    // Filter trivial / near-end positions.
     if (position != null && position < const Duration(seconds: 10)) {
       position = null;
     }
-    final video = widget.video;
-    if (position != null &&
-        video != null &&
-        video.duration > Duration.zero &&
-        video.duration - position < const Duration(seconds: 5)) {
-      position = null;
+    if (positionMpv != null && positionMpv < const Duration(seconds: 10)) {
+      positionMpv = null;
     }
-    if (mounted && position != _resumePosition) {
-      setState(() => _resumePosition = position);
+    final video = widget.video;
+    if (video != null && video.duration > Duration.zero) {
+      if (position != null && video.duration - position < const Duration(seconds: 5)) {
+        position = null;
+      }
+      if (positionMpv != null && video.duration - positionMpv < const Duration(seconds: 5)) {
+        positionMpv = null;
+      }
+    }
+    if (mounted && (position != _resumePosition || positionMpv != _resumePositionMpv)) {
+      setState(() {
+        _resumePosition = position;
+        _resumePositionMpv = positionMpv;
+      });
     }
   }
 
@@ -659,7 +670,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final title = (meta?.movie.title.isNotEmpty ?? false)
         ? meta!.movie.title
         : (widget.folder?.name ?? widget.video!.title);
-    final resume = _resumePosition;
+    final resume = _resumePosition;       // Media3 playhead
+    final resumeMpv = _resumePositionMpv; // MPV playhead
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
@@ -687,18 +699,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                   ),
                                   icon: const Icon(Icons.play_arrow),
                                   label: Text(
-                                    _lastEngine == 'mpv'
-                                        ? 'Play'
-                                        : 'Resume from ${_formatClock(resume)}',
+                                    'Resume from ${_formatClock(resume)}',
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              // Icon-only tonal sibling of the Resume button
-                              // (label removed per feedback — the replay glyph is
-                              // the affordance; the tooltip keeps the meaning
-                              // discoverable on hover/long-press).
                               Tooltip(
                                 message: 'Watch from beginning',
                                 child: FilledButton.tonal(
@@ -714,7 +720,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                             ],
                           ),
                           if (showMpvOption)
-                            ..._mpvButton(resume: resume),
+                            ..._mpvButton(resume: resumeMpv),
                         ],
                       )
                     : Column(

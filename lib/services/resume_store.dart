@@ -11,26 +11,34 @@ class ResumeStore {
 
   static const String _prefix = 'resume_pos_ms_';
 
-  static Future<Duration?> positionFor(String key) async {
+  /// Returns the saved playhead for [key]. When [engine] is provided (e.g.
+  /// `"media3"` or `"mpv"`), reads the engine-specific key so each engine
+  /// keeps its own independent playhead. When [engine] is null, falls back
+  /// to the legacy (non-prefixed) key for backward compatibility.
+  static Future<Duration?> positionFor(String key, {String? engine}) async {
     if (key.isEmpty) return null;
     final prefs = await SharedPreferences.getInstance();
-    final val = prefs.get(_prefix + key);
+    final storeKey = _prefix + (engine != null ? '$engine:$key' : key);
+    final val = prefs.get(storeKey);
     if (val is! num || val <= 0) return null;
     return Duration(milliseconds: val.toInt());
   }
 
-  static Future<void> save(String key, Duration position) async {
+  static Future<void> save(String key, Duration position,
+      {String? engine}) async {
     if (key.isEmpty) return;
     final ms = position.inMilliseconds;
     if (ms <= 0) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_prefix + key, ms);
+    final storeKey = _prefix + (engine != null ? '$engine:$key' : key);
+    await prefs.setInt(storeKey, ms);
   }
 
-  static Future<void> clear(String key) async {
+  static Future<void> clear(String key, {String? engine}) async {
     if (key.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefix + key);
+    final storeKey = _prefix + (engine != null ? '$engine:$key' : key);
+    await prefs.remove(storeKey);
   }
 }
 

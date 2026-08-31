@@ -223,7 +223,7 @@ void main() {
       ),
     );
     // Resume key for `_video` is its path (no explicit resumeKey).
-    await ResumeStore.save(_video.path!, const Duration(minutes: 12, seconds: 30));
+    await ResumeStore.save(_video.path!, const Duration(minutes: 12, seconds: 30), engine: 'media3');
 
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 3;

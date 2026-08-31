@@ -446,7 +446,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     Duration? resume;
     if (!_inTests && !widget.startFromBeginning) {
-      resume = await ResumeStore.positionFor(_resumeKey);
+      resume = await ResumeStore.positionFor(_resumeKey, engine: 'media3');
       // Skip trivial positions and "basically finished" ones.
       if (resume != null && resume < const Duration(seconds: 10)) resume = null;
       if (resume != null &&
@@ -485,7 +485,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_inTests) return;
     final key = _resumeKey;
     if (key.isEmpty || position <= Duration.zero) return;
-    ResumeStore.save(key, position);
+    final engine = _mpvActive ? 'mpv' : 'media3';
+    ResumeStore.save(key, position, engine: engine);
     // Keep the home "Continue watching" list in sync (skip trivial positions).
     if (position >= const Duration(seconds: 10)) {
       ContinueWatchingStore.save(_withLiveDuration, position);
@@ -611,7 +612,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (subs.isNotEmpty) _current = _current.withExternalSubtitles(subs);
       Duration? resume;
       if (!widget.startFromBeginning) {
-        resume = await ResumeStore.positionFor(_resumeKey);
+        resume = await ResumeStore.positionFor(_resumeKey, engine: 'mpv');
         // Skip trivial positions and "basically finished" ones.
         if (resume != null && resume < const Duration(seconds: 10)) {
           resume = null;
@@ -1417,7 +1418,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_inTests) return;
     final key = _resumeKey;
     if (key.isEmpty) return;
-    await ResumeStore.clear(key);
+    // Clear both engine-specific resume positions.
+    await ResumeStore.clear(key, engine: 'media3');
+    await ResumeStore.clear(key, engine: 'mpv');
     await ContinueWatchingStore.remove(key);
   }
 
