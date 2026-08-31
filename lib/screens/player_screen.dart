@@ -4607,39 +4607,53 @@ class _PlayerScreenState extends State<PlayerScreen>
     // The on-screen chip row shows only the pieces of info the user checks at
     // a glance while playing. The user can toggle each category in Settings →
     // Player → On-screen badges. Everything else lives in the ⓘ info sheet.
+    // Both engines show the same set of badges when data is available — the
+    // only difference is that MPV is always SDR so its HDR chip says "SDR".
     final chips = <Widget>[];
     if (_badgeEnabled) {
-      if (_mpvReady) {
-        if (_badgeResolution && _mpvResolution != null) {
-          chips.add(FormatChip(
-            label: _mpvResolution!,
-            color: const Color(0xFF90A4AE),
-          ));
+      // HDR — Media3 shows the real format (DV/HDR10/etc.); MPV always SDR.
+      if (_badgeHdr) {
+        if (_mpvReady) {
+          chips.add(const FormatChip(label: 'SDR', color: Color(0xFF9E9E9E)));
+        } else {
+          chips.add(hdrChip);
         }
-        if (_badgeVideoCodec && _mpvVideoCodecLabel != null) {
+      }
+      // Audio codec — both engines.
+      if (_badgeAudio && audioChip != null) chips.add(audioChip);
+      // Video codec — both engines.
+      if (_badgeVideoCodec) {
+        final vc = _mpvReady ? _mpvVideoCodecLabel : _videoCodecInfoLabel;
+        if (vc != null) {
           chips.add(FormatChip(
-            label: _mpvVideoCodecLabel!,
+            label: vc,
             color: const Color(0xFF4FC3F7),
           ));
         }
-        if (_badgeAudio && audioChipLabel != null) {
-          chips.add(FormatChip(label: audioChipLabel, color: _audioColor));
-        }
-      } else {
-        if (_badgeHdr) chips.add(hdrChip);
-        if (_badgeAudio && audioChip != null) chips.add(audioChip);
-        if (_badgeSpatialAudio && Platform.isAndroid && _liveSpatial == 'on') {
-          chips.add(const FormatChip(
-            label: 'Spatial',
-            color: Color(0xFF26A69A),
+      }
+      // Resolution — both engines.
+      if (_badgeResolution) {
+        final res = _mpvReady ? _mpvResolution : (_liveResolution ?? _current.resolution);
+        if (res != null) {
+          chips.add(FormatChip(
+            label: res,
+            color: const Color(0xFF90A4AE),
           ));
         }
-        if (_badgeServerTranscode && _transcodeActive) {
-          chips.add(const FormatChip(
-            label: 'Transcoding',
-            color: Color(0xFFEF5350),
-          ));
-        }
+      }
+      // Spatial audio — Android only, both engines (spatial is platform-level).
+      if (_badgeSpatialAudio && Platform.isAndroid && _liveSpatial == 'on') {
+        chips.add(const FormatChip(
+          label: 'Spatial',
+          color: Color(0xFF26A69A),
+        ));
+      }
+      // Server transcoding — both engines.
+      if (_badgeServerTranscode && _transcodeActive) {
+        chips.add(const FormatChip(
+          label: 'Transcoding',
+          color: Color(0xFFEF5350),
+        ));
       }
     }
 
