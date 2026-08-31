@@ -88,15 +88,20 @@ void main() {
       expect(find.text('Black outline'), findsOneWidget);
 
       // Drag the delay slider toward +30 s (scroll it into view first —
-      // it sits below the fold).
-      final sliderFinder = find.byType(Slider);
-      expect(sliderFinder, findsOneWidget);
+      // it sits below the fold). The screen now has three sliders
+      // (background opacity, vertical position, delay) — find the delay
+      // row by its Reset button context.
+      final delayReset = find.widgetWithText(TextButton, 'Reset').last;
       await tester.scrollUntilVisible(
-        sliderFinder,
-        160,
+        delayReset,
+        80,
         scrollable: find.byType(Scrollable).first,
       );
-      final rect = tester.getRect(sliderFinder);
+      await tester.pumpAndSettle();
+      // The delay slider is the Slider immediately above the Reset row.
+      final sliders = find.byType(Slider);
+      // The delay slider is the LAST slider in the layout.
+      final rect = tester.getRect(sliders.last);
       await tester.dragFrom(
         rect.centerLeft + const Offset(12, 0),
         Offset((rect.width - 24) * 0.8, 0),
@@ -106,8 +111,9 @@ void main() {
       final loaded = await SubtitleStyle.load();
       expect(loaded.delayMs, greaterThan(0));
 
-      // Reset returns it to zero.
-      await tester.tap(find.text('Reset'));
+      // Reset returns it to zero. Tap the delay row's Reset (the last
+      // one in the list).
+      await tester.tap(delayReset);
       await tester.pumpAndSettle();
       expect((await SubtitleStyle.load()).delayMs, 0);
     });

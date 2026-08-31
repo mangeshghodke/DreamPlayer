@@ -110,7 +110,12 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
                               Align(
                                 alignment: Alignment.bottomCenter,
                                 child: Padding(
-                                  padding: EdgeInsets.only(bottom: boxH * 0.09),
+                                  // Match the player overlay's logic: vPos
+                                  // (0=bottom, 255=top) maps to a fraction of
+                                  // the preview box height.
+                                  padding: EdgeInsets.only(
+                                      bottom: boxH *
+                                          (_style.verticalPosition / 255.0)),
                                   child: Text(
                                     'Sample subtitle line',
                                     textAlign: TextAlign.center,
@@ -120,7 +125,14 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
                                       fontWeight: FontWeight.w600,
                                       color: _style.color,
                                       backgroundColor: _style.hasBackground
-                                          ? _style.backgroundColor
+                                          ? Color(
+                                              (_style.backgroundColorValue &
+                                                      0x00FFFFFF) |
+                                                  ((_style.backgroundOpacity *
+                                                          255
+                                                          .toInt() &
+                                                          0xFF) <<
+                                                      24))
                                           : null,
                                       shadows: _style.outline
                                           ? const [
@@ -210,6 +222,93 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
                   subtitle: const Text('Shadow behind glyphs for readability'),
                   value: _style.outline,
                   onChanged: (value) => _update(_style.copyWith(outline: value)),
+                ),
+                if (_style.hasBackground) ...[
+                  _section(theme, 'Background opacity'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text('${((_style.backgroundOpacity / 255.0) * 100).round()}%',
+                                  style: theme.textTheme.titleMedium),
+                            ),
+                            TextButton(
+                              onPressed: _style.backgroundOpacity == 128
+                                  ? null
+                                  : () => _update(_style.copyWith(backgroundOpacity: 128)),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                minimumSize: const Size(0, 36),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text('Reset'),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          min: 0.0,
+                          max: 1.0,
+                          divisions: 255,
+                          label: '${((_style.backgroundOpacity / 255.0) * 100).round()}%',
+                          value: _style.backgroundOpacity / 255.0,
+                          onChanged: (v) => _update(
+                            _style.copyWith(backgroundOpacity: (v * 255).round()),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                _section(theme, 'Vertical position'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text('Pos: ${_style.verticalPosition}',
+                                style: theme.textTheme.titleMedium),
+                          ),
+                          TextButton(
+                            onPressed: _style.verticalPosition == 20
+                                ? null
+                                : () => _update(_style.copyWith(verticalPosition: 20)),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              minimumSize: const Size(0, 36),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Reset'),
+                          ),
+                        ],
+                      ),
+                      Slider(
+                        min: SubtitleStyle.minVerticalPosition.toDouble(),
+                        max: SubtitleStyle.maxVerticalPosition.toDouble(),
+                        divisions: SubtitleStyle.maxVerticalPosition,
+                        label: '${_style.verticalPosition}',
+                        value: _style.verticalPosition.toDouble(),
+                        onChanged: (v) => _update(
+                          _style.copyWith(verticalPosition: v.round()),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'Move subtitle text up (higher) or down (lower).',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 _section(theme, 'Delay'),
                 Padding(

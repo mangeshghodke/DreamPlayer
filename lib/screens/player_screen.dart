@@ -4906,8 +4906,14 @@ class _PlayerScreenState extends State<PlayerScreen>
                         fontSize: fontSize,
                         height: 1.4,
                         fontWeight: FontWeight.w500,
+                        // Apply the user-controlled background opacity.
                         backgroundColor: _subtitleStyle.hasBackground
-                            ? _subtitleStyle.backgroundColor
+                            ? Color(
+                                (_subtitleStyle.backgroundColorValue &
+                                        0x00FFFFFF) |
+                                    ((_subtitleStyle.backgroundOpacity & 0xFF)
+                                        << 24),
+                              )
                             : null,
                         shadows: _subtitleStyle.outline
                             ? [
