@@ -66,11 +66,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   Duration? _resumePosition;     // Media3 playhead
   Duration? _resumePositionMpv;  // MPV playhead
 
-  /// Which engine was last used to play this video (`"media3"` or `"mpv"`).
-  /// When set, the matching button is tinted so the user sees which engine
-  /// will resume from the saved position.
-  String? _lastEngine;
-
   /// Folder mode only: the folder's direct entries (files + subfolders).
   List<FileEntry> _entries = const [];
   String? _folderError;
@@ -419,11 +414,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final results = await Future.wait([
       ResumeStore.positionFor(_resumeKey, engine: 'media3'),
       ResumeStore.positionFor(_resumeKey, engine: 'mpv'),
-      LastEngineStore.load(_resumeKey),
     ]);
-    var position = results[0] as Duration?;
-    var positionMpv = results[1] as Duration?;
-    _lastEngine = results[2] as String?;
+    var position = results[0];
+    var positionMpv = results[1];
     // Filter trivial / near-end positions.
     if (position != null && position < const Duration(seconds: 10)) {
       position = null;
@@ -512,32 +505,52 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// and carries the "Resume from m:ss" label so the user knows which engine
   /// holds the saved playhead.
   List<Widget> _mpvButton({required Duration? resume}) {
-    final isLastEngine = _lastEngine == 'mpv' && resume != null;
-    final label = isLastEngine
+    final hasResume = resume != null;
+    final label = hasResume
         ? 'Resume from ${_formatClock(resume)} (MPV)'
         : 'Play with MPV';
     final icon = const Icon(Icons.video_settings_outlined);
     return [
       const SizedBox(height: 8),
-      isLastEngine
-          ? FilledButton.icon(
-              onPressed: () => _play(engine: PlayEngine.mpv),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+      Row(
+        children: [
+          Expanded(
+            child: hasResume
+                ? FilledButton.icon(
+                    onPressed: () => _play(engine: PlayEngine.mpv),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                      foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                    ),
+                    icon: icon,
+                    label: Text(label, overflow: TextOverflow.ellipsis),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: () => _play(engine: PlayEngine.mpv),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    icon: icon,
+                    label: Text(label, overflow: TextOverflow.ellipsis),
+                  ),
+          ),
+          if (hasResume) ...[
+            const SizedBox(width: 12),
+            Tooltip(
+              message: 'Watch from beginning (MPV)',
+              child: FilledButton.tonal(
+                onPressed: () => _play(fromBeginning: true, engine: PlayEngine.mpv),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  padding: EdgeInsets.zero,
+                ),
+                child: const Icon(Icons.replay),
               ),
-              icon: icon,
-              label: Text(label, overflow: TextOverflow.ellipsis),
-            )
-          : OutlinedButton.icon(
-              onPressed: () => _play(engine: PlayEngine.mpv),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
-              icon: icon,
-              label: Text(label, overflow: TextOverflow.ellipsis),
             ),
+          ],
+        ],
+      ),
       const SizedBox(height: 4),
       const Text(
         'SDR only — no Dolby Vision / HDR (Media3 handles those)',
