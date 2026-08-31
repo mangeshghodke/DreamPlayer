@@ -1331,6 +1331,8 @@ class ExoPlayerView(
                         call.argument<Number>("bg")?.toInt() ?: 0x80000000.toInt(),
                         call.argument<Boolean>("outline") ?: true,
                         (call.argument<Number>("delayMs")?.toLong()) ?: 0L,
+                        (call.argument<Number>("vPos")?.toInt()) ?: 20,
+                        (call.argument<Number>("bgOpacity")?.toInt()) ?: 128,
                     )
                     result.success(null)
                 }
@@ -1869,21 +1871,40 @@ class ExoPlayerView(
     /// Size is a multiplier around Media3's default fractional text size.
     /// `delayMs` is stored globally so the next `open()`'s parsers shift every
     /// cue (positive = later; requires re-open to take effect mid-playback).
-    private fun applySubtitleStyle(sizeMult: Double, color: Int, bg: Int, outline: Boolean, delayMs: Long = 0L) {
+    /// `vPos` is the vertical position (0-255, 0 = bottom, 255 = top).
+    /// `bgOpacity` (0-255) overrides the alpha channel of `bg`.
+    private fun applySubtitleStyle(
+        sizeMult: Double,
+        color: Int,
+        bg: Int,
+        outline: Boolean,
+        delayMs: Long = 0L,
+        vPos: Int = 20,
+        bgOpacity: Int = 128,
+    ) {
         SubtitleTiming.delayUs = delayMs * 1000L
         val view = playerView.subtitleView ?: return
         view.setFractionalTextSize(
             SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * sizeMult.coerceIn(0.6, 2.0).toFloat()
         )
+        // Move subtitle up the screen by setting bottom padding fraction.
+        // vPos=0 → no padding (bottom), vPos=255 → max padding (top).
+        view.setBottomPaddingFraction((vPos.coerceIn(0, 255) / 255.0f))
 
         val hasBg = (bg ushr 24) != 0
         val edgeType = if (outline)
             CaptionStyleCompat.EDGE_TYPE_OUTLINE
         else
             CaptionStyleCompat.EDGE_TYPE_NONE
+        // Override the alpha channel of `bg` with the user-controlled opacity.
+        val effectiveBg = if (hasBg) {
+            (bg and 0x00FFFFFF) or ((bgOpacity.coerceIn(0, 255) shl 24) and 0xFF000000.toInt())
+        } else {
+            Color.TRANSPARENT
+        }
         val style = CaptionStyleCompat(
             color,
-            if (hasBg) bg else Color.TRANSPARENT,
+            if (hasBg) effectiveBg else Color.TRANSPARENT,
             Color.TRANSPARENT,
             edgeType,
             if (outline) Color.BLACK else Color.TRANSPARENT,

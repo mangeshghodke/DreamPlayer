@@ -4869,18 +4869,16 @@ class _PlayerScreenState extends State<PlayerScreen>
               final vh = _mpvPlayer?.state.height?.toDouble() ?? sh;
               final videoAspect = vw / vh;
               final containerAspect = sw / sh;
-              double left, top, w, h;
-              if (videoAspect > containerAspect) {
-                w = sw;
-                h = sw / videoAspect;
-                left = 0;
-                top = (sh - h) / 2;
-              } else {
-                h = sh;
-                w = sh * videoAspect;
-                left = (sw - w) / 2;
-                top = 0;
-              }
+               double left, w, h;
+               if (videoAspect > containerAspect) {
+                 w = sw;
+                 h = sw / videoAspect;
+                 left = 0;
+               } else {
+                 h = sh;
+                 w = sh * videoAspect;
+                 left = (sw - w) / 2;
+               }
               // Font size: match Media3 SubtitleView.DEFAULT_TEXT_SIZE_FRACTION
               // (0.0533) × video height × user size multiplier (S=0.8/M=1.0/L=1.25/XL=1.5).
               // Verified via javap on media3-ui-1.10.1: defaultTextSize=0.0533f,
@@ -4888,12 +4886,18 @@ class _PlayerScreenState extends State<PlayerScreen>
               // 0.0533 * sizeMult to the SubtitleView inside AspectRatioFrameLayout.
               final fontSize =
                   (h * 0.0533 * _subtitleStyle.sizeMultiplier).clamp(12.0, 300.0);
+              // Vertical position (0-255): 0 = bottom, 255 = top.
+              // Convert to a bottom padding in pixels relative to the video
+              // content area's height.
+              final vPos = _subtitleStyle.verticalPosition
+                  .clamp(SubtitleStyle.minVerticalPosition, SubtitleStyle.maxVerticalPosition);
+              final bottomPadding = h * (vPos / 255.0);
               return Stack(
                 children: [
                   Positioned(
                     left: left + 16,
                     right: sw - left - w + 16,
-                    bottom: sh - top - h + 8,
+                    bottom: bottomPadding,
                     child: Text(
                       _mpvSubtitleLines.join('\n'),
                       textAlign: TextAlign.center,
