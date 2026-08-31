@@ -13,6 +13,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/hdr_format.dart';
 import '../models/video_item.dart';
 import '../services/continue_watching.dart';
+import '../services/badge_prefs.dart';
 import '../services/exo_player.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
@@ -149,6 +150,15 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _playing = false;
   bool _buffering = false;
   bool _completed = false;
+
+  /// Which on-screen badge categories the user wants to see during playback.
+  /// Loaded once from [BadgePrefs] at init; the settings screen writes the
+  /// prefs and the player reads them fresh on each open.
+  bool _badgeEnabled = true;
+  bool _badgeHdr = true;
+  bool _badgeAudio = true;
+  bool _badgeResolution = false;
+  bool _badgeVideoCodec = false;
 
   /// True once a media has loaded on this screen (video size/codecs/duration
   /// seen). Survives a native state reset (IDLE event after the platform view
@@ -425,6 +435,16 @@ class _PlayerScreenState extends State<PlayerScreen>
     // A new video means a previous software-decode fallback was for the last
     // file only — restore the user's original decoder mode now.
     await _restoreDecoderOverride();
+    // Load on-screen badge preferences so the chip row reflects the user's
+    // Settings choice without a restart.
+    try {
+      final bf = await BadgePrefs.load();
+      _badgeEnabled = bf.enabled;
+      _badgeHdr = bf.hdr;
+      _badgeAudio = bf.audio;
+      _badgeResolution = bf.resolution;
+      _badgeVideoCodec = bf.videoCodec;
+    } catch (_) {}
     _markedWatched = false;
     _autoPlayFired = false;
     _autoFetchFired = false;
@@ -1176,8 +1196,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       final channels = tr.channelscount;
       if (channels != null && channels > 0) _mpvAudioChannels = channels;
       final parts = [
-        if (codec != null && codec.isNotEmpty) codec.toUpperCase(),
-        if (channels != null && channels > 0) '$channels ch',
+        if (codec != null && codec.isNotEmpty)
+          formatAudioCodec(codec),
+        if (channels != null && channels > 0) channelsLabel(channels),
       ];
       if (parts.isNotEmpty) return parts.join(' · ');
     }
@@ -4579,32 +4600,32 @@ class _PlayerScreenState extends State<PlayerScreen>
             color: _liveAudioPassthrough ? _passthroughColor : _audioColor,
           )
         : null;
-    // The on-screen chip row shows only the two pieces of info the user
-    // checks at a glance while playing: the HDR format (so they know
-    // they're getting real HDR / DV / SDR) and the audio codec + channels
-    // (so they know what they're hearing). Everything else — resolution,
-    // decoder, transcode, network speed, source type, speed, audio
-    // effects, spatial — lives in the ⓘ info sheet (no clutter, no
-    // chip-row overflow on phones in landscape).
-    final chips = _mpvReady
-      ? [
-          if (_mpvResolution != null)
-            FormatChip(
-              label: _mpvResolution!,
-              color: const Color(0xFF90A4AE),
-            ),
-          if (_mpvVideoCodecLabel != null)
-            FormatChip(
-              label: _mpvVideoCodecLabel!,
-              color: const Color(0xFF4FC3F7),
-            ),
-          if (audioChipLabel != null)
-            FormatChip(label: audioChipLabel, color: _audioColor),
-        ]
-      : [
-          hdrChip,
-          ?audioChip,
-        ];
+    // The on-screen chip row shows only the pieces of info the user checks at
+    // a glance while playing. The user can toggle each category in Settings →
+    // Player → On-screen badges. Everything else lives in the ⓘ info sheet.
+    final chips = <Widget>[];
+    if (_badgeEnabled) {
+      if (_mpvReady) {
+        if (_badgeResolution && _mpvResolution != null) {
+          chips.add(FormatChip(
+            label: _mpvResolution!,
+            color: const Color(0xFF90A4AE),
+          ));
+        }
+        if (_badgeVideoCodec && _mpvVideoCodecLabel != null) {
+          chips.add(FormatChip(
+            label: _mpvVideoCodecLabel!,
+            color: const Color(0xFF4FC3F7),
+          ));
+        }
+        if (_badgeAudio && audioChipLabel != null) {
+          chips.add(FormatChip(label: audioChipLabel, color: _audioColor));
+        }
+      } else {
+        if (_badgeHdr) chips.add(hdrChip);
+        if (_badgeAudio && audioChip != null) chips.add(audioChip);
+      }
+    }
 
     // IMPORTANT: keep the widget-tree shape stable across casting state.
     // The platform view must ALWAYS be mounted at the same slot — swapping

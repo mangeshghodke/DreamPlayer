@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/auto_play_store.dart';
+import '../services/badge_prefs.dart';
 import '../services/cache_cleaner.dart';
 import '../services/decoder_mode.dart';
 import '../services/exo_player.dart';
@@ -49,6 +50,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _downloadLang = 'eng';
   int _subEncoding = 0;
   bool _autoFetchSubs = false;
+  bool _badgeEnabled = true;
+  bool _badgeHdr = true;
+  bool _badgeAudio = true;
+  bool _badgeResolution = false;
+  bool _badgeVideoCodec = false;
 
   @override
   void initState() {
@@ -63,6 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSimkl();
     _loadOpensubtitles();
     _loadSubtitlePrefs();
+    _loadBadgePrefs();
   }
 
   Future<void> _loadSimkl() async {
@@ -106,6 +113,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final enc = await SubtitlePrefs.loadEncoding();
       final auto = await SubtitlePrefs.loadAutoFetch();
       if (mounted) setState(() { _readingLang = reading; _downloadLang = download; _subEncoding = enc; _autoFetchSubs = auto; });
+    } catch (_) {}
+  }
+
+  Future<void> _loadBadgePrefs() async {
+    try {
+      final f = await BadgePrefs.load();
+      if (mounted) {
+        setState(() {
+          _badgeEnabled = f.enabled;
+          _badgeHdr = f.hdr;
+          _badgeAudio = f.audio;
+          _badgeResolution = f.resolution;
+          _badgeVideoCodec = f.videoCodec;
+        });
+      }
     } catch (_) {}
   }
 
@@ -444,6 +466,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (mounted) setState(() => _autoPlayNext = value);
                 },
               ),
+              SwitchListTile(
+                secondary: const Icon(Icons.label),
+                title: const Text('On-screen badges'),
+                subtitle: const Text(
+                  'Show format chips on screen while playing',
+                ),
+                value: _badgeEnabled,
+                onChanged: (value) async {
+                  await BadgePrefs.setEnabled(value);
+                  if (mounted) setState(() => _badgeEnabled = value);
+                },
+              ),
+              if (_badgeEnabled) ...[
+                CheckboxListTile(
+                  secondary: const Icon(Icons.high_quality, size: 20),
+                  title: const Text('HDR format'),
+                  subtitle: const Text('DV / HDR10 / HDR10+ / HLG / SDR'),
+                  value: _badgeHdr,
+                  onChanged: (value) async {
+                    await BadgePrefs.setHdr(value ?? true);
+                    if (mounted) setState(() => _badgeHdr = value ?? true);
+                  },
+                ),
+                CheckboxListTile(
+                  secondary: const Icon(Icons.audiotrack, size: 20),
+                  title: const Text('Audio codec'),
+                  subtitle: const Text('E-AC3 / DTS-HD / TrueHD / AAC / FLAC'),
+                  value: _badgeAudio,
+                  onChanged: (value) async {
+                    await BadgePrefs.setAudio(value ?? true);
+                    if (mounted) setState(() => _badgeAudio = value ?? true);
+                  },
+                ),
+                CheckboxListTile(
+                  secondary: const Icon(Icons.aspect_ratio, size: 20),
+                  title: const Text('Resolution'),
+                  value: _badgeResolution,
+                  onChanged: (value) async {
+                    await BadgePrefs.setResolution(value ?? false);
+                    if (mounted) setState(() => _badgeResolution = value ?? false);
+                  },
+                ),
+                CheckboxListTile(
+                  secondary: const Icon(Icons.videocam, size: 20),
+                  title: const Text('Video codec'),
+                  subtitle: const Text('HEVC / H.264 / AV1'),
+                  value: _badgeVideoCodec,
+                  onChanged: (value) async {
+                    await BadgePrefs.setVideoCodec(value ?? false);
+                    if (mounted) setState(() => _badgeVideoCodec = value ?? false);
+                  },
+                ),
+              ],
               // Subtitle appearance settings moved into the player's ⋮ sheet
               // (subtitle_settings_screen.dart is pushed from there now).
               // Volume Boost + Night Mode need Media3's LoudnessEnhancer
