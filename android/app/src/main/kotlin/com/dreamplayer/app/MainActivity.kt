@@ -6,9 +6,11 @@ import android.content.pm.PackageManager
 import android.app.UiModeManager
 import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -106,6 +108,47 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isTv" -> result.success(isTvBox(this))
+                else -> result.notImplemented()
+            }
+        }
+        // Engine-agnostic OS controls — brightness (per-app window brightness)
+        // and system media volume. Used by the MPV fallback engine because
+        // ExoPlayerView (the only other owner of these handlers) is not
+        // created when mpv is active — the player is just a Flutter texture,
+        // not a platform view.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "dreamplayer/system",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setBrightness" -> {
+                    val brightness = call.argument<Number>("brightness")?.toFloat() ?: 0.5f
+                    val params = window.attributes
+                    params.screenBrightness = if (brightness < 0f)
+                        WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                    else
+                        brightness.coerceIn(0f, 1f)
+                    window.attributes = params
+                    result.success(null)
+                }
+                "getBrightness" -> {
+                    val b = window.attributes.screenBrightness
+                    result.success(if (b < 0f) 0.5f else b)
+                }
+                "setSystemVolume" -> {
+                    val volume = call.argument<Number>("volume")?.toFloat() ?: 1f
+                    val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val target = (volume.coerceIn(0f, 1f) * maxVol).toInt()
+                    am.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+                    result.success(null)
+                }
+                "getSystemVolume" -> {
+                    val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()
+                    val curVol = am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
+                    result.success(if (maxVol > 0f) curVol / maxVol else 1f)
+                }
                 else -> result.notImplemented()
             }
         }

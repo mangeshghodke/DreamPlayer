@@ -35,6 +35,7 @@ import '../services/downloaded_subtitles_store.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
+import '../services/system_controls.dart';
 import 'subtitle_settings_screen.dart';
 import 'opensubtitles_sheet.dart';
 import '../utils/codec_info.dart';
@@ -2366,9 +2367,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _syncSwipeBase() async {
     if (_swipeType == null || !_swipeGestureActive) return;
     if (_mpvReady) {
+      // MPV has no ExoPlayerController — the gesture must target the OS
+      // directly through the engine-agnostic `dreamplayer/system` channel.
       final current = _swipeType == _SwipeType.brightness
-          ? _mpvBrightness
-          : (_mpvPlayer?.state.volume ?? 100) / 100;
+          ? await SystemControls.instance.getBrightness()
+          : await SystemControls.instance.getSystemVolume();
       if (!mounted || !_swipeGestureActive) return;
       setState(() {
         _swipeBase = current.clamp(0.0, 1.0);
@@ -2394,18 +2397,27 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   /// Computes base + accumulated delta, updates the overlay, and pushes the
-  /// result to the platform (or the mpv engine when the fallback is live).
+  /// result to the OS. Media3 routes through its own ExoPlayerController
+  /// channel; MPV routes through the engine-agnostic `SystemControls`.
   void _applySwipeValue() {
     final next = (_swipeBase + _swipeDragDelta).clamp(0.0, 1.0);
     _swipeCurrentValue = next;
     if (_swipeType == _SwipeType.brightness) {
       if (_mpvReady) {
+        // Persist locally so the gesture's own overlay can show the level
+        // even though the OS brightness is what actually changes. The
+        // black-on-texture overlay stays as a visual feedback only.
         setState(() => _mpvBrightness = next);
+        unawaited(SystemControls.instance.setBrightness(next));
       } else {
         _exo?.setBrightness(next);
       }
     } else if (_swipeType == _SwipeType.volume) {
       if (_mpvReady) {
+        // System volume on the mpv fallback too — same UX as Media3.
+        unawaited(SystemControls.instance.setSystemVolume(next));
+        // Keep mpv's own mixer in sync so the engine's volume doesn't drift
+        // if the user navigates away and the app forgets the gesture state.
         unawaited(_mpvPlayer?.setVolume(next * 100));
       } else {
         _exo?.setSystemVolume(next);
@@ -4869,6 +4881,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         // SubtitleView which fills the entire Video widget (including letterbox
         // bars). This overlay computes the actual video content area and pins
         // the subtitle text at its bottom edge, matching Media3's placement.
+        //
+        // Media3 puts the SubtitleView inside AspectRatioFrameLayout (which
+        // is constrained to the video content area in FIT mode) and uses
+        // `setBottomPaddingFraction(vPos / 255.0f)` to push the text up from
+        // the bottom edge of THAT area. Our Positioned works in the parent
+        // Stack's coordinate system (full screen), so when the video has
+        // letterbox bars we have to add the bottom-bar height to bottomPadding
+        // to land on the video content's bottom edge.
         if (_mpvReady && _mpvSubtitleLines.isNotEmpty)
           LayoutBuilder(
             builder: (context, constraints) {
@@ -4880,16 +4900,18 @@ class _PlayerScreenState extends State<PlayerScreen>
               final vh = _mpvPlayer?.state.height?.toDouble() ?? sh;
               final videoAspect = vw / vh;
               final containerAspect = sw / sh;
-               double left, w, h;
-               if (videoAspect > containerAspect) {
-                 w = sw;
-                 h = sw / videoAspect;
-                 left = 0;
-               } else {
-                 h = sh;
-                 w = sh * videoAspect;
-                 left = (sw - w) / 2;
-               }
+              double left, w, h;
+              double letterboxBottom = 0; // extra space below video content
+              if (videoAspect > containerAspect) {
+                w = sw;
+                h = sw / videoAspect;
+                left = 0;
+                letterboxBottom = (sh - h) / 2;
+              } else {
+                h = sh;
+                w = sh * videoAspect;
+                left = (sw - w) / 2;
+              }
               // Font size: match Media3 SubtitleView.DEFAULT_TEXT_SIZE_FRACTION
               // (0.0533) × video height × user size multiplier (S=0.8/M=1.0/L=1.25/XL=1.5).
               // Verified via javap on media3-ui-1.10.1: defaultTextSize=0.0533f,
@@ -4898,11 +4920,11 @@ class _PlayerScreenState extends State<PlayerScreen>
               final fontSize =
                   (h * 0.0533 * _subtitleStyle.sizeMultiplier).clamp(12.0, 300.0);
               // Vertical position (0-255): 0 = bottom, 255 = top.
-              // Convert to a bottom padding in pixels relative to the video
-              // content area's height.
+              // Match Media3's setBottomPaddingFraction(vPos/255.0f) — the
+              // fraction is of the SubtitleView (= video content area) height.
               final vPos = _subtitleStyle.verticalPosition
                   .clamp(SubtitleStyle.minVerticalPosition, SubtitleStyle.maxVerticalPosition);
-              final bottomPadding = h * (vPos / 255.0);
+              final bottomPadding = letterboxBottom + h * (vPos / 255.0);
               return Stack(
                 children: [
                   Positioned(
