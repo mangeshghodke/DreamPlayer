@@ -57,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _badgeVideoCodec = false;
   bool _badgeSpatialAudio = true;
   bool _badgeServerTranscode = true;
+  bool _badgeDecoder = false;
 
   @override
   void initState() {
@@ -130,6 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _badgeVideoCodec = f.videoCodec;
           _badgeSpatialAudio = f.spatialAudio;
           _badgeServerTranscode = f.serverTranscode;
+          _badgeDecoder = f.decoder;
         });
       }
     } catch (_) {}
@@ -558,6 +560,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (v) async {
                     await BadgePrefs.setServerTranscode(v);
                     if (mounted) setState(() => _badgeServerTranscode = v);
+                  },
+                ),
+                _BadgeToggle(
+                  icon: Icons.memory,
+                  label: 'Decoder',
+                  subtitle: 'HW / SW / auto',
+                  value: _badgeDecoder,
+                  onChanged: (v) async {
+                    await BadgePrefs.setDecoder(v);
+                    if (mounted) setState(() => _badgeDecoder = v);
                   },
                 ),
               ],

@@ -15,6 +15,7 @@ class BadgePrefs {
   // Playback state badges
   static const _kSpatialAudio = 'badge_spatial_audio';
   static const _kServerTranscode = 'badge_server_transcode';
+  static const _kDecoder = 'badge_decoder';
 
   static Future<bool> enabled() async =>
       (await SharedPreferences.getInstance()).getBool(_kEnabled) ?? true;
@@ -30,6 +31,8 @@ class BadgePrefs {
       (await SharedPreferences.getInstance()).getBool(_kSpatialAudio) ?? true;
   static Future<bool> serverTranscode() async =>
       (await SharedPreferences.getInstance()).getBool(_kServerTranscode) ?? true;
+  static Future<bool> decoder() async =>
+      (await SharedPreferences.getInstance()).getBool(_kDecoder) ?? false;
 
   static Future<void> setEnabled(bool v) async =>
       (await SharedPreferences.getInstance()).setBool(_kEnabled, v);
@@ -45,6 +48,8 @@ class BadgePrefs {
       (await SharedPreferences.getInstance()).setBool(_kSpatialAudio, v);
   static Future<void> setServerTranscode(bool v) async =>
       (await SharedPreferences.getInstance()).setBool(_kServerTranscode, v);
+  static Future<void> setDecoder(bool v) async =>
+      (await SharedPreferences.getInstance()).setBool(_kDecoder, v);
 
   /// Returns all flags in one async call.
   static Future<BadgeFlags> load() async {
@@ -57,6 +62,7 @@ class BadgePrefs {
       videoCodec: p.getBool(_kVideoCodec) ?? false,
       spatialAudio: p.getBool(_kSpatialAudio) ?? true,
       serverTranscode: p.getBool(_kServerTranscode) ?? true,
+      decoder: p.getBool(_kDecoder) ?? false,
     );
   }
 }
@@ -70,6 +76,7 @@ class BadgeFlags {
     required this.videoCodec,
     required this.spatialAudio,
     required this.serverTranscode,
+    required this.decoder,
   });
 
   final bool enabled;
@@ -79,4 +86,5 @@ class BadgeFlags {
   final bool videoCodec;
   final bool spatialAudio;
   final bool serverTranscode;
+  final bool decoder;
 }

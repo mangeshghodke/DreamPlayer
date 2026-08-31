@@ -162,6 +162,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _badgeVideoCodec = false;
   bool _badgeSpatialAudio = true;
   bool _badgeServerTranscode = true;
+  bool _badgeDecoder = false;
 
   /// Saved audio track to restore after the next open (index for Media3,
   /// track id string for MPV). Set from [AudioTrackStore] in [_openCurrent]
@@ -454,6 +455,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _badgeVideoCodec = bf.videoCodec;
       _badgeSpatialAudio = bf.spatialAudio;
       _badgeServerTranscode = bf.serverTranscode;
+      _badgeDecoder = bf.decoder;
     } catch (_) {}
     _markedWatched = false;
     _autoPlayFired = false;
@@ -1238,12 +1240,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     return null;
   }
-
-  /// True when the mpv engine actually has a selectable subtitle track. mpv
-  /// reports the current subtitle id as `auto` when nothing is loaded, so the
-  /// `id != 'no'` test alone lights the CC button on videos with no subtitles.
-  bool get _mpvHasSubtitleTracks => _mpvTracks.subtitle
-      .any((t) => t.id != 'auto' && t.id != 'no');
 
   void _syncMpvTrackMeta() {
     final audio = _mpvTracks.audio;
@@ -4743,6 +4739,26 @@ class _PlayerScreenState extends State<PlayerScreen>
           color: Color(0xFFEF5350),
         ));
       }
+      // Decoder — both engines.
+      if (_badgeDecoder) {
+        if (_mpvReady) {
+          final label = _mpvHwdecMode == 'no'
+              ? 'SW decode'
+              : _mpvHwdecMode == 'mediacodec'
+                  ? 'HW decode'
+                  : 'HW decode (auto)';
+          chips.add(FormatChip(
+            label: label,
+            color: const Color(0xFFFFB74D),
+          ));
+        } else if (Platform.isAndroid && _liveDecoderName != null) {
+          final hw = _isHwDecoder ?? true;
+          chips.add(FormatChip(
+            label: '${hw ? 'HW' : 'SW'} decode',
+            color: const Color(0xFFFFB74D),
+          ));
+        }
+      }
     }
 
     // IMPORTANT: keep the widget-tree shape stable across casting state.
@@ -4769,6 +4785,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                           controller: _mpvController!,
                           fit: _mpvFit,
                           controls: NoVideoControls,
+                          subtitleViewConfiguration:
+                              const SubtitleViewConfiguration(
+                            padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+                          ),
                         ),
                       ),
                     ),
@@ -4778,10 +4798,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                     child: Video(
                       controller: _mpvController!,
                       fit: _mpvFit,
-                      // `NoVideoControls` (= null) overrides the widget's default
-                      // AdaptiveVideoControls — without this the stock media_kit
-                      // controls render a SECOND bottom bar under our own.
                       controls: NoVideoControls,
+                      subtitleViewConfiguration:
+                          const SubtitleViewConfiguration(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+                      ),
                     ),
                   ))
             : _exo != null && _error == null
@@ -5355,15 +5376,13 @@ class _PlayerScreenState extends State<PlayerScreen>
                                     onPressed: _openSubtitleSheet,
                                     icon: Icon(
                                       (_mpvReady
-                                              ? (_mpvSubtitleOn &&
-                                                  _mpvHasSubtitleTracks)
+                                              ? _mpvSubtitleOn
                                               : _subtitleOn)
                                           ? Icons.closed_caption
                                           : Icons.closed_caption_off,
                                     ),
                                     color: (_mpvReady
-                                            ? (_mpvSubtitleOn &&
-                                                _mpvHasSubtitleTracks)
+                                            ? _mpvSubtitleOn
                                             : _subtitleOn)
                                         ? Colors.white
                                         : Colors.white54,
