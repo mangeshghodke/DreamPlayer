@@ -685,6 +685,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         : (widget.folder?.name ?? widget.video!.title);
     final resume = _resumePosition;       // Media3 playhead
     final resumeMpv = _resumePositionMpv; // MPV playhead
+    final hasAnyResume = resume != null || resumeMpv != null;
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
@@ -697,41 +698,52 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 // Always reachable: a metadata failure (or a slow lookup) must
                 // never block playing the video, whatever the metadata state.
-                child: resume != null
+                child: hasAnyResume
                     ? Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton.icon(
-                                  onPressed: _play,
-                                  style: FilledButton.styleFrom(
-                                    minimumSize: const Size.fromHeight(52),
-                                  ),
-                                  icon: const Icon(Icons.play_arrow),
-                                  label: Text(
-                                    'Resume from ${_formatClock(resume)}',
-                                    overflow: TextOverflow.ellipsis,
+                          if (resume != null) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: _play,
+                                    style: FilledButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(52),
+                                    ),
+                                    icon: const Icon(Icons.play_arrow),
+                                    label: Text(
+                                      'Resume from ${_formatClock(resume)}',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Tooltip(
-                                message: 'Watch from beginning',
-                                child: FilledButton.tonal(
-                                  onPressed: () =>
-                                      _play(fromBeginning: true),
-                                  style: FilledButton.styleFrom(
-                                    minimumSize: const Size(52, 52),
-                                    padding: EdgeInsets.zero,
+                                const SizedBox(width: 12),
+                                Tooltip(
+                                  message: 'Watch from beginning',
+                                  child: FilledButton.tonal(
+                                    onPressed: () =>
+                                        _play(fromBeginning: true),
+                                    style: FilledButton.styleFrom(
+                                      minimumSize: const Size(52, 52),
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                    child: const Icon(Icons.replay),
                                   ),
-                                  child: const Icon(Icons.replay),
                                 ),
+                              ],
+                            ),
+                          ] else ...[
+                            FilledButton.icon(
+                              onPressed: _play,
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(52),
                               ),
-                            ],
-                          ),
+                              icon: const Icon(Icons.play_arrow),
+                              label: const Text('Play'),
+                            ),
+                          ],
                           if (showMpvOption)
                             ..._mpvButton(resume: resumeMpv),
                         ],
