@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
@@ -13,6 +14,7 @@ import '../utils/season_group.dart' as sg;
 import '../widgets/season_progress_ring.dart';
 import '../widgets/tv_tile.dart';
 import 'folder_screen.dart';
+import 'opensubtitles_sheet.dart';
 import 'player_screen.dart';
 
 /// Shows TMDB metadata with a Play/Resume button and a "Fix match" manual
@@ -78,10 +80,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   TmdMeta? _meta;
   TmdDetails? _details;
   bool _loading = true;
-
-  /// Latches so a failed metadata lookup pops the "can't connect" SnackBar
-  /// at most once per screen (not on every rebuild/retry).
-  bool _connectionErrorShown = false;
 
   /// Saved playhead for this video per engine.
   Duration? _resumePosition;     // Media3 playhead
@@ -213,42 +211,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       if (!mounted) return;
     }
     if (_meta == null) {
-      try {
-        if (widget.folder != null) {
-          await _service.resolveFolder(
-            widget.folder!.metadataKey,
-            widget.folder!.name,
-          );
-        } else {
-          await _service.resolve(
-            widget.video!,
-            parentFolderName: _parentFolderNameFromPath,
-          );
-        }
-        if (!mounted) return;
-        final meta = _service.metaFor(_identityKey);
-        setState(() {
-          _meta = meta;
-          _loading = false;
-        });
-      } catch (e) {
-        if (mounted) {
-          setState(() => _loading = false);
-          // A failed lookup surfaces as a transient popup, not inline text on
-          // the "no match" card — the card stays blank apart from the "Could
-          // not find …" headline and the Search TMDB button.
-          if (!_connectionErrorShown) {
-            _connectionErrorShown = true;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Can\'t connect to TMDB right now. Check your connection '
-                      'and try again.',
-                ),
-              ),
-            );
-          }
-        }
+      if (mounted) {
+        setState(() => _loading = false);
       }
     }
     await _loadDetailsAndSeasons();
@@ -268,7 +232,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         _entries = entries;
         _folderError = null;
       });
-      _prefetchFolderMeta(entries);
       _refreshWatched();
     } on PlatformException catch (e) {
       if (!mounted) return;
@@ -305,7 +268,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         _jellyfinEntries = [...folders, ...playables];
         _folderError = null;
       });
-      _prefetchJellyfinMeta(server);
       _refreshWatched();
     } on Exception catch (e) {
       if (!mounted) return;
@@ -317,31 +279,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
   }
 
-  /// Best-effort TMDB prefetch for the folder's video files. Each file resolves
-  /// under the SAME stable key its tile/tap uses, so the row's poster appears
-  /// when a match exists and opening the file is a cache hit. Never blocks the
-  /// list.
-  void _prefetchFolderMeta(List<FileEntry> entries) {
-    final service = _service;
-    for (final entry in entries) {
-      if (entry.isDirectory) continue;
-      service.resolve(_toVideoItem(entry)).catchError((_) {
-        // Best-effort; a TMDB failure just leaves the row without a poster.
-        return null;
-      });
-    }
-  }
-
-  /// Jellyfin variant: prefetch each playable under the same key its tap uses.
-  void _prefetchJellyfinMeta(JellyfinServer server) {
-    final service = _service;
-    for (final item in _jellyfinEntries) {
-      if (!item.isPlayable) continue;
-      service.resolve(_jellyfin.videoItem(server, item)).catchError((_) {
-        return null;
-      });
-    }
-  }
 
   /// Refreshes the folder's server-side metadata (poster/title/year/overview)
   /// from the Jellyfin server. Best-effort: a failure keeps whatever was passed
@@ -479,12 +416,16 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   }
 
   Future<void> _fixMatch() async {
+    final parsed = ParsedFileName.parse(
+      widget.folder?.name ?? widget.video!.title,
+      parentFolderName: _parentFolderNameFromPath,
+    );
     final picked = await showDialog<TmdMovie>(
       context: context,
       builder: (context) => _SearchDialog(
-        initialQuery: ParsedFileName.parse(
-          widget.folder?.name ?? widget.video!.title,
-        ).title,
+        initialQuery: parsed.seriesName ?? parsed.title,
+        initialYear: parsed.year,
+        initialKind: parsed.isEpisode ? TmdKind.tv : TmdKind.movie,
       ),
     );
     if (picked == null || !mounted) return;
@@ -860,19 +801,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final episodeOverview =
         (singleEpisode?.overview.isNotEmpty ?? false) ? singleEpisode!.overview : null;
 
-    // Horizontal scrollable images for the single-episode page: the episode's
-    // own still frames when the per-episode fetch landed, otherwise fall back
-    // to the header still then the show backdrop so the strip is never empty.
-    final episodeImages = singleEpisode == null
-        ? const <String>[]
-        : singleEpisode.stills.isNotEmpty
-            ? singleEpisode.stillUrls()
-            : <String>[
-                if (singleEpisode.stillUrl() != null) singleEpisode.stillUrl()!,
-                if (singleEpisode.stillUrl() == null && movie.backdropUrl() != null)
-                  movie.backdropUrl()!,
-              ];
-
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
@@ -880,12 +808,16 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
             context,
             Stack(
               children: [
-                _HeaderImageGallery(
-                  images: episodeImages.isNotEmpty
-                      ? episodeImages
-                      : [?headerImage],
-                  fallback: _artworkFallback(colorScheme),
-                ),
+                headerImage != null
+                    ? Image.network(
+                        headerImage,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            _artworkFallback(colorScheme),
+                      )
+                    : _artworkFallback(colorScheme),
                 Positioned(
                   bottom: 8,
                   right: 12,
@@ -926,38 +858,84 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_parsed.isEpisode)
+                          if (_parsed.isEpisode && singleEpisode != null) ...[
                             Text(
-                              _parsed.seasonEpisodeLabel,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          if (singleEpisode != null)
-                            Text(
-                              singleEpisode.nameLabel,
-                              style: theme.textTheme.titleSmall?.copyWith(
+                              movie.title,
+                              style: theme.textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w700,
                               ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          if (movie.year != null)
-                            Text(
-                              '${movie.year}',
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    _parsed.episodeLabel,
+                                    style: theme.textTheme.labelMedium
+                                        ?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color:
+                                          colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    singleEpisode.nameLabel,
+                                    style:
+                                        theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            if (_meta?.seasons[_parsed.season]?.name
+                                    .isNotEmpty ??
+                                false)
+                              Text(
+                                _meta!.seasons[_parsed.season]!.name,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
                               ),
-                            ),
+                          ] else ...[
+                            if (movie.title.isNotEmpty)
+                              Text(
+                                movie.title,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            if (movie.year != null)
+                              Text(
+                                '${movie.year}',
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                          ],
                           const SizedBox(height: 6),
                           Wrap(
                             spacing: 6,
                             runSpacing: 6,
                             children: [
-                              if (_parsed.isEpisode)
-                                _FactChip(
-                                  icon: Icons.tag,
-                                  label: _parsed.episodeLabel,
-                                ),
                               if (singleEpisode?.runtimeMinutes != null)
                                 _FactChip(
                                   icon: Icons.schedule,
@@ -969,10 +947,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                   icon: Icons.calendar_today,
                                   label: _formatAirDate(episodeAirDate),
                                 ),
-                              // The show's average runtime only outside the
-                              // single-episode page and the parent folder
-                              // page, where the episode's own runtime chip
-                              // would otherwise duplicate it.
                               if (widget.folder == null &&
                                   singleEpisode == null &&
                                   details?.runtimeMinutes != null)
@@ -1011,116 +985,43 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                   episodeOverview ?? (details?.overview ?? movie.overview),
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                 ),
-                if (singleEpisode != null) ...[
+
+                // ── File info card (Nova-style) ──
+                if (widget.video != null) ...[
                   const SizedBox(height: 20),
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    runSpacing: 0,
-                    children: [
-                      Text(
-                        'Episode cast',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Wrap(
-                        spacing: 0,
-                        children: [
-                          TextButton(
-                            onPressed: _removeInfo,
-                            style: TextButton.styleFrom(
-                              foregroundColor: theme.colorScheme.error,
-                            ),
-                            child: const Text('Remove info'),
-                          ),
-                          TextButton(
-                            onPressed: _fixMatch,
-                            child: const Text('Fix match'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (singleEpisode.cast.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 96,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: singleEpisode.cast.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 12),
-                        itemBuilder: (context, index) =>
-                            _CastTile(member: singleEpisode.cast[index]),
-                      ),
-                    ),
-                  ],
-                  if (singleEpisode.guestStars.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      'Guest stars',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 96,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: singleEpisode.guestStars.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 12),
-                        itemBuilder: (context, index) => _CastTile(
-                          member: singleEpisode.guestStars[index],
-                        ),
-                      ),
-                    ),
-                  ],
-                ] else ...[
-                  const SizedBox(height: 20),
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    runSpacing: 0,
-                    children: [
-                      Text(
-                        'Cast',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Wrap(
-                        spacing: 0,
-                        children: [
-                          TextButton(
-                            onPressed: _removeInfo,
-                            style: TextButton.styleFrom(
-                              foregroundColor: theme.colorScheme.error,
-                            ),
-                            child: const Text('Remove info'),
-                          ),
-                          TextButton(
-                            onPressed: _fixMatch,
-                            child: const Text('Fix match'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (details != null && details.cast.isNotEmpty)
-                    SizedBox(
-                      height: 96,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: details.cast.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 12),
-                        itemBuilder: (context, index) =>
-                            _CastTile(member: details.cast[index]),
-                      ),
-                    ),
+                  _FileInfoCard(video: widget.video!),
                 ],
+
+                // ── Subtitles card ──
+                if (widget.video != null) ...[
+                  const SizedBox(height: 16),
+                  _SubtitlesCard(video: widget.video!),
+                ],
+
+                // ── Trailers card (Nova-style) ──
+                if (details != null && details.trailers.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _TrailersCard(trailers: details.trailers),
+                ],
+
+                // ── Fix match / Remove info ──
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: _fixMatch,
+                      child: const Text('Fix match'),
+                    ),
+                    TextButton(
+                      onPressed: _removeInfo,
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error,
+                      ),
+                      child: const Text('Remove info'),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
               ],
             ),
@@ -1565,6 +1466,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   Widget _buildNoMatch(ThemeData theme) {
     final colorScheme = theme.colorScheme;
+    final fileName = widget.video?.title ?? widget.folder?.name ?? '';
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -1578,15 +1480,23 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Could not find "${widget.folder?.name ?? widget.video!.title}" on TMDB',
+              fileName,
               textAlign: TextAlign.center,
               style: theme.textTheme.titleMedium,
             ),
+            const SizedBox(height: 8),
+            Text(
+              'No metadata loaded',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 20),
-            OutlinedButton.icon(
+            FilledButton.icon(
               onPressed: _fixMatch,
-              icon: const Icon(Icons.search),
-              label: const Text('Search TMDB'),
+              icon: const Icon(Icons.info_outline),
+              label: const Text('Get Info'),
             ),
           ],
         ),
@@ -1695,167 +1605,194 @@ class _FactChip extends StatelessWidget {
   }
 }
 
-class _CastTile extends StatelessWidget {
-  const _CastTile({required this.member});
-
-  final TmdCastMember member;
+/// Nova-style file info card showing codec, resolution, file size.
+class _FileInfoCard extends StatelessWidget {
+  const _FileInfoCard({required this.video});
+  final VideoItem video;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: 96,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          ClipOval(
-            child: member.profileUrl(width: 185) != null
-                ? Image.network(
-                    member.profileUrl(width: 185)!,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _avatarFallback(colorScheme),
-                  )
-                : _avatarFallback(colorScheme),
-          ),
-          const SizedBox(height: 6),
-          // Name + character must fit the fixed 96px tile height at any text
-          // scale — scale the two lines down together when they don't.
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    member.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (member.character != null)
-                    Text(
-                      member.character!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                ],
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final videoCodec = video.videoCodecLabel;
+    final audioCodec = video.audioCodecLabel;
+    final resolution = video.resolution;
+    final sizeBytes = video.sizeBytes;
+    final path = video.path ?? video.uri ?? '';
+
+    if (videoCodec == null && audioCodec == null && resolution == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'File info',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 10),
+            if (videoCodec != null || resolution != null)
+              _InfoRow(
+                icon: Icons.videocam,
+                label: [videoCodec, resolution].where((s) => s != null && s.isNotEmpty).join('  ·  '),
+              ),
+            if (audioCodec != null)
+              _InfoRow(icon: Icons.audiotrack, label: audioCodec),
+            if (sizeBytes != null && sizeBytes > 0)
+              _InfoRow(
+                icon: Icons.storage,
+                label: _formatFileSize(sizeBytes),
+              ),
+            if (path.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                path,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _avatarFallback(ColorScheme colorScheme) {
-    return Container(
-      width: 56,
-      height: 56,
-      color: colorScheme.surfaceContainerHighest,
-      child: Icon(Icons.person, color: colorScheme.onSurfaceVariant),
+  static String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+}
+
+/// Nova-style subtitles card with OpenSubtitles search button.
+class _SubtitlesCard extends StatelessWidget {
+  const _SubtitlesCard({required this.video});
+  final VideoItem video;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Subtitles',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.subtitles),
+              title: const Text('Search subtitles online'),
+              subtitle: const Text('OpenSubtitles'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openSubtitleSearch(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openSubtitleSearch(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => OpensubtitlesSheet(
+        initialQuery: video.title,
+        filePath: video.path,
+        resumeKey: video.resumeKey,
+      ),
     );
   }
 }
 
-/// The top header artwork: a horizontal swipeable gallery of the episode's
-/// TMDB still frames (a dot indicator shows the current frame). Falls back to
-/// a single static frame when the page isn't an episode gallery.
-class _HeaderImageGallery extends StatefulWidget {
-  const _HeaderImageGallery({
-    required this.images,
-    required this.fallback,
-  });
-
-  final List<String> images;
-  final Widget fallback;
-
-  @override
-  State<_HeaderImageGallery> createState() => _HeaderImageGalleryState();
-}
-
-class _HeaderImageGalleryState extends State<_HeaderImageGallery> {
-  int _page = 0;
+/// Nova-style trailers card — YouTube links.
+class _TrailersCard extends StatelessWidget {
+  const _TrailersCard({required this.trailers});
+  final List<TmdTrailer> trailers;
 
   @override
   Widget build(BuildContext context) {
-    final images = widget.images;
-    return Stack(
-      children: [
-        SizedBox.expand(
-          child: images.isNotEmpty
-              ? PageView.builder(
-                  itemCount: images.length,
-                  onPageChanged: (i) => setState(() => _page = i),
-                  itemBuilder: (context, index) => _HeaderArtwork(
-                    url: images[index],
-                    fallback: widget.fallback,
-                  ),
-                )
-              : _HeaderArtwork(
-                  url: null,
-                  fallback: widget.fallback,
-                ),
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Trailers',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 10),
+            for (final trailer in trailers)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.play_circle_outline, color: Colors.red),
+                title: Text(trailer.name),
+                subtitle: const Text('YouTube'),
+                trailing: const Icon(Icons.open_in_new, size: 18),
+                onTap: () => _launchTrailer(context, trailer),
+              ),
+          ],
         ),
-        if (images.length > 1)
-          Positioned(
-            bottom: 10,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < images.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 6),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: i == _page ? 18 : 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: i == _page
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ],
-              ],
+      ),
+    );
+  }
+
+  Future<void> _launchTrailer(BuildContext context, TmdTrailer trailer) async {
+    final url = trailer.youtubeUrl;
+    if (url == null) return;
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+}
+
+/// Single info row for the file info card.
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
-      ],
-    );
-  }
-}
-
-/// A full-bleed header frame for the details screen: one page of the episode
-/// still gallery, or the single static artwork on non-episode pages.
-class _HeaderArtwork extends StatelessWidget {
-  const _HeaderArtwork({required this.url, required this.fallback});
-
-  final String? url;
-  final Widget fallback;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = this.url;
-    if (url == null) return fallback;
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => fallback,
-      loadingBuilder: (context, child, progress) =>
-          progress == null ? child : fallback,
+        ],
+      ),
     );
   }
 }
@@ -2110,9 +2047,11 @@ class _Poster extends StatelessWidget {
 
 /// Manual search dialog for picking the right TMDB entry.
 class _SearchDialog extends StatefulWidget {
-  const _SearchDialog({this.initialQuery});
+  const _SearchDialog({this.initialQuery, this.initialYear, this.initialKind});
 
   final String? initialQuery;
+  final int? initialYear;
+  final TmdKind? initialKind;
 
   @override
   State<_SearchDialog> createState() => _SearchDialogState();
@@ -2126,11 +2065,13 @@ class _SearchDialogState extends State<_SearchDialog> {
   bool _searching = false;
   bool _noKey = false;
   String? _error;
+  late TmdKind _kind;
 
   @override
   void initState() {
     super.initState();
     _controller.text = widget.initialQuery ?? '';
+    _kind = widget.initialKind ?? TmdKind.movie;
   }
 
   @override
@@ -2159,12 +2100,15 @@ class _SearchDialogState extends State<_SearchDialog> {
       _noKey = false;
     });
     try {
-      // Search TV and movies together so a folder can be pinned to a series.
-      final all = await Future.wait([
-        _api.search(query, kind: TmdKind.tv),
-        _api.search(query, kind: TmdKind.movie),
-      ]);
-      final results = <TmdMovie>[...all[0], ...all[1]];
+      // Search the selected kind first, then the other as fallback.
+      final primary = await _api.search(
+        query,
+        year: widget.initialYear,
+        kind: _kind,
+      );
+      final fallbackKind = _kind == TmdKind.tv ? TmdKind.movie : TmdKind.tv;
+      final fallback = await _api.search(query, kind: fallbackKind);
+      final results = <TmdMovie>[...primary, ...fallback];
       final seen = <int>{};
       results.removeWhere((m) => !seen.add(m.id));
       if (!mounted) return;
@@ -2182,7 +2126,7 @@ class _SearchDialogState extends State<_SearchDialog> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     return AlertDialog(
-      title: const Text('Search TMDB'),
+      title: const Text('Get Info'),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -2193,9 +2137,19 @@ class _SearchDialogState extends State<_SearchDialog> {
               autofocus: true,
               onSubmitted: (_) => _search(),
               decoration: const InputDecoration(
-                hintText: 'Movie title',
+                hintText: 'Search title',
                 prefixIcon: Icon(Icons.search),
               ),
+            ),
+            const SizedBox(height: 8),
+            // Kind toggle: TV or Movie
+            SegmentedButton<TmdKind>(
+              segments: const [
+                ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
+                ButtonSegment(value: TmdKind.movie, label: Text('Movie')),
+              ],
+              selected: {_kind},
+              onSelectionChanged: (sel) => setState(() => _kind = sel.first),
             ),
             const SizedBox(height: 8),
             if (_searching)

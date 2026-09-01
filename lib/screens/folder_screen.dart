@@ -132,7 +132,6 @@ class _FolderScreenState extends State<FolderScreen> {
         _loading = false;
       });
       _refreshWatched();
-      _prefetchMeta(entries);
     } on PlatformException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -167,7 +166,6 @@ class _FolderScreenState extends State<FolderScreen> {
         _loading = false;
       });
       _refreshWatched();
-      _prefetchJellyfinMeta(server);
     } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
@@ -221,47 +219,6 @@ class _FolderScreenState extends State<FolderScreen> {
     }
   }
 
-  /// Best-effort TMDB prefetch for the current folder's video files. Each file
-  /// resolves under the SAME stable key its tile/tap uses, so the row's poster
-  /// appears (when a match exists) and tapping the file is a cache hit — no
-  /// re-search. Never blocks the list.
-  void _prefetchMeta(List<FileEntry> entries) {
-    final service = TmdService.instance;
-    // Flux-style fallback: when a file has only a generic episode name
-    // (`Episode01.mkv`, `01.mkv`) and the folder name looks like a show,
-    // inherit it as the series name so TMDB can find the right show.
-    final parentName = _parentFolderName();
-    for (final entry in entries) {
-      if (entry.isDirectory) continue;
-      service.resolve(_toVideoItem(entry), parentFolderName: parentName).catchError((_) {
-        // Best-effort; a TMDB failure just leaves the row without a poster.
-        return null;
-      });
-    }
-  }
-
-  /// Folder name one level above [_currentPath] — the immediate parent.
-  /// Empty string when we are AT the root (no parent to inherit).
-  String _parentFolderName() {
-    final folder = widget.folder;
-    final atRoot = _currentPath == folder.path;
-    if (atRoot) return folder.name;
-    final segments = _currentPath.split('/').where((s) => s.isNotEmpty).toList();
-    return segments.isEmpty ? folder.name : segments.last;
-  }
-
-  /// Jellyfin variant: prefetch each playable under the same key its tap uses
-  /// ([_jellyfin.videoItem]), so rows show the server item's TMDB poster when
-  /// one matches.
-  void _prefetchJellyfinMeta(JellyfinServer server) {
-    final service = TmdService.instance;
-    for (final item in _jellyfinEntries) {
-      if (!item.isPlayable) continue;
-      service.resolve(_jellyfin.videoItem(server, item)).catchError((_) {
-        return null;
-      });
-    }
-  }
 
   Future<void> _openEntry(FileEntry entry) async {
     if (entry.isDirectory) {
@@ -320,9 +277,6 @@ class _FolderScreenState extends State<FolderScreen> {
       duration: Duration.zero,
       sizeBytes: entry.size,
     );
-    try {
-      await TmdService.instance.resolve(item);
-    } catch (_) {}
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(

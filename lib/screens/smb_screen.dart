@@ -273,7 +273,6 @@ class _SmbScreenState extends State<SmbScreen> {
         _entries = entries;
         _loading = false;
       });
-      _prefetchTmdbMeta(entries);
       _refreshWatched();
     } on PlatformException catch (e) {
       if (mounted) {
@@ -285,34 +284,7 @@ class _SmbScreenState extends State<SmbScreen> {
     }
   }
 
-  void _prefetchTmdbMeta(List<SmbEntry> entries) {
-    final server = _browsing;
-    if (server == null) return;
-    final service = TmdService.instance;
-    for (final entry in entries) {
-      if (entry.isDirectory) continue;
-      if (_tmdbMeta.containsKey(entry.path)) continue;
-      _tmdbMeta[entry.path] = null; // placeholder to avoid duplicate requests
-      // Resolve under the SAME stable key `_openEntry` uses, so the prefetched
-      // match is a direct cache hit when the video is tapped (no re-search).
-      final key = 'smb:${server.id}/$_share/${entry.path}';
-      service.resolve(VideoItem(
-        id: 'smb:$key',
-        title: entry.name,
-        uri: '',
-        resumeKey: key,
-        duration: Duration.zero,
-        sizeBytes: entry.size,
-      )).then((meta) {
-        if (!mounted) return;
-        setState(() {
-          _tmdbMeta[entry.path] = meta;
-        });
-      }).catchError((_) {
-        // Best-effort prefetch; a TMDB failure leaves the row with no poster.
-      });
-    }
-  }
+
 
   Future<void> _openEntry(SmbEntry entry) async {
     if (entry.isDirectory) {
@@ -401,13 +373,6 @@ class _SmbScreenState extends State<SmbScreen> {
       duration: Duration.zero,
       sizeBytes: video.size,
     );
-
-    // Pre-fetch TMDB metadata so the details screen has it instantly. This is a
-    // cache hit when the folder prefetch already landed; a failure must never
-    // block navigation (the details screen has its own error handling + Play).
-    try {
-      await TmdService.instance.resolve(item);
-    } catch (_) {}
 
     if (!mounted) return;
     await Navigator.of(context).push(

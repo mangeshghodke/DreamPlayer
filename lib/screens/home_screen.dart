@@ -5,11 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app.dart' show appRouteObserver;
+import '../models/library_video.dart';
 import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
+import '../services/library_video_store.dart';
+import '../services/native_media_scanner.dart';
 import '../services/tmdb_client.dart';
 import '../services/webdav_client.dart';
 import '../widgets/folder_card.dart';
@@ -49,6 +52,9 @@ class _HomeScreenState extends State<HomeScreen>
   /// recently added first. Nothing is auto-scanned — only these appear.
   List<LibraryFolder> _folders = const [];
 
+  /// "All videos on device": videos discovered by the MediaStore scanner.
+  List<LibraryVideo> _libraryVideos = const [];
+
   /// Cached server-side metadata for the [JellyfinItemInfo] folders, keyed by
   /// `LibraryFolder.id` (fetch-on-bookmark, refreshed on open).
   Map<String, JellyfinItemInfo> _jellyfinMeta = const {};
@@ -67,9 +73,11 @@ class _HomeScreenState extends State<HomeScreen>
     // Reload whenever the persisted list changes (e.g. a save or remove).
     ContinueWatchingStore.changes.addListener(_loadLibrary);
     LibraryFoldersStore.changes.addListener(_loadLibrary);
+    LibraryVideoStore.instance.addListener(_onMetadataChanged);
     // Update cards when TMDB metadata resolves for a visible entry.
     TmdService.instance.addListener(_onMetadataChanged);
     _loadLibrary();
+    _loadLibraryVideos();
     // Ask for every runtime permission at app open instead of mid-playback.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -96,6 +104,7 @@ class _HomeScreenState extends State<HomeScreen>
     widget.refreshTick?.removeListener(_loadLibrary);
     ContinueWatchingStore.changes.removeListener(_loadLibrary);
     LibraryFoldersStore.changes.removeListener(_loadLibrary);
+    LibraryVideoStore.instance.removeListener(_onMetadataChanged);
     TmdService.instance.removeListener(_onMetadataChanged);
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
@@ -107,13 +116,17 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didPopNext() {
     _loadLibrary();
+    _loadLibraryVideos();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // The list may have changed while the app was in the background (e.g. the
     // player paused and saved a resume position), so refresh on return.
-    if (state == AppLifecycleState.resumed) _loadLibrary();
+    if (state == AppLifecycleState.resumed) {
+      _loadLibrary();
+      _loadLibraryVideos();
+    }
   }
 
   Future<void> _loadLibrary() async {
@@ -123,6 +136,60 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() => _entries = entries);
     }
     _resolveMetadata(entries);
+  }
+
+  /// Loads the locally-scanned video library (MediaStore results) and kicks
+  /// off a background scan + TMDB auto-scrape for any new entries.
+  Future<void> _loadLibraryVideos() async {
+    final store = LibraryVideoStore.instance;
+    await store.load();
+    if (mounted) {
+      setState(() => _libraryVideos = store.videos);
+    }
+    // Fire-and-forget: re-scan MediaStore and merge results.
+    _rescanMediaStore();
+  }
+
+  Future<void> _rescanMediaStore() async {
+    try {
+      final scanned = await NativeMediaScanner.instance.scanAll();
+      if (scanned.isEmpty) return;
+      await LibraryVideoStore.instance.merge(scanned);
+      if (mounted) {
+        setState(() => _libraryVideos = LibraryVideoStore.instance.videos);
+      }
+      _autoScrapeMetadata(LibraryVideoStore.instance.videos);
+    } catch (_) {
+      // Permission denied or channel missing — non-fatal.
+    }
+  }
+
+  /// Best-effort TMDB lookups for locally-scanned videos that don't have
+  /// metadata yet (the Nova AutoScrapeService equivalent).
+  Future<void> _autoScrapeMetadata(List<LibraryVideo> videos) async {
+    final service = TmdService.instance;
+    await service.ensureLoaded();
+    var scraped = 0;
+    for (final v in videos) {
+      if (scraped >= 50) break; // Cap per session to avoid rate-limit.
+      final key = 'scan:${v.path}';
+      if (service.metaFor(key) != null) continue;
+      try {
+        final item = VideoItem(
+          id: 'scan_${v.id}',
+          title: v.title,
+          path: v.path,
+          resumeKey: 'scan:${v.path}',
+          duration: Duration(milliseconds: v.duration),
+          sizeBytes: v.sizeBytes,
+          resolution: v.resolutionLabel,
+        );
+        await service.resolve(item);
+        scraped++;
+      } catch (_) {
+        // Network failures are non-fatal.
+      }
+    }
   }
 
   /// Loads the "Your library" folder list, then kicks off best-effort TMDB
@@ -383,6 +450,19 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  void _openLocalVideo(VideoItem video) async {
+    if (video.path != null) {
+      await FileBrowserService.instance.resolvePath(video.path!);
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TmdDetailsScreen(video: video),
+      ),
+    );
+    await _loadLibrary();
+  }
+
   /// WebDAV entries deliberately do NOT persist the Authorization header (no
   /// plaintext credentials). The saved key encodes the server id + path, so
   /// rebuild the source with a freshly-fetched header and the server's current
@@ -582,6 +662,47 @@ class _HomeScreenState extends State<HomeScreen>
                   );
                 },
               ),
+            // ---- All videos on device ----
+            if (_libraryVideos.isNotEmpty) ...[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    'All videos on device',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              _videoGridSliver(
+                count: _libraryVideos.length,
+                itemBuilder: (context, index) {
+                  final lv = _libraryVideos[index];
+                  final video = VideoItem(
+                    id: 'scan_${lv.id}',
+                    title: lv.title,
+                    path: lv.path,
+                    resumeKey: 'scan:${lv.path}',
+                    duration: Duration(milliseconds: lv.duration),
+                    sizeBytes: lv.sizeBytes,
+                    resolution: lv.resolutionLabel,
+                  );
+                  final parsed = ParsedFileName.parse(lv.title);
+                  return VideoCard(
+                    key: ValueKey(lv.path),
+                    video: video,
+                    tmdbMeta: TmdService.instance.metaFor(
+                      'scan:${lv.path}',
+                    ),
+                    subtitle: parsed.isEpisode
+                        ? '${parsed.episodeLabel}  ·  ${lv.resolutionLabel}'
+                        : lv.resolutionLabel,
+                    onTap: () => _openLocalVideo(video),
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),

@@ -98,7 +98,6 @@ class _FtpScreenState extends State<FtpScreen> {
         _entries = entries;
         _loading = false;
       });
-      _prefetchTmdbMeta(entries);
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -106,27 +105,6 @@ class _FtpScreenState extends State<FtpScreen> {
           _loading = false;
         });
       }
-    }
-  }
-
-  void _prefetchTmdbMeta(List<FtpEntry> entries) {
-    final server = _browsing;
-    if (server == null) return;
-    final service = TmdService.instance;
-    for (final entry in entries) {
-      if (entry.isDirectory) continue;
-      service
-          .resolve(VideoItem(
-            id: 'ftp_${server.id}${entry.path}',
-            title: entry.name,
-            uri: '',
-            resumeKey: 'ftp_${server.id}${entry.path}',
-            duration: Duration.zero,
-            sizeBytes: entry.size,
-          ))
-          .catchError((_) {
-            return null;
-          });
     }
   }
 

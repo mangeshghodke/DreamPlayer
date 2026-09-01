@@ -28,6 +28,7 @@ class TmdMovie {
     this.overview = '',
     this.voteAverage = 0,
     this.kind = TmdKind.movie,
+    this.originalTitle,
   });
 
   final int id;
@@ -38,6 +39,7 @@ class TmdMovie {
   final String overview;
   final double voteAverage;
   final TmdKind kind;
+  final String? originalTitle;
 
   String? posterUrl({int width = 342}) =>
       posterPath == null ? null : 'https://image.tmdb.org/t/p/w$width$posterPath';
@@ -60,6 +62,7 @@ class TmdMovie {
       overview: json['overview'] as String? ?? '',
       voteAverage: (json['vote_average'] as num?)?.toDouble() ?? 0,
       kind: kind,
+      originalTitle: json[kind == TmdKind.movie ? 'original_title' : 'original_name'] as String?,
     );
   }
 
@@ -72,6 +75,7 @@ class TmdMovie {
         'overview': overview,
         'voteAverage': voteAverage,
         'kind': kind.name,
+        'originalTitle': originalTitle,
       };
 
   factory TmdMovie.fromMetaJson(Map<String, dynamic> json) => TmdMovie(
@@ -83,6 +87,7 @@ class TmdMovie {
         overview: json['overview'] as String? ?? '',
         voteAverage: (json['voteAverage'] as num?)?.toDouble() ?? 0,
         kind: json['kind'] == 'tv' ? TmdKind.tv : TmdKind.movie,
+        originalTitle: json['originalTitle'] as String?,
       );
 }
 
@@ -97,6 +102,22 @@ class TmdCastMember {
       profilePath == null ? null : 'https://image.tmdb.org/t/p/w$width$profilePath';
 }
 
+class TmdTrailer {
+  const TmdTrailer({
+    required this.key,
+    required this.name,
+    required this.site,
+  });
+
+  final String key;
+  final String name;
+  final String site;
+
+  String? get youtubeUrl => site == 'YouTube'
+      ? 'https://www.youtube.com/watch?v=$key'
+      : null;
+}
+
 class TmdDetails {
   const TmdDetails({
     required this.title,
@@ -108,6 +129,7 @@ class TmdDetails {
     this.runtimeMinutes,
     this.genres = const [],
     this.cast = const [],
+    this.trailers = const [],
     this.posterPath,
     this.backdropPath,
     this.originalTitle,
@@ -124,6 +146,7 @@ class TmdDetails {
   final int? runtimeMinutes;
   final List<String> genres;
   final List<TmdCastMember> cast;
+  final List<TmdTrailer> trailers;
   final String? posterPath;
   final String? backdropPath;
   final String? originalTitle;
@@ -166,6 +189,7 @@ class TmdDetails {
           )
           .where((c) => c.name.isNotEmpty)
           .toList(),
+      trailers: _parseTrailers(json),
       posterPath: json['poster_path'] as String?,
       backdropPath: json['backdrop_path'] as String?,
       originalTitle: json[kind == TmdKind.movie ? 'original_title' : 'original_name'] as String?,
@@ -179,6 +203,23 @@ class TmdDetails {
     final runtimes = json['episode_run_time'] as List?;
     if (runtimes == null || runtimes.isEmpty) return null;
     return (runtimes.first as num).toInt();
+  }
+
+  static List<TmdTrailer> _parseTrailers(Map<String, dynamic> json) {
+    final videos = json['videos'] as Map<String, dynamic>?;
+    final results = videos?['results'] as List? ?? const [];
+    return results
+        .whereType<Map<String, dynamic>>()
+        .where((v) => v['site'] == 'YouTube' && v['key'] != null)
+        .take(5)
+        .map(
+          (v) => TmdTrailer(
+            key: v['key'] as String,
+            name: v['name'] as String? ?? 'Trailer',
+            site: v['site'] as String? ?? 'YouTube',
+          ),
+        )
+        .toList();
   }
 }
 
@@ -805,7 +846,7 @@ class TmdApi {
       'query': query,
       'language': 'en-US',
       'include_adult': 'false',
-      if (year != null) 'year': '$year',
+      if (year != null) (kind == TmdKind.movie ? 'year' : 'first_air_date_year'): '$year',
     };
     final json = await _get('$endpoint?${_query(params)}');
     final results = json['results'] as List? ?? const [];
@@ -819,7 +860,7 @@ class TmdApi {
   Future<TmdDetails> details(TmdMovie movie) async {
     final key = await effectiveApiKey();
     final endpoint = movie.kind == TmdKind.movie ? '/movie/${movie.id}' : '/tv/${movie.id}';
-    final json = await _get('$endpoint?api_key=$key&language=en-US&append_to_response=credits');
+    final json = await _get('$endpoint?api_key=$key&language=en-US&append_to_response=credits,videos');
     var details = TmdDetails.fromJson(json, kind: movie.kind);
     // Flux-style translation fallback: if title or overview is blank (TMDB
     // returns blanks for many non-English items in en-US), re-fetch the
@@ -841,6 +882,7 @@ class TmdApi {
           runtimeMinutes: details.runtimeMinutes,
           genres: details.genres,
           cast: details.cast,
+          trailers: details.trailers,
           posterPath: details.posterPath,
           backdropPath: details.backdropPath,
           originalTitle: details.originalTitle,
@@ -1018,18 +1060,29 @@ class TmdApi {
     final query = (parsed.isEpisode ? (parsed.seriesName ?? parsed.title) : parsed.title)
         .toLowerCase();
     final title = movie.title.toLowerCase();
-    var score = 0.0;
-    if (title == query) {
-      score = 1.0;
-    } else if (title.startsWith(query) || query.startsWith(title)) {
-      score = 0.85;
-    } else {
-      final common = _commonWords(query, title);
-      final ratio = title.isNotEmpty ? common / title.split(' ').length : 0;
-      score = 0.6 * ratio.clamp(0.0, 1.0);
-    }
-    if (parsed.year != null && movie.year == parsed.year && !parsed.isEpisode) {
-      score = (score + 0.15).clamp(0.0, 1.0);
+    final originalTitle = (movie.originalTitle ?? '').toLowerCase();
+
+    // Flux-style: Levenshtein distance for robust matching.
+    // Pick the minimum distance across the translated title and original title.
+    final distTitle = _levenshteinDistance(query, title);
+    final distOriginal = _levenshteinDistance(query, originalTitle);
+    final bestDist = distTitle < distOriginal ? distTitle : distOriginal;
+    final maxLen = query.length > title.length ? query.length : title.length;
+    if (maxLen == 0) return 0.0;
+    // Score = 1.0 for exact match, decays with edit distance.
+    // threshold: distance ≤ 30% of max length = pass (≥ 0.5).
+    var score = (1.0 - bestDist / maxLen).clamp(0.0, 1.0);
+
+    // Year bonus: for movies, reward exact year match. For TV, use as
+    // tiebreaker when two results have the same title (both score 1.0
+    // after Levenshtein) — the folder year disambiguates.
+    if (parsed.year != null && movie.year == parsed.year) {
+      if (!parsed.isEpisode) {
+        score = (score + 0.15).clamp(0.0, 1.0);
+      } else {
+        // Tiny tiebreaker for TV — only matters when two results tie on title.
+        score = (score + 0.01).clamp(0.0, 1.0);
+      }
     }
     return score;
   }
@@ -1066,22 +1119,37 @@ class TmdApi {
   double _queryScore(TmdMovie movie, String query) {
     final q = query.toLowerCase();
     final title = movie.title.toLowerCase();
-    var score = 0.0;
-    if (title == q) {
-      score = 1.0;
-    } else if (title.startsWith(q) || q.startsWith(title)) {
-      score = 0.85;
-    } else {
-      final common = _commonWords(q, title);
-      final ratio = title.isNotEmpty ? common / title.split(' ').length : 0;
-      score = 0.6 * ratio.clamp(0.0, 1.0);
-    }
-    return score;
+    final originalTitle = (movie.originalTitle ?? '').toLowerCase();
+    final distTitle = _levenshteinDistance(q, title);
+    final distOriginal = _levenshteinDistance(q, originalTitle);
+    final bestDist = distTitle < distOriginal ? distTitle : distOriginal;
+    final maxLen = q.length > title.length ? q.length : title.length;
+    if (maxLen == 0) return 0.0;
+    return (1.0 - bestDist / maxLen).clamp(0.0, 1.0);
   }
 
-  static int _commonWords(String a, String b) {
-    final words = b.split(' ');
-    return words.where((w) => a.contains(w)).length;
+  /// Flux-style Levenshtein edit distance (for TMDB title matching).
+  static int _levenshteinDistance(String a, String b) {
+    if (a.isEmpty) return b.length;
+    if (b.isEmpty) return a.length;
+    // Optimisation: only need two rows at a time.
+    var prev = List<int>.generate(b.length + 1, (i) => i);
+    var curr = List<int>.filled(b.length + 1, 0);
+    for (var i = 1; i <= a.length; i++) {
+      curr[0] = i;
+      for (var j = 1; j <= b.length; j++) {
+        final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+        curr[j] = [
+          prev[j] + 1,      // deletion
+          curr[j - 1] + 1,  // insertion
+          prev[j - 1] + cost // substitution
+        ].reduce((x, y) => x < y ? x : y);
+      }
+      final tmp = prev;
+      prev = curr;
+      curr = tmp;
+    }
+    return prev[b.length];
   }
 
   Future<Map<String, dynamic>> _get(String pathAndQuery) async {

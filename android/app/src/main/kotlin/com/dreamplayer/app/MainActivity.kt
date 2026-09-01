@@ -89,6 +89,9 @@ class MainActivity : FlutterActivity() {
         PipManager(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PipManager.CHANNEL),
         )
+        MediaScanner(this).configure(
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MediaScanner.CHANNEL),
+        )
         intentChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "dreamplayer/intent",

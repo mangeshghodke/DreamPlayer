@@ -124,7 +124,6 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
         _items = [...folders, ...playables];
         _loading = false;
       });
-      _prefetchTmdbMeta(playables);
     } on JellyfinException catch (e) {
       if (!mounted) return;
       if (e.message.contains('Session expired')) {
@@ -146,19 +145,6 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
 
   /// Best-effort TMDB prefetch for the current level's playables. Each item
   /// resolves under the SAME stable key its tap uses ([_client.resumeKey]), so
-  /// the row's poster appears (when a match exists) and opening the file is a
-  /// cache hit. Never blocks the list.
-  void _prefetchTmdbMeta(List<JellyfinItem> playables) {
-    final server = _browsing;
-    if (server == null) return;
-    final service = TmdService.instance;
-    for (final item in playables) {
-      service.resolve(_client.videoItem(server, item)).catchError((_) {
-        // Best-effort; a TMDB failure just leaves the row without a poster.
-        return null;
-      });
-    }
-  }
 
   /// Cached TMDB meta for a playable row, looked up under the same identity key
   /// its tap uses so the poster and the opened details screen agree.

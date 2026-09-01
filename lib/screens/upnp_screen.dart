@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
-import '../services/tmdb_client.dart';
 import '../services/upnp_client.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
@@ -93,7 +92,6 @@ class _UpnpScreenState extends State<UpnpScreen> {
         _diag = diag ?? const [];
         _browsing = false;
       });
-      _prefetchTmdb(entries);
     } on PlatformException catch (e) {
       final diag = await UpnpClient.instance.diagnostics();
       if (!mounted) return;
@@ -108,15 +106,6 @@ class _UpnpScreenState extends State<UpnpScreen> {
         _browsing = false;
         _browseError = e.toString();
       });
-    }
-  }
-
-  void _prefetchTmdb(List<UpnpEntry> entries) {
-    for (final e in entries) {
-      if (!e.isVideo) continue;
-      final key = _identityKey(e);
-      // Fire-and-forget: same key its tap uses, so details screen hits cache.
-      TmdService.instance.resolve(VideoItem(id: key, title: e.name, uri: e.url, resumeKey: key, duration: Duration.zero)).catchError((_) => null);
     }
   }
 

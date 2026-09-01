@@ -104,7 +104,6 @@ class _WebDavScreenState extends State<WebDavScreen> {
         _entries = entries;
         _loading = false;
       });
-      _prefetchTmdbMeta(entries);
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -112,31 +111,6 @@ class _WebDavScreenState extends State<WebDavScreen> {
           _loading = false;
         });
       }
-    }
-  }
-
-  /// Best-effort TMDB prefetch for the current folder's video files. Each file
-  /// resolves under the SAME stable key `_openEntry` uses, so the row's poster
-  /// appears (when a match exists) and tapping the file is a cache hit.
-  void _prefetchTmdbMeta(List<WebDavEntry> entries) {
-    final server = _browsing;
-    if (server == null) return;
-    final service = TmdService.instance;
-    for (final entry in entries) {
-      if (entry.isDirectory) continue;
-      service
-          .resolve(VideoItem(
-            id: 'webdav_${server.id}${entry.path}',
-            title: entry.name,
-            uri: '',
-            resumeKey: 'webdav_${server.id}${entry.path}',
-            duration: Duration.zero,
-            sizeBytes: entry.size,
-          ))
-          .catchError((_) {
-            // Best-effort; a TMDB failure just leaves the row without a poster.
-            return null;
-          });
     }
   }
 

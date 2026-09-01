@@ -105,25 +105,15 @@ void main() {
   testWidgets('no-match/error state has no overflow at device sizes', (
     tester,
   ) async {
-    // A non-empty key makes TmdApi attempt real HTTP, which the test binding
-  // blocks (HTTP 400), so the lookup throws exactly like a connection
-  // problem on a device — exercising the SnackBar popup path.
-    SharedPreferences.setMockInitialValues(
-      const {'dreamplayer.tmdbApiKey': 'fake-key-for-test'},
-    );
-    // No metadata seeded: the lookup fails and the error no-match panel is
-    // shown.
+    SharedPreferences.setMockInitialValues({});
+    // No metadata seeded: the no-match panel shows file info + Get Info button.
     await _pumpAndCheck(tester, _videoNoMatch, const Size(1080, 2400));
     await _pumpAndCheck(tester, _videoNoMatch, const Size(2400, 1080));
 
-    // The failed lookup is signalled via a transient SnackBar popup…
-    expect(find.textContaining('Check your connection'), findsOneWidget);
-
-    // …while the no-match panel stays blank apart from the headline and the
-    // Search TMDB button — no inline connection / API-key / metadata text.
-    expect(find.textContaining('Could not find'), findsOneWidget);
+    // The no-match panel shows the filename and a Get Info button.
+    expect(find.textContaining('No metadata loaded'), findsOneWidget);
     expect(
-      find.widgetWithText(OutlinedButton, 'Search TMDB'),
+      find.widgetWithText(FilledButton, 'Get Info'),
       findsOneWidget,
     );
     expect(find.textContaining('API key'), findsNothing);
