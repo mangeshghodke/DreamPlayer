@@ -9,6 +9,7 @@ import '../services/smb_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
+import '../utils/file_info_extractor.dart';
 import '../utils/season_group.dart' as sg;
 import '../widgets/season_progress_ring.dart';
 import '../widgets/tv_overscan.dart';
@@ -132,6 +133,16 @@ class _FolderScreenState extends State<FolderScreen> {
         _loading = false;
       });
       _refreshWatched();
+      // Nova-style: background-resolve TMDB for all video files so metadata
+      // is ready when the user taps a file.  Each file resolves independently
+      // (no stagger) so the listener fires immediately per file and the tile
+      // shows its poster as soon as the TMDB match lands — same as v0.3.8.
+      for (final entry in entries) {
+        if (entry.isDirectory) continue;
+        TmdService.instance.resolve(_toVideoItem(entry)).catchError((_) {
+          return null;
+        });
+      }
     } on PlatformException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -290,6 +301,7 @@ class _FolderScreenState extends State<FolderScreen> {
     // Bookmarked-tree videos come back as content:// URIs (no real file
     // path), so hand those to the player's `uri` field.
     final isContentUri = entry.path.startsWith('content://');
+    final info = extractFileInfo(entry.name);
     return VideoItem(
       id: 'folder_${widget.folder.id}_${entry.path.hashCode}',
       title: entry.name,
@@ -298,6 +310,11 @@ class _FolderScreenState extends State<FolderScreen> {
       resumeKey: entry.resumeKey,
       duration: Duration.zero,
       sizeBytes: entry.size,
+      videoCodec: info.videoCodec,
+      audioCodec: info.audioCodec,
+      audioChannels: info.audioChannels,
+      resolution: info.resolution,
+      hdrHint: info.hdrHint,
     );
   }
 

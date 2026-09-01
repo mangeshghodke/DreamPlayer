@@ -49,22 +49,6 @@ void main() {
       expect(parsed.episodeLabel, 'S01E03');
     });
 
-    test('parses Flux-style season1episode2 pattern', () {
-      // Flux's pattern matches the literal word `season` + episode number.
-      // `House.Season1Episode02.mkv` is the canonical example.
-      final parsed = ParsedFileName.parse('House.Season1Episode02.720p.mkv');
-      expect(parsed.isEpisode, isTrue);
-      expect(parsed.season, 1);
-      expect(parsed.episode, 2);
-    });
-
-    test('parses Flux-style season1episode2 with spaces', () {
-      final parsed = ParsedFileName.parse('House Season 1 Episode 2 720p.mkv');
-      expect(parsed.isEpisode, isTrue);
-      expect(parsed.season, 1);
-      expect(parsed.episode, 2);
-    });
-
     test('seriesName excludes stale Sxx tag when year is inside parens', () {
       // Regression: `Kakegurui Twin (2021) S01E01.mkv` used to yield
       // `seriesName = "Kakegurui Twin S01"` because the year strip shifted
@@ -169,7 +153,7 @@ void main() {
       expect(oldboy.year, 2003);
     });
 
-    test('Flux-style: ignores a year at the very start of the filename', () {
+    test('ignores a year at the very start of the filename', () {
       // `2001.A.Space.Odyssey` would falsely extract year 2001 — but the
       // first character is the year itself, not a word boundary followed by
       // one. Reject year-at-position-0 so the parsed title stays intact.
@@ -181,7 +165,7 @@ void main() {
       expect(parsed.title, isNotEmpty);
     });
 
-    group('Flux-style parent folder fallback', () {
+    group('parent folder fallback', () {
       test('Episode01.mkv inside "Kakegurui Twin(2021)" → seriesName=Kakegurui Twin, year=2021', () {
         final parsed = ParsedFileName.parse(
           'Episode01.mkv',

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
+import '../utils/file_info_extractor.dart';
 
 /// Represents a video handed to the app via an Android "Open with" intent.
 class OpenIntent {
@@ -12,14 +13,22 @@ class OpenIntent {
   final String? uri;
   final String? path;
 
-  VideoItem toVideoItem() => VideoItem(
-        id: 'intent_${DateTime.now().microsecondsSinceEpoch}',
-        title: title,
-        path: path,
-        uri: uri,
-        resumeKey: _stableResumeKey(path: path, uri: uri),
-        duration: Duration.zero,
-      );
+  VideoItem toVideoItem() {
+    final fi = extractFileInfo(title);
+    return VideoItem(
+      id: 'intent_${DateTime.now().microsecondsSinceEpoch}',
+      title: title,
+      path: path,
+      uri: uri,
+      resumeKey: _stableResumeKey(path: path, uri: uri),
+      duration: Duration.zero,
+      videoCodec: fi.videoCodec,
+      audioCodec: fi.audioCodec,
+      audioChannels: fi.audioChannels,
+      resolution: fi.resolution,
+      hdrHint: fi.hdrHint,
+    );
+  }
 }
 
 /// Derives a resume key that survives between sessions for sources whose

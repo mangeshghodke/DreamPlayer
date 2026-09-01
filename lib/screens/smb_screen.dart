@@ -7,6 +7,7 @@ import '../services/simkl_client.dart';
 import '../services/smb_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/watched_store.dart';
+import '../utils/file_info_extractor.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_text_field.dart';
@@ -55,16 +56,22 @@ class _SmbScreenState extends State<SmbScreen> {
   @override
   void initState() {
     super.initState();
+    TmdService.instance.addListener(_onMetadataChanged);
     _loadServers();
   }
 
   @override
   void dispose() {
+    TmdService.instance.removeListener(_onMetadataChanged);
     final server = _browsing;
     if (server != null) {
       _smb.closeShare(server.id);
     }
     super.dispose();
+  }
+
+  void _onMetadataChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadServers() async {
@@ -261,6 +268,7 @@ class _SmbScreenState extends State<SmbScreen> {
   Future<void> _loadDirectory(String path) async {
     final server = _browsing;
     if (server == null) return;
+    path = path.replaceAll(RegExp(r'/+$'), '');
     setState(() {
       _loading = true;
       _error = null;
@@ -274,6 +282,10 @@ class _SmbScreenState extends State<SmbScreen> {
         _loading = false;
       });
       _refreshWatched();
+      // Clear stale poster cache so fix-match / resolve changes are reflected
+      // when navigating back into a folder.
+      _tmdbMeta.clear();
+      _prefetchTmdbMeta(entries);
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -284,7 +296,33 @@ class _SmbScreenState extends State<SmbScreen> {
     }
   }
 
-
+  /// Best-effort TMDB prefetch for the current folder's video files. Each file
+  /// resolves under the SAME stable key its tile/tap uses, so the row's poster
+  /// appears (when a match exists) and tapping the file is a cache hit.
+  void _prefetchTmdbMeta(List<SmbEntry> entries) {
+    final server = _browsing;
+    if (server == null) return;
+    final service = TmdService.instance;
+    for (final entry in entries) {
+      if (entry.isDirectory) continue;
+      if (_tmdbMeta.containsKey(entry.path)) continue;
+      _tmdbMeta[entry.path] = null; // placeholder to avoid duplicate requests
+      final key = 'smb:${server.id}/$_share/${entry.path}';
+      service.resolve(VideoItem(
+        id: 'smb:$key',
+        title: entry.name,
+        uri: '',
+        resumeKey: key,
+        duration: Duration.zero,
+        sizeBytes: entry.size,
+      )).then((meta) {
+        if (!mounted) return;
+        setState(() {
+          _tmdbMeta[entry.path] = meta;
+        });
+      }).catchError((_) {});
+    }
+  }
 
   Future<void> _openEntry(SmbEntry entry) async {
     if (entry.isDirectory) {
@@ -298,7 +336,8 @@ class _SmbScreenState extends State<SmbScreen> {
         });
         await _loadDirectory('');
       } else {
-        await _loadDirectory(entry.path);
+        final cleanPath = entry.path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '');
+        await _loadDirectory(cleanPath);
       }
       return;
     }
@@ -363,6 +402,7 @@ class _SmbScreenState extends State<SmbScreen> {
       return;
     }
 
+    final info = extractFileInfo(video.name);
     final item = VideoItem(
       id: 'smb:${video.path}_${DateTime.now().microsecondsSinceEpoch}',
       title: video.name,
@@ -372,6 +412,11 @@ class _SmbScreenState extends State<SmbScreen> {
       externalSubtitles: externalSubs,
       duration: Duration.zero,
       sizeBytes: video.size,
+      videoCodec: info.videoCodec,
+      audioCodec: info.audioCodec,
+      audioChannels: info.audioChannels,
+      resolution: info.resolution,
+      hdrHint: info.hdrHint,
     );
 
     if (!mounted) return;
@@ -390,8 +435,10 @@ class _SmbScreenState extends State<SmbScreen> {
       return;
     }
     if (_path.isNotEmpty) {
-      final slash = _path.lastIndexOf('/');
-      await _loadDirectory(slash < 0 ? '' : _path.substring(0, slash));
+      final normalized = _path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '');
+      final slash = normalized.lastIndexOf('/');
+      final parentPath = slash <= 0 ? '' : normalized.substring(0, slash);
+      await _loadDirectory(parentPath);
     } else if (_share.isNotEmpty) {
       setState(() {
         _share = '';
@@ -651,10 +698,18 @@ class _SmbScreenState extends State<SmbScreen> {
       itemBuilder: (context, index) {
         final entry = _entries[index];
         final key = _watchedKeyFor(entry);
+        // Read poster from TmdService directly (not the local _tmdbMeta map)
+        // so fix-match changes appear instantly on rebuild.
+        final serviceKey = entry.isDirectory
+            ? null
+            : 'smb:${_browsing!.id}/$_share/${entry.path}';
+        final meta = serviceKey != null
+            ? TmdService.instance.metaFor(serviceKey)
+            : null;
         return _SmbTile(
           entry: entry,
           onTap: () => _openEntry(entry),
-          tmdbMeta: _tmdbMeta[entry.path],
+          tmdbMeta: meta,
           watched: key.isNotEmpty && _watchedKeys.contains(key),
           onToggleWatched: () => _toggleWatched(entry),
         );

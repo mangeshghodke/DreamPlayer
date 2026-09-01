@@ -5,6 +5,7 @@ import '../models/video_item.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
 import '../services/webdav_client.dart';
+import '../utils/file_info_extractor.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_text_field.dart';
@@ -104,6 +105,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
         _entries = entries;
         _loading = false;
       });
+      _prefetchTmdbMeta(entries);
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -111,6 +113,24 @@ class _WebDavScreenState extends State<WebDavScreen> {
           _loading = false;
         });
       }
+    }
+  }
+
+  /// Best-effort TMDB prefetch for the current folder's video files.
+  void _prefetchTmdbMeta(List<WebDavEntry> entries) {
+    final server = _browsing;
+    if (server == null) return;
+    final service = TmdService.instance;
+    for (final entry in entries) {
+      if (entry.isDirectory) continue;
+      service.resolve(VideoItem(
+        id: 'webdav_${server.id}${entry.path}',
+        title: entry.name,
+        uri: '',
+        resumeKey: 'webdav_${server.id}${entry.path}',
+        duration: Duration.zero,
+        sizeBytes: entry.size,
+      )).catchError((_) => null as TmdMeta?);
     }
   }
 
@@ -135,20 +155,28 @@ class _WebDavScreenState extends State<WebDavScreen> {
     final videos = _entries.where((e) => !e.isDirectory).toList();
     final playlist = [
       for (final v in videos)
-        VideoItem(
-          id: 'webdav_${server.id}${v.path}',
-          title: v.name,
-          uri: '$base${_encodePath(v.path)}',
-          // WebDAV URLs are stable across sessions; key resume on them.
-          resumeKey: 'webdav_${server.id}${v.path}',
-          duration: Duration.zero,
-          sizeBytes: v.size,
-          httpHeaders: authHeader.isEmpty
-              ? const {}
-              : {'Authorization': authHeader},
-          allowSelfSigned: server.allowSelfSigned,
-          webdavServerId: server.id,
-        ),
+        () {
+          final fi = extractFileInfo(v.name);
+          return VideoItem(
+            id: 'webdav_${server.id}${v.path}',
+            title: v.name,
+            uri: '$base${_encodePath(v.path)}',
+            // WebDAV URLs are stable across sessions; key resume on them.
+            resumeKey: 'webdav_${server.id}${v.path}',
+            duration: Duration.zero,
+            sizeBytes: v.size,
+            httpHeaders: authHeader.isEmpty
+                ? const {}
+                : {'Authorization': authHeader},
+            allowSelfSigned: server.allowSelfSigned,
+            webdavServerId: server.id,
+            videoCodec: fi.videoCodec,
+            audioCodec: fi.audioCodec,
+            audioChannels: fi.audioChannels,
+            resolution: fi.resolution,
+            hdrHint: fi.hdrHint,
+          );
+        }(),
     ];
     final playIndex = playlist.indexWhere((item) => item.title == entry.name);
     if (playIndex < 0 || playlist.isEmpty) return;

@@ -373,12 +373,20 @@ class TmdSeason {
   const TmdSeason({
     required this.seasonNumber,
     this.name = '',
+    this.overview = '',
+    this.posterPath,
     this.episodes = const [],
   });
 
   final int seasonNumber;
   final String name;
+  final String overview;
+  final String? posterPath;
   final List<TmdEpisode> episodes;
+
+  /// Full URL for the season poster (e.g. "Season 2" artwork).
+  String? posterUrl({int width = 300}) =>
+      posterPath == null ? null : 'https://image.tmdb.org/t/p/w$width$posterPath';
 
   TmdEpisode? episode(int episodeNumber) {
     for (final e in episodes) {
@@ -397,7 +405,13 @@ class TmdSeason {
     } else {
       next.add(replacement);
     }
-    return TmdSeason(seasonNumber: seasonNumber, name: name, episodes: next);
+    return TmdSeason(
+      seasonNumber: seasonNumber,
+      name: name,
+      overview: overview,
+      posterPath: posterPath,
+      episodes: next,
+    );
   }
 
   factory TmdSeason.fromJson(Map<String, dynamic> json) => TmdSeason(
@@ -405,6 +419,8 @@ class TmdSeason {
             (json['season_number'] ?? json['seasonNumber'] as num?)?.toInt() ??
                 0,
         name: json['name'] as String? ?? '',
+        overview: json['overview'] as String? ?? '',
+        posterPath: (json['poster_path'] ?? json['posterPath']) as String?,
         episodes: (json['episodes'] as List? ?? const [])
             .whereType<Map<String, dynamic>>()
             .map(TmdEpisode.fromJson)
@@ -414,6 +430,8 @@ class TmdSeason {
   Map<String, dynamic> toJson() => {
         'seasonNumber': seasonNumber,
         'name': name,
+        'overview': overview,
+        'posterPath': posterPath,
         'episodes': episodes.map((e) => e.toJson()).toList(),
       };
 }
@@ -424,22 +442,6 @@ class TmdMatch {
 
   final TmdMovie movie;
   final double score;
-}
-
-/// One entry from TMDB's `/{id}/translations` endpoint, narrowed to the
-/// three fields DreamPlayer cares about (title, tagline, overview) so the
-/// fallback decision tree can stay terse.
-class TmdTranslation {
-  const TmdTranslation({
-    required this.language,
-    required this.title,
-    required this.tagline,
-    required this.overview,
-  });
-  final String language;
-  final String title;
-  final String tagline;
-  final String overview;
 }
 
 /// Cached per-video metadata (what the card shows + optional full details +
@@ -576,14 +578,6 @@ class ParsedFileName {
   static final RegExp _episodePattern = RegExp(r'\bS(\d{1,2})E(\d{1,2})\b', caseSensitive: false);
   static final RegExp _episodeShortPattern =
       RegExp(r'\b(\d{1,2})x(\d{1,3})\b', caseSensitive: false);
-  // Flux-style extra patterns: `se1ep2`, `season1episode2` (separators
-  // optional). Matches `House.Season1Episode02.mkv`, `Show.Se1Ep2.mkv`,
-  // `show.name.season01.episode02.1080p.mkv`, etc.
-  static final RegExp _episodeLongPattern = RegExp(
-      r'\b[Ss]eason\s*\.?\s*(\d{1,2})\s*\.?\s*[Ee]pisode\s*\.?\s*(\d{1,4})\b');
-  static final RegExp _episodeSePattern = RegExp(
-      r'\b[Ss]e\s*\.?\s*(\d{1,2})\s*\.?\s*[Ee]p\s*\.?\s*(\d{1,4})\b',
-      caseSensitive: false);
 
   /// Bare season tag (`S02`, `S1`) — used by TV-season folder names like
   /// `HOUSE.S02.1080p...`. There's no episode number, so this is a whole
@@ -593,8 +587,8 @@ class ParsedFileName {
 
   static const List<String> _noise = [
     '1080p', '720p', '2160p', '480p', '4k', 'uhd', 'hd', 'sdr',
-    'bluray', 'blu-ray', 'bdremux', 'remux', 'web-dl',     'webdl', 'webrip', 'web',
-    'hdtv', 'dvdrip', 'h264', 'h265', 'x264', 'x265', 'hevc', 'avc', 'av1', 'vp9',
+    'bluray', 'blu-ray', 'bdremux', 'remux', 'web-dl', 'webdl', 'webrip', 'web',
+    'hdtv', 'sdtv', 'dvdrip', 'h264', 'h265', 'x264', 'x265', 'hevc', 'avc', 'av1', 'vp9',
     'aac', 'ac3', 'eac3', 'dts', 'dts-hd', 'truehd', 'atmos', 'ma', 'flac', 'opus',
     'mp3',
     'ddp', '5.1', '7.1', '2.0', '10bit', '8bit', 'hdr', 'hdr10', 'hdr10plus',
@@ -604,6 +598,13 @@ class ParsedFileName {
     'english', 'eng', 'hindi', 'tamil', 'telugu', 'korean', 'japanese', 'spanish',
     'french', 'german', 'uncut', 'esub', 'subs', 'subtitle', 'tk',
     'nf', 'netflix', 'amzn', 'amazon', 'hbo', 'hulu', 'hdhub4u', 'hdbr',
+    // Nova-style additional garbage
+    'dvdscr', 'bdrip', 'brrip', 'hdrip', 'hdlight', 'minibdrip',
+    'xvid', 'divx', 'wmv', 'flv', 'f4v', 'asf', 'vob',
+    'dts-x', 'dts-hd.ma', 'uhd', 'dolby',
+    'hfr', 'multisubs', 'subforced', 'subforces',
+    'truefrench', 'sbs', 'hsbs', '3d',
+    'anaglyph', 'anaglyphe',
   ];
 
   static ParsedFileName parse(String fileName, {String? parentFolderName}) {
@@ -667,13 +668,21 @@ class ParsedFileName {
 final yearMatch = _yearPattern.firstMatch(name);
     int? year;
     if (yearMatch != null && yearMatch.start > 0) {
-      // Flux-style guard: the year MUST NOT be at position 0 — otherwise
-      // `2001.A.Space.Odyssey.1080p.mkv` would falsely extract 2001 as the
-      // year. Same reason we look for a word boundary before the year.
-      // (Already enforced by `\b`; this also drops a leading-year match.)
-      year = int.parse(yearMatch.group(0)!);
-      name = name.replaceAll(yearMatch.group(0)!, ' ');
+      // Nova-style: extract the LAST year from the string (important for
+      // `Show Name S01E01 (2019)` where 2019 is the year, not S01).
+      // Find all year matches and take the last one.
+      final allYears = _yearPattern.allMatches(name).toList();
+      if (allYears.isNotEmpty) {
+        final lastYear = allYears.last;
+        if (lastYear.start > 0) {
+          year = int.parse(lastYear.group(0)!);
+          name = name.replaceAll(lastYear.group(0)!, ' ');
+        }
+      }
     }
+
+    // Nova-style: remove empty parentheses left after year extraction
+    name = name.replaceAll(RegExp(r'\(\s*\)'), ' ');
 
     // The year-strip above shrinks the string by 3 chars, shifting every
     // offset after the year. Run the episode regexes against the *trimmed*
@@ -683,8 +692,6 @@ final yearMatch = _yearPattern.firstMatch(name);
     // `S01` into the series name and the TMDB search silently 404s.
     final episodeMatch = _episodePattern.firstMatch(name);
     final shortEpisodeMatch = _episodeShortPattern.firstMatch(name);
-    final longEpisodeMatch = _episodeLongPattern.firstMatch(name);
-    final seEpisodeMatch = _episodeSePattern.firstMatch(name);
     final seasonOnlyMatch = _seasonOnlyPattern.firstMatch(name);
 
     var isEpisode = false;
@@ -703,20 +710,6 @@ final yearMatch = _yearPattern.firstMatch(name);
       episode = int.parse(shortEpisodeMatch.group(2)!);
       seriesName = name.substring(0, shortEpisodeMatch.start).trim();
       name = name.replaceAll(shortEpisodeMatch.group(0)!, ' ');
-    } else if (longEpisodeMatch != null) {
-      // Flux-style: `House.Season1Episode02.mkv`
-      isEpisode = true;
-      season = int.parse(longEpisodeMatch.group(1)!);
-      episode = int.parse(longEpisodeMatch.group(2)!);
-      seriesName = name.substring(0, longEpisodeMatch.start).trim();
-      name = name.replaceAll(longEpisodeMatch.group(0)!, ' ');
-    } else if (seEpisodeMatch != null) {
-      // Flux-style: `Show.Se1Ep2.mkv`
-      isEpisode = true;
-      season = int.parse(seEpisodeMatch.group(1)!);
-      episode = int.parse(seEpisodeMatch.group(2)!);
-      seriesName = name.substring(0, seEpisodeMatch.start).trim();
-      name = name.replaceAll(seEpisodeMatch.group(0)!, ' ');
     } else if (seasonOnlyMatch != null) {
       // Whole-season folder (`Show.S02.1080p...`): keep the season number for
       // context but drop the tag so the cleaned title stays searchable.
@@ -726,12 +719,9 @@ final yearMatch = _yearPattern.firstMatch(name);
     }
 
     final title = _cleanName(name);
-    // Flux-style fallback: when the file is just an episode number
+    // Fallback: when the file is just an episode number
     // (`Episode01.mkv`, `01.mkv`) or has no searchable title, fall back to
-    // the parent folder's name as the series name. The folder is typically
-    // named `Show.Name.(2021)` or `Show.Name.Season.1` — same parser rules
-    // apply, but we don't try to extract an episode number from the folder
-    // (we already have one from the file).
+    // the parent folder's name as the series name.
     String? effectiveSeriesName = seriesName;
     if (effectiveSeriesName == null &&
         parentFolderName != null &&
@@ -764,34 +754,73 @@ final yearMatch = _yearPattern.firstMatch(name);
   /// avoid inheriting the file's episode tag from a parent folder name.
   static bool _hasEpisodePattern(String text) =>
       _episodePattern.hasMatch(text) ||
-      _episodeShortPattern.hasMatch(text) ||
-      _episodeLongPattern.hasMatch(text) ||
-      _episodeSePattern.hasMatch(text);
+      _episodeShortPattern.hasMatch(text);
 
   static String _cleanName(String raw) {
     var cleaned = raw;
-    // Underscore/bracket-glued tags (`_1080p`, `_[S02E04]_`) defeat the
-    // word-boundary noise rules (underscore is a word char, `[`/`]` aren't);
-    // normalize them to spaces up front. Dots and dashes stay until the
-    // codec-glue regex runs below.
-    cleaned = cleaned.replaceAll(RegExp(r'[_\[\](){}]'), ' ');
+
+    // Nova-style: strip out everything in brackets <[{( .. )})>, most of the time teams names, etc
+    cleaned = cleaned.replaceAll(RegExp(r'[<({\[\]>)}\]]'), ' ');
+
     // Codec tags glued to their channel layout (e.g. `DDP5.1`, `AC3.5.1`).
+    // Must run BEFORE dot replacement so `5.1` is still a contiguous token.
     cleaned = cleaned.replaceAll(
       RegExp(r'\b[a-z]{2,}\d+\.\d+\b', caseSensitive: false),
       ' ',
     );
+
     // `H.265` / `H265` / `H 265` (and X.264/265) survive the noise list
     // because of the dot/space — catch them explicitly before splitting.
     cleaned = cleaned.replaceAll(
       RegExp(r'\b[xh]\.?\s*26[0-9]\b', caseSensitive: false),
       ' ',
     );
-    for (final n in _noise) {
-      cleaned = cleaned.replaceAll(RegExp('\\b${RegExp.escape(n)}\\b', caseSensitive: false), ' ');
+
+    // Nova-style: remove garbage case-sensitively (must be surrounded by separators)
+    for (final g in _garbageCaseSensitive) {
+      cleaned = cleaned.replaceAll(
+        RegExp('[ ._-]$g(?:[ ._-]|\$)', caseSensitive: false),
+        ' ',
+      );
     }
-    cleaned = cleaned.replaceAll(RegExp(r'[._\-\u2013\u2014\[\](){}]'), ' ');
-    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    // Nova-style: remove garbage case-insensitively
+    // Must run BEFORE dot/hyphen replacement so `5.1`, `7.1`, `2.0`, `WEB-DL`
+    // are still contiguous tokens.
+    for (final n in _noise) {
+      cleaned = cleaned.replaceAll(
+        RegExp('(?<![\\w])${RegExp.escape(n)}(?![\\w])', caseSensitive: false),
+        ' ',
+      );
+    }
+
+    // Nova-style: replace dots and underscores with spaces (AFTER noise removal)
+    cleaned = cleaned.replaceAll(RegExp(r'[._]'), ' ');
+
+    // Nova-style: replace hyphens, en-dashes, em-dashes with spaces
+    // (AFTER noise removal so WEB-DL was already matched as a whole token)
+    cleaned = cleaned.replaceAll(RegExp(r'[-\u2013\u2014]'), ' ');
+
+    // Collapse multiple spaces and trim
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    return cleaned;
   }
+
+  /// Nova-style: garbage that could be present in real names, matched with tight case sensitive syntax.
+  /// These strings will only match if separated by any of " .-_".
+  /// Note: WEB is NOT here — it conflicts with WEB-DL (the case-sensitive regex
+  /// `.WEB-` matches the hyphen separator, eating WEB from WEB-DL and leaving DL).
+  /// The noise list handles `web` and `web-dl` with proper word boundaries.
+  static const List<String> _garbageCaseSensitive = [
+    'FRENCH', 'TRUEFRENCH', 'DUAL', 'MULTISUBS', 'MULTI', 'MULTi',
+    'SUBFORCED', 'SUBFORCES', 'UNRATED', 'EXTENDED', 'IMAX',
+    'COMPLETE', 'PROPER', 'iNTERNAL', 'INTERNAL',
+    'SUBBED', 'LIMITED', 'REMUX',
+    'TS', 'TC', 'REAL', 'HD',
+    'EN', 'ENG', 'FR', 'ES', 'IT', 'NL', 'VFQ', 'VF', 'VO',
+    'VOST', 'VFF', 'VFI',
+  ];
 
   static String _fallbackTitle(String fileName) {
     final cleaned = fileName.replaceAll(RegExp(r'[._\-\u2013\u2014\[\](){}]'), ' ');
@@ -862,98 +891,7 @@ class TmdApi {
     final endpoint = movie.kind == TmdKind.movie ? '/movie/${movie.id}' : '/tv/${movie.id}';
     final json = await _get('$endpoint?api_key=$key&language=en-US&append_to_response=credits,videos');
     var details = TmdDetails.fromJson(json, kind: movie.kind);
-    // Flux-style translation fallback: if title or overview is blank (TMDB
-    // returns blanks for many non-English items in en-US), re-fetch the
-    // translations endpoint and pick the best available translation.
-    // This is genuinely better than our prior `append_to_response` approach
-    // for users with non-English content.
-    if (details.title.isEmpty || details.overview.isEmpty) {
-      final translation = await bestTranslation(movie);
-      if (translation != null) {
-        details = TmdDetails(
-          title: translation.title.isNotEmpty ? translation.title : details.title,
-          tagline: translation.tagline.isNotEmpty ? translation.tagline : details.tagline,
-          overview: translation.overview.isNotEmpty
-              ? translation.overview
-              : details.overview,
-          voteAverage: details.voteAverage,
-          voteCount: details.voteCount,
-          year: details.year,
-          runtimeMinutes: details.runtimeMinutes,
-          genres: details.genres,
-          cast: details.cast,
-          trailers: details.trailers,
-          posterPath: details.posterPath,
-          backdropPath: details.backdropPath,
-          originalTitle: details.originalTitle,
-          numberOfSeasons: details.numberOfSeasons,
-          numberOfEpisodes: details.numberOfEpisodes,
-        );
-      }
-    }
     return details;
-  }
-
-  /// Pulls the translations list for [movie] (movie or TV) and returns the
-  /// best matching translation: device locale first, English fallback, with
-  /// a non-blank overview. Returns null when no useful translation exists.
-  Future<TmdTranslation?> bestTranslation(TmdMovie movie) async {
-    final key = await effectiveApiKey();
-    if (key.isEmpty) return null;
-    final endpoint = movie.kind == TmdKind.movie
-        ? '/movie/${movie.id}/translations'
-        : '/tv/${movie.id}/translations';
-    final Map<String, dynamic> json;
-    try {
-      json = await _get('$endpoint?api_key=$key');
-    } on TmdException catch (_) {
-      return null;
-    } on SocketException {
-      return null;
-    } on TimeoutException {
-      return null;
-    }
-    final raw = json['translations'] as List? ?? const [];
-    final translations = raw
-        .whereType<Map<String, dynamic>>()
-        .map((t) {
-          final iso = t['iso_639_1'] as String? ?? '';
-          final data = t['data'] as Map<String, dynamic>?;
-          return TmdTranslation(
-            language: iso,
-            title: (data?['name'] as String? ?? '').trim(),
-            tagline: (data?['tagline'] as String? ?? '').trim(),
-            overview: (data?['overview'] as String? ?? '').trim(),
-          );
-        })
-        .where((t) => t.language.isNotEmpty)
-        .toList();
-    if (translations.isEmpty) return null;
-
-    // Device locale preference (e.g. `en_IN` → `en`). Empty string means
-    // the locale query failed or the device has no language code.
-    final lang = _deviceLanguage;
-    return translations.cast<TmdTranslation?>().firstWhere(
-          (t) =>
-              t != null &&
-              t.language == lang &&
-              t.overview.isNotEmpty,
-          orElse: () => translations.cast<TmdTranslation?>().firstWhere(
-                (t) => t != null && t.language == 'en' && t.overview.isNotEmpty,
-                orElse: () => translations.cast<TmdTranslation?>().firstWhere(
-                      (t) => t != null && t.overview.isNotEmpty,
-                      orElse: () => null,
-                    ),
-              ),
-        );
-  }
-
-  /// Two-letter device language (`en`, `hi`, `fr`, ...). Falls back to empty
-  /// string so the English fallback in [bestTranslation] takes over.
-  String get _deviceLanguage {
-    final locale = PlatformDispatcher.instance.locale;
-    final lang = locale.languageCode.toLowerCase();
-    return lang.isNotEmpty ? lang : '';
   }
 
   /// Episodes of one season (`/tv/{id}/season/{n}`), in one request. Empty when
@@ -1042,12 +980,25 @@ class TmdApi {
   Future<TmdMatch?> bestMatch(ParsedFileName parsed) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return null;
-    final kind = parsed.isEpisode ? TmdKind.tv : TmdKind.movie;
-    final results = await search(
-      parsed.isEpisode ? (parsed.seriesName ?? parsed.title) : parsed.title,
+    // Use TV search when we have a series name (from SxxExx pattern or
+    // parent folder fallback) — files like "Episode01.mkv" inside a TV
+    // show folder should search for the show, not the episode filename.
+    final hasSeries = parsed.isEpisode || (parsed.seriesName?.isNotEmpty ?? false);
+    final kind = hasSeries ? TmdKind.tv : TmdKind.movie;
+    final query = hasSeries ? (parsed.seriesName ?? parsed.title) : parsed.title;
+
+    // Nova-style: search with year first
+    var results = await search(
+      query,
       year: kind == TmdKind.movie ? parsed.year : null,
       kind: kind,
     );
+
+    // Nova-style: if no results with year, try without year
+    if (results.isEmpty && parsed.year != null && kind == TmdKind.movie) {
+      results = await search(query, kind: kind);
+    }
+
     if (results.isEmpty) return null;
     results.sort((a, b) => _score(b, parsed).compareTo(_score(a, parsed)));
     final best = results.first;
@@ -1060,30 +1011,26 @@ class TmdApi {
     final query = (parsed.isEpisode ? (parsed.seriesName ?? parsed.title) : parsed.title)
         .toLowerCase();
     final title = movie.title.toLowerCase();
-    final originalTitle = (movie.originalTitle ?? '').toLowerCase();
 
-    // Flux-style: Levenshtein distance for robust matching.
-    // Pick the minimum distance across the translated title and original title.
-    final distTitle = _levenshteinDistance(query, title);
-    final distOriginal = _levenshteinDistance(query, originalTitle);
-    final bestDist = distTitle < distOriginal ? distTitle : distOriginal;
+    // Nova-style: Levenshtein distance for robust matching.
+    final dist = _levenshteinDistance(query, title);
     final maxLen = query.length > title.length ? query.length : title.length;
     if (maxLen == 0) return 0.0;
     // Score = 1.0 for exact match, decays with edit distance.
     // threshold: distance ≤ 30% of max length = pass (≥ 0.5).
-    var score = (1.0 - bestDist / maxLen).clamp(0.0, 1.0);
+    var score = (1.0 - dist / maxLen).clamp(0.0, 1.0);
 
-    // Year bonus: for movies, reward exact year match. For TV, use as
-    // tiebreaker when two results have the same title (both score 1.0
-    // after Levenshtein) — the folder year disambiguates.
+    // Nova-style: Year bonus
     if (parsed.year != null && movie.year == parsed.year) {
-      if (!parsed.isEpisode) {
+      if (!(parsed.isEpisode || (parsed.seriesName?.isNotEmpty ?? false))) {
+        // Nova uses 0.15 for movie year match
         score = (score + 0.15).clamp(0.0, 1.0);
       } else {
         // Tiny tiebreaker for TV — only matters when two results tie on title.
         score = (score + 0.01).clamp(0.0, 1.0);
       }
     }
+
     return score;
   }
 
@@ -1119,16 +1066,13 @@ class TmdApi {
   double _queryScore(TmdMovie movie, String query) {
     final q = query.toLowerCase();
     final title = movie.title.toLowerCase();
-    final originalTitle = (movie.originalTitle ?? '').toLowerCase();
-    final distTitle = _levenshteinDistance(q, title);
-    final distOriginal = _levenshteinDistance(q, originalTitle);
-    final bestDist = distTitle < distOriginal ? distTitle : distOriginal;
+    final dist = _levenshteinDistance(q, title);
     final maxLen = q.length > title.length ? q.length : title.length;
     if (maxLen == 0) return 0.0;
-    return (1.0 - bestDist / maxLen).clamp(0.0, 1.0);
+    return (1.0 - dist / maxLen).clamp(0.0, 1.0);
   }
 
-  /// Flux-style Levenshtein edit distance (for TMDB title matching).
+  /// Levenshtein edit distance (for TMDB title matching).
   static int _levenshteinDistance(String a, String b) {
     if (a.isEmpty) return b.length;
     if (b.isEmpty) return a.length;
@@ -1293,6 +1237,10 @@ class TmdService extends ChangeNotifier {
   final Set<String> _pendingDetail = {};
   bool _loaded = false;
 
+  /// Last prefetch list — used by [_staggerPrefetch] to carry resolved meta
+  /// to sibling files in the same series after each individual resolve.
+  List<VideoItem> _lastPrefetchVideos = const [];
+
   bool get loaded => _loaded;
 
   TmdMeta? metaFor(String identityKey) => _cache[identityKey];
@@ -1382,6 +1330,61 @@ class TmdService extends ChangeNotifier {
     _cache[metadataKey] = meta;
     await TmdStore.save(metadataKey, meta);
     return meta;
+  }
+
+  /// Nova-style: background-resolve TMDB metadata for every video in a folder.
+  /// Each file gets its own `resolve()` call; already-cached entries are
+  /// skipped. Resolutions fire-and-forget with a small stagger to avoid
+  /// hitting TMDB rate limits — callers listen to [notifyListeners] to pick
+  /// up results as they land.
+  void prefetchFolder(List<VideoItem> videos) {
+    final pending = <VideoItem>[];
+    for (final video in videos) {
+      final key = TmdStore.identityKeyFor(video);
+      if (key.isEmpty) continue;
+      if (_cache.containsKey(key)) continue;
+      if (_pending.containsKey(key)) continue;
+      pending.add(video);
+    }
+    _lastPrefetchVideos = videos;
+    // Stagger resolve calls to stay under TMDB rate limits (40 req/10 s).
+    _staggerPrefetch(pending, 0);
+  }
+
+  void _staggerPrefetch(List<VideoItem> videos, int index) {
+    if (index >= videos.length) return;
+    resolve(videos[index]).then((_) {
+      // After each file resolves, carry its meta to siblings in the same
+      // series so other episodes get the show's poster without re-searching.
+      _carrySeriesMetaToSiblings(videos[index]);
+    });
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _staggerPrefetch(videos, index + 1);
+    });
+  }
+
+  /// Nova-style: when a file resolves, check all prefetch-list files that
+  /// share the same detected series name and carry the meta to any that
+  /// are still unresolved.  This makes every episode in a TV folder show
+  /// the show's poster as soon as the first episode resolves.
+  void _carrySeriesMetaToSiblings(VideoItem resolved) {
+    final resolvedKey = TmdStore.identityKeyFor(resolved);
+    final resolvedMeta = _cache[resolvedKey];
+    if (resolvedMeta == null) return;
+    final parsed = ParsedFileName.parse(resolved.title);
+    final seriesName = parsed.seriesName ?? parsed.title;
+    if (seriesName.isEmpty) return;
+    for (final sibling in _lastPrefetchVideos) {
+      final sibKey = TmdStore.identityKeyFor(sibling);
+      if (sibKey.isEmpty || sibKey == resolvedKey) continue;
+      if (_cache.containsKey(sibKey)) continue;
+      final sibParsed = ParsedFileName.parse(sibling.title);
+      final sibSeries = sibParsed.seriesName ?? sibParsed.title;
+      if (sibSeries != seriesName) continue;
+      _cache[sibKey] = resolvedMeta;
+      TmdStore.save(sibKey, resolvedMeta);
+    }
+    notifyListeners();
   }
 
   /// Fetches full details (synopsis, cast, runtime) for a matched video.
@@ -1516,6 +1519,26 @@ class TmdService extends ChangeNotifier {
   Future<void> clear(String identityKey) async {
     _cache.remove(identityKey);
     await TmdStore.remove(identityKey);
+    notifyListeners();
+  }
+
+  /// Nova-style: carry a folder's TMDB metadata to every video file inside it.
+  /// For a TV show folder this means every episode gets the show's poster
+  /// without re-searching TMDB per file.
+  void carryFolderMetaToAll(
+    String folderKey,
+    List<VideoItem> videos,
+  ) {
+    if (folderKey.isEmpty) return;
+    final meta = _cache[folderKey];
+    if (meta == null) return;
+    for (final video in videos) {
+      final key = TmdStore.identityKeyFor(video);
+      if (key.isEmpty || key == folderKey) continue;
+      if (_cache.containsKey(key)) continue;
+      _cache[key] = meta;
+      TmdStore.save(key, meta);
+    }
     notifyListeners();
   }
 }

@@ -39,6 +39,7 @@ import '../services/system_controls.dart';
 import 'subtitle_settings_screen.dart';
 import 'opensubtitles_sheet.dart';
 import '../utils/codec_info.dart';
+import '../utils/file_info_extractor.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/format_chip.dart';
 import 'player_error.dart';
@@ -1958,6 +1959,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         return videos
             .map((e) {
               final isContent = e.path.startsWith('content://');
+              final fi = extractFileInfo(e.name);
               return VideoItem(
                 id: 'folder_next_${e.path.hashCode}',
                 title: e.name,
@@ -1966,6 +1968,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                 resumeKey: e.resumeKey,
                 duration: Duration.zero,
                 sizeBytes: e.size,
+                videoCodec: fi.videoCodec,
+                audioCodec: fi.audioCodec,
+                audioChannels: fi.audioChannels,
+                resolution: fi.resolution,
+                hdrHint: fi.hdrHint,
               );
             })
             .toList();

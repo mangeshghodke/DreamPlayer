@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/hdr_format.dart';
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
@@ -10,6 +11,8 @@ import '../services/library_folders.dart';
 import '../services/resume_store.dart';
 import '../services/tmdb_client.dart';
 import '../services/watched_store.dart';
+import '../utils/codec_info.dart';
+import '../utils/file_info_extractor.dart';
 import '../utils/season_group.dart' as sg;
 import '../widgets/season_progress_ring.dart';
 import '../widgets/tv_tile.dart';
@@ -63,6 +66,13 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   String _computeParentFolderName() {
     final path = widget.video!.path ?? widget.video!.uri ?? '';
     if (path.isEmpty) return '';
+    // SAF content URIs encode the document path in the last URI segment
+    // (e.g. `primary%3ADownload%2FShow.Name%2FEpisode01.mkv`).
+    // Decode that segment and extract the parent folder name from it.
+    if (path.startsWith('content://')) {
+      final decoded = _parentFromContentUri(path);
+      return decoded;
+    }
     // Strip query / fragment, then trailing slash.
     var clean = path.split('?').first.split('#').first;
     if (clean.endsWith('/')) clean = clean.substring(0, clean.length - 1);
@@ -73,6 +83,28 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       return Uri.decodeComponent(segment);
     } catch (_) {
       return segment;
+    }
+  }
+
+  /// Extract parent folder name from a SAF content:// URI.
+  /// The document ID is encoded in the last path segment, e.g.
+  /// `content://com.android.externalstorage.documents/document/primary%3ADownload%2FShow%2FEpisode01.mkv`
+  /// → decoded: `primary:Download/Show/Episode01.mkv` → parent: `Show`.
+  static String _parentFromContentUri(String uri) {
+    try {
+      final parsed = Uri.parse(uri);
+      // The document ID is the last path segment.
+      final docId = parsed.pathSegments.last;
+      final decoded = Uri.decodeComponent(docId);
+      // Strip the volume prefix (`primary:`, `treeprimary:` etc.)
+      final colonIdx = decoded.indexOf(':');
+      final withoutVolume = colonIdx >= 0 ? decoded.substring(colonIdx + 1) : decoded;
+      // Get parent folder from the decoded path.
+      final parts = withoutVolume.split('/');
+      if (parts.length < 2) return '';
+      return parts[parts.length - 2];
+    } catch (_) {
+      return '';
     }
   }
   final TmdService _service = TmdService.instance;
@@ -210,8 +242,25 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       await _refreshJellyfinInfo();
       if (!mounted) return;
     }
-    if (_meta == null) {
-      if (mounted) {
+    // Auto-resolve TMDB metadata if not cached (Nova-style: every file
+    // tap triggers a background lookup so the details page is never blank).
+    if (_meta == null && widget.video != null) {
+      try {
+        await _service.resolve(
+          widget.video!,
+          parentFolderName: _computeParentFolderName(),
+        );
+      } catch (_) {
+        // Network failure is non-fatal; the "Get Info" button remains.
+      }
+      if (!mounted) return;
+      final resolved = _service.metaFor(_identityKey);
+      if (resolved != null) {
+        setState(() {
+          _meta = resolved;
+          _loading = false;
+        });
+      } else if (mounted) {
         setState(() => _loading = false);
       }
     }
@@ -233,6 +282,16 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         _folderError = null;
       });
       _refreshWatched();
+      // Nova-style: background-resolve TMDB for all video files so metadata
+      // is ready when the user taps a file.  Each file resolves independently
+      // (no stagger) so the listener fires immediately per file and the tile
+      // shows its poster as soon as the TMDB match lands — same as v0.3.8.
+      for (final entry in entries) {
+        if (entry.isDirectory) continue;
+        _service.resolve(_toVideoItem(entry)).catchError((_) {
+          return null;
+        });
+      }
     } on PlatformException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -575,6 +634,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   VideoItem _toVideoItem(FileEntry entry) {
     final isContentUri = entry.path.startsWith('content://');
+    final info = extractFileInfo(entry.name);
     return VideoItem(
       id: 'folder_${widget.folder!.id}_${entry.path.hashCode}',
       title: entry.name,
@@ -583,6 +643,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       resumeKey: entry.resumeKey,
       duration: Duration.zero,
       sizeBytes: entry.size,
+      videoCodec: info.videoCodec,
+      audioCodec: info.audioCodec,
+      audioChannels: info.audioChannels,
+      resolution: info.resolution,
+      hdrHint: info.hdrHint,
     );
   }
 
@@ -986,6 +1051,32 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                 ),
 
+                // ── Cast row (Nova-style) ──
+                if (details != null && details.cast.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _CastRow(cast: details.cast),
+                ],
+                // Per-episode guest stars (when viewing a single episode)
+                if (singleEpisode != null &&
+                    (singleEpisode.cast.isNotEmpty ||
+                        singleEpisode.guestStars.isNotEmpty)) ...[
+                  const SizedBox(height: 20),
+                  _CastRow(
+                    cast: singleEpisode.guestStars.isNotEmpty
+                        ? singleEpisode.guestStars
+                        : singleEpisode.cast,
+                    title: singleEpisode.guestStars.isNotEmpty
+                        ? 'Guest stars'
+                        : 'Episode cast',
+                  ),
+                ],
+
+                // ── Stills gallery (Nova-style, single episode only) ──
+                if (singleEpisode != null && singleEpisode.stills.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _StillsGallery(stills: singleEpisode.stillUrls()),
+                ],
+
                 // ── File info card (Nova-style) ──
                 if (widget.video != null) ...[
                   const SizedBox(height: 20),
@@ -1150,6 +1241,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
               });
             },
             tileBuilder: entryTile,
+            seasonName: _meta?.seasons[s]?.name,
           ),
         ),
       if (movies.isNotEmpty)
@@ -1284,6 +1376,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
               });
             },
             tileBuilder: itemTile,
+            seasonName: _meta?.seasons[s]?.name,
           ),
         ),
       if (movies.isNotEmpty)
@@ -1614,15 +1707,50 @@ class _FileInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final hdrFormat = video.hdrFormat;
     final videoCodec = video.videoCodecLabel;
-    final audioCodec = video.audioCodecLabel;
+    final audioCodec = video.audioCodec;
+    final audioChannels = video.audioChannels;
     final resolution = video.resolution;
     final sizeBytes = video.sizeBytes;
     final path = video.path ?? video.uri ?? '';
 
-    if (videoCodec == null && audioCodec == null && resolution == null) {
-      return const SizedBox.shrink();
+    // Build info rows
+    final rows = <Widget>[];
+
+    // HDR format badge (Nova-style)
+    if (hdrFormat != HdrFormat.sdr) {
+      rows.add(_HdrBadge(format: hdrFormat));
+      rows.add(const SizedBox(height: 8));
     }
+
+    // Video codec + resolution
+    final videoInfo = [videoCodec, resolution]
+        .where((s) => s != null && s.isNotEmpty)
+        .join('  ·  ');
+    if (videoInfo.isNotEmpty) {
+      rows.add(_InfoRow(icon: Icons.videocam, label: videoInfo));
+    }
+
+    // Audio codec with channels (Nova-style)
+    if (audioCodec != null && audioCodec.isNotEmpty) {
+      final formatted = formatAudioCodec(audioCodec);
+      final parts = <String>[formatted];
+      if (audioChannels != null && audioChannels.isNotEmpty) {
+        parts.add(audioChannels);
+      }
+      rows.add(_InfoRow(icon: Icons.audiotrack, label: parts.join(' ')));
+    }
+
+    // File size
+    if (sizeBytes != null && sizeBytes > 0) {
+      rows.add(_InfoRow(
+        icon: Icons.storage,
+        label: _formatFileSize(sizeBytes),
+      ));
+    }
+
+    if (rows.isEmpty) return const SizedBox.shrink();
 
     return Card(
       child: Padding(
@@ -1637,18 +1765,7 @@ class _FileInfoCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            if (videoCodec != null || resolution != null)
-              _InfoRow(
-                icon: Icons.videocam,
-                label: [videoCodec, resolution].where((s) => s != null && s.isNotEmpty).join('  ·  '),
-              ),
-            if (audioCodec != null)
-              _InfoRow(icon: Icons.audiotrack, label: audioCodec),
-            if (sizeBytes != null && sizeBytes > 0)
-              _InfoRow(
-                icon: Icons.storage,
-                label: _formatFileSize(sizeBytes),
-              ),
+            ...rows,
             if (path.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
@@ -1673,6 +1790,62 @@ class _FileInfoCard extends StatelessWidget {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+}
+
+/// Nova-style HDR format badge with color coding.
+class _HdrBadge extends StatelessWidget {
+  const _HdrBadge({required this.format});
+  final HdrFormat format;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (color, icon) = switch (format) {
+      HdrFormat.dolbyVision => (
+          const Color(0xFF6B2FA0),
+          Icons.movie,
+        ),
+      HdrFormat.hdr10plus => (
+          const Color(0xFFE6A817),
+          Icons.brightness_high,
+        ),
+      HdrFormat.hdr10 => (
+          const Color(0xFFE6A817),
+          Icons.brightness_high,
+        ),
+      HdrFormat.hlg => (
+          const Color(0xFF4CAF50),
+          Icons.wb_sunny,
+        ),
+      HdrFormat.sdr => (
+          theme.colorScheme.surfaceContainerHighest,
+          Icons.tv,
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            format.label,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1771,6 +1944,155 @@ class _TrailersCard extends StatelessWidget {
   }
 }
 
+/// Horizontal scrollable cast row (Nova-style) showing actor photos, names,
+/// and character names.
+class _CastRow extends StatelessWidget {
+  const _CastRow({required this.cast, this.title = 'Cast'});
+  final List<TmdCastMember> cast;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 130,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: cast.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final member = cast[index];
+              return SizedBox(
+                width: 80,
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(40),
+                      child: member.profileUrl() != null
+                          ? Image.network(
+                              member.profileUrl()!,
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => _avatarFallback(
+                                  theme.colorScheme, member.name),
+                            )
+                          : _avatarFallback(theme.colorScheme, member.name),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      member.name,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    if (member.character != null &&
+                        member.character!.isNotEmpty)
+                      Text(
+                        member.character!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 10,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Widget _avatarFallback(ColorScheme colorScheme, String name) {
+    final initial =
+        name.isNotEmpty ? name[0].toUpperCase() : '?';
+    return Container(
+      width: 72,
+      height: 72,
+      color: colorScheme.surfaceContainerHighest,
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Horizontal scrollable stills gallery (Nova-style) for episode detail views.
+class _StillsGallery extends StatelessWidget {
+  const _StillsGallery({required this.stills});
+  final List<String> stills;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Stills',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 120,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: stills.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  stills[index],
+                  height: 120,
+                  width: 213, // 16:9 aspect
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    height: 120,
+                    width: 213,
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.broken_image,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Single info row for the file info card.
 class _InfoRow extends StatelessWidget {
   const _InfoRow({required this.icon, required this.label});
@@ -1807,6 +2129,7 @@ class _SeasonExpansion<T> extends StatelessWidget {
     required this.expanded,
     required this.onExpansionChanged,
     required this.tileBuilder,
+    this.seasonName,
   });
 
   final int season;
@@ -1817,11 +2140,19 @@ class _SeasonExpansion<T> extends StatelessWidget {
   final ValueChanged<bool> onExpansionChanged;
   final Widget Function(T) tileBuilder;
 
+  /// Full season name from TMDB (e.g. "Season 2: The One Where...").
+  final String? seasonName;
+
   @override
   Widget build(BuildContext context) {
     final watched = sg.watchedCount(entries, watchedKeys, keyOf);
     final total = entries.length;
     final colorScheme = Theme.of(context).colorScheme;
+    // Show "Season 2: The One Where..." when a name is available,
+    // falling back to the generic "Season 2" header.
+    final headerLabel = (seasonName != null && seasonName!.isNotEmpty)
+        ? '${sg.seasonHeader(season)} · $seasonName'
+        : sg.seasonHeader(season);
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
@@ -1831,12 +2162,16 @@ class _SeasonExpansion<T> extends StatelessWidget {
         childrenPadding: EdgeInsets.zero,
         title: Row(
           children: [
-            Text(
-              sg.seasonHeader(season),
-              style: TextStyle(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
+            Flexible(
+              child: Text(
+                headerLabel,
+                style: TextStyle(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 10),
@@ -1905,7 +2240,9 @@ class _FolderEntryTile extends StatelessWidget {
       _sizeLabel(entry.size),
     ].where((s) => s.isNotEmpty).join(' · ');
 
-    final posterUrl = posterUrlOf(tmdbMeta);
+    // Prefer per-episode still thumbnail over series poster (Nova-style).
+    final stillUrl = episode?.stillUrl();
+    final posterUrl = stillUrl ?? posterUrlOf(tmdbMeta);
 
     final subtitleWidget = subtitle.isEmpty && resumeProgress == null
         ? null
@@ -1913,6 +2250,14 @@ class _FolderEntryTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Show episode name on its own line when available (Nova-style).
+              if (episode != null && episode!.name.isNotEmpty)
+                Text(
+                  episode!.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               if (subtitle.isNotEmpty)
                 Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
               if (resumeProgress != null)
@@ -1979,7 +2324,9 @@ class _JellyfinEntryTile extends StatelessWidget {
       if (item.sizeLabel.isNotEmpty) item.sizeLabel,
     ].where((s) => s.isNotEmpty).join(' · ');
 
-    final posterUrl = posterUrlOf(tmdbMeta);
+    // Prefer per-episode still thumbnail over series poster (Nova-style).
+    final stillUrl = episode?.stillUrl();
+    final posterUrl = stillUrl ?? posterUrlOf(tmdbMeta);
 
     final subtitleWidget = subtitle.isEmpty && resumeProgress == null
         ? null
@@ -1987,6 +2334,14 @@ class _JellyfinEntryTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Show episode name on its own line when available (Nova-style).
+              if (episode != null && episode!.name.isNotEmpty)
+                Text(
+                  episode!.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               if (subtitle.isNotEmpty)
                 Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
               if (resumeProgress != null)
@@ -2072,6 +2427,13 @@ class _SearchDialogState extends State<_SearchDialog> {
     super.initState();
     _controller.text = widget.initialQuery ?? '';
     _kind = widget.initialKind ?? TmdKind.movie;
+    // Auto-search on open when there's an initial query (Nova-style: the
+    // dialog immediately shows matching results without requiring Enter).
+    if (_controller.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _search();
+      });
+    }
   }
 
   @override

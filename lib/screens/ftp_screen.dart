@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/video_item.dart';
 import '../services/ftp_client.dart';
 import '../services/tmdb_client.dart';
+import '../utils/file_info_extractor.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_text_field.dart';
@@ -98,6 +99,7 @@ class _FtpScreenState extends State<FtpScreen> {
         _entries = entries;
         _loading = false;
       });
+      _prefetchTmdbMeta(entries);
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -105,6 +107,24 @@ class _FtpScreenState extends State<FtpScreen> {
           _loading = false;
         });
       }
+    }
+  }
+
+  /// Best-effort TMDB prefetch for the current folder's video files.
+  void _prefetchTmdbMeta(List<FtpEntry> entries) {
+    final server = _browsing;
+    if (server == null) return;
+    final service = TmdService.instance;
+    for (final entry in entries) {
+      if (entry.isDirectory) continue;
+      service.resolve(VideoItem(
+        id: 'ftp_${server.id}${entry.path}',
+        title: entry.name,
+        uri: '',
+        resumeKey: 'ftp_${server.id}${entry.path}',
+        duration: Duration.zero,
+        sizeBytes: entry.size,
+      )).catchError((_) => null as TmdMeta?);
     }
   }
 
@@ -121,6 +141,7 @@ class _FtpScreenState extends State<FtpScreen> {
     // FtpDataSource resolves ftp://<serverId>/<path> to saved credentials.
     final uri = '$scheme://${server.id}$encodedPath';
 
+    final fi = extractFileInfo(entry.name);
     final item = VideoItem(
       id: 'ftp_${server.id}${entry.path}',
       title: entry.name,
@@ -128,6 +149,11 @@ class _FtpScreenState extends State<FtpScreen> {
       resumeKey: 'ftp_${server.id}${entry.path}',
       duration: Duration.zero,
       sizeBytes: entry.size,
+      videoCodec: fi.videoCodec,
+      audioCodec: fi.audioCodec,
+      audioChannels: fi.audioChannels,
+      resolution: fi.resolution,
+      hdrHint: fi.hdrHint,
     );
 
     if (!mounted) return;

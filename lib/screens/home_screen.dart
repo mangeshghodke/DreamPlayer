@@ -5,14 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app.dart' show appRouteObserver;
-import '../models/library_video.dart';
 import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
-import '../services/library_video_store.dart';
-import '../services/native_media_scanner.dart';
 import '../services/tmdb_client.dart';
 import '../services/webdav_client.dart';
 import '../widgets/folder_card.dart';
@@ -24,6 +21,7 @@ import '../widgets/video_card.dart';
 import '../utils/tv_helper.dart';
 import 'file_browser_screen.dart';
 import 'jellyfin_screen.dart';
+import '../utils/file_info_extractor.dart';
 import '../utils/startup_permissions.dart';
 import 'smb_screen.dart';
 import 'folder_screen.dart';
@@ -52,9 +50,6 @@ class _HomeScreenState extends State<HomeScreen>
   /// recently added first. Nothing is auto-scanned — only these appear.
   List<LibraryFolder> _folders = const [];
 
-  /// "All videos on device": videos discovered by the MediaStore scanner.
-  List<LibraryVideo> _libraryVideos = const [];
-
   /// Cached server-side metadata for the [JellyfinItemInfo] folders, keyed by
   /// `LibraryFolder.id` (fetch-on-bookmark, refreshed on open).
   Map<String, JellyfinItemInfo> _jellyfinMeta = const {};
@@ -73,11 +68,9 @@ class _HomeScreenState extends State<HomeScreen>
     // Reload whenever the persisted list changes (e.g. a save or remove).
     ContinueWatchingStore.changes.addListener(_loadLibrary);
     LibraryFoldersStore.changes.addListener(_loadLibrary);
-    LibraryVideoStore.instance.addListener(_onMetadataChanged);
     // Update cards when TMDB metadata resolves for a visible entry.
     TmdService.instance.addListener(_onMetadataChanged);
     _loadLibrary();
-    _loadLibraryVideos();
     // Ask for every runtime permission at app open instead of mid-playback.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -104,7 +97,6 @@ class _HomeScreenState extends State<HomeScreen>
     widget.refreshTick?.removeListener(_loadLibrary);
     ContinueWatchingStore.changes.removeListener(_loadLibrary);
     LibraryFoldersStore.changes.removeListener(_loadLibrary);
-    LibraryVideoStore.instance.removeListener(_onMetadataChanged);
     TmdService.instance.removeListener(_onMetadataChanged);
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
@@ -116,7 +108,6 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didPopNext() {
     _loadLibrary();
-    _loadLibraryVideos();
   }
 
   @override
@@ -125,7 +116,6 @@ class _HomeScreenState extends State<HomeScreen>
     // player paused and saved a resume position), so refresh on return.
     if (state == AppLifecycleState.resumed) {
       _loadLibrary();
-      _loadLibraryVideos();
     }
   }
 
@@ -136,60 +126,6 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() => _entries = entries);
     }
     _resolveMetadata(entries);
-  }
-
-  /// Loads the locally-scanned video library (MediaStore results) and kicks
-  /// off a background scan + TMDB auto-scrape for any new entries.
-  Future<void> _loadLibraryVideos() async {
-    final store = LibraryVideoStore.instance;
-    await store.load();
-    if (mounted) {
-      setState(() => _libraryVideos = store.videos);
-    }
-    // Fire-and-forget: re-scan MediaStore and merge results.
-    _rescanMediaStore();
-  }
-
-  Future<void> _rescanMediaStore() async {
-    try {
-      final scanned = await NativeMediaScanner.instance.scanAll();
-      if (scanned.isEmpty) return;
-      await LibraryVideoStore.instance.merge(scanned);
-      if (mounted) {
-        setState(() => _libraryVideos = LibraryVideoStore.instance.videos);
-      }
-      _autoScrapeMetadata(LibraryVideoStore.instance.videos);
-    } catch (_) {
-      // Permission denied or channel missing — non-fatal.
-    }
-  }
-
-  /// Best-effort TMDB lookups for locally-scanned videos that don't have
-  /// metadata yet (the Nova AutoScrapeService equivalent).
-  Future<void> _autoScrapeMetadata(List<LibraryVideo> videos) async {
-    final service = TmdService.instance;
-    await service.ensureLoaded();
-    var scraped = 0;
-    for (final v in videos) {
-      if (scraped >= 50) break; // Cap per session to avoid rate-limit.
-      final key = 'scan:${v.path}';
-      if (service.metaFor(key) != null) continue;
-      try {
-        final item = VideoItem(
-          id: 'scan_${v.id}',
-          title: v.title,
-          path: v.path,
-          resumeKey: 'scan:${v.path}',
-          duration: Duration(milliseconds: v.duration),
-          sizeBytes: v.sizeBytes,
-          resolution: v.resolutionLabel,
-        );
-        await service.resolve(item);
-        scraped++;
-      } catch (_) {
-        // Network failures are non-fatal.
-      }
-    }
   }
 
   /// Loads the "Your library" folder list, then kicks off best-effort TMDB
@@ -450,17 +386,54 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _openLocalVideo(VideoItem video) async {
-    if (video.path != null) {
-      await FileBrowserService.instance.resolvePath(video.path!);
+  /// Groups continue-watching entries by TV show (via TMDB show ID) so
+  /// episodes from the same series appear as a single card. Non-episode
+  /// entries (movies, standalone videos) pass through ungrouped.
+  List<_GroupedContinueWatching> _groupedByShow(
+    List<ContinueWatchingEntry> entries,
+  ) {
+    final service = TmdService.instance;
+    final Map<String, _GroupedContinueWatching> shows = {};
+    final List<_GroupedContinueWatching> result = [];
+
+    for (final entry in entries) {
+      final video = entry.video;
+      final parsed = ParsedFileName.parse(video.title);
+      if (parsed.isEpisode) {
+        final key = TmdStore.identityKeyFor(video);
+        final meta = service.metaFor(key);
+        final showId = meta?.movie.id.toString();
+        if (showId != null) {
+          shows.putIfAbsent(
+            showId,
+            () => _GroupedContinueWatching(
+              showTitle: meta?.movie.title ?? parsed.title,
+              showMeta: meta,
+              entries: [],
+            ),
+          );
+          shows[showId]!.entries.add(entry);
+          continue;
+        }
+      }
+      // Non-episode or no TMDB match → pass through as-is.
+      result.add(_GroupedContinueWatching(
+        showTitle: video.title,
+        showMeta: null,
+        entries: [entry],
+      ));
     }
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(video: video),
-      ),
-    );
-    await _loadLibrary();
+
+    // Sort grouped shows by most-recently-played entry.
+    final grouped = shows.values.toList()
+      ..sort((a, b) {
+        final aTime = a.entries.first.position;
+        final bTime = b.entries.first.position;
+        return bTime.compareTo(aTime);
+      });
+
+    result.insertAll(0, grouped);
+    return result;
   }
 
   /// WebDAV entries deliberately do NOT persist the Authorization header (no
@@ -505,6 +478,11 @@ class _HomeScreenState extends State<HomeScreen>
         sizeBytes: video.sizeBytes,
         httpHeaders: auth.isEmpty ? const {} : {'Authorization': auth},
         allowSelfSigned: server.allowSelfSigned,
+        videoCodec: video.videoCodec,
+        audioCodec: video.audioCodec,
+        audioChannels: video.audioChannels,
+        resolution: video.resolution,
+        hdrHint: video.hdrHint,
       );
     } on PlatformException {
       return video;
@@ -561,6 +539,11 @@ class _HomeScreenState extends State<HomeScreen>
       jellyfinServerId: server.urlHost,
       jellyfinItemId: itemId,
       externalSubtitles: refreshedSubs,
+      videoCodec: video.videoCodec,
+      audioCodec: video.audioCodec,
+      audioChannels: video.audioChannels,
+      resolution: video.resolution,
+      hdrHint: video.hdrHint,
     );
   }
 
@@ -634,75 +617,7 @@ class _HomeScreenState extends State<HomeScreen>
                 child: _EmptyLibrary(),
               )
             else
-              _videoGridSliver(
-                count: _entries.length,
-                itemBuilder: (context, index) {
-                  final entry = _entries[index];
-                  final video = entry.video;
-                  final progress = video.duration > Duration.zero
-                      ? (entry.position.inMilliseconds /
-                                video.duration.inMilliseconds)
-                            .clamp(0.0, 1.0)
-                      : null;
-                  final parsed = ParsedFileName.parse(video.title);
-                  final continueLabel =
-                      'Continue from ${_positionLabel(entry.position)}';
-                  return VideoCard(
-                    key: ValueKey(video.resumeKey ?? video.uri ?? video.title),
-                    video: video,
-                    tmdbMeta: TmdService.instance.metaFor(
-                      TmdStore.identityKeyFor(video),
-                    ),
-                    progress: progress,
-                    subtitle: parsed.isEpisode
-                        ? '${parsed.episodeLabel} · $continueLabel'
-                        : continueLabel,
-                    onTap: () => _openVideo(entry),
-                    onLongPress: () => _removeVideo(entry),
-                  );
-                },
-              ),
-            // ---- All videos on device ----
-            if (_libraryVideos.isNotEmpty) ...[
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                sliver: SliverToBoxAdapter(
-                  child: Text(
-                    'All videos on device',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              _videoGridSliver(
-                count: _libraryVideos.length,
-                itemBuilder: (context, index) {
-                  final lv = _libraryVideos[index];
-                  final video = VideoItem(
-                    id: 'scan_${lv.id}',
-                    title: lv.title,
-                    path: lv.path,
-                    resumeKey: 'scan:${lv.path}',
-                    duration: Duration(milliseconds: lv.duration),
-                    sizeBytes: lv.sizeBytes,
-                    resolution: lv.resolutionLabel,
-                  );
-                  final parsed = ParsedFileName.parse(lv.title);
-                  return VideoCard(
-                    key: ValueKey(lv.path),
-                    video: video,
-                    tmdbMeta: TmdService.instance.metaFor(
-                      'scan:${lv.path}',
-                    ),
-                    subtitle: parsed.isEpisode
-                        ? '${parsed.episodeLabel}  ·  ${lv.resolutionLabel}'
-                        : lv.resolutionLabel,
-                    onTap: () => _openLocalVideo(video),
-                  );
-                },
-              ),
-            ],
+              _buildContinueWatchingGrid(theme),
           ],
         ),
       ),
@@ -743,6 +658,61 @@ class _HomeScreenState extends State<HomeScreen>
           );
         },
       ),
+    );
+  }
+
+  /// Builds the continue-watching grid, grouping TV episodes by show
+  /// (Nova-style). Movies and standalone videos pass through ungrouped.
+  Widget _buildContinueWatchingGrid(ThemeData theme) {
+    final grouped = _groupedByShow(_entries);
+    return _videoGridSliver(
+      count: grouped.length,
+      itemBuilder: (context, index) {
+        final group = grouped[index];
+        if (group.isSeries) {
+          // TV show card: show poster + latest episode info.
+          final entry = group.mostRecent;
+          final video = entry.video;
+          final progress = video.duration > Duration.zero
+              ? (entry.position.inMilliseconds /
+                        video.duration.inMilliseconds)
+                    .clamp(0.0, 1.0)
+              : null;
+          return VideoCard(
+            key: ValueKey(video.resumeKey ?? video.uri ?? video.title),
+            video: video,
+            tmdbMeta: group.showMeta,
+            progress: progress,
+            subtitle: group.cardSubtitle(_positionLabel),
+            onTap: () => _openVideo(entry),
+            onLongPress: () => _removeVideo(entry),
+          );
+        }
+        // Single entry (movie or unmatched episode).
+        final entry = group.entries.first;
+        final video = entry.video;
+        final progress = video.duration > Duration.zero
+            ? (entry.position.inMilliseconds /
+                      video.duration.inMilliseconds)
+                  .clamp(0.0, 1.0)
+            : null;
+        final parsed = ParsedFileName.parse(video.title);
+        final continueLabel =
+            'Continue from ${_positionLabel(entry.position)}';
+        return VideoCard(
+          key: ValueKey(video.resumeKey ?? video.uri ?? video.title),
+          video: video,
+          tmdbMeta: TmdService.instance.metaFor(
+            TmdStore.identityKeyFor(video),
+          ),
+          progress: progress,
+          subtitle: parsed.isEpisode
+              ? '${parsed.episodeLabel} · $continueLabel'
+              : continueLabel,
+          onTap: () => _openVideo(entry),
+          onLongPress: () => _removeVideo(entry),
+        );
+      },
     );
   }
 
@@ -957,13 +927,21 @@ class _HomeScreenState extends State<HomeScreen>
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PlayerScreen(
-          video: VideoItem(
-            id: 'url_${url.hashCode}',
-            title: title,
-            uri: url,
-            resumeKey: 'url:$url',
-            duration: Duration.zero,
-          ),
+          video: () {
+            final fi = extractFileInfo(title);
+            return VideoItem(
+              id: 'url_${url.hashCode}',
+              title: title,
+              uri: url,
+              resumeKey: 'url:$url',
+              duration: Duration.zero,
+              videoCodec: fi.videoCodec,
+              audioCodec: fi.audioCodec,
+              audioChannels: fi.audioChannels,
+              resolution: fi.resolution,
+              hdrHint: fi.hdrHint,
+            );
+          }(),
         ),
       ),
     );
@@ -1031,5 +1009,44 @@ class _EmptyLibrary extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// A grouped continue-watching entry: either a single video (movie/standalone)
+/// or a TV show with multiple episode entries clustered together.
+class _GroupedContinueWatching {
+  _GroupedContinueWatching({
+    required this.showTitle,
+    required this.showMeta,
+    required this.entries,
+  });
+
+  final String showTitle;
+  final TmdMeta? showMeta;
+  final List<ContinueWatchingEntry> entries;
+
+  /// Whether this represents a TV show with multiple episodes.
+  bool get isSeries => entries.length > 1;
+
+  /// The most recently played entry (first in the list after sorting).
+  ContinueWatchingEntry get mostRecent => entries.first;
+
+  /// The show's poster URL for the card image.
+  String? get posterUrl => showMeta?.movie.posterUrl();
+
+  /// The show's backdrop URL for the card image.
+  String? get backdropUrl => showMeta?.movie.backdropUrl();
+
+  /// Subtitle for the card: "S01E03 · Continue from 12:34" or just
+  /// "Continue from 12:34" for a single entry.
+  String cardSubtitle(String Function(Duration) positionLabel) {
+    final entry = mostRecent;
+    final parsed = ParsedFileName.parse(entry.video.title);
+    final continueLabel = 'Continue from ${positionLabel(entry.position)}';
+    if (isSeries) {
+      final epLabel = parsed.isEpisode ? parsed.episodeLabel : '';
+      return epLabel.isNotEmpty ? '$epLabel · $continueLabel' : continueLabel;
+    }
+    return continueLabel;
   }
 }

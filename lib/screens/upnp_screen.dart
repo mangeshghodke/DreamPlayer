@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
+import '../services/tmdb_client.dart';
 import '../services/upnp_client.dart';
+import '../utils/file_info_extractor.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_tile.dart';
@@ -32,7 +34,18 @@ class _UpnpScreenState extends State<UpnpScreen> {
   @override
   void initState() {
     super.initState();
+    TmdService.instance.addListener(_onTmdbChanged);
     _discover();
+  }
+
+  @override
+  void dispose() {
+    TmdService.instance.removeListener(_onTmdbChanged);
+    super.dispose();
+  }
+
+  void _onTmdbChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _discover() async {
@@ -92,6 +105,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
         _diag = diag ?? const [];
         _browsing = false;
       });
+      _prefetchTmdbMeta(entries);
     } on PlatformException catch (e) {
       final diag = await UpnpClient.instance.diagnostics();
       if (!mounted) return;
@@ -106,6 +120,22 @@ class _UpnpScreenState extends State<UpnpScreen> {
         _browsing = false;
         _browseError = e.toString();
       });
+    }
+  }
+
+  /// Best-effort TMDB prefetch for the current folder's video files.
+  void _prefetchTmdbMeta(List<UpnpEntry> entries) {
+    final service = TmdService.instance;
+    for (final entry in entries) {
+      if (entry.isDirectory || entry.url == null) continue;
+      service.resolve(VideoItem(
+        id: _identityKey(entry),
+        title: entry.name,
+        uri: entry.url!,
+        resumeKey: _identityKey(entry),
+        duration: Duration.zero,
+        sizeBytes: entry.size,
+      )).catchError((_) => null as TmdMeta?);
     }
   }
 
@@ -134,27 +164,36 @@ class _UpnpScreenState extends State<UpnpScreen> {
       title: entry.name,
       sizeBytes: entry.size,
     );
-    video ??= VideoItem(
-      id: key,
-      title: entry.name,
-      uri: entry.url!,
-      resumeKey: key,
-      duration: Duration.zero,
-      sizeBytes: entry.size,
-      // Server declared DLNA.ORG_CI=1 — this URL is a live transcode.
-      isTranscoded: entry.transcoded,
-      // Server-advertised subtitle resources (Jellyfin DeliveryUrls) become
-      // selectable tracks even on the raw DLNA path.
-      externalSubtitles: entry.externalSubs
-          .asMap()
-          .entries
-          .map((e) => VideoExternalSub(
-                uri: e.value.url,
-                label: 'Subtitle ${e.key + 1} · ${e.value.extension.toUpperCase()}',
-                mimeType: e.value.mimeType,
-              ))
-          .toList(),
-    );
+    video ??= () {
+      final fi = extractFileInfo(entry.name);
+      return VideoItem(
+        id: key,
+        title: entry.name,
+        uri: entry.url!,
+        resumeKey: key,
+        duration: Duration.zero,
+        sizeBytes: entry.size,
+        // Server declared DLNA.ORG_CI=1 — this URL is a live transcode.
+        isTranscoded: entry.transcoded,
+        // Server-advertised subtitle resources (Jellyfin DeliveryUrls) become
+        // selectable tracks even on the raw DLNA path.
+        externalSubtitles: entry.externalSubs
+            .asMap()
+            .entries
+            .map((e) => VideoExternalSub(
+                  uri: e.value.url,
+                  label:
+                      'Subtitle ${e.key + 1} · ${e.value.extension.toUpperCase()}',
+                  mimeType: e.value.mimeType,
+                ))
+            .toList(),
+        videoCodec: fi.videoCodec,
+        audioCodec: fi.audioCodec,
+        audioChannels: fi.audioChannels,
+        resolution: fi.resolution,
+        hdrHint: fi.hdrHint,
+      );
+    }();
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => TmdDetailsScreen(video: video!)),
@@ -380,8 +419,13 @@ class _UpnpScreenState extends State<UpnpScreen> {
                           itemBuilder: (context, i) {
                             final e = _entries[i];
                             final isDir = e.isDirectory;
+                            final posterUrl = isDir
+                                ? null
+                                : posterUrlOf(TmdService.instance.metaFor(_identityKey(e)));
                             return TvTile(
-                              leading: Icon(isDir ? Icons.folder_outlined : Icons.movie_outlined),
+                              leading: posterUrl != null
+                                  ? _Poster(posterUrl: posterUrl)
+                                  : Icon(isDir ? Icons.folder_outlined : Icons.movie_outlined),
                               title: Text(e.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                               subtitle: isDir ? null : (e.size > 0 ? Text(_formatBytes(e.size)) : null),
                               trailing: Icon(isDir ? Icons.chevron_right : Icons.play_arrow),
@@ -399,6 +443,27 @@ class _UpnpScreenState extends State<UpnpScreen> {
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+}
+
+class _Poster extends StatelessWidget {
+  const _Poster({required this.posterUrl});
+  final String posterUrl;
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(
+        posterUrl,
+        width: 48,
+        height: 72,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.movie_outlined,
+          color: Theme.of(context).colorScheme.secondary,
+        ),
+      ),
+    );
   }
 }
 

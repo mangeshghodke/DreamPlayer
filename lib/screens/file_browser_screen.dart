@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
+import '../services/tmdb_client.dart';
+import '../utils/file_info_extractor.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
@@ -33,13 +35,19 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    TmdService.instance.addListener(_onTmdbChanged);
     _init();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    TmdService.instance.removeListener(_onTmdbChanged);
     super.dispose();
+  }
+
+  void _onTmdbChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -89,6 +97,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       _entries = roots;
       _loading = false;
     });
+    _prefetchTmdb(roots);
   }
 
   Future<void> _load(String path) async {
@@ -99,6 +108,16 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       _entries = entries;
       _loading = false;
     });
+    _prefetchTmdb(entries);
+  }
+
+  void _prefetchTmdb(List<FileEntry> entries) {
+    for (final entry in entries) {
+      if (entry.isDirectory) continue;
+      TmdService.instance.resolve(_toVideoItem(entry)).catchError((_) {
+        return null;
+      });
+    }
   }
 
   Future<void> _openEntry(FileEntry entry) async {
@@ -132,6 +151,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
     // Bookmarked-tree videos come back as content:// URIs (no real file
     // path), so hand those to the player's `uri` field.
     final isContentUri = entry.path.startsWith('content://');
+    final info = extractFileInfo(entry.name);
     return VideoItem(
       id: 'file_${entry.path.hashCode}',
       title: entry.name,
@@ -140,6 +160,11 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       resumeKey: entry.resumeKey,
       duration: Duration.zero,
       sizeBytes: entry.size,
+      videoCodec: info.videoCodec,
+      audioCodec: info.audioCodec,
+      audioChannels: info.audioChannels,
+      resolution: info.resolution,
+      hdrHint: info.hdrHint,
     );
   }
 
@@ -269,6 +294,9 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
           onRemove: _atRoot && entry.bookmarkId != null
               ? () => _removeBookmark(entry)
               : null,
+          tmdbMeta: TmdService.instance.metaFor(
+            TmdStore.identityKeyFor(_toVideoItem(entry)),
+          ),
         ),
     ];
     return ListView.builder(
@@ -278,16 +306,39 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   }
 }
 
+class _Poster extends StatelessWidget {
+  const _Poster({required this.posterUrl});
+  final String posterUrl;
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(
+        posterUrl,
+        width: 48,
+        height: 72,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.play_circle_outline,
+          color: Theme.of(context).colorScheme.secondary,
+        ),
+      ),
+    );
+  }
+}
+
 class _FileTile extends StatelessWidget {
   const _FileTile({
     required this.entry,
     required this.onTap,
     this.onRemove,
+    this.tmdbMeta,
   });
 
   final FileEntry entry;
   final VoidCallback onTap;
   final VoidCallback? onRemove;
+  final TmdMeta? tmdbMeta;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -309,8 +360,11 @@ class _FileTile extends StatelessWidget {
         : Icons.play_circle_outline;
     final color = entry.isDirectory ? colorScheme.primary : colorScheme.secondary;
     final subtitle = entry.isDirectory ? null : _sizeLabel(entry.size);
+    final posterUrl = posterUrlOf(tmdbMeta);
     return TvTile(
-      leading: Icon(icon, color: color),
+      leading: posterUrl != null
+          ? _Poster(posterUrl: posterUrl)
+          : Icon(icon, color: color),
       title: Text(
         entry.name,
         maxLines: 1,

@@ -143,6 +143,9 @@ class VideoItem {
     this.externalSubtitles = const [],
     this.chapters = const [],
     this.isTranscoded = false,
+    this.seasonNumber,
+    this.episodeNumber,
+    this.seriesName,
   });
 
   final String id;
@@ -191,6 +194,17 @@ class VideoItem {
   /// The source is a server-side transcode (Jellyfin HLS fallback, DLNA
   /// `CI=1` stream) — lossy and re-encoded, so the player shows a badge.
   final bool isTranscoded;
+
+  /// Parsed season number (TV episodes only). Enables series grouping
+  /// without re-parsing filenames at every call site.
+  final int? seasonNumber;
+
+  /// Parsed episode number (TV episodes only).
+  final int? episodeNumber;
+
+  /// The show/series name extracted from the filename or TMDB metadata.
+  /// Used for series-page grouping in continue-watching.
+  final String? seriesName;
 
   final Duration duration;
   final int? sizeBytes;
@@ -265,6 +279,9 @@ class VideoItem {
       ftpServerId: ftpServerId,
       externalSubtitles: externalSubtitles,
       chapters: chapters,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      seriesName: seriesName,
     );
   }
 
@@ -296,6 +313,9 @@ class VideoItem {
       externalSubtitles: subs,
       chapters: chapters,
       isTranscoded: isTranscoded,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      seriesName: seriesName,
     );
   }
 
@@ -342,6 +362,14 @@ class VideoItem {
         if (chapters.isNotEmpty)
           'chapters': chapters.map((c) => c.toJson()).toList(),
         if (isTranscoded) 'isTranscoded': true,
+        if (seasonNumber != null) 'seasonNumber': seasonNumber,
+        if (episodeNumber != null) 'episodeNumber': episodeNumber,
+        if (seriesName != null) 'seriesName': seriesName,
+        if (videoCodec != null) 'videoCodec': videoCodec,
+        if (audioCodec != null) 'audioCodec': audioCodec,
+        if (audioChannels != null) 'audioChannels': audioChannels,
+        if (resolution != null) 'resolution': resolution,
+        if (hdrHint != null) 'hdrHint': hdrHint,
       };
 
   factory VideoItem.fromJson(Map<String, dynamic> json) {
@@ -369,6 +397,14 @@ class VideoItem {
               .toList()
           : const [],
       isTranscoded: json['isTranscoded'] == true,
+      seasonNumber: (json['seasonNumber'] as num?)?.toInt(),
+      episodeNumber: (json['episodeNumber'] as num?)?.toInt(),
+      seriesName: json['seriesName'] as String?,
+      videoCodec: json['videoCodec'] as String?,
+      audioCodec: json['audioCodec'] as String?,
+      audioChannels: json['audioChannels'] as String?,
+      resolution: json['resolution'] as String?,
+      hdrHint: json['hdrHint'] as String?,
     );
   }
 }
