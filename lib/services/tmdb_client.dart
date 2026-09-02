@@ -1033,16 +1033,18 @@ class TmdApi {
   /// and returns the best match above the threshold, or null. TV hits get a
   /// hair of preference so an exact-title tie (same name is both a show and a
   /// movie) lands on the series — the primary folder use-case is TV folders.
-  Future<TmdMatch?> bestForQuery(String query) async {
+  /// When [year] is provided, results matching that year are strongly boosted
+  /// to disambiguate shows/movies with the same title but different years.
+  Future<TmdMatch?> bestForQuery(String query, {int? year}) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return null;
     final clean = query.trim();
     if (clean.isEmpty) return null;
-    final tv = await search(clean, kind: TmdKind.tv);
-    final movie = await search(clean, kind: TmdKind.movie);
+    final tv = await search(clean, year: year, kind: TmdKind.tv);
+    final movie = await search(clean, year: year, kind: TmdKind.movie);
     TmdMatch? best;
     void consider(TmdMovie candidate, double tieBoost) {
-      final score = _queryScore(candidate, clean) + tieBoost;
+      final score = _queryScore(candidate, clean, year: year) + tieBoost;
       if (score < 0.5) return;
       if (best == null || score > best!.score) {
         best = TmdMatch(candidate, score);
@@ -1058,13 +1060,27 @@ class TmdApi {
     return best;
   }
 
-  double _queryScore(TmdMovie movie, String query) {
+  double _queryScore(TmdMovie movie, String query, {int? year}) {
     final q = query.toLowerCase();
     final title = movie.title.toLowerCase();
     final dist = _levenshteinDistance(q, title);
     final maxLen = q.length > title.length ? q.length : title.length;
     if (maxLen == 0) return 0.0;
-    return (1.0 - dist / maxLen).clamp(0.0, 1.0);
+    var score = (1.0 - dist / maxLen).clamp(0.0, 1.0);
+
+    // Year disambiguation: when a year is provided, strongly boost results
+    // whose release year matches. This breaks ties between identically-named
+    // shows (e.g. "Kakegurui Twin" 2017 vs 2022).
+    if (year != null && score >= 0.5) {
+      final candidateYear = movie.year;
+      if (candidateYear == year) {
+        score += 0.5;
+      } else if (candidateYear != null) {
+        score -= 0.1;
+      }
+    }
+
+    return score;
   }
 
   /// Levenshtein edit distance (for TMDB title matching).
@@ -1308,7 +1324,7 @@ class TmdService extends ChangeNotifier {
     final parsed = ParsedFileName.parse(folderName);
     if (parsed.title.isEmpty) return null;
 
-    final future = _resolveFolderNow(metadataKey, parsed.title);
+    final future = _resolveFolderNow(metadataKey, parsed.title, parsed.year);
     _pending[metadataKey] = future;
     try {
       return await future;
@@ -1318,8 +1334,9 @@ class TmdService extends ChangeNotifier {
     }
   }
 
-  Future<TmdMeta?> _resolveFolderNow(String metadataKey, String query) async {
-    final match = await _api.bestForQuery(query);
+  Future<TmdMeta?> _resolveFolderNow(
+      String metadataKey, String query, int? year) async {
+    final match = await _api.bestForQuery(query, year: year);
     if (match == null) return null;
     final meta = TmdMeta(movie: match.movie);
     _cache[metadataKey] = meta;
