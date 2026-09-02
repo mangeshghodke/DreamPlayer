@@ -893,14 +893,15 @@ class TmdApi {
   Future<String> effectiveApiKey() async {
     if (apiKey != null && apiKey!.isNotEmpty) return apiKey!;
     final prefs = await SharedPreferences.getInstance();
-    var saved = prefs.getString(prefsKey);
-    final defaultKey = apiKey ?? tmdbDefaultApiKey;
-    if ((saved == null || saved.isEmpty) && defaultKey.isNotEmpty) {
-      await prefs.setString(prefsKey, defaultKey);
-      saved = defaultKey;
-    }
+    final saved = prefs.getString(prefsKey);
     if (saved != null && saved.isNotEmpty) return saved;
-    return '';
+    // No build-time default seeding (was previously seeded from
+    // `--dart-define=TMDB_API_KEY=...` but removed in 0.3.9 so public
+    // APK releases don't leak a bundled key — users enter their own in
+    // Settings → Metadata). The build-time define is still injected for
+    // the iOS GitHub Actions test build so the iPad IPA works without
+    // first opening Settings.
+    return tmdbDefaultApiKey;
   }
 
   Future<List<TmdMovie>> search(String query, {int? year, TmdKind kind = TmdKind.movie}) async {
