@@ -341,9 +341,10 @@ class _SmbScreenState extends State<SmbScreen> {
     }
   }
 
-  /// Detects whether the current folder is a TV series folder (majority of
-  /// files have SxxExx episode patterns) and loads TMDB metadata for the
-  /// series header + season data for episode labels.
+  /// Detects whether the current folder is a TV series folder (≥2 files with
+  /// SxxExx episode patterns) and loads TMDB metadata for the series header +
+  /// season data for episode labels. Single-file folders never trigger series
+  /// mode — the user can still open them normally.
   Future<void> _detectAndLoadSeriesFolder(List<SmbEntry> entries) async {
     final server = _browsing;
     if (server == null) return;
@@ -354,11 +355,13 @@ class _SmbScreenState extends State<SmbScreen> {
       return;
     }
 
-    // Check if majority of files are episodes (SxxExx pattern).
+    // Check if ≥2 files have SxxExx episode patterns.
+    // Single-file folders never trigger series mode — they open normally
+    // via TmdDetailsScreen which handles single-episode resolution.
     final episodes = videoEntries
         .where((e) => ParsedFileName.parse(e.name).isEpisode)
         .toList();
-    final isSeries = episodes.length > videoEntries.length ~/ 2;
+    final isSeries = episodes.length >= 2;
 
     if (!isSeries) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
@@ -377,7 +380,8 @@ class _SmbScreenState extends State<SmbScreen> {
     final service = TmdService.instance;
     await service.ensureLoaded();
 
-    // Use folder name as search key (same key used by the bookmark resolver).
+    // Metadata key: use the same smb_folder: prefix that the header/season
+    // lookup uses so the cache hit path is consistent.
     final metadataKey = 'smb_folder:${server.id}/$_share/$cleanPath';
 
     // Resolve from cache or search TMDB.
@@ -795,6 +799,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
   /// Nova-style series folder view: series header (poster, title, rating,
   /// overview, cast) at top, season-grouped episode list below.
+  /// Falls back to flat file list when TMDB metadata couldn't be resolved.
   Widget _seriesFolderBody(BuildContext context) {
     final theme = Theme.of(context);
     final meta = _seriesMeta;
@@ -803,6 +808,12 @@ class _SmbScreenState extends State<SmbScreen> {
 
     if (_loadingSeriesMeta) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    // No metadata resolved — fall back to flat file list so the user can
+    // still browse and play files. Add a "Get Info" escape hatch.
+    if (meta == null) {
+      return _flatFileListWithGetInfo(context);
     }
 
     final videoEntries = _entries.where((e) => !e.isDirectory).toList();
@@ -824,14 +835,30 @@ class _SmbScreenState extends State<SmbScreen> {
 
     return CustomScrollView(
       slivers: [
-        // ── Series header (when metadata resolved) ──
-        if (meta != null)
-          SliverToBoxAdapter(
-            child: _SeriesFolderHeader(
-              meta: meta,
-              details: details,
-            ),
+        // ── Series header ──
+        SliverToBoxAdapter(
+          child: _SeriesFolderHeader(
+            meta: meta,
+            details: details,
+            metadataKey: metadataKey,
+            onFixMatch: () async {
+              final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+              final folderName =
+                  cleanPath.isEmpty ? _share : cleanPath.split('/').last;
+              await _fixMatchSeries(folderName);
+            },
+            onRemoveInfo: () async {
+              final service = TmdService.instance;
+              await service.clear(metadataKey);
+              if (!mounted) return;
+              setState(() {
+                _seriesMeta = null;
+                _seriesDetails = null;
+                _isSeriesFolder = false;
+              });
+            },
           ),
+        ),
 
         // ── Episodes section header ──
         SliverPadding(
@@ -913,6 +940,95 @@ class _SmbScreenState extends State<SmbScreen> {
         );
       },
     );
+  }
+
+  /// Flat file list with a "Get Info" escape hatch for series folders
+  /// where TMDB resolution failed.
+  Widget _flatFileListWithGetInfo(BuildContext context) {
+    final theme = Theme.of(context);
+    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+    final folderName = cleanPath.isEmpty ? _share : cleanPath.split('/').last;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '"$folderName"',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => _fixMatchSeries(folderName),
+                child: const Text('Get Info'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: _flatFileList(context)),
+      ],
+    );
+  }
+
+  /// Fix match for the series folder — opens the TMDB search dialog and
+  /// re-resolves metadata for the current folder.
+  Future<void> _fixMatchSeries(String folderName) async {
+    final server = _browsing;
+    if (server == null) return;
+    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+    final metadataKey = 'smb_folder:${server.id}/$_share/$cleanPath';
+
+    final parsed = ParsedFileName.parse(folderName);
+    final picked = await showDialog<TmdMovie>(
+      context: context,
+      builder: (context) => _SearchDialog(
+        initialQuery: parsed.title.isNotEmpty ? parsed.title : folderName,
+        initialYear: parsed.year,
+        initialKind: TmdKind.tv,
+      ),
+    );
+    if (picked == null || !mounted) return;
+
+    final service = TmdService.instance;
+    await service.setManualFolder(metadataKey, picked);
+    if (!mounted) return;
+
+    // Reload with the new metadata.
+    setState(() {
+      _loadingSeriesMeta = true;
+    });
+    final meta = service.metaFor(metadataKey);
+    final details = await service.detailsFor(metadataKey);
+    if (!mounted) return;
+
+    setState(() {
+      _seriesMeta = meta;
+      _seriesDetails = details;
+      _loadingSeriesMeta = false;
+      _isSeriesFolder = true;
+    });
+
+    // Fetch season data.
+    final videoEntries = _entries.where((e) => !e.isDirectory).toList();
+    final episodes = videoEntries
+        .where((e) => ParsedFileName.parse(e.name).isEpisode)
+        .toList();
+    final seasonsNeeded = episodes
+        .map((e) => ParsedFileName.parse(e.name).season)
+        .where((s) => s > 0)
+        .toSet()
+        .toList();
+    for (final season in seasonsNeeded) {
+      await service.seasonFor(metadataKey, season);
+      if (!mounted) return;
+    }
+    if (mounted) setState(() {});
   }
 
   Widget _serverList(BuildContext context) {
@@ -1137,11 +1253,21 @@ class _SmbTile extends StatelessWidget {
 
 /// Nova-style series folder header: poster + title + year + rating + genres +
 /// overview + cast row, shown at the top of the SMB series folder view.
+/// Includes Fix match / Remove info buttons.
 class _SeriesFolderHeader extends StatelessWidget {
-  const _SeriesFolderHeader({required this.meta, this.details});
+  const _SeriesFolderHeader({
+    required this.meta,
+    required this.metadataKey,
+    required this.onFixMatch,
+    required this.onRemoveInfo,
+    this.details,
+  });
 
   final TmdMeta meta;
   final TmdDetails? details;
+  final String metadataKey;
+  final VoidCallback onFixMatch;
+  final VoidCallback onRemoveInfo;
 
   @override
   Widget build(BuildContext context) {
@@ -1227,6 +1353,23 @@ class _SeriesFolderHeader extends StatelessWidget {
             const SizedBox(height: 20),
             _CastRow(cast: details!.cast),
           ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: onFixMatch,
+                child: const Text('Fix match'),
+              ),
+              TextButton(
+                onPressed: onRemoveInfo,
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                ),
+                child: const Text('Remove info'),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
         ],
       ),
@@ -1648,6 +1791,190 @@ class _FactChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Manual search dialog for picking the right TMDB entry (series folder fix match).
+class _SearchDialog extends StatefulWidget {
+  const _SearchDialog({this.initialQuery, this.initialYear, this.initialKind});
+
+  final String? initialQuery;
+  final int? initialYear;
+  final TmdKind? initialKind;
+
+  @override
+  State<_SearchDialog> createState() => _SearchDialogState();
+}
+
+class _SearchDialogState extends State<_SearchDialog> {
+  final _controller = TextEditingController();
+  final _api = TmdApi();
+
+  List<TmdMovie>? _results;
+  bool _searching = false;
+  bool _noKey = false;
+  String? _error;
+  late TmdKind _kind;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.text = widget.initialQuery ?? '';
+    _kind = widget.initialKind ?? TmdKind.tv;
+    if (_controller.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _search();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search() async {
+    final query = _controller.text.trim();
+    if (query.isEmpty) return;
+    final key = await _api.effectiveApiKey();
+    if (!mounted) return;
+    if (key.isEmpty) {
+      setState(() {
+        _searching = false;
+        _results = null;
+        _noKey = true;
+      });
+      return;
+    }
+    setState(() {
+      _searching = true;
+      _results = null;
+      _error = null;
+      _noKey = false;
+    });
+    try {
+      final primary = await _api.search(
+        query,
+        year: widget.initialYear,
+        kind: _kind,
+      );
+      final fallbackKind = _kind == TmdKind.tv ? TmdKind.movie : TmdKind.tv;
+      final fallback = await _api.search(query, kind: fallbackKind);
+      final results = <TmdMovie>[...primary, ...fallback];
+      final seen = <int>{};
+      results.removeWhere((m) => !seen.add(m.id));
+      if (!mounted) return;
+      setState(() => _results = results);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Search failed: $e');
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return AlertDialog(
+      title: const Text('Get Info'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              onSubmitted: (_) => _search(),
+              decoration: const InputDecoration(
+                hintText: 'Search title',
+                prefixIcon: Icon(Icons.search),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<TmdKind>(
+              segments: const [
+                ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
+                ButtonSegment(value: TmdKind.movie, label: Text('Movie')),
+              ],
+              selected: {_kind},
+              onSelectionChanged: (sel) => setState(() => _kind = sel.first),
+            ),
+            const SizedBox(height: 8),
+            if (_searching)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_noKey)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Search is unavailable right now. Try again in a moment.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Search failed. Try again in a moment.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colorScheme.error),
+                ),
+              )
+            else if (_results != null)
+              if (_results!.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No results. Try a different title.'),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _results!.length,
+                    itemBuilder: (context, index) {
+                      final movie = _results![index];
+                      return ListTile(
+                        leading: movie.posterUrl(width: 92) != null
+                            ? Image.network(
+                                movie.posterUrl(width: 92)!,
+                                width: 36,
+                                height: 54,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    const Icon(Icons.movie),
+                              )
+                            : const Icon(Icons.movie),
+                        title: Text(movie.title),
+                        subtitle: Text(
+                          [
+                            if (movie.kind == TmdKind.tv) 'TV Series',
+                            if (movie.year != null) '${movie.year}',
+                            if (movie.voteAverage > 0)
+                              movie.voteAverage.toStringAsFixed(1),
+                          ].join('  ·  '),
+                        ),
+                        onTap: () => Navigator.of(context).pop(movie),
+                      );
+                    },
+                  ),
+                ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+      ],
     );
   }
 }
