@@ -134,6 +134,10 @@ class _FolderScreenState extends State<FolderScreen> {
     }
     try {
       final entries = await _service.listDirectory(_currentPath);
+      debugPrint('[FolderScreen] _load: ${entries.length} entries for $_currentPath');
+      for (final e in entries) {
+        debugPrint('  ${e.isDirectory ? "[DIR]" : "[FILE]"} ${e.name} (${e.size} bytes)');
+      }
       if (!mounted) return;
       setState(() {
         _entries = entries;
@@ -160,12 +164,12 @@ class _FolderScreenState extends State<FolderScreen> {
     }
   }
 
-  /// Detects whether the current folder is a TV series folder (≥2 files with
-  /// SxxExx patterns or ≥2 files with sequential numbering) and fetches TMDB
-  /// metadata for the series header. Single-file folders never trigger series
-  /// mode.
+  /// Detects whether the current folder is a TV series folder (≥1 files with
+  /// SxxExx patterns or sequential numbering) and fetches TMDB metadata for
+  /// the series header.
   Future<void> _detectAndLoadSeriesFolder() async {
     final entries = _currentEntries;
+    debugPrint('[FolderScreen] _detectAndLoadSeriesFolder: entries=${entries.length}, path=$_currentPath');
     if (entries.isEmpty) return;
 
     // Collect video files (non-directories) with their names.
@@ -183,7 +187,9 @@ class _FolderScreenState extends State<FolderScreen> {
         videoNames.add((e as FileEntry).name);
       }
     }
+    debugPrint('[FolderScreen] videoNames=$videoNames');
     if (videoNames.isEmpty) {
+      debugPrint('[FolderScreen] no video files, skipping');
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
       return;
     }
@@ -191,14 +197,20 @@ class _FolderScreenState extends State<FolderScreen> {
     // Check for SxxExx episode patterns.
     final episodeNames =
         videoNames.where((n) => ParsedFileName.parse(n).isEpisode).toList();
+    debugPrint('[FolderScreen] SxxExx episodes detected: ${episodeNames.length} — $episodeNames');
 
     // Fallback: sequential numbering detection.
     bool hasSequential = false;
-    if (episodeNames.length < 2) {
+    if (episodeNames.isEmpty) {
       hasSequential = _hasSequentialNumbering(videoNames);
+      debugPrint('[FolderScreen] sequential numbering check: $hasSequential');
     }
 
-    if (episodeNames.length < 2 && !hasSequential) {
+    // Trigger series view for any folder with video files — even a single
+    // episode gets the TMDB header so the user sees the show's poster,
+    // title, rating, and overview instead of a bare file list.
+    if (episodeNames.isEmpty && !hasSequential && videoNames.isEmpty) {
+      debugPrint('[FolderScreen] NOT a series folder — no detection matched');
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
       return;
     }
@@ -206,6 +218,7 @@ class _FolderScreenState extends State<FolderScreen> {
     // Series detected — fetch TMDB metadata for the folder.
     final folderName = widget.folder.name;
     final metadataKey = widget.folder.metadataKey;
+    debugPrint('[FolderScreen] SERIES DETECTED! folderName=$folderName, metadataKey=$metadataKey');
 
     setState(() {
       _isSeriesFolder = true;
@@ -215,11 +228,14 @@ class _FolderScreenState extends State<FolderScreen> {
     final service = TmdService.instance;
     await service.ensureLoaded();
 
+    debugPrint('[FolderScreen] resolving TMDB for folder...');
     var meta = service.metaFor(metadataKey) ??
         await service.resolveFolder(metadataKey, folderName);
+    debugPrint('[FolderScreen] resolveFolder result: ${meta != null ? "FOUND ${meta.movie.title} (${meta.movie.year})" : "NULL"}');
 
     if (!mounted) return;
     if (meta == null) {
+      debugPrint('[FolderScreen] meta is NULL — no TMDB match for "$folderName"');
       setState(() {
         _seriesMeta = null;
         _seriesDetails = null;
@@ -229,6 +245,7 @@ class _FolderScreenState extends State<FolderScreen> {
     }
 
     final details = await service.detailsFor(metadataKey);
+    debugPrint('[FolderScreen] details: ${details != null ? "${details.genres.length} genres, overview=${details.overview.length} chars" : "NULL"}');
     if (!mounted) return;
 
     setState(() {
@@ -244,10 +261,12 @@ class _FolderScreenState extends State<FolderScreen> {
       if (s > 0) seasonsNeeded.add(s);
     }
     if (seasonsNeeded.isEmpty && hasSequential) seasonsNeeded.add(1);
+    debugPrint('[FolderScreen] seasons to fetch: $seasonsNeeded');
     for (final season in seasonsNeeded) {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;
     }
+    debugPrint('[FolderScreen] DONE — series folder ready');
     if (mounted) setState(() {});
   }
 
@@ -620,12 +639,14 @@ class _FolderScreenState extends State<FolderScreen> {
       return _regularBody(context);
     }
 
-    // Separate folders from videos.
+    // Separate folders from videos — include ALL video files, not just
+    // those matching SxxExx patterns, so single episodes (E01, numbered)
+    // still appear in the series body.
     final entries = _currentEntries;
     final episodes = <Object>[];
     for (final e in entries) {
       if (_isFolderEntry(e)) continue;
-      if (_isEpisode(e)) episodes.add(e);
+      episodes.add(e);
     }
 
     // Group by season.

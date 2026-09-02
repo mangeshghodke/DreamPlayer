@@ -341,11 +341,10 @@ class _SmbScreenState extends State<SmbScreen> {
     }
   }
 
-  /// Detects whether the current folder is a TV series folder (≥2 files with
-  /// SxxExx episode patterns, or ≥2 files with sequential numbering like
-  /// `- 01.mkv`, `- 02.mkv`). Single-file folders never trigger series mode.
-  /// When sequential numbering is detected, the folder name is used as the
-  /// series title for TMDB search.
+  /// Detects whether the current folder is a TV series folder (≥1 files with
+  /// SxxExx episode patterns or sequential numbering). Even a single episode
+  /// gets the TMDB header so the user sees the show's poster, title, rating,
+  /// and overview instead of a bare file list.
   Future<void> _detectAndLoadSeriesFolder(List<SmbEntry> entries) async {
     final server = _browsing;
     if (server == null) return;
@@ -356,20 +355,21 @@ class _SmbScreenState extends State<SmbScreen> {
       return;
     }
 
-    // Check if ≥2 files have SxxExx episode patterns.
+    // Check if any files have SxxExx episode patterns.
     final episodes = videoEntries
         .where((e) => ParsedFileName.parse(e.name).isEpisode)
         .toList();
 
-    // Fallback: check for sequential numbering (e.g. "- 01.mkv", "- 02.mkv").
-    // This catches folders where files don't have SxxExx patterns but are
-    // clearly episodes by their sequential numbering.
+    // Fallback: check for sequential numbering (e.g. "- 01.mkv", "E01.1080p").
     bool hasSequentialNumbering = false;
-    if (episodes.length < 2) {
+    if (episodes.isEmpty) {
       hasSequentialNumbering = _hasSequentialNumbering(videoEntries);
     }
 
-    final isSeries = episodes.length >= 2 || hasSequentialNumbering;
+    // Trigger series view for any folder with video files.
+    final isSeries = episodes.isNotEmpty ||
+        hasSequentialNumbering ||
+        videoEntries.isNotEmpty;
 
     if (!isSeries) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
