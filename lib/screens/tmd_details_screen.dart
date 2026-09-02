@@ -33,6 +33,7 @@ class TmdDetailsScreen extends StatefulWidget {
     this.video,
     this.folder,
     this.jellyfinInfo,
+    this.parentMetadataKey,
   }) : assert(video != null || folder != null);
 
   final VideoItem? video;
@@ -45,12 +46,22 @@ class TmdDetailsScreen extends StatefulWidget {
   /// refreshed here on open) shown when no TMDB match resolves.
   final JellyfinItemInfo? jellyfinInfo;
 
+  /// When set, use this key to look up cached TMDB metadata instead of the
+  /// video's own identity key. Used when opening a single episode from a
+  /// series folder — the folder's metadata (with correct season/episode data)
+  /// is already cached and should be reused.
+  final String? parentMetadataKey;
+
   @override
   State<TmdDetailsScreen> createState() => _TmdDetailsScreenState();
 }
 
 class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
-  late final String _identityKey = widget.folder?.metadataKey ??
+  static final _epPattern = RegExp(
+      r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
+      caseSensitive: false);
+  late final String _identityKey = widget.parentMetadataKey ??
+      widget.folder?.metadataKey ??
       TmdStore.identityKeyFor(widget.video!);
   late final String _resumeKey = widget.folder == null
       ? (widget.video!.resumeKey ?? widget.video!.path ?? widget.video!.uri ?? '')
@@ -373,13 +384,18 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
     // Single episode (video mode, not a folder): enrich it with its own cast
     // and still frames once the season list is loaded.
+    // When parentMetadataKey is set (opening from a series folder), use
+    // folderSeason from the cached metadata instead of parsed.season.
+    final effectiveSeason = widget.parentMetadataKey != null
+        ? (meta.folderSeason ?? _parsed.season)
+        : _parsed.season;
     if (widget.folder == null &&
         _parsed.isEpisode &&
-        _parsed.season > 0 &&
+        effectiveSeason > 0 &&
         _parsed.episode > 0) {
       await _service.episodeDetailsFor(
         _identityKey,
-        _parsed.season,
+        effectiveSeason,
         _parsed.episode,
       );
       if (!mounted) return;
@@ -406,9 +422,20 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           .map((p) => p.season)
           .where((s) => s > 0)
           .toSet()
-          .toList();
+          .toList()
+        // When folderSeason is set (from TMDB season-name matching), always
+        // fetch that season's data even if parsed seasons are all 0 (anime [01]).
+        ..addAll([if (_meta?.folderSeason != null) _meta!.folderSeason!]);
     }
-    if (_parsed.isEpisode) return [_parsed.season].where((s) => s > 0).toList();
+    if (_parsed.isEpisode) {
+      // When parentMetadataKey is set (from a series folder with folderSeason),
+      // use the folder's season instead of the parsed season (which may be 0
+      // for anime [01] numbering).
+      final effectiveSeason = widget.parentMetadataKey != null
+          ? (_meta?.folderSeason ?? _parsed.season)
+          : _parsed.season;
+      return [effectiveSeason].where((s) => s > 0).toList();
+    }
     return const [];
   }
 
@@ -416,7 +443,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   TmdEpisode? _episodeFor(FileEntry entry) {
     final parsed = ParsedFileName.parse(entry.name);
     if (!parsed.isEpisode) return null;
-    return _meta?.seasons[parsed.season]?.episode(parsed.episode);
+    final season = _meta?.folderSeason ?? parsed.season;
+    return _meta?.seasons[season]?.episode(parsed.episode);
   }
 
   /// The TMDB episode matching a Jellyfin playable, or null.
@@ -603,7 +631,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final video = _toVideoItem(entry);
     final meta = _service.metaFor(_identityKey);
     final videoKey = TmdStore.identityKeyFor(video);
-    final isEpisode = ParsedFileName.parse(entry.name).isEpisode;
+    final parsed = ParsedFileName.parse(entry.name);
+    final isEpisode = parsed.isEpisode || _epPattern.hasMatch(entry.name);
     if (meta != null && isEpisode && meta.movie.kind == TmdKind.tv) {
       try {
         // Carry the folder's full meta (movie + details + seasons) onto the
@@ -837,12 +866,20 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final movie = meta.movie;
     final details = _details;
     final colorScheme = theme.colorScheme;
+    final effectiveSeason = widget.parentMetadataKey != null
+        ? (meta.folderSeason ?? _parsed.season)
+        : _parsed.season;
     final singleEpisode = _parsed.isEpisode && widget.folder == null
-        ? meta.seasons[_parsed.season]?.episode(_parsed.episode)
+        ? meta.seasons[effectiveSeason]?.episode(_parsed.episode)
         : null;
     final episodeAirDate = singleEpisode?.airDate;
     final episodeOverview =
         (singleEpisode?.overview.isNotEmpty ?? false) ? singleEpisode!.overview : null;
+    // Build episode label using effectiveSeason instead of parsed season (which
+    // may be 0 for anime [01] bracket numbering).
+    final effectiveEpisodeLabel = _parsed.isEpisode
+        ? 'S${effectiveSeason.toString().padLeft(2, '0')}E${_parsed.episode.toString().padLeft(2, '0')}'
+        : '';
 
     return CustomScrollView(
       slivers: [
@@ -895,7 +932,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    _parsed.episodeLabel,
+                                    effectiveEpisodeLabel,
                                     style: theme.textTheme.labelMedium
                                         ?.copyWith(
                                       fontWeight: FontWeight.w700,
@@ -919,11 +956,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                               ],
                             ),
                             const SizedBox(height: 2),
-                            if (_meta?.seasons[_parsed.season]?.name
+                            if (_meta?.seasons[effectiveSeason]?.name
                                     .isNotEmpty ??
                                 false)
                               Text(
-                                _meta!.seasons[_parsed.season]!.name,
+                                _meta!.seasons[effectiveSeason]!.name,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: colorScheme.onSurfaceVariant,
                                 ),
@@ -1118,15 +1155,20 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
     final folders = _entries.where((e) => e.isDirectory).toList();
     final videos = _entries.where((e) => !e.isDirectory).toList();
+    // Recognize both SxxExx and E01/EP01 patterns as episodes.
     final episodes = videos
-        .where((e) => ParsedFileName.parse(e.name).isEpisode)
+        .where((e) =>
+            ParsedFileName.parse(e.name).isEpisode ||
+            _epPattern.hasMatch(e.name))
         .toList();
     final movies = videos
-        .where((e) => !ParsedFileName.parse(e.name).isEpisode)
+        .where((e) =>
+            !ParsedFileName.parse(e.name).isEpisode &&
+            !_epPattern.hasMatch(e.name))
         .toList();
     final seasonGroups = sg.groupBySeason<FileEntry>(
       episodes,
-      (e) => ParsedFileName.parse(e.name).season,
+      (e) => _meta?.folderSeason ?? ParsedFileName.parse(e.name).season,
       (e) => ParsedFileName.parse(e.name).episode,
     );
     final sortedSeasons = seasonGroups.keys.toList()..sort();
@@ -1138,6 +1180,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
             TmdStore.identityKeyFor(_toVideoItem(e)),
           ),
           resumeProgress: _resumeProgressForFile(e),
+          folderSeason: _meta?.folderSeason,
           onTap: () => _openFolderEntry(e),
         );
 
@@ -2113,6 +2156,7 @@ class _FolderEntryTile extends StatelessWidget {
     required this.tmdbMeta,
     required this.onTap,
     this.resumeProgress,
+    this.folderSeason,
   });
 
   final FileEntry entry;
@@ -2120,6 +2164,7 @@ class _FolderEntryTile extends StatelessWidget {
   final TmdMeta? tmdbMeta;
   final VoidCallback onTap;
   final double? resumeProgress;
+  final int? folderSeason;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -2146,8 +2191,12 @@ class _FolderEntryTile extends StatelessWidget {
     }
 
     final parsed = ParsedFileName.parse(entry.name);
+    final effectiveSeason = folderSeason ?? parsed.season;
+    final effectiveLabel = parsed.isEpisode
+        ? 'S${effectiveSeason.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
+        : '';
     final subtitle = <String>[
-      if (parsed.isEpisode) parsed.episodeLabel,
+      if (parsed.isEpisode) effectiveLabel,
       if (episode != null) episode!.nameLabel,
       _sizeLabel(entry.size),
     ].where((s) => s.isNotEmpty).join(' · ');

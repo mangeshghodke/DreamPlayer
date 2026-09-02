@@ -91,6 +91,29 @@ class WebDAVClient(private val context: Context) {
             .build()
     }
 
+    /// Directory-listing cache: re-visiting a folder is instant.
+    /// Key = "$baseUrl|$path|selfSigned", value = (entries, fetchedAtMs).
+    /// TTL 60 s. Underlying OkHttp connection pool already reuses connections,
+    /// so the network cost on a miss is one PROPFIND round-trip.
+    private data class CachedListing(
+        val entries: List<Map<String, Any?>>,
+        val fetchedAtMs: Long,
+    )
+    private val listingCache = java.util.concurrent.ConcurrentHashMap<String, CachedListing>()
+    private val listingTtlMs = 60_000L
+
+    private fun cacheKey(baseUrl: String, path: String, allowSelfSigned: Boolean): String =
+        "${baseUrl.trimEnd('/')}|${path.replace(Regex("/+"), "/").trim('/')}|$allowSelfSigned"
+
+    fun invalidateListingCache(baseUrl: String? = null) {
+        if (baseUrl == null) {
+            listingCache.clear()
+        } else {
+            val prefix = "${baseUrl.trimEnd('/')}|"
+            listingCache.keys.removeAll { it.startsWith(prefix) }
+        }
+    }
+
     fun configure(channel: MethodChannel) {
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -106,6 +129,10 @@ class WebDAVClient(private val context: Context) {
                 "listServers" -> result.success(listServers())
                 "deleteServer" -> {
                     call.argument<String>("id")?.let { deleteServer(it) }
+                    result.success(null)
+                }
+                "invalidateListingCache" -> {
+                    call.argument<String>("url")?.let { invalidateListingCache(it) }
                     result.success(null)
                 }
                 "testConnection" -> {
@@ -318,6 +345,9 @@ class WebDAVClient(private val context: Context) {
         secretsPrefs.edit()
             .remove(PASSWORD_KEY + id)
             .apply()
+        // Invalidate any cached listings for this server's URL.
+        val serverUrl = serverPrefs().getString(SERVER_KEY + id, null)
+        if (serverUrl != null) invalidateListingCache(serverUrl)
     }
 
     // MARK: - WebDAV protocol
@@ -337,6 +367,13 @@ class WebDAVClient(private val context: Context) {
         path: String,
         allowSelfSigned: Boolean,
     ): List<Map<String, Any?>> {
+        val key = cacheKey(baseUrl, path, allowSelfSigned)
+        val now = System.currentTimeMillis()
+        val cached = listingCache[key]
+        if (cached != null && now - cached.fetchedAtMs < listingTtlMs) {
+            Log.d(TAG, "listDirectory cache hit: $key")
+            return cached.entries
+        }
         Log.d(TAG, "listDirectory: baseUrl=$baseUrl path=$path selfSigned=$allowSelfSigned")
         val root = path == "/" || path.isEmpty()
         // Always request slash-terminated directory URLs. Some servers (and
@@ -360,6 +397,7 @@ class WebDAVClient(private val context: Context) {
             }
             .sortedWith(compareByDescending<Map<String, Any?>> { it["isDirectory"] == true }
                 .thenBy { (it["name"] as? String ?: "").lowercase() })
+        listingCache[key] = CachedListing(entries, now)
         return entries
     }
 

@@ -134,10 +134,6 @@ class _FolderScreenState extends State<FolderScreen> {
     }
     try {
       final entries = await _service.listDirectory(_currentPath);
-      debugPrint('[FolderScreen] _load: ${entries.length} entries for $_currentPath');
-      for (final e in entries) {
-        debugPrint('  ${e.isDirectory ? "[DIR]" : "[FILE]"} ${e.name} (${e.size} bytes)');
-      }
       if (!mounted) return;
       setState(() {
         _entries = entries;
@@ -169,27 +165,15 @@ class _FolderScreenState extends State<FolderScreen> {
   /// the series header.
   Future<void> _detectAndLoadSeriesFolder() async {
     final entries = _currentEntries;
-    debugPrint('[FolderScreen] _detectAndLoadSeriesFolder: entries=${entries.length}, path=$_currentPath');
     if (entries.isEmpty) return;
 
     // Collect video files (non-directories) with their names.
     final videoNames = <String>[];
     for (final e in entries) {
       if (_isFolderEntry(e)) continue;
-      if (_isJellyfin) {
-        final item = e as JellyfinItem;
-        videoNames.add(item.name);
-      } else if (_isSmb) {
-        videoNames.add((e as SmbEntry).name);
-      } else if (_isWebDav) {
-        videoNames.add((e as Map)['name'] as String? ?? '');
-      } else {
-        videoNames.add((e as FileEntry).name);
-      }
+      videoNames.add(_nameOf(e));
     }
-    debugPrint('[FolderScreen] videoNames=$videoNames');
     if (videoNames.isEmpty) {
-      debugPrint('[FolderScreen] no video files, skipping');
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
       return;
     }
@@ -197,20 +181,17 @@ class _FolderScreenState extends State<FolderScreen> {
     // Check for SxxExx episode patterns.
     final episodeNames =
         videoNames.where((n) => ParsedFileName.parse(n).isEpisode).toList();
-    debugPrint('[FolderScreen] SxxExx episodes detected: ${episodeNames.length} — $episodeNames');
 
     // Fallback: sequential numbering detection.
     bool hasSequential = false;
     if (episodeNames.isEmpty) {
       hasSequential = _hasSequentialNumbering(videoNames);
-      debugPrint('[FolderScreen] sequential numbering check: $hasSequential');
     }
 
     // Trigger series view for any folder with video files — even a single
     // episode gets the TMDB header so the user sees the show's poster,
     // title, rating, and overview instead of a bare file list.
     if (episodeNames.isEmpty && !hasSequential && videoNames.isEmpty) {
-      debugPrint('[FolderScreen] NOT a series folder — no detection matched');
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
       return;
     }
@@ -218,7 +199,6 @@ class _FolderScreenState extends State<FolderScreen> {
     // Series detected — fetch TMDB metadata for the folder.
     final folderName = widget.folder.name;
     final metadataKey = widget.folder.metadataKey;
-    debugPrint('[FolderScreen] SERIES DETECTED! folderName=$folderName, metadataKey=$metadataKey');
 
     setState(() {
       _isSeriesFolder = true;
@@ -228,14 +208,11 @@ class _FolderScreenState extends State<FolderScreen> {
     final service = TmdService.instance;
     await service.ensureLoaded();
 
-    debugPrint('[FolderScreen] resolving TMDB for folder...');
     var meta = service.metaFor(metadataKey) ??
         await service.resolveFolder(metadataKey, folderName);
-    debugPrint('[FolderScreen] resolveFolder result: ${meta != null ? "FOUND ${meta.movie.title} (${meta.movie.year})" : "NULL"}');
 
     if (!mounted) return;
     if (meta == null) {
-      debugPrint('[FolderScreen] meta is NULL — no TMDB match for "$folderName"');
       setState(() {
         _seriesMeta = null;
         _seriesDetails = null;
@@ -245,7 +222,6 @@ class _FolderScreenState extends State<FolderScreen> {
     }
 
     final details = await service.detailsFor(metadataKey);
-    debugPrint('[FolderScreen] details: ${details != null ? "${details.genres.length} genres, overview=${details.overview.length} chars" : "NULL"}');
     if (!mounted) return;
 
     setState(() {
@@ -260,14 +236,25 @@ class _FolderScreenState extends State<FolderScreen> {
       final s = ParsedFileName.parse(n).season;
       if (s > 0) seasonsNeeded.add(s);
     }
+    // When folderSeason is set (from TMDB season-name matching), always
+    // fetch that season's data even if parsed seasons are all 0 (anime [01]).
+    if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
     if (seasonsNeeded.isEmpty && hasSequential) seasonsNeeded.add(1);
-    debugPrint('[FolderScreen] seasons to fetch: $seasonsNeeded');
     for (final season in seasonsNeeded) {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;
     }
-    debugPrint('[FolderScreen] DONE — series folder ready');
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // Read the latest meta from the cache (each seasonFor replaces it with a
+    // new TmdMeta; the `meta` reference we held earlier is stale). Without
+    // this, _episodeFor looks up an empty seasons map and per-episode
+    // details (stills/names/ratings/overview) never appear until the user
+    // backs out and re-enters — the cache hit on re-entry uses the fresh
+    // meta and the UI populates.
+    final freshMeta = service.metaFor(metadataKey) ?? meta;
+    setState(() {
+      _seriesMeta = freshMeta;
+    });
   }
 
   /// Checks whether file names have sequential numbering (e.g. `- 01.mkv`,
@@ -352,6 +339,7 @@ class _FolderScreenState extends State<FolderScreen> {
         _loading = false;
       });
       _refreshWatched();
+      _detectAndLoadSeriesFolder();
     } on Exception catch (e) {
       if (!mounted) return;
       setState(() {
@@ -375,6 +363,11 @@ class _FolderScreenState extends State<FolderScreen> {
         _loading = false;
       });
       _refreshWatched();
+      for (final e in entries) {
+        if (e.isDirectory) continue;
+        TmdService.instance.resolve(_toVideoItem(e)).catchError((_) => null);
+      }
+      _detectAndLoadSeriesFolder();
     } on PlatformException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -396,6 +389,11 @@ class _FolderScreenState extends State<FolderScreen> {
         _loading = false;
       });
       _refreshWatched();
+      for (final e in entries) {
+        if (e.isDirectory) continue;
+        TmdService.instance.resolve(_toVideoItem(e)).catchError((_) => null);
+      }
+      _detectAndLoadSeriesFolder();
     } on PlatformException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -414,7 +412,10 @@ class _FolderScreenState extends State<FolderScreen> {
     }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(video: _toVideoItem(entry)),
+        builder: (_) => TmdDetailsScreen(
+          video: _toVideoItem(entry),
+          parentMetadataKey: widget.folder.metadataKey,
+        ),
       ),
     );
     // Resume positions may have changed while playing.
@@ -435,7 +436,10 @@ class _FolderScreenState extends State<FolderScreen> {
     if (!item.isPlayable) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(video: _jellyfin.videoItem(server, item)),
+        builder: (_) => TmdDetailsScreen(
+          video: _jellyfin.videoItem(server, item),
+          parentMetadataKey: widget.folder.metadataKey,
+        ),
       ),
     );
     // Resume positions may have changed while playing.
@@ -466,25 +470,49 @@ class _FolderScreenState extends State<FolderScreen> {
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(video: item),
+        builder: (_) => TmdDetailsScreen(
+          video: item,
+          parentMetadataKey: widget.folder.metadataKey,
+        ),
       ),
     );
     await _loadSmb();
   }
 
-  VideoItem _toVideoItem(FileEntry entry) {
+  VideoItem _toVideoItem(Object entry) {
     // Bookmarked-tree videos come back as content:// URIs (no real file
     // path), so hand those to the player's `uri` field.
-    final isContentUri = entry.path.startsWith('content://');
-    final info = extractFileInfo(entry.name);
+    String name;
+    String path;
+    String? resumeKey;
+    int size;
+    if (entry is SmbEntry) {
+      name = entry.name;
+      path = entry.path;
+      resumeKey = 'smb:${widget.folder.networkServerId}/${widget.folder.networkShare}/${entry.path}';
+      size = entry.size;
+    } else if (entry is WebDavEntry) {
+      name = entry.name;
+      path = entry.path;
+      resumeKey = 'webdav:${widget.folder.networkServerId}${entry.path}';
+      size = entry.size;
+    } else {
+      final fe = entry as FileEntry;
+      name = fe.name;
+      path = fe.path;
+      resumeKey = fe.resumeKey;
+      size = fe.size;
+    }
+    final isContentUri = path.startsWith('content://');
+    final info = extractFileInfo(name);
     return VideoItem(
-      id: 'folder_${widget.folder.id}_${entry.path.hashCode}',
-      title: entry.name,
-      path: isContentUri ? null : entry.path,
-      uri: isContentUri ? entry.path : null,
-      resumeKey: entry.resumeKey,
+      id: 'folder_${widget.folder.id}_${path.hashCode}',
+      title: name,
+      path: isContentUri ? null : path,
+      uri: isContentUri ? path : null,
+      resumeKey: resumeKey,
       duration: Duration.zero,
-      sizeBytes: entry.size,
+      sizeBytes: size,
       videoCodec: info.videoCodec,
       audioCodec: info.audioCodec,
       audioChannels: info.audioChannels,
@@ -868,6 +896,8 @@ class _FolderScreenState extends State<FolderScreen> {
         tmdbMeta: smb.isDirectory ? null : _tmdbForSmb(smb),
         watched: _watchedKeys.contains(_watchedKeyForEntry(smb)),
         onToggleWatched: () => _toggleWatched(smb),
+        episode: smb.isDirectory ? null : _episodeFor(smb),
+        folderSeason: _seriesMeta?.folderSeason,
         onTap: () => _openSmbEntry(smb),
       );
     }
@@ -877,6 +907,8 @@ class _FolderScreenState extends State<FolderScreen> {
       tmdbMeta: fileEntry.isDirectory ? null : _tmdbFor(fileEntry),
       watched: _watchedKeys.contains(_watchedKeyForEntry(fileEntry)),
       onToggleWatched: () => _toggleWatched(fileEntry),
+      episode: fileEntry.isDirectory ? null : _episodeFor(fileEntry),
+      folderSeason: _seriesMeta?.folderSeason,
       onTap: () => _openEntry(fileEntry),
     );
   }
@@ -922,24 +954,87 @@ class _FolderScreenState extends State<FolderScreen> {
     return (e as FileEntry).isDirectory;
   }
 
+  static final _epPattern = RegExp(
+      r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
+      caseSensitive: false);
+
   bool _isEpisode(Object e) {
     if (_isJellyfin) return (e as JellyfinItem).type == 'Episode';
-    if (_isSmb) return ParsedFileName.parse((e as SmbEntry).name).isEpisode;
+    if (_isSmb) {
+      final smb = e as SmbEntry;
+      final p = ParsedFileName.parse(smb.name);
+      return p.isEpisode || _epPattern.hasMatch(smb.name);
+    }
     if (_isWebDav) {
       final name = (e as Map)['name'] as String? ?? '';
-      return ParsedFileName.parse(name).isEpisode;
+      final p = ParsedFileName.parse(name);
+      return p.isEpisode || _epPattern.hasMatch(name);
     }
-    return ParsedFileName.parse((e as FileEntry).name).isEpisode;
+    final fe = e as FileEntry;
+    final p = ParsedFileName.parse(fe.name);
+    return p.isEpisode || _epPattern.hasMatch(fe.name);
+  }
+
+  String _nameOf(Object e) {
+    if (_isJellyfin) return (e as JellyfinItem).name;
+    if (_isSmb) return (e as SmbEntry).name;
+    if (_isWebDav) return (e as Map)['name'] as String? ?? '';
+    return (e as FileEntry).name;
   }
 
   int _seasonOf(Object e) {
-    if (_isJellyfin) return (e as JellyfinItem).parentIndexNumber ?? 0;
-    if (_isSmb) return ParsedFileName.parse((e as SmbEntry).name).season;
-    if (_isWebDav) {
+    final folderSeason = _seriesMeta?.folderSeason;
+    if (folderSeason != null) return folderSeason;
+    int parsedSeason;
+    if (_isJellyfin) {
+      parsedSeason = (e as JellyfinItem).parentIndexNumber ?? 0;
+    } else if (_isSmb) {
+      parsedSeason = ParsedFileName.parse((e as SmbEntry).name).season;
+    } else if (_isWebDav) {
       final name = (e as Map)['name'] as String? ?? '';
-      return ParsedFileName.parse(name).season;
+      parsedSeason = ParsedFileName.parse(name).season;
+    } else {
+      parsedSeason = ParsedFileName.parse((e as FileEntry).name).season;
     }
-    return ParsedFileName.parse((e as FileEntry).name).season;
+    // For anime bracket numbering ([01]/[02]), parsed.season is 0 but the
+    // show is a single season — fall back to the first season with TMDB
+    // data so episodes group under the right header.
+    if (parsedSeason <= 0 && _seriesMeta != null && _seriesMeta!.seasons.isNotEmpty) {
+      return _seriesMeta!.seasons.keys.first;
+    }
+    return parsedSeason;
+  }
+
+  TmdEpisode? _episodeFor(Object e) {
+    final folderSeason = _seriesMeta?.folderSeason;
+    int parsedSeason;
+    int parsedEpisode;
+    if (_isSmb) {
+      final smb = e as SmbEntry;
+      final parsed = ParsedFileName.parse(smb.name);
+      if (!parsed.isEpisode) return null;
+      parsedSeason = parsed.season;
+      parsedEpisode = parsed.episode;
+    } else {
+      final fe = e as FileEntry;
+      final parsed = ParsedFileName.parse(fe.name);
+      if (!parsed.isEpisode) return null;
+      parsedSeason = parsed.season;
+      parsedEpisode = parsed.episode;
+    }
+    int s;
+    if (folderSeason != null) {
+      s = folderSeason;
+    } else if (parsedSeason > 0) {
+      s = parsedSeason;
+    } else if (_seriesMeta?.seasons.isNotEmpty == true) {
+      // Anime bracket numbering ([01]/[02]) — use the first season with
+      // fetched TMDB data so episodes resolve to the right episode object.
+      s = _seriesMeta!.seasons.keys.first;
+    } else {
+      s = 1;
+    }
+    return _seriesMeta?.seasons[s]?.episode(parsedEpisode);
   }
 
   int _episodeOf(Object e) {
@@ -1131,6 +1226,8 @@ class _FolderTile extends StatelessWidget {
     required this.onTap,
     this.watched = false,
     this.onToggleWatched,
+    this.episode,
+    this.folderSeason,
   });
 
   final FileEntry entry;
@@ -1138,6 +1235,8 @@ class _FolderTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool watched;
   final VoidCallback? onToggleWatched;
+  final TmdEpisode? episode;
+  final int? folderSeason;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -1153,7 +1252,8 @@ class _FolderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     if (entry.isDirectory) {
       return TvTile(
         leading: Icon(Icons.folder, color: colorScheme.primary),
@@ -1163,29 +1263,102 @@ class _FolderTile extends StatelessWidget {
       );
     }
 
-    // Episode files get their parsed SxxExx label next to the size.
     final parsed = ParsedFileName.parse(entry.name);
-    final subtitle = <String>[
-      if (parsed.isEpisode) parsed.episodeLabel,
-      _sizeLabel(entry.size),
-    ].where((s) => s.isNotEmpty).join(' · ');
-
-    final posterUrl = posterUrlOf(tmdbMeta);
-
-    final subtitleWidget = subtitle.isEmpty ? null : Text(subtitle);
+    final effectiveSeason = folderSeason ?? parsed.season;
+    final effectiveLabel = parsed.isEpisode
+        ? 'S${effectiveSeason.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
+        : '';
+    final stillUrl = episode?.stillUrl();
 
     return TvTile(
-      leading: posterUrl != null
-          ? _Poster(posterUrl: posterUrl)
-          : Icon(
-              parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
-              color: colorScheme.secondary,
+      leading: stillUrl != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.network(
+                stillUrl,
+                width: 64,
+                height: 40,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _fallbackIcon(colorScheme, parsed),
+              ),
+            )
+          : _fallbackIcon(colorScheme, parsed),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              if (parsed.isEpisode)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    effectiveLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              if (parsed.isEpisode) const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  episode?.nameLabel ?? parsed.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (episode != null && episode!.overview.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                episode!.overview,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
             ),
-      title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: subtitleWidget,
+        ],
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (episode != null && episode!.voteAverage > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.star, size: 12, color: Colors.amber),
+                  const SizedBox(width: 2),
+                  Text(
+                    episode!.voteAverage.toStringAsFixed(1),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Text(
+            _sizeLabel(entry.size),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
           IconButton(
             tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
             icon: Icon(
@@ -1198,6 +1371,13 @@ class _FolderTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
+    );
+  }
+
+  Widget _fallbackIcon(ColorScheme colorScheme, ParsedFileName parsed) {
+    return Icon(
+      parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
+      color: colorScheme.secondary,
     );
   }
 }
@@ -1225,140 +1405,103 @@ class _SeriesHeader extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final movie = meta.movie;
     final posterUrl = movie.posterUrl(width: 342);
-    final backdropUrl = movie.backdropUrl(width: 780);
-    final year = movie.year != null ? '${movie.year}' : '';
-    final rating = movie.voteAverage;
-    final kindLabel = movie.kind == TmdKind.tv ? 'TV Series' : 'Movie';
-    final genres = details?.genres ?? [];
 
-    return SizedBox(
-      width: double.infinity,
-      child: Stack(
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (backdropUrl != null)
-            Image.network(
-              backdropUrl,
-              height: 220,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              loadingBuilder: (context, child, progress) =>
-                  progress == null ? child : const SizedBox.shrink(),
-            ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black
-                      .withValues(alpha: backdropUrl != null ? 0.7 : 0.0),
-                  Colors.transparent,
-                ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: posterUrl != null
+                    ? Image.network(
+                        posterUrl,
+                        width: 104,
+                        height: 156,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _posterFallback(colorScheme),
+                      )
+                    : _posterFallback(colorScheme),
               ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                // Poster
-                if (posterUrl != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Image.network(
-                      posterUrl,
-                      width: 80,
-                      height: 120,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        width: 80,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(Icons.movie, color: colorScheme.onSurfaceVariant),
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    width: 80,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(Icons.movie, color: colorScheme.onSurfaceVariant),
-                  ),
-                const SizedBox(width: 12),
-                // Title + metadata
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (movie.title.isNotEmpty)
                       Text(
                         movie.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                    if (movie.year != null)
                       Text(
-                        [kindLabel, if (year.isNotEmpty) year]
-                            .where((s) => s.isNotEmpty)
-                            .join(' · '),
-                        style: theme.textTheme.bodyMedium?.copyWith(
+                        '${movie.year}',
+                        style: theme.textTheme.bodyLarge?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      if (rating > 0) ...[
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.star, color: Colors.amber, size: 16),
-                            const SizedBox(width: 4),
-                            Text(
-                              rating.toStringAsFixed(1),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: 4),
+                    _RatingBadge(rating: movie.voteAverage),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (details?.genres != null)
+                          for (final genre in details!.genres)
+                            _FactChip(label: genre),
                       ],
-                      if (genres.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: genres.take(3).map((g) => Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: colorScheme.surfaceContainerHighest
-                                  .withValues(alpha: 0.7),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              g,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          )).toList(),
-                        ),
-                      ],
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (details != null && details!.overview.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text(
+              'Overview',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              details!.overview,
+              maxLines: 6,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+            ),
+          ],
+          if (details != null && details!.cast.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _CastRow(cast: details!.cast),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: onFixMatch,
+                child: const Text('Fix match'),
+              ),
+              TextButton(
+                onPressed: onRemoveInfo,
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                ),
+                child: const Text('Remove info'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -1621,6 +1764,182 @@ class _FolderSearchDialogState extends State<_FolderSearchDialog> {
       ],
     );
   }
+}
+
+/// Nova-style rating badge.
+class _RatingBadge extends StatelessWidget {
+  const _RatingBadge({required this.rating});
+  final double rating;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rating <= 0) return const SizedBox.shrink();
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star, size: 14, color: Colors.amber),
+          const SizedBox(width: 4),
+          Text(
+            rating.toStringAsFixed(1),
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fact chip for genres.
+class _FactChip extends StatelessWidget {
+  const _FactChip({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Horizontal cast row with circular photos.
+class _CastRow extends StatelessWidget {
+  const _CastRow({required this.cast});
+  final List<TmdCastMember> cast;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cast',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 130,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: cast.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final member = cast[index];
+              return SizedBox(
+                width: 80,
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(40),
+                      child: member.profileUrl() != null
+                          ? Image.network(
+                              member.profileUrl()!,
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) =>
+                                  _avatarFallback(colorScheme, member.name),
+                            )
+                          : _avatarFallback(colorScheme, member.name),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      member.name,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    if (member.character != null &&
+                        member.character!.isNotEmpty)
+                      Text(
+                        member.character!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 10,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Widget _avatarFallback(ColorScheme colorScheme, String name) {
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Widget _posterFallback(ColorScheme colorScheme) {
+  return Container(
+    width: 104,
+    height: 156,
+    decoration: BoxDecoration(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Icon(Icons.movie, color: colorScheme.onSurfaceVariant),
+  );
 }
 
 /// A small 48×72 rounded poster thumbnail for a file row.

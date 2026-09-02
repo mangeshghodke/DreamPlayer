@@ -16,7 +16,7 @@ Map<int, List<T>> groupBySeason<T>(
   final groups = <int, List<T>>{};
   for (final e in entries) {
     final s = seasonOf(e);
-    if (s <= 0) continue;
+    if (s < 0) continue; // negative = unparseable; 0 = unnumbered (treat as season 0)
     (groups[s] ??= <T>[]).add(e);
   }
   for (final list in groups.values) {
@@ -60,12 +60,13 @@ double seasonProgress({required int watched, required int total}) {
   return (watched / total).clamp(0.0, 1.0);
 }
 
-/// "Season 1", "Season 2" …
-String seasonHeader(int seasonNumber) => 'Season $seasonNumber';
+/// "Season 1", "Season 2" … "Episodes" for unnumbered (season 0).
+String seasonHeader(int seasonNumber) =>
+    seasonNumber <= 0 ? 'Episodes' : 'Season $seasonNumber';
 
 /// "3/10"
 String watchedBadge(int watched, int total) => '$watched/$total';
 
-/// "S1 2/5"
+/// "S1 2/5" — or "Ep 2/5" for unnumbered (season 0).
 String seasonBadge(int season, int watched, int total) =>
-    'S$season ${watchedBadge(watched, total)}';
+    season <= 0 ? 'Ep ${watchedBadge(watched, total)}' : 'S$season ${watchedBadge(watched, total)}';

@@ -31,6 +31,9 @@ class WebDavScreen extends StatefulWidget {
 
 class _WebDavScreenState extends State<WebDavScreen> {
   static final WebDavClient _webdav = WebDavClient.instance;
+  static final _epPattern = RegExp(
+      r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
+      caseSensitive: false);
 
   List<WebDavServer> _servers = const [];
   WebDavServer? _browsing;
@@ -38,6 +41,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
   List<WebDavEntry> _entries = const [];
   bool _loading = true;
   String? _error;
+  bool _isSeriesFolder = false;
 
   bool get _atBrowseRoot => _browsing == null || _path == '/';
 
@@ -96,6 +100,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _isSeriesFolder = false;
     });
     try {
       final entries = await _webdav.listDirectory(server.id, path);
@@ -106,6 +111,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
         _loading = false;
       });
       _prefetchTmdbMeta(entries);
+      _detectAndLoadSeriesFolder(entries);
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -132,6 +138,46 @@ class _WebDavScreenState extends State<WebDavScreen> {
         sizeBytes: entry.size,
       )).catchError((_) => null as TmdMeta?);
     }
+  }
+
+  /// Detect TV series folder + fetch TMDB header metadata (Nova-style).
+  Future<void> _detectAndLoadSeriesFolder(List<WebDavEntry> entries) async {
+    final server = _browsing;
+    if (server == null) return;
+    final videos = entries.where((e) => !e.isDirectory).toList();
+    if (videos.isEmpty) return;
+    final episodes = videos
+        .where((e) => ParsedFileName.parse(e.name).isEpisode || _epPattern.hasMatch(e.name))
+        .toList();
+    if (episodes.isEmpty) return;
+    // Only trigger series view for ≥2 episodes (same as SMB screen).
+    if (episodes.length < 2) return;
+    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+    final folderName = cleanPath.isEmpty
+        ? server.name
+        : cleanPath.split('/').where((s) => s.isNotEmpty).last;
+    final metadataKey = 'webdav_folder:${server.id}$cleanPath';
+    final service = TmdService.instance;
+    await service.ensureLoaded();
+    final meta = service.metaFor(metadataKey) ??
+        await service.resolveFolder(metadataKey, folderName);
+    if (meta == null || !mounted) return;
+    setState(() {
+      _isSeriesFolder = true;
+    });
+    await service.detailsFor(metadataKey);
+    if (!mounted) return;
+    final seasonsNeeded = <int>{};
+    for (final e in episodes) {
+      final s = ParsedFileName.parse(e.name).season;
+      if (s > 0) seasonsNeeded.add(s);
+    }
+    if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
+    for (final season in seasonsNeeded) {
+      await service.seasonFor(metadataKey, season);
+      if (!mounted) return;
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _openEntry(WebDavEntry entry) async {
@@ -183,7 +229,12 @@ class _WebDavScreenState extends State<WebDavScreen> {
 
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(video: playlist[playIndex]),
+        builder: (_) => TmdDetailsScreen(
+          video: playlist[playIndex],
+          parentMetadataKey: _isSeriesFolder
+              ? 'webdav_folder:${server.id}${_path.replaceAll(RegExp(r'/+$'), '')}'
+              : null,
+        ),
       ),
     );
   }

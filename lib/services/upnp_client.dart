@@ -116,6 +116,15 @@ class UpnpClient {
     return raw.map((e) => UpnpEntry.fromMap(e as Map<dynamic, dynamic>)).toList();
   }
 
+  /// Invalidate the native listing cache for a server id (or all servers
+  /// when [serverId] is null). The listing itself is cached for 60 s on
+  /// the native side so re-visiting a folder is instant.
+  Future<void> invalidateListingCache({String? serverId}) async {
+    await _upnpChannel.invokeMethod<void>('invalidateListingCache', {
+      'serverId': ?serverId,
+    });
+  }
+
   /// Last discovery diagnostics from the native side (iOS only; null when
   /// unsupported). Shown in the empty state so on-device failures are
   /// visible without a Mac console.

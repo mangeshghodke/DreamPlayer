@@ -120,6 +120,15 @@ class FtpClient {
     await _channel.invokeMethod<void>('deleteServer', {'id': id});
   }
 
+  /// Invalidate the native listing cache for a server id (or all servers
+  /// when [id] is null). The listing itself is cached for 60 s on the
+  /// native side so re-visiting a folder is instant.
+  Future<void> invalidateListingCache({String? id}) async {
+    await _channel.invokeMethod<void>('invalidateListingCache', {
+      'id': ?id,
+    });
+  }
+
   /// Tests a connection without saving (used by the add/edit dialog).
   Future<({bool ok, String? error})> testConnection({
     required String host,

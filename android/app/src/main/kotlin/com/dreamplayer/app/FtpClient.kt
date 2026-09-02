@@ -45,6 +45,30 @@ class FtpClient(private val context: Context) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    /// Directory-listing cache: re-visiting a folder is instant.
+    /// Key = "$serverId|$path|videoOnly", value = (entries, fetchedAtMs).
+    /// TTL 60 s. For plain FTP each listing reconnects (one full PASV login),
+    /// for SFTP each directory is a fresh SFTP session — both benefit a lot
+    /// from caching on quick re-visits.
+    private data class CachedListing(
+        val entries: List<Map<String, Any?>>,
+        val fetchedAtMs: Long,
+    )
+    private val listingCache = java.util.concurrent.ConcurrentHashMap<String, CachedListing>()
+    private val listingTtlMs = 60_000L
+
+    private fun cacheKey(serverId: String, path: String, videoOnly: Boolean): String =
+        "$serverId|${path.replace(Regex("/+"), "/").trim('/')}|$videoOnly"
+
+    fun invalidateListingCache(serverId: String? = null) {
+        if (serverId == null) {
+            listingCache.clear()
+        } else {
+            val prefix = "$serverId|"
+            listingCache.keys.removeAll { it.startsWith(prefix) }
+        }
+    }
+
     fun configure(channel: MethodChannel) {
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -66,6 +90,10 @@ class FtpClient(private val context: Context) {
                 "listServers" -> result.success(listServers())
                 "deleteServer" -> {
                     call.argument<String>("id")?.let { deleteServer(it) }
+                    result.success(null)
+                }
+                "invalidateListingCache" -> {
+                    call.argument<String>("id")?.let { invalidateListingCache(it) }
                     result.success(null)
                 }
                 "testConnection" -> {
@@ -351,6 +379,7 @@ class FtpClient(private val context: Context) {
     private fun deleteServer(id: String) {
         serverPrefs().edit().remove(SERVER_KEY + id).remove(PASSWORD_KEY + id).apply()
         secretsPrefs.edit().remove(PASSWORD_KEY + id).apply()
+        invalidateListingCache(id)
     }
 
     // MARK: - Store for DataSource playback
@@ -465,9 +494,18 @@ class FtpClient(private val context: Context) {
     }
 
     fun listDirectory(server: FtpServer, path: String, videoOnly: Boolean = true): List<Map<String, Any?>> {
+        val key = cacheKey(server.id, path, videoOnly)
+        val now = System.currentTimeMillis()
+        val cached = listingCache[key]
+        if (cached != null && now - cached.fetchedAtMs < listingTtlMs) {
+            android.util.Log.d("FtpClient", "listDirectory cache hit: $key")
+            return cached.entries
+        }
         val effective = effectivePath(server.path, path)
-        return if (server.isSftp) listSftpDirectory(server, effective, videoOnly)
+        val result = if (server.isSftp) listSftpDirectory(server, effective, videoOnly)
         else listFtpDirectory(server, effective, videoOnly)
+        listingCache[key] = CachedListing(result, now)
+        return result
     }
 
     private fun listFtpDirectory(server: FtpServer, effective: String, videoOnly: Boolean): List<Map<String, Any?>> {

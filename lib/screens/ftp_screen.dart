@@ -25,6 +25,9 @@ class FtpScreen extends StatefulWidget {
 
 class _FtpScreenState extends State<FtpScreen> {
   static final FtpClient _ftp = FtpClient.instance;
+  static final _epPattern = RegExp(
+      r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
+      caseSensitive: false);
 
   List<FtpServer> _servers = const [];
   FtpServer? _browsing;
@@ -32,6 +35,7 @@ class _FtpScreenState extends State<FtpScreen> {
   List<FtpEntry> _entries = const [];
   bool _loading = true;
   String? _error;
+  bool _isSeriesFolder = false;
 
   bool get _atBrowseRoot => _browsing == null || _path == '/';
 
@@ -90,6 +94,7 @@ class _FtpScreenState extends State<FtpScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _isSeriesFolder = false;
     });
     try {
       final entries = await _ftp.listDirectory(server.id, path);
@@ -100,6 +105,7 @@ class _FtpScreenState extends State<FtpScreen> {
         _loading = false;
       });
       _prefetchTmdbMeta(entries);
+      _detectAndLoadSeriesFolder(entries);
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -126,6 +132,45 @@ class _FtpScreenState extends State<FtpScreen> {
         sizeBytes: entry.size,
       )).catchError((_) => null as TmdMeta?);
     }
+  }
+
+  /// Detect TV series folder + fetch TMDB header metadata (Nova-style).
+  Future<void> _detectAndLoadSeriesFolder(List<FtpEntry> entries) async {
+    final server = _browsing;
+    if (server == null) return;
+    final videos = entries.where((e) => !e.isDirectory).toList();
+    if (videos.isEmpty) return;
+    final episodes = videos
+        .where((e) => ParsedFileName.parse(e.name).isEpisode || _epPattern.hasMatch(e.name))
+        .toList();
+    if (episodes.isEmpty) return;
+    if (episodes.length < 2) return;
+    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+    final folderName = cleanPath.isEmpty
+        ? server.name
+        : cleanPath.split('/').where((s) => s.isNotEmpty).last;
+    final metadataKey = 'ftp_folder:${server.id}$cleanPath';
+    final service = TmdService.instance;
+    await service.ensureLoaded();
+    final meta = service.metaFor(metadataKey) ??
+        await service.resolveFolder(metadataKey, folderName);
+    if (meta == null || !mounted) return;
+    setState(() {
+      _isSeriesFolder = true;
+    });
+    await service.detailsFor(metadataKey);
+    if (!mounted) return;
+    final seasonsNeeded = <int>{};
+    for (final e in episodes) {
+      final s = ParsedFileName.parse(e.name).season;
+      if (s > 0) seasonsNeeded.add(s);
+    }
+    if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
+    for (final season in seasonsNeeded) {
+      await service.seasonFor(metadataKey, season);
+      if (!mounted) return;
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _openEntry(FtpEntry entry) async {
@@ -159,7 +204,12 @@ class _FtpScreenState extends State<FtpScreen> {
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(video: item),
+        builder: (_) => TmdDetailsScreen(
+          video: item,
+          parentMetadataKey: _isSeriesFolder
+              ? 'ftp_folder:${server.id}${_path.replaceAll(RegExp(r'/+$'), '')}'
+              : null,
+        ),
       ),
     );
   }

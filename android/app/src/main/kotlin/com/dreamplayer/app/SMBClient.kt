@@ -305,6 +305,34 @@ class SMBClient(private val context: Context) {
     /// own pool and run concurrently.
     private val quickExecutor = Executors.newCachedThreadPool()
 
+    /// Directory-listing cache: re-visiting a folder is instant (Nova's smbj
+    /// keeps the DiskShare cached, but the QUERY_DIRECTORY still re-runs).
+    /// Key = "$serverId|$shareName|$path", value = (entries, fetchedAtMs).
+    /// TTL 60 s; invalidated on refresh or when the user navigates back to
+    /// a share root. The underlying jcifs-ng tree-connect is already pooled
+    /// via SingletonContext, so the network cost is one QUERY_DIRECTORY
+    /// round-trip per cache miss.
+    private data class CachedListing(
+        val entries: List<Map<String, Any?>>,
+        val fetchedAtMs: Long,
+    )
+    private val listingCache = java.util.concurrent.ConcurrentHashMap<String, CachedListing>()
+    private val listingTtlMs = 60_000L
+
+    private fun cacheKey(serverId: String, shareName: String, path: String): String =
+        "$serverId|$shareName|${path.replace(Regex("/+"), "/").trim('/')}"
+
+    fun invalidateListingCache(serverId: String? = null, shareName: String? = null) {
+        if (serverId == null) {
+            listingCache.clear()
+        } else {
+            listingCache.keys.removeAll { key ->
+                val prefix = if (shareName != null) "$serverId|$shareName|" else "$serverId|"
+                key.startsWith(prefix)
+            }
+        }
+    }
+
     fun configure(channel: MethodChannel) {
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -329,8 +357,14 @@ class SMBClient(private val context: Context) {
                         result.error("bad_args", "Missing id", null)
                     } else {
                         SmbStore.delete(context, id)
+                        invalidateListingCache(serverId = id)
                         result.success(null)
                     }
+                }
+                "invalidateListingCache" -> {
+                    val id = call.argument<String>("id")
+                    invalidateListingCache(serverId = id)
+                    result.success(null)
                 }
                 "testConnection" -> {
                     val args = call.arguments as? Map<*, *>
@@ -679,6 +713,14 @@ class SMBClient(private val context: Context) {
         shareName: String,
         path: String,
     ): List<Map<String, Any?>> {
+        val key = cacheKey(serverId, shareName, path)
+        val now = System.currentTimeMillis()
+        val cached = listingCache[key]
+        if (cached != null && now - cached.fetchedAtMs < listingTtlMs) {
+            android.util.Log.d("SMBClient", "listDirectory cache hit: $key")
+            return cached.entries
+        }
+
         val creds = SmbStore.resolve(context, serverId)
             ?: throw IllegalStateException("Unknown server")
         val ctx = creds.context()
@@ -696,8 +738,11 @@ class SMBClient(private val context: Context) {
             if (isDir) {
                 dirs.add(entryMap(name, relPath, true, 0L, 0L))
             } else if (isVideo(name)) {
+                // Skip per-file length()/lastModified() — each is a separate
+                // SMB GetInfo round-trip; for large folders this adds minutes.
+                // Size is reported as 0 here; the streaming path fetches it.
                 videos.add(
-                    name to entryMap(name, relPath, false, f.length(), f.lastModified()),
+                    name to entryMap(name, relPath, false, 0L, 0L),
                 )
             } else if (isSubtitle(name)) {
                 subtitles.getOrPut(baseName(name).lowercase(Locale.ROOT)) { mutableListOf() }
@@ -713,7 +758,9 @@ class SMBClient(private val context: Context) {
         }.toMutableList()
         dirs.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
         files.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
-        return dirs + files
+        val result = dirs + files
+        listingCache[key] = CachedListing(result, now)
+        return result
     }
 
     /// Full directory listing (videos + sidecar subtitles) without the native
@@ -725,6 +772,14 @@ class SMBClient(private val context: Context) {
         shareName: String,
         path: String,
     ): List<Map<String, Any?>> {
+        val key = cacheKey(serverId, shareName, path) + "|all"
+        val now = System.currentTimeMillis()
+        val cached = listingCache[key]
+        if (cached != null && now - cached.fetchedAtMs < listingTtlMs) {
+            android.util.Log.d("SMBClient", "listDirectoryAll cache hit: $key")
+            return cached.entries
+        }
+
         val creds = SmbStore.resolve(context, serverId)
             ?: throw IllegalStateException("Unknown server")
         val ctx = creds.context()
@@ -741,12 +796,14 @@ class SMBClient(private val context: Context) {
             if (isDir) {
                 dirs.add(entryMap(name, relPath, true, 0L, 0L))
             } else {
-                files.add(entryMap(name, relPath, false, f.length(), f.lastModified()))
+                files.add(entryMap(name, relPath, false, 0L, 0L))
             }
         }
         dirs.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
         files.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
-        return dirs + files
+        val result = dirs + files
+        listingCache[key] = CachedListing(result, now)
+        return result
     }
 
     private fun entryMap(

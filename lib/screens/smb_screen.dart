@@ -27,6 +27,14 @@ class SmbScreen extends StatefulWidget {
 }
 
 class _SmbScreenState extends State<SmbScreen> {
+  static final _epPattern = RegExp(
+      r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
+      caseSensitive: false);
+
+  bool _isEpisodeEntry(SmbEntry e) {
+    final p = ParsedFileName.parse(e.name);
+    return p.isEpisode || _epPattern.hasMatch(e.name);
+  }
   static final SmbClient _smb = SmbClient.instance;
 
   List<SmbServer> _servers = const [];
@@ -356,9 +364,7 @@ class _SmbScreenState extends State<SmbScreen> {
     }
 
     // Check if any files have SxxExx episode patterns.
-    final episodes = videoEntries
-        .where((e) => ParsedFileName.parse(e.name).isEpisode)
-        .toList();
+    final episodes = videoEntries.where(_isEpisodeEntry).toList();
 
     // Fallback: check for sequential numbering (e.g. "- 01.mkv", "E01.1080p").
     bool hasSequentialNumbering = false;
@@ -417,11 +423,17 @@ class _SmbScreenState extends State<SmbScreen> {
     });
 
     // Fetch season data for locally-present seasons.
-    final seasonsNeeded = episodes
-        .map((e) => ParsedFileName.parse(e.name).season)
-        .where((s) => s > 0)
-        .toSet()
-        .toList();
+    final seasonsNeeded = <int>{};
+    // When folderSeason is set (from TMDB season-name matching), always
+    // fetch that season — the parsed season from filenames may be 0
+    // (e.g. `[01]` anime numbering maps to season 0 in the parser).
+    if (meta.folderSeason != null) {
+      seasonsNeeded.add(meta.folderSeason!);
+    }
+    for (final e in episodes) {
+      final s = ParsedFileName.parse(e.name).season;
+      if (s > 0) seasonsNeeded.add(s);
+    }
     // For sequentially-numbered files, default to season 1.
     if (seasonsNeeded.isEmpty && hasSequentialNumbering) {
       seasonsNeeded.add(1);
@@ -431,8 +443,16 @@ class _SmbScreenState extends State<SmbScreen> {
       if (!mounted) return;
     }
 
-    // Rebuild with season data.
-    if (mounted) setState(() {});
+    // Read the latest meta from the cache (each seasonFor replaces it
+    // with a new TmdMeta; the `meta` reference we held earlier is stale).
+    // Without this, _episodeForEntry looks up an empty seasons map and
+    // per-episode details (stills/names/ratings/overview) never appear
+    // until the user backs out and re-enters.
+    if (!mounted) return;
+    final freshMeta = service.metaFor(metadataKey) ?? meta;
+    setState(() {
+      _seriesMeta = freshMeta;
+    });
   }
 
   /// Checks whether video files have sequential numbering (e.g. `- 01.mkv`,
@@ -597,7 +617,10 @@ class _SmbScreenState extends State<SmbScreen> {
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(video: item),
+        builder: (_) => TmdDetailsScreen(
+          video: item,
+          parentMetadataKey: 'smb_folder:${server.id}/$_share/${_path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '')}',
+        ),
       ),
     );
     // Playback session over: tear down the SMB stream and disconnect.
@@ -869,7 +892,9 @@ class _SmbScreenState extends State<SmbScreen> {
       );
     }
     // TV series folder: Nova-style rich view with series header + episodes.
-    if (_isSeriesFolder) return _seriesFolderBody(context);
+    if (_isSeriesFolder) {
+      return _seriesFolderBody(context);
+    }
     return _flatFileList(context);
   }
 
@@ -893,21 +918,25 @@ class _SmbScreenState extends State<SmbScreen> {
     }
 
     final videoEntries = _entries.where((e) => !e.isDirectory).toList();
-    final episodes = videoEntries
-        .where((e) => ParsedFileName.parse(e.name).isEpisode)
-        .toList();
-    final seasonGroups = sg.groupBySeason<SmbEntry>(
-      episodes,
-      (e) => ParsedFileName.parse(e.name).season,
-      (e) => ParsedFileName.parse(e.name).episode,
-    );
-    final sortedSeasons = seasonGroups.keys.toList()..sort();
+    final episodes = videoEntries.where(_isEpisodeEntry).toList();
 
     // Get metadata key for season data lookup.
     final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
     final metadataKey = 'smb_folder:${server.id}/$_share/$cleanPath';
     final service = TmdService.instance;
     final cachedMeta = service.metaFor(metadataKey);
+
+    // When the folder name matches a season name on TMDB (e.g. "Strike the
+    // Blood Final" → Season 5), override the parsed season so all episodes
+    // group under the correct season.
+    final folderSeason = cachedMeta?.folderSeason;
+
+    final seasonGroups = sg.groupBySeason<SmbEntry>(
+      episodes,
+      (e) => folderSeason ?? ParsedFileName.parse(e.name).season,
+      (e) => ParsedFileName.parse(e.name).episode,
+    );
+    final sortedSeasons = seasonGroups.keys.toList()..sort();
 
     return CustomScrollView(
       slivers: [
@@ -1092,9 +1121,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
     // Fetch season data.
     final videoEntries = _entries.where((e) => !e.isDirectory).toList();
-    final episodes = videoEntries
-        .where((e) => ParsedFileName.parse(e.name).isEpisode)
-        .toList();
+    final episodes = videoEntries.where(_isEpisodeEntry).toList();
     final seasonsNeeded = episodes
         .map((e) => ParsedFileName.parse(e.name).season)
         .where((s) => s > 0)
@@ -1104,7 +1131,13 @@ class _SmbScreenState extends State<SmbScreen> {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;
     }
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // Read the latest meta from the cache (each seasonFor replaces it
+    // with a new TmdMeta; the `meta` reference we held earlier is stale).
+    final freshMeta = service.metaFor(metadataKey) ?? meta;
+    setState(() {
+      _seriesMeta = freshMeta;
+    });
   }
 
   Widget _serverList(BuildContext context) {
@@ -1555,6 +1588,7 @@ class _SmbSeasonExpansion extends StatelessWidget {
               watched: watchedKeys.contains(keyOf(entry)),
               onTap: () => onTapEntry(entry),
               onToggleWatched: () => onToggleWatched(entry),
+              seasonOverride: season,
             ),
         ],
       ),
@@ -1565,7 +1599,19 @@ class _SmbSeasonExpansion extends StatelessWidget {
     if (seasonData == null) return null;
     final parsed = ParsedFileName.parse(entry.name);
     if (!parsed.isEpisode) return null;
-    return seasonData.episode(parsed.episode);
+    final ep = seasonData.episode(parsed.episode);
+    if (ep != null) return ep;
+    // Anime bracket numbering ([01]/[02]) — `parsed.season` is 0, so the
+    // expansion is grouped under season 0 but the TMDB data was fetched
+    // for the actual season (e.g. 1). Fall back to scanning cachedMeta's
+    // seasons for the episode number.
+    final meta = cachedMeta;
+    if (meta == null) return null;
+    for (final s in meta.seasons.values) {
+      final found = s.episode(parsed.episode);
+      if (found != null) return found;
+    }
+    return null;
   }
 }
 
@@ -1580,6 +1626,7 @@ class _SmbEpisodeTile extends StatelessWidget {
     required this.onToggleWatched,
     this.episode,
     this.watched = false,
+    this.seasonOverride,
   });
 
   final SmbEntry entry;
@@ -1589,6 +1636,10 @@ class _SmbEpisodeTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onToggleWatched;
   final bool watched;
+
+  /// When set, overrides the parsed season in the SxxExx badge
+  /// (e.g. folderSeason from TMDB season-name matching).
+  final int? seasonOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -1625,7 +1676,7 @@ class _SmbEpisodeTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(3),
                   ),
                   child: Text(
-                    parsed.episodeLabel,
+                    'S${(seasonOverride ?? parsed.season).toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}',
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: colorScheme.onPrimaryContainer,
@@ -1635,7 +1686,7 @@ class _SmbEpisodeTile extends StatelessWidget {
               if (parsed.isEpisode) const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  episode?.nameLabel ?? entry.name,
+                  episode?.nameLabel ?? parsed.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium?.copyWith(

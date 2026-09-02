@@ -451,6 +451,7 @@ class TmdMeta {
     required this.movie,
     this.details,
     this.seasons = const {},
+    this.folderSeason,
   });
 
   final TmdMovie movie;
@@ -460,18 +461,29 @@ class TmdMeta {
   /// the user actually has locally.
   final Map<int, TmdSeason> seasons;
 
-  TmdMeta withDetails(TmdDetails d) => TmdMeta(movie: movie, details: d, seasons: seasons);
+  /// When a folder name matches a season name on TMDB (e.g. "Strike the Blood
+  /// Final" → Season 5), this stores the matched season number so episode
+  /// grouping uses it instead of the parsed season from the filename.
+  final int? folderSeason;
+
+  TmdMeta withDetails(TmdDetails d) => TmdMeta(
+      movie: movie, details: d, seasons: seasons, folderSeason: folderSeason);
 
   TmdMeta withSeason(TmdSeason season) {
     final next = Map<int, TmdSeason>.of(seasons);
     next[season.seasonNumber] = season;
-    return TmdMeta(movie: movie, details: details, seasons: next);
+    return TmdMeta(
+        movie: movie, details: details, seasons: next, folderSeason: folderSeason);
   }
+
+  TmdMeta withFolderSeason(int s) => TmdMeta(
+      movie: movie, details: details, seasons: seasons, folderSeason: s);
 
   Map<String, dynamic> toJson() => {
         'movie': movie.toJson(),
         'details': details == null ? null : _detailsToJson(details!),
         'seasons': seasons.values.map((s) => s.toJson()).toList(),
+        if (folderSeason != null) 'folderSeason': folderSeason,
       };
 
   static Map<String, dynamic> _detailsToJson(TmdDetails d) => {
@@ -510,6 +522,7 @@ class TmdMeta {
       movie: TmdMovie.fromMetaJson(movieJson),
       details: _detailsFromJson(json['details'] as Map<String, dynamic>?),
       seasons: seasons,
+      folderSeason: json['folderSeason'] as int?,
     );
   }
 
@@ -578,6 +591,13 @@ class ParsedFileName {
   static final RegExp _episodePattern = RegExp(r'\bS(\d{1,2})E(\d{1,2})\b', caseSensitive: false);
   static final RegExp _episodeShortPattern =
       RegExp(r'\b(\d{1,2})x(\d{1,3})\b', caseSensitive: false);
+  /// E01 / EP01 / EP1 style — no season prefix.  season defaults to 1
+  /// (most folders are single-season), episode extracted from the number.
+  static final RegExp _episodeOnlyPattern =
+      RegExp(r'\bEP?(\d{1,3})\b', caseSensitive: false);
+  /// [01] / [02] style — common anime fansub episode numbering in brackets.
+  static final RegExp _bracketEpisodePattern =
+      RegExp(r'\[(\d{1,3})\]');
 
   /// Bare season tag (`S02`, `S1`) — used by TV-season folder names like
   /// `HOUSE.S02.1080p...`. There's no episode number, so this is a whole
@@ -624,6 +644,7 @@ class ParsedFileName {
     bool keepGroup(String s) =>
         _episodePattern.hasMatch(s) ||
         _episodeShortPattern.hasMatch(s) ||
+        _bracketEpisodePattern.hasMatch(s) ||
         _yearPattern.hasMatch(s);
     name = name.replaceAllMapped(
       RegExp(r'\[[^\]]*\]'),
@@ -692,6 +713,8 @@ final yearMatch = _yearPattern.firstMatch(name);
     // `S01` into the series name and the TMDB search silently 404s.
     final episodeMatch = _episodePattern.firstMatch(name);
     final shortEpisodeMatch = _episodeShortPattern.firstMatch(name);
+    final episodeOnlyMatch = _episodeOnlyPattern.firstMatch(name);
+    final bracketMatch = _bracketEpisodePattern.firstMatch(name);
     final seasonOnlyMatch = _seasonOnlyPattern.firstMatch(name);
 
     var isEpisode = false;
@@ -710,6 +733,18 @@ final yearMatch = _yearPattern.firstMatch(name);
       episode = int.parse(shortEpisodeMatch.group(2)!);
       seriesName = name.substring(0, shortEpisodeMatch.start).trim();
       name = name.replaceAll(shortEpisodeMatch.group(0)!, ' ');
+    } else if (episodeOnlyMatch != null) {
+      // E01 / EP01 — episode-only tag with no season prefix.
+      isEpisode = true;
+      episode = int.parse(episodeOnlyMatch.group(1)!);
+      seriesName = name.substring(0, episodeOnlyMatch.start).trim();
+      name = name.replaceAll(episodeOnlyMatch.group(0)!, ' ');
+    } else if (bracketMatch != null) {
+      // [01] / [02] — bracket episode numbering (anime fansub style).
+      isEpisode = true;
+      episode = int.parse(bracketMatch.group(1)!);
+      seriesName = name.substring(0, bracketMatch.start).trim();
+      name = name.replaceAll(bracketMatch.group(0)!, ' ');
     } else if (seasonOnlyMatch != null) {
       // Whole-season folder (`Show.S02.1080p...`): keep the season number for
       // context but drop the tag so the cleaned title stays searchable.
@@ -722,7 +757,7 @@ final yearMatch = _yearPattern.firstMatch(name);
     // Fallback: when the file is just an episode number
     // (`Episode01.mkv`, `01.mkv`) or has no searchable title, fall back to
     // the parent folder's name as the series name.
-    String? effectiveSeriesName = seriesName;
+    String? effectiveSeriesName = seriesName?.isNotEmpty == true ? seriesName : null;
     if (effectiveSeriesName == null &&
         parentFolderName != null &&
         parentFolderName.isNotEmpty &&
@@ -754,7 +789,9 @@ final yearMatch = _yearPattern.firstMatch(name);
   /// avoid inheriting the file's episode tag from a parent folder name.
   static bool _hasEpisodePattern(String text) =>
       _episodePattern.hasMatch(text) ||
-      _episodeShortPattern.hasMatch(text);
+      _episodeShortPattern.hasMatch(text) ||
+      _episodeOnlyPattern.hasMatch(text) ||
+      _bracketEpisodePattern.hasMatch(text);
 
   static String _cleanName(String raw) {
     var cleaned = raw;
@@ -892,6 +929,24 @@ class TmdApi {
     final json = await _get('$endpoint?api_key=$key&language=en-US&append_to_response=credits,videos');
     var details = TmdDetails.fromJson(json, kind: movie.kind);
     return details;
+  }
+
+  /// Fetches season names for a TV show from `/tv/{id}`.
+  /// Returns a map of seasonNumber → seasonName (e.g. {5: "Strike the Blood Final"}).
+  Future<Map<int, String>> seasonNames(TmdMovie movie) async {
+    if (movie.kind != TmdKind.tv) return const {};
+    final key = await effectiveApiKey();
+    if (key.isEmpty) return const {};
+    try {
+      final json = await _get('/tv/${movie.id}?api_key=$key&language=en-US');
+      final seasons = json['seasons'] as List? ?? const [];
+      return {
+        for (final s in seasons.whereType<Map<String, dynamic>>())
+          (s['season_number'] as num?)?.toInt() ?? 0: s['name'] as String? ?? '',
+      };
+    } catch (_) {
+      return const {};
+    }
   }
 
   /// Episodes of one season (`/tv/{id}/season/{n}`), in one request. Empty when
@@ -1338,10 +1393,71 @@ class TmdService extends ChangeNotifier {
       String metadataKey, String query, int? year) async {
     final match = await _api.bestForQuery(query, year: year);
     if (match == null) return null;
-    final meta = TmdMeta(movie: match.movie);
+
+    // Check if the folder name matches a season name on TMDB.
+    // e.g. "Strike the Blood Final" → Season 5 "Strike the Blood Final".
+    int? folderSeason;
+    if (match.movie.kind == TmdKind.tv) {
+      final names = await _api.seasonNames(match.movie);
+      folderSeason = _matchSeasonFromFolder(query, names);
+    }
+
+    final meta = TmdMeta(movie: match.movie, folderSeason: folderSeason);
     _cache[metadataKey] = meta;
     await TmdStore.save(metadataKey, meta);
     return meta;
+  }
+
+  /// Checks if [folderName] matches any season name in [seasonNames].
+  /// Returns the matched season number, or null if no match.
+  ///
+  /// Matching strategy (prefers most specific / longest match):
+  /// 1. Exact match (case-insensitive): "Strike the Blood Final" == "Strike the Blood Final"
+  /// 2. One contains the other — prefer the LONGER season name (more specific)
+  /// 3. Significant word overlap: all words of the shorter name appear in the longer
+  int? _matchSeasonFromFolder(
+      String folderName, Map<int, String> seasonNames) {
+    final q = folderName.toLowerCase().trim();
+    if (q.isEmpty || seasonNames.isEmpty) return null;
+
+    int? bestSeason;
+    var bestScore = 0;
+
+    for (final entry in seasonNames.entries) {
+      final sName = entry.value.toLowerCase().trim();
+      if (sName.isEmpty) continue;
+
+      // 1. Exact match — always wins
+      if (q == sName) return entry.key;
+
+      // 2. One contains the other
+      if (sName.contains(q) || q.contains(sName)) {
+        // Prefer the longer season name (more specific match)
+        final score = sName.length;
+        if (score > bestScore) {
+          bestScore = score;
+          bestSeason = entry.key;
+        }
+        continue;
+      }
+
+      // 3. Significant word overlap
+      final qWords = q.split(RegExp(r'\s+')).where((w) => w.length > 2).toList();
+      final sWords = sName.split(RegExp(r'\s+')).where((w) => w.length > 2).toList();
+      if (qWords.isEmpty || sWords.isEmpty) continue;
+
+      // All words of the shorter name must appear in the longer
+      final shorter = qWords.length <= sWords.length ? qWords : sWords;
+      final longer = qWords.length <= sWords.length ? sWords : qWords;
+      if (shorter.every((w) => longer.contains(w))) {
+        final score = shorter.length * 10 + sName.length;
+        if (score > bestScore) {
+          bestScore = score;
+          bestSeason = entry.key;
+        }
+      }
+    }
+    return bestSeason;
   }
 
   /// Nova-style: background-resolve TMDB metadata for every video in a folder.

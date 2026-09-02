@@ -187,7 +187,14 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     if (playIndex < 0 || playlist.isEmpty) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(video: playlist[playIndex]),
+        builder: (_) => TmdDetailsScreen(
+          video: playlist[playIndex],
+          // Pass the parent folder's metadata key so the details screen
+          // reuses cached TMDB metadata instead of re-resolving from scratch.
+          parentMetadataKey: _crumbs.isNotEmpty
+              ? _client.resumeKey(server, item)
+              : null,
+        ),
       ),
     );
   }

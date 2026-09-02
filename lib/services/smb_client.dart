@@ -251,6 +251,16 @@ class SmbClient {
     await _channel.invokeMethod<void>('closeShare', {'id': serverId});
   }
 
+  /// Invalidate the native directory-listing cache for a server (or all servers
+  /// when [serverId] is null). Called after server/share changes or on
+  /// pull-to-refresh — the listing itself is cached for 60 s on the native
+  /// side so re-visiting a folder is instant.
+  Future<void> invalidateListingCache({String? serverId}) async {
+    await _channel.invokeMethod<void>('invalidateListingCache', {
+      'id': ?serverId,
+    });
+  }
+
   /// Nova-parity sidecar prefetch: reads a subtitle file's bytes directly off
   /// the share (via the same jcifs-ng machinery as the playback data source).
   /// Returns null when the file doesn't exist / is unreadable, so sidecar

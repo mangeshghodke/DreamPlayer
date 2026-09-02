@@ -19,6 +19,10 @@ class UpnpScreen extends StatefulWidget {
 }
 
 class _UpnpScreenState extends State<UpnpScreen> {
+  static final _epPattern = RegExp(
+      r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
+      caseSensitive: false);
+
   List<UpnpServer> _servers = const [];
   bool _discovering = false;
   String? _discoverError;
@@ -30,6 +34,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
   List<UpnpEntry> _entries = const [];
   bool _browsing = false;
   String? _browseError;
+  bool _isSeriesFolder = false;
 
   @override
   void initState() {
@@ -95,6 +100,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
       _browsing = true;
       _browseError = null;
       _diag = const [];
+      _isSeriesFolder = false;
     });
     try {
       final entries = await UpnpClient.instance.browse(server.id, objectId);
@@ -106,6 +112,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
         _browsing = false;
       });
       _prefetchTmdbMeta(entries);
+      _detectAndLoadSeriesFolder(entries);
     } on PlatformException catch (e) {
       final diag = await UpnpClient.instance.diagnostics();
       if (!mounted) return;
@@ -142,6 +149,41 @@ class _UpnpScreenState extends State<UpnpScreen> {
   String _identityKey(UpnpEntry entry) {
     final serverId = _activeServer?.id ?? 'upnp';
     return 'upnp:$serverId/${entry.id}';
+  }
+
+  /// Detect TV series folder + fetch TMDB header metadata (Nova-style).
+  Future<void> _detectAndLoadSeriesFolder(List<UpnpEntry> entries) async {
+    final server = _activeServer;
+    if (server == null) return;
+    final videos = entries.where((e) => !e.isDirectory).toList();
+    if (videos.isEmpty) return;
+    final episodes = videos
+        .where((e) => ParsedFileName.parse(e.name).isEpisode || _epPattern.hasMatch(e.name))
+        .toList();
+    if (episodes.isEmpty || episodes.length < 2) return;
+    final crumbName = _crumbs.last.name;
+    final metadataKey = 'upnp_folder:${server.id}/${_crumbs.last.id}';
+    final service = TmdService.instance;
+    await service.ensureLoaded();
+    final meta = service.metaFor(metadataKey) ??
+        await service.resolveFolder(metadataKey, crumbName);
+    if (meta == null || !mounted) return;
+    setState(() {
+      _isSeriesFolder = true;
+    });
+    await service.detailsFor(metadataKey);
+    if (!mounted) return;
+    final seasonsNeeded = <int>{};
+    for (final e in episodes) {
+      final s = ParsedFileName.parse(e.name).season;
+      if (s > 0) seasonsNeeded.add(s);
+    }
+    if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
+    for (final season in seasonsNeeded) {
+      await service.seasonFor(metadataKey, season);
+      if (!mounted) return;
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _onEntryTap(UpnpEntry entry) async {
@@ -196,7 +238,14 @@ class _UpnpScreenState extends State<UpnpScreen> {
     }();
     if (!mounted) return;
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => TmdDetailsScreen(video: video!)),
+      MaterialPageRoute<void>(
+        builder: (_) => TmdDetailsScreen(
+          video: video!,
+          parentMetadataKey: _isSeriesFolder
+              ? 'upnp_folder:${server.id}/${_crumbs.last.id}'
+              : null,
+        ),
+      ),
     );
   }
 

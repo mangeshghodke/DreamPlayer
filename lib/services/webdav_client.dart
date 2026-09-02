@@ -110,6 +110,16 @@ class WebDavClient {
     await _channel.invokeMethod<void>('deleteServer', {'id': id});
   }
 
+  /// Invalidate the native listing cache for a server URL (or all servers
+  /// when [url] is null). Called after edits or pull-to-refresh — the
+  /// listing itself is cached for 60 s on the native side so re-visiting
+  /// a folder is instant.
+  Future<void> invalidateListingCache({String? url}) async {
+    await _channel.invokeMethod<void>('invalidateListingCache', {
+      'url': ?url,
+    });
+  }
+
   /// Tests a connection without saving (used by the add/edit dialog).
   Future<({bool ok, String? error})> testConnection({
     required String url,

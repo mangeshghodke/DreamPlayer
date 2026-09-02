@@ -45,6 +45,26 @@ class UpnpClient(private val context: Context) {
     // re-discovering. Keyed by UDN / id.
     private val serverCache = mutableMapOf<String, UpnpServer>()
 
+    /// Directory-listing cache: re-visiting a folder is instant.
+    /// Key = "$serverId|$objectId", value = (entries, fetchedAtMs).
+    /// TTL 60 s. DLNA Browse is one SOAP POST + DIDL-Lite XML parse — caching
+    /// avoids re-serializing the same SOAP envelope + re-hitting the server.
+    private data class CachedListing(
+        val entries: List<Map<String, Any?>>,
+        val fetchedAtMs: Long,
+    )
+    private val listingCache = java.util.concurrent.ConcurrentHashMap<String, CachedListing>()
+    private val listingTtlMs = 60_000L
+
+    fun invalidateListingCache(serverId: String? = null) {
+        if (serverId == null) {
+            listingCache.clear()
+        } else {
+            val prefix = "$serverId|"
+            listingCache.keys.removeAll { it.startsWith(prefix) }
+        }
+    }
+
     data class UpnpServer(
         val id: String,
         val name: String,
@@ -87,6 +107,10 @@ class UpnpClient(private val context: Context) {
                             mainHandler.post { result.error("upnp", e.message ?: "Browse failed", null) }
                         }
                     }.start()
+                }
+                "invalidateListingCache" -> {
+                    call.argument<String>("serverId")?.let { invalidateListingCache(it) }
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }
@@ -243,6 +267,13 @@ class UpnpClient(private val context: Context) {
     // MARK: - Browse (SOAP)
 
     fun browse(serverId: String, objectId: String): List<Map<String, Any?>> {
+        val key = "$serverId|${objectId.replace(Regex("/+"), "/").trim('/')}"
+        val now = System.currentTimeMillis()
+        val cached = listingCache[key]
+        if (cached != null && now - cached.fetchedAtMs < listingTtlMs) {
+            Log.d(TAG, "browse cache hit: $key")
+            return cached.entries
+        }
         val server = serverCache[serverId] ?: run {
             // Try to re-discover lazily if cache was cleared (e.g. app restart).
             // Caller should have called discover first; fail fast otherwise.
@@ -273,7 +304,9 @@ class UpnpClient(private val context: Context) {
             if (!it.isSuccessful) throw RuntimeException("Browse HTTP ${it.code}")
             it.body?.string() ?: ""
         }
-        return parseBrowseResult(body)
+        val result = parseBrowseResult(body)
+        listingCache[key] = CachedListing(result, now)
+        return result
     }
 
     private fun parseBrowseResult(soapXml: String): List<Map<String, Any?>> {
