@@ -829,25 +829,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// centered 16:9 box capped small. A full-width strip in landscape would
   /// have to `cover`-crop a 16:9 artwork down to a thin zoomed band, so the
   /// image is instead shown whole, at the small height.
-  Widget _headerBox(BuildContext context, Widget child) {
-    final size = MediaQuery.sizeOf(context);
-    if (MediaQuery.orientationOf(context) == Orientation.landscape) {
-      final height = (size.height * 0.32).clamp(140.0, 240.0);
-      return Center(
-        child: SizedBox(
-          width: height * 16 / 9,
-          height: height,
-          child: child,
-        ),
-      );
-    }
-    return SizedBox(
-      width: double.infinity,
-      height: size.width * 9 / 16,
-      child: child,
-    );
-  }
-
   Widget _buildBody(ThemeData theme, TmdMeta? meta) {
     if (meta == null) {
       if (widget.folder != null) return _buildFolderWithoutMatch(theme);
@@ -859,43 +840,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final singleEpisode = _parsed.isEpisode && widget.folder == null
         ? meta.seasons[_parsed.season]?.episode(_parsed.episode)
         : null;
-    // For a single episode, the still frame takes over the header (when the
-    // show's season data is loaded) so the page reads as "this episode".
-    final headerImage = singleEpisode?.stillUrl() ?? movie.backdropUrl();
     final episodeAirDate = singleEpisode?.airDate;
     final episodeOverview =
         (singleEpisode?.overview.isNotEmpty ?? false) ? singleEpisode!.overview : null;
 
     return CustomScrollView(
       slivers: [
-        SliverToBoxAdapter(
-          child: _headerBox(
-            context,
-            Stack(
-              children: [
-                headerImage != null
-                    ? Image.network(
-                        headerImage,
-                        width: double.infinity,
-                        height: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) =>
-                            _artworkFallback(colorScheme),
-                      )
-                    : _artworkFallback(colorScheme),
-                Positioned(
-                  bottom: 8,
-                  right: 12,
-                  child: _RatingBadge(
-                    rating: singleEpisode != null && singleEpisode.voteAverage > 0
-                        ? singleEpisode.voteAverage
-                        : movie.voteAverage,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -995,6 +945,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                   color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
+                            const SizedBox(height: 4),
+                            _RatingBadge(
+                              rating: singleEpisode != null && singleEpisode.voteAverage > 0
+                                  ? singleEpisode.voteAverage
+                                  : movie.voteAverage,
+                            ),
                           ],
                           const SizedBox(height: 6),
                           Wrap(
@@ -1411,34 +1367,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       slivers: [
         if (info != null && info.name.isNotEmpty) ...[
           SliverToBoxAdapter(
-            child: _headerBox(
-              context,
-              Stack(
-                children: [
-                  if (info.backdropUrl != null)
-                    Image.network(
-                      info.backdropUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          _artworkFallback(colorScheme),
-                      loadingBuilder: (context, child, progress) =>
-                          progress == null
-                              ? child
-                              : _artworkFallback(colorScheme),
-                    )
-                  else
-                    _artworkFallback(colorScheme),
-                  if (info.communityRating > 0)
-                    Positioned(
-                      bottom: 8,
-                      right: 12,
-                      child: _RatingBadge(rating: info.communityRating),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -1478,6 +1406,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                   color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
+                            const SizedBox(height: 4),
+                            _RatingBadge(rating: info.communityRating),
                             const SizedBox(height: 6),
                             Wrap(
                               spacing: 6,
@@ -1593,24 +1523,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _artworkFallback(ColorScheme colorScheme) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colorScheme.primaryContainer,
-            colorScheme.tertiaryContainer,
-          ],
-        ),
-      ),
-      child: const Center(
-        child: Icon(Icons.movie_filter, size: 48, color: Colors.white24),
       ),
     );
   }
