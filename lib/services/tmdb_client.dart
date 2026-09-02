@@ -980,21 +980,16 @@ class TmdApi {
   Future<TmdMatch?> bestMatch(ParsedFileName parsed) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return null;
-    // Use TV search when we have a series name (from SxxExx pattern or
-    // parent folder fallback) — files like "Episode01.mkv" inside a TV
-    // show folder should search for the show, not the episode filename.
     final hasSeries = parsed.isEpisode || (parsed.seriesName?.isNotEmpty ?? false);
     final kind = hasSeries ? TmdKind.tv : TmdKind.movie;
     final query = hasSeries ? (parsed.seriesName ?? parsed.title) : parsed.title;
 
-    // Nova-style: search with year first
     var results = await search(
       query,
       year: kind == TmdKind.movie ? parsed.year : null,
       kind: kind,
     );
 
-    // Nova-style: if no results with year, try without year
     if (results.isEmpty && parsed.year != null && kind == TmdKind.movie) {
       results = await search(query, kind: kind);
     }
@@ -1011,7 +1006,6 @@ class TmdApi {
     final query = (parsed.isEpisode ? (parsed.seriesName ?? parsed.title) : parsed.title)
         .toLowerCase();
     final title = movie.title.toLowerCase();
-
     // Nova-style: Levenshtein distance for robust matching.
     final dist = _levenshteinDistance(query, title);
     final maxLen = query.length > title.length ? query.length : title.length;
@@ -1020,14 +1014,15 @@ class TmdApi {
     // threshold: distance ≤ 30% of max length = pass (≥ 0.5).
     var score = (1.0 - dist / maxLen).clamp(0.0, 1.0);
 
-    // Nova-style: Year bonus
+    // Nova-style: Year bonus — deliberately NOT clamped so it can break
+    // ties when two results both score 1.0 on Levenshtein (exact match).
     if (parsed.year != null && movie.year == parsed.year) {
       if (!(parsed.isEpisode || (parsed.seriesName?.isNotEmpty ?? false))) {
         // Nova uses 0.15 for movie year match
-        score = (score + 0.15).clamp(0.0, 1.0);
+        score += 0.15;
       } else {
         // Tiny tiebreaker for TV — only matters when two results tie on title.
-        score = (score + 0.01).clamp(0.0, 1.0);
+        score += 0.01;
       }
     }
 
