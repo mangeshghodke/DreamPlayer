@@ -441,17 +441,42 @@ class _SmbScreenState extends State<SmbScreen> {
   static bool _hasSequentialNumbering(List<SmbEntry> videoEntries) {
     if (videoEntries.length < 2) return false;
 
+    // Pattern 1: E01 / EP01 / E1 / EP1 style (most common for anime/TV rips)
+    final epPattern = RegExp(r'\bE(?:P)?(\d{1,3})\b', caseSensitive: false);
+    // Pattern 2: Standalone number (01, 02, 1, 2) — must NOT be preceded by
+    // a letter (avoids codec tags like x265) and must NOT be followed by a
+    // letter (avoids resolution like 1080p).
+    final numPattern = RegExp(r'(?<![a-zA-Z])(\d{1,3})(?![a-zA-Z])');
+
     final numbers = <int>[];
     for (final entry in videoEntries) {
       final name = entry.name;
-      // Look for a trailing number before the extension: "- 01.mkv", "02.mkv",
-      // "EP03.mkv", etc.
-      final match = RegExp(r'(?:[-_\sEePp]*(\d{1,3}))\.[a-zA-Z0-9]+$')
-          .firstMatch(name);
-      if (match != null) {
-        final n = int.tryParse(match.group(1)!);
-        if (n != null && n >= 1 && n <= 999) numbers.add(n);
+      // Try E01/EP01 pattern first — highest confidence.
+      final epMatch = epPattern.firstMatch(name);
+      if (epMatch != null) {
+        final n = int.tryParse(epMatch.group(1)!);
+        if (n != null && n >= 1 && n <= 999) {
+          numbers.add(n);
+          continue;
+        }
       }
+      // Fallback: standalone number anywhere in the name.
+      int? best;
+      for (final m in numPattern.allMatches(name)) {
+        final n = int.tryParse(m.group(1)!);
+        if (n != null && n >= 1 && n <= 200) {
+          // Skip common noise: year (19xx/20xx), resolution (480/720/1080/2160),
+          // bitrate (128/256/320/640), codec (264/265/655).
+          if (n >= 1900 || n == 480 || n == 720 || n == 1080 || n == 2160 ||
+              n == 128 || n == 256 || n == 320 || n == 640 ||
+              n == 264 || n == 265 || n == 655) {
+            continue;
+          }
+          best = n;
+          break; // Take the first valid number.
+        }
+      }
+      if (best != null) numbers.add(best);
     }
 
     if (numbers.length < 2) return false;
