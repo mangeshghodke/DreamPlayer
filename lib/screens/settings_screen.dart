@@ -58,6 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _badgeSpatialAudio = true;
   bool _badgeServerTranscode = true;
   bool _badgeDecoder = false;
+  String _tmdbKey = '';
 
   @override
   void initState() {
@@ -73,6 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadOpensubtitles();
     _loadSubtitlePrefs();
     _loadBadgePrefs();
+    _loadTmdbKey();
   }
 
   Future<void> _loadSimkl() async {
@@ -239,6 +241,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _logoutOpensubtitles() async {
     await OpensubtitlesClient.instance.logout();
     if (mounted) setState(() { _osLoggedIn = false; _osUsername = null; _osRemaining = null; });
+  }
+
+  Future<void> _loadTmdbKey() async {
+    final key = await TmdApi().effectiveApiKey();
+    if (mounted) setState(() => _tmdbKey = key);
+  }
+
+  Future<void> _editTmdbKey() async {
+    final ctrl = TextEditingController(text: _tmdbKey.isEmpty ? '' : _tmdbKey);
+    String? err;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
+        title: const Text('TMDB API key'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text(
+            'Get a free key at themoviedb.org/settings/api',
+            style: TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: ctrl,
+            decoration: const InputDecoration(
+              labelText: 'API key (v3 auth)',
+              hintText: '32-character hex string',
+            ),
+          ),
+          if (err != null) Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(err!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          if (_tmdbKey.isNotEmpty)
+            TextButton(onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove(TmdApi.prefsKey);
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            }, child: const Text('Remove')),
+          TextButton(onPressed: () async {
+            final entered = ctrl.text.trim();
+            if (entered.isNotEmpty && entered.length != 32) {
+              setDlg(() => err = 'Key must be 32 characters');
+              return;
+            }
+            final prefs = await SharedPreferences.getInstance();
+            if (entered.isEmpty) {
+              await prefs.remove(TmdApi.prefsKey);
+            } else {
+              await prefs.setString(TmdApi.prefsKey, entered);
+            }
+            if (ctx.mounted) Navigator.pop(ctx, true);
+          }, child: const Text('Save')),
+        ],
+      )),
+    );
+    if (ok == true) await _loadTmdbKey();
   }
 
   Future<void> _loadPassthrough() async {
@@ -700,6 +760,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
             ],
             // Subtitles — OpenSubtitles (Nova-style): anonymous 5/day, free login 20/day
+            const Divider(),
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('Metadata', style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 12)),
+            ),
+            TvTile(
+              leading: const Icon(Icons.movie),
+              title: const Text('TMDB API key'),
+              subtitle: Text(
+                _tmdbKey.isEmpty
+                    ? 'Not set — enter your own key'
+                    : 'Set (${_tmdbKey.substring(0, 4)}…${_tmdbKey.substring(_tmdbKey.length - 4)})',
+              ),
+              onTap: _editTmdbKey,
+            ),
             const Divider(),
             Padding(
               padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
