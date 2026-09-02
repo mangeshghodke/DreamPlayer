@@ -604,6 +604,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
+              if (defaultTargetPlatform == TargetPlatform.android)
                 _BadgeToggle(
                   icon: Icons.spatial_audio,
                   label: 'Spatial audio',
