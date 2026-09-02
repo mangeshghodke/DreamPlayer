@@ -67,8 +67,8 @@ class PlayerScreen extends StatefulWidget {
 
   /// Which playback engine to start with: the native ExoPlayer/Media3
   /// platform view (hardware-first, software fallback, DV/HDR) or the bundled
-  /// libmpv (media_kit) engine (hardware-first via `hwdec=auto-safe`, its own
-  /// internal software fallback, SDR-only Flutter texture).
+  /// libmpv (media_kit) engine (hardware-first via `hwdec=mediacodec-copy`, its
+  /// own internal software fallback, SDR-only Flutter texture).
   final PlayEngine initialEngine;
 
   @override
@@ -94,7 +94,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// drives the SAME player UI (transport, seekbar, gestures, auto-hide,
   /// ended-routing, resume) — the user keeps their normal player. Renders into
   /// a Flutter texture, so no DV/HDR by design; runs hardware-first
-  /// (`hwdec=auto-safe`) with its own FFmpeg software fallback.
+  /// (`hwdec=mediacodec-copy`) with its own FFmpeg software fallback.
   Player? _mpvPlayer;
   VideoController? _mpvController;
   bool _mpvActive = false;
@@ -119,10 +119,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   SubtitleStyle _subtitleStyle = const SubtitleStyle();
   double _mpvBrightness = 1.0;
   double _mpvZoomScale = 1.0;
-  /// Last hwdec value applied to the mpv instance ('auto-safe', 'mediacodec',
-  /// 'no'). Displayed in the ⓘ info sheet so the user can see whether mpv is
-  /// using hardware or software decoding.
-  String _mpvHwdecMode = 'auto-safe';
+  /// Last hwdec value applied to the mpv instance ('mediacodec-copy',
+  /// 'mediacodec', 'no'). Displayed in the ⓘ info sheet so the user can see
+  /// whether mpv is using hardware or software decoding.
+  String _mpvHwdecMode = 'mediacodec-copy';
   /// Active SMB loopback-bridge token (see [SmbHttpProxy] / `startLoopback`);
   /// null when the fallback's current source isn't served through the bridge.
   String? _mpvProxyToken;
@@ -395,8 +395,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       // The user chose the libmpv engine on the details screen ("Play with
       // MPV"): start it directly — no ExoPlayer platform view, and no auto
       // jump to mpv later. libmpv itself runs hardware-first
-      // (`hwdec=auto-safe`, MediaCodec) and falls back to its bundled FFmpeg
-      // software decode when the hardware can't decode a stream.
+      // (`hwdec=mediacodec-copy`, MediaCodec) and falls back to its bundled
+      // FFmpeg software decode when the hardware can't decode a stream.
       if (_engine == PlayEngine.mpv) {
         await _startMpvPrimary();
         unawaited(LastEngineStore.save(_resumeKey, 'mpv'));
@@ -662,8 +662,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// screen "Play with MPV"): no ExoPlayer backend is created at all. Mirrors
   /// the Media3 open-flow — resolve external subtitles (sidecar auto-pairing)
   /// and the resume position — then hand the file to mpv, which decodes
-  /// hardware-first (`hwdec=auto-safe`) with its own internal FFmpeg software
-  /// fallback.
+  /// hardware-first (`hwdec=mediacodec-copy`) with its own internal FFmpeg
+  /// software fallback.
   Future<void> _startMpvPrimary() async {
     if (_inTests) return;
     try {
@@ -788,11 +788,13 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// Maps the user's [DecoderMode] onto libmpv's `hwdec` property.
   ///
-  /// libmpv runs hardware-first by default (`auto-safe` = use the hardware
-  /// decoder whenever it can handle the stream, falling back to its bundled
-  /// FFmpeg software decode only when it can't — the same behavior as the
-  /// Media3 engine's "Auto"). The ⋮ sheet lets the user force hardware
-  /// (`mediacodec`) or software (`no`) for both engines.
+  /// libmpv runs hardware-first by default (`mediacodec-copy` = use the
+  /// hardware decoder for the bitstream but copy frames to CPU for mpv's
+  /// software rendering pipeline — the same default SVPlayer uses, which
+  /// handles unusual formats like 12-bit 4:4:4 HEVC Rext that `auto-safe`
+  /// can reject). Falls back to bundled FFmpeg software decode when the
+  /// hardware can't handle a stream at all. The ⋮ sheet lets the user force
+  /// hardware (`mediacodec`) or software (`no`) for both engines.
   Future<void> _applyMpvHwdec(Player player) async {
     final platform = player.platform;
     if (platform is! NativePlayer || _inTests) return;
@@ -811,7 +813,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final value = switch (_decoderMode) {
       DecoderMode.hw => 'mediacodec',
       DecoderMode.sw => 'no',
-      _ => swOnly ? 'no' : 'auto-safe',
+      _ => swOnly ? 'no' : 'mediacodec-copy',
     };
     try {
       await platform.setProperty('hwdec', value);
@@ -898,11 +900,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: demuxer override unavailable: $e');
     }
-    // Set hwdec BEFORE opening the file.  media_kit defaults to auto-safe,
-    // which creates a hardware decoder during open() — before the surface
-    // exists — causing "h264_mediacodec: Both surface and native_window are
-    // NULL".  Setting hwdec first means mpv uses the correct decoder pipeline
-    // from the very first frame (no wasted HW init + teardown on open).
+    // Set hwdec BEFORE opening the file.  media_kit defaults to
+    // mediacodec-copy, which creates a hardware decoder during open() — before
+    // the surface exists — causing "h264_mediacodec: Both surface and
+    // native_window are NULL".  Setting hwdec first means mpv uses the correct
+    // decoder pipeline from the very first frame (no wasted HW init + teardown
+    // on open).
     try {
       await _applyMpvHwdec(player);
     } catch (e) {
@@ -2906,7 +2909,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (_mpvReady)
         (
           label: 'Decoder',
-          value: 'libmpv · ${_mpvHwdecMode == "no" ? "software" : _mpvHwdecMode == "mediacodec" ? "hardware" : "hardware (auto)"}',
+          value: 'libmpv · ${_mpvHwdecMode == "no" ? "software" : _mpvHwdecMode == "mediacodec" ? "hardware" : _mpvHwdecMode == "mediacodec-copy" ? "hardware (copy)" : "hardware (auto)"}',
         )
       else if (Platform.isAndroid && _liveDecoderName != null)
         (
