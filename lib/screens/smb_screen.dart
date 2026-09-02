@@ -342,9 +342,10 @@ class _SmbScreenState extends State<SmbScreen> {
   }
 
   /// Detects whether the current folder is a TV series folder (≥2 files with
-  /// SxxExx episode patterns) and loads TMDB metadata for the series header +
-  /// season data for episode labels. Single-file folders never trigger series
-  /// mode — the user can still open them normally.
+  /// SxxExx episode patterns, or ≥2 files with sequential numbering like
+  /// `- 01.mkv`, `- 02.mkv`). Single-file folders never trigger series mode.
+  /// When sequential numbering is detected, the folder name is used as the
+  /// series title for TMDB search.
   Future<void> _detectAndLoadSeriesFolder(List<SmbEntry> entries) async {
     final server = _browsing;
     if (server == null) return;
@@ -356,12 +357,19 @@ class _SmbScreenState extends State<SmbScreen> {
     }
 
     // Check if ≥2 files have SxxExx episode patterns.
-    // Single-file folders never trigger series mode — they open normally
-    // via TmdDetailsScreen which handles single-episode resolution.
     final episodes = videoEntries
         .where((e) => ParsedFileName.parse(e.name).isEpisode)
         .toList();
-    final isSeries = episodes.length >= 2;
+
+    // Fallback: check for sequential numbering (e.g. "- 01.mkv", "- 02.mkv").
+    // This catches folders where files don't have SxxExx patterns but are
+    // clearly episodes by their sequential numbering.
+    bool hasSequentialNumbering = false;
+    if (episodes.length < 2) {
+      hasSequentialNumbering = _hasSequentialNumbering(videoEntries);
+    }
+
+    final isSeries = episodes.length >= 2 || hasSequentialNumbering;
 
     if (!isSeries) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
@@ -414,6 +422,10 @@ class _SmbScreenState extends State<SmbScreen> {
         .where((s) => s > 0)
         .toSet()
         .toList();
+    // For sequentially-numbered files, default to season 1.
+    if (seasonsNeeded.isEmpty && hasSequentialNumbering) {
+      seasonsNeeded.add(1);
+    }
     for (final season in seasonsNeeded) {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;
@@ -421,6 +433,45 @@ class _SmbScreenState extends State<SmbScreen> {
 
     // Rebuild with season data.
     if (mounted) setState(() {});
+  }
+
+  /// Checks whether video files have sequential numbering (e.g. `- 01.mkv`,
+  /// `- 02.mkv`). Returns true if ≥2 files have numbers and at least half
+  /// of them form a near-continuous sequence starting from 1.
+  static bool _hasSequentialNumbering(List<SmbEntry> videoEntries) {
+    if (videoEntries.length < 2) return false;
+
+    final numbers = <int>[];
+    for (final entry in videoEntries) {
+      final name = entry.name;
+      // Look for a trailing number before the extension: "- 01.mkv", "02.mkv",
+      // "EP03.mkv", etc.
+      final match = RegExp(r'(?:[-_\sEePp]*(\d{1,3}))\.[a-zA-Z0-9]+$')
+          .firstMatch(name);
+      if (match != null) {
+        final n = int.tryParse(match.group(1)!);
+        if (n != null && n >= 1 && n <= 999) numbers.add(n);
+      }
+    }
+
+    if (numbers.length < 2) return false;
+
+    // Check if at least half the numbers form a near-continuous sequence
+    // starting from 1 (allowing gaps of 1).
+    numbers.sort();
+    final start = numbers.first;
+    if (start > 1) return false; // Must start at or near 1.
+
+    var consecutive = 0;
+    var expected = start;
+    for (final n in numbers) {
+      if (n == expected || n == expected + 1) {
+        consecutive++;
+        expected = n + 1;
+      }
+    }
+
+    return consecutive >= (videoEntries.length + 1) ~/ 2;
   }
 
   Future<void> _openEntry(SmbEntry entry) async {
