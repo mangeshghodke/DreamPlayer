@@ -79,7 +79,15 @@ jobs:
           flutter pub get
 
       - name: Build unsigned iOS app
-        run: flutter build ios --release --no-codesign --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
+        # Public releases (push tag) don't bundle the TMDB key — users enter
+        # their own in Settings → Metadata. workflow_dispatch (manual test
+        # runs from the Actions tab) DOES bundle it so the iPad IPA works
+        # without first opening Settings.
+        run: >-
+          flutter build ios --release --no-codesign
+          ${{ github.event_name == 'workflow_dispatch' && format('--dart-define=TMDB_API_KEY={0}', secrets.TMDB_API_KEY) || '' }}
+          --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }}
+          --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
 
       - name: Package unsigned IPA
         run: |
