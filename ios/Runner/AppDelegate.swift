@@ -74,5 +74,6 @@ import Network
     JellyfinDiscovery.register(with: messenger)
     CacheCleaner.register(with: messenger)
     UpnpClient.register(with: messenger)
+    MediaProbe.register(with: messenger)
   }
 }
