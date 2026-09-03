@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app.dart' show appRouteObserver;
 import '../models/video_item.dart';
@@ -16,6 +17,7 @@ import '../widgets/folder_card.dart';
 import '../widgets/tv_text_field.dart';
 import 'ftp_screen.dart';
 import 'player_screen.dart';
+import 'settings_screen.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/video_card.dart';
 import '../utils/tv_helper.dart';
@@ -75,11 +77,52 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(requestStartupPermissions(context));
+      _showTmdbHintOnce();
     });
   }
 
   void _onMetadataChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _showTmdbHintOnce() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('dreamplayer.tmdbHintShown') == true) return;
+    await prefs.setBool('dreamplayer.tmdbHintShown', true);
+    if (!mounted) return;
+    final theme = Theme.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.movie_filter, size: 40),
+        title: const Text('Enable movie details?'),
+        content: Text(
+          'DreamPlayer can fetch movie posters, ratings, cast, and other '
+          'details from The Movie Database (TMDB).\n\n'
+          'Enter your free TMDB API key in Settings → Metadata to enable '
+          'this feature. Get a key at themoviedb.org/settings/api.',
+          style: theme.textTheme.bodySmall,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SettingsScreen(),
+                ),
+              );
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
