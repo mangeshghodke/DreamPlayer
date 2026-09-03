@@ -87,34 +87,31 @@ final class MediaProbe: NSObject {
             out["durationMs"] = Int(CMTimeGetSeconds(dur) * 1000)
         }
 
-        // Tracks
+        // Tracks — use sync properties where async ones aren't available
         if let tracks = try? await asset.load(.tracks) {
             for track in tracks {
-                let mediaType = try? await track.load(.mediaType)
+                let mediaType = track.mediaType
                 if mediaType == .video {
-                    let size = try? await track.load(.naturalSize)
-                    let xform = try? await track.load(.naturalSizeTransform)
-                    if let s = size, let t = xform {
-                        let dim = t.transformedSize(s)
-                        if !out.keys.contains("width") { out["width"] = Int(dim.width) }
-                        if !out.keys.contains("height") { out["height"] = Int(dim.height) }
+                    let size = track.naturalSize
+                    let xform = track.preferredTransform
+                    let dim = xform.transformedSize(size)
+                    if !out.keys.contains("width") { out["width"] = Int(dim.width) }
+                    if !out.keys.contains("height") { out["height"] = Int(dim.height) }
+                    // Codec from format description
+                    if let desc = track.formatDescriptions.first {
+                        out["videoMime"] = fourCCtoString(CMFormatDescriptionGetMediaSubType(desc as! CMFormatDescription))
                     }
-                    if let desc = try? await track.load(.formatDescriptions), let fmt = desc.first {
-                        out["videoMime"] = fourCCtoString(CMFormatDescriptionGetMediaSubType(fmt))
-                    }
-                    if let rate = try? await track.load(.nominalFrameRate), rate > 0 {
-                        out["fps"] = Int(round(rate))
-                    }
+                    // FPS
+                    let rate = track.nominalFrameRate
+                    if rate > 0 { out["fps"] = Int(round(rate)) }
                 } else if mediaType == .audio {
-                    if let desc = try? await track.load(.formatDescriptions), let fmt = desc.first {
-                        out["audioMime"] = fourCCtoString(CMFormatDescriptionGetMediaSubType(fmt))
+                    // Codec from format description
+                    if let desc = track.formatDescriptions.first {
+                        out["audioMime"] = fourCCtoString(CMFormatDescriptionGetMediaSubType(desc as! CMFormatDescription))
                     }
-                    if let ch = try? await track.load(.channelCount) {
-                        out["audioChannels"] = Int(ch)
-                    }
-                    if let lang = try? await track.load(.languageCode), !lang.isEmpty, lang != "und" {
-                        out["audioLanguage"] = lang
-                    }
+                    // Language
+                    let lang = track.languageCode ?? ""
+                    if !lang.isEmpty && lang != "und" { out["audioLanguage"] = lang }
                 }
             }
         }
