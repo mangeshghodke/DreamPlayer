@@ -112,11 +112,21 @@ class _HomeScreenState extends State<HomeScreen>
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const SettingsScreen(),
-                ),
-              );
+              // Defer the push until the dialog pop completes, and wrap in
+              // a Scaffold with AppBar — SettingsScreen is built for the
+              // tab IndexedStack (no Scaffold/AppBar of its own), so a
+              // bare push leaves the page with no back button.
+              Future.microtask(() {
+                if (!mounted) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(title: const Text('Settings')),
+                      body: const SettingsScreen(),
+                    ),
+                  ),
+                );
+              });
             },
             child: const Text('Open Settings'),
           ),
