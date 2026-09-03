@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
 import '../services/tmdb_client.dart';
+import '../services/watched_store.dart';
 import '../utils/file_info_extractor.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_tile.dart';
@@ -29,6 +30,10 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   bool _hasAccess = true;
   String? _error;
 
+  /// Watched marks for the current folder, keyed by each file's stable resume
+  /// key for playback.
+  Set<String> _watchedKeys = {};
+
   bool get _atRoot => _currentPath == null;
 
   @override
@@ -48,6 +53,26 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
 
   void _onTmdbChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _refreshWatched() async {
+    try {
+      final watched = await WatchedStore.load();
+      if (mounted) setState(() => _watchedKeys = watched);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleWatched(FileEntry entry) async {
+    final key = entry.resumeKey;
+    if (entry.isDirectory || key == null || key.isEmpty) return;
+    final now = !_watchedKeys.contains(key);
+    setState(() {
+      _watchedKeys = {..._watchedKeys};
+      now ? _watchedKeys.add(key) : _watchedKeys.remove(key);
+    });
+    try {
+      await WatchedStore.set(key, now);
+    } catch (_) {}
   }
 
   @override
@@ -109,6 +134,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       _loading = false;
     });
     _prefetchTmdb(entries);
+    _refreshWatched();
   }
 
   void _prefetchTmdb(List<FileEntry> entries) {
@@ -297,6 +323,11 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
           tmdbMeta: TmdService.instance.metaFor(
             TmdStore.identityKeyFor(_toVideoItem(entry)),
           ),
+          watched: !entry.isDirectory &&
+              entry.resumeKey?.isNotEmpty == true &&
+              _watchedKeys.contains(entry.resumeKey),
+          onToggleWatched:
+              entry.isDirectory ? null : () => _toggleWatched(entry),
         ),
     ];
     return ListView.builder(
@@ -333,12 +364,16 @@ class _FileTile extends StatelessWidget {
     required this.onTap,
     this.onRemove,
     this.tmdbMeta,
+    this.watched = false,
+    this.onToggleWatched,
   });
 
   final FileEntry entry;
   final VoidCallback onTap;
   final VoidCallback? onRemove;
   final TmdMeta? tmdbMeta;
+  final bool watched;
+  final VoidCallback? onToggleWatched;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -371,15 +406,30 @@ class _FileTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: subtitle == null ? null : Text(subtitle),
-      trailing: onRemove != null
-          ? IconButton(
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onToggleWatched != null)
+            IconButton(
+              tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
+              icon: Icon(
+                watched ? Icons.check_circle : Icons.check_circle_outline,
+                color: watched
+                    ? Colors.green.shade400
+                    : colorScheme.onSurfaceVariant,
+              ),
+              onPressed: onToggleWatched,
+            ),
+          if (onRemove != null)
+            IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: 'Remove folder',
               onPressed: onRemove,
             )
-          : (entry.isDirectory
-              ? const Icon(Icons.chevron_right)
-              : null),
+          else if (entry.isDirectory)
+            const Icon(Icons.chevron_right),
+        ],
+      ),
       onTap: onTap,
     );
   }

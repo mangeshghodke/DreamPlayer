@@ -5,6 +5,7 @@ import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/upnp_client.dart';
+import '../services/watched_store.dart';
 import '../utils/file_info_extractor.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
@@ -35,6 +36,10 @@ class _UpnpScreenState extends State<UpnpScreen> {
   bool _browsing = false;
   String? _browseError;
   bool _isSeriesFolder = false;
+
+  /// Watched marks for the current folder, keyed by the same stable resume
+  /// key each video uses for playback.
+  Set<String> _watchedKeys = {};
 
   @override
   void initState() {
@@ -113,6 +118,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
       });
       _prefetchTmdbMeta(entries);
       _detectAndLoadSeriesFolder(entries);
+      _refreshWatched();
     } on PlatformException catch (e) {
       final diag = await UpnpClient.instance.diagnostics();
       if (!mounted) return;
@@ -156,6 +162,25 @@ class _UpnpScreenState extends State<UpnpScreen> {
   String _identityKey(UpnpEntry entry) {
     final serverId = _activeServer?.id ?? 'upnp';
     return 'upnp:$serverId/${entry.id}';
+  }
+
+  Future<void> _refreshWatched() async {
+    try {
+      final watched = await WatchedStore.load();
+      if (mounted) setState(() => _watchedKeys = watched);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleWatched(UpnpEntry entry) async {
+    final key = _identityKey(entry);
+    final now = !_watchedKeys.contains(key);
+    setState(() {
+      _watchedKeys = {..._watchedKeys};
+      now ? _watchedKeys.add(key) : _watchedKeys.remove(key);
+    });
+    try {
+      await WatchedStore.set(key, now);
+    } catch (_) {}
   }
 
   /// Detect TV series folder + fetch TMDB header metadata (Nova-style).
@@ -481,13 +506,39 @@ class _UpnpScreenState extends State<UpnpScreen> {
                               final posterUrl = isDir
                                   ? null
                                   : posterUrlOf(TmdService.instance.metaFor(_identityKey(e)));
+                              final watched = !isDir &&
+                                  _watchedKeys.contains(_identityKey(e));
                               return TvTile(
                                 leading: posterUrl != null
                                     ? _Poster(posterUrl: posterUrl)
                                     : Icon(isDir ? Icons.folder_outlined : Icons.movie_outlined),
                                 title: Text(e.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                                 subtitle: isDir ? null : (e.size > 0 ? Text(_formatBytes(e.size)) : null),
-                                trailing: Icon(isDir ? Icons.chevron_right : Icons.play_arrow),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (!isDir)
+                                      IconButton(
+                                        tooltip: watched
+                                            ? 'Mark as unwatched'
+                                            : 'Mark as watched',
+                                        icon: Icon(
+                                          watched
+                                              ? Icons.check_circle
+                                              : Icons.check_circle_outline,
+                                          color: watched
+                                              ? Colors.green.shade400
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                        ),
+                                        onPressed: () => _toggleWatched(e),
+                                      ),
+                                    Icon(isDir
+                                        ? Icons.chevron_right
+                                        : Icons.play_arrow),
+                                  ],
+                                ),
                                 onTap: () => _onEntryTap(e),
                               );
                             },

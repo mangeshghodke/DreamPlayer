@@ -4,6 +4,7 @@ import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
+import '../services/watched_store.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_tile.dart';
@@ -40,6 +41,10 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   List<JellyfinItem> _items = const [];
   bool _loading = true;
   String? _error;
+
+  /// Watched marks for the current folder, keyed by the same stable resume
+  /// key each video uses for playback (`client.resumeKey`).
+  Set<String> _watchedKeys = {};
 
   bool get _atBrowseRoot => _browsing == null;
 
@@ -124,6 +129,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
         _items = [...folders, ...playables];
         _loading = false;
       });
+      _refreshWatched();
     } on JellyfinException catch (e) {
       if (!mounted) return;
       if (e.message.contains('Session expired')) {
@@ -159,6 +165,32 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     if (server == null || item.isFolder) return null;
     return TmdService.instance
         .metaFor(_client.resumeKey(server, item));
+  }
+
+  String _watchedKeyFor(JellyfinItem item) {
+    final server = _browsing;
+    if (server == null || item.isFolder) return '';
+    return _client.resumeKey(server, item);
+  }
+
+  Future<void> _refreshWatched() async {
+    try {
+      final watched = await WatchedStore.load();
+      if (mounted) setState(() => _watchedKeys = watched);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleWatched(JellyfinItem item) async {
+    final key = _watchedKeyFor(item);
+    if (key.isEmpty) return;
+    final now = !_watchedKeys.contains(key);
+    setState(() {
+      _watchedKeys = {..._watchedKeys};
+      now ? _watchedKeys.add(key) : _watchedKeys.remove(key);
+    });
+    try {
+      await WatchedStore.set(key, now);
+    } catch (_) {}
   }
 
   Future<void> _handleSessionExpired() async {
@@ -472,6 +504,10 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
           return _JellyfinTile(
             item: item,
             tmdbMeta: _tmdbFor(item),
+            watched: !item.isFolder &&
+                _watchedKeys.contains(_watchedKeyFor(item)),
+            onToggleWatched:
+                item.isFolder ? null : () => _toggleWatched(item),
             onTap: () => _openItem(item),
             onAddToLibrary:
                 item.isFolder ? () => _addToLibrary(item) : null,
@@ -583,12 +619,16 @@ class _JellyfinTile extends StatelessWidget {
     required this.item,
     required this.tmdbMeta,
     required this.onTap,
+    this.watched = false,
+    this.onToggleWatched,
     this.onAddToLibrary,
   });
 
   final JellyfinItem item;
   final TmdMeta? tmdbMeta;
   final VoidCallback onTap;
+  final bool watched;
+  final VoidCallback? onToggleWatched;
 
   /// Shown on folders as a "add to library" shortcut (replaces the plain
   /// chevron so both actions stay reachable).
@@ -607,20 +647,31 @@ class _JellyfinTile extends StatelessWidget {
           : Icon(icon, color: color),
       title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitle == null ? null : Text(subtitle),
-      trailing: item.isFolder
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (onAddToLibrary != null)
-                  IconButton(
-                    tooltip: 'Add to library',
-                    icon: const Icon(Icons.library_add_outlined),
-                    onPressed: onAddToLibrary,
-                  ),
-                const Icon(Icons.chevron_right),
-              ],
-            )
-          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onToggleWatched != null)
+            IconButton(
+              tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
+              icon: Icon(
+                watched ? Icons.check_circle : Icons.check_circle_outline,
+                color: watched
+                    ? Colors.green.shade400
+                    : colorScheme.onSurfaceVariant,
+              ),
+              onPressed: onToggleWatched,
+            ),
+          if (item.isFolder) ...[
+            if (onAddToLibrary != null)
+              IconButton(
+                tooltip: 'Add to library',
+                icon: const Icon(Icons.library_add_outlined),
+                onPressed: onAddToLibrary,
+              ),
+            const Icon(Icons.chevron_right),
+          ],
+        ],
+      ),
       onTap: onTap,
     );
   }

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/video_item.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
+import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
 import '../utils/file_info_extractor.dart';
 import '../widgets/server_form_kit.dart';
@@ -43,6 +44,11 @@ class _WebDavScreenState extends State<WebDavScreen> {
   String? _error;
   bool _isSeriesFolder = false;
 
+  /// Watched marks for the current folder, keyed by the same stable resume
+  /// key each video uses for playback (so the player's auto-mark on completion
+  /// and a manual toggle here stay consistent).
+  Set<String> _watchedKeys = {};
+
   bool get _atBrowseRoot => _browsing == null || _path == '/';
 
   @override
@@ -60,6 +66,32 @@ class _WebDavScreenState extends State<WebDavScreen> {
 
   void _onMetadataChanged() {
     if (mounted) setState(() {});
+  }
+
+  String _watchedKeyFor(WebDavEntry entry) {
+    final server = _browsing;
+    if (server == null || entry.isDirectory) return '';
+    return 'webdav_${server.id}${entry.path}';
+  }
+
+  Future<void> _refreshWatched() async {
+    try {
+      final watched = await WatchedStore.load();
+      if (mounted) setState(() => _watchedKeys = watched);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleWatched(WebDavEntry entry) async {
+    final key = _watchedKeyFor(entry);
+    if (key.isEmpty) return;
+    final now = !_watchedKeys.contains(key);
+    setState(() {
+      _watchedKeys = {..._watchedKeys};
+      now ? _watchedKeys.add(key) : _watchedKeys.remove(key);
+    });
+    try {
+      await WatchedStore.set(key, now);
+    } catch (_) {}
   }
 
   Future<void> _loadServers() async {
@@ -112,6 +144,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
       });
       _prefetchTmdbMeta(entries);
       _detectAndLoadSeriesFolder(entries);
+      _refreshWatched();
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -434,7 +467,15 @@ class _WebDavScreenState extends State<WebDavScreen> {
               ? null
               : TmdService.instance
                   .metaFor('webdav_${server.id}${entry.path}');
-          return _WebDavTile(entry: entry, tmdbMeta: meta, onTap: () => _openEntry(entry));
+          return _WebDavTile(
+            entry: entry,
+            tmdbMeta: meta,
+            watched: !entry.isDirectory &&
+                _watchedKeys.contains(_watchedKeyFor(entry)),
+            onToggleWatched:
+                entry.isDirectory ? null : () => _toggleWatched(entry),
+            onTap: () => _openEntry(entry),
+          );
         },
       ),
     );
@@ -521,11 +562,15 @@ class _WebDavTile extends StatelessWidget {
     required this.entry,
     required this.tmdbMeta,
     required this.onTap,
+    this.watched = false,
+    this.onToggleWatched,
   });
 
   final WebDavEntry entry;
   final TmdMeta? tmdbMeta;
   final VoidCallback onTap;
+  final bool watched;
+  final VoidCallback? onToggleWatched;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -554,7 +599,23 @@ class _WebDavTile extends StatelessWidget {
           : Icon(icon, color: color),
       title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitle == null ? null : Text(subtitle),
-      trailing: entry.isDirectory ? const Icon(Icons.chevron_right) : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onToggleWatched != null)
+            IconButton(
+              tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
+              icon: Icon(
+                watched ? Icons.check_circle : Icons.check_circle_outline,
+                color: watched
+                    ? Colors.green.shade400
+                    : colorScheme.onSurfaceVariant,
+              ),
+              onPressed: onToggleWatched,
+            ),
+          if (entry.isDirectory) const Icon(Icons.chevron_right),
+        ],
+      ),
       onTap: onTap,
     );
   }
