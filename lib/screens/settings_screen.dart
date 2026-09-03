@@ -244,8 +244,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadTmdbKey() async {
-    final key = await TmdApi().effectiveApiKey();
-    if (mounted) setState(() => _tmdbKey = key);
+    // Read only the user's SAVED key from prefs — NOT effectiveApiKey(),
+    // which falls through to the compile-time TMDB_API_KEY define (injected
+    // by --dart-define-from-file=.env). If we used effectiveApiKey here, the
+    // build-time default would always show "Set (…)" and the Remove button
+    // would appear to do nothing even though it clears prefs correctly.
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(TmdApi.prefsKey) ?? '';
+    if (mounted) setState(() => _tmdbKey = saved);
   }
 
   Future<void> _editTmdbKey() async {
