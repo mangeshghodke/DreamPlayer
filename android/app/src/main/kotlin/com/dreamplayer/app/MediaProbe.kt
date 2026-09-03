@@ -64,14 +64,11 @@ class MediaProbe(private val context: Context) {
     private fun probeSmb(smbUri: String): Map<String, Any?> {
         val stripped = smbUri.removePrefix("smb://")
         val parts = stripped.split("/", limit = 3)
-        if (parts.size < 3) { Log.w(TAG, "probeSmb: bad URI parts=$parts"); return emptyMap() }
+        if (parts.size < 3) return emptyMap()
         val serverId = parts[0]
         val share = parts[1]
         val path = URLDecoder.decode(parts[2], "UTF-8")
-        Log.d(TAG, "probeSmb serverId=$serverId share=$share path=$path")
-        val httpUrl = SmbHttpProxy.start(context, serverId, share, path)
-        if (httpUrl == null) { Log.w(TAG, "probeSmb: SmbHttpProxy.start returned null"); return emptyMap() }
-        Log.d(TAG, "probeSmb httpUrl=$httpUrl")
+        val httpUrl = SmbHttpProxy.start(context, serverId, share, path) ?: return emptyMap()
         try {
             return probeHttp(httpUrl, null)
         } finally {
@@ -94,9 +91,7 @@ class MediaProbe(private val context: Context) {
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)?.let { out["hasAudio"] = it }
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.let { out["bitrate"] = it }
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)?.let { out["mime"] = it }
-            Log.d(TAG, "probeHttp retriever OK: dur=${out["durationMs"]} w=${out["width"]} h=${out["height"]}")
-        } catch (e: Exception) {
-            Log.w(TAG, "probeHttp retriever failed: ${e.message}")
+        } catch (_: Exception) {
         } finally {
             try { retriever?.release() } catch (_: Exception) {}
         }
@@ -105,7 +100,6 @@ class MediaProbe(private val context: Context) {
         try {
             extractor = MediaExtractor()
             extractor.setDataSource(url, hdrs)
-            Log.d(TAG, "probeHttp extractor tracks=${extractor.trackCount}")
             for (i in 0 until extractor.trackCount) {
                 try {
                     val format = extractor.getTrackFormat(i)
@@ -137,12 +131,10 @@ class MediaProbe(private val context: Context) {
                     }
                 } catch (_: Exception) {}
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "probeHttp extractor failed: ${e.message}")
+        } catch (_: Exception) {
         } finally {
             try { extractor?.release() } catch (_: Exception) {}
         }
-        Log.d(TAG, "probeHttp final result: $out")
         return out
     }
 
@@ -227,7 +219,6 @@ class MediaProbe(private val context: Context) {
         // Local or content:// source
         val localPath = if (!path.isNullOrEmpty() && isLocalPath(path)) path else null
         val contentUri = if (!uri.isNullOrEmpty() && uri.startsWith("content://")) uri else null
-        Log.d(TAG, "probe path=$path uri=$uri localPath=$localPath contentUri=$contentUri")
         val out = mutableMapOf<String, Any?>()
 
         var retriever: MediaMetadataRetriever? = null
@@ -311,7 +302,6 @@ class MediaProbe(private val context: Context) {
         } finally {
             try { extractor?.release() } catch (_: Exception) {}
         }
-        Log.d(TAG, "probe result: $out")
         return out
     }
 }
