@@ -812,6 +812,28 @@ verified for local/SMB/Jellyfin/WebDAV)**:
 - **Continue-watching series grouping** (`_groupedByShow` in `home_screen.dart`): episodes from the same TV show cluster into a single card on the home grid, using the show's poster and the most recently played episode's info. Movies and unmatched episodes pass through ungrouped. `_GroupedContinueWatching` model holds the show title, TMDB meta, and sorted episode entries.
 - **VideoItem model extensions**: added `seasonNumber`, `episodeNumber`, `seriesName` fields (serialized to/from JSON) for series grouping without re-parsing filenames.
 
+**Phase 6 — Nova-style file info probe (DONE 2026-09)**:
+- **Native file info probe** (`android/.../MediaProbe.kt`, channel `dreamplayer/mediaProbe`): the `_FileInfoCard` on the details screen now shows **real container metadata** (not just filename parsing) for every source — duration, resolution, video codec, fps, audio codec, channels, language — exactly as Nova probes the file header via its FFmpeg core. Implementation: `MediaMetadataRetriever` (fast: duration, dimensions, bitrate) + `MediaExtractor` (detailed: per-track codec, fps, language, channel count). Probe runs on a background thread, result applied via `setState`; a "Probing file…" spinner shows while loading.
+  - **SMB files** (`smb://` URIs from home bookmarks): the native `MediaExtractor` can't open `smb://` directly, so `MediaProbe.kt` temporarily starts the `SmbHttpProxy` HTTP loopback, probes via the local `http://127.0.0.1:port/token` endpoint, then tears it down — same loopback infrastructure used by the mpv fallback engine.
+  - **FTP/SFTP files** (`ftp://`/`sftp://` URIs): `MediaExtractor` can't open these either. Dart-side `MediaProbe.probeViaTempDownload()` downloads the first 8 MB to a temp file via `HttpClient`, probes the temp file, then deletes it.
+  - **HTTP/HTTPS files** (WebDAV, Jellyfin, UPnP/DLNA, SMB browser loopback): probed directly — `MediaExtractor.setDataSource(url, headers)` handles the auth headers for WebDAV/Jellyfin.
+  - **Local files** (`/storage/…`, `content://`): probed directly via `setDataSource(path)` / `openFileDescriptor`.
+  - **`formatVideoCodec` / `formatAudioCodec` fix** (`codec_info.dart`): these functions now strip MIME prefixes (`video/hevc` → `hevc`, `audio/eac3` → `eac3`) before lookup, so `MediaExtractor` MIME types map correctly to display labels (HEVC, E-AC3, etc.).
+  - **`_FileInfoCard` wired for all sources** (`tmd_details_screen.dart:1815`): name, location (SMB `smb://share/path`, WebDAV `https://…`, FTP `ftp://…`, local `/storage/…`, content `content://…`, with loopback `127.0.0.1` filtered), duration, size, video codec·resolution·fps + HDR badge, audio codec·channels·language. Probed values override filename-derived ones.
+  - **`_buildNoMatch` fix**: when no TMDB match exists, the card now renders `_FileInfoCard` + `_SubtitlesCard` below the "Get Info" button — file details show even without metadata.
+  - **VideoItem model**: added `fps` (int?) and `audioLanguage` (String?) fields, serialized in `toJson`/`fromJson`, carried through `withPlaybackInfo`/`withExternalSubtitles`. All browser screens (SMB, folder, WebDAV, FTP, UPnP, Jellyfin, file browser, open-intent) wire these fields.
+  - **`_probing` state**: `TmdDetailsScreen` tracks probing state and passes it to `_FileInfoCard`, which shows a `CircularProgressIndicator` + "Probing file…" text while the native probe runs.
+
+**Home screen + menu cleanup (2026-09)**: the "+" menu was reorganized from a flat list of 8 items into a cleaner two-level structure:
+  - **Top level** (always visible): "Add folder to library" + "Internal storage"
+  - **Network sources** (collapsed `ExpansionTile`): SMB/WebDAV/FTP/Jellyfin/DLNA/Play URL — collapsed by default so local actions are immediately reachable; expands to show all network options.
+  - `_showAddMenu()` in `home_screen.dart` rewritten with `ExpansionTile` for the network section.
+
+**Content URI path display fix (2026-09)**: `_displayLocation()` in `tmd_details_screen.dart` now decodes `content://` URIs to show clean local paths instead of raw URL-encoded SAF document IDs. For example:
+  - Before: `content://com.android.externalstorage.documents/document/primary%3AMovies%2Ffile.mkv`
+  - After: `/storage/emulated/0/Movies/file.mkv`
+  - Mapping: `primary:` → `/storage/emulated/0/`, `secondary:` → `/storage/sdcard1/`, other providers show the decoded document ID.
+
 Later/demand-driven**: cloud drives.
 
 ### UPnP/DLNA browse (DONE 2026-08, both platforms)
@@ -940,6 +962,7 @@ lib/
   services/webdav_client.dart     # WebDAV channel wrapper + WebDavServer model (channel dreamplayer/webdav)
   services/thumbnail_store.dart   # embedded cover-art cache for video cards (memory+disk, local sources only)
   services/mpv_pip.dart           # libmpv fallback engine's picture-in-picture bridge (pipChanged/pipDismissed/pipPlayPause/pipRewind/pipForward; setState pushes state into PipManager)
+  services/media_probe.dart       # native MediaExtractor probe via MethodChannel; probe() for smb/http/local, probeFile() for temp files, probeViaTempDownload() for ftp/sftp
   config/tmdb_api_key.dart        # default TMDB key from --dart-define=TMDB_API_KEY (never committed)
   screens/
     home_screen.dart            # Continue watching grid (adaptive columns, grouped by TV show) + Your-library folder grid + **+** FAB menu (Jellyfin / WebDAV / Add folder / Internal storage)
@@ -964,6 +987,7 @@ android/app/src/main/kotlin/com/dreamplayer/app/
   FileBrowser.kt                # device storage browsing channel (roots/listing/folder bookmarks; no thumbnails)
   WebDAVClient.kt               # WebDAV browse/test channel; encrypted password storage; friendly errors
   MulticastLockManager.kt       # Wi-Fi MulticastLock + Jellyfin UDP-7359 broadcast probe (channel dreamplayer/multicast)
+  MediaProbe.kt                 # native MediaMetadataRetriever + MediaExtractor probe (channel dreamplayer/mediaProbe); SMB via HTTP loopback, local/content direct
   PipManager.kt                 # libmpv fallback-engine picture-in-picture (RemoteAction transport buttons: rewind/play-pause/forward); channel dreamplayer/pip
   SmbHttpProxy.kt               # loopback HTTP/1.1 server that exposes an SMB file to libmpv via 127.0.0.1:<port>/<token> with Range support
   MainActivity.kt               # registers platform views + "Open with" intent handling + routes pip/snapshot/stop calls between ExoPlayerView and PipManager based on which engine is active
