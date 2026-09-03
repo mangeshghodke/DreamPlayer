@@ -219,6 +219,7 @@ class MediaProbe(private val context: Context) {
         // Local or content:// source
         val localPath = if (!path.isNullOrEmpty() && isLocalPath(path)) path else null
         val contentUri = if (!uri.isNullOrEmpty() && uri.startsWith("content://")) uri else null
+        Log.d(TAG, "probe path=$path uri=$uri localPath=$localPath contentUri=$contentUri")
         val out = mutableMapOf<String, Any?>()
 
         var retriever: MediaMetadataRetriever? = null
@@ -302,6 +303,7 @@ class MediaProbe(private val context: Context) {
         } finally {
             try { extractor?.release() } catch (_: Exception) {}
         }
+        Log.d(TAG, "probe result: $out")
         return out
     }
 }
