@@ -334,6 +334,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final v = widget.video;
     if (v == null) return;
     try {
+      // Ensure security-scoped bookmark is active for Files-app bookmarked
+      // folders (iOS). No-op on Android.
+      if (v.path != null) {
+        await FileBrowserService.instance.resolvePath(v.path!);
+      }
       final uri = v.uri ?? '';
       MediaProbeResult? r;
       if (uri.startsWith('ftp://') || uri.startsWith('sftp://') || uri.startsWith('ftps://')) {
