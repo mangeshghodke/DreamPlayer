@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../app.dart' show appRouteObserver;
 import '../models/video_item.dart';
@@ -97,12 +98,34 @@ class _HomeScreenState extends State<HomeScreen>
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.movie_filter, size: 40),
         title: const Text('Enable movie details?'),
-        content: Text(
-          'DreamPlayer can fetch movie posters, ratings, cast, and other '
-          'details from The Movie Database (TMDB).\n\n'
-          'Enter your free TMDB API key in Settings → Metadata to enable '
-          'this feature. Get a key at themoviedb.org/settings/api.',
-          style: theme.textTheme.bodySmall,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'DreamPlayer can fetch movie posters, ratings, cast, and other '
+              'details from The Movie Database (TMDB).\n\n'
+              'Enter your free TMDB API key in Settings → Metadata to enable '
+              'this feature.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: () async {
+                final uri = Uri.parse('https://www.themoviedb.org/settings/api');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              icon: const Icon(Icons.open_in_new, size: 16),
+              label: const Text('Get a free TMDB API key'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
