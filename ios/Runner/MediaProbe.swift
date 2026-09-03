@@ -15,7 +15,7 @@ final class MediaProbe: NSObject {
         return docs.appendingPathComponent("probe_debug.log")
     }
 
-    private static func log(_ msg: String) {
+    private static func debugLog(_ msg: String) {
         guard let url = logURL else { return }
         let line = "\(msg)\n"
         if let data = line.data(using: .utf8) {
@@ -38,7 +38,7 @@ final class MediaProbe: NSObject {
         }
         // Clear log on each app launch
         if let url = logURL { try? FileManager.default.removeItem(at: url) }
-        log("=== MediaProbe session started ===")
+        debugLog("=== MediaProbe session started ===")
     }
 
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -67,21 +67,21 @@ final class MediaProbe: NSObject {
     // MARK: - Probe dispatch
 
     private func probe(path: String?, uri: String?, headers: [String: String]) async -> [String: Any] {
-        log("PROBE path=\(path ?? "nil") uri=\(uri ?? "nil")")
+        debugLog("PROBE path=\(path ?? "nil") uri=\(uri ?? "nil")")
         if let u = uri ?? path, u.hasPrefix("http://") || u.hasPrefix("https://") {
-            log("→ dispatching to probeHttp")
+            debugLog("→ dispatching to probeHttp")
             return await probeHttp(url: u, headers: headers)
         }
         if let p = path, !p.hasPrefix("smb://") && !p.hasPrefix("ftp://") &&
             !p.hasPrefix("sftp://") && !p.hasPrefix("content://") {
-            log("→ dispatching to probeLocal")
+            debugLog("→ dispatching to probeLocal")
             return await probeLocal(filePath: p)
         }
         if let u = uri ?? path, u.hasPrefix("content://") {
-            log("→ dispatching to probeContentUri")
+            debugLog("→ dispatching to probeContentUri")
             return await probeContentUri(u)
         }
-        log("→ no matching dispatch, returning empty")
+        debugLog("→ no matching dispatch, returning empty")
         return [:]
     }
 
@@ -98,7 +98,7 @@ final class MediaProbe: NSObject {
 
     private func probeLocal(filePath: String) async -> [String: Any] {
         let exists = FileManager.default.fileExists(atPath: filePath)
-        log("PROBE_LOCAL path=\(filePath) exists=\(exists)")
+        debugLog("PROBE_LOCAL path=\(filePath) exists=\(exists)")
         guard exists else { return [:] }
         let fileURL = URL(fileURLWithPath: filePath)
         let asset = AVURLAsset(url: fileURL)
@@ -117,40 +117,40 @@ final class MediaProbe: NSObject {
     private func probeAsset(_ asset: AVAsset) async -> [String: Any] {
         var out: [String: Any] = [:]
         let desc = asset.description
-        log("PROBE_ASSET \(desc)")
+        debugLog("PROBE_ASSET \(desc)")
 
         // Duration
         do {
             let dur = try await asset.load(.duration)
             if dur.isNumeric {
                 out["durationMs"] = Int(CMTimeGetSeconds(dur) * 1000)
-                log("  duration=\(out["durationMs"]!)ms")
+                debugLog("  duration=\(out["durationMs"]!)ms")
             } else {
-                log("  duration not numeric: \(dur)")
+                debugLog("  duration not numeric: \(dur)")
             }
         } catch {
-            log("  duration error: \(error)")
+            debugLog("  duration error: \(error)")
         }
 
         // Tracks
         do {
             let tracks = try await asset.load(.tracks)
-            log("  tracks count=\(tracks.count)")
+            debugLog("  tracks count=\(tracks.count)")
             for track in tracks {
                 let mediaType = track.mediaType
-                log("  track: type=\(mediaType) formatDescs=\(track.formatDescriptions.count)")
+                debugLog("  track: type=\(mediaType) formatDescs=\(track.formatDescriptions.count)")
                 if mediaType == .video {
                     let size = track.naturalSize
                     let dim = size.applying(track.preferredTransform)
                     if !out.keys.contains("width") { out["width"] = Int(dim.width) }
                     if !out.keys.contains("height") { out["height"] = Int(dim.height) }
-                    log("  video: \(dim.width)x\(dim.height) fps=\(track.nominalFrameRate)")
+                    debugLog("  video: \(dim.width)x\(dim.height) fps=\(track.nominalFrameRate)")
                     if let desc = track.formatDescriptions.first {
                         let fmtDesc = desc as! CMFormatDescription
                         let codec = CMFormatDescriptionGetMediaSubType(fmtDesc)
                         let mime = fourCCtoString(codec)
                         out["videoMime"] = mime
-                        log("  video codec=\(mime) fourCC=\(codec)")
+                        debugLog("  video codec=\(mime) fourCC=\(codec)")
                     }
                     let rate = track.nominalFrameRate
                     if rate > 0 { out["fps"] = Int(round(rate)) }
@@ -160,17 +160,17 @@ final class MediaProbe: NSObject {
                         let codec = CMFormatDescriptionGetMediaSubType(fmtDesc)
                         let mime = fourCCtoString(codec)
                         out["audioMime"] = mime
-                        log("  audio codec=\(mime) fourCC=\(codec)")
+                        debugLog("  audio codec=\(mime) fourCC=\(codec)")
                     }
                     let lang = track.languageCode ?? ""
                     if !lang.isEmpty && lang != "und" { out["audioLanguage"] = lang }
                 }
             }
         } catch {
-            log("  tracks error: \(error)")
+            debugLog("  tracks error: \(error)")
         }
 
-        log("PROBE_RESULT \(out)")
+        debugLog("PROBE_RESULT \(out)")
         return out
     }
 
