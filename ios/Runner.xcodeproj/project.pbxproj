@@ -25,6 +25,7 @@
 		A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000E /* WebDAVClient.swift */; };
 		A1B2C3D50000000000000010 /* JellyfinDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */; };
 		A1B2C3D50000000000000012 /* CacheCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011 /* CacheCleaner.swift */; };
+		A1B2C3D50000000000000017 /* MediaProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000017 /* MediaProbe.swift */; };
 
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		A1B2C3D40000000000000006 /* AetherEngine in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000000000005 /* AetherEngine */; };
@@ -80,6 +81,7 @@
 		A1B2C3D4000000000000000E /* WebDAVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClient.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinDiscovery.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000011 /* CacheCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheCleaner.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000017 /* MediaProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaProbe.swift; sourceTree = "<group>"; };
 
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
@@ -170,6 +172,7 @@
 				A1B2C3D4000000000000000E /* WebDAVClient.swift */,
 				A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */,
 				A1B2C3D40000000000000011 /* CacheCleaner.swift */,
+				A1B2C3D40000000000000017 /* MediaProbe.swift */,
 
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
@@ -348,6 +351,7 @@
 				A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */,
 				A1B2C3D50000000000000010 /* JellyfinDiscovery.swift in Sources */,
 				A1B2C3D50000000000000012 /* CacheCleaner.swift in Sources */,
+				A1B2C3D50000000000000017 /* MediaProbe.swift in Sources */,
 
 			);
 			runOnlyForDeploymentPostprocessing = 0;
