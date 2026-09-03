@@ -36,6 +36,9 @@ jobs:
         run: flutter test
 
       # --- Unsigned build (always produced so you can inspect the app) ---
+      # TEST build — always bundles TMDB_API_KEY (also OPENSUBTITLES/SIMKL)
+      # so the sideloaded/TestFlight app works without first opening Settings.
+      # Release builds (release.yml) intentionally OMIT the TMDB key.
       - name: Build unsigned iOS app
         run: flutter build ios --release --no-codesign --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
 
