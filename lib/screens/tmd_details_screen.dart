@@ -2195,47 +2195,110 @@ class _FolderEntryTile extends StatelessWidget {
     final effectiveLabel = parsed.isEpisode
         ? 'S${effectiveSeason.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
         : '';
-    final subtitle = <String>[
-      if (parsed.isEpisode) effectiveLabel,
-      if (episode != null) episode!.nameLabel,
-      _sizeLabel(entry.size),
-    ].where((s) => s.isNotEmpty).join(' · ');
 
     // Prefer per-episode still thumbnail over series poster (Nova-style).
     final stillUrl = episode?.stillUrl();
     final posterUrl = stillUrl ?? posterUrlOf(tmdbMeta);
 
-    final subtitleWidget = subtitle.isEmpty && resumeProgress == null
-        ? null
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Show episode name on its own line when available (Nova-style).
-              if (episode != null && episode!.name.isNotEmpty)
-                Text(
-                  episode!.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              if (subtitle.isNotEmpty)
-                Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
-              if (resumeProgress != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(1),
-                    child: LinearProgressIndicator(
-                      value: resumeProgress,
-                      minHeight: 2,
-                      backgroundColor: colorScheme.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+    // The RAW filename (e.g. House.S02E05.1080p...mkv) shown subdued on its
+    // own line — the title row leads with the SxxEyy badge + episode name so
+    // the list reads cleanly instead of shouting the full filename.
+    final filenameWidget = Text(
+      entry.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+    );
+
+    final titleWidget = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (episode != null && episode!.name.isNotEmpty) ...[
+          if (parsed.isEpisode) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(
+                effectiveLabel,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colorScheme.onPrimaryContainer,
                     ),
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Expanded(
+            child: Text(
+              episode!.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
                   ),
-                ),
-            ],
-          );
+            ),
+          ),
+        ] else
+          Expanded(
+            child: Text(
+              entry.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+          ),
+        if (episode != null && episode!.voteAverage > 0) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.star, size: 13, color: Colors.amber),
+          const SizedBox(width: 2),
+          Text(
+            episode!.voteAverage.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final subtitleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        filenameWidget,
+        if (_sizeLabel(entry.size).isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              _sizeLabel(entry.size),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        if (resumeProgress != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(1),
+              child: LinearProgressIndicator(
+                value: resumeProgress,
+                minHeight: 2,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+              ),
+            ),
+          ),
+      ],
+    );
 
     return TvTile(
       leading: posterUrl != null
@@ -2244,7 +2307,7 @@ class _FolderEntryTile extends StatelessWidget {
               parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
               color: colorScheme.secondary,
             ),
-      title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: titleWidget,
       subtitle: subtitleWidget,
       onTap: onTap,
     );
