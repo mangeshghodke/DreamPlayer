@@ -154,47 +154,66 @@ private func mkvProbe(path: String) -> MkvInfo {
 
     // Skip the EBML header (0x1A45DFA3) and any leading elements until we
     // reach the Segment (0x18538067), whose children we walk for Info/Tracks.
+    // MKV Segment elements almost always use undefined/unknown size
+    // (all-ones VINT), so readSize returns nil — that means "extends to EOF".
     let scanLimit = min(reader.fileSize, 64 * 1024)
     while reader.pos + 4 <= scanLimit {
         let id = reader.readID() ?? 0
-        guard let size = reader.readSize() else { break }
+        let sizeOpt = reader.readSize()
         if id == 0x18538067 { // Segment
-            mkvWalkSegment(&reader, &info)
+            let segEnd: UInt64
+            if let s = sizeOpt {
+                segEnd = reader.pos + s
+            } else {
+                segEnd = reader.fileSize
+            }
+            probeDebugLog("  mkv: found Segment at pos=\(reader.pos) end=\(segEnd)")
+            mkvWalkSegment(&reader, &info, segEnd: segEnd)
             return info
         }
+        guard let size = sizeOpt else { break }
         guard reader.pos + size <= reader.fileSize else { break }
         reader.seek(reader.pos + size) // skip the element's content
     }
-    probeDebugLog("  mkv: no Segment found")
+    probeDebugLog("  mkv: no Segment found (pos=\(reader.pos) limit=\(scanLimit))")
     return info
 }
 
 /// Walk the Segment's top-level children (bounded) and parse Info/Tracks.
 /// Segment topological structure: SeekHead, Info, Tracks, Clusters, Chapters...
 /// We seek past any child we don't need, so the walk converges quickly.
-private func mkvWalkSegment(_ reader: inout MkvReader, _ info: inout MkvInfo) {
+private func mkvWalkSegment(_ reader: inout MkvReader, _ info: inout MkvInfo, segEnd: UInt64) {
     let maxChildren = 4096
-    for _ in 0..<maxChildren {
-        if reader.pos + 2 > reader.fileSize { break }
+    var parsedChildren = 0
+    while parsedChildren < maxChildren, reader.pos + 2 < segEnd, reader.pos + 2 <= reader.fileSize {
         let id = reader.readID() ?? 0
-        guard let size = reader.readSize() else { break }
+        let sizeOpt = reader.readSize()
         let childStart = reader.pos
-        guard childStart + size <= reader.fileSize else { break }
+        let childEnd: UInt64
+        if let s = sizeOpt {
+            childEnd = childStart + s
+        } else {
+            childEnd = segEnd
+        }
+        guard childEnd <= reader.fileSize else { break }
+        parsedChildren += 1
 
         switch id {
         case 0x1549A966: // Info
-            mkvParseInfo(&reader, &info, Int(size))
-            reader.seek(childStart + size)
+            if let s = sizeOpt { mkvParseInfo(&reader, &info, Int(s)) }
         case 0x1654AE6B: // Tracks
-            mkvParseTracks(&reader, &info, Int(size))
-            reader.seek(childStart + size)
+            if let s = sizeOpt { mkvParseTracks(&reader, &info, Int(s)) }
         default:
-            reader.seek(childStart + size)
+            break
         }
+        reader.seek(childEnd) // always advance past this child
 
         if info.durationNs != nil, info.videoCodecId != nil || info.audioCodecId != nil {
             break
         }
+    }
+    if info.durationNs == nil && info.videoCodecId == nil && info.audioCodecId == nil {
+        probeDebugLog("  mkv: walked \(parsedChildren) children, captured nothing")
     }
 }
 
