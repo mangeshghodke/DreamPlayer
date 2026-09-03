@@ -8,6 +8,7 @@ import '../models/video_item.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
+import '../services/media_probe.dart';
 import '../services/resume_store.dart';
 import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
@@ -162,6 +163,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// Which seasons are expanded (all true initially).
   final Set<int> _expandedSeasons = {};
 
+  MediaProbeResult? _probe;
+  bool _probing = false;
+
   @override
   void initState() {
     super.initState();
@@ -169,6 +173,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     _jellyfinInfo = widget.jellyfinInfo;
     _load();
     _refreshWatched();
+    if (widget.video != null) {
+      _probing = true;
+      _probeFile();
+    }
   }
 
   @override
@@ -320,6 +328,34 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       return (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
     }
     return 0.35;
+  }
+
+  Future<void> _probeFile() async {
+    final v = widget.video;
+    if (v == null) return;
+    try {
+      final uri = v.uri ?? '';
+      MediaProbeResult? r;
+      if (uri.startsWith('ftp://') || uri.startsWith('sftp://') || uri.startsWith('ftps://')) {
+        // FTP/SFTP: MediaExtractor can't open these URIs directly.
+        // Download the first 8 MB to a temp file, probe that, clean up.
+        r = await MediaProbe.instance.probeViaTempDownload(uri);
+      } else {
+        r = await MediaProbe.instance.probe(
+          path: v.path,
+          uri: v.uri,
+          headers: v.httpHeaders,
+          allowSelfSigned: v.allowSelfSigned,
+        );
+      }
+      if (!mounted) return;
+      setState(() {
+        _probe = r;
+        _probing = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _probing = false);
+    }
   }
 
   Future<void> _load() async {
@@ -772,7 +808,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       videoCodec: info.videoCodec,
       audioCodec: info.audioCodec,
       audioChannels: info.audioChannels,
+      audioLanguage: info.audioLanguage,
       resolution: info.resolution,
+      fps: info.fps,
       hdrHint: info.hdrHint,
     );
   }
@@ -1186,7 +1224,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                 // ── File info card (Nova-style) ──
                 if (widget.video != null) ...[
                   const SizedBox(height: 20),
-                  _FileInfoCard(video: widget.video!),
+                  _FileInfoCard(video: widget.video!, probe: _probe, probing: _probing),
                 ],
 
                 // ── Subtitles card ──
@@ -1651,39 +1689,44 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   Widget _buildNoMatch(ThemeData theme) {
     final colorScheme = theme.colorScheme;
     final fileName = widget.video?.title ?? widget.folder?.name ?? '';
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.movie_filter_outlined,
-              size: 64,
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 8),
+          Icon(
+            Icons.movie_filter_outlined,
+            size: 64,
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            fileName,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No metadata loaded',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 16),
-            Text(
-              fileName,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'No metadata loaded',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: _fixMatch,
-              icon: const Icon(Icons.info_outline),
-              label: const Text('Get Info'),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: _fixMatch,
+            icon: const Icon(Icons.info_outline),
+            label: const Text('Get Info'),
+          ),
+            if (widget.video != null) ...[
+              const SizedBox(height: 24),
+              _FileInfoCard(video: widget.video!, probe: _probe, probing: _probing),
+              const SizedBox(height: 12),
+              _SubtitlesCard(video: widget.video!),
+            ],
+        ],
       ),
     );
   }
@@ -1771,22 +1814,92 @@ class _FactChip extends StatelessWidget {
   }
 }
 
-/// Nova-style file info card showing codec, resolution, file size.
+/// Nova-style file info card — shows every technical detail of the file,
+/// just as Nova Video Player does. Wired for **all** sources (local,
+/// SMB/WebDAV/FTP/UPnP/Jellyfin): name, location (smb:// / file:// /
+/// https://), duration, size, video codec · resolution · fps · HDR, and
+/// audio codec · channels · language.
+///
+/// When [probe] is available (native MediaExtractor probe of the file
+/// header), its values override the filename-derived ones — exactly how
+/// Nova probes the container instead of parsing the filename.
 class _FileInfoCard extends StatelessWidget {
-  const _FileInfoCard({required this.video});
+  const _FileInfoCard({required this.video, this.probe, this.probing = false});
   final VideoItem video;
+  final MediaProbeResult? probe;
+  final bool probing;
+
+  String _displayLocation(VideoItem v) {
+    // Prefer the human-readable path (local absolute or smb:// share/path).
+    // For SMB bookmarks the playable uri is a temp http://127.0.0.1 loopback —
+    // never show that; derive from resumeKey instead.
+    final p = v.path ?? '';
+    final u = v.uri ?? '';
+    final k = v.resumeKey ?? '';
+    // Filter out temp loopback URLs
+    bool isLoopback(String s) => s.contains('127.0.0.1') || s.contains('localhost');
+    // Decode URL-encoded content:// URIs to show clean paths
+    String decodeContentUri(String uri) {
+      if (!uri.startsWith('content://')) return uri;
+      // Extract the document ID and decode it (e.g. primary%3AMovies%2Ffile.mkv → primary:Movies/file.mkv)
+      try {
+        final docId = Uri.decodeComponent(uri.split('/document/').lastOrNull ?? '');
+        // Map Android storage IDs to real paths
+        if (docId.startsWith('primary:')) {
+          return '/storage/emulated/0/${docId.substring(8)}';
+        }
+        if (docId.startsWith('secondary:')) {
+          return '/storage/sdcard1/${docId.substring(9)}';
+        }
+        // Other providers: show the decoded ID
+        return docId;
+      } catch (_) {
+        return uri;
+      }
+    }
+    if (p.isNotEmpty && !isLoopback(p)) {
+      return p.startsWith('content://') ? decodeContentUri(p) : p;
+    }
+    if (u.isNotEmpty && !isLoopback(u)) {
+      return u.startsWith('content://') ? decodeContentUri(u) : u;
+    }
+    // Fallback to resumeKey formatting (stable, shows share/path for network)
+    if (k.startsWith('smb:') || k.startsWith('smb_')) {
+      final rest = k.replaceFirst(RegExp(r'^smb[:_]'), '');
+      // rest is like "serverId/share/path" or "share/path" — show share/path
+      final parts = rest.split('/');
+      if (parts.length >= 2) {
+        // drop serverId if it looks like uuid/server host
+        final share = parts[1];
+        final filePath = parts.skip(2).join('/');
+        return filePath.isEmpty ? 'smb://$share' : 'smb://$share/$filePath';
+      }
+      return 'smb://$rest';
+    }
+    if (k.startsWith('webdav_')) return k.replaceFirst('webdav_', 'webdav://');
+    if (k.startsWith('ftp_')) return k.replaceFirst('ftp_', 'ftp://');
+    if (k.startsWith('folderbookmark:')) return k;
+    if (p.isNotEmpty) return p;
+    if (u.isNotEmpty) return u;
+    return k;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final hdrFormat = video.hdrFormat;
-    final videoCodec = video.videoCodecLabel;
-    final audioCodec = video.audioCodec;
-    final audioChannels = video.audioChannels;
-    final resolution = video.resolution;
+    // Prefer probed values (real container) over filename-derived ones
+    final videoCodec = (probe?.videoMime != null ? formatVideoCodec(probe!.videoMime) : null) ?? video.videoCodecLabel;
+    final audioCodecRaw = probe?.audioMime ?? video.audioCodec;
+    final audioCodec = audioCodecRaw;
+    final audioChannels = probe?.audioChannels != null ? '${probe!.audioChannels} ch' : video.audioChannels;
+    final audioLanguage = probe?.audioLanguage ?? video.audioLanguage;
+    final resolution = probe?.resolutionLabel ?? video.resolution;
+    final fps = probe?.fps ?? video.fps;
+    // Duration from probe beats the zero before playback
+    final duration = (probe?.durationMs != null && probe!.durationMs! > 0) ? Duration(milliseconds: probe!.durationMs!) : video.duration;
     final sizeBytes = video.sizeBytes;
-    final path = video.path ?? video.uri ?? '';
+    final location = _displayLocation(video);
 
     // Build info rows
     final rows = <Widget>[];
@@ -1797,22 +1910,22 @@ class _FileInfoCard extends StatelessWidget {
       rows.add(const SizedBox(height: 8));
     }
 
-    // Video codec + resolution
-    final videoInfo = [videoCodec, resolution]
-        .where((s) => s != null && s.isNotEmpty)
-        .join('  ·  ');
-    if (videoInfo.isNotEmpty) {
-      rows.add(_InfoRow(icon: Icons.videocam, label: videoInfo));
+    // File name — always show (Nova header for file info)
+    rows.add(_InfoRow(icon: Icons.description_outlined, label: video.title));
+
+    // Location — Nova shows the full SMB / file path under the file info.
+    // All sources wire the same card: local absolute, smb://share/…, https://
+    // webdav, ftp://, content://, jellyfin server path via resumeKey fallback.
+    if (location.isNotEmpty) {
+      rows.add(_InfoRow(icon: Icons.folder_open, label: location));
     }
 
-    // Audio codec with channels (Nova-style)
-    if (audioCodec != null && audioCodec.isNotEmpty) {
-      final formatted = formatAudioCodec(audioCodec);
-      final parts = <String>[formatted];
-      if (audioChannels != null && audioChannels.isNotEmpty) {
-        parts.add(audioChannels);
-      }
-      rows.add(_InfoRow(icon: Icons.audiotrack, label: parts.join(' ')));
+    // Duration (when known — via probe for local/http like Nova, else after playback)
+    if (duration > Duration.zero) {
+      final label = Duration(milliseconds: duration.inMilliseconds).inHours > 0
+          ? '${duration.inHours}:${(duration.inMinutes % 60).toString().padLeft(2, '0')}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}'
+          : '${duration.inMinutes}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}';
+      rows.add(_InfoRow(icon: Icons.schedule, label: label));
     }
 
     // File size
@@ -1823,7 +1936,35 @@ class _FileInfoCard extends StatelessWidget {
       ));
     }
 
-    if (rows.isEmpty) return const SizedBox.shrink();
+    // Video: codec · resolution · fps · HDR already as badge, but also as text
+    final videoParts = <String>[];
+    if (videoCodec != null && videoCodec.isNotEmpty) videoParts.add(videoCodec);
+    if (resolution != null && resolution.isNotEmpty) videoParts.add(resolution);
+    if (fps != null && fps > 0) videoParts.add('$fps fps');
+    final videoInfo = videoParts.join('  ·  ');
+    if (videoInfo.isNotEmpty) {
+      rows.add(_InfoRow(icon: Icons.videocam, label: videoInfo));
+    }
+
+    // Audio: codec · channels · language (Nova lists each track; we show the
+    // primary filename-derived track for all shares — local/SMB/WebDAV/FTP/UPnP).
+    if (audioCodec != null && audioCodec.isNotEmpty) {
+      final formatted = formatAudioCodec(audioCodec);
+      final parts = <String>[formatted];
+      if (audioChannels != null && audioChannels.isNotEmpty) {
+        parts.add(audioChannels);
+      }
+      if (audioLanguage != null && audioLanguage.isNotEmpty) {
+        parts.add(audioLanguage);
+      }
+      rows.add(_InfoRow(icon: Icons.audiotrack, label: parts.join('  ·  ')));
+    } else if (audioLanguage != null && audioLanguage.isNotEmpty) {
+      rows.add(_InfoRow(icon: Icons.audiotrack, label: audioLanguage));
+    } else if (audioChannels != null && audioChannels.isNotEmpty) {
+      rows.add(_InfoRow(icon: Icons.audiotrack, label: audioChannels));
+    }
+
+    if (rows.isEmpty && !probing) return const SizedBox.shrink();
 
     return Card(
       child: Padding(
@@ -1839,15 +1980,27 @@ class _FileInfoCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             ...rows,
-            if (path.isNotEmpty) ...[
+            if (probing && probe == null) ...[
               const SizedBox(height: 8),
-              Text(
-                path,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Probing file…',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ],
           ],

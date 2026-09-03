@@ -4,6 +4,7 @@ class FileInfo {
     this.videoCodec,
     this.audioCodec,
     this.audioChannels,
+    this.audioLanguage,
     this.resolution,
     this.hdrHint,
     this.fps,
@@ -12,6 +13,7 @@ class FileInfo {
   final String? videoCodec;
   final String? audioCodec;
   final String? audioChannels;
+  final String? audioLanguage;
   final String? resolution;
   final String? hdrHint;
   final int? fps;
@@ -20,6 +22,7 @@ class FileInfo {
       videoCodec == null &&
       audioCodec == null &&
       audioChannels == null &&
+      audioLanguage == null &&
       resolution == null &&
       hdrHint == null &&
       fps == null;
@@ -35,6 +38,7 @@ FileInfo extractFileInfo(String fileName) {
     videoCodec: _extractVideoCodec(name),
     audioCodec: _extractAudioCodec(name),
     audioChannels: _extractAudioChannels(name),
+    audioLanguage: _extractAudioLanguage(name),
     resolution: _extractResolution(name),
     hdrHint: _extractHdr(name),
     fps: _extractFps(name),
@@ -204,6 +208,35 @@ String? _extractHdr(String name) {
   // HLG
   if (name.contains(RegExp(r'\bhlg\b'))) {
     return 'HLG';
+  }
+  return null;
+}
+
+String? _extractAudioLanguage(String name) {
+  const langs = {
+    'english': 'English',
+    'eng': 'English',
+    'hindi': 'Hindi',
+    'hin': 'Hindi',
+    'japanese': 'Japanese',
+    'jpn': 'Japanese',
+    'jap': 'Japanese',
+    'korean': 'Korean',
+    'kor': 'Korean',
+    'french': 'French',
+    'fre': 'French',
+    'fra': 'French',
+    'german': 'German',
+    'ger': 'German',
+    'deu': 'German',
+    'spanish': 'Spanish',
+    'spa': 'Spanish',
+    'tamil': 'Tamil',
+    'telugu': 'Telugu',
+    'malayalam': 'Malayalam',
+  };
+  for (final entry in langs.entries) {
+    if (name.contains(RegExp('\\b${entry.key}\\b'))) return entry.value;
   }
   return null;
 }

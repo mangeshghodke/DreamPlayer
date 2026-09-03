@@ -91,7 +91,9 @@ HdrFormat detectLiveHdrFormat({String? videoCodec, String? gamma}) {
 
 String formatAudioCodec(String? codec) {
   if (codec == null || codec.isEmpty) return 'Unknown';
-  final c = codec.toLowerCase();
+  var c = codec.toLowerCase();
+  // Strip MIME prefix (e.g. "audio/eac3" → "eac3")
+  if (c.contains('/')) c = c.substring(c.lastIndexOf('/') + 1);
   const map = {
     'eac3': 'E-AC3',
     'ec3': 'E-AC3',
@@ -124,10 +126,12 @@ String formatAudioCodec(String? codec) {
 
 String formatVideoCodec(String? codec) {
   if (codec == null || codec.isEmpty) return 'Unknown';
-  final c = codec.toLowerCase();
+  var c = codec.toLowerCase();
+  // Strip MIME prefix (e.g. "video/hevc" → "hevc")
+  if (c.contains('/')) c = c.substring(c.lastIndexOf('/') + 1);
   // Codec strings from Media3/containers carry a profile suffix
   // (e.g. `dvhe.08.06`, `hvc1.2.4.L153.B0`); match on the leading token.
-  final primary = c.split(RegExp(r'[.\s/]')).first;
+  final primary = c.split(RegExp(r'[.\s]')).first;
   const map = {
     'h264': 'H.264',
     'avc1': 'H.264',

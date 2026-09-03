@@ -259,7 +259,9 @@ class _WebDavScreenState extends State<WebDavScreen> {
             videoCodec: fi.videoCodec,
             audioCodec: fi.audioCodec,
             audioChannels: fi.audioChannels,
+      audioLanguage: fi.audioLanguage,
             resolution: fi.resolution,
+      fps: fi.fps,
             hdrHint: fi.hdrHint,
           );
         }(),

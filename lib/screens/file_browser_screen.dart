@@ -189,7 +189,9 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       videoCodec: info.videoCodec,
       audioCodec: info.audioCodec,
       audioChannels: info.audioChannels,
+      audioLanguage: info.audioLanguage,
       resolution: info.resolution,
+      fps: info.fps,
       hdrHint: info.hdrHint,
     );
   }

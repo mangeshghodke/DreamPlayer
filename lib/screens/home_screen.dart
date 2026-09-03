@@ -828,13 +828,10 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Opens the "+" menu: WebDAV server, internal storage, add folder, Jellyfin.
+  /// Opens the "+" menu: network sources in a collapsed section, local below.
   Future<void> _showAddMenu() async {
     final action = await showModalBottomSheet<String>(
       context: context,
-      // Default sheets cap at 9/16 of screen height — in phone landscape that
-      // clips the tail of the list. Scroll-controlled + height-capped so all
-      // entries stay reachable on any orientation.
       isScrollControlled: true,
       builder: (context) => SafeArea(
         child: ConstrainedBox(
@@ -845,52 +842,7 @@ class _HomeScreenState extends State<HomeScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ListTile(
-                  leading: const Icon(Icons.cloud_outlined),
-                  title: const Text('WebDAV'),
-                  subtitle: const Text('Add a WebDAV server'),
-                  onTap: () => Navigator.of(context).pop('webdav'),
-                ),
-                // FTP/SFTP browse + playback on every platform (iOS via the
-                // Network.framework FTP client / Citadel SFTP in FtpClient.swift).
-                ListTile(
-                  leading: const Icon(Icons.folder_outlined),
-                  title: const Text('FTP / SFTP'),
-                  subtitle: const Text('FTP or SFTP file server'),
-                  onTap: () => Navigator.of(context).pop('ftp'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.live_tv_outlined),
-                  title: const Text('Jellyfin'),
-                  subtitle: const Text('Jellyfin / Emby media server'),
-                  onTap: () => Navigator.of(context).pop('jellyfin'),
-                ),
-                if (Platform.isAndroid)
-                  ListTile(
-                    leading: const Icon(Icons.folder_shared_outlined),
-                    title: const Text('Network shares'),
-                    subtitle: const Text('SMB / NAS shares'),
-                    onTap: () => Navigator.of(context).pop('smb'),
-                  )
-                else
-                  ListTile(
-                    leading: const Icon(Icons.folder_shared_outlined),
-                    title: const Text('Network shares'),
-                    subtitle: const Text('SMB via the Files app'),
-                    onTap: () => Navigator.of(context).pop('smb-ios'),
-                  ),
-                ListTile(
-                  leading: const Icon(Icons.cast_connected_outlined),
-                  title: const Text('DLNA'),
-                  subtitle: const Text('DLNA / UPnP servers on this network'),
-                  onTap: () => Navigator.of(context).pop('upnp'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.link_outlined),
-                  title: const Text('Play URL'),
-                  subtitle: const Text('Stream a direct video link'),
-                  onTap: () => Navigator.of(context).pop('play-url'),
-                ),
+                // ── Local actions (always visible) ──
                 ListTile(
                   leading: const Icon(Icons.video_library_outlined),
                   title: const Text('Add folder to library'),
@@ -904,6 +856,57 @@ class _HomeScreenState extends State<HomeScreen>
                   title: const Text('Internal storage'),
                   subtitle: const Text('Browse files on this device'),
                   onTap: () => Navigator.of(context).pop('storage'),
+                ),
+                const Divider(height: 1),
+                // ── Network sources (collapsed section) ──
+                ExpansionTile(
+                  leading: const Icon(Icons.wifi_outlined),
+                  title: const Text('Network sources'),
+                  subtitle: const Text('Servers on this network'),
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.folder_shared_outlined),
+                      title: const Text('SMB / NAS'),
+                      subtitle: Text(
+                        Platform.isAndroid
+                            ? 'SMB shares on the local network'
+                            : 'SMB via the Files app',
+                      ),
+                      onTap: () => Navigator.of(context).pop(
+                        Platform.isAndroid ? 'smb' : 'smb-ios',
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.cloud_outlined),
+                      title: const Text('WebDAV'),
+                      subtitle: const Text('Add a WebDAV server'),
+                      onTap: () => Navigator.of(context).pop('webdav'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.folder_outlined),
+                      title: const Text('FTP / SFTP'),
+                      subtitle: const Text('FTP or SFTP file server'),
+                      onTap: () => Navigator.of(context).pop('ftp'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.live_tv_outlined),
+                      title: const Text('Jellyfin'),
+                      subtitle: const Text('Jellyfin / Emby media server'),
+                      onTap: () => Navigator.of(context).pop('jellyfin'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.cast_connected_outlined),
+                      title: const Text('DLNA'),
+                      subtitle: const Text('UPnP / DLNA servers on this network'),
+                      onTap: () => Navigator.of(context).pop('upnp'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.link_outlined),
+                      title: const Text('Play URL'),
+                      subtitle: const Text('Stream a direct video link'),
+                      onTap: () => Navigator.of(context).pop('play-url'),
+                    ),
+                  ],
                 ),
               ],
             ),

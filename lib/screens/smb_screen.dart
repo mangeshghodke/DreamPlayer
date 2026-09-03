@@ -379,10 +379,13 @@ class _SmbScreenState extends State<SmbScreen> {
       hasSequentialNumbering = _hasSequentialNumbering(videoEntries);
     }
 
-    // Trigger series view for any folder with video files.
-    final isSeries = episodes.isNotEmpty ||
-        hasSequentialNumbering ||
-        videoEntries.isNotEmpty;
+    // Trigger series view only when the folder looks like a series
+    // (episode tags or sequential numbering). A mixed / misc folder with
+    // unrelated movies/demos (e.g. "Miscellaneous") must stay in the flat
+    // list — otherwise _seriesFolderBody filters to episodes only and the
+    // non-episode videos disappear (bookmark via FolderScreen groups ALL
+    // videos so they stay visible there).
+    final isSeries = episodes.isNotEmpty || hasSequentialNumbering;
 
     if (!isSeries) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
@@ -608,6 +611,7 @@ class _SmbScreenState extends State<SmbScreen> {
     final item = VideoItem(
       id: 'smb:${video.path}_${DateTime.now().microsecondsSinceEpoch}',
       title: video.name,
+      path: 'smb://$_share/${video.path}',
       uri: videoUrl,
       resumeKey: 'smb:${server.id}/$_share/${video.path}',
       subtitleUri: subtitleUrl,
@@ -617,16 +621,49 @@ class _SmbScreenState extends State<SmbScreen> {
       videoCodec: info.videoCodec,
       audioCodec: info.audioCodec,
       audioChannels: info.audioChannels,
+      audioLanguage: info.audioLanguage,
       resolution: info.resolution,
+      fps: info.fps,
       hdrHint: info.hdrHint,
     );
 
+    if (!mounted) return;
+    // Only carry the folder's series metadata when the tapped file is
+    // actually an episode of that series (mirrors FolderScreen /
+    // TmdDetailsScreen folder mode). For standalone movies/demos in a
+    // mixed folder like Miscellaneous, the video must resolve its own
+    // title — otherwise parentMetadataKey forces _identityKey to the
+    // folder's show and every file shows "Miscellaneous" details.
+    final folderKey =
+        'smb_folder:${server.id}/$_share/${_path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '')}';
+    final folderMeta = TmdService.instance.metaFor(folderKey);
+    final isEp = _isEpisodeEntry(video);
+    String? parentKey;
+    if (isEp && folderMeta != null && folderMeta.movie.kind == TmdKind.tv) {
+      parentKey = folderKey;
+      // Carry full folder meta (movie+details+seasons) onto the episode's
+      // key so its details screen shows SxxEyy name/overview instantly.
+      try {
+        await TmdService.instance
+            .carryMeta(folderKey, TmdStore.identityKeyFor(item));
+      } catch (_) {}
+    } else if (!isEp && folderMeta != null) {
+      // Standalone movie: drop any folder meta previously carried onto this
+      // video's key (older builds) so it re-searches its own title.
+      final videoKey = TmdStore.identityKeyFor(item);
+      final existing = TmdService.instance.metaFor(videoKey);
+      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+        try {
+          await TmdService.instance.clear(videoKey);
+        } catch (_) {}
+      }
+    }
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TmdDetailsScreen(
           video: item,
-          parentMetadataKey: 'smb_folder:${server.id}/$_share/${_path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '')}',
+          parentMetadataKey: parentKey,
         ),
       ),
     );
@@ -939,6 +976,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
     final videoEntries = _entries.where((e) => !e.isDirectory).toList();
     final episodes = videoEntries.where(_isEpisodeEntry).toList();
+    final movies = videoEntries.where((e) => !_isEpisodeEntry(e)).toList();
 
     // Get metadata key for season data lookup.
     final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
@@ -1035,6 +1073,38 @@ class _SmbScreenState extends State<SmbScreen> {
               seasonName: cachedMeta?.seasons[s]?.name,
               onTapEntry: (entry) => _openEntry(entry),
               onToggleWatched: (entry) => _toggleWatched(entry),
+            ),
+          ),
+
+        // ── Non-episode videos in this series folder (movies / demos) ──
+        // Without this, a series folder that also contains stand-alone videos
+        // hides them — the old code grouped only episodes. The bookmark path
+        // (FolderScreen) groups ALL videos so they stay visible there, which
+        // is why Miscellaneous showed files via bookmark but not via SMB browse.
+        if (movies.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            sliver: SliverToBoxAdapter(
+              child: Text(
+                'Other videos',
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+        for (final m in movies)
+          SliverToBoxAdapter(
+            child: _SmbTile(
+              entry: m,
+              onTap: () => _openEntry(m),
+              tmdbMeta: TmdService.instance
+                  .metaFor('smb:${server.id}/$_share/${m.path}'),
+              watched: _watchedKeys
+                  .contains('smb:${server.id}/$_share/${m.path}'),
+              onToggleWatched: () => _toggleWatched(m),
             ),
           ),
 

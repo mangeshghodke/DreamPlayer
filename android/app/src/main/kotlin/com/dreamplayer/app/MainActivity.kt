@@ -92,6 +92,9 @@ class MainActivity : FlutterActivity() {
         MediaScanner(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MediaScanner.CHANNEL),
         )
+        MediaProbe(this).configure(
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MediaProbe.CHANNEL),
+        )
         intentChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "dreamplayer/intent",

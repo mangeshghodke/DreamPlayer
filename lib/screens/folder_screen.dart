@@ -419,11 +419,30 @@ class _FolderScreenState extends State<FolderScreen> {
       await _load();
       return;
     }
+    final video = _toVideoItem(entry);
+    final folderKey = widget.folder.metadataKey;
+    final folderMeta = TmdService.instance.metaFor(folderKey);
+    final parsed = ParsedFileName.parse(entry.name);
+    final isEp = parsed.isEpisode || _epPattern.hasMatch(entry.name);
+    String? parentKey;
+    if (isEp && folderMeta != null && folderMeta.movie.kind == TmdKind.tv) {
+      parentKey = folderKey;
+      try {
+        await TmdService.instance.carryMeta(folderKey, TmdStore.identityKeyFor(video));
+      } catch (_) {}
+    } else if (!isEp && folderMeta != null) {
+      final videoKey = TmdStore.identityKeyFor(video);
+      final existing = TmdService.instance.metaFor(videoKey);
+      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+        try { await TmdService.instance.clear(videoKey); } catch (_) {}
+      }
+    }
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TmdDetailsScreen(
-          video: _toVideoItem(entry),
-          parentMetadataKey: widget.folder.metadataKey,
+          video: video,
+          parentMetadataKey: parentKey,
         ),
       ),
     );
@@ -443,11 +462,28 @@ class _FolderScreenState extends State<FolderScreen> {
       return;
     }
     if (!item.isPlayable) return;
+    final video = _jellyfin.videoItem(server, item);
+    final folderKey = widget.folder.metadataKey;
+    final folderMeta = TmdService.instance.metaFor(folderKey);
+    final isEp = item.type == 'Episode' ||
+        (item.parentIndexNumber != null && item.indexNumber != null);
+    String? parentKey;
+    if (isEp && folderMeta != null && folderMeta.movie.kind == TmdKind.tv) {
+      parentKey = folderKey;
+      try { await TmdService.instance.carryMeta(folderKey, TmdStore.identityKeyFor(video)); } catch (_) {}
+    } else if (!isEp && folderMeta != null) {
+      final videoKey = TmdStore.identityKeyFor(video);
+      final existing = TmdService.instance.metaFor(videoKey);
+      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+        try { await TmdService.instance.clear(videoKey); } catch (_) {}
+      }
+    }
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TmdDetailsScreen(
-          video: _jellyfin.videoItem(server, item),
-          parentMetadataKey: widget.folder.metadataKey,
+          video: video,
+          parentMetadataKey: parentKey,
         ),
       ),
     );
@@ -468,20 +504,45 @@ class _FolderScreenState extends State<FolderScreen> {
     final share = widget.folder.networkShare ?? _networkShare;
     final uri = await SmbClient.instance.openShare(serverId, share, entry.path);
     final resumeKey = 'smb:$serverId/$share/${entry.path}';
+    final fi = extractFileInfo(entry.name);
     final item = VideoItem(
       id: 'smb_${widget.folder.id}_${entry.path.hashCode}',
       title: entry.name,
+      path: 'smb://$share/${entry.path}',
       uri: uri,
       resumeKey: resumeKey,
       duration: Duration.zero,
       sizeBytes: entry.size,
+      videoCodec: fi.videoCodec,
+      audioCodec: fi.audioCodec,
+      audioChannels: fi.audioChannels,
+      audioLanguage: fi.audioLanguage,
+      resolution: fi.resolution,
+      fps: fi.fps,
+      hdrHint: fi.hdrHint,
     );
+    if (!mounted) return;
+    final folderKey = widget.folder.metadataKey;
+    final folderMeta = TmdService.instance.metaFor(folderKey);
+    final parsed = ParsedFileName.parse(entry.name);
+    final isEp = parsed.isEpisode || _epPattern.hasMatch(entry.name);
+    String? parentKey;
+    if (isEp && folderMeta != null && folderMeta.movie.kind == TmdKind.tv) {
+      parentKey = folderKey;
+      try { await TmdService.instance.carryMeta(folderKey, TmdStore.identityKeyFor(item)); } catch (_) {}
+    } else if (!isEp && folderMeta != null) {
+      final videoKey = TmdStore.identityKeyFor(item);
+      final existing = TmdService.instance.metaFor(videoKey);
+      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+        try { await TmdService.instance.clear(videoKey); } catch (_) {}
+      }
+    }
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TmdDetailsScreen(
           video: item,
-          parentMetadataKey: widget.folder.metadataKey,
+          parentMetadataKey: parentKey,
         ),
       ),
     );
@@ -525,7 +586,9 @@ class _FolderScreenState extends State<FolderScreen> {
       videoCodec: info.videoCodec,
       audioCodec: info.audioCodec,
       audioChannels: info.audioChannels,
+      audioLanguage: info.audioLanguage,
       resolution: info.resolution,
+      fps: info.fps,
       hdrHint: info.hdrHint,
     );
   }

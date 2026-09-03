@@ -128,11 +128,13 @@ class VideoItem {
     required this.duration,
     this.sizeBytes,
     this.resolution,
+    this.fps,
     this.videoCodec,
     this.hdrHint,
     this.audioCodec,
     this.audioProfile,
     this.audioChannels,
+    this.audioLanguage,
     this.subtitleUri,
     this.httpHeaders = const {},
     this.allowSelfSigned = false,
@@ -209,11 +211,13 @@ class VideoItem {
   final Duration duration;
   final int? sizeBytes;
   final String? resolution;
+  final int? fps;
   final String? videoCodec;
   final String? hdrHint;
   final String? audioCodec;
   final String? audioProfile;
   final String? audioChannels;
+  final String? audioLanguage;
 
   HdrFormat get hdrFormat => detectHdrFormat(hdrHint);
 
@@ -265,11 +269,13 @@ class VideoItem {
       duration: duration,
       sizeBytes: sizeBytes,
       resolution: resolution,
+      fps: fps,
       videoCodec: videoCodec,
       hdrHint: hdrHint,
       audioCodec: audioCodec,
       audioProfile: audioProfile,
       audioChannels: audioChannels,
+      audioLanguage: audioLanguage,
       subtitleUri: subtitleUri,
       httpHeaders: httpHeaders,
       allowSelfSigned: allowSelfSigned,
@@ -298,11 +304,13 @@ class VideoItem {
       duration: duration,
       sizeBytes: sizeBytes,
       resolution: resolution,
+      fps: fps,
       videoCodec: videoCodec,
       hdrHint: hdrHint,
       audioCodec: audioCodec,
       audioProfile: audioProfile,
       audioChannels: audioChannels,
+      audioLanguage: audioLanguage,
       subtitleUri: subtitleUri,
       httpHeaders: httpHeaders,
       allowSelfSigned: allowSelfSigned,
@@ -368,7 +376,9 @@ class VideoItem {
         if (videoCodec != null) 'videoCodec': videoCodec,
         if (audioCodec != null) 'audioCodec': audioCodec,
         if (audioChannels != null) 'audioChannels': audioChannels,
+        if (audioLanguage != null) 'audioLanguage': audioLanguage,
         if (resolution != null) 'resolution': resolution,
+        if (fps != null) 'fps': fps,
         if (hdrHint != null) 'hdrHint': hdrHint,
       };
 
@@ -403,7 +413,9 @@ class VideoItem {
       videoCodec: json['videoCodec'] as String?,
       audioCodec: json['audioCodec'] as String?,
       audioChannels: json['audioChannels'] as String?,
+      audioLanguage: json['audioLanguage'] as String?,
       resolution: json['resolution'] as String?,
+      fps: (json['fps'] as num?)?.toInt(),
       hdrHint: json['hdrHint'] as String?,
     );
   }
