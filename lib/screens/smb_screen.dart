@@ -321,6 +321,13 @@ class _SmbScreenState extends State<SmbScreen> {
     }
   }
 
+  Future<void> _onRefresh() async {
+    final server = _browsing;
+    if (server == null) return;
+    await _smb.invalidateListingCache(serverId: server.id);
+    await _loadDirectory(_path);
+  }
+
   /// Best-effort TMDB prefetch for the current folder's video files. Each file
   /// resolves under the SAME stable key its tile/tap uses, so the row's poster
   /// appears (when a match exists) and tapping the file is a cache hit.
@@ -876,18 +883,31 @@ class _SmbScreenState extends State<SmbScreen> {
       );
     }
     if (_browsing == null) return _serverList(context);
-    if (_entries.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            _share.isEmpty
-                ? 'No shares found. Tap "Add share" and enter the name '
-                    'manually if your NAS uses an unusual share name.'
-                : 'Nothing here',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+    // Empty folder state — still wrap in RefreshIndicator so user can
+    // pull-to-refresh after adding files on the NAS/PC.
+    if (_entries.isEmpty && !_isSeriesFolder) {
+      return RefreshIndicator(
+        onRefresh: _onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    _share.isEmpty
+                        ? 'No shares found. Tap "Add share" and enter the name '
+                            'manually if your NAS uses an unusual share name.'
+                        : 'Nothing here',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -938,9 +958,11 @@ class _SmbScreenState extends State<SmbScreen> {
     );
     final sortedSeasons = seasonGroups.keys.toList()..sort();
 
-    return CustomScrollView(
-      slivers: [
-        // ── Series header ──
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
         SliverToBoxAdapter(
           child: _SeriesFolderHeader(
             meta: meta,
@@ -1018,32 +1040,37 @@ class _SmbScreenState extends State<SmbScreen> {
 
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
+      ),
     );
   }
 
   /// Regular flat file list (non-series folder or shares/server list).
   Widget _flatFileList(BuildContext context) {
-    return ListView.builder(
-      itemCount: _entries.length,
-      itemBuilder: (context, index) {
-        final entry = _entries[index];
-        final key = _watchedKeyFor(entry);
-        // Read poster from TmdService directly (not the local _tmdbMeta map)
-        // so fix-match changes appear instantly on rebuild.
-        final serviceKey = entry.isDirectory
-            ? null
-            : 'smb:${_browsing!.id}/$_share/${entry.path}';
-        final meta = serviceKey != null
-            ? TmdService.instance.metaFor(serviceKey)
-            : null;
-        return _SmbTile(
-          entry: entry,
-          onTap: () => _openEntry(entry),
-          tmdbMeta: meta,
-          watched: key.isNotEmpty && _watchedKeys.contains(key),
-          onToggleWatched: () => _toggleWatched(entry),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _entries.length,
+        itemBuilder: (context, index) {
+          final entry = _entries[index];
+          final key = _watchedKeyFor(entry);
+          // Read poster from TmdService directly (not the local _tmdbMeta map)
+          // so fix-match changes appear instantly on rebuild.
+          final serviceKey = entry.isDirectory
+              ? null
+              : 'smb:${_browsing!.id}/$_share/${entry.path}';
+          final meta = serviceKey != null
+              ? TmdService.instance.metaFor(serviceKey)
+              : null;
+          return _SmbTile(
+            entry: entry,
+            onTap: () => _openEntry(entry),
+            tmdbMeta: meta,
+            watched: key.isNotEmpty && _watchedKeys.contains(key),
+            onToggleWatched: () => _toggleWatched(entry),
+          );
+        },
+      ),
     );
   }
 

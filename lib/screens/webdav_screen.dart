@@ -122,6 +122,13 @@ class _WebDavScreenState extends State<WebDavScreen> {
     }
   }
 
+  Future<void> _onRefresh() async {
+    final server = _browsing;
+    if (server == null) return;
+    await _webdav.invalidateListingCache(url: server.url);
+    await _loadDirectory(_path);
+  }
+
   /// Best-effort TMDB prefetch for the current folder's video files.
   void _prefetchTmdbMeta(List<WebDavEntry> entries) {
     final server = _browsing;
@@ -393,28 +400,43 @@ class _WebDavScreenState extends State<WebDavScreen> {
     }
     if (_browsing == null) return _serverList(context);
     if (_entries.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'Nothing here',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+      return RefreshIndicator(
+        onRefresh: _onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Nothing here',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
-    return ListView.builder(
-      itemCount: _entries.length,
-      itemBuilder: (context, index) {
-        final entry = _entries[index];
-        final server = _browsing;
-        final meta = entry.isDirectory || server == null
-            ? null
-            : TmdService.instance
-                .metaFor('webdav_${server.id}${entry.path}');
-        return _WebDavTile(entry: entry, tmdbMeta: meta, onTap: () => _openEntry(entry));
-      },
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _entries.length,
+        itemBuilder: (context, index) {
+          final entry = _entries[index];
+          final server = _browsing;
+          final meta = entry.isDirectory || server == null
+              ? null
+              : TmdService.instance
+                  .metaFor('webdav_${server.id}${entry.path}');
+          return _WebDavTile(entry: entry, tmdbMeta: meta, onTap: () => _openEntry(entry));
+        },
+      ),
     );
   }
 

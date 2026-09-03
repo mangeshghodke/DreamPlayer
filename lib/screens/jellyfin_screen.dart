@@ -143,6 +143,12 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     }
   }
 
+  Future<void> _onRefresh() async {
+    final server = _browsing;
+    if (server == null) return;
+    await _loadLevel();
+  }
+
   /// Best-effort TMDB prefetch for the current level's playables. Each item
   /// resolves under the SAME stable key its tap uses ([_client.resumeKey]), so
 
@@ -434,29 +440,44 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     }
     if (_browsing == null) return _serverList(context);
     if (_items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'Nothing here',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+      return RefreshIndicator(
+        onRefresh: _onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Nothing here',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
-    return ListView.builder(
-      itemCount: _items.length,
-      itemBuilder: (context, index) {
-        final item = _items[index];
-        return _JellyfinTile(
-          item: item,
-          tmdbMeta: _tmdbFor(item),
-          onTap: () => _openItem(item),
-          onAddToLibrary:
-              item.isFolder ? () => _addToLibrary(item) : null,
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _items.length,
+        itemBuilder: (context, index) {
+          final item = _items[index];
+          return _JellyfinTile(
+            item: item,
+            tmdbMeta: _tmdbFor(item),
+            onTap: () => _openItem(item),
+            onAddToLibrary:
+                item.isFolder ? () => _addToLibrary(item) : null,
+          );
+        },
+      ),
     );
   }
 

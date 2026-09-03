@@ -130,6 +130,13 @@ class _UpnpScreenState extends State<UpnpScreen> {
     }
   }
 
+  Future<void> _onRefresh() async {
+    final server = _activeServer;
+    if (server == null || _crumbs.isEmpty) return;
+    await UpnpClient.instance.invalidateListingCache(serverId: server.id);
+    await _browse(server, _crumbs.last.id);
+  }
+
   /// Best-effort TMDB prefetch for the current folder's video files.
   void _prefetchTmdbMeta(List<UpnpEntry> entries) {
     final service = TmdService.instance;
@@ -462,25 +469,29 @@ class _UpnpScreenState extends State<UpnpScreen> {
                             ],
                           ),
                         )
-                      : ListView.separated(
-                          itemCount: _entries.length,
-                          separatorBuilder: (context, _) => const Divider(height: 1),
-                          itemBuilder: (context, i) {
-                            final e = _entries[i];
-                            final isDir = e.isDirectory;
-                            final posterUrl = isDir
-                                ? null
-                                : posterUrlOf(TmdService.instance.metaFor(_identityKey(e)));
-                            return TvTile(
-                              leading: posterUrl != null
-                                  ? _Poster(posterUrl: posterUrl)
-                                  : Icon(isDir ? Icons.folder_outlined : Icons.movie_outlined),
-                              title: Text(e.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                              subtitle: isDir ? null : (e.size > 0 ? Text(_formatBytes(e.size)) : null),
-                              trailing: Icon(isDir ? Icons.chevron_right : Icons.play_arrow),
-                              onTap: () => _onEntryTap(e),
-                            );
-                          },
+                      : RefreshIndicator(
+                          onRefresh: _onRefresh,
+                          child: ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount: _entries.length,
+                            separatorBuilder: (context, _) => const Divider(height: 1),
+                            itemBuilder: (context, i) {
+                              final e = _entries[i];
+                              final isDir = e.isDirectory;
+                              final posterUrl = isDir
+                                  ? null
+                                  : posterUrlOf(TmdService.instance.metaFor(_identityKey(e)));
+                              return TvTile(
+                                leading: posterUrl != null
+                                    ? _Poster(posterUrl: posterUrl)
+                                    : Icon(isDir ? Icons.folder_outlined : Icons.movie_outlined),
+                                title: Text(e.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                subtitle: isDir ? null : (e.size > 0 ? Text(_formatBytes(e.size)) : null),
+                                trailing: Icon(isDir ? Icons.chevron_right : Icons.play_arrow),
+                                onTap: () => _onEntryTap(e),
+                              );
+                            },
+                          ),
                         ),
         ),
       ],
