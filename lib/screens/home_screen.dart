@@ -115,7 +115,9 @@ class _HomeScreenState extends State<HomeScreen>
                 // Call launchUrl directly (no canLaunchUrl gate) — matches
                 // openSupportUrl. canLaunchUrl returns false on Android 11+
                 // for https VIEW intents and would silently swallow the tap.
-                final uri = Uri.parse('https://www.themoviedb.org/settings/api');
+                // Points at the login page: the API settings page requires
+                // login first, so an logged-out user would land there anyway.
+                final uri = Uri.parse('https://www.themoviedb.org/login');
                 try {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 } catch (_) {}
