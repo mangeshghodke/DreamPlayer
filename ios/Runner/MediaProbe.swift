@@ -41,6 +41,7 @@ final class MediaProbe: NSObject {
     // MARK: - Probe dispatch
 
     private func probe(path: String?, uri: String?, headers: [String: String]) async -> [String: Any] {
+        NSLog("[MediaProbe] probe path=\(path ?? "nil") uri=\(uri ?? "nil")")
         if let u = uri ?? path, u.hasPrefix("http://") || u.hasPrefix("https://") {
             return await probeHttp(url: u, headers: headers)
         }
@@ -51,6 +52,7 @@ final class MediaProbe: NSObject {
         if let u = uri ?? path, u.hasPrefix("content://") {
             return await probeContentUri(u)
         }
+        NSLog("[MediaProbe] no matching probe path for path=\(path ?? "nil") uri=\(uri ?? "nil")")
         return [:]
     }
 
@@ -66,7 +68,11 @@ final class MediaProbe: NSObject {
     // MARK: - Local
 
     private func probeLocal(filePath: String) async -> [String: Any] {
-        let asset = AVURLAsset(url: URL(fileURLWithPath: filePath))
+        let fileURL = URL(fileURLWithPath: filePath)
+        let exists = FileManager.default.fileExists(atPath: filePath)
+        NSLog("[MediaProbe] probeLocal path=\(filePath) exists=\(exists)")
+        guard exists else { return [:] }
+        let asset = AVURLAsset(url: fileURL)
         return await probeAsset(asset)
     }
 
@@ -85,10 +91,12 @@ final class MediaProbe: NSObject {
         // Duration
         if let dur = try? await asset.load(.duration), dur.isNumeric {
             out["durationMs"] = Int(CMTimeGetSeconds(dur) * 1000)
+        } else {
+            NSLog("[MediaProbe] duration load failed for \(asset)")
         }
 
         // Tracks — use sync properties where async ones aren't available
-        if let tracks = try? await asset.load(.tracks) {
+        if let tracks = try? await asset.load(.tracks), !tracks.isEmpty {
             for track in tracks {
                 let mediaType = track.mediaType
                 if mediaType == .video {
@@ -113,6 +121,8 @@ final class MediaProbe: NSObject {
                     if !lang.isEmpty && lang != "und" { out["audioLanguage"] = lang }
                 }
             }
+        } else {
+            NSLog("[MediaProbe] tracks load failed or empty for \(asset)")
         }
 
         return out
