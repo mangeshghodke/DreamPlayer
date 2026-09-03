@@ -913,6 +913,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const Divider(),
             Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'FAQ',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            _FaqTile(
+              icon: Icons.play_circle_outline,
+              question: 'Which playback engine should I use?',
+              answer: defaultTargetPlatform == TargetPlatform.iOS
+                  ? 'DreamPlayer uses AetherEngine on iOS, which handles all '
+                      'formats including Dolby Vision and HDR10 natively via '
+                      'AVPlayer with FFmpeg for additional codec support.'
+                  : 'DreamPlayer offers two engines on Android:\n\n'
+                      '• Media3 (default) — hardware-accelerated, supports '
+                      'Dolby Vision, HDR10, HDR10+, and all audio codecs via '
+                      'FFmpeg. Best for most users.\n\n'
+                      '• libmpv — software fallback using FFmpeg. Slower but '
+                      'handles some edge-case formats Media3 cannot decode. '
+                      'Does not support Dolby Vision or HDR passthrough.\n\n'
+                      'Use Media3 unless a specific file fails to play, in '
+                      'which case try libmpv from the error screen.',
+            ),
+            _FaqTile(
+              icon: Icons.refresh,
+              question: 'How do I refresh network share listings?',
+              answer: 'Pull down on any folder listing in SMB, WebDAV, FTP, '
+                  'DLNA, or Jellyfin to refresh. This is useful when you '
+                  'add, rename, or delete files on your NAS or PC and want '
+                  'to see the changes without navigating back to the server list.',
+            ),
+            _FaqTile(
+              icon: Icons.movie_filter,
+              question: 'How should I name my files for TMDB metadata?',
+              answer: 'DreamPlayer tries to match filenames against The Movie '
+                      'Database (TMDB) to fetch posters, titles, ratings, and '
+                      'other metadata.\n\n'
+                      'Best results come from clean names:\n'
+                      '  Dune (2021)\n'
+                      '  The Matrix 1999\n'
+                      '  Breaking Bad S01E01\n\n'
+                      'These are automatically cleaned up (quality tags like '
+                      '1080p, WEB-DL, and release group tags like -RARBG are '
+                      'stripped before searching).\n\n'
+                      'You can also manually fix a match: open the file\'s '
+                      'details screen, tap "Fix match", and search TMDB '
+                      'yourself.',
+            ),
+            const Divider(),
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               child: Column(
                 children: [
@@ -1125,6 +1178,38 @@ class _BadgeToggle extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         onTap: () => onChanged(!value),
       ),
+    );
+  }
+}
+
+/// Expandable FAQ tile — icon + question header, expands to show answer text.
+class _FaqTile extends StatelessWidget {
+  const _FaqTile({
+    required this.icon,
+    required this.question,
+    required this.answer,
+  });
+
+  final IconData icon;
+  final String question;
+  final String answer;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ExpansionTile(
+      leading: Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+      title: Text(question, style: const TextStyle(fontSize: 14)),
+      childrenPadding: const EdgeInsets.fromLTRB(56, 0, 16, 12),
+      children: [
+        Text(
+          answer,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            height: 1.4,
+          ),
+        ),
+      ],
     );
   }
 }
