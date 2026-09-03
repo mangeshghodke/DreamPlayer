@@ -6,6 +6,7 @@ import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/smb_client.dart';
+import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
@@ -47,6 +48,14 @@ class _FolderScreenState extends State<FolderScreen> {
   /// Watched marks for the current list, keyed by each row's stable resume
   /// key (same keys the player auto-marks on completion).
   Set<String> _watchedKeys = {};
+
+  /// SIMKL cloud-done backfill (mirrors smb_screen.dart's sync button).
+  bool _syncingSimkl = false;
+
+  bool get _enableSimklSync =>
+      (widget.folder.isJellyfin || widget.folder.isNetwork) &&
+      _currentEntries.isNotEmpty &&
+      !_isSeriesFolder;
 
   /// Series folder detection (same logic as SMB screen).
   bool _isSeriesFolder = false;
@@ -566,6 +575,69 @@ class _FolderScreenState extends State<FolderScreen> {
     } catch (_) {}
   }
 
+  /// Backfills already-watched shows/movies from SIMKL into the local watched
+  /// store for this folder's entries (mirrors smb_screen.dart's sync button).
+  Future<void> _syncFromSimkl() async {
+    final client = SimklClient();
+    if (!client.isConfigured) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('SIMKL not configured')),
+        );
+      }
+      return;
+    }
+    if (!await client.isAuthenticated()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to SIMKL first')),
+        );
+      }
+      return;
+    }
+    setState(() => _syncingSimkl = true);
+    try {
+      final watched = await client.fetchWatched();
+      int marked = 0;
+      for (final e in _currentEntries) {
+        final key = _watchedKeyForEntry(e);
+        if (key == null || key.isEmpty || _watchedKeys.contains(key)) continue;
+        final meta = TmdService.instance
+            .metaFor(TmdStore.identityKeyFor(_toVideoItem(e)));
+        if (meta == null) continue;
+        final id = meta.movie.id;
+        final isTv = meta.movie.kind == TmdKind.tv;
+        final shouldMark = isTv
+            ? watched.showSeasons.containsKey(id)
+            : watched.movieIds.contains(id);
+        if (shouldMark) {
+          await WatchedStore.set(key, true);
+          marked++;
+        }
+      }
+      await _refreshWatched();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              marked > 0
+                  ? 'Marked $marked as watched from SIMKL'
+                  : 'Nothing new from SIMKL',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('SIMKL sync failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncingSimkl = false);
+    }
+  }
+
   Future<void> _goUp() async {
     if (_isJellyfin) {
       if (_jellyfinCrumbs.isEmpty) {
@@ -614,6 +686,20 @@ class _FolderScreenState extends State<FolderScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: _goUp,
         ),
+        actions: [
+          if (_enableSimklSync)
+            IconButton(
+              tooltip: 'Mark watched from SIMKL',
+              icon: _syncingSimkl
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.cloud_done_outlined),
+              onPressed: _syncingSimkl ? null : _syncFromSimkl,
+            ),
+        ],
       ),
       body: TvOverscan(child: _body(context)),
     );
