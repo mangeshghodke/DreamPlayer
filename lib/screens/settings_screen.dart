@@ -550,96 +550,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (mounted) setState(() => _badgeEnabled = value);
                 },
               ),
-              if (_badgeEnabled) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
-                  child: Text(
-                    'Format',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
+              if (_badgeEnabled)
+                ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                  childrenPadding: const EdgeInsets.only(bottom: 8),
+                  leading: const Icon(Icons.tune),
+                  title: const Text('Badge options'),
+                  subtitle: const Text('Choose which chips to show'),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
+                      child: Text(
+                        'Format',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                _BadgeToggle(
-                  icon: Icons.high_quality,
-                  label: 'HDR',
-                  subtitle: 'DV / HDR10 / HDR10+ / HLG / SDR',
-                  value: _badgeHdr,
-                  onChanged: (v) async {
-                    await BadgePrefs.setHdr(v);
-                    if (mounted) setState(() => _badgeHdr = v);
-                  },
-                ),
-                _BadgeToggle(
-                  icon: Icons.audiotrack,
-                  label: 'Audio codec',
-                  subtitle: 'E-AC3 · 5.1 / DTS-HD · 7.1 / AAC …',
-                  value: _badgeAudio,
-                  onChanged: (v) async {
-                    await BadgePrefs.setAudio(v);
-                    if (mounted) setState(() => _badgeAudio = v);
-                  },
-                ),
-                _BadgeToggle(
-                  icon: Icons.videocam,
-                  label: 'Video codec',
-                  subtitle: 'HEVC / H.264 / AV1',
-                  value: _badgeVideoCodec,
-                  onChanged: (v) async {
-                    await BadgePrefs.setVideoCodec(v);
-                    if (mounted) setState(() => _badgeVideoCodec = v);
-                  },
-                ),
-                _BadgeToggle(
-                  icon: Icons.aspect_ratio,
-                  label: 'Resolution',
-                  value: _badgeResolution,
-                  onChanged: (v) async {
-                    await BadgePrefs.setResolution(v);
-                    if (mounted) setState(() => _badgeResolution = v);
-                  },
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
-                  child: Text(
-                    'Playback',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
+                    _BadgeToggle(
+                      icon: Icons.high_quality,
+                      label: 'HDR',
+                      subtitle: 'DV / HDR10 / HDR10+ / HLG / SDR',
+                      value: _badgeHdr,
+                      onChanged: (v) async {
+                        await BadgePrefs.setHdr(v);
+                        if (mounted) setState(() => _badgeHdr = v);
+                      },
                     ),
-                  ),
+                    _BadgeToggle(
+                      icon: Icons.audiotrack,
+                      label: 'Audio codec',
+                      subtitle: 'E-AC3 · 5.1 / DTS-HD · 7.1 / AAC …',
+                      value: _badgeAudio,
+                      onChanged: (v) async {
+                        await BadgePrefs.setAudio(v);
+                        if (mounted) setState(() => _badgeAudio = v);
+                      },
+                    ),
+                    _BadgeToggle(
+                      icon: Icons.videocam,
+                      label: 'Video codec',
+                      subtitle: 'HEVC / H.264 / AV1',
+                      value: _badgeVideoCodec,
+                      onChanged: (v) async {
+                        await BadgePrefs.setVideoCodec(v);
+                        if (mounted) setState(() => _badgeVideoCodec = v);
+                      },
+                    ),
+                    _BadgeToggle(
+                      icon: Icons.aspect_ratio,
+                      label: 'Resolution',
+                      value: _badgeResolution,
+                      onChanged: (v) async {
+                        await BadgePrefs.setResolution(v);
+                        if (mounted) setState(() => _badgeResolution = v);
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
+                      child: Text(
+                        'Playback',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (defaultTargetPlatform == TargetPlatform.android)
+                      _BadgeToggle(
+                        icon: Icons.spatial_audio,
+                        label: 'Spatial audio',
+                        value: _badgeSpatialAudio,
+                        onChanged: (v) async {
+                          await BadgePrefs.setSpatialAudio(v);
+                          if (mounted) setState(() => _badgeSpatialAudio = v);
+                        },
+                      ),
+                    _BadgeToggle(
+                      icon: Icons.sync,
+                      label: 'Server transcoding',
+                      value: _badgeServerTranscode,
+                      onChanged: (v) async {
+                        await BadgePrefs.setServerTranscode(v);
+                        if (mounted) setState(() => _badgeServerTranscode = v);
+                      },
+                    ),
+                    _BadgeToggle(
+                      icon: Icons.memory,
+                      label: 'Decoder',
+                      subtitle: 'HW / SW / auto',
+                      value: _badgeDecoder,
+                      onChanged: (v) async {
+                        await BadgePrefs.setDecoder(v);
+                        if (mounted) setState(() => _badgeDecoder = v);
+                      },
+                    ),
+                  ],
                 ),
-              if (defaultTargetPlatform == TargetPlatform.android)
-                _BadgeToggle(
-                  icon: Icons.spatial_audio,
-                  label: 'Spatial audio',
-                  value: _badgeSpatialAudio,
-                  onChanged: (v) async {
-                    await BadgePrefs.setSpatialAudio(v);
-                    if (mounted) setState(() => _badgeSpatialAudio = v);
-                  },
-                ),
-                _BadgeToggle(
-                  icon: Icons.sync,
-                  label: 'Server transcoding',
-                  value: _badgeServerTranscode,
-                  onChanged: (v) async {
-                    await BadgePrefs.setServerTranscode(v);
-                    if (mounted) setState(() => _badgeServerTranscode = v);
-                  },
-                ),
-                _BadgeToggle(
-                  icon: Icons.memory,
-                  label: 'Decoder',
-                  subtitle: 'HW / SW / auto',
-                  value: _badgeDecoder,
-                  onChanged: (v) async {
-                    await BadgePrefs.setDecoder(v);
-                    if (mounted) setState(() => _badgeDecoder = v);
-                  },
-                ),
-              ],
               // Subtitle appearance settings moved into the player's ⋮ sheet
               // (subtitle_settings_screen.dart is pushed from there now).
               // Volume Boost + Night Mode need Media3's LoudnessEnhancer

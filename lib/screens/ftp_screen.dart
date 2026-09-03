@@ -298,7 +298,13 @@ class _FtpScreenState extends State<FtpScreen> {
   @override
   Widget build(BuildContext context) {
     final browsing = _browsing;
-    return Scaffold(
+    return PopScope(
+      canPop: browsing == null,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _goUp();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(browsing == null ? 'FTP / SFTP' : _breadcrumbTitle(browsing)),
         leading: browsing != null
@@ -342,6 +348,7 @@ class _FtpScreenState extends State<FtpScreen> {
             )
           : null,
       body: TvOverscan(child: _body(context)),
+    ),
     );
   }
 

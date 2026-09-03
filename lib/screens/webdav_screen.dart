@@ -348,7 +348,13 @@ class _WebDavScreenState extends State<WebDavScreen> {
   @override
   Widget build(BuildContext context) {
     final browsing = _browsing;
-    return Scaffold(
+    return PopScope(
+      canPop: browsing == null,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _goUp();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(browsing == null ? 'WebDAV' : _breadcrumbTitle(browsing)),
         leading: browsing != null
@@ -398,6 +404,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
             )
           : null,
       body: TvOverscan(child: _body(context)),
+    ),
     );
   }
 

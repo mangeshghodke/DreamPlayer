@@ -715,54 +715,6 @@ class _SmbScreenState extends State<SmbScreen> {
 
   void _addServer() => _showServerDialog();
 
-  Future<void> _addShare() async {
-    final server = _browsing;
-    if (server == null) return;
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => serverDialog(
-        title: const ServerDialogTitle(
-          icon: Icons.folder_special_outlined,
-          title: 'Add share',
-        ),
-        content: ServerTextField(
-          controller: controller,
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
-          decoration: serverFieldDecoration(
-            context,
-            label: 'Share name',
-            hint: 'e.g. Videos',
-            icon: Icons.folder_open_outlined,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () =>
-                Navigator.of(context).pop(controller.text.trim()),
-            icon: const Icon(Icons.add_rounded, size: 16),
-            label: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name == null || name.isEmpty || !mounted) return;
-    await _smb.addShare(server.id, name);
-    if (!mounted) return;
-    await _openServer(server);
-  }
-
   void _editServer(SmbServer server) => _showServerDialog(existing: server);
 
   void _addDiscoveredServer(SmbDiscovered d) => _showServerDialog(
@@ -797,7 +749,13 @@ class _SmbScreenState extends State<SmbScreen> {
   @override
   Widget build(BuildContext context) {
     final browsing = _browsing;
-    return Scaffold(
+    return PopScope(
+      canPop: browsing == null,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _goUp();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(browsing == null
             ? 'Network shares'
@@ -873,15 +831,9 @@ class _SmbScreenState extends State<SmbScreen> {
                 ),
               ],
             )
-          : _share.isEmpty
-              ? FloatingActionButton(
-                  heroTag: 'smb_add_share',
-                  onPressed: _addShare,
-                  tooltip: 'Add share',
-                  child: const Icon(Icons.add),
-                )
-              : null,
+          : null,
       body: TvOverscan(child: _body(context)),
+    ),
     );
   }
 
@@ -935,8 +887,8 @@ class _SmbScreenState extends State<SmbScreen> {
                   padding: const EdgeInsets.all(24),
                   child: Text(
                     _share.isEmpty
-                        ? 'No shares found. Tap "Add share" and enter the name '
-                            'manually if your NAS uses an unusual share name.'
+                        ? 'No shares found. Check your NAS share settings '
+                            'and make sure shares are visible to the network.'
                         : 'Nothing here',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium,

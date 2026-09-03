@@ -264,7 +264,13 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: !_atRoot,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _goUp();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(_atRoot
             ? 'Browse files'
@@ -276,6 +282,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
         ),
       ),
       body: TvOverscan(child: _body(context)),
+    ),
     );
   }
 

@@ -741,7 +741,13 @@ class _FolderScreenState extends State<FolderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: !_atRoot,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _goUp();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(_title),
         leading: IconButton(
@@ -765,6 +771,7 @@ class _FolderScreenState extends State<FolderScreen> {
         ],
       ),
       body: TvOverscan(child: _body(context)),
+    ),
     );
   }
 
