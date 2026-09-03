@@ -162,24 +162,20 @@ void main() {
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
 
+    // Top-level entries are always visible.
+    expect(find.text('Add folder to library'), findsOneWidget);
+    expect(find.text('Internal storage'), findsOneWidget);
+
+    // Network entries live inside a collapsed ExpansionTile — expand it.
+    await tester.tap(find.text('Network sources'));
+    await tester.pumpAndSettle();
+
     expect(find.text('WebDAV'), findsOneWidget);
     expect(find.text('FTP / SFTP'), findsOneWidget);
     expect(find.text('Jellyfin'), findsOneWidget);
-    expect(find.text('Network shares'), findsOneWidget);
+    expect(find.text('SMB / NAS'), findsOneWidget);
     expect(find.text('DLNA'), findsOneWidget);
-    // Tail entries live below the fold at this height — scroll to them.
-    await tester.scrollUntilVisible(
-      find.text('Add folder to library'),
-      120,
-      scrollable: find.byType(Scrollable).last,
-    );
-    expect(find.text('Add folder to library'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Internal storage'),
-      120,
-      scrollable: find.byType(Scrollable).last,
-    );
-    expect(find.text('Internal storage'), findsOneWidget);
+    expect(find.text('Play URL'), findsOneWidget);
   });
 
   testWidgets('No overflow with large text scale', (tester) async {

@@ -49,7 +49,10 @@ Future<void> _pumpAndCheck(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  // pump past the probing spinner animation (probe fails fast in tests
+  // because the mediaProbe channel is not mocked, but the indicator
+  // animation keeps pumpAndSettle from settling).
+  await tester.pump(const Duration(seconds: 1));
   expect(
     tester.takeException(),
     isNull,
@@ -221,7 +224,9 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(home: TmdDetailsScreen(video: _video)),
     );
-    await tester.pumpAndSettle();
+    // pump past the probing spinner (probe fails fast in tests, but the
+    // indicator animation keeps pumpAndSettle from settling).
+    await tester.pump(const Duration(seconds: 1));
 
     expect(tester.takeException(), isNull);
     expect(
