@@ -93,8 +93,7 @@ final class MediaProbe: NSObject {
                 let mediaType = track.mediaType
                 if mediaType == .video {
                     let size = track.naturalSize
-                    let xform = track.preferredTransform
-                    let dim = xform.transformedSize(size)
+                    let dim = size.applying(track.preferredTransform)
                     if !out.keys.contains("width") { out["width"] = Int(dim.width) }
                     if !out.keys.contains("height") { out["height"] = Int(dim.height) }
                     // Codec from format description
