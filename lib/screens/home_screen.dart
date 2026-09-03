@@ -112,10 +112,13 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 4),
             TextButton.icon(
               onPressed: () async {
+                // Call launchUrl directly (no canLaunchUrl gate) — matches
+                // openSupportUrl. canLaunchUrl returns false on Android 11+
+                // for https VIEW intents and would silently swallow the tap.
                 final uri = Uri.parse('https://www.themoviedb.org/settings/api');
-                if (await canLaunchUrl(uri)) {
+                try {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
+                } catch (_) {}
               },
               icon: const Icon(Icons.open_in_new, size: 16),
               label: const Text('Get a free TMDB API key'),
