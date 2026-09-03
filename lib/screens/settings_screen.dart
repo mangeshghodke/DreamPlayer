@@ -922,23 +922,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            _FaqTile(
-              icon: Icons.play_circle_outline,
-              question: 'Which playback engine should I use?',
-              answer: defaultTargetPlatform == TargetPlatform.iOS
-                  ? 'DreamPlayer uses AetherEngine on iOS, which handles all '
-                      'formats including Dolby Vision and HDR10 natively via '
-                      'AVPlayer with FFmpeg for additional codec support.'
-                  : 'DreamPlayer offers two engines on Android:\n\n'
-                      '• Media3 (default) — hardware-accelerated, supports '
-                      'Dolby Vision, HDR10, HDR10+, and all audio codecs via '
-                      'FFmpeg. Best for most users.\n\n'
-                      '• libmpv — software fallback using FFmpeg. Slower but '
-                      'handles some edge-case formats Media3 cannot decode. '
-                      'Does not support Dolby Vision or HDR passthrough.\n\n'
-                      'Use Media3 unless a specific file fails to play, in '
-                      'which case try libmpv from the error screen.',
-            ),
+            if (defaultTargetPlatform == TargetPlatform.android)
+              _FaqTile(
+                icon: Icons.play_circle_outline,
+                question: 'Which playback engine should I use?',
+                answer: 'DreamPlayer offers two engines on Android:\n\n'
+                    '• Media3 (default) — hardware-accelerated, supports '
+                    'Dolby Vision, HDR10, HDR10+, and all audio codecs via '
+                    'FFmpeg. Best for most users.\n\n'
+                    '• libmpv — software fallback using FFmpeg. Slower but '
+                    'handles some edge-case formats Media3 cannot decode. '
+                    'Does not support Dolby Vision or HDR passthrough.\n\n'
+                    'Use Media3 unless a specific file fails to play, in '
+                    'which case try libmpv from the error screen.',
+              ),
             _FaqTile(
               icon: Icons.refresh,
               question: 'How do I refresh network share listings?',
