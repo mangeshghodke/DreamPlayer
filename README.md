@@ -244,18 +244,6 @@ The chip is Android-only. iOS uses Apple's own spatial audio for Atmos
 content on the native AVPlayer path; the system toggles it from Control
 Center → AirPlay / Head-tracking, not from inside any third-party app.
 
-## Screenshots
-
-<p align="center">
-  <img src="screenshots/home.jpg" width="240" alt="Home screen">
-  &nbsp;&nbsp;
-  <img src="screenshots/movie_detail.jpg" width="240" alt="Movie details">
-  &nbsp;&nbsp;
-  <img src="screenshots/menu.jpg" width="240" alt="Add content menu">
-  &nbsp;&nbsp;
-  <img src="screenshots/settings.jpg" width="240" alt="Settings">
-</p>
-
 ## Requirements
 
 | Platform | Minimum version |
