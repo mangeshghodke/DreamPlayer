@@ -375,6 +375,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     if (widget.folder != null) {
       await _loadFolderEntries();
       if (!mounted) return;
+      // Files are the first priority: whatever the TMDB metadata state (not
+      // cached yet, slow lookup, or failed), the folder's file list must be
+      // visible. Never hold the full-screen spinner hostage to a metadata
+      // fetch — details/seasons enrich the header progressively.
+      setState(() => _loading = false);
     }
     // Server-side series info (poster/title/year/overview) for Jellyfin
     // folders — refreshed on open so image URLs carry the current token.
