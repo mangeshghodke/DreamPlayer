@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'package:dream_player/l10n/app_localizations.dart';
 import 'package:dream_player/screens/jellyfin_screen.dart';
 
 Future<void> _pumpAndCheck(
@@ -14,6 +16,13 @@ Future<void> _pumpAndCheck(
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       home: const JellyfinScreen(),
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(

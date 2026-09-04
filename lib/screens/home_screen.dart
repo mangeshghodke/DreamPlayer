@@ -7,14 +7,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app.dart' show appRouteObserver;
+import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
+import '../services/remote_servers.dart';
 import '../services/tmdb_client.dart';
 import '../services/webdav_client.dart';
 import '../widgets/folder_card.dart';
+import '../widgets/remote_server_card.dart';
 import '../widgets/tv_text_field.dart';
 import 'ftp_screen.dart';
 import 'player_screen.dart';
@@ -53,11 +56,17 @@ class _HomeScreenState extends State<HomeScreen>
   /// recently added first. Nothing is auto-scanned — only these appear.
   List<LibraryFolder> _folders = const [];
 
+  /// Saved remote-server roots. These are deliberately separate from
+  /// bookmarked library folders: tapping a server starts browsing at its root.
+  List<RemoteServerEntry> _remoteServers = const [];
+
   /// Cached server-side metadata for the [JellyfinItemInfo] folders, keyed by
   /// `LibraryFolder.id` (fetch-on-bookmark, refreshed on open).
   Map<String, JellyfinItemInfo> _jellyfinMeta = const {};
 
   final JellyfinClient _client = JellyfinClient();
+  final RemoteServersRepository _remoteServersRepository =
+      RemoteServersRepository();
 
   /// Scrolls the home list back to the top after returning from playback, so
   /// the app-bar title and "Continue watching" heading are visible again.
@@ -201,12 +210,31 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadLibrary() async {
+    unawaited(_loadRemoteServers());
     final entries = await ContinueWatchingStore.load();
     _loadLibraryFolders();
     if (mounted) {
       setState(() => _entries = entries);
     }
     _resolveMetadata(entries);
+  }
+
+  Future<void> _loadRemoteServers() async {
+    final servers = await _remoteServersRepository.load();
+    if (mounted) setState(() => _remoteServers = servers);
+  }
+
+  Future<void> _openRemoteServer(RemoteServerEntry server) async {
+    final Widget screen = switch (server.type) {
+      RemoteServerType.smb => SmbScreen(initialServerId: server.id),
+      RemoteServerType.webdav => WebDavScreen(initialServerId: server.id),
+      RemoteServerType.ftp => FtpScreen(initialServerId: server.id),
+      RemoteServerType.jellyfin => JellyfinScreen(initialServerUrl: server.id),
+    };
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => screen));
+    await _loadLibrary();
   }
 
   /// Loads the "Your library" folder list, then kicks off best-effort TMDB
@@ -631,13 +659,46 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppLocalizations.of(context);
     final tv = isTvMode(context);
     return Scaffold(
       body: TvOverscan(
         child: CustomScrollView(
           controller: _scrollController,
           slivers: [
-            SliverAppBar(title: const Text('DreamPlayer'), pinned: true),
+            SliverAppBar(title: Text(strings.appName), pinned: true),
+            if (_remoteServers.isNotEmpty) ...[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    strings.remoteServers,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 108,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _remoteServers.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 4),
+                    itemBuilder: (context, index) {
+                      final server = _remoteServers[index];
+                      return RemoteServerCard(
+                        key: ValueKey(server.key),
+                        server: server,
+                        onTap: () => _openRemoteServer(server),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
             // ---- Your library: user-added folders (e.g. TV-show folders) ----
             if (_folders.isEmpty)
               SliverToBoxAdapter(
@@ -645,8 +706,8 @@ class _HomeScreenState extends State<HomeScreen>
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Text(
                     tv
-                        ? 'No folders yet. Use the buttons above to add one.'
-                        : 'No folders yet. Tap + to add one.',
+                        ? strings.noFoldersTv
+                        : strings.noFoldersPhone,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -658,7 +719,7 @@ class _HomeScreenState extends State<HomeScreen>
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 sliver: SliverToBoxAdapter(
                   child: Text(
-                    'Your library',
+                    strings.yourLibrary,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -685,7 +746,7 @@ class _HomeScreenState extends State<HomeScreen>
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               sliver: SliverToBoxAdapter(
                 child: Text(
-                  'Continue watching',
+                  strings.continueWatching,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -704,7 +765,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddMenu,
-        tooltip: 'Add a source',
+        tooltip: strings.addSource,
         child: const Icon(Icons.add),
       ),
     );
@@ -830,6 +891,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Opens the "+" menu: network sources in a collapsed section, local below.
   Future<void> _showAddMenu() async {
+    final strings = AppLocalizations.of(context);
     final action = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -845,32 +907,30 @@ class _HomeScreenState extends State<HomeScreen>
                 // ── Local actions (always visible) ──
                 ListTile(
                   leading: const Icon(Icons.video_library_outlined),
-                  title: const Text('Add folder to library'),
-                  subtitle: const Text(
-                    'A TV-show folder, a movie folder\u2026',
-                  ),
+                  title: Text(strings.addFolderToLibrary),
+                  subtitle: Text(strings.folderExamples),
                   onTap: () => Navigator.of(context).pop('add-folder'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.storage_outlined),
-                  title: const Text('Internal storage'),
-                  subtitle: const Text('Browse files on this device'),
+                  title: Text(strings.internalStorage),
+                  subtitle: Text(strings.browseDeviceFiles),
                   onTap: () => Navigator.of(context).pop('storage'),
                 ),
                 const Divider(height: 1),
                 // ── Network sources (collapsed section) ──
                 ExpansionTile(
                   leading: const Icon(Icons.wifi_outlined),
-                  title: const Text('Network sources'),
-                  subtitle: const Text('Servers on this network'),
+                  title: Text(strings.networkSources),
+                  subtitle: Text(strings.networkSourcesSubtitle),
                   children: [
                     ListTile(
                       leading: const Icon(Icons.folder_shared_outlined),
-                      title: const Text('SMB / NAS'),
+                      title: Text(strings.smbNas),
                       subtitle: Text(
                         Platform.isAndroid
-                            ? 'SMB shares on the local network'
-                            : 'SMB via the Files app',
+                            ? strings.smbAndroidSubtitle
+                            : strings.smbIosSubtitle,
                       ),
                       onTap: () => Navigator.of(context).pop(
                         Platform.isAndroid ? 'smb' : 'smb-ios',
@@ -878,32 +938,32 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                     ListTile(
                       leading: const Icon(Icons.cloud_outlined),
-                      title: const Text('WebDAV'),
-                      subtitle: const Text('Add a WebDAV server'),
+                      title: Text(strings.webDav),
+                      subtitle: Text(strings.addWebDavServer),
                       onTap: () => Navigator.of(context).pop('webdav'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.folder_outlined),
-                      title: const Text('FTP / SFTP'),
-                      subtitle: const Text('FTP or SFTP file server'),
+                      title: Text(strings.ftpSftp),
+                      subtitle: Text(strings.ftpServerSubtitle),
                       onTap: () => Navigator.of(context).pop('ftp'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.live_tv_outlined),
-                      title: const Text('Jellyfin'),
-                      subtitle: const Text('Jellyfin / Emby media server'),
+                      title: Text(strings.jellyfin),
+                      subtitle: Text(strings.jellyfinServerSubtitle),
                       onTap: () => Navigator.of(context).pop('jellyfin'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.cast_connected_outlined),
-                      title: const Text('DLNA'),
-                      subtitle: const Text('UPnP / DLNA servers on this network'),
+                      title: Text(strings.dlna),
+                      subtitle: Text(strings.dlnaSubtitle),
                       onTap: () => Navigator.of(context).pop('upnp'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.link_outlined),
-                      title: const Text('Play URL'),
-                      subtitle: const Text('Stream a direct video link'),
+                      title: Text(strings.playUrl),
+                      subtitle: Text(strings.playUrlSubtitle),
                       onTap: () => Navigator.of(context).pop('play-url'),
                     ),
                   ],
@@ -966,11 +1026,12 @@ class _HomeScreenState extends State<HomeScreen>
   /// Asks for a direct video URL and plays it. The URL is its own stable
   /// resume key, so re-entering the same link continues where it stopped.
   Future<void> _playUrlDialog() async {
+    final strings = AppLocalizations.of(context);
     final controller = TextEditingController();
     final url = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Play URL'),
+        title: Text(strings.playUrl),
         content: TvTextField(
           controller: controller,
           autofocus: true,
@@ -978,21 +1039,21 @@ class _HomeScreenState extends State<HomeScreen>
           autocorrect: false,
           enableSuggestions: false,
           textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'https://example.com/video.mp4',
-            labelText: 'Video URL',
+            labelText: strings.videoUrl,
           ),
           onSubmitted: (v) => Navigator.of(dialogContext).pop(v),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(strings.cancel),
           ),
           TextButton(
             onPressed: () =>
                 Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Play'),
+            child: Text(strings.play),
           ),
         ],
       ),
@@ -1002,7 +1063,7 @@ class _HomeScreenState extends State<HomeScreen>
     final uri = Uri.tryParse(url);
     if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid http(s) URL')),
+        SnackBar(content: Text(strings.invalidHttpUrl)),
       );
       return;
     }
@@ -1063,6 +1124,7 @@ class _EmptyLibrary extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final strings = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -1076,14 +1138,14 @@ class _EmptyLibrary extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Nothing yet',
+              strings.nothingYet,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Videos you play will appear here.',
+              strings.emptyLibraryHint,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,

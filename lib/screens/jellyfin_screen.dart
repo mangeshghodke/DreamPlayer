@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
@@ -14,7 +15,9 @@ import 'tmd_details_screen.dart';
 /// -> play. Playback streams the direct-play URL (token as `api_key` query
 /// param) through the existing HTTP data sources on both platforms.
 class JellyfinScreen extends StatefulWidget {
-  const JellyfinScreen({super.key});
+  const JellyfinScreen({super.key, this.initialServerUrl});
+
+  final String? initialServerUrl;
 
   @override
   State<JellyfinScreen> createState() => _JellyfinScreenState();
@@ -41,6 +44,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   List<JellyfinItem> _items = const [];
   bool _loading = true;
   String? _error;
+  bool _initialServerHandled = false;
 
   /// Watched marks for the current folder, keyed by the same stable resume
   /// key each video uses for playback (`client.resumeKey`).
@@ -76,6 +80,12 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
       _servers = servers;
       _loading = false;
     });
+    final initialUrl = widget.initialServerUrl;
+    if (!_initialServerHandled && initialUrl != null) {
+      _initialServerHandled = true;
+      final matches = servers.where((server) => server.url == initialUrl);
+      if (matches.isNotEmpty) await _openServer(matches.first);
+    }
   }
 
   Future<void> _scanNetwork() async {
@@ -249,6 +259,10 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
       });
       await _loadLevel();
     } else {
+      if (widget.initialServerUrl != null) {
+        Navigator.of(context).pop();
+        return;
+      }
       setState(() {
         _browsing = null;
         _crumbs = const [];
@@ -277,7 +291,9 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     await LibraryFoldersStore.add(folder);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('"${item.name}" added to your library')),
+      SnackBar(
+        content: Text(AppLocalizations.of(context).addedToLibrary(item.name)),
+      ),
     );
     // Fetch the series' own info from the server in the background so the home
     // card + details screen have the main poster/title/year/overview instantly.
@@ -321,7 +337,9 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
       await _replaceServer(authed);
       if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Signed in to ${authed.name}')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).signedInTo(authed.name)),
+        ),
       );
       return authed;
     } on Exception catch (e) {
@@ -350,9 +368,10 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     setState(() => _servers = servers);
     await _client.saveServers(servers);
     if (!mounted) return;
+    final strings = AppLocalizations.of(context);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('Removed ${server.name}')));
+    ).showSnackBar(SnackBar(content: Text(strings.removedServer(server.name))));
   }
 
   void _addServer() => _showServerDialog();
@@ -373,6 +392,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   @override
   Widget build(BuildContext context) {
     final browsing = _browsing;
+    final strings = AppLocalizations.of(context);
     return PopScope(
       canPop: browsing == null,
       onPopInvokedWithResult: (didPop, _) async {
@@ -381,10 +401,10 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
       },
       child: Scaffold(
       appBar: AppBar(
-        title: Text(browsing == null ? 'Jellyfin' : _breadcrumbTitle(browsing)),
+        title: Text(browsing == null ? strings.jellyfin : _breadcrumbTitle(browsing)),
         leading: browsing != null
             ? IconButton(
-                tooltip: 'Up',
+                tooltip: strings.up,
                 icon: const Icon(Icons.arrow_back),
                 onPressed: _goUp,
               )
@@ -392,7 +412,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
         actions: [
           if (browsing != null)
             IconButton(
-              tooltip: 'Server list',
+              tooltip: strings.serverList,
               icon: const Icon(Icons.dns_outlined),
               onPressed: () => setState(() {
                 _browsing = null;
@@ -419,21 +439,21 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
                   FloatingActionButton(
                     heroTag: 'jellyfin_scan',
                     onPressed: _scanNetwork,
-                    tooltip: 'Scan network',
+                    tooltip: strings.scanNetwork,
                     child: const Icon(Icons.wifi_find),
                   ),
                 const SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'jellyfin_refresh',
                   onPressed: _loadServers,
-                  tooltip: 'Refresh',
+                  tooltip: strings.refresh,
                   child: const Icon(Icons.refresh),
                 ),
                 const SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'jellyfin_add',
                   onPressed: _addServer,
-                  tooltip: 'Add server',
+                  tooltip: strings.addServer,
                   child: const Icon(Icons.add),
                 ),
               ],
@@ -450,6 +470,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   }
 
   Widget _body(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -462,14 +483,14 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
                 const Icon(Icons.cloud_off_outlined, size: 64),
                 const SizedBox(height: 16),
                 Text(
-                  'Error: $_error',
+                  strings.errorMessage(_error!),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: _atBrowseRoot ? _loadServers : _goUp,
-                  child: const Text('Retry'),
+                  child: Text(strings.retry),
                 ),
               ],
             ),
@@ -490,7 +511,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    'Nothing here',
+                    strings.nothingHere,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
@@ -525,16 +546,23 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   }
 
   Widget _serverList(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     if (_servers.isEmpty && _discovered.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.live_tv_outlined, size: 48, color: Colors.white38),
-            SizedBox(height: 12),
+            Icon(
+              Icons.live_tv_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
             Text(
-              'Nothing yet',
-              style: TextStyle(color: Colors.white54),
+              strings.nothingYet,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -545,15 +573,15 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          const _SectionHeader('Saved servers'),
+          _SectionHeader(strings.savedServers),
           for (final server in _servers)
             TvTile(
               leading: const Icon(Icons.live_tv),
               title: Text(server.name, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text(
                 server.isAuthenticated
-                    ? '${server.url} · Signed in as ${server.username}'
-                    : '${server.url} · Not signed in',
+                    ? '${server.url} · ${strings.signedInAs(server.username)}'
+                    : '${server.url} · ${strings.notSignedIn}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -565,19 +593,19 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
                     _deleteServer(server);
                   }
                 },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'edit', child: Text(strings.edit)),
+                  PopupMenuItem(value: 'delete', child: Text(strings.delete)),
                 ],
               ),
               onTap: () => _openServer(server),
             ),
           if (_servers.isNotEmpty || _discovered.isNotEmpty)
-            _SectionHeader('On this network'),
+            _SectionHeader(strings.onThisNetwork),
           TvTile(
             dense: true,
             leading: const Icon(Icons.wifi_find, size: 20),
-            title: Text(_scanning ? 'Scanning\u2026' : 'Scan local network'),
+            title: Text(_scanning ? strings.scanning : strings.scanLocalNetwork),
             trailing: _scanning
                 ? const SizedBox(
                     width: 16,
@@ -671,7 +699,7 @@ class _JellyfinTile extends StatelessWidget {
           if (item.isFolder) ...[
             if (onAddToLibrary != null)
               IconButton(
-                tooltip: 'Add to library',
+                tooltip: AppLocalizations.of(context).addToLibrary,
                 icon: const Icon(Icons.library_add_outlined),
                 onPressed: onAddToLibrary,
               ),
@@ -862,10 +890,11 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppLocalizations.of(context);
     return serverDialog(
       title: ServerDialogTitle(
         icon: _existing == null ? Icons.add_link : Icons.dns_outlined,
-        title: _existing == null ? 'Add server' : 'Edit server',
+        title: _existing == null ? strings.addServer : strings.editServer,
       ),
       content: SizedBox(
         width: 440,
@@ -883,7 +912,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Server name',
+                        label: strings.serverName,
                         hint: 'e.g. Home Jellyfin',
                         icon: Icons.badge_outlined,
                         optional: true,
@@ -898,7 +927,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Server address',
+                        label: strings.serverAddress,
                         hint: 'http://192.168.1.16:8096',
                         icon: Icons.lan_outlined,
                       ),
@@ -910,7 +939,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       autofillHints: const [AutofillHints.username],
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Username',
+                        label: strings.username,
                         hint: 'admin',
                         icon: Icons.person_outline,
                       ),
@@ -921,7 +950,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       controller: _password,
                       label: _existing?.token != null
                           ? 'Password (leave empty to keep)'
-                          : 'Password',
+                          : strings.password,
                       hint: '••••••••',
                     ),
                     SwitchListTile(
@@ -929,8 +958,8 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       controlAffinity: ListTileControlAffinity.leading,
                       dense: true,
                       activeThumbColor: theme.colorScheme.primary,
-                      title: const Text('Self-signed certificate',
-                          style: TextStyle(fontSize: 14)),
+                      title: Text(strings.selfSignedCertificate,
+                          style: const TextStyle(fontSize: 14)),
                       subtitle: const Text(
                         'Trust HTTPS servers without a CA certificate',
                         style: TextStyle(fontSize: 12),
@@ -966,11 +995,11 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.wifi_tethering, size: 16),
-          label: const Text('Test'),
+          label: Text(strings.test),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(strings.cancel),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -979,7 +1008,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           ),
           onPressed: _testing ? null : _save,
           icon: const Icon(Icons.check_rounded, size: 16),
-          label: const Text('Save'),
+          label: Text(strings.save),
         ),
       ],
     );
@@ -1050,10 +1079,11 @@ class _LoginDialogState extends State<_LoginDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppLocalizations.of(context);
     return serverDialog(
       title: ServerDialogTitle(
         icon: Icons.login_rounded,
-        title: 'Sign in',
+        title: strings.signIn,
         subtitle: widget.serverName,
       ),
       content: SizedBox(
@@ -1097,7 +1127,7 @@ class _LoginDialogState extends State<_LoginDialog> {
                 autofillHints: const [AutofillHints.username],
                 decoration: serverFieldDecoration(
                   context,
-                  label: 'Username',
+                  label: strings.username,
                   hint: 'admin',
                   icon: Icons.person_outline,
                 ),
@@ -1106,7 +1136,7 @@ class _LoginDialogState extends State<_LoginDialog> {
               ServerPasswordField(
                 icon: Icons.lock_outline,
                 controller: _password,
-                label: 'Password',
+                label: strings.password,
                 hint: '••••••••',
                 onSubmitted: (_) => _submit(),
               ),
@@ -1138,7 +1168,7 @@ class _LoginDialogState extends State<_LoginDialog> {
       actions: [
         TextButton(
           onPressed: _busy ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(strings.cancel),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -1152,7 +1182,7 @@ class _LoginDialogState extends State<_LoginDialog> {
                   height: 14,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.arrow_forward_rounded, size: 16),
-          label: const Text('Sign in'),
+          label: Text(strings.signIn),
         ),
       ],
     );

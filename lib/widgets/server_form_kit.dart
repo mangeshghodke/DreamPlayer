@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/tv_helper.dart';
 import 'tv_text_field.dart';
 
@@ -96,7 +97,9 @@ InputDecoration serverFieldDecoration(
         borderSide: BorderSide(color: color),
       );
   return InputDecoration(
-    labelText: optional ? '$label (optional)' : label,
+    labelText: optional
+        ? '$label (${AppLocalizations.of(context).optional})'
+        : label,
     hintText: hint,
     prefixIcon: Icon(icon, size: 20),
     suffixIcon: suffix,

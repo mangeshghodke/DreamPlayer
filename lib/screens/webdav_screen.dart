@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
@@ -24,7 +25,9 @@ String _encodePath(String path) =>
 /// WebDAV browser: saved servers -> folders -> videos. Playback streams the
 /// plain HTTP file URL to the player with the server's Basic auth header.
 class WebDavScreen extends StatefulWidget {
-  const WebDavScreen({super.key});
+  const WebDavScreen({super.key, this.initialServerId});
+
+  final String? initialServerId;
 
   @override
   State<WebDavScreen> createState() => _WebDavScreenState();
@@ -43,6 +46,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
   bool _loading = true;
   String? _error;
   bool _isSeriesFolder = false;
+  bool _initialServerHandled = false;
 
   /// Watched marks for the current folder, keyed by the same stable resume
   /// key each video uses for playback (so the player's auto-mark on completion
@@ -106,6 +110,12 @@ class _WebDavScreenState extends State<WebDavScreen> {
         _servers = servers;
         _loading = false;
       });
+      final initialId = widget.initialServerId;
+      if (!_initialServerHandled && initialId != null) {
+        _initialServerHandled = true;
+        final matches = servers.where((server) => server.id == initialId);
+        if (matches.isNotEmpty) await _openServer(matches.first);
+      }
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -291,6 +301,10 @@ class _WebDavScreenState extends State<WebDavScreen> {
       final slash = trimmed.lastIndexOf('/');
       await _loadDirectory(slash <= 0 ? '/' : trimmed.substring(0, slash));
     } else {
+      if (widget.initialServerId != null) {
+        Navigator.of(context).pop();
+        return;
+      }
       setState(() {
         _browsing = null;
         _path = '/';
@@ -318,8 +332,13 @@ class _WebDavScreenState extends State<WebDavScreen> {
     );
     await LibraryFoldersStore.add(folder);
     if (mounted) {
+      final strings = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Bookmarked $folderName to Home (WebDAV · ${server.name})')),
+        SnackBar(
+          content: Text(
+            strings.bookmarkAdded(folderName, 'WebDAV', server.name),
+          ),
+        ),
       );
     }
   }
@@ -331,9 +350,10 @@ class _WebDavScreenState extends State<WebDavScreen> {
   Future<void> _deleteServer(WebDavServer server) async {
     await _webdav.deleteServer(server.id);
     if (!mounted) return;
+    final strings = AppLocalizations.of(context);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('Removed ${server.name}')));
+    ).showSnackBar(SnackBar(content: Text(strings.removedServer(server.name))));
     _loadServers();
   }
 
@@ -348,6 +368,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
   @override
   Widget build(BuildContext context) {
     final browsing = _browsing;
+    final strings = AppLocalizations.of(context);
     return PopScope(
       canPop: browsing == null,
       onPopInvokedWithResult: (didPop, _) async {
@@ -356,10 +377,10 @@ class _WebDavScreenState extends State<WebDavScreen> {
       },
       child: Scaffold(
       appBar: AppBar(
-        title: Text(browsing == null ? 'WebDAV' : _breadcrumbTitle(browsing)),
+        title: Text(browsing == null ? strings.webDav : _breadcrumbTitle(browsing)),
         leading: browsing != null
             ? IconButton(
-                tooltip: 'Up',
+                tooltip: strings.up,
                 icon: const Icon(Icons.arrow_back),
                 onPressed: _goUp,
               )
@@ -367,13 +388,13 @@ class _WebDavScreenState extends State<WebDavScreen> {
         actions: [
           if (browsing != null && !_atBrowseRoot)
             IconButton(
-              tooltip: 'Bookmark this folder to Home',
+              tooltip: strings.bookmarkFolder,
               icon: const Icon(Icons.bookmark_add_outlined),
               onPressed: _bookmarkCurrentFolder,
             ),
           if (browsing != null)
             IconButton(
-              tooltip: 'Server list',
+              tooltip: strings.serverList,
               icon: const Icon(Icons.dns_outlined),
               onPressed: () => setState(() {
                 _browsing = null;
@@ -390,14 +411,14 @@ class _WebDavScreenState extends State<WebDavScreen> {
                 FloatingActionButton(
                   heroTag: 'webdav_refresh',
                   onPressed: _loadServers,
-                  tooltip: 'Refresh',
+                  tooltip: strings.refresh,
                   child: const Icon(Icons.refresh),
                 ),
                 const SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'webdav_add',
                   onPressed: _addServer,
-                  tooltip: 'Add server',
+                  tooltip: strings.addServer,
                   child: const Icon(Icons.add),
                 ),
               ],
@@ -415,6 +436,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
   }
 
   Widget _body(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -426,14 +448,14 @@ class _WebDavScreenState extends State<WebDavScreen> {
               const Icon(Icons.cloud_off_outlined, size: 64),
               const SizedBox(height: 16),
               Text(
-                'Error: $_error',
+                strings.errorMessage(_error!),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: _atBrowseRoot ? _loadServers : _goUp,
-                child: const Text('Retry'),
+                child: Text(strings.retry),
               ),
             ],
           ),
@@ -453,7 +475,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    'Nothing here',
+                    strings.nothingHere,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
@@ -491,16 +513,23 @@ class _WebDavScreenState extends State<WebDavScreen> {
   }
 
   Widget _serverList(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     if (_servers.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_outlined, size: 48, color: Colors.white38),
-            SizedBox(height: 12),
+            Icon(
+              Icons.cloud_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
               Text(
-                'Nothing yet',
-                style: TextStyle(color: Colors.white54),
+                strings.nothingYet,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
           ],
         ),
@@ -511,7 +540,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          const _SectionHeader('Saved servers'),
+          _SectionHeader(strings.savedServers),
           for (final server in _servers)
             TvTile(
               leading: const Icon(Icons.cloud),
@@ -521,7 +550,9 @@ class _WebDavScreenState extends State<WebDavScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                server.subtitle,
+                '${server.url} · '
+                '${server.username.isEmpty ? strings.noLogin : server.username}'
+                '${server.allowSelfSigned ? ' · ${strings.selfSignedAllowed}' : ''}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -533,9 +564,9 @@ class _WebDavScreenState extends State<WebDavScreen> {
                     _deleteServer(server);
                   }
                 },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'edit', child: Text(strings.edit)),
+                  PopupMenuItem(value: 'delete', child: Text(strings.delete)),
                 ],
               ),
               onTap: () => _openServer(server),
@@ -820,10 +851,11 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppLocalizations.of(context);
     return serverDialog(
       title: ServerDialogTitle(
         icon: widget.existing == null ? Icons.add_link : Icons.dns_outlined,
-        title: widget.existing == null ? 'Add server' : 'Edit server',
+        title: widget.existing == null ? strings.addServer : strings.edit,
         subtitle: 'WebDAV',
       ),
       content: SizedBox(
@@ -842,7 +874,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Server name',
+                        label: strings.serverName,
                         hint: 'e.g. Home NAS',
                         icon: Icons.badge_outlined,
                         optional: true,
@@ -882,7 +914,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Host',
+                        label: strings.host,
                         hint: '192.168.1.16 or nas.local',
                         icon: Icons.lan_outlined,
                       ),
@@ -899,7 +931,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                             textInputAction: TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: 'Port',
+                              label: strings.port,
                               hint: '8080',
                               icon: Icons.settings_ethernet,
                             ),
@@ -913,7 +945,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                             textInputAction: TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: 'Path',
+                              label: strings.path,
                               hint: '/dav',
                               icon: Icons.folder_open_outlined,
                               optional: true,
@@ -929,7 +961,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Username',
+                        label: strings.username,
                         hint: 'admin',
                         icon: Icons.person_outline,
                         optional: true,
@@ -941,7 +973,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       controller: _password,
                       label: widget.existing?.hasPassword ?? false
                           ? 'Password (leave empty to keep)'
-                          : 'Password',
+                          : strings.password,
                       hint: '••••••••',
                     ),
                     if (!_isHttps &&
@@ -959,8 +991,8 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                         controlAffinity: ListTileControlAffinity.leading,
                         dense: true,
                         activeThumbColor: theme.colorScheme.primary,
-                        title: const Text('Self-signed certificate',
-                            style: TextStyle(fontSize: 14)),
+                        title: Text(strings.selfSignedCertificate,
+                            style: const TextStyle(fontSize: 14)),
                         subtitle: const Text(
                           'Trust HTTPS servers without a CA certificate '
                           '(NAS, Nextcloud, etc.)',
@@ -996,11 +1028,11 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                   height: 14,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.wifi_tethering, size: 16),
-          label: const Text('Test'),
+          label: Text(strings.test),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(strings.cancel),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -1009,7 +1041,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           ),
           onPressed: _save,
           icon: const Icon(Icons.check_rounded, size: 16),
-          label: const Text('Save'),
+          label: Text(strings.save),
         ),
       ],
     );

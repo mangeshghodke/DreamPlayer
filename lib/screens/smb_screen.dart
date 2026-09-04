@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
 import '../services/library_folders.dart';
 import '../services/simkl_client.dart';
@@ -20,7 +21,9 @@ import 'tmd_details_screen.dart';
 /// Playback streams through the native SMB client (local proxy URL on iOS);
 /// tapping a video opens a single `openShare` URL, torn down on return.
 class SmbScreen extends StatefulWidget {
-  const SmbScreen({super.key});
+  const SmbScreen({super.key, this.initialServerId});
+
+  final String? initialServerId;
 
   @override
   State<SmbScreen> createState() => _SmbScreenState();
@@ -45,6 +48,7 @@ class _SmbScreenState extends State<SmbScreen> {
   final Map<String, TmdMeta?> _tmdbMeta = {};
   bool _loading = true;
   String? _error;
+  bool _initialServerHandled = false;
 
   /// Saved-server reachability dots (`id` -> online?); probed asynchronously.
   final Map<String, bool> _statuses = {};
@@ -107,6 +111,12 @@ class _SmbScreenState extends State<SmbScreen> {
         _loading = false;
       });
       _probeStatuses(servers);
+      final initialId = widget.initialServerId;
+      if (!_initialServerHandled && initialId != null) {
+        _initialServerHandled = true;
+        final matches = servers.where((server) => server.id == initialId);
+        if (matches.isNotEmpty) await _openServer(matches.first);
+      }
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -224,8 +234,11 @@ class _SmbScreenState extends State<SmbScreen> {
     );
     await LibraryFoldersStore.add(folder);
     if (mounted) {
+      final strings = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Bookmarked $folderName to Home (SMB · ${server.name})')),
+        SnackBar(
+          content: Text(strings.bookmarkAdded(folderName, 'SMB', server.name)),
+        ),
       );
     }
   }
@@ -703,6 +716,10 @@ class _SmbScreenState extends State<SmbScreen> {
         }
       }
     } else {
+      if (widget.initialServerId != null) {
+        Navigator.of(context).pop();
+        return;
+      }
       setState(() {
         _browsing = null;
         _share = '';
@@ -725,8 +742,9 @@ class _SmbScreenState extends State<SmbScreen> {
   Future<void> _deleteServer(SmbServer server) async {
     await _smb.deleteServer(server.id);
     if (!mounted) return;
+    final strings = AppLocalizations.of(context);
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Removed ${server.name}')));
+        .showSnackBar(SnackBar(content: Text(strings.removedServer(server.name))));
     _loadServers();
   }
 
@@ -749,6 +767,7 @@ class _SmbScreenState extends State<SmbScreen> {
   @override
   Widget build(BuildContext context) {
     final browsing = _browsing;
+    final strings = AppLocalizations.of(context);
     return PopScope(
       canPop: browsing == null,
       onPopInvokedWithResult: (didPop, _) async {
@@ -758,11 +777,11 @@ class _SmbScreenState extends State<SmbScreen> {
       child: Scaffold(
       appBar: AppBar(
         title: Text(browsing == null
-            ? 'Network shares'
+            ? strings.networkShares
             : _breadcrumbTitle(browsing)),
         leading: browsing != null
             ? IconButton(
-                tooltip: 'Up',
+                tooltip: strings.up,
                 icon: const Icon(Icons.arrow_back),
                 onPressed: _goUp,
               )
@@ -770,7 +789,7 @@ class _SmbScreenState extends State<SmbScreen> {
         actions: [
           if (browsing != null && _share.isNotEmpty && !_loading)
             IconButton(
-              tooltip: 'Bookmark this folder to Home',
+              tooltip: strings.bookmarkFolder,
               icon: const Icon(Icons.bookmark_add_outlined),
               onPressed: _bookmarkCurrentFolder,
             ),
@@ -784,7 +803,7 @@ class _SmbScreenState extends State<SmbScreen> {
             ),
           if (browsing != null)
             IconButton(
-              tooltip: 'Server list',
+              tooltip: strings.serverList,
               icon: const Icon(Icons.dns_outlined),
               onPressed: () => setState(() {
                 _browsing = null;
@@ -812,21 +831,21 @@ class _SmbScreenState extends State<SmbScreen> {
                   FloatingActionButton(
                     heroTag: 'smb_scan',
                     onPressed: _discover,
-                    tooltip: 'Scan network',
+                    tooltip: strings.scanNetwork,
                     child: const Icon(Icons.wifi_find),
                   ),
                 const SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'smb_refresh',
                   onPressed: _loadServers,
-                  tooltip: 'Refresh',
+                  tooltip: strings.refresh,
                   child: const Icon(Icons.refresh),
                 ),
                 const SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'smb_add',
                   onPressed: _addServer,
-                  tooltip: 'Add server',
+                  tooltip: strings.addServer,
                   child: const Icon(Icons.add),
                 ),
               ],
@@ -845,6 +864,7 @@ class _SmbScreenState extends State<SmbScreen> {
   }
 
   Widget _body(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     if (_opening) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -858,13 +878,13 @@ class _SmbScreenState extends State<SmbScreen> {
             children: [
               const Icon(Icons.cloud_off_outlined, size: 64),
               const SizedBox(height: 16),
-              Text('Error: $_error',
+              Text(strings.errorMessage(_error!),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: _atBrowseRoot ? _loadServers : _goUp,
-                child: const Text('Retry'),
+                child: Text(strings.retry),
               ),
             ],
           ),
@@ -887,9 +907,8 @@ class _SmbScreenState extends State<SmbScreen> {
                   padding: const EdgeInsets.all(24),
                   child: Text(
                     _share.isEmpty
-                        ? 'No shares found. Check your NAS share settings '
-                            'and make sure shares are visible to the network.'
-                        : 'Nothing here',
+                        ? strings.noSharesFound
+                        : strings.nothingHere,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
@@ -1190,16 +1209,23 @@ class _SmbScreenState extends State<SmbScreen> {
   }
 
   Widget _serverList(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     if (_servers.isEmpty && _discovered.isEmpty && !_scanning) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.dns_outlined, size: 48, color: Colors.white38),
-            SizedBox(height: 12),
+            Icon(
+              Icons.dns_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
               Text(
-                'Nothing yet',
-                style: TextStyle(color: Colors.white54),
+                strings.nothingYet,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
           ],
         ),
@@ -1211,22 +1237,22 @@ class _SmbScreenState extends State<SmbScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           if (_scanning)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  SizedBox(width: 12),
-                  Text('Scanning your network…'),
+                  const SizedBox(width: 12),
+                  Text(strings.scanningNetwork),
                 ],
               ),
             ),
           if (!_scanning && _discovered.isNotEmpty) ...[
-            const _SectionHeader('Detected on this network'),
+            _SectionHeader(strings.detectedOnNetwork),
             for (final d in _discovered)
               TvTile(
                 leading: const Icon(Icons.lan_outlined),
@@ -1245,7 +1271,7 @@ class _SmbScreenState extends State<SmbScreen> {
               ),
           ],
           if (_servers.isNotEmpty) ...[
-            const _SectionHeader('Saved servers'),
+            _SectionHeader(strings.savedServers),
             for (final server in _servers) _serverTile(server),
           ],
         ],
@@ -1254,6 +1280,7 @@ class _SmbScreenState extends State<SmbScreen> {
   }
 
   Widget _serverTile(SmbServer server) {
+    final strings = AppLocalizations.of(context);
     final status = _statuses[server.id];
     final dot = Container(
       width: 12,
@@ -1282,7 +1309,9 @@ class _SmbScreenState extends State<SmbScreen> {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        server.subtitle,
+        '${server.host}:${server.port} · '
+        '${server.domain.isEmpty ? '' : '${server.domain}\\'}'
+        '${server.anonymous || server.username.isEmpty ? strings.guest : server.username}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -1294,9 +1323,9 @@ class _SmbScreenState extends State<SmbScreen> {
             _deleteServer(server);
           }
         },
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: 'edit', child: Text('Edit')),
-          PopupMenuItem(value: 'delete', child: Text('Delete')),
+        itemBuilder: (_) => [
+          PopupMenuItem(value: 'edit', child: Text(strings.edit)),
+          PopupMenuItem(value: 'delete', child: Text(strings.delete)),
         ],
       ),
       onTap: () => _openServer(server),
@@ -2267,11 +2296,12 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppLocalizations.of(context);
     return serverDialog(
       title: ServerDialogTitle(
         icon: widget.existing == null ? Icons.add_link : Icons.dns_outlined,
-        title: widget.existing == null ? 'Add server' : 'Edit server',
-        subtitle: 'SMB / network share',
+        title: widget.existing == null ? strings.addServer : strings.editServer,
+        subtitle: strings.networkShares,
       ),
       content: SizedBox(
         width: 440,
@@ -2289,7 +2319,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Name',
+                        label: strings.name,
                         hint: 'e.g. Living room NAS',
                         icon: Icons.badge_outlined,
                         optional: true,
@@ -2308,7 +2338,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                             textInputAction: TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: 'Host',
+                              label: strings.host,
                               hint: '192.168.1.10 or nas.local',
                               icon: Icons.lan_outlined,
                             ),
@@ -2324,7 +2354,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                                 _guest ? TextInputAction.done : TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: 'Port',
+                              label: strings.port,
                               hint: '445',
                               icon: Icons.settings_ethernet,
                             ),
@@ -2337,8 +2367,8 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       controlAffinity: ListTileControlAffinity.leading,
                       dense: true,
                       activeThumbColor: theme.colorScheme.primary,
-                      title: const Text('Guest — no username/password',
-                          style: TextStyle(fontSize: 14)),
+                      title: Text(strings.guestNoCredentials,
+                          style: const TextStyle(fontSize: 14)),
                       value: _guest,
                       onChanged: (v) => setState(() => _guest = v),
                     ),
@@ -2350,7 +2380,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                         textInputAction: TextInputAction.next,
                         decoration: serverFieldDecoration(
                           context,
-                          label: 'Username',
+                          label: strings.username,
                           hint: 'admin',
                           icon: Icons.person_outline,
                         ),
@@ -2361,7 +2391,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                         controller: _password,
                         label: widget.existing?.hasPassword ?? false
                             ? 'Password (leave empty to keep)'
-                            : 'Password',
+                            : strings.password,
                         hint: '••••••••',
                       ),
                       const SizedBox(height: 14),
@@ -2370,7 +2400,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                         textInputAction: TextInputAction.done,
                         decoration: serverFieldDecoration(
                           context,
-                          label: 'Domain',
+                          label: strings.domain,
                           hint: 'WORKGROUP',
                           icon: Icons.account_tree_outlined,
                           optional: true,
@@ -2404,11 +2434,11 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                   height: 14,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.wifi_tethering, size: 16),
-          label: const Text('Test'),
+          label: Text(strings.test),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(strings.cancel),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -2417,7 +2447,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           ),
           onPressed: _save,
           icon: const Icon(Icons.check_rounded, size: 16),
-          label: const Text('Save'),
+          label: Text(strings.save),
         ),
       ],
     );
