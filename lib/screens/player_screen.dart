@@ -3823,6 +3823,27 @@ class _PlayerScreenState extends State<PlayerScreen>
                         unawaited(MpvPipService.instance.enterPip());
                       },
                     ),
+                  // "Play with external app" — Android only (iOS sandbox
+                  // prevents launching another app's player). Fires an
+                  // ACTION_VIEW chooser with the current video; the player
+                  // pauses so the external app plays in foreground. Media3
+                  // engine only — the mpv fallback (Flutter texture) has no
+                  // native surface / channel to hand off.
+                  if (Platform.isAndroid && !_isTv && !_mpvReady)
+                    _tvListTile(
+                      leading: const Icon(Icons.open_in_new,
+                          color: Colors.white70),
+                      title: const Text('Play with external app',
+                          style: TextStyle(color: Colors.white)),
+                      subtitle: const Text(
+                          'Hand this video to another installed player',
+                          style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      onTap: () async {
+                        Navigator.of(sheetContext).pop();
+                        _exo?.pause();
+                        await _playExternal();
+                      },
+                    ),
                   // Aspect ratio dropdown
                   _tvListTile(
                     leading: const Icon(Icons.aspect_ratio, color: Colors.white70),
@@ -4468,6 +4489,43 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _playExternal() async {
+    // Build the best playable URI to hand to another player.
+    final video = _current;
+    String? uri;
+    String? path = video.path;
+    if (video.uri != null && video.uri!.isNotEmpty) {
+      final u = video.uri!;
+      final lower = u.toLowerCase();
+      // Hand over content/http(s)/file URIs directly. Anything needing
+      // in-app auth (WebDAV Basic, Jellyfin token URL, SMB) can't be shared
+      // as a standalone URL — the external player won't know the credentials.
+      if (lower.startsWith('content://') ||
+          lower.startsWith('file://') ||
+          lower.startsWith('http://') ||
+          lower.startsWith('https://')) {
+        uri = u;
+      }
+    }
+    if (uri == null && path != null && path.isNotEmpty) {
+      uri = 'file://$path';
+    }
+    if (uri == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('This source can’t be handed to an external player.'),
+        ));
+      }
+      return;
+    }
+    final ok = await _exo?.playExternal(uri: uri, path: path) ?? false;
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No external player can open this file.'),
+      ));
+    }
   }
 
   Future<void> _applySubtitleDelay(int ms, StateSetter setSheet) async {

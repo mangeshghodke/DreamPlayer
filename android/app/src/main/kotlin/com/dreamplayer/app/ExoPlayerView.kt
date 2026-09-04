@@ -3,6 +3,7 @@ package com.dreamplayer.app
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
@@ -1440,6 +1441,39 @@ class ExoPlayerView(
                 "dispose" -> {
                     stopPositionTicker()
                     result.success(null)
+                }
+                "playExternal" -> {
+                    // "Play with external app": fire an ACTION_VIEW chooser so
+                    // the user can hand the current video to another installed
+                    // player (MX Player, VLC, Nova, Just Player, Kodi, ...).
+                    // Local paths and content URIs map directly; http(s) URLs
+                    // go straight to the intent.
+                    val uri = call.argument<String>("uri")
+                        ?: run {
+                            val p = call.argument<String>("path")
+                            if (!p.isNullOrEmpty()) "file://$p" else null
+                        }
+                    if (uri.isNullOrEmpty()) {
+                        result.error("bad_args", "Missing uri or path", null)
+                        return@setMethodCallHandler
+                    }
+                    val parsed = Uri.parse(uri)
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(parsed, "video/*")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    try {
+                        activity.startActivity(
+                            Intent.createChooser(intent, "Play with…")
+                        )
+                        result.success(true)
+                    } catch (e: android.content.ActivityNotFoundException) {
+                        result.error(
+                            "no_player",
+                            "No external player found for this file.",
+                            e.message
+                        )
+                    }
                 }
                 else -> result.notImplemented()
             }
