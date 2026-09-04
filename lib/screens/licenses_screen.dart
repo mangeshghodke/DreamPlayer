@@ -70,6 +70,31 @@ class LicensesScreen extends StatelessWidget {
                 subtitle: Text(entry.license),
                 onTap: () => _openUrl(context, entry.url),
               ),
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Source code',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                'The complete source code for this application is available '
+                'under the GNU General Public License v3.0 at:',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.code),
+              title: const Text('github.com/mangeshghodke/DreamPlayer'),
+              subtitle: const Text('GPLv3 source code'),
+              onTap: () => _openUrl(context,
+                  'https://github.com/mangeshghodke/DreamPlayer'),
+            ),
           ],
         ),
       ),
