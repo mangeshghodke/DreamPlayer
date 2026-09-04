@@ -815,7 +815,11 @@ class _FolderScreenState extends State<FolderScreen> {
     final metadataKey = widget.folder.metadataKey;
 
     if (_loadingSeriesMeta) {
-      return const Center(child: CircularProgressIndicator());
+      // TMDB metadata is still resolving — do NOT block the file list behind
+      // a spinner. Files are the first priority; the Nova-style series header
+      // (poster/title/overview) arrives as soon as the fetch completes and
+      // this body swaps over via setState.
+      return _regularBody(context);
     }
 
     // No metadata — fall back to regular list.
