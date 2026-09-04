@@ -96,8 +96,10 @@ private struct MkvReader {
         return val
     }
 
-    /// Read an EBML element size (VINT). Returns nil on overlong/clear top bit.
+    /// Read an EBML element size (VINT). Returns nil on all-ones (unknown size),
+    /// but still advances pos past all VINT bytes so the reader stays synced.
     mutating func readSize() -> UInt64? {
+        let startPos = pos
         var b = readByte()
         var mask: UInt8 = 0x80
         var len = 1
@@ -105,11 +107,18 @@ private struct MkvReader {
             len += 1
             mask >>= 1
         }
-        if mask == 0 { return nil }
+        if mask == 0 {
+            // Malformed — skip all remaining bytes of what we consumed so far.
+            return nil
+        }
         var val = UInt64(b & (mask - 1))
-        if val == UInt64(mask - 1) { return nil } // all-ones = unknown size
         for _ in 1..<len {
             val = (val << 8) | UInt64(readByte())
+        }
+        if val == UInt64(mask - 1) {
+            // All-ones = undefined size. We've consumed `len` bytes of the VINT.
+            // Return nil but pos is already advanced past the full VINT.
+            return nil
         }
         return val
     }
