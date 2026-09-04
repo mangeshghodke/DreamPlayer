@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../models/hdr_format.dart';
+import '../l10n/context_text.dart';
 import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/badge_prefs.dart';
@@ -102,6 +103,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _mpvError;
   final List<StreamSubscription<Object?>> _mpvSubs = [];
   BoxFit _mpvFit = BoxFit.contain;
+
   /// Forced aspect ratio applied in mpv mode for the 16:9 / 4:3 aspect modes
   /// (a `Center`-box wraps the video; `cover` fills the inside of that box).
   double? _mpvAspect;
@@ -112,17 +114,21 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _mpvResolution;
   int? _mpvAudioChannels;
   bool _mpvSubtitleOn = false;
+
   /// Current subtitle lines from mpv, rendered by our own overlay instead of
   /// media_kit's built-in SubtitleView (which lands in the letterbox bar).
   List<String> _mpvSubtitleLines = [];
+
   /// Cached subtitle style (size/color/background/outline) shared with Media3.
   SubtitleStyle _subtitleStyle = const SubtitleStyle();
   double _mpvBrightness = 1.0;
   double _mpvZoomScale = 1.0;
+
   /// Last hwdec value applied to the mpv instance ('mediacodec-copy',
   /// 'mediacodec', 'no'). Displayed in the ⓘ info sheet so the user can see
   /// whether mpv is using hardware or software decoding.
   String _mpvHwdecMode = 'mediacodec-copy';
+
   /// Active SMB loopback-bridge token (see [SmbHttpProxy] / `startLoopback`);
   /// null when the fallback's current source isn't served through the bridge.
   String? _mpvProxyToken;
@@ -219,6 +225,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   HdrFormat _liveHdr = HdrFormat.sdr;
   String? _liveDecoderName;
   bool? _isHwDecoder;
+
   /// Source URI scheme, used to label the source in the ⓘ info sheet
   /// (Local / SMB / WebDAV / FTP / HTTP / etc.).
   String _liveSourceScheme = '';
@@ -443,7 +450,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     } catch (e) {
       if (mounted) {
-        _setTerminalError('Playback unavailable: $e');
+        _setTerminalError(context.tr('Playback unavailable: $e', '无法播放：$e'));
       }
     }
   }
@@ -476,12 +483,16 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Seed chapters from the VideoItem (e.g. Jellyfin `MediaSources[].Chapters`);
     // native MKV parsing (`e.chapters`) will override once available.
     _chapters = video.chapters
-        .map((c) => ExoChapter(title: c.title, startMs: c.startMs, endMs: c.endMs))
+        .map(
+          (c) => ExoChapter(title: c.title, startMs: c.startMs, endMs: c.endMs),
+        )
         .toList();
     if (_chapters.isNotEmpty && mounted) setState(() {});
     if (video.path == null && video.uri == null) {
       if (mounted) {
-        setState(() => _error = 'No video source provided.');
+        setState(
+          () => _error = context.tr('No video source provided.', '未提供视频来源。'),
+        );
       }
       return;
     }
@@ -489,14 +500,18 @@ class _PlayerScreenState extends State<PlayerScreen>
     // stops showing the resume button for this engine.
     if (widget.startFromBeginning) {
       await _clearResume();
-      final engine = (_engine == PlayEngine.mpv || _mpvActive) ? 'mpv' : 'media3';
+      final engine = (_engine == PlayEngine.mpv || _mpvActive)
+          ? 'mpv'
+          : 'media3';
       await AudioTrackStore.clear(_resumeKey, engine: engine);
     }
     Duration? resume;
     if (!_inTests && !widget.startFromBeginning) {
       // Read the resume position for the ACTIVE engine (not hardcoded to
       // 'media3' — MPV saves under 'mpv' and would be missed).
-      final engine = (_engine == PlayEngine.mpv || _mpvActive) ? 'mpv' : 'media3';
+      final engine = (_engine == PlayEngine.mpv || _mpvActive)
+          ? 'mpv'
+          : 'media3';
       resume = await ResumeStore.positionFor(_resumeKey, engine: engine);
       // Skip trivial positions and "basically finished" ones.
       if (resume != null && resume < const Duration(seconds: 10)) resume = null;
@@ -512,7 +527,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         ? null
         : await AudioTrackStore.load(
             _resumeKey,
-            engine: (_engine == PlayEngine.mpv || _mpvActive) ? 'mpv' : 'media3',
+            engine: (_engine == PlayEngine.mpv || _mpvActive)
+                ? 'mpv'
+                : 'media3',
           );
     final externalSubs = await _resolveExternalSubtitles(video);
     final readingLang = await SubtitlePrefs.loadReadingLanguage();
@@ -536,7 +553,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _exo?.setAudioBoost(_audioBoost);
       _exo?.setNightMode(_nightMode);
     } catch (e) {
-      _setTerminalError('Playback unavailable: $e');
+      _setTerminalError(context.tr('Playback unavailable: $e', '无法播放：$e'));
     }
   }
 
@@ -576,7 +593,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// found; the player then falls back to the container's embedded track.
   /// Errors are swallowed (sidecar discovery is best-effort and must never
   /// block playback).
-  Future<List<VideoExternalSub>> _resolveExternalSubtitles(VideoItem video) async {
+  Future<List<VideoExternalSub>> _resolveExternalSubtitles(
+    VideoItem video,
+  ) async {
     final existing = video.externalSubtitles;
     List<VideoExternalSub> resolved;
     // Source already attached its own external subs (Jellyfin, folder
@@ -635,7 +654,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     // persisted to DecoderModeStore, so a force-kill can't leak a one-file
     // software fallback into the next session as the user's decoder default.
     // The user's real preference (Auto/HW/SW) stays untouched in the store.
-    _error = 'Hardware decoder failed — retrying with software…';
+    _error = context.tr(
+      'Hardware decoder failed — retrying with software…',
+      '硬件解码失败，正在改用软件解码重试…',
+    );
     setState(() {});
     _reopenAt(_position, _duration);
   }
@@ -727,22 +749,36 @@ class _PlayerScreenState extends State<PlayerScreen>
       // media_kit attaches its Android texture output inside an async closure
       // in the VideoController constructor; a failure there would otherwise
       // throw into the void and leave a black screen with no error.
-      unawaited(controller.platform.future.then<void>(
-        (_) => debugPrint('mpv: video output attached'),
-        onError: (Object e, StackTrace st) {
-          debugPrint('mpv: video output attach failed: $e\n$st');
-          _markMpvFailed('The fallback video output couldn\'t start: $e');
-        },
-      ));
+      unawaited(
+        controller.platform.future.then<void>(
+          (_) => debugPrint('mpv: video output attached'),
+          onError: (Object e, StackTrace st) {
+            debugPrint('mpv: video output attach failed: $e\n$st');
+            _markMpvFailed(
+              context.tr(
+                'The fallback video output couldn\'t start: $e',
+                '兼容播放器的视频输出无法启动：$e',
+              ),
+            );
+          },
+        ),
+      );
       if (automatic && mounted) {
         // Brief, honest signal that playback continued in a different engine.
         final messenger = ScaffoldMessenger.of(context);
         messenger
           ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(
-            content: Text('This video isn\'t supported by the built-in player, so the fallback player is being used.'),
-            duration: Duration(seconds: 3),
-          ));
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                context.tr(
+                  'This video isn\'t supported by the built-in player, so the fallback player is being used.',
+                  '内置播放器不支持此视频，已改用兼容播放器。',
+                ),
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
       }
       await _mpvOpen(player, _current, _position.inMilliseconds);
     } catch (e) {
@@ -803,12 +839,23 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Force software decode for these so mpv uses its bundled FFmpeg decoder
     // instead of the device hardware, which may hang on the first frame
     // (audio + video stuck, position frozen at 0:00).
-    final ext = _current.path?.split('.').last.toLowerCase() ??
+    final ext =
+        _current.path?.split('.').last.toLowerCase() ??
         _current.uri?.split('.').last.toLowerCase() ??
         '';
     final swOnly = const {
-      'm2ts', 'ts', 'm2t', 'm2p', 'vob', 'mpg', 'mpeg',
-      'wmv', 'rmvb', 'flv', 'ogv', 'dat',
+      'm2ts',
+      'ts',
+      'm2t',
+      'm2p',
+      'vob',
+      'mpg',
+      'mpeg',
+      'wmv',
+      'rmvb',
+      'flv',
+      'ogv',
+      'dat',
     }.contains(ext);
     final value = switch (_decoderMode) {
       DecoderMode.hw => 'mediacodec',
@@ -818,7 +865,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     try {
       await platform.setProperty('hwdec', value);
       _mpvHwdecMode = value;
-      debugPrint('mpv: hwdec = $value${swOnly ? ' (sw-only container: .$ext)' : ''}');
+      debugPrint(
+        'mpv: hwdec = $value${swOnly ? ' (sw-only container: .$ext)' : ''}',
+      );
     } catch (e) {
       debugPrint('mpv: hwdec=$value unavailable: $e');
     }
@@ -862,7 +911,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     final src = _mpvSourceFor(video);
     debugPrint('mpv: opening source: $src');
     if (src.isEmpty) {
-      _markMpvFailed('No playable source for this video.');
+      _markMpvFailed(
+        context.tr('No playable source for this video.', '此视频没有可播放的来源。'),
+      );
       return;
     }
     var playable = src;
@@ -873,8 +924,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       try {
         playable = await _smbLoopbackUrl(src);
       } catch (e) {
-        _markMpvFailed('Could not stream this SMB file through the fallback '
-            'player: ${e.toString().replaceFirst('PlatformException', '')}');
+        _markMpvFailed(
+          context.tr(
+            'Could not stream this SMB file through the fallback player: ${e.toString().replaceFirst('PlatformException', '')}',
+            '无法通过兼容播放器串流此 SMB 文件：${e.toString().replaceFirst('PlatformException', '')}',
+          ),
+        );
         return;
       }
       if (!mounted) return;
@@ -883,11 +938,18 @@ class _PlayerScreenState extends State<PlayerScreen>
     // force the lavf demuxer. mpv's native TS demuxer can't handle Blu-ray
     // m2ts packets (192-byte with 4-byte timestamp prefix) — it gets stuck
     // scanning the same file offset repeatedly, never finding a sync point.
-    final ext = video.path?.split('.').last.toLowerCase() ??
+    final ext =
+        video.path?.split('.').last.toLowerCase() ??
         video.uri?.split('.').last.toLowerCase() ??
         '';
     final useLavfDemuxer = const {
-      'm2ts', 'ts', 'm2t', 'm2p', 'vob', 'mpg', 'mpeg',
+      'm2ts',
+      'ts',
+      'm2t',
+      'm2p',
+      'vob',
+      'mpg',
+      'mpeg',
     }.contains(ext);
     try {
       final platform = player.platform;
@@ -941,14 +1003,17 @@ class _PlayerScreenState extends State<PlayerScreen>
       //       onSurfaceTextureAvailable in VideoOutput.java)
       final controller = _mpvController;
       if (controller == null) {
-        _markMpvFailed('Video controller lost before surface attach.');
+        _markMpvFailed(
+          context.tr(
+            'Video controller lost before surface attach.',
+            '视频控制器在画面挂载前已断开。',
+          ),
+        );
         return;
       }
       // a) Wait for the texture ID.
       try {
-        await controller.platform.future.timeout(
-          const Duration(seconds: 5),
-        );
+        await controller.platform.future.timeout(const Duration(seconds: 5));
       } catch (e) {
         debugPrint('mpv: texture attach: $e (proceeding anyway)');
       }
@@ -1044,10 +1109,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (s.isDefault) continue;
       unawaited(_addMpvSubtitle(player, s, select: false));
     }
-    final def = subs.firstWhere(
-      (s) => s.isDefault,
-      orElse: () => subs.first,
-    );
+    final def = subs.firstWhere((s) => s.isDefault, orElse: () => subs.first);
     await _addMpvSubtitle(player, def, select: true);
   }
 
@@ -1122,105 +1184,133 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _listenMpv(Player player) {
-    _mpvSubs.add(player.stream.playing.listen((v) {
-      if (!mounted) return;
-      _buffering = false;
-      _playing = v;
-      _syncControlsForPlaybackState();
-      _syncMpvPipState();
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.position.listen((v) {
-      if (!mounted) return;
-      _position = v;
-      // A-B repeat: loop back to A whenever playback passes B.
-      if (_abA != null &&
-          _abB != null &&
-          _playing &&
-          !_dragging &&
-          v >= Duration(milliseconds: _abB!)) {
-        final t = Duration(milliseconds: _abA!);
-        _position = t;
-        unawaited(player.seek(t));
-      }
-      _maybeSaveMpvResume(v);
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.duration.listen((v) {
-      if (!mounted) return;
-      if (v > Duration.zero) _hadMedia = true;
-      _duration = v;
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.tracks.listen((t) {
-      if (!mounted) return;
-      _mpvTracks = t;
-      _syncMpvTrackMeta();
-      // Restore the user's chosen audio track on first tracks event after open.
-      if (_pendingAudioTrackRestore is String && t.audio.isNotEmpty) {
-        final restoreId = _pendingAudioTrackRestore as String;
-        _pendingAudioTrackRestore = null;
-        for (final tr in t.audio) {
-          if (tr.id == restoreId) {
-            player.setAudioTrack(tr);
-            break;
+    _mpvSubs.add(
+      player.stream.playing.listen((v) {
+        if (!mounted) return;
+        _buffering = false;
+        _playing = v;
+        _syncControlsForPlaybackState();
+        _syncMpvPipState();
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.position.listen((v) {
+        if (!mounted) return;
+        _position = v;
+        // A-B repeat: loop back to A whenever playback passes B.
+        if (_abA != null &&
+            _abB != null &&
+            _playing &&
+            !_dragging &&
+            v >= Duration(milliseconds: _abB!)) {
+          final t = Duration(milliseconds: _abA!);
+          _position = t;
+          unawaited(player.seek(t));
+        }
+        _maybeSaveMpvResume(v);
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.duration.listen((v) {
+        if (!mounted) return;
+        if (v > Duration.zero) _hadMedia = true;
+        _duration = v;
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.tracks.listen((t) {
+        if (!mounted) return;
+        _mpvTracks = t;
+        _syncMpvTrackMeta();
+        // Restore the user's chosen audio track on first tracks event after open.
+        if (_pendingAudioTrackRestore is String && t.audio.isNotEmpty) {
+          final restoreId = _pendingAudioTrackRestore as String;
+          _pendingAudioTrackRestore = null;
+          for (final tr in t.audio) {
+            if (tr.id == restoreId) {
+              player.setAudioTrack(tr);
+              break;
+            }
           }
         }
-      }
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.track.listen((t) {
-      if (!mounted) return;
-      // 'no' = subtitles explicitly off; 'auto' = mpv auto-selected a track
-      // (subtitles ARE displaying); any other id = user manually selected one.
-      _mpvSubtitleOn = t.subtitle.id != 'no';
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.subtitle.listen((lines) {
-      if (!mounted) return;
-      _mpvSubtitleLines = lines.where((l) => l.trim().isNotEmpty).toList();
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.width.listen((v) {
-      if (!mounted) return;
-      _syncMpvTracksResolution();
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.height.listen((v) {
-      if (!mounted) return;
-      _syncMpvTracksResolution();
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.buffer.listen((v) {
-      if (!mounted) return;
-      _buffered = v;
-    }));
-    _mpvSubs.add(player.stream.buffering.listen((v) {
-      if (!mounted) return;
-      _buffering = v;
-      _syncControlsForPlaybackState();
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.completed.listen((v) {
-      if (!mounted) return;
-      if (v) {
-        _playing = false;
-        _buffering = false;
-        _buffered = Duration.zero;
-        _completed = true;
-        _onMpvEnded();
-      }
-      setState(() {});
-    }));
-    _mpvSubs.add(player.stream.error.listen((msg) {
-      debugPrint('mpv: playback error: $msg');
-      if (!mounted) return;
-      _markMpvFailed('Fallback player error: $msg');
-    }));
-    _mpvSubs.add(player.stream.log.listen((l) {
-      // mpv's own log lines — invaluable when a file won't open.
-      debugPrint('mpv [${l.level}] ${l.text.trim()}');
-    }));
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.track.listen((t) {
+        if (!mounted) return;
+        // 'no' = subtitles explicitly off; 'auto' = mpv auto-selected a track
+        // (subtitles ARE displaying); any other id = user manually selected one.
+        _mpvSubtitleOn = t.subtitle.id != 'no';
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.subtitle.listen((lines) {
+        if (!mounted) return;
+        _mpvSubtitleLines = lines.where((l) => l.trim().isNotEmpty).toList();
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.width.listen((v) {
+        if (!mounted) return;
+        _syncMpvTracksResolution();
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.height.listen((v) {
+        if (!mounted) return;
+        _syncMpvTracksResolution();
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.buffer.listen((v) {
+        if (!mounted) return;
+        _buffered = v;
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.buffering.listen((v) {
+        if (!mounted) return;
+        _buffering = v;
+        _syncControlsForPlaybackState();
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.completed.listen((v) {
+        if (!mounted) return;
+        if (v) {
+          _playing = false;
+          _buffering = false;
+          _buffered = Duration.zero;
+          _completed = true;
+          _onMpvEnded();
+        }
+        setState(() {});
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.error.listen((msg) {
+        debugPrint('mpv: playback error: $msg');
+        if (!mounted) return;
+        _markMpvFailed(
+          context.tr('Fallback player error: $msg', '兼容播放器错误：$msg'),
+        );
+      }),
+    );
+    _mpvSubs.add(
+      player.stream.log.listen((l) {
+        // mpv's own log lines — invaluable when a file won't open.
+        debugPrint('mpv [${l.level}] ${l.text.trim()}');
+      }),
+    );
   }
 
   /// Best-available video codec name reported by the mpv engine (or null).
@@ -1251,8 +1341,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       final channels = tr.channelscount;
       if (channels != null && channels > 0) _mpvAudioChannels = channels;
       final parts = [
-        if (codec != null && codec.isNotEmpty)
-          formatAudioCodec(codec),
+        if (codec != null && codec.isNotEmpty) formatAudioCodec(codec),
         if (channels != null && channels > 0) channelsLabel(channels),
       ];
       if (parts.isNotEmpty) return parts.join(' · ');
@@ -1287,11 +1376,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     final p = _mpvPlayer;
     final w = p?.state.width ?? 0;
     final h = p?.state.height ?? 0;
-    unawaited(MpvPipService.instance.setState(
-      active: _mpvActive,
-      playing: _playing,
-      aspect: (w > 0 && h > 0) ? w / h : 0,
-    ));
+    unawaited(
+      MpvPipService.instance.setState(
+        active: _mpvActive,
+        playing: _playing,
+        aspect: (w > 0 && h > 0) ? w / h : 0,
+      ),
+    );
   }
 
   /// System moved the app in/out of pip while the fallback engine is playing.
@@ -1337,7 +1428,9 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _onPipForward() {
     if (_mpvPlayer == null) return;
-    final cap = _duration > Duration.zero ? _duration - const Duration(seconds: 1) : null;
+    final cap = _duration > Duration.zero
+        ? _duration - const Duration(seconds: 1)
+        : null;
     var target = _position + const Duration(seconds: 10);
     if (cap != null && target > cap) target = cap;
     unawaited(_mpvSeek(target));
@@ -1787,12 +1880,17 @@ class _PlayerScreenState extends State<PlayerScreen>
       _syncControlsForPlaybackState();
     }
     // Nova-style: reading language auto-select (pick track matching pref when nothing selected).
-    if (!_readingAutoSelected && e.subtitleTracks.isNotEmpty && e.selectedSubtitleTrack < 0) {
+    if (!_readingAutoSelected &&
+        e.subtitleTracks.isNotEmpty &&
+        e.selectedSubtitleTrack < 0) {
       _readingAutoSelected = true;
       Future.microtask(() => _maybeAutoSelectReading(e.subtitleTracks));
     }
     // Auto-fetch online subtitles once per video when no tracks exist (Nova-style).
-    if (!_autoFetchFired && e.state == _nativeStateReady && _subtitleTracks.isEmpty && e.subtitleTracks.isEmpty) {
+    if (!_autoFetchFired &&
+        e.state == _nativeStateReady &&
+        _subtitleTracks.isEmpty &&
+        e.subtitleTracks.isEmpty) {
       // Fire-and-forget; handle async outside setState.
       Future.microtask(() => _maybeAutoFetchSubs());
     }
@@ -1868,9 +1966,14 @@ class _PlayerScreenState extends State<PlayerScreen>
     _exo?.pause();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sleep timer finished — playback paused'),
-          duration: Duration(seconds: 3),
+        SnackBar(
+          content: Text(
+            context.tr(
+              'Sleep timer finished — playback paused',
+              '睡眠定时已结束，播放已暂停',
+            ),
+          ),
+          duration: const Duration(seconds: 3),
         ),
       );
       setState(() {});
@@ -1913,7 +2016,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     final siblings = await _orderedSiblings();
     if (siblings == null || siblings.length < 2) {
       // Single-file folder: repeat all means replay the same file.
-      return (wrap && siblings != null && siblings.length == 1) ? siblings.first : null;
+      return (wrap && siblings != null && siblings.length == 1)
+          ? siblings.first
+          : null;
     }
     final cur = _current;
     final idx = siblings.indexWhere(
@@ -1945,7 +2050,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         final videos = entries.where((e) => !e.isDirectory).toList();
         if (videos.isEmpty) return null;
         // Prefer season/episode ordering when the folder looks episodic.
-        final episodic = videos.any((e) => ParsedFileName.parse(e.name).isEpisode);
+        final episodic = videos.any(
+          (e) => ParsedFileName.parse(e.name).isEpisode,
+        );
         if (episodic) {
           videos.sort((a, b) {
             final pa = ParsedFileName.parse(a.name);
@@ -1957,28 +2064,28 @@ class _PlayerScreenState extends State<PlayerScreen>
             return a.name.toLowerCase().compareTo(b.name.toLowerCase());
           });
         } else {
-          videos.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          videos.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
         }
-        return videos
-            .map((e) {
-              final isContent = e.path.startsWith('content://');
-              final fi = extractFileInfo(e.name);
-              return VideoItem(
-                id: 'folder_next_${e.path.hashCode}',
-                title: e.name,
-                path: isContent ? null : e.path,
-                uri: isContent ? e.path : null,
-                resumeKey: e.resumeKey,
-                duration: Duration.zero,
-                sizeBytes: e.size,
-                videoCodec: fi.videoCodec,
-                audioCodec: fi.audioCodec,
-                audioChannels: fi.audioChannels,
-                resolution: fi.resolution,
-                hdrHint: fi.hdrHint,
-              );
-            })
-            .toList();
+        return videos.map((e) {
+          final isContent = e.path.startsWith('content://');
+          final fi = extractFileInfo(e.name);
+          return VideoItem(
+            id: 'folder_next_${e.path.hashCode}',
+            title: e.name,
+            path: isContent ? null : e.path,
+            uri: isContent ? e.path : null,
+            resumeKey: e.resumeKey,
+            duration: Duration.zero,
+            sizeBytes: e.size,
+            videoCodec: fi.videoCodec,
+            audioCodec: fi.audioCodec,
+            audioChannels: fi.audioChannels,
+            resolution: fi.resolution,
+            hdrHint: fi.hdrHint,
+          );
+        }).toList();
       } catch (_) {
         return null;
       }
@@ -1992,7 +2099,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (resolved == null) {
           final servers = await client.loadServers();
           try {
-            resolved = servers.firstWhere((s) => s.urlHost == cur.jellyfinServerId);
+            resolved = servers.firstWhere(
+              (s) => s.urlHost == cur.jellyfinServerId,
+            );
           } catch (_) {
             resolved = null;
           }
@@ -2005,17 +2114,23 @@ class _PlayerScreenState extends State<PlayerScreen>
         final siblings = await client.getItems(resolved, parentId);
         final playable = siblings.where((e) => e.isPlayable).toList();
         if (playable.isEmpty) return null;
-        final episodic = playable.any((e) => e.parentIndexNumber != null && e.indexNumber != null);
+        final episodic = playable.any(
+          (e) => e.parentIndexNumber != null && e.indexNumber != null,
+        );
         if (episodic) {
           playable.sort((a, b) {
-            final c = (a.parentIndexNumber ?? 0).compareTo(b.parentIndexNumber ?? 0);
+            final c = (a.parentIndexNumber ?? 0).compareTo(
+              b.parentIndexNumber ?? 0,
+            );
             if (c != 0) return c;
             final d = (a.indexNumber ?? 0).compareTo(b.indexNumber ?? 0);
             if (d != 0) return d;
             return a.name.toLowerCase().compareTo(b.name.toLowerCase());
           });
         } else {
-          playable.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          playable.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
         }
         return playable.map((e) => client.videoItem(resolved!, e)).toList();
       } catch (_) {
@@ -2572,11 +2687,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Audio tracks',
-                  style: TextStyle(
+                  context.tr('Audio tracks', '音轨'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -2631,8 +2746,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     final all = _mpvTracks.audio;
     final tracks = all.where((t) => t.id != 'auto' && t.id != 'no').toList();
     if (tracks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No audio tracks found')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('No audio tracks found', '未找到音轨'))),
+      );
       return;
     }
     final selected = _mpvSelectedAudioId(tracks);
@@ -2648,11 +2764,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Audio tracks',
-                  style: TextStyle(
+                  context.tr('Audio tracks', '音轨'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -2728,16 +2844,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _openMpvSubtitleSheet() async {
     final player = _mpvPlayer;
     if (player == null) return;
-    final tracks = _mpvTracks.subtitle
-        .where((t) => t.id != 'no')
-        .toList();
+    final tracks = _mpvTracks.subtitle.where((t) => t.id != 'no').toList();
     // When mpv is in 'auto' mode, find the first REAL embedded track
     // (mpv auto-selects the first one); the 'auto' entry itself is not a
     // selectable subtitle track.
     final autoSelected = player.state.track.subtitle.id == 'auto'
         ? tracks
-            .where((t) => !t.uri && t.id != 'no' && t.id != 'auto')
-            .firstOrNull
+              .where((t) => !t.uri && t.id != 'no' && t.id != 'auto')
+              .firstOrNull
         : null;
     const onlineSentinel = -3;
     const loadSentinel = -2;
@@ -2758,11 +2872,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             shrinkWrap: true,
             padding: const EdgeInsets.only(bottom: 8),
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Subtitles',
-                  style: TextStyle(
+                  context.tr('Subtitles', '字幕'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -2770,15 +2884,22 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
               ),
               if (downloaded.isNotEmpty) ...[
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
-                  child: Text('Downloaded',
-                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                  child: Text(
+                    context.tr('Downloaded', '已下载'),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 for (var i = 0; i < downloaded.length; i++)
                   () {
                     final d = downloaded[i];
-                    final isSelected = player.state.track.subtitle.uri &&
+                    final isSelected =
+                        player.state.track.subtitle.uri &&
                         player.state.track.subtitle.id == d.path;
                     final displayName = meaningfulSubtitleFileName(
                       apiFileName: d.fileName,
@@ -2786,9 +2907,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                       videoTitle: _current.title,
                     );
                     return _tvListTile(
-                      leading: Icon(isSelected ? Icons.radio_button_checked : Icons.file_download_done, color: isSelected ? Colors.white : Colors.white70),
-                      title: Text('${subtitleFileNameLabel(displayName)} · ${d.language.toUpperCase()}', style: const TextStyle(color: Colors.white)),
-                      onTap: () => Navigator.of(sheetContext).pop(downloadedBase - i),
+                      leading: Icon(
+                        isSelected
+                            ? Icons.radio_button_checked
+                            : Icons.file_download_done,
+                        color: isSelected ? Colors.white : Colors.white70,
+                      ),
+                      title: Text(
+                        '${subtitleFileNameLabel(displayName)} · ${d.language.toUpperCase()}',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      onTap: () =>
+                          Navigator.of(sheetContext).pop(downloadedBase - i),
                     );
                   }(),
                 const Divider(color: Colors.white12, height: 1),
@@ -2802,42 +2932,52 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ? Colors.white
                       : Colors.white54,
                 ),
-                title: const Text('Off',
-                    style: TextStyle(color: Colors.white)),
+                title: Text(
+                  context.tr('Off', '关闭'),
+                  style: const TextStyle(color: Colors.white),
+                ),
                 onTap: () => Navigator.of(sheetContext).pop(-1),
               ),
               for (final t in tracks.where((t) => t.id != 'auto'))
                 () {
                   final currentId = player.state.track.subtitle.id;
-                  final isSelected = !t.uri &&
-                      (currentId == t.id || t == autoSelected);
+                  final isSelected =
+                      !t.uri && (currentId == t.id || t == autoSelected);
                   final title = t.title?.trim();
                   final lang = languageName(t.language ?? '');
                   return _tvListTile(
                     leading: Icon(
-                      isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                      isSelected
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
                       color: isSelected ? Colors.white : Colors.white54,
                     ),
                     title: Text(
-                      [lang, if (title != null && title.isNotEmpty) title]
-                          .where((s) => s.isNotEmpty)
-                          .join(' · '),
+                      [
+                        lang,
+                        if (title != null && title.isNotEmpty) title,
+                      ].where((s) => s.isNotEmpty).join(' · '),
                       style: const TextStyle(color: Colors.white),
                     ),
-                    onTap: () => Navigator.of(sheetContext).pop(100 + tracks.indexOf(t)),
+                    onTap: () =>
+                        Navigator.of(sheetContext).pop(100 + tracks.indexOf(t)),
                   );
                 }(),
               const Divider(color: Colors.white12, height: 1),
               _tvListTile(
                 leading: const Icon(Icons.language, color: Colors.white70),
-                title: const Text('Search online subtitles…',
-                    style: TextStyle(color: Colors.white)),
+                title: Text(
+                  context.tr('Search online subtitles…', '在线搜索字幕…'),
+                  style: const TextStyle(color: Colors.white),
+                ),
                 onTap: () => Navigator.of(sheetContext).pop(onlineSentinel),
               ),
               _tvListTile(
                 leading: const Icon(Icons.file_open, color: Colors.white70),
-                title: const Text('Load subtitle file…',
-                    style: TextStyle(color: Colors.white)),
+                title: Text(
+                  context.tr('Load subtitle file…', '加载字幕文件…'),
+                  style: const TextStyle(color: Colors.white),
+                ),
                 onTap: () => Navigator.of(sheetContext).pop(loadSentinel),
               ),
             ],
@@ -2891,58 +3031,84 @@ class _PlayerScreenState extends State<PlayerScreen>
     final sourceUrl = (video.uri?.isNotEmpty == true)
         ? video.uri!
         : (video.path?.isNotEmpty == true ? video.path! : '');
-    final fileSize = (video.sizeBytes ?? 0) > 0 ? _formatBytes(video.sizeBytes!) : null;
+    final fileSize = (video.sizeBytes ?? 0) > 0
+        ? _formatBytes(video.sizeBytes!)
+        : null;
     final speedLabel = (_playbackSpeed - 1.0).abs() > 0.001
         ? '${_playbackSpeed.toStringAsFixed(2)}×'
         : null;
     final rows = <({String label, String value})>[
-      (label: 'Title', value: video.title),
-      (label: 'Source', value: sourceLabel),
+      (label: context.tr('Title', '标题'), value: video.title),
+      (label: context.tr('Source', '来源'), value: sourceLabel),
       if (sourceUrl.isNotEmpty && sourceUrl != video.title)
-        (label: 'URL', value: sourceUrl),
-      if (fileSize != null) (label: 'File size', value: fileSize),
+        (label: context.tr('URL', '网址'), value: sourceUrl),
+      if (fileSize != null)
+        (label: context.tr('File size', '文件大小'), value: fileSize),
       (label: 'HDR', value: _mpvReady ? 'SDR (MPV)' : _hdrLabel),
       if (_videoCodecInfoLabel != null)
-        (label: 'Video', value: _videoCodecInfoLabel!),
+        (label: context.tr('Video', '视频'), value: _videoCodecInfoLabel!),
       if (_resolutionInfoLabel != null)
-        (label: 'Resolution', value: _resolutionInfoLabel!),
+        (label: context.tr('Resolution', '分辨率'), value: _resolutionInfoLabel!),
       if (_mpvReady)
         (
-          label: 'Decoder',
-          value: 'libmpv · ${_mpvHwdecMode == "no" ? "software" : _mpvHwdecMode == "mediacodec" ? "hardware" : _mpvHwdecMode == "mediacodec-copy" ? "hardware (copy)" : "hardware (auto)"}',
+          label: context.tr('Decoder', '解码器'),
+          value:
+              'libmpv · ${_mpvHwdecMode == "no"
+                  ? context.tr("software", "软件")
+                  : _mpvHwdecMode == "mediacodec"
+                  ? context.tr("hardware", "硬件")
+                  : _mpvHwdecMode == "mediacodec-copy"
+                  ? context.tr("hardware (copy)", "硬件（复制）")
+                  : context.tr("hardware (auto)", "硬件（自动）")}',
         )
       else if (Platform.isAndroid && _liveDecoderName != null)
         (
-          label: 'Decoder',
-          value: '$_liveDecoderName${(_isHwDecoder ?? true) ? " · hardware" : " · software"}',
+          label: context.tr('Decoder', '解码器'),
+          value:
+              '$_liveDecoderName · ${(_isHwDecoder ?? true) ? context.tr("hardware", "硬件") : context.tr("software", "软件")}',
         ),
       if (_audioInfoLabel != null || _liveAudioPassthrough)
         (
-          label: 'Audio',
+          label: context.tr('Audio', '音频'),
           value: _liveAudioPassthrough
-              ? '${_audioInfoLabel ?? "Audio"} · Passthrough'
+              ? '${_audioInfoLabel ?? context.tr("Audio", "音频")} · ${context.tr("Passthrough", "直通")}'
               : _audioInfoLabel!,
         ),
       if ((_liveAudioChannelCount != null && _liveAudioChannelCount! > 0) ||
           (_mpvReady && _mpvAudioChannels != null))
         (
-          label: 'Audio ch.',
-          value: '${_mpvReady ? _mpvAudioChannels! : _liveAudioChannelCount!} ch',
+          label: context.tr('Audio ch.', '音频声道'),
+          value:
+              '${_mpvReady ? _mpvAudioChannels! : _liveAudioChannelCount!} ${context.tr("ch", "声道")}',
         ),
       if (_transcodeActive ||
           video.isTranscoded ||
           JellyfinClient.isTranscodeUri(video.uri ?? ''))
-        (label: 'Stream', value: 'Server transcoding'),
+        (
+          label: context.tr('Stream', '串流'),
+          value: context.tr('Server transcoding', '服务器转码'),
+        ),
       if (Platform.isAndroid && _liveSpatial == 'on')
-        (label: 'Spatial audio', value: 'On'),
+        (
+          label: context.tr('Spatial audio', '空间音频'),
+          value: context.tr('On', '开启'),
+        ),
       if (Platform.isAndroid && _audioBoost > 1.01)
-        (label: 'Volume boost', value: '${_audioBoost.toStringAsFixed(1)}×'),
-      if (Platform.isAndroid && _nightMode) (label: 'Night mode', value: 'On'),
+        (
+          label: context.tr('Volume boost', '音量增强'),
+          value: '${_audioBoost.toStringAsFixed(1)}×',
+        ),
+      if (Platform.isAndroid && _nightMode)
+        (
+          label: context.tr('Night mode', '夜间模式'),
+          value: context.tr('On', '开启'),
+        ),
       if (Platform.isAndroid && _liveBass > 0)
-        (label: 'Bass boost', value: '$_liveBass/3'),
-      if (speedLabel != null) (label: 'Speed', value: speedLabel),
+        (label: context.tr('Bass boost', '低音增强'), value: '$_liveBass/3'),
+      if (speedLabel != null)
+        (label: context.tr('Speed', '速度'), value: speedLabel),
       if (_chapters.isNotEmpty)
-        (label: 'Chapters', value: '${_chapters.length}'),
+        (label: context.tr('Chapters', '章节'), value: '${_chapters.length}'),
     ];
     await showModalBottomSheet<void>(
       context: context,
@@ -2956,11 +3122,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Video info',
-                  style: TextStyle(
+                  context.tr('Video info', '视频信息'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -2975,7 +3141,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                     final r = rows[i];
                     return Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 6),
+                        horizontal: 20,
+                        vertical: 6,
+                      ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -2984,14 +3152,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                             child: Text(
                               r.label,
                               style: const TextStyle(
-                                  color: Colors.white54, fontSize: 13),
+                                color: Colors.white54,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                           Expanded(
                             child: SelectableText(
                               r.value,
                               style: const TextStyle(
-                                  color: Colors.white, fontSize: 13),
+                                color: Colors.white,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ],
@@ -3083,11 +3255,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             shrinkWrap: true,
             padding: const EdgeInsets.only(bottom: 8),
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Subtitles',
-                  style: TextStyle(
+                  context.tr('Subtitles', '字幕'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -3095,9 +3267,16 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
               ),
               if (downloaded.isNotEmpty) ...[
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
-                  child: Text('Downloaded', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                  child: Text(
+                    context.tr('Downloaded', '已下载'),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 for (var i = 0; i < downloaded.length; i++)
                   () {
@@ -3112,19 +3291,28 @@ class _PlayerScreenState extends State<PlayerScreen>
                       videoTitle: _current.title,
                     );
                     return _tvListTile(
-                      leading: Icon(isSelected ? Icons.radio_button_checked : Icons.file_download_done, color: isSelected ? Colors.white : Colors.white70),
-                      title: Text('${subtitleFileNameLabel(displayName)} · ${d.language.toUpperCase()}', style: const TextStyle(color: Colors.white)),
-                      onTap: () => Navigator.of(sheetContext).pop(downloadedBase - i),
+                      leading: Icon(
+                        isSelected
+                            ? Icons.radio_button_checked
+                            : Icons.file_download_done,
+                        color: isSelected ? Colors.white : Colors.white70,
+                      ),
+                      title: Text(
+                        '${subtitleFileNameLabel(displayName)} · ${d.language.toUpperCase()}',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      onTap: () =>
+                          Navigator.of(sheetContext).pop(downloadedBase - i),
                     );
                   }(),
                 const Divider(color: Colors.white12, height: 1),
               ],
               if (tracks.isEmpty && downloaded.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                   child: Text(
-                    'No subtitles found in this video',
-                    style: TextStyle(color: Colors.white54, fontSize: 13),
+                    context.tr('No subtitles found in this video', '此视频中未找到字幕'),
+                    style: const TextStyle(color: Colors.white54, fontSize: 13),
                   ),
                 )
               else if (tracks.isNotEmpty) ...[
@@ -3135,9 +3323,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                         : Icons.radio_button_off,
                     color: selected < 0 ? Colors.white : Colors.white54,
                   ),
-                  title: const Text(
-                    'Off',
-                    style: TextStyle(color: Colors.white),
+                  title: Text(
+                    context.tr('Off', '关闭'),
+                    style: const TextStyle(color: Colors.white),
                   ),
                   onTap: () => Navigator.of(sheetContext).pop(-1),
                 ),
@@ -3162,17 +3350,17 @@ class _PlayerScreenState extends State<PlayerScreen>
               const Divider(color: Colors.white12, height: 1),
               _tvListTile(
                 leading: const Icon(Icons.language, color: Colors.white70),
-                title: const Text(
-                  'Search online subtitles…',
-                  style: TextStyle(color: Colors.white),
+                title: Text(
+                  context.tr('Search online subtitles…', '在线搜索字幕…'),
+                  style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () => Navigator.of(sheetContext).pop(onlineSentinel),
               ),
               _tvListTile(
                 leading: const Icon(Icons.file_open, color: Colors.white70),
-                title: const Text(
-                  'Load subtitle file…',
-                  style: TextStyle(color: Colors.white),
+                title: Text(
+                  context.tr('Load subtitle file…', '加载字幕文件…'),
+                  style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () => Navigator.of(sheetContext).pop(loadSentinel),
               ),
@@ -3255,9 +3443,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _attachSubtitlePath(String path) async {
     if (_mpvReady) {
       _mpvSubtitleOn = true;
-      await _mpvPlayer?.setSubtitleTrack(
-        SubtitleTrack.uri(path, language: ''),
-      );
+      await _mpvPlayer?.setSubtitleTrack(SubtitleTrack.uri(path, language: ''));
       return;
     }
     final pos = _position;
@@ -3295,7 +3481,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
       isScrollControlled: true,
-      builder: (ctx) => OpensubtitlesSheet(initialQuery: q, filePath: filePath, resumeKey: resumeKey),
+      builder: (ctx) => OpensubtitlesSheet(
+        initialQuery: q,
+        filePath: filePath,
+        resumeKey: resumeKey,
+      ),
     );
     if (result == null || result.isEmpty || !mounted) return;
     await _attachSubtitlePath(result);
@@ -3324,19 +3514,28 @@ class _PlayerScreenState extends State<PlayerScreen>
       final resumeKey = _current.resumeKey ?? _current.id;
       final downloaded = await DownloadedSubtitlesStore.loadForVideo(resumeKey);
       if (downloaded.isNotEmpty) return;
-      if (_current.subtitleUri != null && _current.subtitleUri!.isNotEmpty) return;
+      if (_current.subtitleUri != null && _current.subtitleUri!.isNotEmpty)
+        return;
       final nova = await SubtitlePrefs.loadDownloadLanguage();
       final lang = openSubsCodeForNovaCode(nova);
-      final query = _current.title.trim().isEmpty ? _current.id : _current.title.trim();
+      final query = _current.title.trim().isEmpty
+          ? _current.id
+          : _current.title.trim();
       String? hash;
       if (_current.path != null && _current.path!.isNotEmpty) {
         hash = await opensubtitlesHashForFile(_current.path!);
       }
-      final results = await OpensubtitlesClient.instance.search(query: query, languages: lang, movieHash: hash);
+      final results = await OpensubtitlesClient.instance.search(
+        query: query,
+        languages: lang,
+        movieHash: hash,
+      );
       if (results.isEmpty) return;
       final best = results.first;
       if (!mounted || _subtitleTracks.isNotEmpty) return;
-      final info = await OpensubtitlesClient.instance.requestDownload(best.fileId);
+      final info = await OpensubtitlesClient.instance.requestDownload(
+        best.fileId,
+      );
       final bytes = await OpensubtitlesClient.instance.fetchBytes(info.link);
       final fileName = meaningfulSubtitleFileName(
         apiFileName: info.fileName,
@@ -3344,7 +3543,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         videoTitle: _current.title,
       );
       final tmp = await _writeTempForAuto(fileName, bytes);
-      final entry = await DownloadedSubtitlesStore.saveForVideo(resumeKey: resumeKey, tempPath: tmp, fileName: fileName, language: best.language);
+      final entry = await DownloadedSubtitlesStore.saveForVideo(
+        resumeKey: resumeKey,
+        tempPath: tmp,
+        fileName: fileName,
+        language: best.language,
+      );
       if (!mounted) return;
       final pos = _position;
       _current = VideoItem(
@@ -3369,7 +3573,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         externalSubtitles: _current.externalSubtitles,
       );
       await _reopenAt(pos, _duration);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Auto-fetched: ${entry.fileName}')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${context.tr('Auto-fetched', '已自动获取')}：${entry.fileName}',
+            ),
+          ),
+        );
     } catch (_) {}
   }
 
@@ -3378,7 +3589,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       final pref = await SubtitlePrefs.loadReadingLanguage();
       if (pref == 'system') return;
       for (final t in tracks) {
-        if (trackMatchesNovaCode(t.language, pref) || trackMatchesNovaCode(t.label, pref)) {
+        if (trackMatchesNovaCode(t.language, pref) ||
+            trackMatchesNovaCode(t.label, pref)) {
           await _exo?.selectSubtitleTrack(t.index);
           break;
         }
@@ -3487,11 +3699,11 @@ class _PlayerScreenState extends State<PlayerScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Text(
-                    'Subtitles on NAS',
-                    style: TextStyle(
+                    context.tr('Subtitles on NAS', 'NAS 上的字幕'),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -3521,9 +3733,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                 const Divider(color: Colors.white12, height: 1),
                 _tvListTile(
                   leading: const Icon(Icons.file_open, color: Colors.white70),
-                  title: const Text(
-                    'Browse device storage…',
-                    style: TextStyle(color: Colors.white),
+                  title: Text(
+                    context.tr('Browse device storage…', '浏览设备存储…'),
+                    style: const TextStyle(color: Colors.white),
                   ),
                   onTap: () => Navigator.of(context).pop('__BROWSE__'),
                 ),
@@ -3560,11 +3772,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Aspect ratio',
-                  style: TextStyle(
+                  context.tr('Aspect ratio', '画面比例'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -3586,7 +3798,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         color: isSelected ? Colors.white : Colors.white54,
                       ),
                       title: Text(
-                        mode.label,
+                        _fitModeLabel(mode),
                         style: const TextStyle(color: Colors.white),
                       ),
                       onTap: () => Navigator.of(context).pop(mode.value),
@@ -3616,6 +3828,23 @@ class _PlayerScreenState extends State<PlayerScreen>
   static String speedLabel(double speed) =>
       speed == speed.roundToDouble() ? '${speed.toInt()}×' : '$speed×';
 
+  String _fitModeLabel(VideoFitMode mode) => switch (mode) {
+    VideoFitMode.fit => context.tr('Fit', '适应'),
+    VideoFitMode.fullscreen => context.tr('Fullscreen', '全屏'),
+    VideoFitMode.crop => context.tr('Crop to screen', '裁剪以填满屏幕'),
+    VideoFitMode.stretch => context.tr('Stretch to screen', '拉伸以填满屏幕'),
+    VideoFitMode.ratio16x9 => '16:9',
+    VideoFitMode.ratio4x3 => '4:3',
+    VideoFitMode.ratio185 => '1.85:1',
+    VideoFitMode.ratio239 => '2.39:1',
+  };
+
+  String _loopModeLabel(LoopMode mode) => switch (mode) {
+    LoopMode.off => context.tr('Off', '关闭'),
+    LoopMode.one => context.tr('Repeat one', '单曲循环'),
+    LoopMode.all => context.tr('Repeat all', '全部循环'),
+  };
+
   static String _subtitleDelayLabel(int ms) {
     if (ms == 0) return 'Off';
     final s = (ms / 1000).toStringAsFixed(1);
@@ -3638,11 +3867,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Playback speed',
-                  style: TextStyle(
+                  context.tr('Playback speed', '播放速度'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -3704,7 +3933,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Chapters (${_chapters.length})',
+                  '${context.tr('Chapters', '章节')} (${_chapters.length})',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -3722,23 +3951,24 @@ class _PlayerScreenState extends State<PlayerScreen>
                         ? _chapters[i + 1].startMs
                         : chapter.endMs;
                     final posMs = _position.inMilliseconds;
-                    final isCurrent = posMs >= chapter.startMs &&
+                    final isCurrent =
+                        posMs >= chapter.startMs &&
                         (next == null || posMs < next);
                     return _tvListTile(
                       leading: Icon(
                         isCurrent
                             ? Icons.play_arrow
                             : Icons.history_edu_outlined,
-                        color:
-                            isCurrent ? Theme.of(context).colorScheme.primary : Colors.white54,
+                        color: isCurrent
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.white54,
                       ),
                       title: Text(
                         chapter.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color:
-                              isCurrent ? Colors.white : Colors.white70,
+                          color: isCurrent ? Colors.white : Colors.white70,
                           fontWeight: isCurrent
                               ? FontWeight.w600
                               : FontWeight.w400,
@@ -3748,9 +3978,13 @@ class _PlayerScreenState extends State<PlayerScreen>
                         _formatDuration(
                           Duration(milliseconds: chapter.startMs),
                         ),
-                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
                       ),
-                      onTap: () => Navigator.of(sheetContext).pop(chapter.startMs),
+                      onTap: () =>
+                          Navigator.of(sheetContext).pop(chapter.startMs),
                     );
                   },
                 ),
@@ -3800,11 +4034,15 @@ class _PlayerScreenState extends State<PlayerScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                     child: Text(
-                      'Playback settings',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                      context.tr('Playback settings', '播放设置'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   // Picture-in-picture lives in app Settings (Player section):
@@ -3814,10 +4052,14 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // texture, so pip is easy to miss; give it an explicit row.
                   if (_mpvReady && Platform.isAndroid && !_isTv)
                     _tvListTile(
-                      leading: const Icon(Icons.picture_in_picture_alt,
-                          color: Colors.white70),
-                      title: const Text('Picture-in-picture',
-                          style: TextStyle(color: Colors.white)),
+                      leading: const Icon(
+                        Icons.picture_in_picture_alt,
+                        color: Colors.white70,
+                      ),
+                      title: Text(
+                        context.tr('Picture-in-picture', '画中画'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
                         unawaited(MpvPipService.instance.enterPip());
@@ -3825,10 +4067,25 @@ class _PlayerScreenState extends State<PlayerScreen>
                     ),
                   // Aspect ratio dropdown
                   _tvListTile(
-                    leading: const Icon(Icons.aspect_ratio, color: Colors.white70),
-                    title: const Text('Aspect ratio', style: TextStyle(color: Colors.white)),
-                    subtitle: Text(_fitMode.label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                    trailing: Icon(expandAspect ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
+                    leading: const Icon(
+                      Icons.aspect_ratio,
+                      color: Colors.white70,
+                    ),
+                    title: Text(
+                      context.tr('Aspect ratio', '画面比例'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      _fitModeLabel(_fitMode),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: Icon(
+                      expandAspect ? Icons.expand_less : Icons.expand_more,
+                      color: Colors.white54,
+                    ),
                     onTap: () => setSheet(() => expandAspect = !expandAspect),
                   ),
                   if (expandAspect)
@@ -3839,10 +4096,17 @@ class _PlayerScreenState extends State<PlayerScreen>
                           for (final mode in fitOrder)
                             _tvListTile(
                               leading: Icon(
-                                _fitMode == mode ? Icons.radio_button_checked : Icons.radio_button_off,
-                                color: _fitMode == mode ? Colors.white : Colors.white54,
+                                _fitMode == mode
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_off,
+                                color: _fitMode == mode
+                                    ? Colors.white
+                                    : Colors.white54,
                               ),
-                              title: Text(mode.label, style: const TextStyle(color: Colors.white)),
+                              title: Text(
+                                _fitModeLabel(mode),
+                                style: const TextStyle(color: Colors.white),
+                              ),
                               onTap: () {
                                 if (_fitMode != mode) {
                                   _applyFitMode(mode);
@@ -3857,9 +4121,21 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // Playback speed dropdown
                   _tvListTile(
                     leading: const Icon(Icons.speed, color: Colors.white70),
-                    title: const Text('Playback speed', style: TextStyle(color: Colors.white)),
-                    subtitle: Text(speedLabel(_playbackSpeed), style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                    trailing: Icon(expandSpeed ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
+                    title: Text(
+                      context.tr('Playback speed', '播放速度'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      speedLabel(_playbackSpeed),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: Icon(
+                      expandSpeed ? Icons.expand_less : Icons.expand_more,
+                      color: Colors.white54,
+                    ),
                     onTap: () => setSheet(() => expandSpeed = !expandSpeed),
                   ),
                   if (expandSpeed)
@@ -3870,10 +4146,17 @@ class _PlayerScreenState extends State<PlayerScreen>
                           for (final s in speeds)
                             _tvListTile(
                               leading: Icon(
-                                _playbackSpeed == s ? Icons.radio_button_checked : Icons.radio_button_off,
-                                color: _playbackSpeed == s ? Colors.white : Colors.white54,
+                                _playbackSpeed == s
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_off,
+                                color: _playbackSpeed == s
+                                    ? Colors.white
+                                    : Colors.white54,
                               ),
-                              title: Text(speedLabel(s), style: const TextStyle(color: Colors.white)),
+                              title: Text(
+                                speedLabel(s),
+                                style: const TextStyle(color: Colors.white),
+                              ),
                               onTap: () {
                                 if (_playbackSpeed != s) {
                                   setState(() => _playbackSpeed = s);
@@ -3894,21 +4177,28 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // Repeat & shuffle dropdown (Phase 2)
                   _tvListTile(
                     leading: Icon(
-                      _repeat == LoopMode.one
-                          ? Icons.repeat_one
-                          : Icons.repeat,
+                      _repeat == LoopMode.one ? Icons.repeat_one : Icons.repeat,
                       color: _repeat == LoopMode.off
                           ? Colors.white70
                           : const Color(0xFF7C8BFF),
                     ),
-                    title: const Text('Repeat & shuffle', style: TextStyle(color: Colors.white)),
+                    title: Text(
+                      context.tr('Repeat & shuffle', '循环与随机播放'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
                     subtitle: Text(
                       _shuffle
-                          ? '${_repeat.label} · Shuffle'
-                          : _repeat.label,
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          ? '${_loopModeLabel(_repeat)} · ${context.tr('Shuffle', '随机播放')}'
+                          : _loopModeLabel(_repeat),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
                     ),
-                    trailing: Icon(expandRepeat ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
+                    trailing: Icon(
+                      expandRepeat ? Icons.expand_less : Icons.expand_more,
+                      color: Colors.white54,
+                    ),
                     onTap: () => setSheet(() => expandRepeat = !expandRepeat),
                   ),
                   if (expandRepeat)
@@ -3919,17 +4209,25 @@ class _PlayerScreenState extends State<PlayerScreen>
                           for (final mode in LoopMode.values)
                             _tvListTile(
                               leading: Icon(
-                                _repeat == mode ? Icons.radio_button_checked : Icons.radio_button_off,
-                                color: _repeat == mode ? Colors.white : Colors.white54,
+                                _repeat == mode
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_off,
+                                color: _repeat == mode
+                                    ? Colors.white
+                                    : Colors.white54,
                               ),
-                              title: Text(mode.label, style: const TextStyle(color: Colors.white)),
+                              title: Text(
+                                _loopModeLabel(mode),
+                                style: const TextStyle(color: Colors.white),
+                              ),
                               onTap: () {
                                 if (_repeat != mode) {
                                   setState(() => _repeat = mode);
                                   if (!_mpvReady) {
                                     _exo?.setRepeatMode(mode.index);
                                   }
-                                  if (!_inTests) PlaybackModesStore.saveRepeat(mode);
+                                  if (!_inTests)
+                                    PlaybackModesStore.saveRepeat(mode);
                                 }
                                 setSheet(() {});
                               },
@@ -3941,8 +4239,20 @@ class _PlayerScreenState extends State<PlayerScreen>
                               if (!_inTests) PlaybackModesStore.saveShuffle(v);
                               setSheet(() {});
                             },
-                            title: const Text('Shuffle', style: TextStyle(color: Colors.white)),
-                            subtitle: const Text('Random order inside the folder', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                            title: Text(
+                              context.tr('Shuffle', '随机播放'),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            subtitle: Text(
+                              context.tr(
+                                'Random order inside the folder',
+                                '在文件夹内随机播放',
+                              ),
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -3951,16 +4261,25 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // Sleep timer dropdown (Phase 2)
                   _tvListTile(
                     leading: const Icon(Icons.bedtime, color: Colors.white70),
-                    title: const Text('Sleep timer', style: TextStyle(color: Colors.white)),
+                    title: Text(
+                      context.tr('Sleep timer', '睡眠定时'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
                     subtitle: Text(
                       _sleepCountdown != null
-                          ? '${_sleepCountdown!} left'
+                          ? '${_sleepCountdown!} ${context.tr('left', '后结束')}'
                           : _sleepAtEnd
-                              ? 'End of video'
-                              : 'Off',
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          ? context.tr('End of video', '视频结束时')
+                          : context.tr('Off', '关闭'),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
                     ),
-                    trailing: Icon(expandSleep ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
+                    trailing: Icon(
+                      expandSleep ? Icons.expand_less : Icons.expand_more,
+                      color: Colors.white54,
+                    ),
                     onTap: () => setSheet(() => expandSleep = !expandSleep),
                   ),
                   if (expandSleep)
@@ -3978,27 +4297,48 @@ class _PlayerScreenState extends State<PlayerScreen>
                           ])
                             _tvListTile(
                               leading: Icon(
-                                (_sleepUntil != null ? option.$1 : Duration.zero) == option.$1
+                                (_sleepUntil != null
+                                            ? option.$1
+                                            : Duration.zero) ==
+                                        option.$1
                                     ? Icons.radio_button_checked
                                     : Icons.radio_button_off,
-                                color: (_sleepUntil != null ? option.$1 : Duration.zero) == option.$1
+                                color:
+                                    (_sleepUntil != null
+                                            ? option.$1
+                                            : Duration.zero) ==
+                                        option.$1
                                     ? Colors.white
                                     : Colors.white54,
                               ),
-                              title: Text(option.$2, style: const TextStyle(color: Colors.white)),
+                              title: Text(
+                                option.$1 == Duration.zero
+                                    ? context.tr('Off', '关闭')
+                                    : '${option.$1.inMinutes} ${context.tr('minutes', '分钟')}',
+                                style: const TextStyle(color: Colors.white),
+                              ),
                               onTap: () {
                                 _setSleepTimer(
-                                  duration: option.$1 == Duration.zero ? null : option.$1,
+                                  duration: option.$1 == Duration.zero
+                                      ? null
+                                      : option.$1,
                                 );
                                 setSheet(() {});
                               },
                             ),
                           _tvListTile(
                             leading: Icon(
-                              _sleepAtEnd ? Icons.radio_button_checked : Icons.radio_button_off,
-                              color: _sleepAtEnd ? Colors.white : Colors.white54,
+                              _sleepAtEnd
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_off,
+                              color: _sleepAtEnd
+                                  ? Colors.white
+                                  : Colors.white54,
                             ),
-                            title: const Text('End of current video', style: TextStyle(color: Colors.white)),
+                            title: Text(
+                              context.tr('End of current video', '当前视频结束时'),
+                              style: const TextStyle(color: Colors.white),
+                            ),
                             onTap: () {
                               _setSleepTimer(endOfVideo: true);
                               setSheet(() {});
@@ -4014,18 +4354,33 @@ class _PlayerScreenState extends State<PlayerScreen>
                   if (defaultTargetPlatform == TargetPlatform.android &&
                       !_mpvReady) ...[
                     _tvListTile(
-                      leading: const Icon(Icons.graphic_eq, color: Colors.white70),
-                      title: const Text('Audio delay', style: TextStyle(color: Colors.white)),
+                      leading: const Icon(
+                        Icons.graphic_eq,
+                        color: Colors.white70,
+                      ),
+                      title: Text(
+                        context.tr('Audio delay', '音频延迟'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
                       subtitle: Text(
                         _audioDelayMs == 0
-                            ? 'Off'
+                            ? context.tr('Off', '关闭')
                             : _audioDelayMs > 0
-                                ? '+${(_audioDelayMs / 1000).toStringAsFixed(1)} s (audio later)'
-                                : '${(_audioDelayMs / 1000).toStringAsFixed(1)} s (audio earlier)',
-                        style: const TextStyle(color: Colors.white54, fontSize: 12),
+                            ? '+${(_audioDelayMs / 1000).toStringAsFixed(1)} s ${context.tr('(audio later)', '（音频延后）')}'
+                            : '${(_audioDelayMs / 1000).toStringAsFixed(1)} s ${context.tr('(audio earlier)', '（音频提前）')}',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
                       ),
-                      trailing: Icon(expandAudioDelay ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
-                      onTap: () => setSheet(() => expandAudioDelay = !expandAudioDelay),
+                      trailing: Icon(
+                        expandAudioDelay
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        color: Colors.white54,
+                      ),
+                      onTap: () =>
+                          setSheet(() => expandAudioDelay = !expandAudioDelay),
                     ),
                     if (expandAudioDelay)
                       Padding(
@@ -4037,7 +4392,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                               min: -5000,
                               max: 5000,
                               divisions: 100,
-                              label: '${(_audioDelayMs / 1000).toStringAsFixed(1)} s',
+                              label:
+                                  '${(_audioDelayMs / 1000).toStringAsFixed(1)} s',
                               onChanged: (v) {
                                 final ms = v.round();
                                 setState(() => _audioDelayMs = ms);
@@ -4052,7 +4408,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   _exo?.setAudioDelay(0);
                                   setSheet(() {});
                                 },
-                                child: const Text('Reset', style: TextStyle(color: Colors.white70)),
+                                child: Text(
+                                  context.tr('Reset', '重置'),
+                                  style: const TextStyle(color: Colors.white70),
+                                ),
                               ),
                             ),
                           ],
@@ -4068,16 +4427,25 @@ class _PlayerScreenState extends State<PlayerScreen>
                           ? const Color(0xFF7C8BFF)
                           : Colors.white70,
                     ),
-                    title: const Text('A-B repeat', style: TextStyle(color: Colors.white)),
+                    title: Text(
+                      context.tr('A-B repeat', 'A-B 循环'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
                     subtitle: Text(
                       _abA != null && _abB != null
                           ? '${_formatDuration(Duration(milliseconds: _abA!))} – ${_formatDuration(Duration(milliseconds: _abB!))}'
                           : _abA != null
-                              ? 'A ${_formatDuration(Duration(milliseconds: _abA!))} — pick B'
-                              : 'Off',
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          ? 'A ${_formatDuration(Duration(milliseconds: _abA!))} — ${context.tr('pick B', '请选择 B 点')}'
+                          : context.tr('Off', '关闭'),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
                     ),
-                    trailing: Icon(expandAB ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
+                    trailing: Icon(
+                      expandAB ? Icons.expand_less : Icons.expand_more,
+                      color: Colors.white54,
+                    ),
                     onTap: () => setSheet(() => expandAB = !expandAB),
                   ),
                   if (expandAB)
@@ -4086,24 +4454,48 @@ class _PlayerScreenState extends State<PlayerScreen>
                       child: Column(
                         children: [
                           _tvListTile(
-                            leading: const Icon(Icons.flag, color: Colors.white54),
-                            title: const Text('Set A to current position', style: TextStyle(color: Colors.white)),
+                            leading: const Icon(
+                              Icons.flag,
+                              color: Colors.white54,
+                            ),
+                            title: Text(
+                              context.tr(
+                                'Set A to current position',
+                                '将当前位置设为 A 点',
+                              ),
+                              style: const TextStyle(color: Colors.white),
+                            ),
                             onTap: () {
                               setState(() => _abA = _position.inMilliseconds);
                               setSheet(() {});
                             },
                           ),
                           _tvListTile(
-                            leading: const Icon(Icons.flag, color: Colors.white54),
-                            title: const Text('Set B to current position', style: TextStyle(color: Colors.white)),
+                            leading: const Icon(
+                              Icons.flag,
+                              color: Colors.white54,
+                            ),
+                            title: Text(
+                              context.tr(
+                                'Set B to current position',
+                                '将当前位置设为 B 点',
+                              ),
+                              style: const TextStyle(color: Colors.white),
+                            ),
                             onTap: () {
                               setState(() => _abB = _position.inMilliseconds);
                               setSheet(() {});
                             },
                           ),
                           _tvListTile(
-                            leading: const Icon(Icons.clear, color: Colors.white54),
-                            title: const Text('Clear', style: TextStyle(color: Colors.white)),
+                            leading: const Icon(
+                              Icons.clear,
+                              color: Colors.white54,
+                            ),
+                            title: Text(
+                              context.tr('Clear', '清除'),
+                              style: const TextStyle(color: Colors.white),
+                            ),
                             onTap: () {
                               setState(() {
                                 _abA = null;
@@ -4119,35 +4511,53 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // Subtitle appearance (moved here from the app Settings
                   // screen — it belongs next to the CC picker it configures).
                   _tvListTile(
-                    leading: const Icon(Icons.closed_caption, color: Colors.white70),
-                    title: const Text('Subtitle settings', style: TextStyle(color: Colors.white)),
-                    subtitle: const Text('Size, color, background, delay', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white54),
-                  onTap: () async {
-                    Navigator.of(sheetContext).pop();
-                    await Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SubtitleSettingsScreen(),
+                    leading: const Icon(
+                      Icons.closed_caption,
+                      color: Colors.white70,
+                    ),
+                    title: Text(
+                      context.tr('Subtitle settings', '字幕设置'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      context.tr(
+                        'Size, color, background, delay',
+                        '大小、颜色、背景与延迟',
                       ),
-                    );
-                    // Re-apply the (possibly changed) style to the live
-                    // player — the settings screen only persists; without
-                    // this the change only landed on the NEXT open.
-                    if (!mounted) return;
-                    try {
-                      final style = await SubtitleStyle.load();
-                      await _exo?.setSubtitleStyle(style);
-                      _subtitleStyle = style;
-                      final delayChanged = style.delayMs != _subtitleDelayMs;
-                      _subtitleDelayMs = style.delayMs;
-                      if (delayChanged &&
-                          Platform.isAndroid &&
-                          !_mpvReady &&
-                          (_subtitleTracks.isNotEmpty || _subtitleOn)) {
-                        await _reopenAt(_position, _duration);
-                      }
-                    } catch (_) {}
-                  },
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white54,
+                    ),
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SubtitleSettingsScreen(),
+                        ),
+                      );
+                      // Re-apply the (possibly changed) style to the live
+                      // player — the settings screen only persists; without
+                      // this the change only landed on the NEXT open.
+                      if (!mounted) return;
+                      try {
+                        final style = await SubtitleStyle.load();
+                        await _exo?.setSubtitleStyle(style);
+                        _subtitleStyle = style;
+                        final delayChanged = style.delayMs != _subtitleDelayMs;
+                        _subtitleDelayMs = style.delayMs;
+                        if (delayChanged &&
+                            Platform.isAndroid &&
+                            !_mpvReady &&
+                            (_subtitleTracks.isNotEmpty || _subtitleOn)) {
+                          await _reopenAt(_position, _duration);
+                        }
+                      } catch (_) {}
+                    },
                   ),
                   const Divider(color: Colors.white12, height: 1),
                   // Video decoder mode (Auto/Hardware/Software). Applies to
@@ -4156,10 +4566,27 @@ class _PlayerScreenState extends State<PlayerScreen>
                   if (defaultTargetPlatform == TargetPlatform.android) ...[
                     _tvListTile(
                       leading: const Icon(Icons.memory, color: Colors.white70),
-                      title: const Text('Video decoder', style: TextStyle(color: Colors.white)),
-                      subtitle: Text(_decoderMode.label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                      trailing: Icon(expandDecoder ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
-                      onTap: () => setSheet(() => expandDecoder = !expandDecoder),
+                      title: Text(
+                        context.tr('Video decoder', '视频解码器'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        switch (_decoderMode) {
+                          DecoderMode.hw => context.tr('Hardware', '硬件'),
+                          DecoderMode.sw => context.tr('Software', '软件'),
+                          _ => context.tr('Auto', '自动'),
+                        },
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: Icon(
+                        expandDecoder ? Icons.expand_less : Icons.expand_more,
+                        color: Colors.white54,
+                      ),
+                      onTap: () =>
+                          setSheet(() => expandDecoder = !expandDecoder),
                     ),
                     if (expandDecoder)
                       Padding(
@@ -4169,17 +4596,43 @@ class _PlayerScreenState extends State<PlayerScreen>
                             for (final m in DecoderMode.values)
                               _tvListTile(
                                 leading: Icon(
-                                  _decoderMode == m ? Icons.radio_button_checked : Icons.radio_button_off,
-                                  color: _decoderMode == m ? Colors.white : Colors.white54,
+                                  _decoderMode == m
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_off,
+                                  color: _decoderMode == m
+                                      ? Colors.white
+                                      : Colors.white54,
                                 ),
-                                title: Text(m.label, style: const TextStyle(color: Colors.white)),
+                                title: Text(switch (m) {
+                                  DecoderMode.hw => context.tr(
+                                    'Hardware',
+                                    '硬件',
+                                  ),
+                                  DecoderMode.sw => context.tr(
+                                    'Software',
+                                    '软件',
+                                  ),
+                                  _ => context.tr('Auto', '自动'),
+                                }, style: const TextStyle(color: Colors.white)),
                                 subtitle: Text(
                                   switch (m) {
-                                    DecoderMode.hw => 'Force hardware decoders',
-                                    DecoderMode.sw => 'Prefer software decoders',
-                                    _ => 'Automatic (recommended)',
+                                    DecoderMode.hw => context.tr(
+                                      'Force hardware decoders',
+                                      '强制使用硬件解码器',
+                                    ),
+                                    DecoderMode.sw => context.tr(
+                                      'Prefer software decoders',
+                                      '优先使用软件解码器',
+                                    ),
+                                    _ => context.tr(
+                                      'Automatic (recommended)',
+                                      '自动选择（推荐）',
+                                    ),
                                   },
-                                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 11,
+                                  ),
                                 ),
                                 onTap: () async {
                                   if (m != _decoderMode) {
@@ -4191,7 +4644,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                                       // engine; no reopen needed.
                                       if (mounted) {
                                         await _applyMpvHwdec(_mpvPlayer!);
-                                        if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                                        if (sheetContext.mounted)
+                                          Navigator.of(sheetContext).pop();
                                       }
                                       return;
                                     }
@@ -4199,17 +4653,28 @@ class _PlayerScreenState extends State<PlayerScreen>
                                     // fresh MediaCodecSelector query picks the
                                     // new decoder (HW vs SW) immediately.
                                     if (!sheetContext.mounted) {
-                                      if (mounted) await _reopenAt(_position, _duration);
+                                      if (mounted)
+                                        await _reopenAt(_position, _duration);
                                       return;
                                     }
                                     Navigator.of(sheetContext).pop();
-                                    if (mounted) await _reopenAt(_position, _duration);
+                                    if (mounted)
+                                      await _reopenAt(_position, _duration);
                                   }
                                 },
                               ),
-                            const Padding(
-                              padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
-                              child: Text('Reopens at same position to switch decoder.', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                              child: Text(
+                                context.tr(
+                                  'Reopens at same position to switch decoder.',
+                                  '切换解码器时会从当前位置重新打开视频。',
+                                ),
+                                style: const TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -4221,10 +4686,27 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // no DRC, so the toggles would be cosmetic no-ops on iOS.
                   if (defaultTargetPlatform == TargetPlatform.android) ...[
                     _tvListTile(
-                      leading: const Icon(Icons.volume_up, color: Colors.white70),
-                      title: const Text('Volume Boost', style: TextStyle(color: Colors.white)),
-                      subtitle: Text(_audioBoost > 1.01 ? '${_audioBoost.toStringAsFixed(1)}×' : 'Off', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                      trailing: Icon(expandBoost ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
+                      leading: const Icon(
+                        Icons.volume_up,
+                        color: Colors.white70,
+                      ),
+                      title: Text(
+                        context.tr('Volume Boost', '音量增强'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        _audioBoost > 1.01
+                            ? '${_audioBoost.toStringAsFixed(1)}×'
+                            : context.tr('Off', '关闭'),
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: Icon(
+                        expandBoost ? Icons.expand_less : Icons.expand_more,
+                        color: Colors.white54,
+                      ),
                       onTap: () => setSheet(() => expandBoost = !expandBoost),
                     ),
                     if (expandBoost)
@@ -4257,21 +4739,36 @@ class _PlayerScreenState extends State<PlayerScreen>
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                TextButton(onPressed: () async {
-                                  setState(() => _audioBoost = 1.0);
-                                  setSheet(() {});
-                                  if (_mpvReady) {
-                                    await _applyMpvVolume();
-                                  } else {
-                                    _exo?.setAudioBoost(1.0);
-                                  }
-                                  await PlaybackBoostStore.save(1.0);
-                                }, child: const Text('Reset')),
-                                Text('${_audioBoost.toStringAsFixed(1)}×', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                TextButton(
+                                  onPressed: () async {
+                                    setState(() => _audioBoost = 1.0);
+                                    setSheet(() {});
+                                    if (_mpvReady) {
+                                      await _applyMpvVolume();
+                                    } else {
+                                      _exo?.setAudioBoost(1.0);
+                                    }
+                                    await PlaybackBoostStore.save(1.0);
+                                  },
+                                  child: Text(context.tr('Reset', '重置')),
+                                ),
+                                Text(
+                                  '${_audioBoost.toStringAsFixed(1)}×',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
                                 const SizedBox(width: 48),
                               ],
                             ),
-                            const Text('LoudnessEnhancer (0–1500 mB)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                            const Text(
+                              'LoudnessEnhancer (0–1500 mB)',
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 11,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -4281,13 +4778,30 @@ class _PlayerScreenState extends State<PlayerScreen>
                     if (_liveSpatial == 'on') ...[
                       const Divider(color: Colors.white12, height: 1),
                       _tvListTile(
-                        leading: const Icon(Icons.music_note, color: Colors.white70),
-                        title: const Text('Bass Boost', style: TextStyle(color: Colors.white)),
-                        subtitle: Text(
-                          const ['Off', 'Low', 'Medium', 'High'][_liveBass.clamp(0, 3)],
-                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        leading: const Icon(
+                          Icons.music_note,
+                          color: Colors.white70,
                         ),
-                        trailing: Icon(expandBass ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
+                        title: Text(
+                          context.tr('Bass Boost', '低音增强'),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          [
+                            context.tr('Off', '关闭'),
+                            context.tr('Low', '低'),
+                            context.tr('Medium', '中'),
+                            context.tr('High', '高'),
+                          ][_liveBass.clamp(0, 3)],
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: Icon(
+                          expandBass ? Icons.expand_less : Icons.expand_more,
+                          color: Colors.white54,
+                        ),
                         onTap: () => setSheet(() => expandBass = !expandBass),
                       ),
                       if (expandBass)
@@ -4298,11 +4812,20 @@ class _PlayerScreenState extends State<PlayerScreen>
                               for (final level in [0, 1, 2, 3])
                                 _tvListTile(
                                   leading: Icon(
-                                    _liveBass == level ? Icons.radio_button_checked : Icons.radio_button_off,
-                                    color: _liveBass == level ? Colors.white : Colors.white54,
+                                    _liveBass == level
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
+                                    color: _liveBass == level
+                                        ? Colors.white
+                                        : Colors.white54,
                                   ),
                                   title: Text(
-                                    const ['Off', 'Low', 'Medium', 'High'][level],
+                                    [
+                                      context.tr('Off', '关闭'),
+                                      context.tr('Low', '低'),
+                                      context.tr('Medium', '中'),
+                                      context.tr('High', '高'),
+                                    ][level],
                                     style: const TextStyle(color: Colors.white),
                                   ),
                                   onTap: () {
@@ -4317,9 +4840,26 @@ class _PlayerScreenState extends State<PlayerScreen>
                     ],
                     const Divider(color: Colors.white12, height: 1),
                     _tvListTile(
-                      leading: const Icon(Icons.nights_stay, color: Colors.white70),
-                      title: const Text('Night Mode', style: TextStyle(color: Colors.white)),
-                      subtitle: Text(_nightMode ? 'On — compressed dynamic range' : 'Off', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      leading: const Icon(
+                        Icons.nights_stay,
+                        color: Colors.white70,
+                      ),
+                      title: Text(
+                        context.tr('Night Mode', '夜间模式'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        _nightMode
+                            ? context.tr(
+                                'On — compressed dynamic range',
+                                '开启——已压缩动态范围',
+                              )
+                            : context.tr('Off', '关闭'),
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
                       trailing: Switch(
                         value: _nightMode,
                         onChanged: (v) async {
@@ -4349,8 +4889,19 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ],
                   _tvListTile(
                     leading: const Icon(Icons.skip_next, color: Colors.white70),
-                    title: const Text('Auto-play next', style: TextStyle(color: Colors.white)),
-                    subtitle: Text(_autoPlayNext ? 'On' : 'Off', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    title: Text(
+                      context.tr('Auto-play next', '自动播放下一集'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      _autoPlayNext
+                          ? context.tr('On', '开启')
+                          : context.tr('Off', '关闭'),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
                     trailing: Switch(
                       value: _autoPlayNext,
                       onChanged: (v) async {
@@ -4370,11 +4921,30 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ),
                   const Divider(color: Colors.white12, height: 1),
                   _tvListTile(
-                    leading: const Icon(Icons.timer_outlined, color: Colors.white70),
-                    title: const Text('Subtitle delay', style: TextStyle(color: Colors.white)),
-                    subtitle: Text(_subtitleDelayLabel(_subtitleDelayMs), style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                    trailing: Icon(expandSubtitleDelay ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
-                    onTap: () => setSheet(() => expandSubtitleDelay = !expandSubtitleDelay),
+                    leading: const Icon(
+                      Icons.timer_outlined,
+                      color: Colors.white70,
+                    ),
+                    title: Text(
+                      context.tr('Subtitle delay', '字幕延迟'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      _subtitleDelayLabel(_subtitleDelayMs),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: Icon(
+                      expandSubtitleDelay
+                          ? Icons.expand_less
+                          : Icons.expand_more,
+                      color: Colors.white54,
+                    ),
+                    onTap: () => setSheet(
+                      () => expandSubtitleDelay = !expandSubtitleDelay,
+                    ),
                   ),
                   if (expandSubtitleDelay)
                     Padding(
@@ -4382,7 +4952,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                       child: Column(
                         children: [
                           Slider(
-                            value: _subtitleDelayMs.toDouble().clamp(-30000, 30000).toDouble(),
+                            value: _subtitleDelayMs
+                                .toDouble()
+                                .clamp(-30000, 30000)
+                                .toDouble(),
                             min: -30000,
                             max: 30000,
                             divisions: 60,
@@ -4399,34 +4972,92 @@ class _PlayerScreenState extends State<PlayerScreen>
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              TextButton(onPressed: () async {
-                                await _applySubtitleDelay(0, setSheet);
-                              }, child: const Text('Reset')),
-                              Text(_subtitleDelayLabel(_subtitleDelayMs), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                              TextButton(
+                                onPressed: () async {
+                                  await _applySubtitleDelay(0, setSheet);
+                                },
+                                child: Text(context.tr('Reset', '重置')),
+                              ),
+                              Text(
+                                _subtitleDelayLabel(_subtitleDelayMs),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
                               Row(
                                 children: [
-                                  IconButton(icon: const Icon(Icons.remove, color: Colors.white70), onPressed: () async {
-                                    await _applySubtitleDelay((_subtitleDelayMs - 500).clamp(-30000, 30000), setSheet);
-                                  }),
-                                  IconButton(icon: const Icon(Icons.add, color: Colors.white70), onPressed: () async {
-                                    await _applySubtitleDelay((_subtitleDelayMs + 500).clamp(-30000, 30000), setSheet);
-                                  }),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.remove,
+                                      color: Colors.white70,
+                                    ),
+                                    onPressed: () async {
+                                      await _applySubtitleDelay(
+                                        (_subtitleDelayMs - 500).clamp(
+                                          -30000,
+                                          30000,
+                                        ),
+                                        setSheet,
+                                      );
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.add,
+                                      color: Colors.white70,
+                                    ),
+                                    onPressed: () async {
+                                      await _applySubtitleDelay(
+                                        (_subtitleDelayMs + 500).clamp(
+                                          -30000,
+                                          30000,
+                                        ),
+                                        setSheet,
+                                      );
+                                    },
+                                  ),
                                 ],
                               ),
                             ],
                           ),
-                          const Text('Live on iOS · reopens at same position on Android', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                          Text(
+                            context.tr(
+                              'Live on iOS · reopens at same position on Android',
+                              'iOS 实时生效 · Android 会从当前位置重新打开',
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   if (_chapters.isNotEmpty) ...[
                     const Divider(color: Colors.white12, height: 1),
                     _tvListTile(
-                      leading: const Icon(Icons.format_list_numbered, color: Colors.white70),
-                      title: const Text('Chapters', style: TextStyle(color: Colors.white)),
-                      subtitle: Text('${_chapters.length} chapters', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                      trailing: Icon(expandChapters ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
-                      onTap: () => setSheet(() => expandChapters = !expandChapters),
+                      leading: const Icon(
+                        Icons.format_list_numbered,
+                        color: Colors.white70,
+                      ),
+                      title: Text(
+                        context.tr('Chapters', '章节'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '${_chapters.length} ${context.tr('chapters', '个章节')}',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: Icon(
+                        expandChapters ? Icons.expand_less : Icons.expand_more,
+                        color: Colors.white54,
+                      ),
+                      onTap: () =>
+                          setSheet(() => expandChapters = !expandChapters),
                     ),
                     if (expandChapters)
                       Padding(
@@ -4434,28 +5065,63 @@ class _PlayerScreenState extends State<PlayerScreen>
                         child: Column(
                           children: [
                             for (int i = 0; i < _chapters.length; i++)
-                              Builder(builder: (context) {
-                                final ch = _chapters[i];
-                                final next = i + 1 < _chapters.length ? _chapters[i + 1].startMs : ch.endMs;
-                                final posMs = _position.inMilliseconds;
-                                final isCurrent = posMs >= ch.startMs && (next == null || posMs < next);
-                                return _tvListTile(
-                                  leading: Icon(
-                                    isCurrent ? Icons.play_arrow : Icons.history_edu_outlined,
-                                    color: isCurrent ? Theme.of(context).colorScheme.primary : Colors.white54,
-                                  ),
-                                  title: Text(ch.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(color: isCurrent ? Colors.white : Colors.white70, fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400)),
-                                  subtitle: Text(_formatDuration(Duration(milliseconds: ch.startMs)), style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                                  onTap: () {
-                                    Navigator.of(sheetContext).pop();
-                                    _seekBackend(Duration(milliseconds: ch.startMs));
-                                    if (!_playing && !_completed && !_mpvReady) {
-                                      _exo?.play();
-                                    }
-                                  },
-                                );
-                              }),
+                              Builder(
+                                builder: (context) {
+                                  final ch = _chapters[i];
+                                  final next = i + 1 < _chapters.length
+                                      ? _chapters[i + 1].startMs
+                                      : ch.endMs;
+                                  final posMs = _position.inMilliseconds;
+                                  final isCurrent =
+                                      posMs >= ch.startMs &&
+                                      (next == null || posMs < next);
+                                  return _tvListTile(
+                                    leading: Icon(
+                                      isCurrent
+                                          ? Icons.play_arrow
+                                          : Icons.history_edu_outlined,
+                                      color: isCurrent
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.primary
+                                          : Colors.white54,
+                                    ),
+                                    title: Text(
+                                      ch.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: isCurrent
+                                            ? Colors.white
+                                            : Colors.white70,
+                                        fontWeight: isCurrent
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      _formatDuration(
+                                        Duration(milliseconds: ch.startMs),
+                                      ),
+                                      style: const TextStyle(
+                                        color: Colors.white38,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    onTap: () {
+                                      Navigator.of(sheetContext).pop();
+                                      _seekBackend(
+                                        Duration(milliseconds: ch.startMs),
+                                      );
+                                      if (!_playing &&
+                                          !_completed &&
+                                          !_mpvReady) {
+                                        _exo?.play();
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
                           ],
                         ),
                       ),
@@ -4479,7 +5145,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       await updated.save();
       await _exo?.setSubtitleStyle(updated);
       _subtitleStyle = updated;
-      if (Platform.isAndroid && !_mpvReady && (_subtitleTracks.isNotEmpty || _subtitleOn)) {
+      if (Platform.isAndroid &&
+          !_mpvReady &&
+          (_subtitleTracks.isNotEmpty || _subtitleOn)) {
         await _reopenAt(_position, _duration);
       }
     } catch (_) {}
@@ -4662,7 +5330,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       final raw = _liveVideoCodecRaw ?? _current.hdrHint ?? '';
       final mime = _liveVideoMimeRaw;
       // Prefer codec, fall back to mime/hint.
-      final lab = dolbyVisionLabel(raw.isNotEmpty ? raw : mime, fallbackHint: _current.hdrHint);
+      final lab = dolbyVisionLabel(
+        raw.isNotEmpty ? raw : mime,
+        fallbackHint: _current.hdrHint,
+      );
       // dolbyVisionLabel returns generic when no profile; show P8 etc when known.
       return lab;
     }
@@ -4697,7 +5368,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_mpvReady) return _mpvVideoCodecLabel;
     final label = _liveVideoCodec ?? _current.videoCodecLabel;
     if (label == null) return null;
-    if (_effectiveHdr == HdrFormat.dolbyVision && label.startsWith('Dolby Vision')) {
+    if (_effectiveHdr == HdrFormat.dolbyVision &&
+        label.startsWith('Dolby Vision')) {
       return null;
     }
     return label;
@@ -4768,35 +5440,27 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (_badgeVideoCodec) {
         final vc = _mpvReady ? _mpvVideoCodecLabel : _videoCodecInfoLabel;
         if (vc != null) {
-          chips.add(FormatChip(
-            label: vc,
-            color: const Color(0xFF4FC3F7),
-          ));
+          chips.add(FormatChip(label: vc, color: const Color(0xFF4FC3F7)));
         }
       }
       // Resolution — both engines.
       if (_badgeResolution) {
-        final res = _mpvReady ? _mpvResolution : (_liveResolution ?? _current.resolution);
+        final res = _mpvReady
+            ? _mpvResolution
+            : (_liveResolution ?? _current.resolution);
         if (res != null) {
-          chips.add(FormatChip(
-            label: res,
-            color: const Color(0xFF90A4AE),
-          ));
+          chips.add(FormatChip(label: res, color: const Color(0xFF90A4AE)));
         }
       }
       // Spatial audio — Android only, both engines (spatial is platform-level).
       if (_badgeSpatialAudio && Platform.isAndroid && _liveSpatial == 'on') {
-        chips.add(const FormatChip(
-          label: 'Spatial',
-          color: Color(0xFF26A69A),
-        ));
+        chips.add(const FormatChip(label: 'Spatial', color: Color(0xFF26A69A)));
       }
       // Server transcoding — both engines.
       if (_badgeServerTranscode && _transcodeActive) {
-        chips.add(const FormatChip(
-          label: 'Transcoding',
-          color: Color(0xFFEF5350),
-        ));
+        chips.add(
+          const FormatChip(label: 'Transcoding', color: Color(0xFFEF5350)),
+        );
       }
       // Decoder — both engines.
       if (_badgeDecoder) {
@@ -4804,18 +5468,17 @@ class _PlayerScreenState extends State<PlayerScreen>
           final label = _mpvHwdecMode == 'no'
               ? 'SW decode'
               : _mpvHwdecMode == 'mediacodec'
-                  ? 'HW decode'
-                  : 'HW decode (auto)';
-          chips.add(FormatChip(
-            label: label,
-            color: const Color(0xFFFFB74D),
-          ));
+              ? 'HW decode'
+              : 'HW decode (auto)';
+          chips.add(FormatChip(label: label, color: const Color(0xFFFFB74D)));
         } else if (Platform.isAndroid && _liveDecoderName != null) {
           final hw = _isHwDecoder ?? true;
-          chips.add(FormatChip(
-            label: '${hw ? 'HW' : 'SW'} decode',
-            color: const Color(0xFFFFB74D),
-          ));
+          chips.add(
+            FormatChip(
+              label: '${hw ? 'HW' : 'SW'} decode',
+              color: const Color(0xFFFFB74D),
+            ),
+          );
         }
       }
     }
@@ -4835,46 +5498,42 @@ class _PlayerScreenState extends State<PlayerScreen>
       children: [
         _mpvReady
             ? (_mpvAspect != null
-                ? Center(
-                    child: AspectRatio(
-                      aspectRatio: _mpvAspect!,
-                      child: Transform.scale(
-                        scale: _mpvZoomScale,
-                        child: Video(
-                          controller: _mpvController!,
-                          fit: _mpvFit,
-                          controls: NoVideoControls,
-                          subtitleViewConfiguration:
-                              const SubtitleViewConfiguration(
-                            visible: false,
+                  ? Center(
+                      child: AspectRatio(
+                        aspectRatio: _mpvAspect!,
+                        child: Transform.scale(
+                          scale: _mpvZoomScale,
+                          child: Video(
+                            controller: _mpvController!,
+                            fit: _mpvFit,
+                            controls: NoVideoControls,
+                            subtitleViewConfiguration:
+                                const SubtitleViewConfiguration(visible: false),
                           ),
                         ),
                       ),
-                    ),
-                  )
-                : Transform.scale(
-                    scale: _mpvZoomScale,
-                    child: Video(
-                      controller: _mpvController!,
-                      fit: _mpvFit,
-                      controls: NoVideoControls,
-                      subtitleViewConfiguration:
-                          const SubtitleViewConfiguration(
-                        visible: false,
+                    )
+                  : Transform.scale(
+                      scale: _mpvZoomScale,
+                      child: Video(
+                        controller: _mpvController!,
+                        fit: _mpvFit,
+                        controls: NoVideoControls,
+                        subtitleViewConfiguration:
+                            const SubtitleViewConfiguration(visible: false),
                       ),
-                    ),
-                  ))
+                    ))
             : _exo != null && _error == null
-                ? ExoPlayerView(controller: _exo! as ExoPlayerController)
-                : Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [colorScheme.primaryContainer, Colors.black],
-                      ),
-                    ),
+            ? ExoPlayerView(controller: _exo! as ExoPlayerController)
+            : Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [colorScheme.primaryContainer, Colors.black],
                   ),
+                ),
+              ),
         // Fallback-engine brightness dims the Flutter video texture (the app
         // window-brightness path lives on the native platform view). Only
         // engaged by the left-half swipe gesture in mpv mode.
@@ -4882,8 +5541,9 @@ class _PlayerScreenState extends State<PlayerScreen>
           Positioned.fill(
             child: IgnorePointer(
               child: ColoredBox(
-                color: Colors.black
-                    .withValues(alpha: (1.0 - _mpvBrightness).clamp(0.0, 1.0)),
+                color: Colors.black.withValues(
+                  alpha: (1.0 - _mpvBrightness).clamp(0.0, 1.0),
+                ),
               ),
             ),
           ),
@@ -4927,13 +5587,15 @@ class _PlayerScreenState extends State<PlayerScreen>
               // Verified via javap on media3-ui-1.10.1: defaultTextSize=0.0533f,
               // bottomPaddingFraction=0.08f. ExoPlayerView.kt applies
               // 0.0533 * sizeMult to the SubtitleView inside AspectRatioFrameLayout.
-              final fontSize =
-                  (h * 0.0533 * _subtitleStyle.sizeMultiplier).clamp(12.0, 300.0);
+              final fontSize = (h * 0.0533 * _subtitleStyle.sizeMultiplier)
+                  .clamp(12.0, 300.0);
               // Vertical position (0-255): 0 = bottom, 255 = top.
               // Match Media3's setBottomPaddingFraction(vPos/255.0f) — the
               // fraction is of the SubtitleView (= video content area) height.
-              final vPos = _subtitleStyle.verticalPosition
-                  .clamp(SubtitleStyle.minVerticalPosition, SubtitleStyle.maxVerticalPosition);
+              final vPos = _subtitleStyle.verticalPosition.clamp(
+                SubtitleStyle.minVerticalPosition,
+                SubtitleStyle.maxVerticalPosition,
+              );
               final bottomPadding = letterboxBottom + h * (vPos / 255.0);
               return Stack(
                 children: [
@@ -4954,8 +5616,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                             ? Color(
                                 (_subtitleStyle.backgroundColorValue &
                                         0x00FFFFFF) |
-                                    ((_subtitleStyle.backgroundOpacity & 0xFF)
-                                        << 24),
+                                    ((_subtitleStyle.backgroundOpacity &
+                                            0xFF) <<
+                                        24),
                               )
                             : null,
                         shadows: _subtitleStyle.outline
@@ -5143,79 +5806,84 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   _mpvFailed = false;
                                   _mpvError = null;
                                   setState(() {});
-                                  _reloadMpv(_current, _position.inMilliseconds);
+                                  _reloadMpv(
+                                    _current,
+                                    _position.inMilliseconds,
+                                  );
                                 },
                                 icon: const Icon(Icons.refresh),
-                                label: const Text('Retry'),
+                                label: Text(context.tr('Retry', '重试')),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.white,
-                                  side: const BorderSide(
-                                      color: Colors.white38),
+                                  side: const BorderSide(color: Colors.white38),
                                 ),
                               ),
                             ],
                           ),
                         )
                       : _error != null
-                          ? Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _error!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white70),
+                              ),
+                              const SizedBox(height: 20),
+                              // Retry reopens the file with Media3;
+                              // "Try with MPV" switches engines.
+                              Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    _error!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                        color: Colors.white70),
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      _error = null;
+                                      _ioRetries = 0;
+                                      _retrying = false;
+                                      setState(() {});
+                                      _reopenAt(_position, _duration);
+                                    },
+                                    icon: const Icon(Icons.refresh),
+                                    label: Text(context.tr('Retry', '重试')),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: const BorderSide(
+                                        color: Colors.white38,
+                                      ),
+                                    ),
                                   ),
-                                  const SizedBox(height: 20),
-                                  // Retry reopens the file with Media3;
-                                  // "Try with MPV" switches engines.
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      OutlinedButton.icon(
-                                        onPressed: () {
-                                          _error = null;
-                                          _ioRetries = 0;
-                                          _retrying = false;
-                                          setState(() {});
-                                          _reopenAt(_position, _duration);
-                                        },
-                                        icon: const Icon(Icons.refresh),
-                                        label: const Text('Retry'),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: Colors.white,
-                                          side: const BorderSide(
-                                              color: Colors.white38),
+                                  if (Platform.isAndroid &&
+                                      _mpvSourceFor(_current).isNotEmpty) ...[
+                                    const SizedBox(width: 12),
+                                    OutlinedButton.icon(
+                                      onPressed: _mpvActive
+                                          ? null
+                                          : () => _startMpvManual(),
+                                      icon: const Icon(Icons.play_arrow),
+                                      label: Text(
+                                        context.tr('Try with MPV', '使用 MPV 尝试'),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.white,
+                                        side: const BorderSide(
+                                          color: Colors.white38,
                                         ),
                                       ),
-                                      if (Platform.isAndroid &&
-                                          _mpvSourceFor(_current).isNotEmpty) ...[
-                                        const SizedBox(width: 12),
-                                        OutlinedButton.icon(
-                                          onPressed: _mpvActive
-                                              ? null
-                                              : () => _startMpvManual(),
-                                          icon: const Icon(Icons.play_arrow),
-                                          label: const Text('Try with MPV'),
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: Colors.white,
-                                            side: const BorderSide(
-                                                color: Colors.white38),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ],
                               ),
-                            )
-                          : const Icon(
-                              Icons.movie_filter,
-                              size: 96,
-                              color: Colors.white24,
-                            ),
+                            ],
+                          ),
+                        )
+                      : const Icon(
+                          Icons.movie_filter,
+                          size: 96,
+                          color: Colors.white24,
+                        ),
                 ),
               ),
             // Double-tap seek ripple (±10 s on the tapped half).
@@ -5358,11 +6026,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                               ),
                             ),
                             _TvControlButton(
-                                onPressed: _openVideoInfoSheet,
-                                icon: const Icon(Icons.info_outline),
-                                color: Colors.white,
-                                onFocusChange: (_) => _showControls(),
-                              ),
+                              onPressed: _openVideoInfoSheet,
+                              icon: const Icon(Icons.info_outline),
+                              color: Colors.white,
+                              onFocusChange: (_) => _showControls(),
+                            ),
                             const SizedBox(width: 4),
                           ],
                         ),
@@ -5375,8 +6043,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         if (!_inPip && chips.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
                             child: Wrap(
                               spacing: 8,
                               runSpacing: 4,
@@ -5521,13 +6188,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   _TvControlButton(
                                     onPressed: _openSubtitleSheet,
                                     icon: Icon(
-                                      (_mpvReady
-                                              ? _mpvSubtitleOn
-                                              : _subtitleOn)
+                                      (_mpvReady ? _mpvSubtitleOn : _subtitleOn)
                                           ? Icons.closed_caption
                                           : Icons.closed_caption_off,
                                     ),
-                                    color: (_mpvReady
+                                    color:
+                                        (_mpvReady
                                             ? _mpvSubtitleOn
                                             : _subtitleOn)
                                         ? Colors.white
@@ -5698,18 +6364,24 @@ class _BufferedSeekBarState extends State<_BufferedSeekBar> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final totalWidth = constraints.maxWidth;
-          final trackWidth = (totalWidth - (_horizontalPadding * 2)).clamp(0.0, double.infinity);
+          final trackWidth = (totalWidth - (_horizontalPadding * 2)).clamp(
+            0.0,
+            double.infinity,
+          );
           final thumbX = _horizontalPadding + positionFraction * trackWidth;
           final bufferWidth = bufferFraction * trackWidth;
           final activeWidth = positionFraction * trackWidth;
 
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapDown: (details) => _handleTouchStart(details.localPosition, totalWidth),
+            onTapDown: (details) =>
+                _handleTouchStart(details.localPosition, totalWidth),
             onTapUp: (_) => _handleTouchEnd(),
             onTapCancel: () => _handleTouchEnd(),
-            onHorizontalDragStart: (details) => _handleTouchStart(details.localPosition, totalWidth),
-            onHorizontalDragUpdate: (details) => _handleTouchUpdate(details.localPosition, totalWidth),
+            onHorizontalDragStart: (details) =>
+                _handleTouchStart(details.localPosition, totalWidth),
+            onHorizontalDragUpdate: (details) =>
+                _handleTouchUpdate(details.localPosition, totalWidth),
             onHorizontalDragEnd: (_) => _handleTouchEnd(),
             onHorizontalDragCancel: () => _handleTouchEnd(),
             child: AnimatedContainer(
@@ -5718,11 +6390,15 @@ class _BufferedSeekBarState extends State<_BufferedSeekBar> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 color: isFocused
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.12)
                     : Colors.transparent,
                 border: Border.all(
                   color: isFocused
-                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.7)
                       : Colors.transparent,
                   width: 2,
                 ),
@@ -5758,7 +6434,10 @@ class _BufferedSeekBarState extends State<_BufferedSeekBar> {
                   ),
                   // Active progress fill (white)
                   Positioned(
-                    top: (_touchHeight - (_dragging ? _activeTrackHeight : _trackHeight)) / 2,
+                    top:
+                        (_touchHeight -
+                            (_dragging ? _activeTrackHeight : _trackHeight)) /
+                        2,
                     left: _horizontalPadding,
                     width: activeWidth,
                     child: AnimatedContainer(
@@ -5789,7 +6468,9 @@ class _BufferedSeekBarState extends State<_BufferedSeekBar> {
                           ),
                           if (_dragging)
                             BoxShadow(
-                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.6),
                               blurRadius: 8,
                               spreadRadius: 3,
                             ),
@@ -5989,4 +6670,3 @@ class _TvControlButtonState extends State<_TvControlButton> {
 /// Lives next to the ⓘ button in the player top bar; hidden entirely in
 /// pip mode (the parent gates the widget out so the floating window shows
 /// only the video). When the speed is still loading (the player hasn't
-

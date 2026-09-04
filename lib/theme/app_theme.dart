@@ -3,18 +3,28 @@ import 'package:flutter/material.dart';
 class AppTheme {
   static const Color _seed = Color(0xFF7C4DFF);
 
-  static ThemeData dark() {
+  static ThemeData light() => _build(Brightness.light);
+
+  static ThemeData dark() => _build(Brightness.dark);
+
+  static ThemeData _build(Brightness brightness) {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: _seed,
-      brightness: Brightness.dark,
+      brightness: brightness,
     );
+    final dark = brightness == Brightness.dark;
+    final scaffold = dark ? const Color(0xFF0E0E11) : colorScheme.surface;
+    final container = dark
+        ? const Color(0xFF16161A)
+        : colorScheme.surfaceContainer;
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: const Color(0xFF0E0E11),
+      brightness: brightness,
+      scaffoldBackgroundColor: scaffold,
       appBarTheme: AppBarTheme(
-        backgroundColor: const Color(0xFF0E0E11),
+        backgroundColor: scaffold,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
         titleTextStyle: TextStyle(
@@ -25,19 +35,21 @@ class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFF16161A),
+        backgroundColor: container,
         indicatorColor: colorScheme.primaryContainer,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
-      searchBarTheme: const SearchBarThemeData(
-        backgroundColor: WidgetStatePropertyAll(Color(0xFF1C1C21)),
-        elevation: WidgetStatePropertyAll(0),
+      searchBarTheme: SearchBarThemeData(
+        backgroundColor: WidgetStatePropertyAll(
+          dark ? const Color(0xFF1C1C21) : colorScheme.surfaceContainerHigh,
+        ),
+        elevation: const WidgetStatePropertyAll(0),
         hintStyle: WidgetStatePropertyAll(
-          TextStyle(color: Color(0xFF8A8A93)),
+          TextStyle(color: colorScheme.onSurfaceVariant),
         ),
       ),
       cardTheme: CardThemeData(
-        color: const Color(0xFF16161A),
+        color: container,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -46,8 +58,8 @@ class AppTheme {
       listTileTheme: ListTileThemeData(
         iconColor: colorScheme.onSurfaceVariant,
       ),
-      dividerTheme: const DividerThemeData(
-        color: Color(0xFF232329),
+      dividerTheme: DividerThemeData(
+        color: dark ? const Color(0xFF232329) : colorScheme.outlineVariant,
       ),
     );
   }

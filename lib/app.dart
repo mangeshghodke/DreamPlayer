@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'l10n/app_localizations.dart';
 import 'screens/home_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/settings_screen.dart';
 import 'models/video_item.dart';
 import 'services/jellyfin_client.dart';
 import 'services/open_intent.dart';
+import 'services/app_preferences.dart';
 import 'theme/app_theme.dart';
 
 /// Used by the "Open with" intent handler to navigate without a BuildContext.
@@ -71,24 +74,37 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'DreamPlayer',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
-      navigatorKey: appNavigatorKey,
-      navigatorObservers: [appRouteObserver],
-      builder: (context, child) {
-        final mediaQuery = MediaQuery.of(context);
-        final clampedTextScaler = mediaQuery.textScaler.clamp(
-          minScaleFactor: 1.0,
-          maxScaleFactor: 1.3,
-        );
-        return MediaQuery(
-          data: mediaQuery.copyWith(textScaler: clampedTextScaler),
-          child: child!,
-        );
-      },
-      home: const RootShell(),
+    return AnimatedBuilder(
+      animation: AppPreferencesController.instance,
+      builder: (context, _) => MaterialApp(
+        onGenerateTitle: (context) => AppLocalizations.of(context).appName,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: AppPreferencesController.instance.themeMode,
+        locale: AppPreferencesController.instance.locale,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: appNavigatorKey,
+        navigatorObservers: [appRouteObserver],
+        builder: (context, child) {
+          final mediaQuery = MediaQuery.of(context);
+          final clampedTextScaler = mediaQuery.textScaler.clamp(
+            minScaleFactor: 1.0,
+            maxScaleFactor: 1.3,
+          );
+          return MediaQuery(
+            data: mediaQuery.copyWith(textScaler: clampedTextScaler),
+            child: child!,
+          );
+        },
+        home: const RootShell(),
+      ),
     );
   }
 }
@@ -129,9 +145,9 @@ class _RootShellState extends State<RootShell> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(
-            content: Text('Press back again to exit'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).pressBackAgain),
+            duration: const Duration(seconds: 2),
           ),
         );
     } else {
@@ -174,16 +190,16 @@ class _RootShellState extends State<RootShell> {
             });
             if (index == 0) _homeRefreshTick.value++;
           },
-          destinations: const [
+          destinations: [
             NavigationDestination(
-              icon: Icon(Icons.video_library_outlined),
-              selectedIcon: Icon(Icons.video_library),
-              label: 'Library',
+              icon: const Icon(Icons.video_library_outlined),
+              selectedIcon: const Icon(Icons.video_library),
+              label: AppLocalizations.of(context).library,
             ),
             NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings),
-              label: 'Settings',
+              icon: const Icon(Icons.settings_outlined),
+              selectedIcon: const Icon(Icons.settings),
+              label: AppLocalizations.of(context).settings,
             ),
           ],
         ),
