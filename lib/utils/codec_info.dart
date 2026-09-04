@@ -121,7 +121,21 @@ String formatAudioCodec(String? codec) {
     'pcm_f32le': 'PCM 32-bit float',
     's302m': 'AES3',
   };
-  return map[c] ?? codec.toUpperCase();
+  if (map.containsKey(c)) return map[c]!;
+  // Handle compound MIME sub-paths like "vnd.dts.hd" → "dts.hd" → match on segments
+  final segments = c.split('.');
+  for (final seg in segments) {
+    if (map.containsKey(seg)) return map[seg]!;
+  }
+  // Handle "vnd.xxx.yyy" prefix stripping (DTS MIME from MediaExtractor / EBML)
+  if (c.startsWith('vnd.')) {
+    final stripped = c.substring(4); // "vnd.dts.hd" → "dts.hd"
+    if (map.containsKey(stripped)) return map[stripped]!;
+    for (final seg in stripped.split('.')) {
+      if (map.containsKey(seg)) return map[seg]!;
+    }
+  }
+  return codec.toUpperCase();
 }
 
 String formatVideoCodec(String? codec) {
