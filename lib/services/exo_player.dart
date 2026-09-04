@@ -538,11 +538,6 @@ abstract class PlaybackController {
 
   Future<ExoPlayerEvent?> getState();
 
-  /// "Play with external app": hands the current video to another installed
-  /// player via an ACTION_VIEW chooser (Android only; no-op elsewhere).
-  /// [path] / [uri] / [resumeKey] select the playable source.
-  Future<bool> playExternal({String? path, String? uri});
-
   Future<void> dispose();
 }
 
@@ -642,23 +637,6 @@ class ExoPlayerController implements PlaybackController {
       return null;
     }
     return _latest;
-  }
-
-  /// "Play with external app" — Android only. iOS/mpv have no equivalent
-  /// (see the sandbox limitation in AGENTS.md).
-  @override
-  Future<bool> playExternal({String? path, String? uri}) async {
-    final channel = _method;
-    if (channel == null) return false;
-    try {
-      final ok = await channel.invokeMethod<bool>('playExternal', {
-        if (path != null && path.isNotEmpty) 'path': path,
-        if (uri != null && uri.isNotEmpty) 'uri': uri,
-      });
-      return ok == true;
-    } catch (_) {
-      return false;
-    }
   }
 
   @override
