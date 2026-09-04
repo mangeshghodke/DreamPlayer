@@ -834,6 +834,9 @@ verified for local/SMB/Jellyfin/WebDAV)**:
   - **Network sources** (collapsed `ExpansionTile`): SMB/WebDAV/FTP/Jellyfin/DLNA/Play URL — collapsed by default so local actions are immediately reachable; expands to show all network options.
   - `_showAddMenu()` in `home_screen.dart` rewritten with `ExpansionTile` for the network section.
 
+**Pull-to-refresh on home (2026-09)**: the home `CustomScrollView` is wrapped in a `RefreshIndicator` (`AlwaysScrollableScrollPhysics` so the gesture works even on an empty library). Pulling down calls `_refreshHome()` (home_screen.dart), which reloads the whole surface in one go however a folder was added: re-reads the persisted `LibraryFolder`s (a folder bookmarked from any network-share browser — SMB/WebDAV/FTP/UPnP/Jellyfin — appears on the grid without reopening the screen), re-fetches Jellyfin server-side posters for any folder missing one (`_refreshJellyfinMeta`), refreshes continue-watching positions, and re-runs the TMDB lookups behind every card (`_resolveFolderMetadata`).
+
+
 **Content URI path display fix (2026-09)**: `_displayLocation()` in `tmd_details_screen.dart` now decodes `content://` URIs to show clean local paths instead of raw URL-encoded SAF document IDs. For example:
   - Before: `content://com.android.externalstorage.documents/document/primary%3AMovies%2Ffile.mkv`
   - After: `/storage/emulated/0/Movies/file.mkv`

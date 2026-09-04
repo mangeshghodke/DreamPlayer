@@ -224,6 +224,22 @@ class _HomeScreenState extends State<HomeScreen>
     _refreshJellyfinMeta(folders);
   }
 
+  /// Pull-to-refresh handler: reloads the whole home surface from scratch —
+  /// continue-watching positions, the library folders (added from SMB / WebDAV /
+  /// FTP / UPnP / Jellyfin / local), their Jellyfin posters, and the TMDB
+  /// metadata behind every card. Driven by the [RefreshIndicator] wrapping the
+  /// home [CustomScrollView].
+  Future<void> _refreshHome() async {
+    final entries = await ContinueWatchingStore.load();
+    if (!mounted) return;
+    setState(() => _entries = entries);
+    final folders = await LibraryFoldersStore.load();
+    if (!mounted) return;
+    setState(() => _folders = folders);
+    await _resolveFolderMetadata(folders);
+    await _refreshJellyfinMeta(folders);
+  }
+
   /// Best-effort server-side metadata for the Jellyfin library folders: any
   /// folder with no cached entry gets its info fetched from the server (the
   /// bookmark flow already saves it, so this only fills gaps).
@@ -634,9 +650,19 @@ class _HomeScreenState extends State<HomeScreen>
     final tv = isTvMode(context);
     return Scaffold(
       body: TvOverscan(
-        child: CustomScrollView(
-          controller: _scrollController,
-          slivers: [
+        child: RefreshIndicator(
+          onRefresh: _refreshHome,
+          // Pull down on the home list (from SMB / WebDAV / local / Jellyfin /
+          // any source) to reload the library — re-digit the persisted folders,
+          // their Jellyfin posters, continue-watching positions, and the TMDB
+          // metadata for every card.
+          edgeOffset: 8,
+          child: CustomScrollView(
+            controller: _scrollController,
+            // Always scrollable so pull-to-refresh works even when the content
+            // doesn't fill the screen (e.g. an empty library).
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
             SliverAppBar(title: const Text('DreamPlayer'), pinned: true),
             // ---- Your library: user-added folders (e.g. TV-show folders) ----
             if (_folders.isEmpty)
@@ -699,7 +725,8 @@ class _HomeScreenState extends State<HomeScreen>
               )
             else
               _buildContinueWatchingGrid(theme),
-          ],
+            ],
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton(
