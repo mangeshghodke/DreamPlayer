@@ -490,46 +490,27 @@ class _HomeScreenState extends State<HomeScreen>
     List<ContinueWatchingEntry> entries,
   ) {
     final service = TmdService.instance;
-    final Map<String, _GroupedContinueWatching> shows = {};
     final List<_GroupedContinueWatching> result = [];
 
     for (final entry in entries) {
       final video = entry.video;
       final parsed = ParsedFileName.parse(video.title);
+      String? showId;
       if (parsed.isEpisode) {
         final key = TmdStore.identityKeyFor(video);
         final meta = service.metaFor(key);
-        final showId = meta?.movie.id.toString();
-        if (showId != null) {
-          shows.putIfAbsent(
-            showId,
-            () => _GroupedContinueWatching(
-              showTitle: meta?.movie.title ?? parsed.title,
-              showMeta: meta,
-              entries: [],
-            ),
-          );
-          shows[showId]!.entries.add(entry);
-          continue;
-        }
+        showId = meta?.movie.id.toString();
       }
-      // Non-episode or no TMDB match → pass through as-is.
+      // Each episode gets its own card — no series grouping.
       result.add(_GroupedContinueWatching(
         showTitle: video.title,
-        showMeta: null,
+        showMeta: showId != null
+            ? service.metaFor(TmdStore.identityKeyFor(video))
+            : null,
         entries: [entry],
       ));
     }
 
-    // Sort grouped shows by most-recently-played entry.
-    final grouped = shows.values.toList()
-      ..sort((a, b) {
-        final aTime = a.entries.first.position;
-        final bTime = b.entries.first.position;
-        return bTime.compareTo(aTime);
-      });
-
-    result.insertAll(0, grouped);
     return result;
   }
 

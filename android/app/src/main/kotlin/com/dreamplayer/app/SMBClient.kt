@@ -535,6 +535,29 @@ class SMBClient(private val context: Context) {
                         }
                     }
                 }
+                // Background size fetch: open each file and call length() on
+                // a daemon thread, returning a map of path→size. Called after
+                // listDirectory returns so the UI shows entries immediately
+                // and sizes fill in progressively.
+                "fetchSizes" -> {
+                    val args = call.arguments as? Map<*, *>
+                    val id = args?.get("id") as? String
+                    val share = args?.get("share") as? String
+                    val paths = args?.get("paths") as? List<*>
+                    if (id == null || share == null || paths == null) {
+                        result.error("bad_args", "Missing id, share, or paths", null)
+                    } else {
+                        executor.execute {
+                            try {
+                                result.success(fetchSizes(id, share, paths.filterIsInstance<String>()))
+                            } catch (e: jcifs.smb.SmbAuthException) {
+                                result.error("smb_auth", "Login failed — check username/password/domain", null)
+                            } catch (e: Exception) {
+                                result.error("smb_error", e.message, null)
+                            }
+                        }
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -819,6 +842,31 @@ class SMBClient(private val context: Context) {
         "size" to size,
         "modified" to modified,
     )
+
+    /// Opens each file at [paths] and calls length() to populate sizes
+    /// that `listDirectory` skipped. Returns a map of path→size for entries
+    /// where the size is > 0.
+    private fun fetchSizes(
+        serverId: String,
+        shareName: String,
+        paths: List<String>,
+    ): Map<String, Long> {
+        val creds = SmbStore.resolve(context, serverId)
+            ?: throw IllegalStateException("Unknown server")
+        val ctx = creds.context()
+        val base = "smb://${creds.host}:${creds.port}/$shareName"
+        val sizes = HashMap<String, Long>()
+        for (p in paths) {
+            try {
+                val url = "$base/$p"
+                val len = SmbRandomAccessFile(SmbFile(url, ctx), "r").use { it.length() }
+                if (len > 0) sizes[p] = len
+            } catch (_: Exception) {
+                // Best-effort: skip files that can't be opened
+            }
+        }
+        return sizes
+    }
 
     private fun isVideo(name: String): Boolean = hasExtension(name, VIDEO_EXTENSIONS)
 

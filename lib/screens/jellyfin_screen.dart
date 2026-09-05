@@ -4,6 +4,7 @@ import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
+import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_overscan.dart';
@@ -45,6 +46,9 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   /// Watched marks for the current folder, keyed by the same stable resume
   /// key each video uses for playback (`client.resumeKey`).
   Set<String> _watchedKeys = {};
+
+  Map<String, int> _resumePositionsMs = {};
+  Map<String, int> _durationsMs = {};
 
   bool get _atBrowseRoot => _browsing == null;
 
@@ -129,7 +133,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
         _items = [...folders, ...playables];
         _loading = false;
       });
-      _refreshWatched();
+      await _refreshWatched();
     } on JellyfinException catch (e) {
       if (!mounted) return;
       if (e.message.contains('Session expired')) {
@@ -178,6 +182,21 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
       final watched = await WatchedStore.load();
       if (mounted) setState(() => _watchedKeys = watched);
     } catch (_) {}
+    await _refreshResumes();
+  }
+
+  Future<void> _refreshResumes() async {
+    final keys = [
+      for (final item in _items)
+        if (!item.isFolder) _watchedKeyFor(item),
+    ];
+    final result = await ResumeProgressHelper.load(keys);
+    if (mounted) {
+      setState(() {
+        _resumePositionsMs = result.positions;
+        _durationsMs = result.durations;
+      });
+    }
   }
 
   Future<void> _toggleWatched(JellyfinItem item) async {
@@ -235,6 +254,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
         ),
       ),
     );
+    _refreshResumes();
   }
 
   Future<void> _goUp() async {
@@ -518,6 +538,13 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
             onTap: () => _openItem(item),
             onAddToLibrary:
                 item.isFolder ? () => _addToLibrary(item) : null,
+            resumeProgress: item.isFolder
+                ? null
+                : ResumeProgressHelper.progressFor(
+                    _watchedKeyFor(item),
+                    _resumePositionsMs,
+                    _durationsMs,
+                  ),
           );
         },
       ),
@@ -629,6 +656,7 @@ class _JellyfinTile extends StatelessWidget {
     this.watched = false,
     this.onToggleWatched,
     this.onAddToLibrary,
+    this.resumeProgress,
   });
 
   final JellyfinItem item;
@@ -636,6 +664,7 @@ class _JellyfinTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool watched;
   final VoidCallback? onToggleWatched;
+  final double? resumeProgress;
 
   /// Shown on folders as a "add to library" shortcut (replaces the plain
   /// chevron so both actions stay reachable).
@@ -644,16 +673,133 @@ class _JellyfinTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final icon = item.isFolder ? Icons.folder : Icons.play_circle_outline;
-    final color = item.isFolder ? colorScheme.primary : colorScheme.secondary;
-    final subtitle = item.isFolder ? null : item.sizeLabel;
+    if (item.isFolder) {
+      return TvTile(
+        leading: Icon(Icons.folder, color: colorScheme.primary),
+        title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onAddToLibrary != null)
+              IconButton(
+                tooltip: 'Add to library',
+                icon: const Icon(Icons.library_add_outlined),
+                onPressed: onAddToLibrary,
+              ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+        onTap: onTap,
+      );
+    }
+
+    final parsed = ParsedFileName.parse(item.name);
+    final effectiveLabel = parsed.isEpisode
+        ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
+        : '';
+
     final posterUrl = posterUrlOf(tmdbMeta);
+
+    final filenameWidget = Text(
+      item.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+    );
+
+    final titleWidget = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (parsed.isEpisode) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              effectiveLabel,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Expanded(
+          child: Text(
+            parsed.isEpisode
+                ? (tmdbMeta?.movie.title.isNotEmpty == true
+                    ? tmdbMeta!.movie.title
+                    : parsed.title)
+                : (tmdbMeta?.movie.title.isNotEmpty == true
+                    ? tmdbMeta!.movie.title
+                    : item.name),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        if (tmdbMeta != null && tmdbMeta!.movie.voteAverage > 0) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.star, size: 13, color: Colors.amber),
+          const SizedBox(width: 2),
+          Text(
+            tmdbMeta!.movie.voteAverage.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final subtitleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        filenameWidget,
+        if (item.sizeLabel.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              item.sizeLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        if (resumeProgress != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(1),
+              child: LinearProgressIndicator(
+                value: resumeProgress,
+                minHeight: 2,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+              ),
+            ),
+          ),
+      ],
+    );
+
     return TvTile(
       leading: posterUrl != null
           ? _Poster(posterUrl: posterUrl)
-          : Icon(icon, color: color),
-      title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: subtitle == null ? null : Text(subtitle),
+          : Icon(
+              parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
+              color: colorScheme.secondary,
+            ),
+      title: titleWidget,
+      subtitle: subtitleWidget,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -668,15 +814,6 @@ class _JellyfinTile extends StatelessWidget {
               ),
               onPressed: onToggleWatched,
             ),
-          if (item.isFolder) ...[
-            if (onAddToLibrary != null)
-              IconButton(
-                tooltip: 'Add to library',
-                icon: const Icon(Icons.library_add_outlined),
-                onPressed: onAddToLibrary,
-              ),
-            const Icon(Icons.chevron_right),
-          ],
         ],
       ),
       onTap: onTap,

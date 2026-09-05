@@ -554,6 +554,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: DefaultEngine.values.map((e) {
                               final subtitle = switch (e) {
+                                DefaultEngine.auto =>
+                                  'Start with Media3, auto-fallback to libmpv if it fails',
                                 DefaultEngine.media3 =>
                                   'Hardware-accelerated, supports Dolby Vision / HDR',
                                 DefaultEngine.mpv =>
@@ -585,6 +587,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
               SwitchListTile(
+                secondary: const Icon(Icons.skip_next),
+                title: const Text('Auto-play next episode'),
                 subtitle: const Text('Play the next episode when one ends'),
                 value: _autoPlayNext,
                 onChanged: (value) async {

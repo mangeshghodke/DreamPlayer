@@ -9,6 +9,7 @@ import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/media_probe.dart';
+import '../services/resume_progress_helper.dart';
 import '../services/resume_store.dart';
 import '../services/default_engine_store.dart';
 import '../services/simkl_client.dart';
@@ -150,6 +151,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// per-episode 2px resume bar.
   Set<String> _watchedKeys = {};
   Map<String, Duration> _positions = {};
+  Map<String, int> _durationsMs = {};
+
+  /// Which engine was last used for this video (from LastEngineStore).
+  String? _lastEngine;
 
   /// SIMKL cloud-done backfill (mirrors smb_screen.dart's sync button).
   bool _syncingSimkl = false;
@@ -223,12 +228,17 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         final k = _watchedKeyForJellyfin(i);
         if (k != null && k.isNotEmpty) keys.add(k);
       }
+      final result = await ResumeProgressHelper.load(keys);
       final map = <String, Duration>{};
-      for (final k in keys) {
-        final pos = await ResumeStore.positionFor(k);
-        if (pos != null) map[k] = pos;
+      for (final e in result.positions.entries) {
+        map[e.key] = Duration(milliseconds: e.value);
       }
-      if (mounted) setState(() => _positions = map);
+      if (mounted) {
+        setState(() {
+          _positions = map;
+          _durationsMs = result.durations;
+        });
+      }
     } catch (_) {}
   }
 
@@ -310,7 +320,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   }
 
   String? _watchedKeyForFile(FileEntry e) =>
-      e.isDirectory ? null : e.resumeKey;
+      e.isDirectory ? null : (e.resumeKey ?? e.path);
 
   String? _watchedKeyForJellyfin(JellyfinItem i) {
     final s = _jellyfinServer;
@@ -324,7 +334,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     if (_watchedKeys.contains(k)) return 1.0;
     final pos = _positions[k];
     if (pos == null) return null;
-    return 0.35;
+    final durMs = _durationsMs[k];
+    if (durMs != null && durMs > 0) {
+      return (pos.inMilliseconds / durMs).clamp(0.0, 1.0);
+    }
+    return null;
   }
 
   double? _resumeProgressForJellyfin(JellyfinItem item) {
@@ -333,11 +347,13 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     if (_watchedKeys.contains(k)) return 1.0;
     final pos = _positions[k];
     if (pos == null) return null;
-    final dur = item.duration;
-    if (dur > Duration.zero) {
-      return (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
+    final durMs = item.duration.inMilliseconds > 0
+        ? item.duration.inMilliseconds
+        : _durationsMs[k];
+    if (durMs != null && durMs > 0) {
+      return (pos.inMilliseconds / durMs).clamp(0.0, 1.0);
     }
-    return 0.35;
+    return null;
   }
 
   Future<void> _probeFile() async {
@@ -615,9 +631,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final results = await Future.wait([
       ResumeStore.positionFor(_resumeKey, engine: 'media3'),
       ResumeStore.positionFor(_resumeKey, engine: 'mpv'),
+      LastEngineStore.load(_resumeKey),
     ]);
-    var position = results[0];
-    var positionMpv = results[1];
+    Duration? position = results[0] as Duration?;
+    Duration? positionMpv = results[1] as Duration?;
+    final lastEngine = results[2] as String?;
     // Filter trivial / near-end positions.
     if (position != null && position < const Duration(seconds: 10)) {
       position = null;
@@ -634,10 +652,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         positionMpv = null;
       }
     }
-    if (mounted && (position != _resumePosition || positionMpv != _resumePositionMpv)) {
+    if (mounted && (position != _resumePosition || positionMpv != _resumePositionMpv || lastEngine != _lastEngine)) {
       setState(() {
         _resumePosition = position;
         _resumePositionMpv = positionMpv;
+        _lastEngine = lastEngine;
       });
     }
   }
@@ -684,10 +703,19 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     bool fromBeginning = false,
     PlayEngine? engine,
   }) async {
-    final resolved = engine ??
-        (_defaultEngine == DefaultEngine.mpv
-            ? PlayEngine.mpv
-            : PlayEngine.media3);
+    // When resuming (not from beginning), use the same engine that last
+    // played this file — otherwise the resume position (per-engine key)
+    // won't be found and playback restarts from the beginning.
+    PlayEngine resolved;
+    if (engine != null) {
+      resolved = engine;
+    } else if (!fromBeginning && _lastEngine == 'mpv') {
+      resolved = PlayEngine.mpv;
+    } else {
+      resolved = _defaultEngine == DefaultEngine.mpv
+          ? PlayEngine.mpv
+          : PlayEngine.media3;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PlayerScreen(
@@ -697,19 +725,29 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         ),
       ),
     );
+    // Wait for the player's orientation restore (landscape → portrait) to
+    // settle before triggering a rebuild. Without this delay, _loadResume's
+    // setState fires while MediaQuery data is still mid-transition, which
+    // can corrupt the Scaffold layout (bottom bar jumps to top) and crash.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
     // The playhead may have moved (or the video finished) — refresh the label.
     await _loadResume();
+    // Also refresh progress bars for sibling episode tiles.
+    await _refreshPositions();
   }
 
   /// The libmpv engine is Android-only (iOS playback is AetherEngine), so the
   /// "Play with MPV" option only shows on Android — iOS keeps its single Play.
   /// When the user has set a default engine, only the "Ask every time" mode
-  /// shows both buttons.
+  /// shows both buttons. Auto mode shows only Media3 (mpv is the silent
+  /// fallback if Media3 fails).
   bool get showMpvOption =>
       Platform.isAndroid && _defaultEngine == DefaultEngine.ask;
 
   /// Suffix shown on the Play button when a specific engine is the default.
   String get _engineSuffix => switch (_defaultEngine) {
+        DefaultEngine.auto => '',
         DefaultEngine.media3 => '',
         DefaultEngine.mpv => ' (MPV)',
         DefaultEngine.ask => '',
@@ -826,6 +864,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       ),
     );
     await _loadResume();
+    await _refreshPositions();
   }
 
   VideoItem _toVideoItem(FileEntry entry) {
@@ -913,6 +952,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         : (widget.folder?.name ?? widget.video!.title);
     final resume = _resumePosition;       // Media3 playhead
     final resumeMpv = _resumePositionMpv; // MPV playhead
+    // Use the resume position from the engine that was last used for this
+    // video. When a file was played via mpv fallback, the resume is in mpv
+    // but the main button was only checking Media3 — so it showed "Play"
+    // instead of "Resume from m:ss".
+    final bestResume = _lastEngine == 'mpv' ? (resumeMpv ?? resume) : (resume ?? resumeMpv);
     final hasAnyResume = resume != null || resumeMpv != null;
 
     return Scaffold(
@@ -947,7 +991,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (resume != null) ...[
+                          if (bestResume != null) ...[
                             Row(
                               children: [
                                 Expanded(
@@ -958,7 +1002,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                     ),
                                     icon: const Icon(Icons.play_arrow),
                                     label: Text(
-                                      'Resume from ${_formatClock(resume)}$_engineSuffix',
+                                      'Resume from ${_formatClock(bestResume)}$_engineSuffix',
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),

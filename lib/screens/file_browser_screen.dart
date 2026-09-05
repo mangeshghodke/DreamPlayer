@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
 import '../services/tmdb_client.dart';
+import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
 import '../utils/file_info_extractor.dart';
 import '../widgets/tv_overscan.dart';
@@ -34,6 +35,9 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   /// key for playback.
   Set<String> _watchedKeys = {};
 
+  Map<String, int> _resumePositionsMs = {};
+  Map<String, int> _durationsMs = {};
+
   bool get _atRoot => _currentPath == null;
 
   @override
@@ -60,11 +64,31 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       final watched = await WatchedStore.load();
       if (mounted) setState(() => _watchedKeys = watched);
     } catch (_) {}
+    await _refreshResumes();
+  }
+
+  Future<void> _refreshResumes() async {
+    final keys = <String>{};
+    for (final e in _entries) {
+      if (e.isDirectory) continue;
+      if (e.resumeKey != null && e.resumeKey!.isNotEmpty) keys.add(e.resumeKey!);
+      if (e.path.isNotEmpty) keys.add(e.path);
+    }
+    if (keys.isEmpty) return;
+    try {
+      final result = await ResumeProgressHelper.load(keys.toList());
+      if (mounted) {
+        setState(() {
+          _resumePositionsMs = result.positions;
+          _durationsMs = result.durations;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _toggleWatched(FileEntry entry) async {
-    final key = entry.resumeKey;
-    if (entry.isDirectory || key == null || key.isEmpty) return;
+    final key = entry.resumeKey ?? entry.path;
+    if (entry.isDirectory || key.isEmpty) return;
     final now = !_watchedKeys.contains(key);
     setState(() {
       _watchedKeys = {..._watchedKeys};
@@ -134,7 +158,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       _loading = false;
     });
     _prefetchTmdb(entries);
-    _refreshWatched();
+    await _refreshWatched();
   }
 
   void _prefetchTmdb(List<FileEntry> entries) {
@@ -165,12 +189,13 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
 
   /// Opens a video's details page first (TMDB metadata + Play/Resume button),
   /// like the WebDAV/Jellyfin browsers.
-  void _playVideo(FileEntry entry) {
-    Navigator.of(context).push(
+  Future<void> _playVideo(FileEntry entry) async {
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TmdDetailsScreen(video: _toVideoItem(entry)),
       ),
     );
+    _refreshResumes();
   }
 
   VideoItem _toVideoItem(FileEntry entry) {
@@ -333,10 +358,18 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
             TmdStore.identityKeyFor(_toVideoItem(entry)),
           ),
           watched: !entry.isDirectory &&
-              entry.resumeKey?.isNotEmpty == true &&
-              _watchedKeys.contains(entry.resumeKey),
+              _watchedKeys.contains(entry.resumeKey ?? entry.path),
           onToggleWatched:
               entry.isDirectory ? null : () => _toggleWatched(entry),
+          resumeProgress: entry.isDirectory
+              ? null
+              : ResumeProgressHelper.progressFor(
+                  entry.resumeKey?.isNotEmpty == true
+                      ? entry.resumeKey!
+                      : entry.path,
+                  _resumePositionsMs,
+                  _durationsMs,
+                ),
         ),
     ];
     return ListView.builder(
@@ -375,6 +408,7 @@ class _FileTile extends StatelessWidget {
     this.tmdbMeta,
     this.watched = false,
     this.onToggleWatched,
+    this.resumeProgress,
   });
 
   final FileEntry entry;
@@ -383,6 +417,7 @@ class _FileTile extends StatelessWidget {
   final TmdMeta? tmdbMeta;
   final bool watched;
   final VoidCallback? onToggleWatched;
+  final double? resumeProgress;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -399,22 +434,134 @@ class _FileTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final icon = entry.isDirectory
-        ? Icons.folder
-        : Icons.play_circle_outline;
-    final color = entry.isDirectory ? colorScheme.primary : colorScheme.secondary;
-    final subtitle = entry.isDirectory ? null : _sizeLabel(entry.size);
+    if (entry.isDirectory) {
+      return TvTile(
+        leading: Icon(Icons.folder, color: colorScheme.primary),
+        title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onRemove != null)
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Remove folder',
+                onPressed: onRemove,
+              )
+            else
+              const Icon(Icons.chevron_right),
+          ],
+        ),
+        onTap: onTap,
+      );
+    }
+
+    final parsed = ParsedFileName.parse(entry.name);
+    final effectiveLabel = parsed.isEpisode
+        ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
+        : '';
+
     final posterUrl = posterUrlOf(tmdbMeta);
+
+    final filenameWidget = Text(
+      entry.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+    );
+
+    final titleWidget = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (parsed.isEpisode) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              effectiveLabel,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Expanded(
+          child: Text(
+            parsed.isEpisode
+                ? (tmdbMeta?.movie.title.isNotEmpty == true
+                    ? tmdbMeta!.movie.title
+                    : parsed.title)
+                : (tmdbMeta?.movie.title.isNotEmpty == true
+                    ? tmdbMeta!.movie.title
+                    : entry.name),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        if (tmdbMeta != null && tmdbMeta!.movie.voteAverage > 0) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.star, size: 13, color: Colors.amber),
+          const SizedBox(width: 2),
+          Text(
+            tmdbMeta!.movie.voteAverage.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final subtitleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        filenameWidget,
+        if (_sizeLabel(entry.size).isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              _sizeLabel(entry.size),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        if (resumeProgress != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(1),
+              child: LinearProgressIndicator(
+                value: resumeProgress,
+                minHeight: 2,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+              ),
+            ),
+          ),
+      ],
+    );
+
     return TvTile(
       leading: posterUrl != null
           ? _Poster(posterUrl: posterUrl)
-          : Icon(icon, color: color),
-      title: Text(
-        entry.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: subtitle == null ? null : Text(subtitle),
+          : Icon(
+              parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
+              color: colorScheme.secondary,
+            ),
+      title: titleWidget,
+      subtitle: subtitleWidget,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -434,9 +581,7 @@ class _FileTile extends StatelessWidget {
               icon: const Icon(Icons.delete_outline),
               tooltip: 'Remove folder',
               onPressed: onRemove,
-            )
-          else if (entry.isDirectory)
-            const Icon(Icons.chevron_right),
+            ),
         ],
       ),
       onTap: onTap,

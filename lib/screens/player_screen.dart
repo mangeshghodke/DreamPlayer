@@ -546,6 +546,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final key = _resumeKey;
     if (key.isEmpty || position <= Duration.zero) return;
     final engine = _mpvActive ? 'mpv' : 'media3';
+    debugPrint('saveResume: key=$key, pos=$position, engine=$engine, mpvActive=$_mpvActive');
     ResumeStore.save(key, position, engine: engine);
     // Keep the home "Continue watching" list in sync (skip trivial positions).
     if (position >= const Duration(seconds: 10)) {
@@ -623,33 +624,21 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// available, otherwise surface the terminal error so the user can switch
   /// engines manually.
   Future<void> _trySoftwareDecodeFallback(String fallbackError) async {
-    if (_swRetried || _decoderMode == DecoderMode.sw) {
-      // Both HW and SW Media3 decode failed. Auto-try mpv if available and
-      // not already attempted, so the user doesn't have to tap "Try with MPV".
-      if (!_autoFallbackTried &&
-          !_mpvActive &&
-          Platform.isAndroid &&
-          _mpvSourceFor(_current).isNotEmpty) {
-        _autoFallbackTried = true;
-        _error = 'Media3 decode failed — trying libmpv…';
-        setState(() {});
-        await _startMpvFallback(automatic: true);
-        return;
-      }
-      _setTerminalError(fallbackError);
+    debugPrint('sw-fallback: called, swRetried=$_swRetried, decoderMode=$_decoderMode, error=$fallbackError');
+    // Skip the SW Media3 retry — it's slow, blocks the UI with an error
+    // overlay, and often fails anyway on unsupported codecs. Go straight
+    // to mpv which handles everything via its bundled FFmpeg.
+    if (!_autoFallbackTried && !_mpvActive && Platform.isAndroid && _mpvSourceFor(_current).isNotEmpty) {
+      _autoFallbackTried = true;
+      _error = 'Media3 cannot play this file — trying libmpv…';
+      setState(() {});
+      debugPrint('sw-fallback: auto-fallback to mpv');
+      unawaited(LastEngineStore.save(_resumeKey, 'mpv'));
+      await _startMpvFallback(automatic: true);
       return;
     }
-    _swRetried = true;
-    _decoderOverride ??= _decoderMode;
-    _decoderMode = DecoderMode.sw;
-    // The SW mode is in-memory only (flows to the native player through the
-    // `decoderMode` open-channel arg on the reopen below) — deliberately NOT
-    // persisted to DecoderModeStore, so a force-kill can't leak a one-file
-    // software fallback into the next session as the user's decoder default.
-    // The user's real preference (Auto/HW/SW) stays untouched in the store.
-    _error = 'Hardware decoder failed — retrying with software…';
-    setState(() {});
-    _reopenAt(_position, _duration);
+    debugPrint('sw-fallback: auto-fallback NOT triggered (tried=$_autoFallbackTried, mpvActive=$_mpvActive, source=${_mpvSourceFor(_current)})');
+    _setTerminalError(fallbackError);
   }
 
   /// Manual engine switch from the Media3 error surface ("Try with MPV"
@@ -683,17 +672,22 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (subs.isNotEmpty) _current = _current.withExternalSubtitles(subs);
       Duration? resume;
       if (!widget.startFromBeginning) {
+        debugPrint('mpv-primary: resumeKey=$_resumeKey, path=${_current.path}, uri=${_current.uri}, rk=${_current.resumeKey}');
         resume = await ResumeStore.positionFor(_resumeKey, engine: 'mpv');
+        debugPrint('mpv-primary: resume from store = $resume (engine=mpv)');
         // Skip trivial positions and "basically finished" ones.
         if (resume != null && resume < const Duration(seconds: 10)) {
+          debugPrint('mpv-primary: discarding trivial resume ($resume < 10s)');
           resume = null;
         }
         if (resume != null &&
             _current.duration > Duration.zero &&
             _current.duration - resume < const Duration(seconds: 5)) {
+          debugPrint('mpv-primary: discarding near-end resume ($resume, dur=${_current.duration})');
           resume = null;
         }
         if (resume != null) _position = resume;
+        debugPrint('mpv-primary: _position after resume logic = $_position');
       }
       await _startMpvFallback(automatic: false);
     } catch (e) {
@@ -778,6 +772,35 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (platform is! NativePlayer || _inTests) return;
     // Apply the user's decoder choice (Auto/Hardware/Software) as hwdec.
     await _applyMpvHwdec(player);
+    // Explicit OpenGL ES context + fast profile — required on some low-powered
+    // MediaTek SoCs (G81 etc.) where mpv's auto-detection fails and the video
+    // layer never attaches to the Flutter texture, resulting in audio-only
+    // playback with the purple background gradient showing through.
+    // `profile=fast` reduces decode overhead on budget chips.
+    try {
+      await platform.setProperty('gpu-context', 'android');
+      await platform.setProperty('opengl-es', 'yes');
+      await platform.setProperty('profile', 'fast');
+      debugPrint('mpv: gpu-context=android, opengl-es=yes, profile=fast');
+    } catch (e) {
+      debugPrint('mpv: gpu context config unavailable: $e');
+    }
+    // Enable hardware decoding for ALL supported codecs.
+    try {
+      await platform.setProperty('hwdec-codecs', 'all');
+      debugPrint('mpv: hwdec-codecs = all');
+    } catch (e) {
+      debugPrint('mpv: hwdec-codecs=all unavailable: $e');
+    }
+    // Auto-fallback to software decode after 3 failed HW frames — prevents
+    // infinite black/purple screen when the hardware decoder can't handle a
+    // stream (broken Mali drivers, unsupported 10-bit profiles, etc.).
+    try {
+      await platform.setProperty('hwdec-software-fallback', '3');
+      debugPrint('mpv: hwdec-software-fallback = 3');
+    } catch (e) {
+      debugPrint('mpv: hwdec-software-fallback unavailable: $e');
+    }
     // `ao` is an init-time option; media_kit set `opensles`. A runtime
     // override is best-effort — if mpv rejects it the OpenSL output stays and
     // passthrough simply degrades to PCM.
@@ -787,27 +810,17 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: ao=audiotrack unavailable, keeping opensles: $e');
     }
-    // Fix purple/magenta screen on 10-bit HEVC: mediacodec-copy decodes into
-    // P010 (10-bit YUV420P) buffers; mpv's gpu VO must convert them to RGB
-    // for the Flutter texture. Without color-space hints the conversion uses
-    // the wrong transfer function and the image turns purple. These two
-    // properties tell mpv to honor the source color space during conversion.
+    // Color-space hints: without these, mediacodec-copy on 10-bit HEVC
+    // (P010 buffers) produces a purple tint because mpv's gpu VO uses the
+    // wrong transfer function during YUV→RGB conversion.
     try {
       await platform.setProperty('target-colorspace-hint', 'yes');
       await platform.setProperty('force-rgb-colorspace', 'yes');
-      debugPrint('mpv: color-space hints enabled (fixes 10-bit HEVC purple tint)');
+      debugPrint('mpv: color-space hints enabled');
     } catch (e) {
       debugPrint('mpv: color-space hints unavailable: $e');
     }
-    // audio-spdif is intentionally omitted — it tells mpv to try SPDIF
-    // bitstream passthrough for compressed codecs. On phones (no SPDIF
-    // hardware) this always fails and falls back to software decode, but
-    // during audio track switches the SPDIF renegotiation stalls the audio
-    // reinit (AudioTrack stuck in FLUSHED state → no audio → video sync
-    // stalls). Without audio-spdif, mpv always software-decodes these
-    // codecs through its bundled FFmpeg, which works reliably on all
-    // outputs. Real SPDIF/HDMI passthrough is handled by the Media3
-    // engine's `audio_passthrough` setting.
+    // audio-spdif is intentionally omitted — see original comment below.
   }
 
   /// Maps the user's [DecoderMode] onto libmpv's `hwdec` property.
@@ -837,7 +850,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     final value = switch (_decoderMode) {
       DecoderMode.hw => 'mediacodec',
       DecoderMode.sw => 'no',
-      _ => swOnly ? 'no' : 'mediacodec-copy',
+      // Auto mode: try mediacodec (zero-copy, lowest latency) first, then
+      // fall back to mediacodec-copy (copy to CPU). This matches mpv-android
+      // and SVPlayer defaults — zero-copy works on most modern SoCs and is
+      // significantly faster for 4K/10-bit content. The hwdec-software-fallback
+      // property (set in _configureMpvAudio) handles the case where both HW
+      // paths fail (broken drivers, unsupported profiles).
+      _ => swOnly ? 'no' : 'mediacodec,mediacodec-copy',
     };
     try {
       await platform.setProperty('hwdec', value);
@@ -884,7 +903,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // it down before pointing mpv at the next source.
     await _stopMpvProxy();
     final src = _mpvSourceFor(video);
-    debugPrint('mpv: opening source: $src');
+    debugPrint('mpv: opening source: $src, startMs=$startMs');
     if (src.isEmpty) {
       _markMpvFailed('No playable source for this video.');
       return;
@@ -1197,7 +1216,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (!mounted) return;
       // 'no' = subtitles explicitly off; 'auto' = mpv auto-selected a track
       // (subtitles ARE displaying); any other id = user manually selected one.
-      _mpvSubtitleOn = t.subtitle.id != 'no';
+      // Also check that subtitle tracks actually exist — mpv reports a
+      // non-'no' id even when no subtitles are available, which highlights
+      // the CC button for no reason.
+      _mpvSubtitleOn = t.subtitle.id != 'no' &&
+          _mpvTracks.subtitle.any((s) => s.id != 'no' && s.id != 'auto');
       setState(() {});
     }));
     _mpvSubs.add(player.stream.subtitle.listen((lines) {
@@ -1675,6 +1698,21 @@ class _PlayerScreenState extends State<PlayerScreen>
       // no MediaCodec decoder handles), cascade to the mpv fallback.
       if (isVideoDecodeError(code)) {
         _trySoftwareDecodeFallback(friendly);
+        return;
+      }
+      // Non-decode errors (container unsupported, IO, codec init, etc.).
+      // Always try mpv — if Media3 can't play this file, mpv's bundled
+      // FFmpeg is the safety net.
+      if (!_autoFallbackTried &&
+          !_mpvActive &&
+          Platform.isAndroid &&
+          _mpvSourceFor(_current).isNotEmpty) {
+        _autoFallbackTried = true;
+        debugPrint('auto-fallback: non-decode error "$friendly", falling back to mpv');
+        _error = 'Media3 cannot play this file — trying libmpv…';
+        setState(() {});
+        unawaited(LastEngineStore.save(_resumeKey, 'mpv'));
+        unawaited(_startMpvFallback(automatic: true));
         return;
       }
       _setTerminalError(friendly);
@@ -2217,8 +2255,16 @@ class _PlayerScreenState extends State<PlayerScreen>
     MpvPipService.instance.clear();
     _mpvPlayer = null;
     _mpvController = null;
-    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    // Restore orientation + system UI. These are async platform calls that
+    // cannot be awaited in dispose(). Using addPostFrameCallback ensures the
+    // restore completes BEFORE the calling screen rebuilds — without this,
+    // the details screen's Scaffold computes its layout with intermediate
+    // MediaQuery data during the rotation transition, placing the bottom bar
+    // at the top and potentially crashing.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    });
     _playerFocusScopeNode.dispose();
     _playPauseFocusNode.dispose();
     super.dispose();
@@ -5002,7 +5048,23 @@ class _PlayerScreenState extends State<PlayerScreen>
       ],
     );
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final key = _resumeKey;
+        if (key.isNotEmpty && _position > Duration.zero) {
+          final engine = _mpvActive ? 'mpv' : 'media3';
+          await ResumeStore.save(key, _position, engine: engine);
+          if (_position >= const Duration(seconds: 10)) {
+            await ContinueWatchingStore.save(_withLiveDuration, _position);
+          }
+        }
+        if (!mounted) return;
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).pop();
+      },
+      child: Scaffold(
       backgroundColor: Colors.black,
       body: FocusScope(
         node: _playerFocusScopeNode,
@@ -5601,6 +5663,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           ],
         ),
       ),
+    ),
     );
   }
 }

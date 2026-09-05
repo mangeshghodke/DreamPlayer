@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/video_item.dart';
 import '../services/ftp_client.dart';
 import '../services/tmdb_client.dart';
+import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
 import '../utils/file_info_extractor.dart';
 import '../widgets/server_form_kit.dart';
@@ -42,6 +43,9 @@ class _FtpScreenState extends State<FtpScreen> {
   /// key each video uses for playback.
   Set<String> _watchedKeys = {};
 
+  Map<String, int> _resumePositionsMs = {};
+  Map<String, int> _durationsMs = {};
+
   bool get _atBrowseRoot => _browsing == null || _path == '/';
 
   @override
@@ -72,6 +76,23 @@ class _FtpScreenState extends State<FtpScreen> {
       final watched = await WatchedStore.load();
       if (mounted) setState(() => _watchedKeys = watched);
     } catch (_) {}
+    await _refreshResumes();
+  }
+
+  Future<void> _refreshResumes() async {
+    final keys = _entries
+        .where((e) => !e.isDirectory)
+        .map((e) => _watchedKeyFor(e))
+        .where((k) => k.isNotEmpty)
+        .toList();
+    if (keys.isEmpty) return;
+    final result = await ResumeProgressHelper.load(keys);
+    if (mounted) {
+      setState(() {
+        _resumePositionsMs = result.positions;
+        _durationsMs = result.durations;
+      });
+    }
   }
 
   Future<void> _toggleWatched(FtpEntry entry) async {
@@ -137,7 +158,7 @@ class _FtpScreenState extends State<FtpScreen> {
       });
       _prefetchTmdbMeta(entries);
       _detectAndLoadSeriesFolder(entries);
-      _refreshWatched();
+      await _refreshWatched();
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -253,6 +274,7 @@ class _FtpScreenState extends State<FtpScreen> {
         ),
       ),
     );
+    _refreshResumes();
   }
 
   Future<void> _goUp() async {
@@ -427,6 +449,13 @@ class _FtpScreenState extends State<FtpScreen> {
             onToggleWatched:
                 entry.isDirectory ? null : () => _toggleWatched(entry),
             onTap: () => _openEntry(entry),
+            resumeProgress: entry.isDirectory
+                ? null
+                : ResumeProgressHelper.progressFor(
+                    _watchedKeyFor(entry),
+                    _resumePositionsMs,
+                    _durationsMs,
+                  ),
           );
         },
       ),
@@ -516,6 +545,7 @@ class _FtpTile extends StatelessWidget {
     required this.onTap,
     this.watched = false,
     this.onToggleWatched,
+    this.resumeProgress,
   });
 
   final FtpEntry entry;
@@ -523,6 +553,7 @@ class _FtpTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool watched;
   final VoidCallback? onToggleWatched;
+  final double? resumeProgress;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -539,18 +570,122 @@ class _FtpTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final icon = entry.isDirectory ? Icons.folder : Icons.play_circle_outline;
-    final color = entry.isDirectory
-        ? colorScheme.primary
-        : colorScheme.secondary;
-    final subtitle = entry.isDirectory ? null : _sizeLabel(entry.size);
+    if (entry.isDirectory) {
+      return TvTile(
+        leading: Icon(Icons.folder, color: colorScheme.primary),
+        title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      );
+    }
+
+    final parsed = ParsedFileName.parse(entry.name);
+    final effectiveLabel = parsed.isEpisode
+        ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
+        : '';
+
     final posterUrl = posterUrlOf(tmdbMeta);
+
+    final filenameWidget = Text(
+      entry.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+    );
+
+    final titleWidget = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (parsed.isEpisode) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              effectiveLabel,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Expanded(
+          child: Text(
+            parsed.isEpisode
+                ? (tmdbMeta?.movie.title.isNotEmpty == true
+                    ? tmdbMeta!.movie.title
+                    : parsed.title)
+                : (tmdbMeta?.movie.title.isNotEmpty == true
+                    ? tmdbMeta!.movie.title
+                    : entry.name),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        if (tmdbMeta != null && tmdbMeta!.movie.voteAverage > 0) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.star, size: 13, color: Colors.amber),
+          const SizedBox(width: 2),
+          Text(
+            tmdbMeta!.movie.voteAverage.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final subtitleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        filenameWidget,
+        if (_sizeLabel(entry.size).isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              _sizeLabel(entry.size),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        if (resumeProgress != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(1),
+              child: LinearProgressIndicator(
+                value: resumeProgress,
+                minHeight: 2,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+              ),
+            ),
+          ),
+      ],
+    );
+
     return TvTile(
       leading: posterUrl != null
           ? _Poster(posterUrl: posterUrl)
-          : Icon(icon, color: color),
-      title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: subtitle == null ? null : Text(subtitle),
+          : Icon(
+              parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
+              color: colorScheme.secondary,
+            ),
+      title: titleWidget,
+      subtitle: subtitleWidget,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -565,7 +700,6 @@ class _FtpTile extends StatelessWidget {
               ),
               onPressed: onToggleWatched,
             ),
-          if (entry.isDirectory) const Icon(Icons.chevron_right),
         ],
       ),
       onTap: onTap,

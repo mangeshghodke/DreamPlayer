@@ -261,6 +261,20 @@ class SmbClient {
     });
   }
 
+  /// Background size fetch: opens each file at [paths] and calls length()
+  /// on the native side. Returns a map of path→size for entries where
+  /// size > 0. Called after listDirectory so the UI shows entries immediately
+  /// and sizes fill in progressively.
+  Future<Map<String, int>> fetchSizes(
+      String serverId, String share, List<String> paths) async {
+    final result = await _channel.invokeMapMethod<String, int>('fetchSizes', {
+      'id': serverId,
+      'share': share,
+      'paths': paths,
+    });
+    return result ?? {};
+  }
+
   /// Nova-parity sidecar prefetch: reads a subtitle file's bytes directly off
   /// the share (via the same jcifs-ng machinery as the playback data source).
   /// Returns null when the file doesn't exist / is unreadable, so sidecar

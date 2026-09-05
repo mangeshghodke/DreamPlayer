@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
 import '../services/library_folders.dart';
+import '../services/resume_progress_helper.dart';
 import '../services/simkl_client.dart';
 import '../services/smb_client.dart';
 import '../services/tmdb_client.dart';
@@ -60,6 +61,13 @@ class _SmbScreenState extends State<SmbScreen> {
   /// `TmdService.resolve` and `VideoItem.resumeKey` — shows a green check
   /// on every file row.
   Set<String> _watchedKeys = {};
+
+  Map<String, int> _resumePositionsMs = {};
+  Map<String, int> _durationsMs = {};
+
+  /// Background-fetched file sizes (path → bytes). Populated after
+  /// listDirectory returns size=0 for performance.
+  final Map<String, int> _fileSizes = {};
 
   /// TV series folder mode: when a folder contains mostly episodes
   /// (SxxExx patterns), we show a Nova-style rich view with a series header
@@ -187,6 +195,22 @@ class _SmbScreenState extends State<SmbScreen> {
       final watched = await WatchedStore.load();
       if (mounted) setState(() => _watchedKeys = watched);
     } catch (_) {}
+    await _refreshResumes();
+  }
+
+  Future<void> _refreshResumes() async {
+    final keys = _entries
+        .where((e) => !e.isDirectory)
+        .map((e) => _watchedKeyFor(e))
+        .where((k) => k.isNotEmpty)
+        .toList();
+    final result = await ResumeProgressHelper.load(keys);
+    if (mounted) {
+      setState(() {
+        _resumePositionsMs = result.positions;
+        _durationsMs = result.durations;
+      });
+    }
   }
 
   Future<void> _toggleWatched(SmbEntry entry) async {
@@ -303,14 +327,17 @@ class _SmbScreenState extends State<SmbScreen> {
         _path = path;
         _entries = entries;
         _loading = false;
+        _fileSizes.clear();
       });
-      _refreshWatched();
+      await _refreshWatched();
       // Clear stale poster cache so fix-match / resolve changes are reflected
       // when navigating back into a folder.
       _tmdbMeta.clear();
       _prefetchTmdbMeta(entries);
       // Detect TV series folder and load rich metadata.
       _detectAndLoadSeriesFolder(entries);
+      // Background-fetch file sizes (listDirectory returns 0 for performance).
+      _fetchSizes(entries);
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -326,6 +353,24 @@ class _SmbScreenState extends State<SmbScreen> {
     if (server == null) return;
     await _smb.invalidateListingCache(serverId: server.id);
     await _loadDirectory(_path);
+  }
+
+  /// Background-fetch file sizes for non-directory entries. listDirectory
+  /// returns size=0 to avoid per-file SMB GetInfo round-trips; this method
+  /// opens each file and calls length() on the native side, updating the UI
+  /// progressively as sizes arrive.
+  void _fetchSizes(List<SmbEntry> entries) {
+    final server = _browsing;
+    if (server == null) return;
+    final paths = entries
+        .where((e) => !e.isDirectory && e.size <= 0)
+        .map((e) => e.path)
+        .toList();
+    if (paths.isEmpty) return;
+    _smb.fetchSizes(server.id, _share, paths).then((sizes) {
+      if (!mounted || sizes.isEmpty) return;
+      setState(() => _fileSizes.addAll(sizes));
+    });
   }
 
   /// Best-effort TMDB prefetch for the current folder's video files. Each file
@@ -667,6 +712,7 @@ class _SmbScreenState extends State<SmbScreen> {
         ),
       ),
     );
+    _refreshResumes();
     // Playback session over: tear down the SMB stream and disconnect.
     _smb.closeShare(server.id);
   }
@@ -1029,6 +1075,9 @@ class _SmbScreenState extends State<SmbScreen> {
               seasonName: cachedMeta?.seasons[s]?.name,
               onTapEntry: (entry) => _openEntry(entry),
               onToggleWatched: (entry) => _toggleWatched(entry),
+              resumePositionsMs: _resumePositionsMs,
+              durationsMs: _durationsMs,
+              fileSizes: _fileSizes,
             ),
           ),
 
@@ -1053,15 +1102,19 @@ class _SmbScreenState extends State<SmbScreen> {
           ),
         for (final m in movies)
           SliverToBoxAdapter(
-            child: _SmbTile(
-              entry: m,
-              onTap: () => _openEntry(m),
-              tmdbMeta: TmdService.instance
-                  .metaFor('smb:${server.id}/$_share/${m.path}'),
-              watched: _watchedKeys
-                  .contains('smb:${server.id}/$_share/${m.path}'),
-              onToggleWatched: () => _toggleWatched(m),
-            ),
+            child: Builder(builder: (context) {
+              final mKey = 'smb:${server.id}/$_share/${m.path}';
+              return _SmbTile(
+                entry: m,
+                onTap: () => _openEntry(m),
+                tmdbMeta: TmdService.instance.metaFor(mKey),
+                watched: _watchedKeys.contains(mKey),
+                onToggleWatched: () => _toggleWatched(m),
+                resumeProgress: ResumeProgressHelper.progressFor(
+                    mKey, _resumePositionsMs, _durationsMs),
+                effectiveSize: _fileSizes[m.path],
+              );
+            }),
           ),
 
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -1088,12 +1141,31 @@ class _SmbScreenState extends State<SmbScreen> {
           final meta = serviceKey != null
               ? TmdService.instance.metaFor(serviceKey)
               : null;
+          // Use TMDB episode runtime as fallback duration when ContinueWatchingStore
+          // has zero duration (happens when video.duration was zero at save time).
+          int? fallbackDurationMs;
+          if (meta != null && meta.movie.kind == TmdKind.tv) {
+            final parsed = ParsedFileName.parse(entry.name);
+            if (parsed.isEpisode) {
+              final season = meta.seasons[parsed.season];
+              final episode = season?.episode(parsed.episode);
+              if (episode?.runtimeMinutes != null) {
+                fallbackDurationMs = episode!.runtimeMinutes! * 60 * 1000;
+              }
+            }
+          }
           return _SmbTile(
             entry: entry,
             onTap: () => _openEntry(entry),
             tmdbMeta: meta,
             watched: key.isNotEmpty && _watchedKeys.contains(key),
             onToggleWatched: () => _toggleWatched(entry),
+            resumeProgress: key.isNotEmpty
+                ? ResumeProgressHelper.progressFor(
+                    key, _resumePositionsMs, _durationsMs,
+                    fallbackDurationMs: fallbackDurationMs)
+                : null,
+            effectiveSize: _fileSizes[entry.path],
           );
         },
       ),
@@ -1335,6 +1407,8 @@ class _SmbTile extends StatelessWidget {
     this.tmdbMeta,
     this.watched = false,
     this.onToggleWatched,
+    this.resumeProgress,
+    this.effectiveSize,
   });
 
   final SmbEntry entry;
@@ -1342,6 +1416,11 @@ class _SmbTile extends StatelessWidget {
   final TmdMeta? tmdbMeta;
   final bool watched;
   final VoidCallback? onToggleWatched;
+  final double? resumeProgress;
+
+  /// Background-fetched file size (bytes), overriding entry.size which is 0
+  /// when the native listing skipped per-file length() for performance.
+  final int? effectiveSize;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -1358,14 +1437,112 @@ class _SmbTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final icon = entry.isDirectory
-        ? Icons.folder
-        : Icons.play_circle_outline;
-    final color = entry.isDirectory ? colorScheme.primary : colorScheme.secondary;
-    final subtitle = entry.isDirectory ? null : _sizeLabel(entry.size);
-    final posterUrl = tmdbMeta?.movie.posterPath != null
-        ? 'https://image.tmdb.org/t/p/w185${tmdbMeta!.movie.posterPath}'
-        : null;
+    if (entry.isDirectory) {
+      return TvTile(
+        leading: Icon(Icons.folder, color: colorScheme.primary),
+        title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      );
+    }
+
+    final parsed = ParsedFileName.parse(entry.name);
+    final effectiveLabel = parsed.isEpisode
+        ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
+        : '';
+
+    final posterUrl = posterUrlOf(tmdbMeta);
+
+    final filenameWidget = Text(
+      entry.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+    );
+
+    final titleWidget = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (parsed.isEpisode) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              effectiveLabel,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Expanded(
+          child: Text(
+            parsed.isEpisode
+                ? (tmdbMeta?.movie.title.isNotEmpty == true
+                    ? tmdbMeta!.movie.title
+                    : parsed.title)
+                : (tmdbMeta?.movie.title.isNotEmpty == true
+                    ? tmdbMeta!.movie.title
+                    : entry.name),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        if (tmdbMeta != null && tmdbMeta!.movie.voteAverage > 0) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.star, size: 13, color: Colors.amber),
+          const SizedBox(width: 2),
+          Text(
+            tmdbMeta!.movie.voteAverage.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final subtitleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        filenameWidget,
+        if (_sizeLabel(effectiveSize ?? entry.size).isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              _sizeLabel(effectiveSize ?? entry.size),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        if (resumeProgress != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(1),
+              child: LinearProgressIndicator(
+                value: resumeProgress,
+                minHeight: 2,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+              ),
+            ),
+          ),
+      ],
+    );
 
     return TvTile(
       leading: posterUrl != null
@@ -1376,38 +1553,33 @@ class _SmbTile extends StatelessWidget {
                 width: 48,
                 height: 72,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Icon(icon, color: color),
+                errorBuilder: (_, _, _) => Icon(
+                  parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
+                  color: colorScheme.secondary,
+                ),
               ),
             )
-          : Icon(icon, color: color),
-      title: Text(
-        entry.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: subtitle == null ? null : Text(subtitle),
-      trailing: entry.isDirectory
-          ? const Icon(Icons.chevron_right)
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (watched)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 4),
-                    child: Icon(Icons.check_circle, color: Colors.green, size: 20),
-                  ),
-                if (onToggleWatched != null)
-                  IconButton(
-                    tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
-                    icon: Icon(
-                      watched ? Icons.check_circle : Icons.check_circle_outline,
-                      color: watched ? Colors.green.shade400 : Theme.of(context).colorScheme.onSurfaceVariant,
-                      size: 22,
-                    ),
-                    onPressed: onToggleWatched,
-                  ),
-              ],
+          : Icon(
+              parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
+              color: colorScheme.secondary,
             ),
+      title: titleWidget,
+      subtitle: subtitleWidget,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onToggleWatched != null)
+            IconButton(
+              tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
+              icon: Icon(
+                watched ? Icons.check_circle : Icons.check_circle_outline,
+                color: watched ? Colors.green.shade400 : colorScheme.onSurfaceVariant,
+                size: 22,
+              ),
+              onPressed: onToggleWatched,
+            ),
+        ],
+      ),
       onTap: onTap,
     );
   }
@@ -1565,6 +1737,9 @@ class _SmbSeasonExpansion extends StatelessWidget {
     required this.onToggleWatched,
     this.cachedMeta,
     this.seasonName,
+    this.resumePositionsMs = const {},
+    this.durationsMs = const {},
+    this.fileSizes = const {},
   });
 
   final int season;
@@ -1576,6 +1751,12 @@ class _SmbSeasonExpansion extends StatelessWidget {
   final ValueChanged<bool> onExpansionChanged;
   final TmdMeta? cachedMeta;
   final String? seasonName;
+  final Map<String, int> resumePositionsMs;
+  final Map<String, int> durationsMs;
+
+  /// Background-fetched file sizes (path → bytes), passed down to episode
+  /// tiles so the size label shows in series layout too.
+  final Map<String, int> fileSizes;
   final ValueChanged<SmbEntry> onTapEntry;
   final ValueChanged<SmbEntry> onToggleWatched;
 
@@ -1632,17 +1813,20 @@ class _SmbSeasonExpansion extends StatelessWidget {
           ],
         ),
         children: [
-          for (final entry in entries)
-            _SmbEpisodeTile(
-              entry: entry,
-              episode: _episodeForEntry(entry, seasonData),
-              serverId: serverId,
-              share: share,
-              watched: watchedKeys.contains(keyOf(entry)),
-              onTap: () => onTapEntry(entry),
-              onToggleWatched: () => onToggleWatched(entry),
-              seasonOverride: season,
-            ),
+          for (final entry in entries) _SmbEpisodeTile(
+            entry: entry,
+            episode: _episodeForEntry(entry, seasonData),
+            serverId: serverId,
+            share: share,
+            watched: watchedKeys.contains(keyOf(entry)),
+            onTap: () => onTapEntry(entry),
+            onToggleWatched: () => onToggleWatched(entry),
+            seasonOverride: season,
+            resumeProgress: ResumeProgressHelper.progressFor(
+                keyOf(entry), resumePositionsMs, durationsMs,
+                fallbackDurationMs: _episodeFallbackDurationMs(entry, seasonData)),
+            effectiveSize: fileSizes[entry.path],
+          ),
         ],
       ),
     );
@@ -1666,6 +1850,19 @@ class _SmbSeasonExpansion extends StatelessWidget {
     }
     return null;
   }
+
+  /// Returns the TMDB episode runtime (in ms) for [entry] if available,
+  /// using [seasonData] as the primary source. Used as fallback duration
+  /// when ContinueWatchingStore has zero duration.
+  int? _episodeFallbackDurationMs(SmbEntry entry, TmdSeason? seasonData) {
+    final parsed = ParsedFileName.parse(entry.name);
+    if (!parsed.isEpisode) return null;
+    final episode = seasonData?.episode(parsed.episode) ?? _episodeForEntry(entry, seasonData);
+    if (episode?.runtimeMinutes != null) {
+      return episode!.runtimeMinutes! * 60 * 1000;
+    }
+    return null;
+  }
 }
 
 /// An episode tile for the SMB series folder view — shows a still thumbnail,
@@ -1680,6 +1877,8 @@ class _SmbEpisodeTile extends StatelessWidget {
     this.episode,
     this.watched = false,
     this.seasonOverride,
+    this.resumeProgress,
+    this.effectiveSize,
   });
 
   final SmbEntry entry;
@@ -1689,10 +1888,15 @@ class _SmbEpisodeTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onToggleWatched;
   final bool watched;
+  final double? resumeProgress;
 
   /// When set, overrides the parsed season in the SxxExx badge
   /// (e.g. folderSeason from TMDB season-name matching).
   final int? seasonOverride;
+
+  /// Background-fetched file size (bytes), overriding entry.size which is 0
+  /// when the native listing skipped per-file length() for performance.
+  final int? effectiveSize;
 
   @override
   Widget build(BuildContext context) {
@@ -1701,7 +1905,7 @@ class _SmbEpisodeTile extends StatelessWidget {
     final parsed = ParsedFileName.parse(entry.name);
     final stillUrl = episode?.stillUrl();
 
-    return TvTile(
+    final tile = TvTile(
       leading: stillUrl != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
@@ -1761,6 +1965,29 @@ class _SmbEpisodeTile extends StatelessWidget {
                 ),
               ),
             ),
+          if (_SmbTile._sizeLabel(effectiveSize ?? entry.size).isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                _SmbTile._sizeLabel(effectiveSize ?? entry.size),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          if (resumeProgress != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(1),
+                child: LinearProgressIndicator(
+                  value: resumeProgress,
+                  minHeight: 2,
+                  backgroundColor: colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                ),
+              ),
+            ),
         ],
       ),
       trailing: Row(
@@ -1804,6 +2031,8 @@ class _SmbEpisodeTile extends StatelessWidget {
       ),
       onTap: onTap,
     );
+
+    return tile;
   }
 
   static Widget _episodeIcon(ColorScheme colorScheme, ParsedFileName parsed) {

@@ -5,6 +5,7 @@ import '../models/video_item.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
+import '../services/resume_progress_helper.dart';
 import '../services/smb_client.dart';
 import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
@@ -49,6 +50,16 @@ class _FolderScreenState extends State<FolderScreen> {
   /// key (same keys the player auto-marks on completion).
   Set<String> _watchedKeys = {};
 
+  /// Resume positions (ms) per entry, keyed by the same resume key used for
+  /// watched marks.  Populated on folder load so episode tiles can show a
+  /// progress bar without an async lookup per tile.
+  Map<String, int> _resumePositionsMs = {};
+
+  /// Total duration (ms) per entry from the continue-watching store, keyed by
+  /// the same resume key.  Combined with [_resumePositionsMs] to draw a
+  /// proper progress bar for any file (episodes AND standalone videos).
+  Map<String, int> _durationsMs = {};
+
   /// SIMKL cloud-done backfill (mirrors smb_screen.dart's sync button).
   bool _syncingSimkl = false;
 
@@ -74,6 +85,9 @@ class _FolderScreenState extends State<FolderScreen> {
   List<SmbEntry> _smbEntries = const [];
   // WebDAV entries reuse simple maps; keep as dynamic for now.
   List<Object> _networkEntries = const [];
+
+  /// Background-fetched SMB file sizes (path → bytes).
+  final Map<String, int> _smbFileSizes = {};
 
   bool get _atRoot {
     if (_isJellyfin) return _jellyfinCrumbs.isEmpty;
@@ -148,7 +162,7 @@ class _FolderScreenState extends State<FolderScreen> {
         _entries = entries;
         _loading = false;
       });
-      _refreshWatched();
+      await _refreshWatched();
       // Nova-style: background-resolve TMDB for all video files so metadata
       // is ready when the user taps a file.  Each file resolves independently
       // (no stagger) so the listener fires immediately per file and the tile
@@ -347,7 +361,7 @@ class _FolderScreenState extends State<FolderScreen> {
         _jellyfinEntries = [...folders, ...playables];
         _loading = false;
       });
-      _refreshWatched();
+      await _refreshWatched();
       _detectAndLoadSeriesFolder();
     } on Exception catch (e) {
       if (!mounted) return;
@@ -370,13 +384,16 @@ class _FolderScreenState extends State<FolderScreen> {
       setState(() {
         _smbEntries = entries;
         _loading = false;
+        _smbFileSizes.clear();
       });
-      _refreshWatched();
+      await _refreshWatched();
       for (final e in entries) {
         if (e.isDirectory) continue;
         TmdService.instance.resolve(_toVideoItem(e)).catchError((_) => null);
       }
       _detectAndLoadSeriesFolder();
+      // Background-fetch file sizes (listDirectory returns 0 for performance).
+      _fetchSmbSizes(entries);
     } on PlatformException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -384,6 +401,22 @@ class _FolderScreenState extends State<FolderScreen> {
         _loading = false;
       });
     }
+  }
+
+  /// Background-fetch SMB file sizes. listDirectory returns 0 for performance.
+  void _fetchSmbSizes(List<SmbEntry> entries) {
+    final serverId = widget.folder.networkServerId;
+    final share = widget.folder.networkShare ?? _networkShare;
+    if (serverId == null || share.isEmpty) return;
+    final paths = entries
+        .where((e) => !e.isDirectory && e.size <= 0)
+        .map((e) => e.path)
+        .toList();
+    if (paths.isEmpty) return;
+    SmbClient.instance.fetchSizes(serverId, share, paths).then((sizes) {
+      if (!mounted || sizes.isEmpty) return;
+      setState(() => _smbFileSizes.addAll(sizes));
+    });
   }
 
   Future<void> _loadWebDav() async {
@@ -397,7 +430,7 @@ class _FolderScreenState extends State<FolderScreen> {
         _networkEntries = entries;
         _loading = false;
       });
-      _refreshWatched();
+      await _refreshWatched();
       for (final e in entries) {
         if (e.isDirectory) continue;
         TmdService.instance.resolve(_toVideoItem(e)).catchError((_) => null);
@@ -593,12 +626,30 @@ class _FolderScreenState extends State<FolderScreen> {
     );
   }
 
-  /// Reloads the watched-mark set for the current list.
+  /// Reloads the watched-mark set and resume positions for the current list.
   Future<void> _refreshWatched() async {
     try {
       final watched = await WatchedStore.load();
       if (mounted) setState(() => _watchedKeys = watched);
     } catch (_) {}
+    await _refreshResumes();
+  }
+
+  /// Loads resume positions and durations for all non-directory entries so
+  /// every tile can show a progress bar without an async lookup per tile.
+  Future<void> _refreshResumes() async {
+    final keys = <String>[];
+    for (final e in _currentEntries) {
+      final key = _watchedKeyForEntry(e);
+      if (key != null && key.isNotEmpty) keys.add(key);
+    }
+    final result = await ResumeProgressHelper.load(keys);
+    if (mounted) {
+      setState(() {
+        _resumePositionsMs = result.positions;
+        _durationsMs = result.durations;
+      });
+    }
   }
 
   String? _watchedKeyForEntry(Object entry) {
@@ -622,7 +673,7 @@ class _FolderScreenState extends State<FolderScreen> {
       final p = (entry is Map ? entry['path'] as String? : null) ?? '';
       return 'webdav:$id$p';
     }
-    return (entry as FileEntry).isDirectory ? null : entry.resumeKey;
+    return (entry as FileEntry).isDirectory ? null : (entry.resumeKey ?? entry.path);
   }
 
   Future<void> _toggleWatched(Object entry) async {
@@ -1036,39 +1087,49 @@ class _FolderScreenState extends State<FolderScreen> {
   Widget _tileFor(Object e) {
     if (_isJellyfin) {
       final item = e as JellyfinItem;
+      final key = _watchedKeyForEntry(item);
       return _JellyfinFolderTile(
         item: item,
         tmdbMeta: item.isFolder ? null : _tmdbForJellyfin(item),
-        watched: _watchedKeys.contains(_watchedKeyForEntry(item)),
+        watched: _watchedKeys.contains(key),
         onToggleWatched: () => _toggleWatched(item),
+        resumePositionMs: _resumePositionsMs[key],
+        durationMs: _durationsMs[key],
         onTap: () => _openJellyfinItem(item),
       );
     }
     if (_isSmb) {
       final smb = e as SmbEntry;
+      final key = _watchedKeyForEntry(smb);
       return _FolderTile(
         entry: FileEntry(
             name: smb.name,
             path: smb.path,
             isDirectory: smb.isDirectory,
             size: smb.size,
-            resumeKey: _watchedKeyForEntry(smb)),
+            resumeKey: key),
         tmdbMeta: smb.isDirectory ? null : _tmdbForSmb(smb),
-        watched: _watchedKeys.contains(_watchedKeyForEntry(smb)),
+        watched: _watchedKeys.contains(key),
         onToggleWatched: () => _toggleWatched(smb),
         episode: smb.isDirectory ? null : _episodeFor(smb),
         folderSeason: _seriesMeta?.folderSeason,
+        resumePositionMs: _resumePositionsMs[key],
+        durationMs: _durationsMs[key],
+        effectiveSize: _smbFileSizes[smb.path],
         onTap: () => _openSmbEntry(smb),
       );
     }
     final fileEntry = e as FileEntry;
+    final key = _watchedKeyForEntry(fileEntry);
     return _FolderTile(
       entry: fileEntry,
       tmdbMeta: fileEntry.isDirectory ? null : _tmdbFor(fileEntry),
-      watched: _watchedKeys.contains(_watchedKeyForEntry(fileEntry)),
+      watched: _watchedKeys.contains(key),
       onToggleWatched: () => _toggleWatched(fileEntry),
       episode: fileEntry.isDirectory ? null : _episodeFor(fileEntry),
       folderSeason: _seriesMeta?.folderSeason,
+      resumePositionMs: _resumePositionsMs[key],
+      durationMs: _durationsMs[key],
       onTap: () => _openEntry(fileEntry),
     );
   }
@@ -1319,6 +1380,8 @@ class _JellyfinFolderTile extends StatelessWidget {
     required this.onTap,
     this.watched = false,
     this.onToggleWatched,
+    this.resumePositionMs,
+    this.durationMs,
   });
 
   final JellyfinItem item;
@@ -1326,6 +1389,8 @@ class _JellyfinFolderTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool watched;
   final VoidCallback? onToggleWatched;
+  final int? resumePositionMs;
+  final int? durationMs;
 
   @override
   Widget build(BuildContext context) {
@@ -1346,7 +1411,33 @@ class _JellyfinFolderTile extends StatelessWidget {
 
     final posterUrl = posterUrlOf(tmdbMeta);
 
-    final subtitleWidget = subtitle.isEmpty ? null : Text(subtitle);
+    final double? progress = (resumePositionMs != null &&
+            resumePositionMs! > 0 &&
+            durationMs != null &&
+            durationMs! > 0)
+        ? (resumePositionMs! / durationMs!).clamp(0.0, 1.0)
+        : null;
+
+    final subtitleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (subtitle.isNotEmpty) Text(subtitle),
+        if (progress != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(1),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 2,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+              ),
+            ),
+          ),
+      ],
+    );
 
     return TvTile(
       leading: posterUrl != null
@@ -1388,6 +1479,9 @@ class _FolderTile extends StatelessWidget {
     this.onToggleWatched,
     this.episode,
     this.folderSeason,
+    this.resumePositionMs,
+    this.durationMs,
+    this.effectiveSize,
   });
 
   final FileEntry entry;
@@ -1397,6 +1491,12 @@ class _FolderTile extends StatelessWidget {
   final VoidCallback? onToggleWatched;
   final TmdEpisode? episode;
   final int? folderSeason;
+  final int? resumePositionMs;
+  final int? durationMs;
+
+  /// Background-fetched file size (bytes), overriding entry.size which is 0
+  /// when the native listing skipped per-file length() for performance.
+  final int? effectiveSize;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -1430,104 +1530,130 @@ class _FolderTile extends StatelessWidget {
         : '';
     final stillUrl = episode?.stillUrl();
 
+    final effectiveDurationMs = (durationMs != null && durationMs! > 0)
+        ? durationMs
+        : (episode?.runtimeMinutes != null && episode!.runtimeMinutes! > 0)
+            ? episode!.runtimeMinutes! * 60 * 1000
+            : null;
+    final double? progress = (resumePositionMs != null &&
+            resumePositionMs! > 0 &&
+            effectiveDurationMs != null &&
+            effectiveDurationMs > 0)
+        ? (resumePositionMs! / effectiveDurationMs).clamp(0.0, 1.0)
+        : null;
+
+    final filenameWidget = Text(
+      entry.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: theme.textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+    );
+
+    final titleWidget = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (parsed.isEpisode) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              effectiveLabel,
+              style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Expanded(
+          child: Text(
+            episode?.nameLabel ?? parsed.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        if (episode != null && episode!.voteAverage > 0) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.star, size: 13, color: Colors.amber),
+          const SizedBox(width: 2),
+          Text(
+            episode!.voteAverage.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final subtitleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        filenameWidget,
+        if (_sizeLabel(effectiveSize ?? entry.size).isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              _sizeLabel(effectiveSize ?? entry.size),
+              style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        if (progress != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(1),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 2,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+              ),
+            ),
+          ),
+      ],
+    );
+
     return TvTile(
       leading: stillUrl != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: Image.network(
                 stillUrl,
-                width: 64,
-                height: 40,
+                width: 48,
+                height: 72,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => _fallbackIcon(colorScheme, parsed),
               ),
             )
           : _fallbackIcon(colorScheme, parsed),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              if (parsed.isEpisode)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    effectiveLabel,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-              if (parsed.isEpisode) const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  episode?.nameLabel ?? parsed.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (episode != null && episode!.overview.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                episode!.overview,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-        ],
-      ),
+      title: titleWidget,
+      subtitle: subtitleWidget,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (episode != null && episode!.voteAverage > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.star, size: 12, color: Colors.amber),
-                  const SizedBox(width: 2),
-                  Text(
-                    episode!.voteAverage.toStringAsFixed(1),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+          if (onToggleWatched != null)
+            IconButton(
+              tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
+              icon: Icon(
+                watched ? Icons.check_circle : Icons.check_circle_outline,
+                color: watched ? Colors.green.shade400 : colorScheme.onSurfaceVariant,
               ),
+              onPressed: onToggleWatched,
             ),
-          Text(
-            _sizeLabel(entry.size),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          IconButton(
-            tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
-            icon: Icon(
-              watched ? Icons.check_circle : Icons.check_circle_outline,
-              color:
-                  watched ? Colors.green.shade400 : colorScheme.onSurfaceVariant,
-            ),
-            onPressed: onToggleWatched,
-          ),
         ],
       ),
       onTap: onTap,
