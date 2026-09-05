@@ -12,14 +12,12 @@ import '../services/continue_watching.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
-import '../services/series_grouping.dart';
 import '../services/tmdb_client.dart';
 import '../services/webdav_client.dart';
 import '../widgets/folder_card.dart';
 import '../widgets/tv_text_field.dart';
 import 'ftp_screen.dart';
 import 'player_screen.dart';
-import 'series_seasons_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/video_card.dart';
@@ -54,12 +52,6 @@ class _HomeScreenState extends State<HomeScreen>
   /// "Your library": the folders the user added (e.g. TV-show folders), most
   /// recently added first. Nothing is auto-scanned — only these appear.
   List<LibraryFolder> _folders = const [];
-
-  /// Flux-style grouping: folders that share a base series name
-  /// (`Strike the Blood`, `Strike the Blood II`, `Strike the Blood III`,
-  /// `Strike the Blood IV`) collapse into one entry so they appear as a
-  /// single card on the library grid.
-  List<SeriesGroup> _seriesGroups = const [];
 
   /// Cached server-side metadata for the [JellyfinItemInfo] folders, keyed by
   /// `LibraryFolder.id` (fetch-on-bookmark, refreshed on open).
@@ -222,11 +214,9 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _loadLibraryFolders() async {
     final folders = await LibraryFoldersStore.load();
     final metas = await _client.loadAllFolderMeta();
-    final groups = const SeriesGroupingService().group(folders);
     if (mounted) {
       setState(() {
         _folders = folders;
-        _seriesGroups = groups;
         _jellyfinMeta = metas;
       });
     }
@@ -245,11 +235,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _entries = entries);
     final folders = await LibraryFoldersStore.load();
     if (!mounted) return;
-    final groups = const SeriesGroupingService().group(folders);
-    setState(() {
-      _folders = folders;
-      _seriesGroups = groups;
-    });
+    setState(() => _folders = folders);
     await _resolveFolderMetadata(folders);
     await _refreshJellyfinMeta(folders);
   }
@@ -375,24 +361,6 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
     await _loadLibrary();
-  }
-
-  /// Opens a grouped series (`Strike the Blood`, `Strike the Blood II`, etc
-  /// collapsed into one card). When the group contains a single folder the
-  /// existing per-folder flow is used (so behavior stays identical to v0.4.0).
-  /// When the group contains multiple folders, a new
-  /// [SeriesSeasonsScreen] shows every season across the collapsed folders
-  /// — the Flux-style "Series → Seasons" hierarchy.
-  void _openGroup(SeriesGroup group) {
-    if (group.folders.length > 1) {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => SeriesSeasonsScreen(group: group),
-        ),
-      );
-      return;
-    }
-    _openFolder(group.primary);
   }
 
   Future<void> _removeFolder(LibraryFolder folder) async {
@@ -678,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen>
             slivers: [
             SliverAppBar(title: const Text('DreamPlayer'), pinned: true),
             // ---- Your library: user-added folders (e.g. TV-show folders) ----
-            if (_seriesGroups.isEmpty)
+            if (_folders.isEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -705,22 +673,16 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
               _folderGridSliver(
-                count: _seriesGroups.length,
+                count: _folders.length,
                 itemBuilder: (context, index) {
-                  final group = _seriesGroups[index];
-                  // Look up TMDB meta across EVERY folder in the group, not
-                  // just the primary — any of the I/II/III/IV folders may
-                  // be the one that resolved. Jellyfin info also follows
-                  // the same fall-through so the card always shows the
-                  // best cached poster / title / year.
+                  final folder = _folders[index];
                   return FolderCard(
-                    key: ValueKey(group.metadataKey),
-                    folder: group.primary,
-                    tmdbMeta: group.cachedMetaFor(TmdService.instance),
-                    jellyfinInfo: _jellyfinMeta[group.primary.id],
-                    groupCount: group.folders.length,
-                    onTap: () => _openGroup(group),
-                    onLongPress: () => _removeFolder(group.primary),
+                    key: ValueKey(folder.id),
+                    folder: folder,
+                    tmdbMeta: TmdService.instance.metaFor(folder.metadataKey),
+                    jellyfinInfo: _jellyfinMeta[folder.id],
+                    onTap: () => _openFolder(folder),
+                    onLongPress: () => _removeFolder(folder),
                   );
                 },
               ),
