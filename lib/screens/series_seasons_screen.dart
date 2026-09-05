@@ -87,16 +87,27 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           .resolveFolder(_groupKey, widget.group.displayName);
       _meta = meta;
 
+      // Fetch the FULL details (backdrop/overview/seasons) — `resolveFolder`
+      // only fills in the movie field; per-season data (and the season
+      // count) live in `details` and must be fetched separately.
+      TmdDetails? details;
+      try {
+        details = await TmdService.instance.detailsFor(_groupKey);
+      } catch (_) {}
+      _details = details;
+
       // Fetch every season's episodes (so episode stills are available).
-      if (meta != null && meta.movie.kind == TmdKind.tv && meta.details != null) {
-        for (var s = 1; s <= (meta.details!.numberOfSeasons); s++) {
+      if (meta != null &&
+          meta.movie.kind == TmdKind.tv &&
+          details != null &&
+          details.numberOfSeasons > 0) {
+        for (var s = 1; s <= details.numberOfSeasons; s++) {
           try {
             await TmdService.instance.seasonFor(_groupKey, s);
           } catch (_) {}
         }
         // Refresh _meta after season fetches so stillUrls resolve.
         _meta = TmdService.instance.metaFor(_groupKey);
-        _details = await TmdService.instance.detailsFor(_groupKey);
       }
 
       final folderEntries = <({String folderLabel, List<Object> entries})>[];
