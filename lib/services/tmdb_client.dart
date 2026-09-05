@@ -565,6 +565,12 @@ class ParsedFileName {
     this.seriesName,
     this.season = 0,
     this.episode = 0,
+
+    /// When the folder/file name carries an explicit "Live Action", "Drama",
+    /// or "J-Drama" keyword, this flag is set so the TMDB search can prefer
+    /// the live-action adaptation over the animated version. Defaults to
+    /// `false` (no preference).
+    this.liveAction = false,
   });
 
   final String title;
@@ -577,6 +583,11 @@ class ParsedFileName {
 
   /// Episode number parsed from `SxxEyy` / `x.yy` (0 for movies).
   final int episode;
+
+  /// True when the parsed name contained an explicit "Live Action" / "Drama"
+  /// keyword. Used by the TMDB match scorer to disambiguate
+  /// `Kakegurui Twin (2021)` (live-action TV) from the original anime.
+  final bool liveAction;
 
   /// `S02E04`-style label; empty for movies.
   String get episodeLabel => isEpisode
@@ -754,6 +765,15 @@ final yearMatch = _yearPattern.firstMatch(name);
     }
 
     final title = _cleanName(name);
+
+    /// Detect an explicit "Live Action" / "Drama" keyword in either the file
+    /// name or the parent folder. Stripped from the cleaned title so TMDB
+    /// doesn't get confused by it, but tracked as a flag the scorer can use
+    /// to disambiguate `Kakegurui Twin` (anime) from `Kakegurui Twin (2021)
+    /// Live Action` (TV drama).
+    bool liveAction = _looksLikeLiveAction(fileName) ||
+        (parentFolderName != null && _looksLikeLiveAction(parentFolderName));
+
     // Fallback: when the file is just an episode number
     // (`Episode01.mkv`, `01.mkv`) or has no searchable title, fall back to
     // the parent folder's name as the series name.
@@ -771,6 +791,8 @@ final yearMatch = _yearPattern.firstMatch(name);
       if (year == null && folderParsed.year != null) {
         year = folderParsed.year;
       }
+      // Carry the parent folder's live-action flag too.
+      liveAction = liveAction || folderParsed.liveAction;
     }
     return ParsedFileName(
       title: title.isEmpty
@@ -782,7 +804,26 @@ final yearMatch = _yearPattern.firstMatch(name);
           effectiveSeriesName == null ? null : _cleanName(effectiveSeriesName),
       season: season,
       episode: episode,
+      liveAction: liveAction,
     );
+  }
+
+  /// True when [text] carries an explicit "Live Action" / "Drama" / "J-Drama"
+  /// keyword that distinguishes a live-action adaptation from an animated
+  /// original. Used to disambiguate TMDB results that share the same title
+  /// (e.g. `Kakegurui Twin` anime vs `Kakegurui Twin (2021)` live-action).
+  static bool _looksLikeLiveAction(String text) {
+    final lower = text.toLowerCase();
+    if (lower.contains('live action')) return true;
+    if (lower.contains('live-action')) return true;
+    // "J-Drama" / "K-Drama" / "Drama" — case-insensitive; only match when
+    // separated so `drama` inside another word doesn't false-positive.
+    if (RegExp(r'(?:^|[\s\(\[\-])(?:j[\-\s]?drama|k[\-\s]?drama|drama)(?:[\s\)\]\-]|$)',
+            caseSensitive: false)
+        .hasMatch(lower)) {
+      return true;
+    }
+    return false;
   }
 
   /// Quick test: does [text] contain any of the episode markers? Used to
@@ -817,6 +858,21 @@ final yearMatch = _yearPattern.firstMatch(name);
     for (final g in _garbageCaseSensitive) {
       cleaned = cleaned.replaceAll(
         RegExp('[ ._-]$g(?:[ ._-]|\$)', caseSensitive: false),
+        ' ',
+      );
+    }
+
+    // Multi-word noise — phrases the single-word `_noise` loop can't strip
+    // because the words are individually meaningful (`Live` is in many real
+    // titles, `Action` too). Strip these BEFORE the single-word loop so the
+    // remaining tokens can match.
+    for (final phrase in const [
+      'live action', 'live-action',
+      'j-drama', 'j drama', 'jdrama',
+      'k-drama', 'k drama', 'kdrama',
+    ]) {
+      cleaned = cleaned.replaceAll(
+        RegExp('(?<![\\w])${RegExp.escape(phrase)}(?![\\w])', caseSensitive: false),
         ' ',
       );
     }
@@ -1082,6 +1138,16 @@ class TmdApi {
       }
     }
 
+    // Live Action disambiguation: when the user explicitly marked the source
+    // as live action (folder name "X Live Action", "X (2021) Drama"), gently
+    // demote results whose title contains an anime/animation hint, so e.g.
+    // `Kakegurui Twin (2021)` wins over `Kakegurui Twin (2017)`.
+    if (parsed.liveAction) {
+      if (RegExp(r'(?:^|\W)(anime|animation|animated)(?:\W|$)').hasMatch(title)) {
+        score -= 0.15;
+      }
+    }
+
     return score;
   }
 
@@ -1091,7 +1157,11 @@ class TmdApi {
   /// movie) lands on the series — the primary folder use-case is TV folders.
   /// When [year] is provided, results matching that year are strongly boosted
   /// to disambiguate shows/movies with the same title but different years.
-  Future<TmdMatch?> bestForQuery(String query, {int? year}) async {
+  /// When [liveAction] is true (e.g. parsed from a folder named "X Live
+  /// Action" or "X (2021) Drama"), results are gently demoted if their title
+  /// contains the word "anime" / "animation" hint, since the user clearly
+  /// wants the live-action adaptation, not the animated original.
+  Future<TmdMatch?> bestForQuery(String query, {int? year, bool liveAction = false}) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return null;
     final clean = query.trim();
@@ -1100,7 +1170,8 @@ class TmdApi {
     final movie = await search(clean, year: year, kind: TmdKind.movie);
     TmdMatch? best;
     void consider(TmdMovie candidate, double tieBoost) {
-      final score = _queryScore(candidate, clean, year: year) + tieBoost;
+      final score = _queryScore(candidate, clean, year: year, liveAction: liveAction) +
+          tieBoost;
       if (score < 0.5) return;
       if (best == null || score > best!.score) {
         best = TmdMatch(candidate, score);
@@ -1116,7 +1187,7 @@ class TmdApi {
     return best;
   }
 
-  double _queryScore(TmdMovie movie, String query, {int? year}) {
+  double _queryScore(TmdMovie movie, String query, {int? year, bool liveAction = false}) {
     final q = query.toLowerCase();
     final title = movie.title.toLowerCase();
     final dist = _levenshteinDistance(q, title);
@@ -1133,6 +1204,16 @@ class TmdApi {
         score += 0.5;
       } else if (candidateYear != null) {
         score -= 0.1;
+      }
+    }
+
+    // Live Action disambiguation: when the user explicitly marked the source
+    // as live action (folder name "X Live Action", "X (2021) Drama"), gently
+    // demote results whose title contains an anime/original-name hint, so
+    // e.g. `Kakegurui Twin (2021)` wins over `Kakegurui Twin (2017)`.
+    if (liveAction && score >= 0.5) {
+      if (RegExp(r'(?:^|\W)(anime|animation|animated)(?:\W|$)').hasMatch(title)) {
+        score -= 0.15;
       }
     }
 
@@ -1380,7 +1461,8 @@ class TmdService extends ChangeNotifier {
     final parsed = ParsedFileName.parse(folderName);
     if (parsed.title.isEmpty) return null;
 
-    final future = _resolveFolderNow(metadataKey, parsed.title, parsed.year);
+    final future = _resolveFolderNow(metadataKey, parsed.title, parsed.year,
+        liveAction: parsed.liveAction);
     _pending[metadataKey] = future;
     try {
       return await future;
@@ -1391,8 +1473,10 @@ class TmdService extends ChangeNotifier {
   }
 
   Future<TmdMeta?> _resolveFolderNow(
-      String metadataKey, String query, int? year) async {
-    final match = await _api.bestForQuery(query, year: year);
+      String metadataKey, String query, int? year,
+      {bool liveAction = false}) async {
+    final match =
+        await _api.bestForQuery(query, year: year, liveAction: liveAction);
     if (match == null) return null;
 
     // Check if the folder name matches a season name on TMDB.

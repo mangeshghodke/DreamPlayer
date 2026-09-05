@@ -548,5 +548,41 @@ void main() {
       final parsed2 = ParsedFileName.parse('Kakegurui Twin (2022) S01E01.mkv');
       expect(parsed2.year, 2022);
     });
+
+    test('Live Action keyword sets the liveAction flag', () {
+      // Folder with explicit "Live Action" — flag should be set.
+      final parsed =
+          ParsedFileName.parse('Kakegurui Twin (2021) Live Action');
+      expect(parsed.title.toLowerCase(), contains('kakegurui twin'));
+      expect(parsed.liveAction, isTrue);
+    });
+
+    test('live-action phrase is stripped from the cleaned title', () {
+      final parsed =
+          ParsedFileName.parse('Kakegurui Twin (2021) Live Action');
+      // The cleaned title should NOT contain "live" or "action".
+      expect(parsed.title.contains('live'), isFalse);
+      expect(parsed.title.contains('action'), isFalse);
+    });
+
+    test('J-Drama / K-Drama / Drama keywords set the liveAction flag', () {
+      expect(ParsedFileName.parse('Some Show J-Drama 2020').liveAction, isTrue);
+      expect(ParsedFileName.parse('Some Show K-Drama 2020').liveAction, isTrue);
+      expect(ParsedFileName.parse('Some Show Drama 2020').liveAction, isTrue);
+    });
+
+    test('liveAction flag is inherited from the parent folder', () {
+      // The file name has no "Live Action" keyword, but the parent does.
+      final parsed = ParsedFileName.parse(
+        'Kakegurui Twin - 01.mkv',
+        parentFolderName: 'Kakegurui Twin (2021) Live Action',
+      );
+      expect(parsed.liveAction, isTrue);
+    });
+
+    test('plain series names do NOT set liveAction', () {
+      expect(ParsedFileName.parse('Kakegurui Twin').liveAction, isFalse);
+      expect(ParsedFileName.parse('Kakegurui Twin (2017)').liveAction, isFalse);
+    });
   });
 }

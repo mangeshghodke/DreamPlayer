@@ -24,6 +24,12 @@ class FolderCard extends StatefulWidget {
     this.jellyfinInfo,
     required this.onTap,
     this.onLongPress,
+
+    /// When this card represents a [SeriesGroup] (Flux-style collapse of
+    /// multiple folders into one), pass the number of folders that were
+    /// collapsed. A small badge ("2", "3", ...) appears on the card so the
+    /// user knows the group contains more than one folder.
+    this.groupCount,
   });
 
   final LibraryFolder folder;
@@ -34,6 +40,9 @@ class FolderCard extends StatefulWidget {
   final JellyfinItemInfo? jellyfinInfo;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+
+  /// Number of folders collapsed into this card (Flux-style series group).
+  final int? groupCount;
 
   @override
   State<FolderCard> createState() => _FolderCardState();
@@ -369,7 +378,18 @@ class _FolderCardState extends State<FolderCard> {
                                 background: kindColor,
                               ),
                             ),
-                          if (folder.isNetwork)
+                          if (widget.groupCount != null &&
+                              widget.groupCount! > 1)
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: _FolderBadge(
+                                label:
+                                    '${widget.groupCount} folders',
+                                background: const Color(0xFF455A64),
+                              ),
+                            )
+                          else if (folder.isNetwork)
                             Positioned(
                               top: 8,
                               left: 8,
