@@ -83,7 +83,21 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     });
     try {
       // Resolve TMDB for the primary folder's group key.
-      TmdService.instance.resolveFolder(_groupKey, widget.group.displayName);
+      final meta = await TmdService.instance
+          .resolveFolder(_groupKey, widget.group.displayName);
+      _meta = meta;
+
+      // Fetch every season's episodes (so episode stills are available).
+      if (meta != null && meta.movie.kind == TmdKind.tv && meta.details != null) {
+        for (var s = 1; s <= (meta.details!.numberOfSeasons); s++) {
+          try {
+            await TmdService.instance.seasonFor(_groupKey, s);
+          } catch (_) {}
+        }
+        // Refresh _meta after season fetches so stillUrls resolve.
+        _meta = TmdService.instance.metaFor(_groupKey);
+        _details = await TmdService.instance.detailsFor(_groupKey);
+      }
 
       final folderEntries = <({String folderLabel, List<Object> entries})>[];
       for (final folder in widget.group.folders) {
@@ -421,6 +435,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                     durationMs: _durationsMs[_resumeKeyFor(entry) ?? ''],
                     watched: _watchedKeys.contains(_resumeKeyFor(entry) ?? ''),
                     seasonNumber: s,
+                    stillUrl: _stillUrlFor(entry, s),
                     onTap: () => _openEntry(entry),
                   ),
               ],
@@ -431,6 +446,18 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     }
 
     return slivers;
+  }
+
+  /// Look up the TMDB episode still thumbnail for [entry] in [seasonNumber].
+  /// Falls back to null when TMDB hasn't loaded the season yet (the build
+  /// will use the generic movie icon until the season resolves).
+  String? _stillUrlFor(Object entry, int seasonNumber) {
+    final season = _meta?.seasons[seasonNumber];
+    if (season == null) return null;
+    final epNum = _episodeOf(entry);
+    if (epNum <= 0) return null;
+    final episode = season.episode(epNum);
+    return episode?.stillUrl();
   }
 
   Future<void> _fixMatch() async {
@@ -563,6 +590,7 @@ class _EntryTile extends StatelessWidget {
     required this.durationMs,
     required this.watched,
     required this.seasonNumber,
+    this.stillUrl,
   });
 
   final Object entry;
@@ -571,6 +599,7 @@ class _EntryTile extends StatelessWidget {
   final int? durationMs;
   final bool watched;
   final int seasonNumber;
+  final String? stillUrl;
 
   String get _name {
     if (entry is SmbEntry) return (entry as SmbEntry).name;
@@ -599,10 +628,27 @@ class _EntryTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           TvTile(
-            leading: Icon(
-              Icons.movie_outlined,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
+            // Episode still thumbnail when TMDB has one — falls back to a
+            // generic movie icon for non-episode files or when the still
+            // is missing (e.g. older folders that haven't been enriched).
+            leading: stillUrl != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Image.network(
+                      stillUrl!,
+                      width: 64,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Icon(
+                        Icons.movie_outlined,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                    ),
+                  )
+                : Icon(
+                    Icons.movie_outlined,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
             title: Row(
               children: [
                 if (hasEpisode)

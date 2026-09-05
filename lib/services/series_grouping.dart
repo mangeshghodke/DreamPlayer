@@ -1,4 +1,5 @@
 import 'library_folders.dart';
+import 'tmdb_client.dart';
 
 /// A grouping of library folders that share the same base series name.
 ///
@@ -40,6 +41,19 @@ class SeriesGroup {
   /// but for cross-folder grouping we pick the primary's key as the
   /// canonical one.
   String get metadataKey => primary.metadataKey;
+
+  /// Returns the cached [TmdMeta] for any folder in this group, or null when
+  /// none of the folders have a cached match yet. Iterates [folders] in
+  /// order so the most-recently-added folder wins on ties — but as soon as
+  /// ANY folder resolves, the card can show the series poster instead of a
+  /// placeholder.
+  TmdMeta? cachedMetaFor(TmdService service) {
+    for (final folder in folders) {
+      final meta = service.metaFor(folder.metadataKey);
+      if (meta != null && meta.movie.title.isNotEmpty) return meta;
+    }
+    return null;
+  }
 }
 
 /// Service that groups library folders by series name so they can be

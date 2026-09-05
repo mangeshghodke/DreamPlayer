@@ -708,13 +708,15 @@ class _HomeScreenState extends State<HomeScreen>
                 count: _seriesGroups.length,
                 itemBuilder: (context, index) {
                   final group = _seriesGroups[index];
-                  // Use the primary folder's TMDB meta + Jellyfin info —
-                  // covers the common case where one folder has the poster
-                  // and the others just contribute extra episodes.
+                  // Look up TMDB meta across EVERY folder in the group, not
+                  // just the primary — any of the I/II/III/IV folders may
+                  // be the one that resolved. Jellyfin info also follows
+                  // the same fall-through so the card always shows the
+                  // best cached poster / title / year.
                   return FolderCard(
                     key: ValueKey(group.metadataKey),
                     folder: group.primary,
-                    tmdbMeta: TmdService.instance.metaFor(group.metadataKey),
+                    tmdbMeta: group.cachedMetaFor(TmdService.instance),
                     jellyfinInfo: _jellyfinMeta[group.primary.id],
                     groupCount: group.folders.length,
                     onTap: () => _openGroup(group),
