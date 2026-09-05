@@ -82,47 +82,89 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       _error = null;
     });
     try {
-      // Resolve TMDB for the primary folder's group key.
-      final meta = await TmdService.instance
-          .resolveFolder(_groupKey, widget.group.displayName);
+      // Find the first folder in the group that has cached TMDB metadata.
+      // Each folder has its own metadataKey (`folder:<id>`), and the user
+      // may have resolved any of them first — pick whichever already has
+      // a match so we don't re-search TMDB for the same show.
+      final service = TmdService.instance;
+      await service.ensureLoaded();
+      String? metaKey;
+      TmdMeta? meta;
+      for (final folder in widget.group.folders) {
+        final key = folder.metadataKey;
+        final m = service.metaFor(key);
+        if (m != null && m.movie.title.isNotEmpty) {
+          metaKey = key;
+          meta = m;
+          break;
+        }
+      }
+
+      // If no folder has a cached match, try to resolve the group via
+      // TMDB using the display name.
+      metaKey ??= widget.group.primary.metadataKey;
+      meta ??= await service.resolveFolder(
+        metaKey,
+        widget.group.displayName,
+      );
+
       _meta = meta;
+      if (meta == null) {
+        // No TMDB match — still load the files so the user can browse them.
+        await _loadFolders();
+        if (!mounted) return;
+        setState(() {
+          _folders
+            ..clear()
+            ..addAll(_pendingFolderEntries);
+          _loading = false;
+        });
+        _refreshResumes();
+        return;
+      }
 
       // Fetch the FULL details (backdrop/overview/seasons) — `resolveFolder`
       // only fills in the movie field; per-season data (and the season
       // count) live in `details` and must be fetched separately.
       TmdDetails? details;
       try {
-        details = await TmdService.instance.detailsFor(_groupKey);
+        details = await service.detailsFor(metaKey);
       } catch (_) {}
       _details = details;
 
       // Fetch every season's episodes (so episode stills are available).
-      if (meta != null &&
-          meta.movie.kind == TmdKind.tv &&
+      // Use the SAME identityKey that already has cached meta so the
+      // season writes go to the right cache slot.
+      if (meta.movie.kind == TmdKind.tv &&
           details != null &&
           details.numberOfSeasons > 0) {
+        debugPrint('[SeriesSeasons] fetching ${details.numberOfSeasons} '
+            'seasons for ${meta.movie.title} (key=$metaKey)');
         for (var s = 1; s <= details.numberOfSeasons; s++) {
           try {
-            await TmdService.instance.seasonFor(_groupKey, s);
-          } catch (_) {}
+            final season = await service.seasonFor(metaKey, s);
+            debugPrint('[SeriesSeasons] season $s → '
+                '${season?.episodes.length ?? 0} episodes');
+          } catch (e) {
+            debugPrint('[SeriesSeasons] season $s fetch failed: $e');
+          }
         }
         // Refresh _meta after season fetches so stillUrls resolve.
-        _meta = TmdService.instance.metaFor(_groupKey);
+        _meta = service.metaFor(metaKey);
+      } else {
+        debugPrint('[SeriesSeasons] skipped season fetch: '
+            'kind=${meta.movie.kind} details=${details != null} '
+            'seasons=${details?.numberOfSeasons}');
       }
 
-      final folderEntries = <({String folderLabel, List<Object> entries})>[];
-      for (final folder in widget.group.folders) {
-        final entries = await _listFolder(folder);
-        folderEntries.add((folderLabel: folder.name, entries: entries));
-      }
+      await _loadFolders();
       if (!mounted) return;
       setState(() {
         _folders
           ..clear()
-          ..addAll(folderEntries);
+          ..addAll(_pendingFolderEntries);
         _loading = false;
       });
-      // Refresh resume positions for everything we found.
       _refreshResumes();
     } catch (e) {
       if (!mounted) return;
@@ -130,6 +172,18 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         _error = e.toString();
         _loading = false;
       });
+    }
+  }
+
+  /// Loads every folder's entries into [_pendingFolderEntries] for later
+  /// use in the build method. Split out so the no-TMDB-match branch can
+  /// still browse the files.
+  final List<({String folderLabel, List<Object> entries})> _pendingFolderEntries = [];
+  Future<void> _loadFolders() async {
+    _pendingFolderEntries.clear();
+    for (final folder in widget.group.folders) {
+      final entries = await _listFolder(folder);
+      _pendingFolderEntries.add((folderLabel: folder.name, entries: entries));
     }
   }
 
