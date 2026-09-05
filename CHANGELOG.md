@@ -3,6 +3,17 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## [Unreleased]
+
+### Added
+
+- **Global default playback engine (Settings → Player)** — a new "Default playback engine" setting lets you choose which engine opens every video: **Media3** (hardware-accelerated, Dolby Vision / HDR), **libmpv** (software-first, broader codec support, SDR only), or **Ask every time** (the current behavior — both buttons on the details screen). When a specific engine is set, the Play button uses it directly and the secondary engine button is hidden; the ⓘ info sheet and error surface still allow switching manually.
+- **Auto-fallback on engine failure** — when Media3 reaches a terminal error (hardware decode fails, software decode also fails), the player now automatically tries libmpv instead of just showing an error surface. If libmpv also fails, the normal error UI appears. This eliminates the "file plays in VLC/mpv but DreamPlayer shows an error" experience for files that Media3 can't decode.
+
+### Fixed
+
+- **libmpv purple / magenta screen on 10-bit HEVC** — some HEVC Main10 anime files (10-bit encodes for banding reduction) rendered as a purple tint when played through the libmpv fallback engine. Root cause: `mediacodec-copy` decodes into P010 (10-bit YUV420P) buffers; mpv's `gpu` video output must convert them to RGB for the Flutter texture, but without color-space hints the conversion uses the wrong transfer function. Fix: set `target-colorspace-hint=yes` and `force-rgb-colorspace=yes` on the mpv context so the source color space is honored during conversion. Users who still see issues can force software decode (`Settings → Player → Decoder → Software`).
+
 ## 0.4.0
 
 Major release: two player engines (Media3 + MPV), pull-to-refresh home, full series metadata for network folders, on-screen badge customization, and 60s directory-listing cache across all network sources.

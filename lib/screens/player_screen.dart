@@ -100,6 +100,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _mpvActive = false;
   bool _mpvFailed = false;
   String? _mpvError;
+  bool _autoFallbackTried = false;
   final List<StreamSubscription<Object?>> _mpvSubs = [];
   BoxFit _mpvFit = BoxFit.contain;
   /// Forced aspect ratio applied in mpv mode for the 16:9 / 4:3 aspect modes
@@ -618,12 +619,23 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// when the screen is disposed.
   ///
   /// If software has already been tried (or was the active mode), the file is
-  /// genuinely undecodable on any MediaCodec path — surface the terminal error
-  /// so the user can switch engines with "Try with MPV" (the yuv444p12le
-  /// Kakegurui files, HEVC Rext 12-bit 444, hit exactly this: even the
-  /// software MediaCodec decoder advertises no 12-bit 444 support).
+  /// genuinely undecodable on any MediaCodec path — auto-fallback to mpv if
+  /// available, otherwise surface the terminal error so the user can switch
+  /// engines manually.
   Future<void> _trySoftwareDecodeFallback(String fallbackError) async {
     if (_swRetried || _decoderMode == DecoderMode.sw) {
+      // Both HW and SW Media3 decode failed. Auto-try mpv if available and
+      // not already attempted, so the user doesn't have to tap "Try with MPV".
+      if (!_autoFallbackTried &&
+          !_mpvActive &&
+          Platform.isAndroid &&
+          _mpvSourceFor(_current).isNotEmpty) {
+        _autoFallbackTried = true;
+        _error = 'Media3 decode failed — trying libmpv…';
+        setState(() {});
+        await _startMpvFallback(automatic: true);
+        return;
+      }
       _setTerminalError(fallbackError);
       return;
     }
@@ -641,8 +653,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   /// Manual engine switch from the Media3 error surface ("Try with MPV"
-  /// button). Media3 never auto-jumps to mpv — the user's pick on the details
-  /// screen, or this explicit tap, are the only ways the mpv engine engages.
+  /// button). Also used for auto-fallback when both HW and SW Media3 decode
+  /// fail — the player tries mpv automatically before showing the error.
   Future<void> _startMpvManual() async {
     if (_mpvActive || _inTests) return;
     if (!Platform.isAndroid) return;
@@ -774,6 +786,18 @@ class _PlayerScreenState extends State<PlayerScreen>
       debugPrint('mpv: audio output = audiotrack');
     } catch (e) {
       debugPrint('mpv: ao=audiotrack unavailable, keeping opensles: $e');
+    }
+    // Fix purple/magenta screen on 10-bit HEVC: mediacodec-copy decodes into
+    // P010 (10-bit YUV420P) buffers; mpv's gpu VO must convert them to RGB
+    // for the Flutter texture. Without color-space hints the conversion uses
+    // the wrong transfer function and the image turns purple. These two
+    // properties tell mpv to honor the source color space during conversion.
+    try {
+      await platform.setProperty('target-colorspace-hint', 'yes');
+      await platform.setProperty('force-rgb-colorspace', 'yes');
+      debugPrint('mpv: color-space hints enabled (fixes 10-bit HEVC purple tint)');
+    } catch (e) {
+      debugPrint('mpv: color-space hints unavailable: $e');
     }
     // audio-spdif is intentionally omitted — it tells mpv to try SPDIF
     // bitstream passthrough for compressed codecs. On phones (no SPDIF
@@ -1466,6 +1490,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final orig = _decoderOverride;
     _decoderOverride = null;
     _swRetried = false;
+    _autoFallbackTried = false;
     if (orig != null && _decoderMode != orig) {
       _decoderMode = orig;
       await DecoderModeStore.save(orig);

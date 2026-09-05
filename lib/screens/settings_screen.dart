@@ -9,6 +9,7 @@ import '../services/auto_play_store.dart';
 import '../services/badge_prefs.dart';
 import '../services/cache_cleaner.dart';
 import '../services/decoder_mode.dart';
+import '../services/default_engine_store.dart';
 import '../services/exo_player.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/subtitle_encodings.dart';
@@ -39,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _pipEnabled = true;
   bool _autoPlayNext = false;
   DecoderMode _decoderMode = DecoderMode.auto;
+  DefaultEngine _defaultEngine = DefaultEngine.ask;
   double _audioBoost = 1.0;
   bool _nightMode = false;
   bool _simklConnected = false;
@@ -69,6 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadPipEnabled();
     _loadAutoPlayNext();
     _loadDecoderMode();
+    _loadDefaultEngine();
     _loadAudioFilters();
     _loadSimkl();
     _loadOpensubtitles();
@@ -136,6 +139,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _badgeDecoder = f.decoder;
         });
       }
+    } catch (_) {}
+  }
+
+  Future<void> _loadDefaultEngine() async {
+    try {
+      final engine = await DefaultEngineStore.load();
+      if (mounted) setState(() => _defaultEngine = engine);
     } catch (_) {}
   }
 
@@ -527,9 +537,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (mounted) setState(() => _pipEnabled = value);
                   },
                 ),
+              if (defaultTargetPlatform == TargetPlatform.android)
+                ListTile(
+                  leading: const Icon(Icons.play_circle_outline),
+                  title: const Text('Default playback engine'),
+                  subtitle: Text(_defaultEngine.label),
+                  onTap: () async {
+                    final picked = await showDialog<DefaultEngine>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Default playback engine'),
+                        content: RadioGroup<DefaultEngine>(
+                          groupValue: _defaultEngine,
+                          onChanged: (v) => Navigator.pop(ctx, v),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: DefaultEngine.values.map((e) {
+                              final subtitle = switch (e) {
+                                DefaultEngine.media3 =>
+                                  'Hardware-accelerated, supports Dolby Vision / HDR',
+                                DefaultEngine.mpv =>
+                                  'Software-first, handles more codecs (SDR only)',
+                                DefaultEngine.ask =>
+                                  'Show both options on every video',
+                              };
+                              return RadioListTile<DefaultEngine>(
+                                value: e,
+                                title: Text(e.label),
+                                subtitle: Text(subtitle,
+                                    style: const TextStyle(fontSize: 12)),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Cancel'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (picked != null && mounted) {
+                      await DefaultEngineStore.save(picked);
+                      setState(() => _defaultEngine = picked);
+                    }
+                  },
+                ),
               SwitchListTile(
-                secondary: const Icon(Icons.skip_next),
-                title: const Text('Auto-play next episode'),
                 subtitle: const Text('Play the next episode when one ends'),
                 value: _autoPlayNext,
                 onChanged: (value) async {

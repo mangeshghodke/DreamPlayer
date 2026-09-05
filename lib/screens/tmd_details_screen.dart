@@ -10,6 +10,7 @@ import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/media_probe.dart';
 import '../services/resume_store.dart';
+import '../services/default_engine_store.dart';
 import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/watched_store.dart';
@@ -165,6 +166,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   MediaProbeResult? _probe;
   bool _probing = false;
+  DefaultEngine _defaultEngine = DefaultEngine.ask;
 
   @override
   void initState() {
@@ -173,6 +175,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     _jellyfinInfo = widget.jellyfinInfo;
     _load();
     _refreshWatched();
+    _loadDefaultEngine();
     if (widget.video != null) {
       _probing = true;
       _probeFile();
@@ -199,6 +202,13 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       final watched = await WatchedStore.load();
       if (mounted) setState(() => _watchedKeys = watched);
       await _refreshPositions();
+    } catch (_) {}
+  }
+
+  Future<void> _loadDefaultEngine() async {
+    try {
+      final engine = await DefaultEngineStore.load();
+      if (mounted) setState(() => _defaultEngine = engine);
     } catch (_) {}
   }
 
@@ -672,14 +682,18 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   Future<void> _play({
     bool fromBeginning = false,
-    PlayEngine engine = PlayEngine.media3,
+    PlayEngine? engine,
   }) async {
+    final resolved = engine ??
+        (_defaultEngine == DefaultEngine.mpv
+            ? PlayEngine.mpv
+            : PlayEngine.media3);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PlayerScreen(
           video: widget.video!,
           startFromBeginning: fromBeginning,
-          initialEngine: engine,
+          initialEngine: resolved,
         ),
       ),
     );
@@ -689,7 +703,17 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   /// The libmpv engine is Android-only (iOS playback is AetherEngine), so the
   /// "Play with MPV" option only shows on Android — iOS keeps its single Play.
-  bool get showMpvOption => Platform.isAndroid;
+  /// When the user has set a default engine, only the "Ask every time" mode
+  /// shows both buttons.
+  bool get showMpvOption =>
+      Platform.isAndroid && _defaultEngine == DefaultEngine.ask;
+
+  /// Suffix shown on the Play button when a specific engine is the default.
+  String get _engineSuffix => switch (_defaultEngine) {
+        DefaultEngine.media3 => '',
+        DefaultEngine.mpv => ' (MPV)',
+        DefaultEngine.ask => '',
+      };
 
   /// The secondary engine button: picks libmpv up front, before any Media3
   /// backend is created. mpv runs hardware-first (`hwdec=auto-safe`) and falls
@@ -934,7 +958,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                     ),
                                     icon: const Icon(Icons.play_arrow),
                                     label: Text(
-                                      'Resume from ${_formatClock(resume)}',
+                                      'Resume from ${_formatClock(resume)}$_engineSuffix',
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -961,7 +985,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                 minimumSize: const Size.fromHeight(52),
                               ),
                               icon: const Icon(Icons.play_arrow),
-                              label: const Text('Play'),
+                              label: Text('Play$_engineSuffix'),
                             ),
                           ],
                           if (showMpvOption)
@@ -978,7 +1002,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                               minimumSize: const Size.fromHeight(52),
                             ),
                             icon: const Icon(Icons.play_arrow),
-                            label: const Text('Play'),
+                            label: Text('Play$_engineSuffix'),
                           ),
                           if (showMpvOption) ..._mpvButton(resume: null),
                         ],
