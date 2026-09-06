@@ -418,9 +418,9 @@ class DownloadManager extends ChangeNotifier {
       sink = file.openWrite();
       int lastNotifyBytes = 0;
       DateTime lastNotifyTime = DateTime.now();
+      DateTime lastNativeNotifyTime = DateTime.now();
       // Emit an immediate update so the UI shows the downloading state + any
       // totalBytes resolved from the HEAD request or server response.
-      await _updateNotification(job);
       notifyListeners();
       await for (final chunk in response.timeout(
         const Duration(seconds: 60),
@@ -430,14 +430,17 @@ class DownloadManager extends ChangeNotifier {
         sink.add(chunk);
         job.bytesCopied += chunk.length;
         final now = DateTime.now();
-        // Update notification every 64 KB OR every 2 seconds — whichever
-        // comes first — so slow connections still show progress.
+        // Update UI every 64 KB / 2 s.
         if (job.bytesCopied - lastNotifyBytes > 64 * 1024 ||
             now.difference(lastNotifyTime).inSeconds >= 2) {
           lastNotifyBytes = job.bytesCopied;
           lastNotifyTime = now;
-          await _updateNotification(job);
           notifyListeners();
+        }
+        // Update native notification only every 5 s to avoid flooding iPad.
+        if (now.difference(lastNativeNotifyTime).inSeconds >= 5) {
+          lastNativeNotifyTime = now;
+          await _updateNotification(job);
         }
       }
       await sink.flush();

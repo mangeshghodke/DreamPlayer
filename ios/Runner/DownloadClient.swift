@@ -6,15 +6,18 @@ import UserNotifications
 /// `DownloadClient.kt`. iOS has no foreground-service model, so the Dart
 /// `DownloadManager` handles the actual HTTP download — this class only
 /// provides the download directory and drives a progress notification.
-final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
+///
+/// IMPORTANT: We must NOT set `UNUserNotificationCenter.current().delegate`
+/// because that intercepts ALL system notifications (not just ours) and
+/// setting it combined with rapid `add()` calls crashes the iPad.
+final class DownloadClient: NSObject {
 
     private static let channelName = "dreamplayer/download"
     private static let notificationId = "dreamplayer_download"
-    private static let notificationCategoryId = "download_progress"
-    private static let cancelActionId = "download_cancel"
 
     private var channel: FlutterMethodChannel?
     private var hasRequestedPermission = false
+    private var lastUpdateTime: TimeInterval = 0
 
     // MARK: - Registration
 
@@ -25,11 +28,7 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
         ch.setMethodCallHandler { call, result in
             client.handle(call, result: result)
         }
-        // Set ourselves as the notification center delegate so foreground
-        // notifications are shown and action taps are forwarded to Dart.
-        UNUserNotificationCenter.current().delegate = client
-        // Register the cancel action with the notification category.
-        client.registerNotificationCategories()
+        // Do NOT set delegate — it would intercept ALL system notifications.
         // Ask for notification permission early (no-op if already granted).
         client.requestPermission()
     }
@@ -47,6 +46,7 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
             let totalBytes = args?["totalBytes"] as? Int64 ?? -1
             let jobId = args?["jobId"] as? String ?? ""
             requestPermission()
+            lastUpdateTime = 0
             showNotification(title: title, bytesCopied: 0, totalBytes: totalBytes, jobId: jobId)
             result(true)
         case "updateProgress":
@@ -56,6 +56,7 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
             updateNotification(title: title, bytesCopied: bytesCopied, totalBytes: totalBytes)
             result(true)
         case "stopService":
+            lastUpdateTime = 0
             removeNotification()
             result(true)
         case "resolveLocalPath":
@@ -73,7 +74,6 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - Directory
 
-    /// Returns `Documents/DreamPlayer`, creating it if needed.
     private func downloadDirectory() -> String {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let dir = docs.appendingPathComponent("DreamPlayer")
@@ -85,56 +85,11 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - Notifications
 
-    private func registerNotificationCategories() {
-        let cancelAction = UNNotificationAction(
-            identifier: Self.cancelActionId,
-            title: "Cancel",
-            options: []
-        )
-        let category = UNNotificationCategory(
-            identifier: Self.notificationCategoryId,
-            actions: [cancelAction],
-            intentIdentifiers: [],
-            options: []
-        )
-        UNUserNotificationCenter.current().setNotificationCategories([category])
-    }
-
     private func requestPermission() {
         guard !hasRequestedPermission else { return }
         hasRequestedPermission = true
-        let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-            if !granted {
-                print("[DownloadClient] Notification permission denied")
-            }
-        }
-    }
-
-    // MARK: - UNUserNotificationCenterDelegate
-
-    /// Show notifications even when the app is in the foreground.
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
-        completionHandler([.banner, .badge])
-    }
-
-    /// Forward action taps (cancel) to the Dart DownloadManager.
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse,
-        withCompletionHandler completionHandler: @escaping () -> Void
-    ) {
-        if response.actionIdentifier == Self.cancelActionId {
-            let jobId = response.notification.request.content.userInfo["jobId"] as? String ?? ""
-            if !jobId.isEmpty {
-                channel?.invokeMethod("onCancelFromNotification", arguments: jobId)
-            }
-        }
-        completionHandler()
+        UNUserNotificationCenter.current()
+            .requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     private func showNotification(title: String, bytesCopied: Int64, totalBytes: Int64, jobId: String) {
@@ -142,42 +97,36 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
         content.title = "DreamPlayer"
         content.body = "Downloading \(title)…"
         content.sound = nil
-        content.categoryIdentifier = Self.notificationCategoryId
 
-        // Progress info for the notification extension (if ever added) + badge.
         var userInfo: [String: Any] = ["jobId": jobId]
         if totalBytes > 0 {
-            let progress = Float(bytesCopied) / Float(totalBytes)
-            userInfo["progress"] = min(max(progress, 0), 1)
+            userInfo["progress"] = min(max(Float(bytesCopied) / Float(totalBytes), 0), 1)
         }
         content.userInfo = userInfo
 
         let request = UNNotificationRequest(
             identifier: Self.notificationId,
             content: content,
-            trigger: nil  // deliver immediately
+            trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
     }
 
     private func updateNotification(title: String, bytesCopied: Int64, totalBytes: Int64) {
+        // Throttle to once every 5 seconds — rapid updates crash iPad.
+        let now = Date().timeIntervalSince1970
+        guard now - lastUpdateTime >= 5 else { return }
+        lastUpdateTime = now
+
         let content = UNMutableNotificationContent()
         content.title = "DreamPlayer"
-
         if totalBytes > 0 {
             let pct = Int(min(bytesCopied * 100 / totalBytes, 100))
-            let downloaded = byteCount(bytesCopied)
-            let total = byteCount(totalBytes)
-            content.body = "\(title) — \(downloaded) / \(total) (\(pct)%)"
-            content.userInfo = [
-                "progress": min(max(Float(bytesCopied) / Float(totalBytes), 0), 1),
-            ]
+            content.body = "\(title) — \(byteCount(bytesCopied)) / \(byteCount(totalBytes)) (\(pct)%)"
         } else {
-            let downloaded = byteCount(bytesCopied)
-            content.body = "\(title) — \(downloaded)"
+            content.body = "\(title) — \(byteCount(bytesCopied))"
         }
         content.sound = nil
-        content.categoryIdentifier = Self.notificationCategoryId
 
         let request = UNNotificationRequest(
             identifier: Self.notificationId,
@@ -188,24 +137,19 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func removeNotification() {
-        UNUserNotificationCenter.current()
-            .removeDeliveredNotifications(withIdentifiers: [Self.notificationId])
-        UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: [Self.notificationId])
+        let center = UNUserNotificationCenter.current()
+        center.removeDeliveredNotifications(withIdentifiers: [Self.notificationId])
+        center.removePendingNotificationRequests(withIdentifiers: [Self.notificationId])
     }
 
     private func byteCount(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
-    /// Resolves a local file URI/path to a readable file path.
-    /// For `file://` URIs from the Files app, this returns the path directly.
     private func resolveLocalPath(uri: String, path: String) -> String? {
-        // Try the path first (already a filesystem path).
         if !path.isEmpty && FileManager.default.fileExists(atPath: path) {
             return path
         }
-        // Try the URI (may be a file:// URL).
         if !uri.isEmpty, let url = URL(string: uri) {
             let filePath = url.path
             if FileManager.default.fileExists(atPath: filePath) {
