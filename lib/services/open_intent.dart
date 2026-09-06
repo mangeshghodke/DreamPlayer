@@ -110,8 +110,8 @@ class OpenIntentService {
     }
   }
 
-  /// Launches an external video player app via ACTION_VIEW intent.
-  /// Returns true on success, throws on failure.
+  /// Launches an external video player app via ACTION_VIEW intent
+  /// with a system chooser.
   static Future<bool> launchExternalPlayer({
     required String uri,
     String? title,

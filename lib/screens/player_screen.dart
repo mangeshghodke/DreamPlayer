@@ -660,16 +660,25 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (mounted) setState(() => _error = message);
   }
 
-  /// Opens the video in an external player app (VLC, SVPlayer, etc.) via
-  /// Android ACTION_VIEW intent. The URI is passed as-is (file://, content://,
-  /// http://, smb://, etc.) — the system picks a player that can handle it.
+  /// Opens the video in an external player app via Android ACTION_VIEW.
+  /// For SMB, builds a real smb://user@host/share/path URI.
+  /// For FTP/SFTP, builds a real ftp://user@host/path URI.
+  /// For HTTP/WebDAV/Jellyfin/UPnP, passes the streaming URL directly.
   Future<void> _openInExternalPlayer() async {
     final video = _current;
-    final uri = video.uri ?? video.path;
-    if (uri == null || uri.isEmpty) return;
+    final path = video.path;
+    if (path == null && video.uri == null) return;
+
+    String targetUri;
+    if (path?.startsWith('smb://') ?? false) {
+      targetUri = await _buildExternalSmbUri(video) ?? video.uri ?? path!;
+    } else {
+      targetUri = video.uri ?? path!;
+    }
+
     try {
       await OpenIntentService.launchExternalPlayer(
-        uri: uri,
+        uri: targetUri,
         title: video.title,
       );
     } catch (e) {
@@ -681,6 +690,33 @@ class _PlayerScreenState extends State<PlayerScreen>
           ),
         );
       }
+    }
+  }
+
+  /// Resolves DreamPlayer's internal SMB path to a real
+  /// smb://user@host/share/path using the saved server details.
+  /// The serverId is extracted from resumeKey (smb:serverId/share/path).
+  Future<String?> _buildExternalSmbUri(VideoItem video) async {
+    try {
+      final rk = video.resumeKey;
+      if (rk == null || !rk.startsWith('smb:')) return null;
+      final afterSmb = rk.substring(4); // <serverId>/<share>/<path>
+      final firstSlash = afterSmb.indexOf('/');
+      if (firstSlash < 0) return null;
+      final serverId = afterSmb.substring(0, firstSlash);
+      final shareAndPath = afterSmb.substring(firstSlash); // /<share>/<path>
+
+      final servers = await SmbClient.instance.listServers();
+      final server = servers.where((s) => s.id == serverId).firstOrNull;
+      if (server == null || server.host.isEmpty) return null;
+
+      final userInfo = server.username.isNotEmpty
+          ? '${Uri.encodeComponent(server.username)}@'
+          : '';
+      final port = server.port == 445 ? '' : ':${server.port}';
+      return 'smb://$userInfo${server.host}$port$shareAndPath';
+    } catch (_) {
+      return null;
     }
   }
 
@@ -4555,6 +4591,17 @@ class _PlayerScreenState extends State<PlayerScreen>
                           ],
                         ),
                       ),
+                  ],
+                  if (Platform.isAndroid) ...[
+                    const Divider(color: Colors.white12, height: 1),
+                    _tvListTile(
+                      leading: const Icon(Icons.open_in_new, color: Colors.white70),
+                      title: const Text('Open in external player', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _openInExternalPlayer();
+                      },
+                    ),
                   ],
                   const SizedBox(height: 8),
                 ],

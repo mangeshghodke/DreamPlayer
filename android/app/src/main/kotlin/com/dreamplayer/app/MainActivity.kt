@@ -120,7 +120,7 @@ class MainActivity : FlutterActivity() {
                                     putExtra(Intent.EXTRA_TITLE, title)
                                 }
                             }
-                            startActivity(launchIntent)
+                            startActivity(Intent.createChooser(launchIntent, title ?: "Open with"))
                             result.success(true)
                         } catch (_: android.content.ActivityNotFoundException) {
                             result.error("NO_PLAYER", "No video player app found", null)
