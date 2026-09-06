@@ -777,7 +777,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final video = widget.video;
     if (video == null) return false;
     final src = video.playbackSource;
-    return src != null && src != PlaybackSource.files;
+    // FTP can't be downloaded (Dart HttpClient doesn't support ftp://).
+    // Local files don't need downloading.
+    return src != null && src != PlaybackSource.files && src != PlaybackSource.ftp;
   }
 
   bool get _isDownloaded {

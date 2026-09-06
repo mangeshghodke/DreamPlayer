@@ -4639,9 +4639,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                         ),
                       ),
                   ],
-                  // Download to device — only for network sources.
+                  // Download to device — only for network sources (not FTP or local).
                   if (_current.playbackSource != null &&
-                      _current.playbackSource != PlaybackSource.files) ...[
+                      _current.playbackSource != PlaybackSource.files &&
+                      _current.playbackSource != PlaybackSource.ftp) ...[
                     const Divider(color: Colors.white12, height: 1),
                     _tvListTile(
                       leading: const Icon(Icons.file_download_outlined, color: Colors.white70),
