@@ -6,10 +6,6 @@ import UserNotifications
 /// `DownloadClient.kt`. iOS has no foreground-service model, so the Dart
 /// `DownloadManager` handles the actual HTTP download — this class only
 /// provides the download directory and drives a progress notification.
-///
-/// The `UNUserNotificationCenterDelegate` is set so notifications display
-/// in the foreground and cancel-action taps reach Dart. The native side
-/// throttles `add()` to once per 5 seconds to avoid flooding the system.
 final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
 
     private static let channelName = "dreamplayer/download"
@@ -20,6 +16,12 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
     private var channel: FlutterMethodChannel?
     private var hasRequestedPermission = false
     private var lastUpdateTime: TimeInterval = 0
+    /// Only show the banner once per download session — subsequent updates
+    /// update the notification panel silently without popping a new banner.
+    private var hasShownBanner = false
+    /// Stored from startService so updateNotification can include it in userInfo
+    /// for the cancel action to work.
+    private var currentJobId: String = ""
 
     // MARK: - Registration
 
@@ -30,10 +32,10 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
         ch.setMethodCallHandler { call, result in
             client.handle(call, result: result)
         }
+        // Register the cancel action BEFORE setting delegate.
+        client.registerNotificationCategories()
         // Set delegate so foreground notifications show and action taps reach Dart.
         UNUserNotificationCenter.current().delegate = client
-        // Register cancel action.
-        client.registerNotificationCategories()
         // Ask for notification permission early (no-op if already granted).
         client.requestPermission()
     }
@@ -51,6 +53,8 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
             let jobId = args?["jobId"] as? String ?? ""
             requestPermission()
             lastUpdateTime = 0
+            hasShownBanner = false
+            currentJobId = jobId
             showNotification(title: title, bytesCopied: 0, totalBytes: totalBytes, jobId: jobId)
             result(true)
         case "updateProgress":
@@ -61,6 +65,7 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
             result(true)
         case "stopService":
             lastUpdateTime = 0
+            hasShownBanner = false
             removeNotification()
             result(true)
         case "resolveLocalPath":
@@ -89,13 +94,13 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
         let cancelAction = UNNotificationAction(
             identifier: Self.cancelActionId,
             title: "Cancel",
-            options: []
+            options: [.foreground]
         )
         let category = UNNotificationCategory(
             identifier: Self.notificationCategoryId,
             actions: [cancelAction],
             intentIdentifiers: [],
-            options: []
+            options: [.customDismissAction]
         )
         UNUserNotificationCenter.current().setNotificationCategories([category])
     }
@@ -109,17 +114,21 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - UNUserNotificationCenterDelegate
 
-    /// Show notifications even when the app is in the foreground.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // .list = persist in Notification Center, .banner = show as banner.
-        completionHandler([.list, .banner, .badge])
+        if hasShownBanner {
+            // Silent update — update the panel but don't pop a new banner.
+            completionHandler([.list, .badge])
+        } else {
+            // First notification — show banner + persist in panel.
+            hasShownBanner = true
+            completionHandler([.list, .banner, .badge])
+        }
     }
 
-    /// Forward cancel-action taps to the Dart DownloadManager.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
@@ -130,6 +139,11 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
             if !jobId.isEmpty {
                 channel?.invokeMethod("onCancelFromNotification", arguments: jobId)
             }
+        } else if response.actionIdentifier == UNNotificationDismissActionIdentifier {
+            // User swiped away the notification — no-op.
+        } else {
+            // Tapped the notification body — open the download section.
+            channel?.invokeMethod("onNotificationTap", arguments: nil)
         }
         completionHandler()
     }
@@ -158,7 +172,7 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func updateNotification(title: String, bytesCopied: Int64, totalBytes: Int64) {
-        // Throttle to once per 5 seconds — rapid add() calls crash iPad.
+        // Throttle to once per 5 seconds.
         let now = Date().timeIntervalSince1970
         guard now - lastUpdateTime >= 5 else { return }
         lastUpdateTime = now
@@ -173,6 +187,9 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
         }
         content.sound = nil
         content.categoryIdentifier = Self.notificationCategoryId
+
+        // Preserve jobId in userInfo for the cancel action.
+        content.userInfo = ["jobId": currentJobId]
 
         let request = UNNotificationRequest(
             identifier: Self.notificationId,

@@ -48,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver, RouteAware {
   /// "Continue watching": videos with a saved resume position, most recently
   /// played first (persisted via [ContinueWatchingStore]).
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   List<ContinueWatchingEntry> _entries = const [];
 
   /// "Your library": the folders the user added (e.g. TV-show folders), most
@@ -76,6 +77,8 @@ class _HomeScreenState extends State<HomeScreen>
     TmdService.instance.addListener(_onMetadataChanged);
     // Rebuild the downloads grid when a download completes/is deleted.
     DownloadManager.instance.addListener(_onMetadataChanged);
+    // Open the drawer when the download notification is tapped.
+    DownloadManager.instance.onNotificationTap = _openDownloadsDrawer;
     _loadLibrary();
     // Ask for every runtime permission at app open instead of mid-playback.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -183,6 +186,7 @@ class _HomeScreenState extends State<HomeScreen>
     LibraryFoldersStore.changes.removeListener(_loadLibrary);
     TmdService.instance.removeListener(_onMetadataChanged);
     DownloadManager.instance.removeListener(_onMetadataChanged);
+    DownloadManager.instance.onNotificationTap = null;
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     super.dispose();
@@ -635,6 +639,7 @@ class _HomeScreenState extends State<HomeScreen>
     final theme = Theme.of(context);
     final tv = isTvMode(context);
     return Scaffold(
+      key: _scaffoldKey,
       drawer: _buildDrawer(theme),
       body: TvOverscan(
         child: RefreshIndicator(
@@ -931,6 +936,10 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
+  }
+
+  void _openDownloadsDrawer() {
+    if (mounted) _scaffoldKey.currentState?.openDrawer();
   }
 
   void _playDownload(DownloadJob job) {

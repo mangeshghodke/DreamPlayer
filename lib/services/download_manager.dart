@@ -113,6 +113,10 @@ class DownloadManager extends ChangeNotifier {
   bool _initialized = false;
   Completer<void>? _activeCompleter;
 
+  /// Called when the user taps the download notification. The home screen
+  /// sets this to open its Downloads drawer.
+  VoidCallback? onNotificationTap;
+
   DownloadJob? get activeJob =>
       downloads.cast<DownloadJob?>().firstWhere(
             (j) => j?.status == DownloadStatus.downloading,
@@ -128,6 +132,8 @@ class DownloadManager extends ChangeNotifier {
       if (call.method == 'onCancelFromNotification') {
         final jobId = call.arguments as String?;
         if (jobId != null) cancelDownload(jobId);
+      } else if (call.method == 'onNotificationTap') {
+        onNotificationTap?.call();
       }
     });
     final prefs = await SharedPreferences.getInstance();
