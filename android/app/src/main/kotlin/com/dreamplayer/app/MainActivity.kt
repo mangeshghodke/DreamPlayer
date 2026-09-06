@@ -95,6 +95,9 @@ class MainActivity : FlutterActivity() {
         MediaProbe(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MediaProbe.CHANNEL),
         )
+        DownloadClient(this).configure(
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dreamplayer/download"),
+        )
         intentChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "dreamplayer/intent",

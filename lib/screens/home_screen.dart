@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app.dart' show appRouteObserver;
 import '../models/video_item.dart';
 import '../services/continue_watching.dart';
+import '../services/download_manager.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
@@ -73,6 +74,8 @@ class _HomeScreenState extends State<HomeScreen>
     LibraryFoldersStore.changes.addListener(_loadLibrary);
     // Update cards when TMDB metadata resolves for a visible entry.
     TmdService.instance.addListener(_onMetadataChanged);
+    // Rebuild the downloads grid when a download completes/is deleted.
+    DownloadManager.instance.addListener(_onMetadataChanged);
     _loadLibrary();
     // Ask for every runtime permission at app open instead of mid-playback.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -179,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen>
     ContinueWatchingStore.changes.removeListener(_loadLibrary);
     LibraryFoldersStore.changes.removeListener(_loadLibrary);
     TmdService.instance.removeListener(_onMetadataChanged);
+    DownloadManager.instance.removeListener(_onMetadataChanged);
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     super.dispose();
@@ -631,6 +635,7 @@ class _HomeScreenState extends State<HomeScreen>
     final theme = Theme.of(context);
     final tv = isTvMode(context);
     return Scaffold(
+      drawer: _buildDrawer(theme),
       body: TvOverscan(
         child: RefreshIndicator(
           onRefresh: _refreshHome,
@@ -645,7 +650,16 @@ class _HomeScreenState extends State<HomeScreen>
             // doesn't fill the screen (e.g. an empty library).
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-            SliverAppBar(title: const Text('DreamPlayer'), pinned: true),
+            SliverAppBar(
+              leading: Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
+              ),
+              title: const Text('DreamPlayer'),
+              pinned: true,
+            ),
             // ---- Your library: user-added folders (e.g. TV-show folders) ----
             if (_folders.isEmpty)
               SliverToBoxAdapter(
@@ -715,6 +729,147 @@ class _HomeScreenState extends State<HomeScreen>
         onPressed: _showAddMenu,
         tooltip: 'Add a source',
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildDrawer(ThemeData theme) {
+    final mgr = DownloadManager.instance;
+    final completed = mgr.downloads
+        .where((j) => j.status == DownloadStatus.completed)
+        .toList();
+    return Drawer(
+      backgroundColor: theme.colorScheme.surface,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'DreamPlayer',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Downloads',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (completed.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                child: Text(
+                  'No downloads yet',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: completed.length,
+                  itemBuilder: (ctx, i) {
+                    final job = completed[i];
+                    return ListTile(
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                      ),
+                      title: Text(
+                        job.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      subtitle: Text(
+                        job.fileSizeLabel,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete_outline, color: theme.colorScheme.onSurfaceVariant, size: 20),
+                        onPressed: () => _confirmDeleteDownload(job),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _playDownload(job);
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _playDownload(DownloadJob job) {
+    if (!File(job.destPath).existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('File not found — it may have been deleted.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(
+          video: VideoItem(
+            id: job.id,
+            title: job.title,
+            path: job.destPath,
+            duration: Duration.zero,
+            sizeBytes: job.totalBytes > 0 ? job.totalBytes : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteDownload(DownloadJob job) {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: const Text('Remove download?'),
+        content: Text(
+          'Delete "${job.title}" from your device?',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              DownloadManager.instance.deleteDownload(job.id);
+            },
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }

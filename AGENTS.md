@@ -412,6 +412,8 @@ A video player app supporting:
 - **Global default playback engine (2026-09)**: Settings → Player → "Default playback engine" lets the user choose **Media3** (hardware-accelerated, Dolby Vision / HDR), **libmpv** (software-first, broader codec support, SDR only), or **Ask every time** (both buttons on the details screen). When a specific engine is set, the Play/Resume button uses it directly; the secondary engine button is hidden. The ⓘ info sheet and error surface still allow switching manually. Persisted as `dreamplayer.defaultEngine` (`DefaultEngineStore`, `lib/services/default_engine_store.dart`). The details screen reads the preference on init and passes the resolved engine to `PlayerScreen.initialEngine`.
 - **Auto-fallback on engine failure (2026-09)**: when Media3 reaches a terminal error (hardware decode fails, software decode also fails), the player now automatically tries libmpv instead of just showing an error surface. If libmpv also fails, the normal error UI appears. This eliminates the "file plays in VLC/mpv but DreamPlayer shows an error" experience for files that Media3 can't decode. Implemented in `_trySoftwareDecodeFallback` (`player_screen.dart`) which calls `_startMpvFallback(automatic: true)` before surfacing the terminal error. The `_autoFallbackTried` latch prevents infinite loops. Reset per-file in `_restoreDecoderOverride`.
 - **libmpv purple screen fix (2026-09)**: some HEVC Main10 anime files (10-bit encodes for banding reduction) rendered as a purple/magenta tint when played through the libmpv fallback engine. Root cause: `mediacodec-copy` decodes into P010 (10-bit YUV420P) buffers; mpv's `gpu` video output must convert them to RGB for the Flutter texture, but without color-space hints the conversion uses the wrong transfer function. Fix: set `target-colorspace-hint=yes` and `force-rgb-colorspace=yes` on the mpv context in `_configureMpvAudio` so the source color space is honored during conversion.
+- **Download to device (2026-09)**: download video files from any network source (SMB, WebDAV, HTTP, Jellyfin, UPnP) to local storage for offline playback. Kotlin foreground service (`DownloadService.kt`, `NOTIF_ID=4211`, `FOREGROUND_SERVICE_TYPE_DATA_SYNC`) + `DownloadClient.kt` method channel with cancel callback bridge to Dart. iOS: `DownloadClient.swift` with `UNUserNotificationCenter` progress notifications. Dart `DownloadManager` singleton (`lib/services/download_manager.dart`) handles HTTP streaming, SMB via loopback proxy (`SmbHttpProxy`/`SmbClient.startLoopback`), progress tracking, queue management (one at a time), and SharedPreferences history. Download screen (`lib/screens/download_screen.dart`) shows progress bars, status badges, cancel/delete/play. UI triggers: player ⋮ sheet "Download to device" row (visible for network sources) + details screen bottom bar Download button. Home screen hamburger menu shows completed downloads (tap to play, long-press/tap delete to remove). Notification: Android silent (`IMPORTANCE_LOW` + `setSilent(true)`) with Cancel action button; iOS local notification with progress. Android: `/storage/emulated/0/Download/DreamPlayer/`; iOS: `Documents/DreamPlayer/`.
+- **External player handoff (2026-09)**: when both Media3 and libmpv fail (or user explicitly chooses), the error surface offers "Open in external player" via `Intent.createChooser` with `setDataAndType(uri, "video/*")`. VLC handles `smb://` natively (no loopback needed). WebDAV passes the HTTPS URL directly with auth headers. UPnP/DLNA and Jellyfin pass HTTP URLs directly. Android only (iOS has no external player intent system).
 
 - **Friendly error messages + software-decode auto-fallback on hardware-decode failure (2026-08-29)**:
   - **Bug fix (every PlaybackException was showing the raw code)**: the Dart `_friendlyError` switch matched snake_case strings like `error_code_io_bad_http_status` / `error_code_decoder_init_failed`, but Media3's native `emit(errorCodeName = error.errorCodeName, …)` returns `ERROR_CODE_*` names (verified by disassembling `media3-common-1.10.1` — `PlaybackException.getErrorCodeName(int)` returns e.g. `"ERROR_CODE_DECODING_FAILED"`, `"ERROR_CODE_IO_BAD_HTTP_STATUS"`, etc.). The snake_case cases were **dead code** — every real error fell through to the generic `"Playback failed (ERROR_CODE_…).message"`, which is what the user reported as "code decoding failed". The mapping now lives in `lib/screens/player_error.dart` (`friendlyPlayerError` / `isRetryableIoError` / `isVideoDecodeError`) and is unit-tested in `test/player_error_test.dart` (9 new tests, full suite 212 passing). Same fix applied to the IO-retry predicate so the existing exponential-backoff auto-retry now actually fires.
@@ -685,24 +687,26 @@ Source: https://github.com/mangeshghodke/DreamPlayer/issues/6
 - Apply to: folder_screen.dart, smb_screen.dart, webdav_screen.dart, jellyfin_screen.dart, ftp_screen.dart, upnp_screen.dart
 - **Status**: Fixing the bug where season data wasn't being fetched
 
-**Phase 4 — External player handoff** (NOT STARTED)
-- When both Media3 and libmpv fail, offer "Open in external player" option
-- Support SVPlayer, VLC, and other players that handle `content://` / `file://` / `smb://` URIs
-- Intent-based handoff via `ACTION_VIEW` with video MIME types
+**Phase 4 — External player handoff** (DONE 2026-09)
+- When both Media3 and libmpv fail, offer "Open in external player" option via `Intent.createChooser`
+- VLC handles `smb://` natively (no loopback needed); WebDAV passes HTTPS URL with auth headers; UPnP/DLNA and Jellyfin pass HTTP URLs
 - Android only (iOS has no external player intent system)
 
-**Phase 5 — Download to device** (NOT STARTED)
-- Download video files from any network source (SMB, WebDAV, FTP, Jellyfin, UPnP) to local storage
-- Foreground service with progress notification
-- Download screen accessible from player ⋮ sheet and Settings
-- Downloaded files appear in home grid with "downloaded" badge
-- See "Player feature backlog" item 3 for full architecture
+**Phase 5 — Download to device** (IN PROGRESS — core + UI + SMB + notification + iOS done 2026-09)
+- Kotlin foreground service (`DownloadService.kt`) + `DownloadClient.kt` method channel
+- iOS: `DownloadClient.swift` with `UNUserNotificationCenter` progress notifications
+- Dart `DownloadManager` singleton (`lib/services/download_manager.dart`) — HTTP streaming, SMB via loopback proxy, progress tracking, SharedPreferences history
+- Download screen (`lib/screens/download_screen.dart`) — progress bars, cancel/delete/play
+- Player ⋮ sheet + details screen bottom bar triggers + home screen hamburger drawer
+- Notification: Android silent (`IMPORTANCE_LOW` + `setSilent`) with Cancel action button; iOS local notification with progress
+- Supports: HTTP (WebDAV, Jellyfin, UPnP, network), SMB (via `SmbHttpProxy`/`SmbClient.startLoopback`)
+- **Remaining**: downloaded files in home grid with "downloaded" badge + local playback; Settings download dir picker
 
 ### Player feature backlog (prioritized 2026-09)
 
 1. Android release signing (deferred — see CI/Deployment).
 2. **Anime4K real-time upscaling (future, low priority)**: [Anime4K](https://github.com/bloc97/anime4k) is a set of open-source GLSL shaders that upscale native 1080p anime → 4K in real-time, designed for mpv's GPU rendering pipeline. **Not implementable today** because (a) Android uses ExoPlayer/Media3 (no GLSL shader injection — video writes directly to a `Surface` backed by `SurfaceFlinger`), (b) the libmpv fallback renders into a Flutter texture (not a raw mpv `--vo=gpu` window, so Anime4K's shader chain can't run), and (c) it conflicts with HDR/DV passthrough (the panel receives BT.2020 PQ data; running a shader on tone-mapped SDR frames defeats the pipeline). **If the mpv fallback engine is ever promoted to a "GPU filters" path** (mpv `--vf=glslshader=…` with a raw rendering window), Anime4K shaders could be offered as an opt-in toggle for SDR anime content only — DV/HDR10 files must stay on Media3 + native `SurfaceView`. The upstream repo ([bloc97/Anime4K](https://github.com/bloc97/Anime4K)) has 21k stars and active maintenance; [Anime4KMetal](https://github.com/imxieyi/Anime4KMetal) exists for Apple platforms (Metal shaders) which could apply to the iOS AetherEngine path in a distant future. Keep this in the backlog; revisit only if user demand surfaces.
-3. **Download to device (planned, 2026-09)**: download video files from any network source (SMB, WebDAV, FTP, Jellyfin, UPnP) to local storage for offline playback. Modeled on Nova Video Player's `CopyCutEngine` + `FileManagerService` pattern.
+3. **Download to device (in progress, 2026-09)**: download video files from any network source (SMB, WebDAV, HTTP, Jellyfin, UPnP) to local storage for offline playback. Modeled on Nova Video Player's `CopyCutEngine` + `FileManagerService` pattern. Core is built: Kotlin foreground service + Dart DownloadManager + UI triggers + download screen + SMB via loopback + silent notification with Cancel button + iOS local notification. Remaining: downloaded files in home grid with badge + local playback, Settings download dir picker.
 
    **Architecture (3 layers):**
    - **UI**: player ⋮ sheet "Download to device" row + details screen bottom bar Download button (visible only for network sources)
@@ -1039,6 +1043,7 @@ lib/
   services/thumbnail_store.dart   # embedded cover-art cache for video cards (memory+disk, local sources only)
   services/mpv_pip.dart           # libmpv fallback engine's picture-in-picture bridge (pipChanged/pipDismissed/pipPlayPause/pipRewind/pipForward; setState pushes state into PipManager)
   services/media_probe.dart       # native MediaExtractor probe via MethodChannel; probe() for smb/http/local, probeFile() for temp files, probeViaTempDownload() for ftp/sftp
+  services/download_manager.dart  # DownloadManager singleton: HTTP+SMB download, progress tracking, SharedPreferences history, cancel/delete, one-at-a-time queue
   config/tmdb_api_key.dart        # default TMDB key from --dart-define=TMDB_API_KEY (never committed)
   screens/
     home_screen.dart            # Continue watching grid (adaptive columns, grouped by TV show) + Your-library folder grid + **+** FAB menu (Jellyfin / WebDAV / Add folder / Internal storage)
@@ -1049,6 +1054,7 @@ lib/
     jellyfin_screen.dart        # Jellyfin/Emby server list + 7359-probe/mDNS discovery + login + libraries → folders → play
     webdav_screen.dart          # WebDAV server list → folders → play (add/edit/delete servers, self-signed toggle)
     settings_screen.dart        # settings list + swipe gestures toggle (Player section, phones/tablets only)
+    download_screen.dart        # download list UI: progress bars, status badges, cancel/delete/play buttons
   widgets/
     video_card.dart             # library card with HDR/audio badges
     folder_card.dart            # library folder card (TMDB poster or gradient placeholder + TV/Movie badge)
@@ -1066,6 +1072,8 @@ android/app/src/main/kotlin/com/dreamplayer/app/
   MediaProbe.kt                 # native MediaMetadataRetriever + MediaExtractor probe (channel dreamplayer/mediaProbe); SMB via HTTP loopback, local/content direct
   PipManager.kt                 # libmpv fallback-engine picture-in-picture (RemoteAction transport buttons: rewind/play-pause/forward); channel dreamplayer/pip
   SmbHttpProxy.kt               # loopback HTTP/1.1 server that exposes an SMB file to libmpv via 127.0.0.1:<port>/<token> with Range support
+  DownloadService.kt            # foreground service for downloads (NOTIF_ID=4211, cancel BroadcastReceiver)
+  DownloadClient.kt             # method channel handler for download progress/cancel bridge to Dart
   MainActivity.kt               # registers platform views + "Open with" intent handling + routes pip/snapshot/stop calls between ExoPlayerView and PipManager based on which engine is active
 ios/Runner/
   AvPlayerView.swift            # AetherEngine platform view + channels (same contract as ExoPlayerView.kt); host SubtitleOverlayView; WebDAV http(s) streams with headers/self-signed via WebDAVByteRangeSource
@@ -1076,6 +1084,7 @@ ios/Runner/
   FileBrowser.swift             # Documents-folder browsing channel (same contract as FileBrowser.kt); resolveImportedPath
   IntentBridge.swift            # "Open with" intent channel (same contract as MainActivity.kt)
   AppDelegate.swift             # registers the AvPlayerView factory + files/intent/webdav channels
+  DownloadClient.swift          # download-to-device channel (getDownloadDir, notification progress); registered in AppDelegate
   SceneDelegate.swift           # forwards scene-opened URLs to IntentBridge
 test/
   widget_test.dart              # shell/navigation/overflow tests

@@ -36,8 +36,6 @@ class _UpnpScreenState extends State<UpnpScreen> {
   List<UpnpEntry> _entries = const [];
   bool _browsing = false;
   String? _browseError;
-  bool _isSeriesFolder = false;
-
   /// Watched marks for the current folder, keyed by the same stable resume
   /// key each video uses for playback.
   Set<String> _watchedKeys = {};
@@ -109,7 +107,6 @@ class _UpnpScreenState extends State<UpnpScreen> {
       _browsing = true;
       _browseError = null;
       _diag = const [];
-      _isSeriesFolder = false;
     });
     try {
       final entries = await UpnpClient.instance.browse(server.id, objectId);
@@ -220,9 +217,6 @@ class _UpnpScreenState extends State<UpnpScreen> {
     final meta = service.metaFor(metadataKey) ??
         await service.resolveFolder(metadataKey, crumbName);
     if (meta == null || !mounted) return;
-    setState(() {
-      _isSeriesFolder = true;
-    });
     await service.detailsFor(metadataKey);
     if (!mounted) return;
     final seasonsNeeded = <int>{};

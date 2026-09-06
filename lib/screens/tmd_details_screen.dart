@@ -15,6 +15,7 @@ import '../services/default_engine_store.dart';
 import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/watched_store.dart';
+import '../services/download_manager.dart';
 import '../utils/codec_info.dart';
 import '../utils/file_info_extractor.dart';
 import '../utils/season_group.dart' as sg;
@@ -413,6 +414,24 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       await _refreshJellyfinInfo();
       if (!mounted) return;
     }
+    // Auto-resolve TMDB metadata for folders when not cached (e.g. the home
+    // pre-fetch hadn't reached this folder yet, or TMDB was unreachable).
+    if (_meta == null && widget.folder != null) {
+      try {
+        await _service.resolveFolder(
+          widget.folder!.metadataKey,
+          widget.folder!.name,
+        );
+      } catch (_) {}
+      if (!mounted) return;
+      final resolved = _service.metaFor(_identityKey);
+      if (resolved != null) {
+        setState(() {
+          _meta = resolved;
+          _details = resolved.details;
+        });
+      }
+    }
     // Auto-resolve TMDB metadata if not cached (Nova-style: every file
     // tap triggers a background lookup so the details page is never blank).
     if (_meta == null && widget.video != null) {
@@ -753,6 +772,47 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         DefaultEngine.ask => '',
       };
 
+  /// Whether the current video is a network source (downloadable).
+  bool get _isNetworkSource {
+    final video = widget.video;
+    if (video == null) return false;
+    final src = video.playbackSource;
+    return src != null && src != PlaybackSource.files;
+  }
+
+  bool get _isDownloaded {
+    final video = widget.video;
+    if (video == null) return false;
+    final key = video.resumeKey ?? video.path ?? video.uri ?? '';
+    return DownloadManager.instance.isDownloaded(key);
+  }
+
+  Future<void> _downloadVideo() async {
+    final video = widget.video;
+    if (video == null) return;
+    try {
+      await DownloadManager.instance.startDownload(video);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloading: ${video.title}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   /// The secondary engine button: picks libmpv up front, before any Media3
   /// backend is created. mpv runs hardware-first (`hwdec=auto-safe`) and falls
   /// back to its own FFmpeg software decode — a full second main player, not a
@@ -1034,6 +1094,20 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                           ],
                           if (showMpvOption)
                             ..._mpvButton(resume: resumeMpv),
+                          if (_isNetworkSource)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: OutlinedButton.icon(
+                                onPressed: _downloadVideo,
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(44),
+                                  foregroundColor: Colors.white70,
+                                  side: const BorderSide(color: Colors.white24),
+                                ),
+                                icon: const Icon(Icons.file_download_outlined, size: 18),
+                                label: Text(_isDownloaded ? 'Downloaded' : 'Download to device'),
+                              ),
+                            ),
                         ],
                       )
                     : Column(
@@ -1049,6 +1123,20 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                             label: Text('Play$_engineSuffix'),
                           ),
                           if (showMpvOption) ..._mpvButton(resume: null),
+                          if (_isNetworkSource)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: OutlinedButton.icon(
+                                onPressed: _downloadVideo,
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(44),
+                                  foregroundColor: Colors.white70,
+                                  side: const BorderSide(color: Colors.white24),
+                                ),
+                                icon: const Icon(Icons.file_download_outlined, size: 18),
+                                label: Text(_isDownloaded ? 'Downloaded' : 'Download to device'),
+                              ),
+                            ),
                         ],
                       ),
               ),

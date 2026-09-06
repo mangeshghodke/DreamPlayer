@@ -75,5 +75,6 @@ import Network
     CacheCleaner.register(with: messenger)
     UpnpClient.register(with: messenger)
     MediaProbe.register(with: messenger)
+    DownloadClient.register(with: messenger)
   }
 }

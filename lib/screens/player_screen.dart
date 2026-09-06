@@ -34,6 +34,8 @@ import '../services/subtitle_style.dart';
 import '../services/downloaded_subtitles_store.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/open_intent.dart';
+import '../services/download_manager.dart';
+import 'download_screen.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
 import '../services/system_controls.dart';
@@ -690,6 +692,51 @@ class _PlayerScreenState extends State<PlayerScreen>
           ),
         );
       }
+    }
+  }
+
+  Future<void> _downloadToDevice() async {
+    final video = _current;
+    if (video.uri == null && video.path == null) return;
+    try {
+      await DownloadManager.instance.startDownload(video);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloading: ${video.title}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openDownloads() async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const DownloadScreen()),
+    );
+    // If a file path was returned, play it.
+    if (result != null && mounted) {
+      final video = VideoItem(
+        id: 'local',
+        title: result.split('/').last,
+        path: result,
+        duration: Duration.zero,
+      );
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PlayerScreen(video: video, startFromBeginning: true),
+        ),
+      );
     }
   }
 
@@ -4592,6 +4639,27 @@ class _PlayerScreenState extends State<PlayerScreen>
                         ),
                       ),
                   ],
+                  // Download to device — only for network sources.
+                  if (_current.playbackSource != null &&
+                      _current.playbackSource != PlaybackSource.files) ...[
+                    const Divider(color: Colors.white12, height: 1),
+                    _tvListTile(
+                      leading: const Icon(Icons.file_download_outlined, color: Colors.white70),
+                      title: const Text('Download to device', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _downloadToDevice();
+                      },
+                    ),
+                  ],
+                  _tvListTile(
+                    leading: const Icon(Icons.download_done, color: Colors.white70),
+                    title: const Text('Downloads', style: TextStyle(color: Colors.white)),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      _openDownloads();
+                    },
+                  ),
                   if (Platform.isAndroid) ...[
                     const Divider(color: Colors.white12, height: 1),
                     _tvListTile(
