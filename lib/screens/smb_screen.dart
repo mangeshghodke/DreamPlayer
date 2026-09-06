@@ -1014,6 +1014,7 @@ class _SmbScreenState extends State<SmbScreen> {
             meta: meta,
             details: details,
             metadataKey: metadataKey,
+            folderSeason: _seriesMeta?.folderSeason,
             onFixMatch: () async {
               final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
               final folderName =
@@ -1606,6 +1607,7 @@ class _SeriesFolderHeader extends StatelessWidget {
     required this.onFixMatch,
     required this.onRemoveInfo,
     this.details,
+    this.folderSeason,
   });
 
   final TmdMeta meta;
@@ -1613,12 +1615,28 @@ class _SeriesFolderHeader extends StatelessWidget {
   final String metadataKey;
   final VoidCallback onFixMatch;
   final VoidCallback onRemoveInfo;
+  final int? folderSeason;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final movie = meta.movie;
+
+    // When a specific season folder is open, prefer its poster/name/overview.
+    final season = folderSeason != null ? meta.seasons[folderSeason!] : null;
+    final seasonPosterUrl = season?.posterUrl(width: 342);
+    final posterUrl = seasonPosterUrl ?? movie.posterUrl(width: 342);
+
+    final seasonName = season?.name ?? '';
+    final displayName = (seasonName.isNotEmpty && seasonName != movie.title)
+        ? seasonName
+        : movie.title;
+
+    final seasonOverview = season?.overview ?? '';
+    final displayOverview = seasonOverview.isNotEmpty
+        ? seasonOverview
+        : (details?.overview ?? '');
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -1630,9 +1648,9 @@ class _SeriesFolderHeader extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: movie.posterUrl(width: 342) != null
+                child: posterUrl != null
                     ? Image.network(
-                        movie.posterUrl(width: 342)!,
+                        posterUrl,
                         width: 104,
                         height: 156,
                         fit: BoxFit.cover,
@@ -1645,9 +1663,9 @@ class _SeriesFolderHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (movie.title.isNotEmpty)
+                    if (displayName.isNotEmpty)
                       Text(
-                        movie.title,
+                        displayName,
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -1678,7 +1696,7 @@ class _SeriesFolderHeader extends StatelessWidget {
               ),
             ],
           ),
-          if (details != null && details!.overview.isNotEmpty) ...[
+          if (displayOverview.isNotEmpty) ...[
             const SizedBox(height: 20),
             Text(
               'Overview',
@@ -1688,7 +1706,7 @@ class _SeriesFolderHeader extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              details!.overview,
+              displayOverview,
               maxLines: 6,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
