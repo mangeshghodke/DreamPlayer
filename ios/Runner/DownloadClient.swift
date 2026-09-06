@@ -7,13 +7,15 @@ import UserNotifications
 /// `DownloadManager` handles the actual HTTP download — this class only
 /// provides the download directory and drives a progress notification.
 ///
-/// IMPORTANT: We must NOT set `UNUserNotificationCenter.current().delegate`
-/// because that intercepts ALL system notifications (not just ours) and
-/// setting it combined with rapid `add()` calls crashes the iPad.
-final class DownloadClient: NSObject {
+/// The `UNUserNotificationCenterDelegate` is set so notifications display
+/// in the foreground and cancel-action taps reach Dart. The native side
+/// throttles `add()` to once per 5 seconds to avoid flooding the system.
+final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
 
     private static let channelName = "dreamplayer/download"
     private static let notificationId = "dreamplayer_download"
+    private static let notificationCategoryId = "download_progress"
+    private static let cancelActionId = "download_cancel"
 
     private var channel: FlutterMethodChannel?
     private var hasRequestedPermission = false
@@ -28,7 +30,10 @@ final class DownloadClient: NSObject {
         ch.setMethodCallHandler { call, result in
             client.handle(call, result: result)
         }
-        // Do NOT set delegate — it would intercept ALL system notifications.
+        // Set delegate so foreground notifications show and action taps reach Dart.
+        UNUserNotificationCenter.current().delegate = client
+        // Register cancel action.
+        client.registerNotificationCategories()
         // Ask for notification permission early (no-op if already granted).
         client.requestPermission()
     }
@@ -39,8 +44,7 @@ final class DownloadClient: NSObject {
         let args = call.arguments as? [String: Any]
         switch call.method {
         case "getDownloadDir":
-            let dir = downloadDirectory()
-            result(dir)
+            result(downloadDirectory())
         case "startService":
             let title = args?["title"] as? String ?? "Download"
             let totalBytes = args?["totalBytes"] as? Int64 ?? -1
@@ -62,11 +66,7 @@ final class DownloadClient: NSObject {
         case "resolveLocalPath":
             let uri = args?["uri"] as? String ?? ""
             let path = args?["path"] as? String ?? ""
-            if let resolved = resolveLocalPath(uri: uri, path: path) {
-                result(resolved)
-            } else {
-                result(nil)
-            }
+            result(resolveLocalPath(uri: uri, path: path))
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -85,6 +85,21 @@ final class DownloadClient: NSObject {
 
     // MARK: - Notifications
 
+    private func registerNotificationCategories() {
+        let cancelAction = UNNotificationAction(
+            identifier: Self.cancelActionId,
+            title: "Cancel",
+            options: []
+        )
+        let category = UNNotificationCategory(
+            identifier: Self.notificationCategoryId,
+            actions: [cancelAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([category])
+    }
+
     private func requestPermission() {
         guard !hasRequestedPermission else { return }
         hasRequestedPermission = true
@@ -92,11 +107,40 @@ final class DownloadClient: NSObject {
             .requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
+    // MARK: - UNUserNotificationCenterDelegate
+
+    /// Show notifications even when the app is in the foreground.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .badge])
+    }
+
+    /// Forward cancel-action taps to the Dart DownloadManager.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.actionIdentifier == Self.cancelActionId {
+            let jobId = response.notification.request.content.userInfo["jobId"] as? String ?? ""
+            if !jobId.isEmpty {
+                channel?.invokeMethod("onCancelFromNotification", arguments: jobId)
+            }
+        }
+        completionHandler()
+    }
+
+    // MARK: - Notification posting (throttled)
+
     private func showNotification(title: String, bytesCopied: Int64, totalBytes: Int64, jobId: String) {
         let content = UNMutableNotificationContent()
         content.title = "DreamPlayer"
         content.body = "Downloading \(title)…"
         content.sound = nil
+        content.categoryIdentifier = Self.notificationCategoryId
 
         var userInfo: [String: Any] = ["jobId": jobId]
         if totalBytes > 0 {
@@ -113,7 +157,7 @@ final class DownloadClient: NSObject {
     }
 
     private func updateNotification(title: String, bytesCopied: Int64, totalBytes: Int64) {
-        // Throttle to once every 5 seconds — rapid updates crash iPad.
+        // Throttle to once per 5 seconds — rapid add() calls crash iPad.
         let now = Date().timeIntervalSince1970
         guard now - lastUpdateTime >= 5 else { return }
         lastUpdateTime = now
@@ -127,6 +171,7 @@ final class DownloadClient: NSObject {
             content.body = "\(title) — \(byteCount(bytesCopied))"
         }
         content.sound = nil
+        content.categoryIdentifier = Self.notificationCategoryId
 
         let request = UNNotificationRequest(
             identifier: Self.notificationId,

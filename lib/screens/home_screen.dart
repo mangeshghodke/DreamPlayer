@@ -735,6 +735,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildDrawer(ThemeData theme) {
     final mgr = DownloadManager.instance;
+    final active = mgr.downloads
+        .where((j) => j.status == DownloadStatus.downloading ||
+            j.status == DownloadStatus.queued)
+        .toList();
     final completed = mgr.downloads
         .where((j) => j.status == DownloadStatus.completed)
         .toList();
@@ -754,8 +758,70 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             const Divider(height: 1),
+            // Active downloads section.
+            if (active.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Downloading',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ...active.map((job) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: ListTile(
+                  dense: true,
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.downloading, color: Colors.blue, size: 20),
+                  ),
+                  title: Text(
+                    job.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  subtitle: job.totalBytes > 0
+                      ? Text(
+                          '${job.downloadedLabel} / ${job.fileSizeLabel}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        )
+                      : Text(
+                          '${job.downloadedLabel} downloaded',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54, size: 18),
+                    onPressed: () => mgr.cancelDownload(job.id),
+                  ),
+                ),
+              )),
+              const Divider(height: 1),
+            ],
+            // Completed downloads section.
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Text(
                 'Downloads',
                 style: theme.textTheme.titleMedium?.copyWith(
@@ -763,11 +829,21 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
-            if (completed.isEmpty)
+            if (completed.isEmpty && active.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
                 child: Text(
                   'No downloads yet',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else if (completed.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Text(
+                  'No completed downloads',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
