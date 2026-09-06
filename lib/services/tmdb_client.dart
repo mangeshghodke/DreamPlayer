@@ -1462,7 +1462,7 @@ class TmdService extends ChangeNotifier {
     if (parsed.title.isEmpty) return null;
 
     final future = _resolveFolderNow(metadataKey, parsed.title, parsed.year,
-        liveAction: parsed.liveAction);
+        liveAction: parsed.liveAction, folderName: folderName);
     _pending[metadataKey] = future;
     try {
       return await future;
@@ -1474,17 +1474,19 @@ class TmdService extends ChangeNotifier {
 
   Future<TmdMeta?> _resolveFolderNow(
       String metadataKey, String query, int? year,
-      {bool liveAction = false}) async {
+      {bool liveAction = false, String? folderName}) async {
     final match =
         await _api.bestForQuery(query, year: year, liveAction: liveAction);
     if (match == null) return null;
 
     // Check if the folder name matches a season name on TMDB.
     // e.g. "Strike the Blood Final" → Season 5 "Strike the Blood Final".
+    // Use the ORIGINAL folder name (not the cleaned query) so the season
+    // indicator ("Final", "II", "III") is not lost during parsing.
     int? folderSeason;
     if (match.movie.kind == TmdKind.tv) {
       final names = await _api.seasonNames(match.movie);
-      folderSeason = _matchSeasonFromFolder(query, names);
+      folderSeason = _matchSeasonFromFolder(folderName ?? query, names);
     }
 
     final meta = TmdMeta(movie: match.movie, folderSeason: folderSeason);
