@@ -262,6 +262,25 @@ class _UpnpScreenState extends State<UpnpScreen> {
       title: entry.name,
       sizeBytes: entry.size,
     );
+    // When upgradeDlnaUrl succeeds, the returned VideoItem has a Jellyfin
+    // resumeKey, but the prefetch cached TMDB metadata under the UPnP key.
+    // Override id/resumeKey so the details screen finds the cached metadata.
+    if (video != null) {
+      video = VideoItem(
+        id: key,
+        title: video.title,
+        uri: video.uri,
+        resumeKey: key,
+        duration: video.duration,
+        resolution: video.resolution,
+        sizeBytes: video.sizeBytes,
+        allowSelfSigned: video.allowSelfSigned,
+        jellyfinServerId: video.jellyfinServerId,
+        jellyfinItemId: video.jellyfinItemId,
+        externalSubtitles: video.externalSubtitles,
+        chapters: video.chapters,
+      );
+    }
     video ??= () {
       final fi = extractFileInfo(entry.name);
       return VideoItem(
@@ -295,13 +314,14 @@ class _UpnpScreenState extends State<UpnpScreen> {
       );
     }();
     if (!mounted) return;
+    // DLNA folders (e.g. Jellyfin auto-generated "Latest News") may resolve to
+    // a wrong TMDB show at the folder level, so always let the details screen
+    // resolve per-video metadata using the video's own identity key (which
+    // matches the prefetch key).
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TmdDetailsScreen(
           video: video!,
-          parentMetadataKey: _isSeriesFolder
-              ? 'upnp_folder:${server.id}/${_crumbs.last.id}'
-              : null,
         ),
       ),
     );
