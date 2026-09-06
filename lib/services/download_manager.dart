@@ -276,6 +276,7 @@ class DownloadManager extends ChangeNotifier {
     notifyListeners();
 
     job.status = DownloadStatus.downloading;
+    await _startForeground(job);
     notifyListeners();
     try {
       // On iOS, resolve the security-scoped bookmark to get a readable path.
@@ -292,7 +293,35 @@ class DownloadManager extends ChangeNotifier {
         throw Exception('Source file not found');
       }
       job.totalBytes = await srcFile.length();
-      await srcFile.copy(destPath);
+
+      // Chunked copy with progress — File.copy() is blocking with no updates.
+      const chunkSize = 256 * 1024; // 256 KB
+      final raf = srcFile.openSync(mode: FileMode.read);
+      final sink = File(destPath).openSync(mode: FileMode.write);
+      final total = job.totalBytes;
+      int copied = 0;
+      DateTime lastNotifyTime = DateTime.now();
+      try {
+        while (copied < total) {
+          final remaining = total - copied;
+          final toRead = remaining < chunkSize ? remaining : chunkSize;
+          final chunk = raf.readSync(toRead);
+          sink.writeFromSync(chunk);
+          copied += chunk.length;
+          job.bytesCopied = copied;
+          // Update UI every 256 KB / 1 s.
+          final now = DateTime.now();
+          if (copied - (job.bytesCopied - chunk.length) >= 256 * 1024 ||
+              now.difference(lastNotifyTime).inSeconds >= 1) {
+            lastNotifyTime = now;
+            await _updateNotification(job);
+            notifyListeners();
+          }
+        }
+      } finally {
+        raf.closeSync();
+        sink.closeSync();
+      }
       job.bytesCopied = job.totalBytes;
       job.status = DownloadStatus.completed;
       await _updateNotification(job);
@@ -302,6 +331,7 @@ class DownloadManager extends ChangeNotifier {
     } catch (e) {
       job.status = DownloadStatus.failed;
       job.error = e.toString();
+      debugPrint('[DownloadManager] local copy failed: $e');
       try {
         await _channel.invokeMethod('stopService');
       } catch (_) {}
