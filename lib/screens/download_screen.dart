@@ -159,18 +159,28 @@ class _DownloadTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${job.downloadedLabel}${job.totalBytes > 0 ? ' / ${job.fileSizeLabel}' : ''}  \u00b7  ${job.statusLabel}',
+                  job.totalBytes > 0
+                      ? '${job.downloadedLabel} / ${job.fileSizeLabel}  \u00b7  ${job.statusLabel}'
+                      : '${job.downloadedLabel} downloaded  \u00b7  ${job.statusLabel}',
                   style: TextStyle(color: Colors.white54, fontSize: 12),
                 ),
-                if (isActive && job.totalBytes > 0) ...[
+                if (isActive) ...[
                   const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: job.progress,
-                    backgroundColor: Colors.white12,
-                    valueColor: AlwaysStoppedAnimation<Color>(color),
-                    minHeight: 3,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+                  if (job.totalBytes > 0)
+                    LinearProgressIndicator(
+                      value: job.progress,
+                      backgroundColor: Colors.white12,
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                      minHeight: 3,
+                      borderRadius: BorderRadius.circular(2),
+                    )
+                  else
+                    LinearProgressIndicator(
+                      backgroundColor: Colors.white12,
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                      minHeight: 3,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                 ],
                 if (isDone) ...[
                   const SizedBox(height: 4),

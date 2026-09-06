@@ -6,11 +6,12 @@ import UserNotifications
 /// `DownloadClient.kt`. iOS has no foreground-service model, so the Dart
 /// `DownloadManager` handles the actual HTTP download — this class only
 /// provides the download directory and drives a progress notification.
-final class DownloadClient: NSObject {
+final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
 
     private static let channelName = "dreamplayer/download"
     private static let notificationId = "dreamplayer_download"
     private static let notificationCategoryId = "download_progress"
+    private static let cancelActionId = "download_cancel"
 
     private var channel: FlutterMethodChannel?
     private var hasRequestedPermission = false
@@ -24,6 +25,11 @@ final class DownloadClient: NSObject {
         ch.setMethodCallHandler { call, result in
             client.handle(call, result: result)
         }
+        // Set ourselves as the notification center delegate so foreground
+        // notifications are shown and action taps are forwarded to Dart.
+        UNUserNotificationCenter.current().delegate = client
+        // Register the cancel action with the notification category.
+        client.registerNotificationCategories()
         // Ask for notification permission early (no-op if already granted).
         client.requestPermission()
     }
@@ -79,11 +85,56 @@ final class DownloadClient: NSObject {
 
     // MARK: - Notifications
 
+    private func registerNotificationCategories() {
+        let cancelAction = UNNotificationAction(
+            identifier: Self.cancelActionId,
+            title: "Cancel",
+            options: []
+        )
+        let category = UNNotificationCategory(
+            identifier: Self.notificationCategoryId,
+            actions: [cancelAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([category])
+    }
+
     private func requestPermission() {
         guard !hasRequestedPermission else { return }
         hasRequestedPermission = true
         let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            if !granted {
+                print("[DownloadClient] Notification permission denied")
+            }
+        }
+    }
+
+    // MARK: - UNUserNotificationCenterDelegate
+
+    /// Show notifications even when the app is in the foreground.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .badge])
+    }
+
+    /// Forward action taps (cancel) to the Dart DownloadManager.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.actionIdentifier == Self.cancelActionId {
+            let jobId = response.notification.request.content.userInfo["jobId"] as? String ?? ""
+            if !jobId.isEmpty {
+                channel?.invokeMethod("onCancelFromNotification", arguments: jobId)
+            }
+        }
+        completionHandler()
     }
 
     private func showNotification(title: String, bytesCopied: Int64, totalBytes: Int64, jobId: String) {
@@ -94,13 +145,12 @@ final class DownloadClient: NSObject {
         content.categoryIdentifier = Self.notificationCategoryId
 
         // Progress info for the notification extension (if ever added) + badge.
+        var userInfo: [String: Any] = ["jobId": jobId]
         if totalBytes > 0 {
             let progress = Float(bytesCopied) / Float(totalBytes)
-            content.userInfo = [
-                "progress": min(max(progress, 0), 1),
-                "jobId": jobId,
-            ]
+            userInfo["progress"] = min(max(progress, 0), 1)
         }
+        content.userInfo = userInfo
 
         let request = UNNotificationRequest(
             identifier: Self.notificationId,

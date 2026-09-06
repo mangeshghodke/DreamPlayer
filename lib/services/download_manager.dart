@@ -324,7 +324,10 @@ class DownloadManager extends ChangeNotifier {
         'bytesCopied': job.bytesCopied,
         'totalBytes': job.totalBytes,
       });
-    } catch (_) {}
+    } catch (e) {
+      // Log but don't swallow — helps debug missing iOS notifications.
+      debugPrint('[DownloadManager] updateNotification failed: $e');
+    }
   }
 
   /// Resolves an `smb://<serverId>/<share>/<path>` URI to a loopback HTTP URL
@@ -367,6 +370,7 @@ class DownloadManager extends ChangeNotifier {
     notifyListeners();
     final completer = Completer<void>();
     _activeCompleter = completer;
+    IOSink? sink;
     try {
       // SMB files go through the HTTP loopback proxy.
       String? loopbackUrl;
@@ -379,31 +383,66 @@ class DownloadManager extends ChangeNotifier {
       final client = HttpClient();
       client.badCertificateCallback = (cert, host, port) => job.allowSelfSigned;
       client.connectionTimeout = const Duration(seconds: 30);
+      client.idleTimeout = const Duration(minutes: 5);
+
+      // Try a HEAD request first to get Content-Length for the progress bar.
+      if (job.totalBytes <= 0) {
+        try {
+          final headReq = await client.headUrl(uri);
+          for (final e in job.httpHeaders.entries) {
+            headReq.headers.set(e.key, e.value);
+          }
+          final headRes = await headReq.close().timeout(const Duration(seconds: 10));
+          final len = headRes.contentLength;
+          if (len > 0) job.totalBytes = len;
+          await headRes.drain<void>();
+        } catch (_) {
+          // HEAD not supported or failed — proceed without totalBytes.
+        }
+      }
+
       final request = await client.getUrl(uri);
       for (final e in job.httpHeaders.entries) {
         request.headers.set(e.key, e.value);
       }
-      final response = await request.close();
+      final response = await request.close().timeout(
+        const Duration(seconds: 60),
+        onTimeout: () => throw Exception('Connection timed out'),
+      );
       if (response.statusCode != 200 && response.statusCode != 206) {
         throw HttpException('HTTP ${response.statusCode}');
       }
       final contentLength = response.contentLength;
       if (contentLength > 0) job.totalBytes = contentLength;
       final file = File(job.destPath);
-      final sink = file.openWrite();
+      sink = file.openWrite();
       int lastNotifyBytes = 0;
-      await for (final chunk in response) {
+      DateTime lastNotifyTime = DateTime.now();
+      // Emit an immediate update so the UI shows the downloading state + any
+      // totalBytes resolved from the HEAD request or server response.
+      await _updateNotification(job);
+      notifyListeners();
+      await for (final chunk in response.timeout(
+        const Duration(seconds: 60),
+        onTimeout: (_) => throw Exception('Download timed out — no data received for 60s'),
+      )) {
         if (completer.isCompleted) break;
         sink.add(chunk);
         job.bytesCopied += chunk.length;
-        if (job.bytesCopied - lastNotifyBytes > 256 * 1024) {
+        final now = DateTime.now();
+        // Update notification every 64 KB OR every 2 seconds — whichever
+        // comes first — so slow connections still show progress.
+        if (job.bytesCopied - lastNotifyBytes > 64 * 1024 ||
+            now.difference(lastNotifyTime).inSeconds >= 2) {
           lastNotifyBytes = job.bytesCopied;
+          lastNotifyTime = now;
           await _updateNotification(job);
           notifyListeners();
         }
       }
       await sink.flush();
       await sink.close();
+      sink = null;
       if (completer.isCompleted) {
         try {
           file.deleteSync();
@@ -419,11 +458,17 @@ class DownloadManager extends ChangeNotifier {
       if (!completer.isCompleted) {
         job.status = DownloadStatus.failed;
         job.error = e.toString();
+        debugPrint('[DownloadManager] download failed: $e');
         try {
           await _channel.invokeMethod('stopService');
         } catch (_) {}
       }
     } finally {
+      // Ensure sink is always closed to avoid file handle leaks.
+      try {
+        await sink?.flush();
+        await sink?.close();
+      } catch (_) {}
       await _stopSmbLoopback(job);
       await _save();
       notifyListeners();
