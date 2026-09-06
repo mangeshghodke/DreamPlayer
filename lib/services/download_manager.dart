@@ -164,11 +164,19 @@ class DownloadManager extends ChangeNotifier {
       if (rk.startsWith('smb:')) {
         // Convert "smb:<serverId>/<share>/<path>" → "smb://<serverId>/<share>/<path>"
         sourceUri = 'smb://${rk.substring(4)}';
+      } else if (rk.startsWith('folderbookmark:')) {
+        // iOS Files-app bookmarked folder — file is already local.
+        // Copy directly instead of downloading over HTTP.
+        await _copyLocalFile(video, dir);
+        return;
       } else {
         sourceUri = video.path ?? video.uri ?? '';
       }
     } else {
       sourceUri = video.uri ?? '';
+    }
+    if (sourceUri.isEmpty) {
+      throw Exception('Invalid URI — cannot download this source');
     }
     final ext = _extension(video.title, video.uri);
     final safeName = _safeFileName(video.title);
@@ -240,6 +248,61 @@ class DownloadManager extends ChangeNotifier {
         .firstOrNull;
     if (job != null && File(job.destPath).existsSync()) return job.destPath;
     return null;
+  }
+
+  /// For iOS Files-app bookmarked folders, the file is already accessible
+  /// locally. Copy it to the download directory instead of downloading over HTTP.
+  Future<void> _copyLocalFile(VideoItem video, String dir) async {
+    final id = _jobId(video);
+    final safeName = _safeFileName(video.title);
+    final ext = _extension(video.title, video.uri);
+    final destPath = '$dir/$safeName$ext';
+    final job = DownloadJob(
+      id: id,
+      title: video.title,
+      sourceUri: video.path ?? video.uri ?? '',
+      sourceType: 'local',
+      totalBytes: video.sizeBytes ?? -1,
+      destPath: destPath,
+    );
+    downloads.insert(0, job);
+    await _save();
+    notifyListeners();
+
+    job.status = DownloadStatus.downloading;
+    notifyListeners();
+    try {
+      // On iOS, resolve the security-scoped bookmark to get a readable path.
+      final resolvedPath = await _channel.invokeMethod<String>(
+        'resolveLocalPath',
+        {'uri': video.uri ?? '', 'path': video.path ?? ''},
+      );
+      final srcPath = resolvedPath ?? video.path;
+      if (srcPath == null || srcPath.isEmpty) {
+        throw Exception('Could not resolve local file path');
+      }
+      final srcFile = File(srcPath);
+      if (!srcFile.existsSync()) {
+        throw Exception('Source file not found');
+      }
+      job.totalBytes = await srcFile.length();
+      await srcFile.copy(destPath);
+      job.bytesCopied = job.totalBytes;
+      job.status = DownloadStatus.completed;
+      await _updateNotification(job);
+      try {
+        await _channel.invokeMethod('stopService');
+      } catch (_) {}
+    } catch (e) {
+      job.status = DownloadStatus.failed;
+      job.error = e.toString();
+      try {
+        await _channel.invokeMethod('stopService');
+      } catch (_) {}
+    } finally {
+      await _save();
+      notifyListeners();
+    }
   }
 
   // -- private --

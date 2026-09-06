@@ -52,6 +52,14 @@ final class DownloadClient: NSObject {
         case "stopService":
             removeNotification()
             result(true)
+        case "resolveLocalPath":
+            let uri = args?["uri"] as? String ?? ""
+            let path = args?["path"] as? String ?? ""
+            if let resolved = resolveLocalPath(uri: uri, path: path) {
+                result(resolved)
+            } else {
+                result(nil)
+            }
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -138,5 +146,22 @@ final class DownloadClient: NSObject {
 
     private func byteCount(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    /// Resolves a local file URI/path to a readable file path.
+    /// For `file://` URIs from the Files app, this returns the path directly.
+    private func resolveLocalPath(uri: String, path: String) -> String? {
+        // Try the path first (already a filesystem path).
+        if !path.isEmpty && FileManager.default.fileExists(atPath: path) {
+            return path
+        }
+        // Try the URI (may be a file:// URL).
+        if !uri.isEmpty, let url = URL(string: uri) {
+            let filePath = url.path
+            if FileManager.default.fileExists(atPath: filePath) {
+                return filePath
+            }
+        }
+        return nil
     }
 }

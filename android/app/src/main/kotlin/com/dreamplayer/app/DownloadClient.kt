@@ -2,7 +2,9 @@ package com.dreamplayer.app
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Environment
+import android.provider.DocumentsContract
 import androidx.core.content.ContextCompat
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -49,8 +51,43 @@ class DownloadClient(private val context: Context) {
                     DownloadService.stop()
                     result.success(true)
                 }
+                "resolveLocalPath" -> {
+                    val uri = call.argument<String>("uri") ?: ""
+                    val path = call.argument<String>("path") ?: ""
+                    result.success(resolveLocalPath(uri, path))
+                }
                 else -> result.notImplemented()
             }
         }
+    }
+
+    private fun resolveLocalPath(uriStr: String, path: String): String? {
+        // Plain filesystem path.
+        if (path.isNotEmpty() && File(path).exists()) return path
+        // content:// URI — resolve via DocumentsContract.
+        if (uriStr.isNotEmpty()) {
+            try {
+                val uri = Uri.parse(uriStr)
+                if (uri.scheme == "content") {
+                    // Try to get the real file path from the document ID.
+                    val docId = DocumentsContract.getDocumentId(uri)
+                    if (docId.startsWith("primary:")) {
+                        val rel = docId.removePrefix("primary:")
+                        val file = File(Environment.getExternalStorageDirectory(), rel)
+                        if (file.exists()) return file.absolutePath
+                    }
+                    // For other providers, copy to a temp file via ContentResolver.
+                    val tmpFile = File(context.cacheDir, "dl_resolve.tmp")
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        tmpFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    if (tmpFile.exists()) return tmpFile.absolutePath
+                } else if (uri.scheme == "file") {
+                    val file = File(uri.path ?: "")
+                    if (file.exists()) return file.absolutePath
+                }
+            } catch (_: Exception) {}
+        }
+        return null
     }
 }
