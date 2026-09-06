@@ -104,6 +104,30 @@ class MainActivity : FlutterActivity() {
                     "getInitialIntent" -> {
                         result.success(intentPayload(intent))
                     }
+                    "launchExternalPlayer" -> {
+                        val uriStr = call.argument<String>("uri")
+                        val title = call.argument<String>("title")
+                        if (uriStr.isNullOrBlank()) {
+                            result.error("NO_URI", "No URI provided", null)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            val uri = Uri.parse(uriStr)
+                            val launchIntent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, "video/*")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                if (!title.isNullOrBlank()) {
+                                    putExtra(Intent.EXTRA_TITLE, title)
+                                }
+                            }
+                            startActivity(launchIntent)
+                            result.success(true)
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            result.error("NO_PLAYER", "No video player app found", null)
+                        } catch (e: Exception) {
+                            result.error("LAUNCH_FAILED", e.message, null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }

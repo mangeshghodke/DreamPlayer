@@ -109,4 +109,24 @@ class OpenIntentService {
       _controller.add(intent);
     }
   }
+
+  /// Launches an external video player app via ACTION_VIEW intent.
+  /// Returns true on success, throws on failure.
+  static Future<bool> launchExternalPlayer({
+    required String uri,
+    String? title,
+  }) async {
+    try {
+      final result = await _channel.invokeMethod<bool>(
+        'launchExternalPlayer',
+        {'uri': uri, 'title': title},
+      );
+      return result ?? false;
+    } on PlatformException catch (e) {
+      if (e.code == 'NO_PLAYER') {
+        throw Exception('No video player app found on this device');
+      }
+      throw Exception('Could not open external player: ${e.message}');
+    }
+  }
 }

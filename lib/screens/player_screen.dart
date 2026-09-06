@@ -33,6 +33,7 @@ import '../services/mpv_pip.dart';
 import '../services/subtitle_style.dart';
 import '../services/downloaded_subtitles_store.dart';
 import '../services/opensubtitles_client.dart';
+import '../services/open_intent.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
 import '../services/system_controls.dart';
@@ -657,6 +658,30 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// the details screen offers both engines up front.
   void _setTerminalError(String message) {
     if (mounted) setState(() => _error = message);
+  }
+
+  /// Opens the video in an external player app (VLC, SVPlayer, etc.) via
+  /// Android ACTION_VIEW intent. The URI is passed as-is (file://, content://,
+  /// http://, smb://, etc.) — the system picks a player that can handle it.
+  Future<void> _openInExternalPlayer() async {
+    final video = _current;
+    final uri = video.uri ?? video.path;
+    if (uri == null || uri.isEmpty) return;
+    try {
+      await OpenIntentService.launchExternalPlayer(
+        uri: uri,
+        title: video.title,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   /// Starts the libmpv engine as the user's chosen PRIMARY player (details
@@ -5258,7 +5283,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   const SizedBox(height: 20),
                                   // Retry reopens the file with Media3;
                                   // "Try with MPV" switches engines.
-                                  Row(
+                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       OutlinedButton.icon(
@@ -5295,6 +5320,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                                       ],
                                     ],
                                   ),
+                                  const SizedBox(height: 12),
+                                  if (Platform.isAndroid)
+                                    OutlinedButton.icon(
+                                      onPressed: () => _openInExternalPlayer(),
+                                      icon: const Icon(Icons.open_in_new),
+                                      label: const Text('Open in external player'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.white70,
+                                        side: const BorderSide(
+                                            color: Colors.white24),
+                                      ),
+                                    ),
                                 ],
                               ),
                             )
