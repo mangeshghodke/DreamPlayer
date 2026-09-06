@@ -294,10 +294,11 @@ class DownloadManager extends ChangeNotifier {
       }
       job.totalBytes = await srcFile.length();
 
-      // Chunked copy with progress — File.copy() is blocking with no updates.
+      // Chunked async copy with progress — sync I/O blocks the event loop
+      // and causes UI stutter.
       const chunkSize = 256 * 1024; // 256 KB
-      final raf = srcFile.openSync(mode: FileMode.read);
-      final sink = File(destPath).openSync(mode: FileMode.write);
+      final raf = await srcFile.open(mode: FileMode.read);
+      final sink = await File(destPath).open(mode: FileMode.write);
       final total = job.totalBytes;
       int copied = 0;
       DateTime lastNotifyTime = DateTime.now();
@@ -305,22 +306,23 @@ class DownloadManager extends ChangeNotifier {
         while (copied < total) {
           final remaining = total - copied;
           final toRead = remaining < chunkSize ? remaining : chunkSize;
-          final chunk = raf.readSync(toRead);
-          sink.writeFromSync(chunk);
+          final chunk = await raf.read(toRead);
+          await sink.writeFrom(chunk);
           copied += chunk.length;
           job.bytesCopied = copied;
-          // Update UI every 256 KB / 1 s.
+          // Yield to the event loop + update UI every 256 KB / 1 s.
           final now = DateTime.now();
-          if (copied - (job.bytesCopied - chunk.length) >= 256 * 1024 ||
-              now.difference(lastNotifyTime).inSeconds >= 1) {
+          if (now.difference(lastNotifyTime).inSeconds >= 1) {
             lastNotifyTime = now;
             await _updateNotification(job);
             notifyListeners();
           }
+          // Yield even when not updating — keeps the UI responsive.
+          await Future<void>.delayed(Duration.zero);
         }
       } finally {
-        raf.closeSync();
-        sink.closeSync();
+        await raf.close();
+        await sink.close();
       }
       job.bytesCopied = job.totalBytes;
       job.status = DownloadStatus.completed;
