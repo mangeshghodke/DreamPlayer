@@ -1454,7 +1454,7 @@ class TmdService extends ChangeNotifier {
   Future<TmdMeta?> resolveFolder(String metadataKey, String folderName) async {
     await ensureLoaded();
     final cached = _cache[metadataKey];
-    if (cached != null) return cached;
+    if (cached != null && cached.folderSeason != null) return cached;
     final inFlight = _pending[metadataKey];
     if (inFlight != null) return inFlight;
 

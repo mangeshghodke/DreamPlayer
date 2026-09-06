@@ -454,8 +454,13 @@ class _SmbScreenState extends State<SmbScreen> {
     final metadataKey = 'smb_folder:${server.id}/$_share/$cleanPath';
 
     // Resolve from cache or search TMDB.
-    var meta = service.metaFor(metadataKey) ??
-        await service.resolveFolder(metadataKey, folderName);
+    // Re-resolve when folderSeason is null (stale cache from before season-detection fix).
+    var meta = service.metaFor(metadataKey);
+    if (meta != null && meta.folderSeason != null) {
+      // Cache hit with season data — use it.
+    } else {
+      meta = await service.resolveFolder(metadataKey, folderName);
+    }
 
     if (!mounted) return;
     if (meta == null) {

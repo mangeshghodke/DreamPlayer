@@ -272,7 +272,8 @@ class _HomeScreenState extends State<HomeScreen>
     await service.ensureLoaded();
     for (final folder in folders) {
       final key = folder.metadataKey;
-      if (service.metaFor(key) == null) {
+      final existing = service.metaFor(key);
+      if (existing == null || existing.folderSeason == null) {
         try {
           await service.resolveFolder(key, folder.name);
         } catch (_) {
