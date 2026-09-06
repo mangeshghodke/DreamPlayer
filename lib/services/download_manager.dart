@@ -278,6 +278,8 @@ class DownloadManager extends ChangeNotifier {
     job.status = DownloadStatus.downloading;
     await _startForeground(job);
     notifyListeners();
+    final completer = Completer<void>();
+    _activeCompleter = completer;
     try {
       // On iOS, resolve the security-scoped bookmark to get a readable path.
       final resolvedPath = await _channel.invokeMethod<String>(
@@ -304,6 +306,7 @@ class DownloadManager extends ChangeNotifier {
       DateTime lastNotifyTime = DateTime.now();
       try {
         while (copied < total) {
+          if (completer.isCompleted) break;
           final remaining = total - copied;
           final toRead = remaining < chunkSize ? remaining : chunkSize;
           final chunk = await raf.read(toRead);
@@ -323,6 +326,11 @@ class DownloadManager extends ChangeNotifier {
       } finally {
         await raf.close();
         await sink.close();
+      }
+      if (completer.isCompleted) {
+        // Cancelled — delete partial file.
+        try { File(destPath).deleteSync(); } catch (_) {}
+        return;
       }
       job.bytesCopied = job.totalBytes;
       job.status = DownloadStatus.completed;
