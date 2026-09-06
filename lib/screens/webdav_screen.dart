@@ -233,6 +233,10 @@ class _WebDavScreenState extends State<WebDavScreen> {
       if (s > 0) seasonsNeeded.add(s);
     }
     if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
+    // Anime bracket numbering — default to season 1.
+    if (seasonsNeeded.isEmpty && episodes.isNotEmpty) {
+      seasonsNeeded.add(1);
+    }
     for (final season in seasonsNeeded) {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;

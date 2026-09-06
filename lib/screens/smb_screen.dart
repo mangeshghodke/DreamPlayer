@@ -493,6 +493,12 @@ class _SmbScreenState extends State<SmbScreen> {
     if (seasonsNeeded.isEmpty && hasSequentialNumbering) {
       seasonsNeeded.add(1);
     }
+    // Anime bracket numbering ([01]/[02]) — parsed seasons are all 0 and
+    // folderSeason may be null. Always fetch season 1 so episode stills
+    // resolve to the first (only) season on TMDB.
+    if (seasonsNeeded.isEmpty && episodes.isNotEmpty) {
+      seasonsNeeded.add(1);
+    }
     for (final season in seasonsNeeded) {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;
@@ -1247,11 +1253,16 @@ class _SmbScreenState extends State<SmbScreen> {
     // Fetch season data.
     final videoEntries = _entries.where((e) => !e.isDirectory).toList();
     final episodes = videoEntries.where(_isEpisodeEntry).toList();
-    final seasonsNeeded = episodes
-        .map((e) => ParsedFileName.parse(e.name).season)
-        .where((s) => s > 0)
-        .toSet()
-        .toList();
+    final seasonsNeeded = <int>{};
+    for (final e in episodes) {
+      final s = ParsedFileName.parse(e.name).season;
+      if (s > 0) seasonsNeeded.add(s);
+    }
+    if (meta?.folderSeason != null) seasonsNeeded.add(meta!.folderSeason!);
+    // Anime bracket numbering — default to season 1.
+    if (seasonsNeeded.isEmpty && episodes.isNotEmpty) {
+      seasonsNeeded.add(1);
+    }
     for (final season in seasonsNeeded) {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;

@@ -263,6 +263,12 @@ class _FolderScreenState extends State<FolderScreen> {
     // fetch that season's data even if parsed seasons are all 0 (anime [01]).
     if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
     if (seasonsNeeded.isEmpty && hasSequential) seasonsNeeded.add(1);
+    // Anime bracket numbering ([01]/[02]) — parsed seasons are all 0 and
+    // folderSeason may be null. Always fetch season 1 so episode stills
+    // resolve to the first (only) season on TMDB.
+    if (seasonsNeeded.isEmpty && episodeNames.isNotEmpty) {
+      seasonsNeeded.add(1);
+    }
     for (final season in seasonsNeeded) {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;

@@ -659,6 +659,45 @@ Run DreamPlayer on an Android TV box/panel as a real 10-foot app. **Status: Phas
 
 **Out of scope for v1**: AirPlay/DLNA casting, CEC control, live-TV tuner, Play Store/TV certification (leanback banner, `android.app.leanbacklauncher`), Android TV-specific recommendations UI.
 
+### Issue #6 — User-requested improvements (phased)
+
+Source: https://github.com/mangeshghodke/DreamPlayer/issues/6
+
+**Phase 1 — Global engine preference + auto-fallback** (DONE 2026-09)
+- Settings → Player → "Default playback engine" (Media3 / libmpv / Ask every time / Auto)
+- Auto-fallback: when Media3 reaches a terminal error, automatically tries libmpv
+- libmpv purple screen fix (`target-colorspace-hint=yes`, `force-rgb-colorspace=yes`)
+- Resume across engines: per-engine resume keys (`resume_pos_ms_media3:<key>` / `resume_pos_ms_mpv:<key>`)
+- `LastEngineStore` tracks which engine last played each video
+- `DefaultEngineStore` persists the user's preference
+
+**Phase 2 — Library improvements (Flux-style)** (REVERTED — do later)
+- Cross-folder series detection (`SeriesGroupingService`): Strike the Blood I/II/III/IV → one card
+- Live Action vs anime TMDB disambiguation (`ParsedFileName.liveAction` flag)
+- Hierarchical Series → Seasons → Episodes view (`SeriesSeasonsScreen`)
+- Per-episode TMDB still thumbnails
+- **Status**: Reverted because grouping didn't work properly on device. Revisit after Phase 3.
+
+**Phase 3 — Per-episode TMDB stills** (IN PROGRESS)
+- When a TV folder is detected, fetch season data via `TmdService.seasonFor()`
+- Use `TmdEpisode.stillUrl()` for episode thumbnails in browse screens
+- Fall back to show poster when no episode still exists
+- Apply to: folder_screen.dart, smb_screen.dart, webdav_screen.dart, jellyfin_screen.dart, ftp_screen.dart, upnp_screen.dart
+- **Status**: Fixing the bug where season data wasn't being fetched
+
+**Phase 4 — External player handoff** (NOT STARTED)
+- When both Media3 and libmpv fail, offer "Open in external player" option
+- Support SVPlayer, VLC, and other players that handle `content://` / `file://` / `smb://` URIs
+- Intent-based handoff via `ACTION_VIEW` with video MIME types
+- Android only (iOS has no external player intent system)
+
+**Phase 5 — Download to device** (NOT STARTED)
+- Download video files from any network source (SMB, WebDAV, FTP, Jellyfin, UPnP) to local storage
+- Foreground service with progress notification
+- Download screen accessible from player ⋮ sheet and Settings
+- Downloaded files appear in home grid with "downloaded" badge
+- See "Player feature backlog" item 3 for full architecture
+
 ### Player feature backlog (prioritized 2026-09)
 
 1. Android release signing (deferred — see CI/Deployment).
