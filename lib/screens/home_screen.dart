@@ -742,6 +742,10 @@ class _HomeScreenState extends State<HomeScreen>
     final completed = mgr.downloads
         .where((j) => j.status == DownloadStatus.completed)
         .toList();
+    final failed = mgr.downloads
+        .where((j) => j.status == DownloadStatus.failed ||
+            j.status == DownloadStatus.cancelled)
+        .toList();
     return Drawer(
       backgroundColor: theme.colorScheme.surface,
       child: SafeArea(
@@ -829,7 +833,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
-            if (completed.isEmpty && active.isEmpty)
+            if (completed.isEmpty && active.isEmpty && failed.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
                 child: Text(
@@ -839,7 +843,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
               )
-            else if (completed.isEmpty)
+            else if (completed.isEmpty && failed.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Text(
@@ -851,12 +855,11 @@ class _HomeScreenState extends State<HomeScreen>
               )
             else
               Expanded(
-                child: ListView.builder(
+                child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  itemCount: completed.length,
-                  itemBuilder: (ctx, i) {
-                    final job = completed[i];
-                    return ListTile(
+                  children: [
+                    // Completed downloads.
+                    ...completed.map((job) => ListTile(
                       leading: Container(
                         width: 36,
                         height: 36,
@@ -883,11 +886,45 @@ class _HomeScreenState extends State<HomeScreen>
                         onPressed: () => _confirmDeleteDownload(job),
                       ),
                       onTap: () {
-                        Navigator.of(ctx).pop();
+                        Navigator.of(context).pop();
                         _playDownload(job);
                       },
-                    );
-                  },
+                    )),
+                    // Failed / cancelled downloads.
+                    ...failed.map((job) => ListTile(
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          job.status == DownloadStatus.cancelled
+                              ? Icons.cancel
+                              : Icons.error,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        job.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      subtitle: Text(
+                        job.status == DownloadStatus.cancelled ? 'Cancelled' : 'Failed',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.orange,
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete_outline, color: theme.colorScheme.onSurfaceVariant, size: 20),
+                        onPressed: () => mgr.deleteDownload(job.id),
+                      ),
+                    )),
+                  ],
                 ),
               ),
           ],

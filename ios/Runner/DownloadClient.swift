@@ -115,7 +115,8 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .badge])
+        // .list = persist in Notification Center, .banner = show as banner.
+        completionHandler([.list, .banner, .badge])
     }
 
     /// Forward cancel-action taps to the Dart DownloadManager.
