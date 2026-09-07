@@ -7,6 +7,30 @@ import Flutter
 import MediaPlayer
 import UIKit
 
+/// Wrapper view around AetherEngine's `AetherPlayerView`. Forces the engine's
+/// internal `AVPlayerLayer` to relayout when Flutter resizes the platform view
+/// (e.g. after device unlock / rotation). Without this, the `AVPlayerLayer`
+/// keeps its initial frame and the video appears stretched until the next
+/// explicit layout pass.
+private final class PlayerContainerView: UIView {
+    /// The engine view whose sublayers need relayout on bounds change.
+    var engineView: UIView? {
+        didSet {
+            guard let v = engineView else { return }
+            addSubview(v)
+            v.translatesAutoresizingMaskIntoConstraints = true
+            v.frame = bounds
+            v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // Force AetherEngine's internal AVPlayerLayer to match the new bounds.
+        engineView?.layer.layoutSublayers()
+    }
+}
+
 /// Subtitle overlay drawn by the host (AetherEngine decodes cues into
 /// `engine.$subtitleCues`; the engine's `AetherPlayerView` does not paint them).
 /// Text and bitmap cues are positioned against the aspect-fit video rect, and
@@ -222,7 +246,8 @@ final class AvPlayerViewFactory: NSObject, FlutterPlatformViewFactory {
 @MainActor
 final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
-    private let container: AetherPlayerView
+    private let container: PlayerContainerView
+    private let engineView: AetherPlayerView
     private let subtitleOverlay: SubtitleOverlayView
     private let engine: AetherEngine?
 
@@ -323,7 +348,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     
 
     init(messenger: FlutterBinaryMessenger, viewId: Int64, frame: CGRect) {
-        container = AetherPlayerView(frame: frame)
+        let ev = AetherPlayerView(frame: frame)
+        engineView = ev
+        container = PlayerContainerView(frame: frame)
+        container.backgroundColor = .black
+        container.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        container.engineView = ev
         subtitleOverlay = SubtitleOverlayView(frame: container.bounds)
         subtitleOverlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         engine = try? AetherEngine()
@@ -331,12 +361,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         eventChannel = FlutterEventChannel(name: "dreamplayer/exo_events_\(viewId)", binaryMessenger: messenger)
         super.init()
 
-        container.backgroundColor = .black
-        container.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         container.addSubview(subtitleOverlay)
 
         if let engine {
-            engine.bind(view: container)
+            engine.bind(view: ev)
             observeEngine(engine)
         }
 
@@ -1006,16 +1034,16 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     }
 
     private func findPlayerLayer() -> AVPlayerLayer? {
-        if let layer = container.layer as? AVPlayerLayer { return layer }
-        return container.layer.sublayers?.lazy.compactMap { $0 as? AVPlayerLayer }.first
+        if let layer = engineView.layer as? AVPlayerLayer { return layer }
+        return engineView.layer.sublayers?.lazy.compactMap { $0 as? AVPlayerLayer }.first
     }
 
     /// Pinch-to-zoom crop: scales the video layer around its center. The
     /// `AVPlayerLayer` lives inside AetherEngine's `AetherPlayerView`; we scale
-    /// the container's layer so the video zooms without disturbing the engine's
-    /// own layout. Transient per session (reset to 1.0 on next open).
+    /// the engine view's layer so the video zooms without disturbing the
+    /// wrapper's own layout. Transient per session (reset to 1.0 on next open).
     private func setZoom(_ scale: CGFloat) {
-        container.layer.setAffineTransform(CGAffineTransform(scaleX: scale, y: scale))
+        engineView.layer.setAffineTransform(CGAffineTransform(scaleX: scale, y: scale))
     }
 
     // MARK: - Picture-in-picture
