@@ -47,6 +47,9 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
         switch call.method {
         case "getDownloadDir":
             result(downloadDirectory())
+        case "setDownloadDir":
+            let path = args?["path"] as? String ?? ""
+            result(setDownloadDir(path))
         case "startService":
             let title = args?["title"] as? String ?? "Download"
             let totalBytes = args?["totalBytes"] as? Int64 ?? -1
@@ -80,12 +83,29 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
     // MARK: - Directory
 
     private func downloadDirectory() -> String {
+        let custom = UserDefaults.standard.string(forKey: "dreamplayer.downloadDir")
+        if let custom = custom, !custom.isEmpty {
+            let dir = URL(fileURLWithPath: custom)
+            if !FileManager.default.fileExists(atPath: dir.path) {
+                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            }
+            return dir.path
+        }
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let dir = docs.appendingPathComponent("DreamPlayer")
         if !FileManager.default.fileExists(atPath: dir.path) {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
         return dir.path
+    }
+
+    private func setDownloadDir(_ path: String) -> String {
+        if path.isEmpty {
+            UserDefaults.standard.removeObject(forKey: "dreamplayer.downloadDir")
+        } else {
+            UserDefaults.standard.set(path, forKey: "dreamplayer.downloadDir")
+        }
+        return downloadDirectory()
     }
 
     // MARK: - Notifications

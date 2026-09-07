@@ -708,6 +708,21 @@ class _HomeScreenState extends State<HomeScreen>
                 },
               ),
             ],
+            // ---- Downloaded videos ----
+            if (_downloadedJobs.isNotEmpty) ...[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    AppLocalizations.of(context).homeDownloaded,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              _buildDownloadedGrid(theme),
+            ],
             // ---- Continue watching ----
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -976,7 +991,7 @@ class _HomeScreenState extends State<HomeScreen>
         backgroundColor: theme.colorScheme.surface,
         title: Text(AppLocalizations.of(context).homeRemoveDownload),
         content: Text(
-          'Delete "${job.title}" from your device?',
+          AppLocalizations.of(context).downloadDeleteConfirm(job.title),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
@@ -997,8 +1012,55 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Completed downloads whose local files still exist on disk.
+  List<DownloadJob> get _downloadedJobs => DownloadManager.instance.downloads
+      .where((j) => j.status == DownloadStatus.completed && File(j.destPath).existsSync())
+      .toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+  Widget _buildDownloadedGrid(ThemeData theme) {
+    final jobs = _downloadedJobs;
+    return _videoGridSliver(
+      count: jobs.length,
+      itemBuilder: (context, index) {
+        final job = jobs[index];
+        final video = VideoItem(
+          id: job.id,
+          title: job.title,
+          path: job.destPath,
+          duration: Duration.zero,
+          sizeBytes: job.totalBytes > 0 ? job.totalBytes : null,
+        );
+        return VideoCard(
+          key: ValueKey('dl_${job.id}'),
+          video: video,
+          subtitle: job.fileSizeLabel,
+          downloaded: true,
+          onTap: () => _playDownloaded(job),
+          onLongPress: () => _confirmDeleteDownload(job),
+        );
+      },
+    );
+  }
+
+  void _playDownloaded(DownloadJob job) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(
+          video: VideoItem(
+            id: job.id,
+            title: job.title,
+            path: job.destPath,
+            duration: Duration.zero,
+            sizeBytes: job.totalBytes > 0 ? job.totalBytes : null,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// A responsive grid of video cards (columns from the screen width), shared
-  /// by the "Continue watching" section.
+  /// by the "Continue watching" and "Downloaded" sections.
   Widget _videoGridSliver({
     required int count,
     required Widget Function(BuildContext, int) itemBuilder,

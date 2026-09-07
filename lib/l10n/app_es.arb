@@ -2106,5 +2106,17 @@
   "homeNothingYet": "Aún nada — toca + para empezar",
   "@homeNothingYet": {
     "description": "Translated key"
+  },
+  "homeDownloaded": "Descargados",
+  "@homeDownloaded": {
+    "description": "Translated key"
+  },
+  "downloadDeleteConfirm": "¿Eliminar \"{title}\" de tu dispositivo?",
+  "@downloadDeleteConfirm": {
+    "description": "Translated key"
+  },
+  "settingsDownloadFolder": "Carpeta de descargas",
+  "@settingsDownloadFolder": {
+    "description": "Translated key"
   }
 }

@@ -1611,4 +1611,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get homeNothingYet => '暂无视频 — 点击 + 开始';
+
+  @override
+  String get homeDownloaded => '已下载';
+
+  @override
+  String downloadDeleteConfirm(String title) {
+    return '从设备中删除「$title」？';
+  }
+
+  @override
+  String get settingsDownloadFolder => '下载文件夹';
 }

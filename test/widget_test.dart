@@ -15,7 +15,7 @@ void main() {
 
     expect(find.text('DreamPlayer'), findsOneWidget);
     expect(find.textContaining('Continue watching'), findsOneWidget);
-    expect(find.textContaining('Nothing yet'), findsOneWidget);
+    expect(find.textContaining('No videos yet'), findsOneWidget);
     expect(find.text('Library'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
   });

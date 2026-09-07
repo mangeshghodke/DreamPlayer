@@ -256,6 +256,18 @@ class DownloadManager extends ChangeNotifier {
     return null;
   }
 
+  /// Returns the current download directory path.
+  Future<String> getDownloadDir() async {
+    final dir = await _channel.invokeMethod<String>('getDownloadDir');
+    return dir ?? '';
+  }
+
+  /// Sets a custom download directory. Pass empty string to reset to default.
+  Future<String> setDownloadDir(String path) async {
+    final dir = await _channel.invokeMethod<String>('setDownloadDir', {'path': path});
+    return dir ?? '';
+  }
+
   /// For iOS Files-app bookmarked folders, the file is already accessible
   /// locally. Copy it to the download directory instead of downloading over HTTP.
   Future<void> _copyLocalFile(VideoItem video, String dir) async {

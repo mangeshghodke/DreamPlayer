@@ -2106,5 +2106,17 @@
   "homeNothingYet": "暂无视频 — 点击 + 开始",
   "@homeNothingYet": {
     "description": "Translated key"
+  },
+  "homeDownloaded": "已下载",
+  "@homeDownloaded": {
+    "description": "Translated key"
+  },
+  "downloadDeleteConfirm": "从设备中删除「{title}」？",
+  "@downloadDeleteConfirm": {
+    "description": "Translated key"
+  },
+  "settingsDownloadFolder": "下载文件夹",
+  "@settingsDownloadFolder": {
+    "description": "Translated key"
   }
 }

@@ -21,10 +21,35 @@ class DownloadClient(private val context: Context) {
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getDownloadDir" -> {
-                    val dir = File(
-                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                        "DreamPlayer",
-                    )
+                    val prefs = context.getSharedPreferences("flutter", Context.MODE_PRIVATE)
+                    val custom = prefs.getString("dreamplayer.downloadDir", null)
+                    val dir = if (custom != null && custom.isNotEmpty()) {
+                        File(custom)
+                    } else {
+                        File(
+                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                            "DreamPlayer",
+                        )
+                    }
+                    if (!dir.exists()) dir.mkdirs()
+                    result.success(dir.absolutePath)
+                }
+                "setDownloadDir" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    val prefs = context.getSharedPreferences("flutter", Context.MODE_PRIVATE)
+                    if (path.isEmpty()) {
+                        prefs.edit().remove("dreamplayer.downloadDir").apply()
+                    } else {
+                        prefs.edit().putString("dreamplayer.downloadDir", path).apply()
+                    }
+                    val dir = if (path.isEmpty()) {
+                        File(
+                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                            "DreamPlayer",
+                        )
+                    } else {
+                        File(path)
+                    }
                     if (!dir.exists()) dir.mkdirs()
                     result.success(dir.absolutePath)
                 }

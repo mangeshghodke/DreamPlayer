@@ -1620,4 +1620,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeNothingYet => 'No videos yet — tap + to begin';
+
+  @override
+  String get homeDownloaded => 'Downloaded';
+
+  @override
+  String downloadDeleteConfirm(String title) {
+    return 'Delete \"$title\" from your device?';
+  }
+
+  @override
+  String get settingsDownloadFolder => 'Download folder';
 }

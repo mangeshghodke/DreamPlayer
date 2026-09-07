@@ -19,6 +19,7 @@ class VideoCard extends StatefulWidget {
     this.progress,
     this.subtitle,
     this.tmdbMeta,
+    this.downloaded = false,
   });
 
   final VideoItem video;
@@ -33,6 +34,9 @@ class VideoCard extends StatefulWidget {
 
   /// TMDB metadata (poster/backdrop art, real title, year) when resolved.
   final TmdMeta? tmdbMeta;
+
+  /// Whether this video is downloaded locally.
+  final bool downloaded;
 
   @override
   State<VideoCard> createState() => _VideoCardState();
@@ -235,11 +239,20 @@ class _VideoCardState extends State<VideoCard> {
                                 background: _hdrColor(video.hdrFormat),
                               ),
                             ),
-                          if (video.resolution != null)
+                          if (video.resolution != null && !widget.downloaded)
                             Positioned(
                               top: 8,
                               right: 8,
                               child: _Badge(label: video.resolution!),
+                            ),
+                          if (widget.downloaded)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: _Badge(
+                                label: 'Downloaded',
+                                background: Colors.green.shade700,
+                              ),
                             ),
                           if (source != null)
                             Positioned(

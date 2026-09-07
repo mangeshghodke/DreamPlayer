@@ -3155,6 +3155,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No videos yet — tap + to begin'**
   String get homeNothingYet;
+
+  /// Downloaded videos section header
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get homeDownloaded;
+
+  /// Delete download confirmation message
+  ///
+  /// In en, this message translates to:
+  /// **'Delete \"{title}\" from your device?'**
+  String downloadDeleteConfirm(String title);
+
+  /// Download folder setting title
+  ///
+  /// In en, this message translates to:
+  /// **'Download folder'**
+  String get settingsDownloadFolder;
 }
 
 class _AppLocalizationsDelegate

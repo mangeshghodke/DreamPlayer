@@ -1622,4 +1622,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get homeNothingYet => 'Пока пусто — нажмите + чтобы начать';
+
+  @override
+  String get homeDownloaded => 'Загрузки';
+
+  @override
+  String downloadDeleteConfirm(String title) {
+    return 'Удалить \"$title\" с устройства?';
+  }
+
+  @override
+  String get settingsDownloadFolder => 'Папка загрузок';
 }

@@ -2106,5 +2106,17 @@
   "homeNothingYet": "Пока пусто — нажмите + чтобы начать",
   "@homeNothingYet": {
     "description": "Translated key"
+  },
+  "homeDownloaded": "Загрузки",
+  "@homeDownloaded": {
+    "description": "Translated key"
+  },
+  "downloadDeleteConfirm": "Удалить \"{title}\" с устройства?",
+  "@downloadDeleteConfirm": {
+    "description": "Translated key"
+  },
+  "settingsDownloadFolder": "Папка загрузок",
+  "@settingsDownloadFolder": {
+    "description": "Translated key"
   }
 }

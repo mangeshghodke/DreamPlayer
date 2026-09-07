@@ -1625,4 +1625,15 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get homeNothingYet => 'Aún nada — toca + para empezar';
+
+  @override
+  String get homeDownloaded => 'Descargados';
+
+  @override
+  String downloadDeleteConfirm(String title) {
+    return '¿Eliminar \"$title\" de tu dispositivo?';
+  }
+
+  @override
+  String get settingsDownloadFolder => 'Carpeta de descargas';
 }

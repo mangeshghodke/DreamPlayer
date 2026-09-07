@@ -2163,5 +2163,23 @@
   "homeNothingYet": "No videos yet — tap + to begin",
   "@homeNothingYet": {
     "description": "Empty continue watching message"
+  },
+  "homeDownloaded": "Downloaded",
+  "@homeDownloaded": {
+    "description": "Downloaded videos section header"
+  },
+  "downloadDeleteConfirm": "Delete \"{title}\" from your device?",
+  "@downloadDeleteConfirm": {
+    "description": "Delete download confirmation message",
+    "placeholders": {
+      "title": {
+        "type": "String",
+        "example": "My Movie"
+      }
+    }
+  },
+  "settingsDownloadFolder": "Download folder",
+  "@settingsDownloadFolder": {
+    "description": "Download folder setting title"
   }
 }

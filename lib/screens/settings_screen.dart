@@ -10,6 +10,7 @@ import '../services/badge_prefs.dart';
 import '../services/cache_cleaner.dart';
 import '../services/decoder_mode.dart';
 import '../services/default_engine_store.dart';
+import '../services/download_manager.dart';
 import '../services/exo_player.dart';
 import '../l10n/app_localizations.dart';
 import '../services/language_service.dart';
@@ -452,6 +453,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _refreshDiskSize();
   }
 
+  Future<void> _pickDownloadDir() async {
+    final current = await DownloadManager.instance.getDownloadDir();
+    final controller = TextEditingController(text: current);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppLocalizations.of(context).settingsDownloadFolder),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter the full path for downloaded files.',
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                controller.text = '';
+              },
+              child: const Text('Reset to default'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(AppLocalizations.of(context).commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(AppLocalizations.of(context).commonSave),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final path = controller.text.trim();
+    await DownloadManager.instance.setDownloadDir(path);
+    if (mounted) setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context).settingsDownloadFolder)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -533,6 +587,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           '${CacheCleaner.formatBytes(CacheCleaner.memoryBytes())} in memory',
               ),
               onTap: _clearCache,
+            ),
+            TvTile(
+              leading: const Icon(Icons.folder),
+              title: Text(AppLocalizations.of(context).settingsDownloadFolder),
+              subtitle: FutureBuilder<String>(
+                future: DownloadManager.instance.getDownloadDir(),
+                builder: (ctx, snap) {
+                  final dir = snap.data ?? '';
+                  final display = dir.replaceAll('/storage/emulated/0/', '/');
+                  return Text(display.isEmpty ? 'Default' : display);
+                },
+              ),
+              onTap: _pickDownloadDir,
             ),
             if (defaultTargetPlatform == TargetPlatform.android) ...[
               const Divider(),
