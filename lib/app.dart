@@ -77,6 +77,7 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> {
       listenable: LanguageService.instance,
       builder: (context, _) {
         return MaterialApp(
+          key: ValueKey('app-${LanguageService.instance.locale?.languageCode ?? 'system'}'),
           title: 'DreamPlayer',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.dark(),
