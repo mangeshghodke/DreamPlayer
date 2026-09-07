@@ -74,6 +74,11 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 - **SIMKL watched sync** — free unlimited watch-history sync (`simkl.com`); auto-pushes finished videos and syncs watched state across devices
 - **File browser** — browse device storage and play any video without importing
 
+### Localization
+- **English, Spanish, Chinese Simplified, Russian** — 504 translated strings across all 13 screens
+- **Auto-detect** device language on launch; optional **Settings → General → Language** override
+- Technical terms (codec names, HDR, Dolby Vision, etc.) stay English by design
+
 ### Movie Metadata (TMDB)
 - Every video opens a **details screen** with poster, backdrop, synopsis, rating, genres, runtime, and cast
 - Metadata auto-fetches in the background — rows show poster thumbnails before you tap
