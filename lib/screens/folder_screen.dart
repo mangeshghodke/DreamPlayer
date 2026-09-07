@@ -221,9 +221,14 @@ class _FolderScreenState extends State<FolderScreen> {
       return;
     }
 
-    // Series detected — fetch TMDB metadata for the folder.
-    final folderName = widget.folder.name;
-    final metadataKey = widget.folder.metadataKey;
+    // Series detected — fetch TMDB metadata for the current folder, not
+    // the root bookmark. When navigating into a subfolder, use its name.
+    final folderName = _atRoot
+        ? widget.folder.name
+        : (_currentPath.split('/').lastOrNull ?? widget.folder.name);
+    final metadataKey = _atRoot
+        ? widget.folder.metadataKey
+        : '${widget.folder.metadataKey}/$folderName';
 
     setState(() {
       _isSeriesFolder = true;
