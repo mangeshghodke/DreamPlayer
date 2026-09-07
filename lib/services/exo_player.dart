@@ -790,10 +790,16 @@ class ExoPlayerView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (Platform.isIOS) {
-      return UiKitView(
-        viewType: exoPlayerViewType,
-        onPlatformViewCreated: controller._attach,
-        creationParamsCodec: const StandardMessageCodec(),
+      // Wrap in SizedBox.expand so the platform view always fills its
+      // parent with tight constraints — prevents a stale loose-constraint
+      // layout after lock/unlock (the UiKitView frame lags behind
+      // Flutter's layout when the device wakes).
+      return SizedBox.expand(
+        child: UiKitView(
+          viewType: exoPlayerViewType,
+          onPlatformViewCreated: controller._attach,
+          creationParamsCodec: const StandardMessageCodec(),
+        ),
       );
     }
     // This platform view is the single playback surface on every platform:

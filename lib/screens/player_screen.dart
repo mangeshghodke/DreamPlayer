@@ -2241,6 +2241,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     // feature (Android) / background-audio mode (iOS). We only bookmark the
     // position above; on resume, media that the OS destroyed is reopened.
     if (state == AppLifecycleState.resumed) {
+      // Force a rebuild so Flutter recalculates the platform view's frame
+      // with the post-unlock screen dimensions — prevents the stretched /
+      // wrong-aspect-ratio flash on iOS when the device wakes.
+      if (mounted) setState(() {});
       _reopenAfterBackground();
     }
   }

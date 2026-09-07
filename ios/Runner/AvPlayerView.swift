@@ -332,6 +332,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         super.init()
 
         container.backgroundColor = .black
+        container.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         container.addSubview(subtitleOverlay)
 
         if let engine {
