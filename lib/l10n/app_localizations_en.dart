@@ -1619,5 +1619,5 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeTitle => 'DreamPlayer';
 
   @override
-  String get homeNothingYet => 'Nothing yet — open a file or connect a server';
+  String get homeNothingYet => 'No videos yet — tap + to begin';
 }

@@ -1621,6 +1621,5 @@ class AppLocalizationsRu extends AppLocalizations {
   String get homeTitle => 'DreamPlayer';
 
   @override
-  String get homeNothingYet =>
-      'Пока ничего — откройте файл или подключите сервер';
+  String get homeNothingYet => 'Пока пусто — нажмите + чтобы начать';
 }

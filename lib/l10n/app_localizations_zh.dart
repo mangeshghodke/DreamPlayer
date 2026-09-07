@@ -1610,5 +1610,5 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homeTitle => 'DreamPlayer';
 
   @override
-  String get homeNothingYet => '暂无内容 — 打开文件或连接服务器';
+  String get homeNothingYet => '暂无视频 — 点击 + 开始';
 }

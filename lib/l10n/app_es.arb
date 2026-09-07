@@ -2103,7 +2103,7 @@
   "@homeTitle": {
     "description": "Translated key"
   },
-  "homeNothingYet": "Nada aún — abre un archivo o conecta un servidor",
+  "homeNothingYet": "Aún nada — toca + para empezar",
   "@homeNothingYet": {
     "description": "Translated key"
   }

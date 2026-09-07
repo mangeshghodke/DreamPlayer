@@ -3153,7 +3153,7 @@ abstract class AppLocalizations {
   /// Empty continue watching message
   ///
   /// In en, this message translates to:
-  /// **'Nothing yet — open a file or connect a server'**
+  /// **'No videos yet — tap + to begin'**
   String get homeNothingYet;
 }
 

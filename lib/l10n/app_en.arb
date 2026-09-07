@@ -2160,7 +2160,7 @@
   "@homeTitle": {
     "description": "App title in drawer/header"
   },
-  "homeNothingYet": "Nothing yet — open a file or connect a server",
+  "homeNothingYet": "No videos yet — tap + to begin",
   "@homeNothingYet": {
     "description": "Empty continue watching message"
   }

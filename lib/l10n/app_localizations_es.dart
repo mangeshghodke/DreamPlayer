@@ -1624,6 +1624,5 @@ class AppLocalizationsEs extends AppLocalizations {
   String get homeTitle => 'DreamPlayer';
 
   @override
-  String get homeNothingYet =>
-      'Nada aún — abre un archivo o conecta un servidor';
+  String get homeNothingYet => 'Aún nada — toca + para empezar';
 }
