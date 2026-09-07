@@ -190,7 +190,8 @@ class _FolderScreenState extends State<FolderScreen> {
     final entries = _currentEntries;
     if (entries.isEmpty) return;
 
-    // Collect video files (non-directories) with their names.
+    // Count subfolders vs video files.
+    final hasSubfolders = entries.any(_isFolderEntry);
     final videoNames = <String>[];
     for (final e in entries) {
       if (_isFolderEntry(e)) continue;
@@ -211,11 +212,11 @@ class _FolderScreenState extends State<FolderScreen> {
       hasSequential = _hasSequentialNumbering(videoNames);
     }
 
-    // Only trigger series view when the folder actually looks like a series
-    // (episode tags or sequential numbering). A mixed folder with both
-    // subfolders and non-episode video files stays in the flat list so
-    // subfolders remain visible — _seriesFolderBody filters to episodes only.
-    if (episodeNames.isEmpty && !hasSequential) {
+    // If the folder has subfolders, stay in flat list — the user expects
+    // to navigate into subfolders (e.g. Season 1/, Season 2/) not see a
+    // series view that hides them. Series view only for flat folders
+    // whose video files have episode patterns or sequential numbering.
+    if (hasSubfolders || (episodeNames.isEmpty && !hasSequential)) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
       return;
     }
