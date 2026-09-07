@@ -150,6 +150,7 @@ class _FolderScreenState extends State<FolderScreen> {
       _seriesDetails = null;
       _isSeriesFolder = false;
       _loadingSeriesMeta = true;
+      _expandedSeasons.clear();
     });
     if (_isJellyfin) {
       await _loadJellyfin();
