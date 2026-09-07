@@ -11,6 +11,8 @@ import '../services/cache_cleaner.dart';
 import '../services/decoder_mode.dart';
 import '../services/default_engine_store.dart';
 import '../services/exo_player.dart';
+import '../l10n/app_localizations.dart';
+import '../services/language_service.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/subtitle_encodings.dart';
 import '../services/subtitle_languages.dart';
@@ -216,6 +218,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (picked != null) {
       await SubtitlePrefs.saveEncoding(picked);
       if (mounted) setState(() => _subEncoding = picked);
+    }
+  }
+
+  String _languageLabel(Locale? locale) {
+    if (locale == null) return 'System default';
+    final names = {'en': 'English', 'es': 'Spanish', 'zh': 'Chinese (Simplified)', 'ru': 'Russian'};
+    return names[locale.languageCode] ?? locale.languageCode;
+  }
+
+  Future<void> _pickAppLanguage(BuildContext context) async {
+    final current = LanguageService.instance.locale;
+    final picked = await showDialog<Locale?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Language'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              RadioListTile<Locale?>(
+                value: null,
+                groupValue: current,
+                onChanged: (v) => Navigator.pop(ctx, v),
+                title: const Text('System default'),
+              ),
+              for (final loc in AppLocalizations.supportedLocales)
+                RadioListTile<Locale?>(
+                  value: loc,
+                  groupValue: current,
+                  onChanged: (v) => Navigator.pop(ctx, v),
+                  title: Text(_languageLabel(loc)),
+                ),
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel'))],
+      ),
+    );
+    if (picked != null || (picked == null && current != null)) {
+      await LanguageService.instance.setLanguage(picked);
     }
   }
 
@@ -442,6 +485,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                 },
               ),
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'General',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ListenableBuilder(
+              listenable: LanguageService.instance,
+              builder: (context, _) => TvTile(
+                leading: const Icon(Icons.language),
+                title: const Text('Language'),
+                subtitle: Text(_languageLabel(LanguageService.instance.locale)),
+                onTap: () => _pickAppLanguage(context),
+              ),
+            ),
             const Divider(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),

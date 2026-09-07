@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app.dart' show appRouteObserver;
+import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/download_manager.dart';
@@ -103,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen>
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.movie_filter, size: 40),
-        title: const Text('Enable movie details?'),
+        title: Text(AppLocalizations.of(context).tmdbHintEnable),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen>
                 } catch (_) {}
               },
               icon: const Icon(Icons.open_in_new, size: 16),
-              label: const Text('Get a free TMDB API key'),
+              label: Text(AppLocalizations.of(context).tmdbGetKey),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 minimumSize: Size.zero,
@@ -141,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
+            child: Text(AppLocalizations.of(context).commonClose),
           ),
           FilledButton(
             onPressed: () {
@@ -155,14 +156,14 @@ class _HomeScreenState extends State<HomeScreen>
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => Scaffold(
-                      appBar: AppBar(title: const Text('Settings')),
+                      appBar: AppBar(title: Text(AppLocalizations.of(context).navSettings)),
                       body: const SettingsScreen(),
                     ),
                   ),
                 );
               });
             },
-            child: const Text('Open Settings'),
+            child: Text(AppLocalizations.of(context).tmdbOpenSettings),
           ),
         ],
       ),
@@ -376,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove from library?'),
+        title: Text(AppLocalizations.of(context).homeRemoveFromLibrary),
         content: Text(
           '"${folder.name}" will no longer appear here. '
           'The files stay on your device.',
@@ -384,11 +385,11 @@ class _HomeScreenState extends State<HomeScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Remove'),
+            child: Text(AppLocalizations.of(context).commonRemove),
           ),
         ],
       ),
@@ -439,12 +440,12 @@ class _HomeScreenState extends State<HomeScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove from Continue watching?'),
+        title: Text(AppLocalizations.of(context).homeRemoveFromContinue),
         content: Text('"${video.title}" will no longer appear here.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -973,7 +974,7 @@ class _HomeScreenState extends State<HomeScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        title: const Text('Remove download?'),
+        title: Text(AppLocalizations.of(context).homeRemoveDownload),
         content: Text(
           'Delete "${job.title}" from your device?',
           maxLines: 2,
@@ -989,7 +990,7 @@ class _HomeScreenState extends State<HomeScreen>
               Navigator.of(ctx).pop();
               DownloadManager.instance.deleteDownload(job.id);
             },
-            child: const Text('Delete'),
+            child: Text(AppLocalizations.of(context).commonDelete),
           ),
         ],
       ),
@@ -1131,7 +1132,7 @@ class _HomeScreenState extends State<HomeScreen>
                 // ── Local actions (always visible) ──
                 ListTile(
                   leading: const Icon(Icons.video_library_outlined),
-                  title: const Text('Add folder to library'),
+                  title: Text(AppLocalizations.of(context).homeAddFolder),
                   subtitle: const Text(
                     'A TV-show folder, a movie folder\u2026',
                   ),
@@ -1139,20 +1140,20 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
                 ListTile(
                   leading: const Icon(Icons.storage_outlined),
-                  title: const Text('Internal storage'),
-                  subtitle: const Text('Browse files on this device'),
+                  title: Text(AppLocalizations.of(context).homeInternalStorage),
+                  subtitle: Text(AppLocalizations.of(context).homeBrowseFiles),
                   onTap: () => Navigator.of(context).pop('storage'),
                 ),
                 const Divider(height: 1),
                 // ── Network sources (collapsed section) ──
                 ExpansionTile(
                   leading: const Icon(Icons.wifi_outlined),
-                  title: const Text('Network sources'),
+                  title: Text(AppLocalizations.of(context).homeNetworkSources),
                   subtitle: const Text('Servers on this network'),
                   children: [
                     ListTile(
                       leading: const Icon(Icons.folder_shared_outlined),
-                      title: const Text('SMB / NAS'),
+                      title: Text(AppLocalizations.of(context).homeSmbNas),
                       subtitle: Text(
                         Platform.isAndroid
                             ? 'SMB shares on the local network'
@@ -1165,31 +1166,31 @@ class _HomeScreenState extends State<HomeScreen>
                     ListTile(
                       leading: const Icon(Icons.cloud_outlined),
                       title: const Text('WebDAV'),
-                      subtitle: const Text('Add a WebDAV server'),
+                      subtitle: Text(AppLocalizations.of(context).homeAddWebdavServer),
                       onTap: () => Navigator.of(context).pop('webdav'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.folder_outlined),
                       title: const Text('FTP / SFTP'),
-                      subtitle: const Text('FTP or SFTP file server'),
+                      subtitle: Text(AppLocalizations.of(context).homeFtpOrSftp),
                       onTap: () => Navigator.of(context).pop('ftp'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.live_tv_outlined),
                       title: const Text('Jellyfin'),
-                      subtitle: const Text('Jellyfin / Emby media server'),
+                      subtitle: Text(AppLocalizations.of(context).homeJellyfinServer),
                       onTap: () => Navigator.of(context).pop('jellyfin'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.cast_connected_outlined),
                       title: const Text('DLNA'),
-                      subtitle: const Text('UPnP / DLNA servers on this network'),
+                      subtitle: Text(AppLocalizations.of(context).homeUpnpDlna),
                       onTap: () => Navigator.of(context).pop('upnp'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.link_outlined),
-                      title: const Text('Play URL'),
-                      subtitle: const Text('Stream a direct video link'),
+                      title: Text(AppLocalizations.of(context).homePlayUrl),
+                      subtitle: Text(AppLocalizations.of(context).homeStreamLink),
                       onTap: () => Navigator.of(context).pop('play-url'),
                     ),
                   ],
@@ -1278,7 +1279,7 @@ class _HomeScreenState extends State<HomeScreen>
           TextButton(
             onPressed: () =>
                 Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Play'),
+            child: Text(AppLocalizations.of(context).detailsPlay),
           ),
         ],
       ),
