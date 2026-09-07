@@ -256,6 +256,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// at open time so the network chip can gate between "Local" and a live
     /// speed (only http/https feed AVPlayerItemAccessLog).
     private var currentSourceScheme: String = ""
+
+    /// Set when the app enters background; cleared on foreground.
+    /// When play() is called while this is true, reload the session
+    /// instead of calling play() — iOS may have revoked file handles
+    /// (security-scoped bookmarks) or killed network connections during sleep.
+    private var needsReloadAfterBackground = false
     /// Final URL the engine was bound to (file URL for local paths, otherwise
     /// the same URL we handed to the engine). Reserved for the
     /// source-label / chapter-probe paths; the network telemetry is gone.
@@ -351,6 +357,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // open, ensurePipController simply won't create one.
         }
 
+        // Track background/foreground transitions so play() can reload
+        // instead of calling play() on a potentially dead source.
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in self?.needsReloadAfterBackground = true }
+
         methodChannel.setMethodCallHandler { [weak self] call, result in
             Task { @MainActor in
                 guard let self else {
@@ -366,6 +379,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // replay = reload the last source from the start.
                     if self.engine?.state == .ended {
                         await self.reloadSession(at: 0)
+                    } else if self.needsReloadAfterBackground {
+                        // iOS may have revoked security-scoped bookmark access
+                        // or killed network connections during a background/lock
+                        // period. Reload from the current position to
+                        // re-establish the source instead of calling play()
+                        // on a potentially dead stream.
+                        self.needsReloadAfterBackground = false
+                        let pos = self.engine?.currentTime ?? 0
+                        await self.reloadSession(at: pos)
                     } else {
                         self.engine?.play()
                     }
@@ -379,6 +401,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     if self.engine?.state == .ended {
                         // Pulling the scrubber back after end-of-media: reload at the
                         // requested position instead of seeking a parked session.
+                        await self.reloadSession(at: Double(ms) / 1000.0)
+                    } else if self.needsReloadAfterBackground {
+                        self.needsReloadAfterBackground = false
                         await self.reloadSession(at: Double(ms) / 1000.0)
                     } else {
                         await self.engine?.seek(to: Double(ms) / 1000.0)
@@ -575,6 +600,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             result(FlutterError(code: "engine_init", message: "AetherEngine failed to initialize", details: nil))
             return
         }
+        // New file is being opened — clear the background-reload flag so we
+        // don't immediately reload a freshly-opened source.
+        needsReloadAfterBackground = false
         let path = args?["path"] as? String
         let uri = args?["uri"] as? String
         let subtitleUri = args?["subtitleUri"] as? String
