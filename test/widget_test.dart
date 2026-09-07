@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dream_player/app.dart';
+import 'package:dream_player/l10n/app_localizations.dart';
 import 'package:dream_player/models/video_item.dart';
 import 'package:dream_player/screens/file_browser_screen.dart';
 import 'package:dream_player/screens/player_screen.dart';
@@ -106,9 +107,12 @@ void main() {
       audioProfile: 'MA',
       audioChannels: '5.1',
     );
-    await tester.pumpWidget(
-      const MaterialApp(home: PlayerScreen(video: video)),
-    );
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: PlayerScreen(video: video),
+    ));
 
     expect(find.byType(PlayerScreen), findsOneWidget);
     expect(find.byType(FormatChip), findsWidgets);

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
+import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
@@ -702,7 +702,7 @@ class _FolderScreenState extends State<FolderScreen> {
     if (!client.isConfigured) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('SIMKL not configured')),
+          SnackBar(content: Text(AppLocalizations.of(context).folderSimklNotConfigured)),
         );
       }
       return;
@@ -710,7 +710,7 @@ class _FolderScreenState extends State<FolderScreen> {
     if (!await client.isAuthenticated()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign in to SIMKL first')),
+          SnackBar(content: Text(AppLocalizations.of(context).folderSimklSignInFirst)),
         );
       }
       return;
@@ -817,7 +817,7 @@ class _FolderScreenState extends State<FolderScreen> {
             IconButton(
               tooltip: 'Mark watched from SIMKL',
               icon: _syncingSimkl
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
@@ -834,7 +834,7 @@ class _FolderScreenState extends State<FolderScreen> {
 
   Widget _body(BuildContext context) {
     if (_loading && _currentEntries.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
       return Center(
@@ -849,7 +849,7 @@ class _FolderScreenState extends State<FolderScreen> {
       return Column(
         children: [
           if (_atRoot) _header(context),
-          const Expanded(child: Center(child: Text('No videos or folders here'))),
+          Expanded(child: Center(child: Text(AppLocalizations.of(context).folderNoVideosHere))),
         ],
       );
     }
@@ -944,7 +944,7 @@ class _FolderScreenState extends State<FolderScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text(
                   '${episodes.length} ${episodes.length == 1 ? 'file' : 'files'}',
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -1045,7 +1045,7 @@ class _FolderScreenState extends State<FolderScreen> {
                             fontSize: 13,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Builder(builder: (context) {
                           final seasonList = seasonGroups[s]!;
                           final watched = sg.watchedCount(
@@ -1063,7 +1063,7 @@ class _FolderScreenState extends State<FolderScreen> {
                                 size: 28,
                                 strokeWidth: 2.5,
                               ),
-                              const SizedBox(width: 6),
+                              SizedBox(width: 6),
                               Text(
                                 sg.watchedBadge(watched, total),
                                 style: TextStyle(
@@ -1576,7 +1576,7 @@ class _FolderTile extends StatelessWidget {
                   ),
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
         ],
         Expanded(
           child: Text(
@@ -1589,9 +1589,9 @@ class _FolderTile extends StatelessWidget {
           ),
         ),
         if (episode != null && episode!.voteAverage > 0) ...[
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           const Icon(Icons.star, size: 13, color: Colors.amber),
-          const SizedBox(width: 2),
+          SizedBox(width: 2),
           Text(
             episode!.voteAverage.toStringAsFixed(1),
             style: TextStyle(
@@ -1739,7 +1739,7 @@ class _SeriesHeader extends StatelessWidget {
                       )
                     : _posterFallback(colorScheme),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1760,9 +1760,9 @@ class _SeriesHeader extends StatelessWidget {
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     _RatingBadge(rating: movie.voteAverage),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -1778,14 +1778,14 @@ class _SeriesHeader extends StatelessWidget {
             ],
           ),
           if (displayOverview.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Text(
               'Overview',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               displayOverview,
               maxLines: 6,
@@ -1794,27 +1794,27 @@ class _SeriesHeader extends StatelessWidget {
             ),
           ],
           if (details != null && details!.cast.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             _CastRow(cast: details!.cast),
           ],
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Wrap(
             spacing: 8,
             children: [
               TextButton(
                 onPressed: onFixMatch,
-                child: const Text('Fix match'),
+                child: Text(AppLocalizations.of(context).detailsFixMatch),
               ),
               TextButton(
                 onPressed: onRemoveInfo,
                 style: TextButton.styleFrom(
                   foregroundColor: theme.colorScheme.error,
                 ),
-                child: const Text('Remove info'),
+                child: Text(AppLocalizations.of(context).detailsRemoveInfo),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
         ],
       ),
     );
@@ -1865,7 +1865,7 @@ class _FolderSeasonExpansion extends StatelessWidget {
                     size: 28,
                     strokeWidth: 2.5,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       label,
@@ -1880,7 +1880,7 @@ class _FolderSeasonExpansion extends StatelessWidget {
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   Icon(
                     expanded ? Icons.expand_less : Icons.expand_more,
                     color: colorScheme.onSurfaceVariant,
@@ -1980,7 +1980,7 @@ class _FolderSearchDialogState extends State<_FolderSearchDialog> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return AlertDialog(
-      title: const Text('Get Info'),
+      title: Text(AppLocalizations.of(context).detailsGetInfo),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -1990,23 +1990,23 @@ class _FolderSearchDialogState extends State<_FolderSearchDialog> {
               controller: _controller,
               autofocus: true,
               onSubmitted: (_) => _search(),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Search title',
                 prefixIcon: Icon(Icons.search),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             SegmentedButton<TmdKind>(
-              segments: const [
-                ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
-                ButtonSegment(value: TmdKind.movie, label: Text('Movie')),
+              segments: [
+                ButtonSegment(value: TmdKind.tv, label: Text(AppLocalizations.of(context).detailsTvSeries)),
+                ButtonSegment(value: TmdKind.movie, label: Text(AppLocalizations.of(context).detailsMovie)),
               ],
               selected: {_kind},
               onSelectionChanged: (sel) => setState(() => _kind = sel.first),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             if (_searching)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.all(16),
                 child: Center(child: CircularProgressIndicator()),
               )
@@ -2030,9 +2030,9 @@ class _FolderSearchDialogState extends State<_FolderSearchDialog> {
               )
             else if (_results != null)
               if (_results!.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('No results. Try a different title.'),
+                  child: Text(AppLocalizations.of(context).detailsNoResults),
                 )
               else
                 Flexible(
@@ -2072,7 +2072,7 @@ class _FolderSearchDialogState extends State<_FolderSearchDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ],
     );
@@ -2098,7 +2098,7 @@ class _RatingBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.star, size: 14, color: Colors.amber),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             rating.toStringAsFixed(1),
             style: TextStyle(
@@ -2162,13 +2162,13 @@ class _CastRow extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         SizedBox(
           height: 130,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: cast.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            separatorBuilder: (_, _) => SizedBox(width: 12),
             itemBuilder: (context, index) {
               final member = cast[index];
               return SizedBox(
@@ -2188,7 +2188,7 @@ class _CastRow extends StatelessWidget {
                             )
                           : _avatarFallback(colorScheme, member.name),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Text(
                       member.name,
                       style: theme.textTheme.bodySmall?.copyWith(

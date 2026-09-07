@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:dream_player/l10n/app_localizations.dart';
 import 'package:dream_player/screens/ftp_screen.dart';
 import 'package:dream_player/screens/webdav_screen.dart';
 
@@ -22,7 +23,12 @@ void main() {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MaterialApp(home: screen));
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: screen,
+    ));
     await tester.pump(const Duration(milliseconds: 300));
     final add = find.byTooltip('Add server');
     expect(add, findsOneWidget, reason: 'Add-server FAB not shown');

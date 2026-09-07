@@ -1938,5 +1938,210 @@
         "type": "String"
       }
     }
+  },
+  "settingsSubtitleEncoding": "Subtitle encoding",
+  "@settingsSubtitleEncoding": {
+    "description": "Settings subtitle encoding title"
+  },
+  "settingsLanguage": "Language",
+  "@settingsLanguage": {
+    "description": "Settings language section title"
+  },
+  "settingsSystemDefault": "System default",
+  "@settingsSystemDefault": {
+    "description": "System default language option"
+  },
+  "settingsOpensubAccountHint": "Free account = 20/day (anonymous = 5/day). Create at opensubtitles.com",
+  "@settingsOpensubAccountHint": {
+    "description": "OpenSubtitles account hint text"
+  },
+  "settingsSignIn": "Sign in",
+  "@settingsSignIn": {
+    "description": "Sign in button"
+  },
+  "settingsRemove": "Remove",
+  "@settingsRemove": {
+    "description": "Remove button"
+  },
+  "settingsClearCacheConfirm": "Clear cache?",
+  "@settingsClearCacheConfirm": {
+    "description": "Clear cache confirmation title"
+  },
+  "settingsCacheCleared": "Cache cleared",
+  "@settingsCacheCleared": {
+    "description": "Cache cleared snackbar"
+  },
+  "settingsCouldNotOpenLink": "Could not open this link",
+  "@settingsCouldNotOpenLink": {
+    "description": "Could not open link error"
+  },
+  "settingsDefaultEngine": "Default playback engine",
+  "@settingsDefaultEngine": {
+    "description": "Default playback engine setting"
+  },
+  "settingsAutoPlayNextDesc": "Play the next episode when one ends",
+  "@settingsAutoPlayNextDesc": {
+    "description": "Auto play next description"
+  },
+  "settingsBadgeOptions": "Badge options",
+  "@settingsBadgeOptions": {
+    "description": "Badge options title"
+  },
+  "settingsBadgeOptionsDesc": "Choose which chips to show",
+  "@settingsBadgeOptionsDesc": {
+    "description": "Badge options description"
+  },
+  "settingsTakesEffectNextVideo": "Takes effect on next video",
+  "@settingsTakesEffectNextVideo": {
+    "description": "Decoder takes effect hint"
+  },
+  "settingsTmdbApiKey": "TMDB API key",
+  "@settingsTmdbApiKey": {
+    "description": "TMDB API key setting title"
+  },
+  "settingsOpensubtitles": "OpenSubtitles",
+  "@settingsOpensubtitles": {
+    "description": "OpenSubtitles setting title"
+  },
+  "settingsSubReadingLang": "Subtitle reading language",
+  "@settingsSubReadingLang": {
+    "description": "Subtitle reading language setting"
+  },
+  "settingsSubDownloadLang": "Subtitle download language",
+  "@settingsSubDownloadLang": {
+    "description": "Subtitle download language setting"
+  },
+  "settingsSubEncoding": "Subtitle encoding",
+  "@settingsSubEncoding": {
+    "description": "Subtitle encoding setting"
+  },
+  "settingsAutoDownloadSubs": "Download best match when no subtitles found",
+  "@settingsAutoDownloadSubs": {
+    "description": "Auto download subtitles description"
+  },
+  "settingsSimklSignOut": "Sign out and stop syncing",
+  "@settingsSimklSignOut": {
+    "description": "SIMKL sign out description"
+  },
+  "settingsSimklSyncDesc": "Sync watched history with simkl.com (free unlimited)",
+  "@settingsSimklSyncDesc": {
+    "description": "SIMKL sync description"
+  },
+  "settingsGnuGpl": "GNU GPL v3.0 and third-party notices",
+  "@settingsGnuGpl": {
+    "description": "GNU GPL license notice"
+  },
+  "settingsSyncedCount": "Synced {count} item(s) to SIMKL",
+  "@settingsSyncedCount": {
+    "description": "SIMKL sync count snackbar",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsConnectSimkl": "Connect SIMKL",
+  "@settingsConnectSimkl": {
+    "description": "Connect SIMKL title"
+  },
+  "settingsSimklPairing": "Go to the address below and enter this code:",
+  "@settingsSimklPairing": {
+    "description": "SIMKL pairing instructions"
+  },
+  "opensubtitlesSignIn": "Sign in to OpenSubtitles",
+  "@opensubtitlesSignIn": {
+    "description": "OpenSubtitles sign in title"
+  },
+  "opensubtitlesAnonymousHint": "Anonymous = 5/day, free account = 20/day",
+  "@opensubtitlesAnonymousHint": {
+    "description": "OpenSubtitles anonymous usage hint"
+  },
+  "opensubtitlesDownloading": "Downloading…",
+  "@opensubtitlesDownloading": {
+    "description": "Downloading subtitle indicator"
+  },
+  "folderNoVideosHere": "No videos or folders here",
+  "@folderNoVideosHere": {
+    "description": "Empty folder message"
+  },
+  "folderSimklNotConfigured": "SIMKL not configured",
+  "@folderSimklNotConfigured": {
+    "description": "SIMKL not configured message"
+  },
+  "folderSimklSignInFirst": "Sign in to SIMKL first",
+  "@folderSimklSignInFirst": {
+    "description": "SIMKL sign in required"
+  },
+  "folderSimklSyncFailed": "SIMKL sync failed: {error}",
+  "@folderSimklSyncFailed": {
+    "description": "SIMKL sync failed error",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "folderSmbNoShares": "No shares found. Check your NAS share settings.",
+  "@folderSmbNoShares": {
+    "description": "No SMB shares found message"
+  },
+  "playerDownloadingTitle": "Downloading: {title}",
+  "@playerDownloadingTitle": {
+    "description": "Download snackbar title",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDownloadFailed": "Download failed: {error}",
+  "@playerDownloadFailed": {
+    "description": "Download failed error",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVideoNotSupported": "This video isn't supported by the built-in player, so the fallback player is being used.",
+  "@playerVideoNotSupported": {
+    "description": "Video not supported by built-in player"
+  },
+  "playerSleepTimerFinished": "Sleep timer finished — playback paused",
+  "@playerSleepTimerFinished": {
+    "description": "Sleep timer finished message"
+  },
+  "playerDownloaded": "Downloaded",
+  "@playerDownloaded": {
+    "description": "Downloaded status label"
+  },
+  "playerAutoFetched": "Auto-fetched: {fileName}",
+  "@playerAutoFetched": {
+    "description": "Auto-fetched file notification",
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      }
+    }
+  },
+  "playerPictureInPicture": "Picture-in-picture",
+  "@playerPictureInPicture": {
+    "description": "Picture-in-picture setting"
+  },
+  "homeSmbNoShares": "No shares found. Check your NAS share settings.",
+  "@homeSmbNoShares": {
+    "description": "No SMB shares found on home"
+  },
+  "errorRetry": "Retry",
+  "@errorRetry": {
+    "description": "Retry button on error surface"
+  },
+  "errorTryMpv": "Try with MPV",
+  "@errorTryMpv": {
+    "description": "Try with MPV button on error surface"
+  },
+  "errorOpenExternal": "Open in external player",
+  "@errorOpenExternal": {
+    "description": "Open in external player button"
   }
 }

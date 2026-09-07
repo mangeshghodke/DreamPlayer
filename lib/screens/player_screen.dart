@@ -46,6 +46,7 @@ import '../utils/file_info_extractor.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/format_chip.dart';
 import 'player_error.dart';
+import '../l10n/app_localizations.dart';
 
 /// Whether the app is running under `flutter test`.
 const bool _inTests = bool.fromEnvironment('FLUTTER_TEST');
@@ -703,7 +704,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Downloading: ${video.title}'),
+            content: Text(AppLocalizations.of(context).playerDownloadingTitle(video.title ?? '')),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -712,7 +713,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Download failed: $e'),
+            content: Text(AppLocalizations.of(context).playerDownloadFailed(e.toString())),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -853,8 +854,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         final messenger = ScaffoldMessenger.of(context);
         messenger
           ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(
-            content: Text('This video isn\'t supported by the built-in player, so the fallback player is being used.'),
+          ..showSnackBar(SnackBar(
+            content: Text(AppLocalizations.of(context).playerVideoNotSupported),
             duration: Duration(seconds: 3),
           ));
       }
@@ -2039,8 +2040,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     _exo?.pause();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sleep timer finished — playback paused'),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).playerSleepTimerFinished),
           duration: Duration(seconds: 3),
         ),
       );
@@ -2751,7 +2752,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
                   'Audio tracks',
@@ -2810,8 +2811,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     final all = _mpvTracks.audio;
     final tracks = all.where((t) => t.id != 'auto' && t.id != 'no').toList();
     if (tracks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No audio tracks found')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocalizations.of(context).playerNoAudioTracks)));
       return;
     }
     final selected = _mpvSelectedAudioId(tracks);
@@ -2827,7 +2828,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
                   'Audio tracks',
@@ -2937,7 +2938,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             shrinkWrap: true,
             padding: const EdgeInsets.only(bottom: 8),
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
                   'Subtitles',
@@ -2949,9 +2950,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
               ),
               if (downloaded.isNotEmpty) ...[
-                const Padding(
+                Padding(
                   padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
-                  child: Text('Downloaded',
+                  child: Text(AppLocalizations.of(context).playerDownloaded,
                       style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
                 for (var i = 0; i < downloaded.length; i++)
@@ -2981,7 +2982,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ? Colors.white
                       : Colors.white54,
                 ),
-                title: const Text('Off',
+                title: Text(AppLocalizations.of(context).commonOff,
                     style: TextStyle(color: Colors.white)),
                 onTap: () => Navigator.of(sheetContext).pop(-1),
               ),
@@ -3009,13 +3010,13 @@ class _PlayerScreenState extends State<PlayerScreen>
               const Divider(color: Colors.white12, height: 1),
               _tvListTile(
                 leading: const Icon(Icons.language, color: Colors.white70),
-                title: const Text('Search online subtitles…',
+                title: Text(AppLocalizations.of(context).playerSearchOnlineSubs,
                     style: TextStyle(color: Colors.white)),
                 onTap: () => Navigator.of(sheetContext).pop(onlineSentinel),
               ),
               _tvListTile(
                 leading: const Icon(Icons.file_open, color: Colors.white70),
-                title: const Text('Load subtitle file…',
+                title: Text(AppLocalizations.of(context).playerLoadSubtitleFile,
                     style: TextStyle(color: Colors.white)),
                 onTap: () => Navigator.of(sheetContext).pop(loadSentinel),
               ),
@@ -3075,16 +3076,16 @@ class _PlayerScreenState extends State<PlayerScreen>
         ? '${_playbackSpeed.toStringAsFixed(2)}×'
         : null;
     final rows = <({String label, String value})>[
-      (label: 'Title', value: video.title),
-      (label: 'Source', value: sourceLabel),
+      (label: AppLocalizations.of(context).playerTitle, value: video.title),
+      (label: AppLocalizations.of(context).playerSource, value: sourceLabel),
       if (sourceUrl.isNotEmpty && sourceUrl != video.title)
-        (label: 'URL', value: sourceUrl),
-      if (fileSize != null) (label: 'File size', value: fileSize),
+        (label: AppLocalizations.of(context).playerUrl, value: sourceUrl),
+      if (fileSize != null) (label: AppLocalizations.of(context).playerFileSize, value: fileSize),
       (label: 'HDR', value: _mpvReady ? 'SDR (MPV)' : _hdrLabel),
       if (_videoCodecInfoLabel != null)
         (label: 'Video', value: _videoCodecInfoLabel!),
       if (_resolutionInfoLabel != null)
-        (label: 'Resolution', value: _resolutionInfoLabel!),
+        (label: AppLocalizations.of(context).playerResolution, value: _resolutionInfoLabel!),
       if (_mpvReady)
         (
           label: 'Decoder',
@@ -3097,7 +3098,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
       if (_audioInfoLabel != null || _liveAudioPassthrough)
         (
-          label: 'Audio',
+          label: AppLocalizations.of(context).playerAudioCh,
           value: _liveAudioPassthrough
               ? '${_audioInfoLabel ?? "Audio"} · Passthrough'
               : _audioInfoLabel!,
@@ -3105,23 +3106,23 @@ class _PlayerScreenState extends State<PlayerScreen>
       if ((_liveAudioChannelCount != null && _liveAudioChannelCount! > 0) ||
           (_mpvReady && _mpvAudioChannels != null))
         (
-          label: 'Audio ch.',
+          label: AppLocalizations.of(context).playerAudioCh,
           value: '${_mpvReady ? _mpvAudioChannels! : _liveAudioChannelCount!} ch',
         ),
       if (_transcodeActive ||
           video.isTranscoded ||
           JellyfinClient.isTranscodeUri(video.uri ?? ''))
-        (label: 'Stream', value: 'Server transcoding'),
+        (label: AppLocalizations.of(context).playerStream, value: 'Server transcoding'),
       if (Platform.isAndroid && _liveSpatial == 'on')
-        (label: 'Spatial audio', value: 'On'),
+        (label: AppLocalizations.of(context).playerSpatialAudio, value: 'On'),
       if (Platform.isAndroid && _audioBoost > 1.01)
-        (label: 'Volume boost', value: '${_audioBoost.toStringAsFixed(1)}×'),
-      if (Platform.isAndroid && _nightMode) (label: 'Night mode', value: 'On'),
+        (label: AppLocalizations.of(context).playerVolumeBoost, value: '${_audioBoost.toStringAsFixed(1)}×'),
+      if (Platform.isAndroid && _nightMode) (label: AppLocalizations.of(context).playerNightMode, value: 'On'),
       if (Platform.isAndroid && _liveBass > 0)
-        (label: 'Bass boost', value: '$_liveBass/3'),
-      if (speedLabel != null) (label: 'Speed', value: speedLabel),
+        (label: AppLocalizations.of(context).playerBassBoost, value: '$_liveBass/3'),
+      if (speedLabel != null) (label: AppLocalizations.of(context).playerSpeed, value: speedLabel),
       if (_chapters.isNotEmpty)
-        (label: 'Chapters', value: '${_chapters.length}'),
+        (label: AppLocalizations.of(context).playerChapters, value: '${_chapters.length}'),
     ];
     await showModalBottomSheet<void>(
       context: context,
@@ -3135,10 +3136,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Video info',
+                  AppLocalizations.of(context).playerVideoInfo,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -3262,7 +3263,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             shrinkWrap: true,
             padding: const EdgeInsets.only(bottom: 8),
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
                   'Subtitles',
@@ -3274,7 +3275,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
               ),
               if (downloaded.isNotEmpty) ...[
-                const Padding(
+                Padding(
                   padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
                   child: Text('Downloaded', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
@@ -3299,7 +3300,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 const Divider(color: Colors.white12, height: 1),
               ],
               if (tracks.isEmpty && downloaded.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
                   child: Text(
                     'No subtitles found in this video',
@@ -3314,7 +3315,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         : Icons.radio_button_off,
                     color: selected < 0 ? Colors.white : Colors.white54,
                   ),
-                  title: const Text(
+                  title: Text(
                     'Off',
                     style: TextStyle(color: Colors.white),
                   ),
@@ -3341,7 +3342,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               const Divider(color: Colors.white12, height: 1),
               _tvListTile(
                 leading: const Icon(Icons.language, color: Colors.white70),
-                title: const Text(
+                title: Text(
                   'Search online subtitles…',
                   style: TextStyle(color: Colors.white),
                 ),
@@ -3349,7 +3350,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               ),
               _tvListTile(
                 leading: const Icon(Icons.file_open, color: Colors.white70),
-                title: const Text(
+                title: Text(
                   'Load subtitle file…',
                   style: TextStyle(color: Colors.white),
                 ),
@@ -3548,7 +3549,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         externalSubtitles: _current.externalSubtitles,
       );
       await _reopenAt(pos, _duration);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Auto-fetched: ${entry.fileName}')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).playerAutoFetched(entry.fileName))));
     } catch (_) {}
   }
 
@@ -3666,7 +3667,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
+                Padding(
                   padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Text(
                     'Subtitles on NAS',
@@ -3700,7 +3701,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 const Divider(color: Colors.white12, height: 1),
                 _tvListTile(
                   leading: const Icon(Icons.file_open, color: Colors.white70),
-                  title: const Text(
+                  title: Text(
                     'Browse device storage…',
                     style: TextStyle(color: Colors.white),
                   ),
@@ -3739,10 +3740,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Aspect ratio',
+                  AppLocalizations.of(context).playerAspectRatio,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -3817,10 +3818,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: Text(
-                  'Playback speed',
+                  AppLocalizations.of(context).playerPlaybackSpeed,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -3979,10 +3980,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
                     child: Text(
-                      'Playback settings',
+                      AppLocalizations.of(context).playerPlaybackSettings,
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -3995,7 +3996,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     _tvListTile(
                       leading: const Icon(Icons.picture_in_picture_alt,
                           color: Colors.white70),
-                      title: const Text('Picture-in-picture',
+                      title: Text(AppLocalizations.of(context).playerPictureInPicture,
                           style: TextStyle(color: Colors.white)),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
@@ -4005,7 +4006,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // Aspect ratio dropdown
                   _tvListTile(
                     leading: const Icon(Icons.aspect_ratio, color: Colors.white70),
-                    title: const Text('Aspect ratio', style: TextStyle(color: Colors.white)),
+                    title: Text('Aspect ratio', style: TextStyle(color: Colors.white)),
                     subtitle: Text(_fitMode.label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     trailing: Icon(expandAspect ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
                     onTap: () => setSheet(() => expandAspect = !expandAspect),
@@ -4036,7 +4037,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // Playback speed dropdown
                   _tvListTile(
                     leading: const Icon(Icons.speed, color: Colors.white70),
-                    title: const Text('Playback speed', style: TextStyle(color: Colors.white)),
+                    title: Text('Playback speed', style: TextStyle(color: Colors.white)),
                     subtitle: Text(speedLabel(_playbackSpeed), style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     trailing: Icon(expandSpeed ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
                     onTap: () => setSheet(() => expandSpeed = !expandSpeed),
@@ -4080,7 +4081,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           ? Colors.white70
                           : const Color(0xFF7C8BFF),
                     ),
-                    title: const Text('Repeat & shuffle', style: TextStyle(color: Colors.white)),
+                    title: Text(AppLocalizations.of(context).playerRepeatShuffle, style: TextStyle(color: Colors.white)),
                     subtitle: Text(
                       _shuffle
                           ? '${_repeat.label} · Shuffle'
@@ -4120,8 +4121,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                               if (!_inTests) PlaybackModesStore.saveShuffle(v);
                               setSheet(() {});
                             },
-                            title: const Text('Shuffle', style: TextStyle(color: Colors.white)),
-                            subtitle: const Text('Random order inside the folder', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                            title: Text(AppLocalizations.of(context).playerShuffle, style: TextStyle(color: Colors.white)),
+                            subtitle: Text(AppLocalizations.of(context).playerShuffleDesc, style: TextStyle(color: Colors.white54, fontSize: 12)),
                           ),
                         ],
                       ),
@@ -4130,7 +4131,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // Sleep timer dropdown (Phase 2)
                   _tvListTile(
                     leading: const Icon(Icons.bedtime, color: Colors.white70),
-                    title: const Text('Sleep timer', style: TextStyle(color: Colors.white)),
+                    title: Text(AppLocalizations.of(context).playerSleepTimer, style: TextStyle(color: Colors.white)),
                     subtitle: Text(
                       _sleepCountdown != null
                           ? '${_sleepCountdown!} left'
@@ -4177,7 +4178,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                               _sleepAtEnd ? Icons.radio_button_checked : Icons.radio_button_off,
                               color: _sleepAtEnd ? Colors.white : Colors.white54,
                             ),
-                            title: const Text('End of current video', style: TextStyle(color: Colors.white)),
+                            title: Text(AppLocalizations.of(context).playerSleepEndOfVideo, style: TextStyle(color: Colors.white)),
                             onTap: () {
                               _setSleepTimer(endOfVideo: true);
                               setSheet(() {});
@@ -4194,7 +4195,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       !_mpvReady) ...[
                     _tvListTile(
                       leading: const Icon(Icons.graphic_eq, color: Colors.white70),
-                      title: const Text('Audio delay', style: TextStyle(color: Colors.white)),
+                      title: Text(AppLocalizations.of(context).playerAudioDelay, style: TextStyle(color: Colors.white)),
                       subtitle: Text(
                         _audioDelayMs == 0
                             ? 'Off'
@@ -4231,7 +4232,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   _exo?.setAudioDelay(0);
                                   setSheet(() {});
                                 },
-                                child: const Text('Reset', style: TextStyle(color: Colors.white70)),
+                                child: Text('Reset', style: TextStyle(color: Colors.white70)),
                               ),
                             ),
                           ],
@@ -4247,7 +4248,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           ? const Color(0xFF7C8BFF)
                           : Colors.white70,
                     ),
-                    title: const Text('A-B repeat', style: TextStyle(color: Colors.white)),
+                    title: Text('A-B repeat', style: TextStyle(color: Colors.white)),
                     subtitle: Text(
                       _abA != null && _abB != null
                           ? '${_formatDuration(Duration(milliseconds: _abA!))} – ${_formatDuration(Duration(milliseconds: _abB!))}'
@@ -4266,7 +4267,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         children: [
                           _tvListTile(
                             leading: const Icon(Icons.flag, color: Colors.white54),
-                            title: const Text('Set A to current position', style: TextStyle(color: Colors.white)),
+                            title: Text('Set A to current position', style: TextStyle(color: Colors.white)),
                             onTap: () {
                               setState(() => _abA = _position.inMilliseconds);
                               setSheet(() {});
@@ -4274,7 +4275,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           ),
                           _tvListTile(
                             leading: const Icon(Icons.flag, color: Colors.white54),
-                            title: const Text('Set B to current position', style: TextStyle(color: Colors.white)),
+                            title: Text('Set B to current position', style: TextStyle(color: Colors.white)),
                             onTap: () {
                               setState(() => _abB = _position.inMilliseconds);
                               setSheet(() {});
@@ -4282,7 +4283,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           ),
                           _tvListTile(
                             leading: const Icon(Icons.clear, color: Colors.white54),
-                            title: const Text('Clear', style: TextStyle(color: Colors.white)),
+                            title: Text('Clear', style: TextStyle(color: Colors.white)),
                             onTap: () {
                               setState(() {
                                 _abA = null;
@@ -4299,8 +4300,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                   // screen — it belongs next to the CC picker it configures).
                   _tvListTile(
                     leading: const Icon(Icons.closed_caption, color: Colors.white70),
-                    title: const Text('Subtitle settings', style: TextStyle(color: Colors.white)),
-                    subtitle: const Text('Size, color, background, delay', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    title: Text(AppLocalizations.of(context).playerSubtitleSettings, style: TextStyle(color: Colors.white)),
+                    subtitle: Text(AppLocalizations.of(context).playerSubtitleSettingsDesc, style: TextStyle(color: Colors.white54, fontSize: 12)),
                     trailing: const Icon(Icons.chevron_right, color: Colors.white54),
                   onTap: () async {
                     Navigator.of(sheetContext).pop();
@@ -4335,7 +4336,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   if (defaultTargetPlatform == TargetPlatform.android) ...[
                     _tvListTile(
                       leading: const Icon(Icons.memory, color: Colors.white70),
-                      title: const Text('Video decoder', style: TextStyle(color: Colors.white)),
+                      title: Text(AppLocalizations.of(context).playerVideoDecoder, style: TextStyle(color: Colors.white)),
                       subtitle: Text(_decoderMode.label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                       trailing: Icon(expandDecoder ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
                       onTap: () => setSheet(() => expandDecoder = !expandDecoder),
@@ -4354,9 +4355,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 title: Text(m.label, style: const TextStyle(color: Colors.white)),
                                 subtitle: Text(
                                   switch (m) {
-                                    DecoderMode.hw => 'Force hardware decoders',
-                                    DecoderMode.sw => 'Prefer software decoders',
-                                    _ => 'Automatic (recommended)',
+                                    DecoderMode.hw => AppLocalizations.of(context).playerDecoderHw,
+                                    DecoderMode.sw => AppLocalizations.of(context).playerDecoderSw,
+                                    _ => AppLocalizations.of(context).playerDecoderAuto,
                                   },
                                   style: const TextStyle(color: Colors.white38, fontSize: 11),
                                 ),
@@ -4386,9 +4387,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   }
                                 },
                               ),
-                            const Padding(
+                            Padding(
                               padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
-                              child: Text('Reopens at same position to switch decoder.', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                              child: Text(AppLocalizations.of(context).playerDecoderReopen, style: TextStyle(color: Colors.white38, fontSize: 11)),
                             ),
                           ],
                         ),
@@ -4401,7 +4402,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   if (defaultTargetPlatform == TargetPlatform.android) ...[
                     _tvListTile(
                       leading: const Icon(Icons.volume_up, color: Colors.white70),
-                      title: const Text('Volume Boost', style: TextStyle(color: Colors.white)),
+                      title: Text(AppLocalizations.of(context).playerVolumeBoostTitle, style: TextStyle(color: Colors.white)),
                       subtitle: Text(_audioBoost > 1.01 ? '${_audioBoost.toStringAsFixed(1)}×' : 'Off', style: const TextStyle(color: Colors.white54, fontSize: 12)),
                       trailing: Icon(expandBoost ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
                       onTap: () => setSheet(() => expandBoost = !expandBoost),
@@ -4445,12 +4446,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                                     _exo?.setAudioBoost(1.0);
                                   }
                                   await PlaybackBoostStore.save(1.0);
-                                }, child: const Text('Reset')),
+                                }, child: Text(AppLocalizations.of(context).commonReset)),
                                 Text('${_audioBoost.toStringAsFixed(1)}×', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                                const SizedBox(width: 48),
+                                SizedBox(width: 48),
                               ],
                             ),
-                            const Text('LoudnessEnhancer (0–1500 mB)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                            Text('LoudnessEnhancer (0–1500 mB)', style: TextStyle(color: Colors.white38, fontSize: 11)),
                           ],
                         ),
                       ),
@@ -4461,9 +4462,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                       const Divider(color: Colors.white12, height: 1),
                       _tvListTile(
                         leading: const Icon(Icons.music_note, color: Colors.white70),
-                        title: const Text('Bass Boost', style: TextStyle(color: Colors.white)),
+                        title: Text(AppLocalizations.of(context).playerBassBoostTitle, style: TextStyle(color: Colors.white)),
                         subtitle: Text(
-                          const ['Off', 'Low', 'Medium', 'High'][_liveBass.clamp(0, 3)],
+                          ['Off', AppLocalizations.of(context).playerBassLow, AppLocalizations.of(context).playerBassMedium, 'High'][_liveBass.clamp(0, 3)],
                           style: const TextStyle(color: Colors.white54, fontSize: 12),
                         ),
                         trailing: Icon(expandBass ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
@@ -4497,7 +4498,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     const Divider(color: Colors.white12, height: 1),
                     _tvListTile(
                       leading: const Icon(Icons.nights_stay, color: Colors.white70),
-                      title: const Text('Night Mode', style: TextStyle(color: Colors.white)),
+                      title: Text(AppLocalizations.of(context).playerNightModeTitle, style: TextStyle(color: Colors.white)),
                       subtitle: Text(_nightMode ? 'On — compressed dynamic range' : 'Off', style: const TextStyle(color: Colors.white54, fontSize: 12)),
                       trailing: Switch(
                         value: _nightMode,
@@ -4528,7 +4529,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ],
                   _tvListTile(
                     leading: const Icon(Icons.skip_next, color: Colors.white70),
-                    title: const Text('Auto-play next', style: TextStyle(color: Colors.white)),
+                    title: Text(AppLocalizations.of(context).playerAutoPlayNext, style: TextStyle(color: Colors.white)),
                     subtitle: Text(_autoPlayNext ? 'On' : 'Off', style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     trailing: Switch(
                       value: _autoPlayNext,
@@ -4550,7 +4551,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   const Divider(color: Colors.white12, height: 1),
                   _tvListTile(
                     leading: const Icon(Icons.timer_outlined, color: Colors.white70),
-                    title: const Text('Subtitle delay', style: TextStyle(color: Colors.white)),
+                    title: Text(AppLocalizations.of(context).playerSubtitleDelay, style: TextStyle(color: Colors.white)),
                     subtitle: Text(_subtitleDelayLabel(_subtitleDelayMs), style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     trailing: Icon(expandSubtitleDelay ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
                     onTap: () => setSheet(() => expandSubtitleDelay = !expandSubtitleDelay),
@@ -4580,7 +4581,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                             children: [
                               TextButton(onPressed: () async {
                                 await _applySubtitleDelay(0, setSheet);
-                              }, child: const Text('Reset')),
+                              }, child: Text(AppLocalizations.of(context).commonReset)),
                               Text(_subtitleDelayLabel(_subtitleDelayMs), style: const TextStyle(color: Colors.white70, fontSize: 12)),
                               Row(
                                 children: [
@@ -4594,7 +4595,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                               ),
                             ],
                           ),
-                          const Text('Live on iOS · reopens at same position on Android', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                          Text('Live on iOS · reopens at same position on Android', style: TextStyle(color: Colors.white38, fontSize: 11)),
                         ],
                       ),
                     ),
@@ -4602,7 +4603,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     const Divider(color: Colors.white12, height: 1),
                     _tvListTile(
                       leading: const Icon(Icons.format_list_numbered, color: Colors.white70),
-                      title: const Text('Chapters', style: TextStyle(color: Colors.white)),
+                      title: Text('Chapters', style: TextStyle(color: Colors.white)),
                       subtitle: Text('${_chapters.length} chapters', style: const TextStyle(color: Colors.white54, fontSize: 12)),
                       trailing: Icon(expandChapters ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
                       onTap: () => setSheet(() => expandChapters = !expandChapters),
@@ -4646,7 +4647,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     const Divider(color: Colors.white12, height: 1),
                     _tvListTile(
                       leading: const Icon(Icons.file_download_outlined, color: Colors.white70),
-                      title: const Text('Download to device', style: TextStyle(color: Colors.white)),
+                      title: Text(AppLocalizations.of(context).playerDownloadToDevice, style: TextStyle(color: Colors.white)),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
                         _downloadToDevice();
@@ -4655,7 +4656,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ],
                   _tvListTile(
                     leading: const Icon(Icons.download_done, color: Colors.white70),
-                    title: const Text('Downloads', style: TextStyle(color: Colors.white)),
+                    title: Text(AppLocalizations.of(context).downloadTitle, style: TextStyle(color: Colors.white)),
                     onTap: () {
                       Navigator.of(sheetContext).pop();
                       _openDownloads();
@@ -4665,14 +4666,14 @@ class _PlayerScreenState extends State<PlayerScreen>
                     const Divider(color: Colors.white12, height: 1),
                     _tvListTile(
                       leading: const Icon(Icons.open_in_new, color: Colors.white70),
-                      title: const Text('Open in external player', style: TextStyle(color: Colors.white)),
+                      title: Text(AppLocalizations.of(context).playerOpenExternal, style: TextStyle(color: Colors.white)),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
                         _openInExternalPlayer();
                       },
                     ),
                   ],
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                 ],
               ),
             ),
@@ -4845,7 +4846,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Text(
             '$sign${_formatDuration(delta)}',
             style: TextStyle(
@@ -4969,7 +4970,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       // HDR — Media3 shows the real format (DV/HDR10/etc.); MPV always SDR.
       if (_badgeHdr) {
         if (_mpvReady) {
-          chips.add(const FormatChip(label: 'SDR', color: Color(0xFF9E9E9E)));
+          chips.add(FormatChip(label: 'SDR', color: Color(0xFF9E9E9E)));
         } else {
           chips.add(hdrChip);
         }
@@ -4998,15 +4999,15 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       // Spatial audio — Android only, both engines (spatial is platform-level).
       if (_badgeSpatialAudio && Platform.isAndroid && _liveSpatial == 'on') {
-        chips.add(const FormatChip(
+        chips.add(FormatChip(
           label: 'Spatial',
           color: Color(0xFF26A69A),
         ));
       }
       // Server transcoding — both engines.
       if (_badgeServerTranscode && _transcodeActive) {
-        chips.add(const FormatChip(
-          label: 'Transcoding',
+        chips.add(FormatChip(
+          label: AppLocalizations.of(context).sourceTranscoding,
           color: Color(0xFFEF5350),
         ));
       }
@@ -5365,7 +5366,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(color: Colors.white70),
                               ),
-                              const SizedBox(height: 20),
+                              SizedBox(height: 20),
                               OutlinedButton.icon(
                                 onPressed: () {
                                   _mpvFailed = false;
@@ -5374,7 +5375,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   _reloadMpv(_current, _position.inMilliseconds);
                                 },
                                 icon: const Icon(Icons.refresh),
-                                label: const Text('Retry'),
+                                label: Text(AppLocalizations.of(context).commonRetry),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.white,
                                   side: const BorderSide(
@@ -5396,7 +5397,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                     style: const TextStyle(
                                         color: Colors.white70),
                                   ),
-                                  const SizedBox(height: 20),
+                                  SizedBox(height: 20),
                                   // Retry reopens the file with Media3;
                                   // "Try with MPV" switches engines.
                                    Row(
@@ -5411,7 +5412,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                           _reopenAt(_position, _duration);
                                         },
                                         icon: const Icon(Icons.refresh),
-                                        label: const Text('Retry'),
+                                        label: Text(AppLocalizations.of(context).errorRetry),
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor: Colors.white,
                                           side: const BorderSide(
@@ -5420,13 +5421,13 @@ class _PlayerScreenState extends State<PlayerScreen>
                                       ),
                                       if (Platform.isAndroid &&
                                           _mpvSourceFor(_current).isNotEmpty) ...[
-                                        const SizedBox(width: 12),
+                                        SizedBox(width: 12),
                                         OutlinedButton.icon(
                                           onPressed: _mpvActive
                                               ? null
                                               : () => _startMpvManual(),
                                           icon: const Icon(Icons.play_arrow),
-                                          label: const Text('Try with MPV'),
+                                          label: Text(AppLocalizations.of(context).errorTryMpv),
                                           style: OutlinedButton.styleFrom(
                                             foregroundColor: Colors.white,
                                             side: const BorderSide(
@@ -5436,12 +5437,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                                       ],
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
+                                  SizedBox(height: 12),
                                   if (Platform.isAndroid)
                                     OutlinedButton.icon(
                                       onPressed: () => _openInExternalPlayer(),
                                       icon: const Icon(Icons.open_in_new),
-                                      label: const Text('Open in external player'),
+                                      label: Text(AppLocalizations.of(context).errorOpenExternal),
                                       style: OutlinedButton.styleFrom(
                                         foregroundColor: Colors.white70,
                                         side: const BorderSide(
@@ -5523,7 +5524,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           color: Colors.white,
                           size: 28,
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(2),
                           child: LinearProgressIndicator(
@@ -5535,7 +5536,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                         Text(
                           '${(_swipeCurrentValue * 100).round()}%',
                           style: const TextStyle(
@@ -5550,7 +5551,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
               ),
             if (_buffering && _backendReady && _error == null)
-              const Center(
+              Center(
                 child: CircularProgressIndicator(color: Colors.white),
               ),
             AnimatedSlide(
@@ -5584,7 +5585,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                               color: Colors.white,
                               onFocusChange: (_) => _showControls(),
                             ),
-                            const SizedBox(width: 4),
+                            SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 video.title,
@@ -5603,7 +5604,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 color: Colors.white,
                                 onFocusChange: (_) => _showControls(),
                               ),
-                            const SizedBox(width: 4),
+                            SizedBox(width: 4),
                           ],
                         ),
                         // Defense-in-depth pip gate: the top bar already slides
@@ -5613,7 +5614,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         // window must show ONLY the video — no chips, no
                         // network indicator, no title bar.
                         if (!_inPip && chips.isNotEmpty) ...[
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           Padding(
                             padding:
                                 const EdgeInsets.symmetric(horizontal: 8),
@@ -5651,7 +5652,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           color: Colors.white,
                           onFocusChange: (_) => _showControls(),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                       ],
                       _TvControlButton(
                         focusNode: _playPauseFocusNode,
@@ -5670,7 +5671,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         onFocusChange: (_) => _showControls(),
                       ),
                       if (_isTv) ...[
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         _TvControlButton(
                           onPressed: !_backendReady
                               ? null

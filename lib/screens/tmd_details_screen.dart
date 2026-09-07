@@ -24,6 +24,7 @@ import '../widgets/tv_tile.dart';
 import 'folder_screen.dart';
 import 'opensubtitles_sheet.dart';
 import 'player_screen.dart';
+import '../l10n/app_localizations.dart';
 
 /// Shows TMDB metadata with a Play/Resume button and a "Fix match" manual
 /// search.
@@ -857,7 +858,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           if (hasResume) ...[
             const SizedBox(width: 12),
             Tooltip(
-              message: 'Watch from beginning (MPV)',
+              message: AppLocalizations.of(context).playerWatchBeginningMpv,
               child: FilledButton.tonal(
                 onPressed: () => _play(fromBeginning: true, engine: PlayEngine.mpv),
                 style: FilledButton.styleFrom(
@@ -1352,7 +1353,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  singleEpisode != null ? 'Episode overview' : 'Overview',
+                  singleEpisode != null ? 'Episode overview' : AppLocalizations.of(context).detailsOverview,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -1379,7 +1380,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                         : singleEpisode.cast,
                     title: singleEpisode.guestStars.isNotEmpty
                         ? 'Guest stars'
-                        : 'Episode cast',
+                        : AppLocalizations.of(context).detailsEpisodeCast,
                   ),
                 ],
 
@@ -1414,14 +1415,14 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                   children: [
                     TextButton(
                       onPressed: _fixMatch,
-                      child: const Text('Fix match'),
+                      child: Text(AppLocalizations.of(context).detailsFixMatch),
                     ),
                     TextButton(
                       onPressed: _removeInfo,
                       style: TextButton.styleFrom(
                         foregroundColor: theme.colorScheme.error,
                       ),
-                      child: const Text('Remove info'),
+                      child: Text(AppLocalizations.of(context).detailsRemoveInfo),
                     ),
                   ],
                 ),
@@ -1816,7 +1817,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                       const Spacer(),
                       TextButton(
                         onPressed: _fixMatch,
-                        child: const Text('Find on TMDB'),
+                        child: Text(AppLocalizations.of(context).detailsFindOnTmdb),
                       ),
                     ],
                   ),
@@ -1886,7 +1887,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           FilledButton.icon(
             onPressed: _fixMatch,
             icon: const Icon(Icons.info_outline),
-            label: const Text('Get Info'),
+            label: Text(AppLocalizations.of(context).detailsGetInfo),
           ),
             if (widget.video != null) ...[
               const SizedBox(height: 24),
@@ -2162,7 +2163,7 @@ class _FileInfoCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Probing file…',
+                    AppLocalizations.of(context).detailsProbingFile,
                     style: TextStyle(
                       fontSize: 12,
                       color: theme.colorScheme.onSurfaceVariant,
@@ -2268,7 +2269,7 @@ class _SubtitlesCard extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.subtitles),
               title: const Text('Search subtitles online'),
-              subtitle: const Text('OpenSubtitles'),
+              subtitle: Text(AppLocalizations.of(context).opensubtitlesSearch),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _openSubtitleSearch(context),
             ),
@@ -2318,7 +2319,7 @@ class _TrailersCard extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.play_circle_outline, color: Colors.red),
                 title: Text(trailer.name),
-                subtitle: const Text('YouTube'),
+                subtitle: Text(AppLocalizations.of(context).badgeTranscoding),
                 trailing: const Icon(Icons.open_in_new, size: 18),
                 onTap: () => _launchTrailer(context, trailer),
               ),
@@ -3003,8 +3004,8 @@ class _SearchDialogState extends State<_SearchDialog> {
               controller: _controller,
               autofocus: true,
               onSubmitted: (_) => _search(),
-              decoration: const InputDecoration(
-                hintText: 'Search title',
+              decoration: InputDecoration(
+                hintText: AppLocalizations.of(context).detailsSearchTitle,
                 prefixIcon: Icon(Icons.search),
               ),
             ),
@@ -3086,7 +3087,7 @@ class _SearchDialogState extends State<_SearchDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ],
     );

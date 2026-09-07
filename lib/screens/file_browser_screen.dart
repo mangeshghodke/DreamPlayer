@@ -10,6 +10,7 @@ import '../utils/file_info_extractor.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
+import '../l10n/app_localizations.dart';
 
 /// In-app file browser (CX-Explorer style): browse the device's storage and
 /// play any video without importing it into the library.
@@ -248,7 +249,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove folder?'),
+        title: Text(AppLocalizations.of(context).fileBrowseRemoveFolder),
         content: Text(
           '"${entry.name}" will no longer appear here. You can add it again '
           'anytime.',
@@ -256,11 +257,11 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Remove'),
+            child: Text(AppLocalizations.of(context).commonRemove),
           ),
         ],
       ),
@@ -312,7 +313,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   }
 
   Widget _body(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
         child: Text('Error: $_error',
@@ -327,16 +328,16 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.folder_off_outlined, size: 64),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Text(
                 'All files access is needed to browse your storage',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               FilledButton(
                 onPressed: _grantAccess,
-                child: const Text('Grant access'),
+                child: Text('Grant access'),
               ),
             ],
           ),
@@ -344,7 +345,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       );
     }
     if (_entries.isEmpty) {
-      return const Center(child: Text('No videos or folders here'));
+      return Center(child: Text('No videos or folders here'));
     }
     final items = <Widget>[
       for (final entry in _entries)
@@ -489,7 +490,7 @@ class _FileTile extends StatelessWidget {
                   ),
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
         ],
         Expanded(
           child: Text(
@@ -508,9 +509,9 @@ class _FileTile extends StatelessWidget {
           ),
         ),
         if (tmdbMeta != null && tmdbMeta!.movie.voteAverage > 0) ...[
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           const Icon(Icons.star, size: 13, color: Colors.amber),
-          const SizedBox(width: 2),
+          SizedBox(width: 2),
           Text(
             tmdbMeta!.movie.voteAverage.toStringAsFixed(1),
             style: TextStyle(

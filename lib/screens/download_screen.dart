@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../services/download_manager.dart';
+import '../l10n/app_localizations.dart';
 
 class DownloadScreen extends StatefulWidget {
   const DownloadScreen({super.key});
@@ -37,7 +38,7 @@ class _DownloadScreenState extends State<DownloadScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF1C1C1E),
         foregroundColor: Colors.white,
-        title: const Text('Downloads'),
+        title: Text(AppLocalizations.of(context).downloadTitle),
       ),
       body: jobs.isEmpty
           ? const Center(

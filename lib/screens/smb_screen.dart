@@ -16,6 +16,7 @@ import '../widgets/tv_overscan.dart';
 import '../widgets/tv_text_field.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
+import '../l10n/app_localizations.dart';
 
 /// SMB / LAN-share browser: saved servers -> shares -> folders -> videos.
 /// Playback streams through the native SMB client (local proxy URL on iOS);
@@ -827,21 +828,21 @@ class _SmbScreenState extends State<SmbScreen> {
         actions: [
           if (browsing != null && _share.isNotEmpty && !_loading)
             IconButton(
-              tooltip: 'Bookmark this folder to Home',
+              tooltip: AppLocalizations.of(context).smbBookmarkHome,
               icon: const Icon(Icons.bookmark_add_outlined),
               onPressed: _bookmarkCurrentFolder,
             ),
           if (browsing != null && _share.isNotEmpty && !_loading)
             IconButton(
-              tooltip: 'Sync watched from SIMKL',
+              tooltip: AppLocalizations.of(context).smbSyncSimkl,
               icon: _syncingSimkl
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.cloud_done_outlined),
               onPressed: _syncingSimkl ? null : _syncFromSimkl,
             ),
           if (browsing != null)
             IconButton(
-              tooltip: 'Server list',
+              tooltip: AppLocalizations.of(context).smbServerList,
               icon: const Icon(Icons.dns_outlined),
               onPressed: () => setState(() {
                 _browsing = null;
@@ -857,7 +858,7 @@ class _SmbScreenState extends State<SmbScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (_scanning)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(bottom: 8),
                     child: SizedBox(
                       width: 24,
@@ -869,21 +870,21 @@ class _SmbScreenState extends State<SmbScreen> {
                   FloatingActionButton(
                     heroTag: 'smb_scan',
                     onPressed: _discover,
-                    tooltip: 'Scan network',
+                    tooltip: AppLocalizations.of(context).smbScanNetwork,
                     child: const Icon(Icons.wifi_find),
                   ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'smb_refresh',
                   onPressed: _loadServers,
                   tooltip: 'Refresh',
                   child: const Icon(Icons.refresh),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'smb_add',
                   onPressed: _addServer,
-                  tooltip: 'Add server',
+                  tooltip: AppLocalizations.of(context).smbAddServer,
                   child: const Icon(Icons.add),
                 ),
               ],
@@ -903,9 +904,9 @@ class _SmbScreenState extends State<SmbScreen> {
 
   Widget _body(BuildContext context) {
     if (_opening) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
         child: Padding(
@@ -914,14 +915,14 @@ class _SmbScreenState extends State<SmbScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.cloud_off_outlined, size: 64),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Text('Error: $_error',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               FilledButton(
                 onPressed: _atBrowseRoot ? _loadServers : _goUp,
-                child: const Text('Retry'),
+                child: Text(AppLocalizations.of(context).commonRetry),
               ),
             ],
           ),
@@ -946,7 +947,7 @@ class _SmbScreenState extends State<SmbScreen> {
                     _share.isEmpty
                         ? 'No shares found. Check your NAS share settings '
                             'and make sure shares are visible to the network.'
-                        : 'Nothing here',
+                        : AppLocalizations.of(context).commonNothingHere,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
@@ -1046,7 +1047,7 @@ class _SmbScreenState extends State<SmbScreen> {
             child: Row(
               children: [
                 Text(
-                  'Episodes',
+                  AppLocalizations.of(context).smbEpisodes,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -1103,7 +1104,7 @@ class _SmbScreenState extends State<SmbScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             sliver: SliverToBoxAdapter(
               child: Text(
-                'Other videos',
+                AppLocalizations.of(context).smbOtherVideos,
                 style: TextStyle(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w700,
@@ -1208,7 +1209,7 @@ class _SmbScreenState extends State<SmbScreen> {
               ),
               TextButton(
                 onPressed: () => _fixMatchSeries(folderName),
-                child: const Text('Get Info'),
+                child: Text('Get Info'),
               ),
             ],
           ),
@@ -1284,14 +1285,14 @@ class _SmbScreenState extends State<SmbScreen> {
 
   Widget _serverList(BuildContext context) {
     if (_servers.isEmpty && _discovered.isEmpty && !_scanning) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.dns_outlined, size: 48, color: Colors.white38),
             SizedBox(height: 12),
               Text(
-                'Nothing yet',
+                AppLocalizations.of(context).commonNothingYet,
                 style: TextStyle(color: Colors.white54),
               ),
           ],
@@ -1304,7 +1305,7 @@ class _SmbScreenState extends State<SmbScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           if (_scanning)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
@@ -1497,7 +1498,7 @@ class _SmbTile extends StatelessWidget {
                   ),
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
         ],
         Expanded(
           child: Text(
@@ -1516,9 +1517,9 @@ class _SmbTile extends StatelessWidget {
           ),
         ),
         if (tmdbMeta != null && tmdbMeta!.movie.voteAverage > 0) ...[
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           const Icon(Icons.star, size: 13, color: Colors.amber),
-          const SizedBox(width: 2),
+          SizedBox(width: 2),
           Text(
             tmdbMeta!.movie.voteAverage.toStringAsFixed(1),
             style: TextStyle(
@@ -1663,7 +1664,7 @@ class _SeriesFolderHeader extends StatelessWidget {
                       )
                     : _posterFallback(colorScheme),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1684,9 +1685,9 @@ class _SeriesFolderHeader extends StatelessWidget {
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     _RatingBadge(rating: movie.voteAverage),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -1702,14 +1703,14 @@ class _SeriesFolderHeader extends StatelessWidget {
             ],
           ),
           if (displayOverview.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Text(
-              'Overview',
+              AppLocalizations.of(context).smbOverview,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               displayOverview,
               maxLines: 6,
@@ -1718,27 +1719,27 @@ class _SeriesFolderHeader extends StatelessWidget {
             ),
           ],
           if (details != null && details!.cast.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             _CastRow(cast: details!.cast),
           ],
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Wrap(
             spacing: 8,
             children: [
               TextButton(
                 onPressed: onFixMatch,
-                child: const Text('Fix match'),
+                child: Text('Fix match'),
               ),
               TextButton(
                 onPressed: onRemoveInfo,
                 style: TextButton.styleFrom(
                   foregroundColor: theme.colorScheme.error,
                 ),
-                child: const Text('Remove info'),
+                child: Text('Remove info'),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
         ],
       ),
     );
@@ -1828,14 +1829,14 @@ class _SmbSeasonExpansion extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             SeasonProgressRing(
               watched: watched,
               total: total,
               size: 28,
               strokeWidth: 2.5,
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Text(
               sg.watchedBadge(watched, total),
               style: TextStyle(
@@ -1974,7 +1975,7 @@ class _SmbEpisodeTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (parsed.isEpisode) const SizedBox(width: 6),
+              if (parsed.isEpisode) SizedBox(width: 6),
               Expanded(
                 child: Text(
                   episode?.nameLabel ?? parsed.title,
@@ -2034,7 +2035,7 @@ class _SmbEpisodeTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.star, size: 12, color: Colors.amber),
-                  const SizedBox(width: 2),
+                  SizedBox(width: 2),
                   Text(
                     episode!.voteAverage.toStringAsFixed(1),
                     style: TextStyle(
@@ -2046,7 +2047,7 @@ class _SmbEpisodeTile extends StatelessWidget {
               ),
             ),
           if (watched)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(right: 4),
               child: Icon(Icons.check_circle, color: Colors.green, size: 20),
             ),
@@ -2095,13 +2096,13 @@ class _CastRow extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         SizedBox(
           height: 130,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: cast.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            separatorBuilder: (_, _) => SizedBox(width: 12),
             itemBuilder: (context, index) {
               final member = cast[index];
               return SizedBox(
@@ -2121,7 +2122,7 @@ class _CastRow extends StatelessWidget {
                             )
                           : _avatarFallback(colorScheme, member.name),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Text(
                       member.name,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -2192,7 +2193,7 @@ class _RatingBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.star, size: 14, color: Colors.amber),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             rating.toStringAsFixed(1),
             style: TextStyle(
@@ -2323,7 +2324,7 @@ class _SearchDialogState extends State<_SearchDialog> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     return AlertDialog(
-      title: const Text('Get Info'),
+      title: Text('Get Info'),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -2333,12 +2334,12 @@ class _SearchDialogState extends State<_SearchDialog> {
               controller: _controller,
               autofocus: true,
               onSubmitted: (_) => _search(),
-              decoration: const InputDecoration(
-                hintText: 'Search title',
+              decoration: InputDecoration(
+                hintText: AppLocalizations.of(context).detailsSearchTitle,
                 prefixIcon: Icon(Icons.search),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             SegmentedButton<TmdKind>(
               segments: const [
                 ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
@@ -2347,9 +2348,9 @@ class _SearchDialogState extends State<_SearchDialog> {
               selected: {_kind},
               onSelectionChanged: (sel) => setState(() => _kind = sel.first),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             if (_searching)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.all(16),
                 child: Center(child: CircularProgressIndicator()),
               )
@@ -2373,7 +2374,7 @@ class _SearchDialogState extends State<_SearchDialog> {
               )
             else if (_results != null)
               if (_results!.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(16),
                   child: Text('No results. Try a different title.'),
                 )
@@ -2415,7 +2416,7 @@ class _SearchDialogState extends State<_SearchDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ],
     );
@@ -2537,8 +2538,8 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
     return serverDialog(
       title: ServerDialogTitle(
         icon: widget.existing == null ? Icons.add_link : Icons.dns_outlined,
-        title: widget.existing == null ? 'Add server' : 'Edit server',
-        subtitle: 'SMB / network share',
+        title: widget.existing == null ? 'Add server' : AppLocalizations.of(context).smbEditServer,
+        subtitle: AppLocalizations.of(context).smbNetworkShare,
       ),
       content: SizedBox(
         width: 440,
@@ -2556,13 +2557,13 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Name',
+                        label: AppLocalizations.of(context).smbName,
                         hint: 'e.g. Living room NAS',
                         icon: Icons.badge_outlined,
                         optional: true,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -2575,13 +2576,13 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                             textInputAction: TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: 'Host',
+                              label: AppLocalizations.of(context).smbHost,
                               hint: '192.168.1.10 or nas.local',
                               icon: Icons.lan_outlined,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 14),
+                        SizedBox(width: 14),
                         Expanded(
                           flex: 2,
                           child: TvTextField(
@@ -2591,7 +2592,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                                 _guest ? TextInputAction.done : TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: 'Port',
+                              label: AppLocalizations.of(context).smbPort,
                               hint: '445',
                               icon: Icons.settings_ethernet,
                             ),
@@ -2604,41 +2605,41 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       controlAffinity: ListTileControlAffinity.leading,
                       dense: true,
                       activeThumbColor: theme.colorScheme.primary,
-                      title: const Text('Guest — no username/password',
+                      title: Text('Guest — no username/password',
                           style: TextStyle(fontSize: 14)),
                       value: _guest,
                       onChanged: (v) => setState(() => _guest = v),
                     ),
                     if (!_guest) ...[
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       TvTextField(
                         controller: _username,
                         autofillHints: const [AutofillHints.username],
                         textInputAction: TextInputAction.next,
                         decoration: serverFieldDecoration(
                           context,
-                          label: 'Username',
+                          label: AppLocalizations.of(context).smbUsername,
                           hint: 'admin',
                           icon: Icons.person_outline,
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       ServerPasswordField(
                         icon: Icons.lock_outline,
                         controller: _password,
                         label: widget.existing?.hasPassword ?? false
                             ? 'Password (leave empty to keep)'
-                            : 'Password',
+                            : AppLocalizations.of(context).smbPassword,
                         hint: '••••••••',
                       ),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       TvTextField(
                         controller: _domain,
                         textInputAction: TextInputAction.done,
                         decoration: serverFieldDecoration(
                           context,
-                          label: 'Domain',
-                          hint: 'WORKGROUP',
+                          label: AppLocalizations.of(context).smbDomain,
+                          hint: AppLocalizations.of(context).smbDomainHint,
                           icon: Icons.account_tree_outlined,
                           optional: true,
                         ),
@@ -2666,16 +2667,16 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           ),
           onPressed: _testing ? null : _test,
           icon: _testing
-              ? const SizedBox(
+              ? SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.wifi_tethering, size: 16),
-          label: const Text('Test'),
+          label: Text(AppLocalizations.of(context).commonTest),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text('Cancel'),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -2684,7 +2685,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           ),
           onPressed: _save,
           icon: const Icon(Icons.check_rounded, size: 16),
-          label: const Text('Save'),
+          label: Text(AppLocalizations.of(context).commonSave),
         ),
       ],
     );

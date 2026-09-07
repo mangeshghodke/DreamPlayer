@@ -175,7 +175,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel'))],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppLocalizations.of(context).commonCancel))],
       ),
     );
     if (picked != null) {
@@ -193,7 +193,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final picked = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Subtitle encoding'),
+        title: Text(AppLocalizations.of(context).settingsSubtitleEncoding),
         content: SizedBox(
           width: double.maxFinite,
           height: 360,
@@ -212,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel'))],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel'))],
       ),
     );
     if (picked != null) {
@@ -232,29 +232,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final picked = await showDialog<Locale?>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Language'),
+        title: Text(AppLocalizations.of(context).settingsLanguage),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView(
             shrinkWrap: true,
             children: [
-              RadioListTile<Locale?>(
-                value: null,
+              RadioGroup<Locale?>(
                 groupValue: current,
                 onChanged: (v) => Navigator.pop(ctx, v),
-                title: const Text('System default'),
-              ),
-              for (final loc in AppLocalizations.supportedLocales)
-                RadioListTile<Locale?>(
-                  value: loc,
-                  groupValue: current,
-                  onChanged: (v) => Navigator.pop(ctx, v),
-                  title: Text(_languageLabel(loc)),
+                child: Column(
+                  children: [
+                    RadioListTile<Locale?>(
+                      value: null,
+                      title: Text(AppLocalizations.of(context).settingsSystemDefault),
+                    ),
+                    for (final loc in AppLocalizations.supportedLocales)
+                      RadioListTile<Locale?>(
+                        value: loc,
+                        title: Text(_languageLabel(loc)),
+                      ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel'))],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel'))],
       ),
     );
     if (picked != null || (picked == null && current != null)) {
@@ -269,22 +273,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
-        title: const Text('OpenSubtitles sign in'),
+        title: Text(AppLocalizations.of(context).settingsOpenSubtitlesSignIn),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: uCtrl, decoration: const InputDecoration(labelText: 'Username')),
-          TextField(controller: pCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
+          TextField(controller: uCtrl, decoration: InputDecoration(labelText: 'Username')),
+          TextField(controller: pCtrl, obscureText: true, decoration: InputDecoration(labelText: 'Password')),
           if (err != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(err!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
-          const SizedBox(height: 8),
-          const Text('Free account = 20/day (anonymous = 5/day). Create at opensubtitles.com', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          SizedBox(height: 8),
+          Text(AppLocalizations.of(context).settingsOpensubAccountHint, style: TextStyle(color: Colors.white54, fontSize: 11)),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel')),
           TextButton(onPressed: () async {
             try {
               await OpensubtitlesClient.instance.login(username: uCtrl.text.trim(), password: pCtrl.text);
               if (ctx.mounted) Navigator.pop(ctx, true);
             } catch (e) { setDlg(() => err = e.toString()); }
-          }, child: const Text('Sign in')),
+          }, child: Text(AppLocalizations.of(context).settingsSignIn)),
         ],
       )),
     );
@@ -313,17 +317,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
-        title: const Text('TMDB API key'),
+        title: Text(AppLocalizations.of(context).settingsTmdbKey),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text(
+          Text(
             'Get a free key at themoviedb.org/settings/api',
             style: TextStyle(color: Colors.white54, fontSize: 12),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           TextField(
             controller: ctrl,
-            decoration: const InputDecoration(
-              labelText: 'API key (v3 auth)',
+            decoration: InputDecoration(
+              labelText: AppLocalizations.of(context).settingsApiKeyHint,
               hintText: '32-character hex string',
             ),
           ),
@@ -333,13 +337,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel')),
           if (_tmdbKey.isNotEmpty)
             TextButton(onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove(TmdApi.prefsKey);
               if (ctx.mounted) Navigator.pop(ctx, true);
-            }, child: const Text('Remove')),
+            }, child: Text(AppLocalizations.of(context).settingsRemove)),
           TextButton(onPressed: () async {
             final entered = ctrl.text.trim();
             if (entered.isNotEmpty && entered.length != 32) {
@@ -353,7 +357,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await prefs.setString(TmdApi.prefsKey, entered);
             }
             if (ctx.mounted) Navigator.pop(ctx, true);
-          }, child: const Text('Save')),
+          }, child: Text(AppLocalizations.of(context).commonSave)),
         ],
       )),
     );
@@ -416,7 +420,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear cache?'),
+        title: Text(AppLocalizations.of(context).settingsClearCacheConfirm),
         content: Text(
           'Removes ${CacheCleaner.formatBytes(totalBytes)} of cached images '
           'and temporary files. Posters and details may need to be reloaded '
@@ -425,11 +429,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Clear'),
+            child: Text(AppLocalizations.of(context).commonClear),
           ),
         ],
       ),
@@ -441,7 +445,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _cleared = true);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Cache cleared')));
+    ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).settingsCacheCleared)));
     await _refreshDiskSize();
   }
 
@@ -477,8 +481,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   } on PlatformException {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Could not open this link'),
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context).settingsCouldNotOpenLink),
                         ),
                       );
                     }
@@ -500,7 +504,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               listenable: LanguageService.instance,
               builder: (context, _) => TvTile(
                 leading: const Icon(Icons.language),
-                title: const Text('Language'),
+                title: Text(AppLocalizations.of(context).settingsLanguage),
                 subtitle: Text(_languageLabel(LanguageService.instance.locale)),
                 onTap: () => _pickAppLanguage(context),
               ),
@@ -509,7 +513,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
-                'Storage',
+                AppLocalizations.of(context).settingsStorage,
                 style: theme.textTheme.titleSmall?.copyWith(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w600,
@@ -518,10 +522,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             TvTile(
               leading: const Icon(Icons.cleaning_services),
-              title: const Text('Clear cache'),
+              title: Text(AppLocalizations.of(context).settingsClearCache),
               subtitle: Text(
                 _cleared
-                    ? 'Cached images and temporary files cleared'
+                    ? AppLocalizations.of(context).settingsCacheClearedDesc
                     : '${CacheCleaner.formatBytes(_diskBytes)} on disk · '
                           '${CacheCleaner.formatBytes(CacheCleaner.memoryBytes())} in memory',
               ),
@@ -532,7 +536,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Text(
-                  'Audio',
+                  AppLocalizations.of(context).settingsAudio,
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,
@@ -541,7 +545,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.surround_sound),
-                title: const Text('Audio passthrough'),
+                title: Text(AppLocalizations.of(context).settingsAudioPassthrough),
                 subtitle: Text(
                   _passthrough
                       ? 'Auto — passthrough when HDMI detected'
@@ -560,7 +564,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Text(
-                  'Player',
+                  AppLocalizations.of(context).settingsPlayer,
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,
@@ -569,9 +573,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.swipe),
-                title: const Text('Swipe gestures'),
-                subtitle: const Text(
-                  'Swipe left side for brightness, right side for volume',
+                title: Text(AppLocalizations.of(context).settingsSwipeGestures),
+                subtitle: Text(
+                  AppLocalizations.of(context).settingsSwipeDesc,
                 ),
                 value: _swipeGestures,
                 onChanged: (value) async {
@@ -589,9 +593,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   defaultTargetPlatform == TargetPlatform.iOS)
                 SwitchListTile(
                   secondary: const Icon(Icons.picture_in_picture),
-                  title: const Text('Picture-in-picture'),
-                  subtitle: const Text(
-                    'Keep playing in a floating window when you leave the app',
+                  title: Text(AppLocalizations.of(context).settingsPip),
+                  subtitle: Text(
+                    AppLocalizations.of(context).settingsPipDesc,
                   ),
                   value: _pipEnabled,
                   onChanged: (value) async {
@@ -603,13 +607,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (defaultTargetPlatform == TargetPlatform.android)
                 ListTile(
                   leading: const Icon(Icons.play_circle_outline),
-                  title: const Text('Default playback engine'),
+                  title: Text(AppLocalizations.of(context).settingsDefaultEngine),
                   subtitle: Text(_defaultEngine.label),
                   onTap: () async {
                     final picked = await showDialog<DefaultEngine>(
                       context: context,
                       builder: (ctx) => AlertDialog(
-                        title: const Text('Default playback engine'),
+                        title: Text(AppLocalizations.of(context).settingsDefaultEngine),
                         content: RadioGroup<DefaultEngine>(
                           groupValue: _defaultEngine,
                           onChanged: (v) => Navigator.pop(ctx, v),
@@ -618,13 +622,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             children: DefaultEngine.values.map((e) {
                               final subtitle = switch (e) {
                                 DefaultEngine.auto =>
-                                  'Start with Media3, auto-fallback to libmpv if it fails',
+                                  AppLocalizations.of(context).settingsEngineAutoDesc,
                                 DefaultEngine.media3 =>
-                                  'Hardware-accelerated, supports Dolby Vision / HDR',
+                                  AppLocalizations.of(context).settingsEngineMedia3Desc,
                                 DefaultEngine.mpv =>
-                                  'Software-first, handles more codecs (SDR only)',
+                                  AppLocalizations.of(context).settingsEngineMpvDesc,
                                 DefaultEngine.ask =>
-                                  'Show both options on every video',
+                                  AppLocalizations.of(context).settingsEngineAskDesc,
                               };
                               return RadioListTile<DefaultEngine>(
                                 value: e,
@@ -638,7 +642,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(ctx),
-                            child: const Text('Cancel'),
+                            child: Text(AppLocalizations.of(context).commonCancel),
                           ),
                         ],
                       ),
@@ -651,8 +655,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               SwitchListTile(
                 secondary: const Icon(Icons.skip_next),
-                title: const Text('Auto-play next episode'),
-                subtitle: const Text('Play the next episode when one ends'),
+                title: Text(AppLocalizations.of(context).settingsAutoPlayNext),
+                subtitle: Text(AppLocalizations.of(context).settingsAutoPlayNextDesc),
                 value: _autoPlayNext,
                 onChanged: (value) async {
                   final prefs = await SharedPreferences.getInstance();
@@ -662,9 +666,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.label),
-                title: const Text('On-screen badges'),
-                subtitle: const Text(
-                  'Show format chips on screen while playing',
+                title: Text(AppLocalizations.of(context).settingsOnScreenBadges),
+                subtitle: Text(
+                  AppLocalizations.of(context).settingsBadgesDesc,
                 ),
                 value: _badgeEnabled,
                 onChanged: (value) async {
@@ -677,8 +681,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   tilePadding: const EdgeInsets.symmetric(horizontal: 16),
                   childrenPadding: const EdgeInsets.only(bottom: 8),
                   leading: const Icon(Icons.tune),
-                  title: const Text('Badge options'),
-                  subtitle: const Text('Choose which chips to show'),
+                  title: Text(AppLocalizations.of(context).settingsBadgeOptions),
+                  subtitle: Text(AppLocalizations.of(context).settingsBadgeOptionsDesc),
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
@@ -713,7 +717,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _BadgeToggle(
                       icon: Icons.videocam,
                       label: 'Video codec',
-                      subtitle: 'HEVC / H.264 / AV1',
+                      subtitle: AppLocalizations.of(context).settingsBadgeVideoCodecDesc,
                       value: _badgeVideoCodec,
                       onChanged: (v) async {
                         await BadgePrefs.setVideoCodec(v);
@@ -732,7 +736,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
                       child: Text(
-                        'Playback',
+                        AppLocalizations.of(context).settingsBadgePlayback,
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.w600,
@@ -751,7 +755,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     _BadgeToggle(
                       icon: Icons.sync,
-                      label: 'Server transcoding',
+                      label: AppLocalizations.of(context).settingsBadgeTranscoding,
                       value: _badgeServerTranscode,
                       onChanged: (v) async {
                         await BadgePrefs.setServerTranscode(v);
@@ -760,8 +764,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     _BadgeToggle(
                       icon: Icons.memory,
-                      label: 'Decoder',
-                      subtitle: 'HW / SW / auto',
+                      label: AppLocalizations.of(context).settingsBadgeDecoder,
+                      subtitle: AppLocalizations.of(context).settingsBadgeDecoderDesc,
                       value: _badgeDecoder,
                       onChanged: (v) async {
                         await BadgePrefs.setDecoder(v);
@@ -778,7 +782,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (defaultTargetPlatform == TargetPlatform.android) ...[
                 TvTile(
                   leading: const Icon(Icons.volume_up),
-                  title: const Text('Volume Boost'),
+                  title: Text(AppLocalizations.of(context).settingsVolumeBoost),
                   subtitle: Text(
                     _audioBoost > 1.01
                         ? '${_audioBoost.toStringAsFixed(1)}× (LoudnessEnhancer)'
@@ -789,7 +793,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     final picked = await showDialog<double>(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: const Text('Volume Boost'),
+                        title: Text(AppLocalizations.of(context).playerVolumeBoostTitle),
                         content: StatefulBuilder(
                           builder: (context, setD) => Column(
                             mainAxisSize: MainAxisSize.min,
@@ -815,11 +819,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancel'),
+                            child: Text(AppLocalizations.of(context).commonCancel),
                           ),
                           TextButton(
                             onPressed: () => Navigator.pop(context, temp),
-                            child: const Text('Save'),
+                            child: Text(AppLocalizations.of(context).commonSave),
                           ),
                         ],
                       ),
@@ -832,9 +836,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 SwitchListTile(
                   secondary: const Icon(Icons.nights_stay),
-                  title: const Text('Night Mode'),
-                  subtitle: const Text(
-                    'Compress dynamic range for quiet listening',
+                  title: Text(AppLocalizations.of(context).settingsNightMode),
+                  subtitle: Text(
+                    AppLocalizations.of(context).settingsNightModeDesc,
                   ),
                   value: _nightMode,
                   onChanged: (value) async {
@@ -846,7 +850,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (defaultTargetPlatform == TargetPlatform.android)
                 TvTile(
                   leading: const Icon(Icons.memory),
-                  title: const Text('Video decoder'),
+                  title: Text(AppLocalizations.of(context).settingsVideoDecoder),
                   subtitle: Text(switch (_decoderMode) {
                     DecoderMode.hw => 'Hardware — fastest, HDR passthrough',
                     DecoderMode.sw => 'Software — compatibility fallback',
@@ -856,7 +860,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     final picked = await showDialog<DecoderMode>(
                       context: context,
                       builder: (context) => SimpleDialog(
-                        title: const Text('Video decoder'),
+                        title: Text(AppLocalizations.of(context).playerVideoDecoder),
                         children: [
                           RadioGroup<DecoderMode>(
                             groupValue: _decoderMode,
@@ -870,11 +874,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     title: Text(m.label),
                                     subtitle: Text(switch (m) {
                                       DecoderMode.hw =>
-                                        'Force hardware decoders',
+                                        AppLocalizations.of(context).settingsDecoderHw,
                                       DecoderMode.sw =>
-                                        'Prefer software decoders',
+                                        AppLocalizations.of(context).settingsDecoderSw,
                                       _ =>
-                                        'Let the system choose (recommended)',
+                                        AppLocalizations.of(context).settingsDecoderAuto,
                                     }),
                                   ),
                               ],
@@ -888,8 +892,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (mounted) setState(() => _decoderMode = picked);
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Takes effect on next video'),
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context).settingsTakesEffectNextVideo),
                         ),
                       );
                     }
@@ -900,11 +904,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Divider(),
             Padding(
               padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text('Metadata', style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 12)),
+              child: Text(AppLocalizations.of(context).settingsMetadata, style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 12)),
             ),
             TvTile(
               leading: const Icon(Icons.movie),
-              title: const Text('TMDB API key'),
+              title: Text(AppLocalizations.of(context).settingsTmdbApiKey),
               subtitle: Text(
                 _tmdbKey.isEmpty
                     ? 'Not set — enter your own key'
@@ -915,11 +919,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Divider(),
             Padding(
               padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text('Subtitles', style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 12)),
+              child: Text(AppLocalizations.of(context).settingsSubtitles, style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 12)),
             ),
             TvTile(
               leading: const Icon(Icons.subtitles),
-              title: const Text('OpenSubtitles'),
+              title: Text(AppLocalizations.of(context).settingsOpensubtitles),
               subtitle: Text(
                 !OpensubtitlesClient.instance.hasApiKey
                     ? 'Add OPENSUBTITLES_API_KEY in .env and rebuild'
@@ -935,26 +939,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             TvTile(
               leading: const Icon(Icons.closed_caption),
-              title: const Text('Subtitle reading language'),
+              title: Text(AppLocalizations.of(context).settingsSubReadingLang),
               subtitle: Text(displayNameForNovaCode(_readingLang)),
               onTap: () => _pickLanguage(isReading: true),
             ),
             TvTile(
               leading: const Icon(Icons.download),
-              title: const Text('Subtitle download language'),
+              title: Text(AppLocalizations.of(context).settingsSubDownloadLang),
               subtitle: Text(displayNameForNovaCode(_downloadLang)),
               onTap: () => _pickLanguage(isReading: false),
             ),
             TvTile(
               leading: const Icon(Icons.text_fields),
-              title: const Text('Subtitle encoding'),
+              title: Text(AppLocalizations.of(context).settingsSubEncoding),
               subtitle: Text(displayNameForCodepage(_subEncoding)),
               onTap: _pickEncoding,
             ),
             SwitchListTile(
               secondary: const Icon(Icons.auto_awesome),
-              title: const Text('Auto-fetch subtitles'),
-              subtitle: const Text('Download best match when no subtitles found'),
+              title: Text(AppLocalizations.of(context).settingsAutoFetchSubs),
+              subtitle: Text(AppLocalizations.of(context).settingsAutoDownloadSubs),
               value: _autoFetchSubs,
               onChanged: (v) async {
                 await SubtitlePrefs.saveAutoFetch(v);
@@ -976,7 +980,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (_simklConnected) ...[
                 TvTile(
                   leading: const Icon(Icons.sync),
-                  title: const Text('Sync now'),
+                  title: Text(AppLocalizations.of(context).settingsSimklSync),
                   subtitle: Text(
                     _simklLastSync == null
                         ? 'Push watched + resume to SIMKL'
@@ -986,8 +990,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 TvTile(
                   leading: const Icon(Icons.link_off),
-                  title: const Text('Disconnect SIMKL'),
-                  subtitle: const Text('Sign out and stop syncing'),
+                  title: Text(AppLocalizations.of(context).settingsSimklDisconnect),
+                  subtitle: Text(AppLocalizations.of(context).settingsSimklSignOut),
                   onTap: () async {
                     await SimklClient().signOut();
                     if (mounted) {
@@ -1001,8 +1005,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ] else
                 TvTile(
                   leading: const Icon(Icons.link),
-                  title: const Text('Connect SIMKL'),
-                  subtitle: const Text('Sync watched history with simkl.com (free unlimited)'),
+                  title: Text(AppLocalizations.of(context).settingsSimklConnect),
+                  subtitle: Text(AppLocalizations.of(context).settingsSimklSyncDesc),
                   onTap: _connectSimkl,
                 ),
             ],
@@ -1010,7 +1014,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
-                'About',
+                AppLocalizations.of(context).settingsAbout,
                 style: theme.textTheme.titleSmall?.copyWith(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w600,
@@ -1019,7 +1023,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             TvTile(
               leading: const Icon(Icons.memory),
-              title: const Text('Engine'),
+              title: Text(AppLocalizations.of(context).settingsEngine),
               subtitle: Text(
                 defaultTargetPlatform == TargetPlatform.iOS
                     ? 'AetherEngine (AVPlayer + FFmpeg)'
@@ -1028,7 +1032,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             TvTile(
               leading: const Icon(Icons.info_outline),
-              title: const Text('Version'),
+              title: Text(AppLocalizations.of(context).settingsVersion),
               subtitle: FutureBuilder<String>(
                 future: _loadVersion(),
                 builder: (context, snapshot) =>
@@ -1037,8 +1041,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             TvTile(
               leading: const Icon(Icons.gavel),
-              title: const Text('Open-source licenses'),
-              subtitle: const Text('GNU GPL v3.0 and third-party notices'),
+              title: Text(AppLocalizations.of(context).settingsOpenLicenses),
+              subtitle: Text(AppLocalizations.of(context).settingsGnuGpl),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -1108,7 +1112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'DreamPlayer',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -1233,14 +1237,14 @@ class _SimklConnectDialogState extends State<_SimklConnectDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('Connect SIMKL'),
+      title: Text(AppLocalizations.of(context).settingsConnectSimkl),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Go to the address below and enter this code:'),
-            const SizedBox(height: 12),
+            Text(AppLocalizations.of(context).settingsSimklPairing),
+            SizedBox(height: 12),
             Center(
               child: Text(
                 widget.code.userCode,
@@ -1250,25 +1254,25 @@ class _SimklConnectDialogState extends State<_SimklConnectDialog> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Center(
               child: Text(
                 widget.code.verificationUrl,
                 style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.primary),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Row(
               children: [
-                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                const SizedBox(width: 12),
+                SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                SizedBox(width: 12),
                 Expanded(child: Text(_status)),
               ],
             ),
           ],
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel'))],
+      actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancel'))],
     );
   }
 }

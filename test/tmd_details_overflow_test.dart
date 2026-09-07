@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:dream_player/l10n/app_localizations.dart';
 import 'package:dream_player/models/video_item.dart';
 import 'package:dream_player/screens/player_screen.dart';
 import 'package:dream_player/screens/tmd_details_screen.dart';
@@ -40,6 +41,9 @@ Future<void> _pumpAndCheck(
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: TmdDetailsScreen(video: video),
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(
@@ -222,7 +226,12 @@ void main() {
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      const MaterialApp(home: TmdDetailsScreen(video: _video)),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: TmdDetailsScreen(video: _video),
+      ),
     );
     // pump past the probing spinner (probe fails fast in tests, but the
     // indicator animation keeps pumpAndSettle from settling).

@@ -7,6 +7,7 @@ import '../services/downloaded_subtitles_store.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
+import '../l10n/app_localizations.dart';
 
 /// Bottom sheet for OpenSubtitles search & download (anonymous 5/day, login 20/day).
 class OpensubtitlesSheet extends StatefulWidget {
@@ -66,7 +67,7 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
     final picked = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Download language'),
+        title: Text(AppLocalizations.of(context).opensubtitlesDownloadLang),
         content: SizedBox(
           width: double.maxFinite,
           height: 360,
@@ -86,7 +87,7 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
             ),
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel'))],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppLocalizations.of(context).commonCancel))],
       ),
     );
     if (picked != null && mounted) setState(() => _novaCode = picked);
@@ -190,17 +191,17 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
         backgroundColor: const Color(0xFF2C2C2E),
-        title: const Text('Sign in to OpenSubtitles', style: TextStyle(color: Colors.white)),
+        title: Text(AppLocalizations.of(context).opensubtitlesSignIn, style: TextStyle(color: Colors.white)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: uCtrl, decoration: const InputDecoration(labelText: 'Username', labelStyle: TextStyle(color: Colors.white70)), style: const TextStyle(color: Colors.white)),
-          const SizedBox(height: 8),
-          TextField(controller: pCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Password', labelStyle: TextStyle(color: Colors.white70)), style: const TextStyle(color: Colors.white)),
+          TextField(controller: uCtrl, decoration: InputDecoration(labelText: AppLocalizations.of(context).settingsUsername, labelStyle: TextStyle(color: Colors.white70)), style: const TextStyle(color: Colors.white)),
+          SizedBox(height: 8),
+          TextField(controller: pCtrl, obscureText: true, decoration: InputDecoration(labelText: AppLocalizations.of(context).settingsPassword, labelStyle: TextStyle(color: Colors.white70)), style: const TextStyle(color: Colors.white)),
           if (err != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(err!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
-          const SizedBox(height: 8),
-          const Text('Anonymous = 5/day, free account = 20/day', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          SizedBox(height: 8),
+          Text(AppLocalizations.of(context).opensubtitlesAnonymousHint, style: TextStyle(color: Colors.white54, fontSize: 11)),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(AppLocalizations.of(context).commonCancel)),
           TextButton(onPressed: () async {
             try {
               await OpensubtitlesClient.instance.login(username: uCtrl.text.trim(), password: pCtrl.text);
@@ -208,7 +209,7 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
             } catch (e) {
               setDlg(() => err = e.toString());
             }
-          }, child: const Text('Sign in')),
+          }, child: Text(AppLocalizations.of(context).jellyfinSignIn)),
         ],
       )),
     );
@@ -222,10 +223,10 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Padding(padding: EdgeInsets.fromLTRB(20, 16, 20, 8), child: Text('Search OpenSubtitles', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
+            Padding(padding: EdgeInsets.fromLTRB(20, 16, 20, 8), child: Text(AppLocalizations.of(context).opensubtitlesSearch, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
             Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Row(children: [
-              Expanded(child: TextField(controller: _queryCtrl, decoration: const InputDecoration(hintText: 'Movie / episode name', hintStyle: TextStyle(color: Colors.white38)), style: const TextStyle(color: Colors.white), onSubmitted: (_) => _search())),
-              const SizedBox(width: 8),
+              Expanded(child: TextField(controller: _queryCtrl, decoration: InputDecoration(hintText: AppLocalizations.of(context).opensubtitlesSearchHint, hintStyle: TextStyle(color: Colors.white38)), style: const TextStyle(color: Colors.white), onSubmitted: (_) => _search())),
+              SizedBox(width: 8),
               InkWell(
                 onTap: _pickLanguage,
                 borderRadius: BorderRadius.circular(8),
@@ -234,19 +235,19 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
                   decoration: BoxDecoration(border: Border.all(color: Colors.white24), borderRadius: BorderRadius.circular(8)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Text(displayNameForNovaCode(_novaCode), style: const TextStyle(color: Colors.white, fontSize: 12)),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     const Icon(Icons.arrow_drop_down, color: Colors.white70, size: 16),
                   ]),
                 ),
               ),
-              const SizedBox(width: 8),
-              ElevatedButton(onPressed: _searching ? null : _search, child: _searching ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Search')),
+              SizedBox(width: 8),
+              ElevatedButton(onPressed: _searching ? null : _search, child: _searching ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Text(AppLocalizations.of(context).commonSearch)),
             ])),
-            if (_hash != null) Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 0), child: Text('Hash match enabled', style: TextStyle(color: Colors.green.shade300, fontSize: 11))),
-            if (_hashSearching) const Padding(padding: EdgeInsets.fromLTRB(20, 4, 20, 0), child: Text('Computing file hash…', style: TextStyle(color: Colors.white38, fontSize: 11))),
+            if (_hash != null) Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 0), child: Text(AppLocalizations.of(context).opensubtitlesHashMatch, style: TextStyle(color: Colors.green.shade300, fontSize: 11))),
+            if (_hashSearching) Padding(padding: EdgeInsets.fromLTRB(20, 4, 20, 0), child: Text(AppLocalizations.of(context).opensubtitlesComputingHash, style: TextStyle(color: Colors.white38, fontSize: 11))),
             if (_error != null) Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 0), child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
             const Divider(color: Colors.white12, height: 16),
-            if (_downloading) const Padding(padding: EdgeInsets.all(16), child: Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('Downloading…', style: TextStyle(color: Colors.white70))])),
+            if (_downloading) Padding(padding: EdgeInsets.all(16), child: Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text(AppLocalizations.of(context).opensubtitlesDownloading, style: TextStyle(color: Colors.white70))])),
             Flexible(child: ListView.builder(shrinkWrap: true, itemCount: _results.length, itemBuilder: (ctx, i) {
               final r = _results[i];
               final lang = r.language.isEmpty ? '?' : r.language.toUpperCase();

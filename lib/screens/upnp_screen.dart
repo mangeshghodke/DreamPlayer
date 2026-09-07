@@ -12,6 +12,7 @@ import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
+import '../l10n/app_localizations.dart';
 
 class UpnpScreen extends StatefulWidget {
   const UpnpScreen({super.key});
@@ -359,10 +360,10 @@ class _UpnpScreenState extends State<UpnpScreen> {
             if (!isBrowsingServer)
               IconButton(
                 icon: _discovering
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.refresh),
                 onPressed: _discovering ? null : _discover,
-                tooltip: 'Discover',
+                tooltip: AppLocalizations.of(context).upnpDiscover,
               ),
           ],
         ),
@@ -375,7 +376,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
 
   Widget _buildServerList(bool tv) {
     if (_discovering && _servers.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
     if (_discoverError != null && _servers.isEmpty) {
       return Center(
@@ -385,8 +386,8 @@ class _UpnpScreenState extends State<UpnpScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(_discoverError!, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              FilledButton(onPressed: _discover, child: const Text('Retry')),
+              SizedBox(height: 12),
+              FilledButton(onPressed: _discover, child: Text(AppLocalizations.of(context).commonRetry)),
             ],
           ),
         ),
@@ -399,9 +400,10 @@ class _UpnpScreenState extends State<UpnpScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.cast_connected_outlined, size: 48),
-            const SizedBox(height: 12),
-            const Text('No DLNA servers found', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
+            SizedBox(height: 12),
+            Text(
+              AppLocalizations.of(context).upnpNoServers, style: TextStyle(fontWeight: FontWeight.w600)),
+            SizedBox(height: 8),
             Text(
               '1. Allow Local Network when prompted (Settings → Privacy & Security → Local Network → DreamPlayer).\n'
               '2. iPad and the server must be on the same Wi-Fi.\n'
@@ -409,12 +411,12 @@ class _UpnpScreenState extends State<UpnpScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(onPressed: _discover, icon: const Icon(Icons.refresh), label: const Text('Discover again')),
+            SizedBox(height: 16),
+            FilledButton.icon(onPressed: _discover, icon: const Icon(Icons.refresh), label: Text('Discover again')),
             if (_diag.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              Align(alignment: Alignment.centerLeft, child: Text('Diagnostics', style: Theme.of(context).textTheme.titleSmall)),
-              const SizedBox(height: 6),
+              SizedBox(height: 20),
+              Align(alignment: Alignment.centerLeft, child: Text(AppLocalizations.of(context).upnpDiagnostics, style: Theme.of(context).textTheme.titleSmall)),
+              SizedBox(height: 6),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
@@ -468,7 +470,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
                     child: Row(
                       children: [
                         for (int i = 0; i < crumbs.length; i++) ...[
-                          if (i > 0) const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('›')),
+                          if (i > 0) Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('›')),
                           InkWell(
                             onTap: i == crumbs.length - 1
                                 ? null
@@ -498,7 +500,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
         const Divider(height: 1),
         Expanded(
           child: _browsing
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _browseError != null
                   ? Center(
                       child: Padding(
@@ -507,8 +509,8 @@ class _UpnpScreenState extends State<UpnpScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(_browseError!, textAlign: TextAlign.center),
-                            const SizedBox(height: 12),
-                            FilledButton(onPressed: () => _browse(_activeServer!, crumbs.last.id), child: const Text('Retry')),
+                            SizedBox(height: 12),
+                            FilledButton(onPressed: () => _browse(_activeServer!, crumbs.last.id), child: Text('Retry')),
                           ],
                         ),
                       ),
@@ -519,9 +521,9 @@ class _UpnpScreenState extends State<UpnpScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text('Nothing here'),
+                              Text('Nothing here'),
                               if (_diag.isNotEmpty) ...[
-                                const SizedBox(height: 16),
+                                SizedBox(height: 16),
                                 Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(10),
@@ -598,7 +600,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
                                             ),
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
+                                    SizedBox(width: 6),
                                   ],
                                   Expanded(
                                     child: Text(
@@ -617,9 +619,9 @@ class _UpnpScreenState extends State<UpnpScreen> {
                                     ),
                                   ),
                                   if (tmdbMeta != null && tmdbMeta.movie.voteAverage > 0) ...[
-                                    const SizedBox(width: 6),
+                                    SizedBox(width: 6),
                                     const Icon(Icons.star, size: 13, color: Colors.amber),
-                                    const SizedBox(width: 2),
+                                    SizedBox(width: 2),
                                     Text(
                                       tmdbMeta.movie.voteAverage.toStringAsFixed(1),
                                       style: TextStyle(

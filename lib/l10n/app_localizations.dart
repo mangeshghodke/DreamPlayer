@@ -64,8 +64,7 @@ import 'app_localizations_zh.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -73,8 +72,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -86,20 +84,19 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('en'),
     Locale('es'),
     Locale('ru'),
-    Locale('zh'),
+    Locale('zh')
   ];
 
   /// Cancel button
@@ -966,7 +963,7 @@ abstract class AppLocalizations {
   /// **'Keep playing in a floating window when you leave the app'**
   String get settingsPipDesc;
 
-  /// Engine picker label
+  /// Default playback engine setting
   ///
   /// In en, this message translates to:
   /// **'Default playback engine'**
@@ -1002,7 +999,7 @@ abstract class AppLocalizations {
   /// **'Auto-play next episode'**
   String get settingsAutoPlayNext;
 
-  /// Auto-play subtitle
+  /// Auto play next description
   ///
   /// In en, this message translates to:
   /// **'Play the next episode when one ends'**
@@ -1020,7 +1017,7 @@ abstract class AppLocalizations {
   /// **'Show format chips on screen while playing'**
   String get settingsBadgesDesc;
 
-  /// Badge selection dialog title
+  /// Badge options title
   ///
   /// In en, this message translates to:
   /// **'Badge options'**
@@ -1170,7 +1167,7 @@ abstract class AppLocalizations {
   /// **'Clear cache?'**
   String get settingsClearCacheTitle;
 
-  /// Success message after clearing cache
+  /// Cache cleared snackbar
   ///
   /// In en, this message translates to:
   /// **'Cache cleared'**
@@ -1314,19 +1311,19 @@ abstract class AppLocalizations {
   /// **'OpenSubtitles'**
   String get settingsOpenSubtitles;
 
-  /// OpenSubtitles reading language
+  /// Subtitle reading language setting
   ///
   /// In en, this message translates to:
   /// **'Subtitle reading language'**
   String get settingsSubReadingLang;
 
-  /// OpenSubtitles download language
+  /// Subtitle download language setting
   ///
   /// In en, this message translates to:
   /// **'Subtitle download language'**
   String get settingsSubDownloadLang;
 
-  /// Subtitle file encoding
+  /// Subtitle encoding setting
   ///
   /// In en, this message translates to:
   /// **'Subtitle encoding'**
@@ -2448,7 +2445,7 @@ abstract class AppLocalizations {
   /// **'Search OpenSubtitles'**
   String get opensubtitlesSearch;
 
-  /// Login dialog title
+  /// OpenSubtitles sign in title
   ///
   /// In en, this message translates to:
   /// **'Sign in to OpenSubtitles'**
@@ -2903,10 +2900,231 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error: {error}'**
   String genericError(String error);
+
+  /// Settings subtitle encoding title
+  ///
+  /// In en, this message translates to:
+  /// **'Subtitle encoding'**
+  String get settingsSubtitleEncoding;
+
+  /// Settings language section title
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get settingsLanguage;
+
+  /// System default language option
+  ///
+  /// In en, this message translates to:
+  /// **'System default'**
+  String get settingsSystemDefault;
+
+  /// OpenSubtitles account hint text
+  ///
+  /// In en, this message translates to:
+  /// **'Free account = 20/day (anonymous = 5/day). Create at opensubtitles.com'**
+  String get settingsOpensubAccountHint;
+
+  /// Sign in button
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get settingsSignIn;
+
+  /// Remove button
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get settingsRemove;
+
+  /// Clear cache confirmation title
+  ///
+  /// In en, this message translates to:
+  /// **'Clear cache?'**
+  String get settingsClearCacheConfirm;
+
+  /// Could not open link error
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open this link'**
+  String get settingsCouldNotOpenLink;
+
+  /// Badge options description
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which chips to show'**
+  String get settingsBadgeOptionsDesc;
+
+  /// Decoder takes effect hint
+  ///
+  /// In en, this message translates to:
+  /// **'Takes effect on next video'**
+  String get settingsTakesEffectNextVideo;
+
+  /// TMDB API key setting title
+  ///
+  /// In en, this message translates to:
+  /// **'TMDB API key'**
+  String get settingsTmdbApiKey;
+
+  /// OpenSubtitles setting title
+  ///
+  /// In en, this message translates to:
+  /// **'OpenSubtitles'**
+  String get settingsOpensubtitles;
+
+  /// Auto download subtitles description
+  ///
+  /// In en, this message translates to:
+  /// **'Download best match when no subtitles found'**
+  String get settingsAutoDownloadSubs;
+
+  /// SIMKL sign out description
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out and stop syncing'**
+  String get settingsSimklSignOut;
+
+  /// SIMKL sync description
+  ///
+  /// In en, this message translates to:
+  /// **'Sync watched history with simkl.com (free unlimited)'**
+  String get settingsSimklSyncDesc;
+
+  /// GNU GPL license notice
+  ///
+  /// In en, this message translates to:
+  /// **'GNU GPL v3.0 and third-party notices'**
+  String get settingsGnuGpl;
+
+  /// SIMKL sync count snackbar
+  ///
+  /// In en, this message translates to:
+  /// **'Synced {count} item(s) to SIMKL'**
+  String settingsSyncedCount(int count);
+
+  /// Connect SIMKL title
+  ///
+  /// In en, this message translates to:
+  /// **'Connect SIMKL'**
+  String get settingsConnectSimkl;
+
+  /// SIMKL pairing instructions
+  ///
+  /// In en, this message translates to:
+  /// **'Go to the address below and enter this code:'**
+  String get settingsSimklPairing;
+
+  /// OpenSubtitles anonymous usage hint
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous = 5/day, free account = 20/day'**
+  String get opensubtitlesAnonymousHint;
+
+  /// Downloading subtitle indicator
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading…'**
+  String get opensubtitlesDownloading;
+
+  /// Empty folder message
+  ///
+  /// In en, this message translates to:
+  /// **'No videos or folders here'**
+  String get folderNoVideosHere;
+
+  /// SIMKL not configured message
+  ///
+  /// In en, this message translates to:
+  /// **'SIMKL not configured'**
+  String get folderSimklNotConfigured;
+
+  /// SIMKL sign in required
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to SIMKL first'**
+  String get folderSimklSignInFirst;
+
+  /// SIMKL sync failed error
+  ///
+  /// In en, this message translates to:
+  /// **'SIMKL sync failed: {error}'**
+  String folderSimklSyncFailed(String error);
+
+  /// No SMB shares found message
+  ///
+  /// In en, this message translates to:
+  /// **'No shares found. Check your NAS share settings.'**
+  String get folderSmbNoShares;
+
+  /// Download snackbar title
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading: {title}'**
+  String playerDownloadingTitle(String title);
+
+  /// Download failed error
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed: {error}'**
+  String playerDownloadFailed(String error);
+
+  /// Video not supported by built-in player
+  ///
+  /// In en, this message translates to:
+  /// **'This video isn\'t supported by the built-in player, so the fallback player is being used.'**
+  String get playerVideoNotSupported;
+
+  /// Sleep timer finished message
+  ///
+  /// In en, this message translates to:
+  /// **'Sleep timer finished — playback paused'**
+  String get playerSleepTimerFinished;
+
+  /// Downloaded status label
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get playerDownloaded;
+
+  /// Auto-fetched file notification
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-fetched: {fileName}'**
+  String playerAutoFetched(String fileName);
+
+  /// Picture-in-picture setting
+  ///
+  /// In en, this message translates to:
+  /// **'Picture-in-picture'**
+  String get playerPictureInPicture;
+
+  /// No SMB shares found on home
+  ///
+  /// In en, this message translates to:
+  /// **'No shares found. Check your NAS share settings.'**
+  String get homeSmbNoShares;
+
+  /// Retry button on error surface
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get errorRetry;
+
+  /// Try with MPV button on error surface
+  ///
+  /// In en, this message translates to:
+  /// **'Try with MPV'**
+  String get errorTryMpv;
+
+  /// Open in external player button
+  ///
+  /// In en, this message translates to:
+  /// **'Open in external player'**
+  String get errorOpenExternal;
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -2915,30 +3133,27 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['en', 'es', 'ru', 'zh'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>['en', 'es', 'ru', 'zh'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'en':
-      return AppLocalizationsEn();
-    case 'es':
-      return AppLocalizationsEs();
-    case 'ru':
-      return AppLocalizationsRu();
-    case 'zh':
-      return AppLocalizationsZh();
+    case 'en': return AppLocalizationsEn();
+    case 'es': return AppLocalizationsEs();
+    case 'ru': return AppLocalizationsRu();
+    case 'zh': return AppLocalizationsZh();
   }
 
   throw FlutterError(
     'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
     'an issue with the localizations generation tool. Please file an issue '
     'on GitHub with a reproducible sample app and the gen-l10n configuration '
-    'that was used.',
+    'that was used.'
   );
 }

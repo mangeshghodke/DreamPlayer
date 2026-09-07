@@ -12,6 +12,7 @@ import '../widgets/tv_overscan.dart';
 import '../widgets/tv_text_field.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
+import '../l10n/app_localizations.dart';
 
 enum _FtpProtocol { ftp, sftp }
 
@@ -343,7 +344,7 @@ class _FtpScreenState extends State<FtpScreen> {
         actions: [
           if (browsing != null)
             IconButton(
-              tooltip: 'Server list',
+              tooltip: AppLocalizations.of(context).ftpServerList,
               icon: const Icon(Icons.dns_outlined),
               onPressed: () => setState(() {
                 _browsing = null;
@@ -363,11 +364,11 @@ class _FtpScreenState extends State<FtpScreen> {
                   tooltip: 'Refresh',
                   child: const Icon(Icons.refresh),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'ftp_add',
                   onPressed: _addServer,
-                  tooltip: 'Add server',
+                  tooltip: AppLocalizations.of(context).ftpAddServer,
                   child: const Icon(Icons.add),
                 ),
               ],
@@ -385,7 +386,7 @@ class _FtpScreenState extends State<FtpScreen> {
   }
 
   Widget _body(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
         child: Padding(
@@ -394,16 +395,16 @@ class _FtpScreenState extends State<FtpScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.cloud_off_outlined, size: 64),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Text(
                 'Error: $_error',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               FilledButton(
                 onPressed: _atBrowseRoot ? _loadServers : _goUp,
-                child: const Text('Retry'),
+                child: Text(AppLocalizations.of(context).commonRetry),
               ),
             ],
           ),
@@ -423,7 +424,7 @@ class _FtpScreenState extends State<FtpScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    'Nothing here',
+                    AppLocalizations.of(context).commonNothingHere,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
@@ -468,14 +469,14 @@ class _FtpScreenState extends State<FtpScreen> {
 
   Widget _serverList(BuildContext context) {
     if (_servers.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.cloud_outlined, size: 48, color: Colors.white38),
             SizedBox(height: 12),
             Text(
-              'Nothing yet',
+              AppLocalizations.of(context).commonNothingYet,
               style: TextStyle(color: Colors.white54),
             ),
           ],
@@ -617,7 +618,7 @@ class _FtpTile extends StatelessWidget {
                   ),
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
         ],
         Expanded(
           child: Text(
@@ -636,9 +637,9 @@ class _FtpTile extends StatelessWidget {
           ),
         ),
         if (tmdbMeta != null && tmdbMeta!.movie.voteAverage > 0) ...[
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           const Icon(Icons.star, size: 13, color: Colors.amber),
-          const SizedBox(width: 2),
+          SizedBox(width: 2),
           Text(
             tmdbMeta!.movie.voteAverage.toStringAsFixed(1),
             style: TextStyle(
@@ -887,7 +888,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
     return serverDialog(
       title: ServerDialogTitle(
         icon: widget.existing == null ? Icons.add_link : Icons.dns_outlined,
-        title: widget.existing == null ? 'Add server' : 'Edit server',
+        title: widget.existing == null ? 'Add server' : AppLocalizations.of(context).ftpEditServer,
         subtitle: 'FTP / SFTP',
       ),
       content: SizedBox(
@@ -912,31 +913,31 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                         optional: true,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Row(
                       children: [
                         Expanded(
                           child: _protocolChoice(
                             context,
                             icon: Icons.folder_outlined,
-                            label: 'FTP',
+                            label: AppLocalizations.of(context).ftpFtp,
                             selected: !_isSftp,
                             onTap: () => _setProtocol(_FtpProtocol.ftp),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Expanded(
                           child: _protocolChoice(
                             context,
                             icon: Icons.lock_outline,
-                            label: 'SFTP',
+                            label: AppLocalizations.of(context).ftpSftp,
                             selected: _isSftp,
                             onTap: () => _setProtocol(_FtpProtocol.sftp),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     TvTextField(
                       controller: _host,
                       keyboardType: TextInputType.url,
@@ -945,12 +946,12 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Host',
+                        label: AppLocalizations.of(context).ftpHost,
                         hint: '192.168.1.16 or nas.local',
                         icon: Icons.lan_outlined,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -962,13 +963,13 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                             textInputAction: TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: 'Port',
+                              label: AppLocalizations.of(context).ftpPort,
                               hint: _isSftp ? '22' : '21',
                               icon: Icons.settings_ethernet,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 14),
+                        SizedBox(width: 14),
                         Expanded(
                           flex: 3,
                           child: TvTextField(
@@ -976,7 +977,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                             textInputAction: TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: 'Path',
+                              label: AppLocalizations.of(context).ftpPath,
                               hint: '/',
                               icon: Icons.folder_open_outlined,
                               optional: true,
@@ -985,26 +986,26 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     TvTextField(
                       controller: _username,
                       autofillHints: const [AutofillHints.username],
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: 'Username',
+                        label: AppLocalizations.of(context).ftpUsername,
                         hint: 'admin',
                         icon: Icons.person_outline,
                         optional: true,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     ServerPasswordField(
                       icon: Icons.lock_outline,
                       controller: _password,
                       label: widget.existing?.hasPassword ?? false
                           ? 'Password (leave empty to keep)'
-                          : 'Password',
+                          : AppLocalizations.of(context).ftpPassword,
                       hint: '••••••••',
                     ),
                     if (!_isSftp &&
@@ -1038,16 +1039,16 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           ),
           onPressed: _testing ? null : _test,
           icon: _testing
-              ? const SizedBox(
+              ? SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.wifi_tethering, size: 16),
-          label: const Text('Test'),
+          label: Text(AppLocalizations.of(context).commonTest),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -1056,7 +1057,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           ),
           onPressed: _save,
           icon: const Icon(Icons.check_rounded, size: 16),
-          label: const Text('Save'),
+          label: Text(AppLocalizations.of(context).commonSave),
         ),
       ],
     );
@@ -1088,7 +1089,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 17, color: color),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
