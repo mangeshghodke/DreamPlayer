@@ -116,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen>
               'this feature.',
               style: theme.textTheme.bodySmall,
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             TextButton.icon(
               onPressed: () async {
                 // Call launchUrl directly (no canLaunchUrl gate) — matches
@@ -322,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen>
     } on PlatformException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Could not pick a folder')),
+        SnackBar(content: Text(e.message ?? AppLocalizations.of(context).homeCouldNotPickFolder)),
       );
       return;
     }
@@ -449,7 +449,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Remove'),
+            child: Text(AppLocalizations.of(context).commonRemove),
           ),
         ],
       ),
@@ -663,7 +663,7 @@ class _HomeScreenState extends State<HomeScreen>
                   onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
               ),
-              title: const Text('DreamPlayer'),
+              title: Text(AppLocalizations.of(context).homeTitle),
               pinned: true,
             ),
             // ---- Your library: user-added folders (e.g. TV-show folders) ----
@@ -686,7 +686,7 @@ class _HomeScreenState extends State<HomeScreen>
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 sliver: SliverToBoxAdapter(
                   child: Text(
-                    'Your library',
+                    AppLocalizations.of(context).homeYourLibrary,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -713,7 +713,7 @@ class _HomeScreenState extends State<HomeScreen>
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               sliver: SliverToBoxAdapter(
                 child: Text(
-                  'Continue watching',
+                  AppLocalizations.of(context).homeContinueWatching,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -774,14 +774,14 @@ class _HomeScreenState extends State<HomeScreen>
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: Row(
                   children: [
-                    const SizedBox(
+                    SizedBox(
                       width: 14,
                       height: 14,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
-                      'Downloading',
+                      AppLocalizations.of(context).homeDownloading,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -833,7 +833,7 @@ class _HomeScreenState extends State<HomeScreen>
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Text(
-                'Downloads',
+                AppLocalizations.of(context).homeDownloads,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -843,7 +843,7 @@ class _HomeScreenState extends State<HomeScreen>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
                 child: Text(
-                  'No downloads yet',
+                  AppLocalizations.of(context).homeNoDownloads,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -853,7 +853,7 @@ class _HomeScreenState extends State<HomeScreen>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Text(
-                  'No completed downloads',
+                  AppLocalizations.of(context).homeNoCompletedDownloads,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -920,7 +920,7 @@ class _HomeScreenState extends State<HomeScreen>
                         style: theme.textTheme.bodyMedium,
                       ),
                       subtitle: Text(
-                        job.status == DownloadStatus.cancelled ? 'Cancelled' : 'Failed',
+                        job.status == DownloadStatus.cancelled ? AppLocalizations.of(context).homeCancelled : AppLocalizations.of(context).homeFailed,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: Colors.orange,
                         ),
@@ -983,7 +983,7 @@ class _HomeScreenState extends State<HomeScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).commonCancel),
           ),
           FilledButton(
             onPressed: () {
@@ -1133,7 +1133,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ListTile(
                   leading: const Icon(Icons.video_library_outlined),
                   title: Text(AppLocalizations.of(context).homeAddFolder),
-                  subtitle: const Text(
+                  subtitle: Text(
                     'A TV-show folder, a movie folder\u2026',
                   ),
                   onTap: () => Navigator.of(context).pop('add-folder'),
@@ -1149,15 +1149,15 @@ class _HomeScreenState extends State<HomeScreen>
                 ExpansionTile(
                   leading: const Icon(Icons.wifi_outlined),
                   title: Text(AppLocalizations.of(context).homeNetworkSources),
-                  subtitle: const Text('Servers on this network'),
+                  subtitle: Text(AppLocalizations.of(context).upnpOnThisNetwork),
                   children: [
                     ListTile(
                       leading: const Icon(Icons.folder_shared_outlined),
                       title: Text(AppLocalizations.of(context).homeSmbNas),
                       subtitle: Text(
                         Platform.isAndroid
-                            ? 'SMB shares on the local network'
-                            : 'SMB via the Files app',
+                            ? AppLocalizations.of(context).homeSmbLocalShares
+                            : AppLocalizations.of(context).homeSmbViaFilesApp,
                       ),
                       onTap: () => Navigator.of(context).pop(
                         Platform.isAndroid ? 'smb' : 'smb-ios',
@@ -1165,25 +1165,25 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                     ListTile(
                       leading: const Icon(Icons.cloud_outlined),
-                      title: const Text('WebDAV'),
+                      title: Text('WebDAV'),
                       subtitle: Text(AppLocalizations.of(context).homeAddWebdavServer),
                       onTap: () => Navigator.of(context).pop('webdav'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.folder_outlined),
-                      title: const Text('FTP / SFTP'),
+                      title: Text('FTP / SFTP'),
                       subtitle: Text(AppLocalizations.of(context).homeFtpOrSftp),
                       onTap: () => Navigator.of(context).pop('ftp'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.live_tv_outlined),
-                      title: const Text('Jellyfin'),
+                      title: Text('Jellyfin'),
                       subtitle: Text(AppLocalizations.of(context).homeJellyfinServer),
                       onTap: () => Navigator.of(context).pop('jellyfin'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.cast_connected_outlined),
-                      title: const Text('DLNA'),
+                      title: Text('DLNA'),
                       subtitle: Text(AppLocalizations.of(context).homeUpnpDlna),
                       onTap: () => Navigator.of(context).pop('upnp'),
                     ),
@@ -1257,7 +1257,7 @@ class _HomeScreenState extends State<HomeScreen>
     final url = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Play URL'),
+        title: Text(AppLocalizations.of(context).homePlayUrl),
         content: TvTextField(
           controller: controller,
           autofocus: true,
@@ -1265,16 +1265,16 @@ class _HomeScreenState extends State<HomeScreen>
           autocorrect: false,
           enableSuggestions: false,
           textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'https://example.com/video.mp4',
-            labelText: 'Video URL',
+            labelText: AppLocalizations.of(context).homeVideoUrl,
           ),
           onSubmitted: (v) => Navigator.of(dialogContext).pop(v),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           TextButton(
             onPressed: () =>
@@ -1361,14 +1361,14 @@ class _EmptyLibrary extends StatelessWidget {
               size: 72,
               color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
-              'Nothing yet',
+              AppLocalizations.of(context).homeNothingYet,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Videos you play will appear here.',
               textAlign: TextAlign.center,

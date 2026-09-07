@@ -1596,4 +1596,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get errorOpenExternal => '在外部播放器中打开';
+
+  @override
+  String get upnpOnThisNetwork => '此网络上的服务器';
+
+  @override
+  String get homeSmbLocalShares => '本地网络上的SMB共享';
+
+  @override
+  String get homeSmbViaFilesApp => '通过文件App访问SMB';
+
+  @override
+  String get homeTitle => 'DreamPlayer';
+
+  @override
+  String get homeNothingYet => '暂无内容 — 打开文件或连接服务器';
 }

@@ -2143,5 +2143,25 @@
   "errorOpenExternal": "Open in external player",
   "@errorOpenExternal": {
     "description": "Open in external player button"
+  },
+  "upnpOnThisNetwork": "Servers on this network",
+  "@upnpOnThisNetwork": {
+    "description": "UPnP network subtitle"
+  },
+  "homeSmbLocalShares": "SMB shares on the local network",
+  "@homeSmbLocalShares": {
+    "description": "SMB local shares subtitle"
+  },
+  "homeSmbViaFilesApp": "SMB via the Files app",
+  "@homeSmbViaFilesApp": {
+    "description": "SMB via Files app subtitle"
+  },
+  "homeTitle": "DreamPlayer",
+  "@homeTitle": {
+    "description": "App title in drawer/header"
+  },
+  "homeNothingYet": "Nothing yet — open a file or connect a server",
+  "@homeNothingYet": {
+    "description": "Empty continue watching message"
   }
 }

@@ -3125,6 +3125,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open in external player'**
   String get errorOpenExternal;
+
+  /// UPnP network subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Servers on this network'**
+  String get upnpOnThisNetwork;
+
+  /// SMB local shares subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'SMB shares on the local network'**
+  String get homeSmbLocalShares;
+
+  /// SMB via Files app subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'SMB via the Files app'**
+  String get homeSmbViaFilesApp;
+
+  /// App title in drawer/header
+  ///
+  /// In en, this message translates to:
+  /// **'DreamPlayer'**
+  String get homeTitle;
+
+  /// Empty continue watching message
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing yet — open a file or connect a server'**
+  String get homeNothingYet;
 }
 
 class _AppLocalizationsDelegate

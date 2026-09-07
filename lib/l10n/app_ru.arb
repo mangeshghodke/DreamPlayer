@@ -2086,5 +2086,25 @@
   "settingsTmdbApiKey": "Ключ API TMDB",
   "@settingsTmdbApiKey": {
     "description": "Translated key"
+  },
+  "upnpOnThisNetwork": "Серверы в этой сети",
+  "@upnpOnThisNetwork": {
+    "description": "Translated key"
+  },
+  "homeSmbLocalShares": "Ресурсы SMB в локальной сети",
+  "@homeSmbLocalShares": {
+    "description": "Translated key"
+  },
+  "homeSmbViaFilesApp": "SMB через приложение Файлы",
+  "@homeSmbViaFilesApp": {
+    "description": "Translated key"
+  },
+  "homeTitle": "DreamPlayer",
+  "@homeTitle": {
+    "description": "Translated key"
+  },
+  "homeNothingYet": "Пока ничего — откройте файл или подключите сервер",
+  "@homeNothingYet": {
+    "description": "Translated key"
   }
 }

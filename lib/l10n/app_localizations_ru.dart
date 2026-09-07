@@ -1607,4 +1607,20 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get errorOpenExternal => 'Открыть во внешнем плеере';
+
+  @override
+  String get upnpOnThisNetwork => 'Серверы в этой сети';
+
+  @override
+  String get homeSmbLocalShares => 'Ресурсы SMB в локальной сети';
+
+  @override
+  String get homeSmbViaFilesApp => 'SMB через приложение Файлы';
+
+  @override
+  String get homeTitle => 'DreamPlayer';
+
+  @override
+  String get homeNothingYet =>
+      'Пока ничего — откройте файл или подключите сервер';
 }

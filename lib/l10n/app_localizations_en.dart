@@ -1605,4 +1605,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get errorOpenExternal => 'Open in external player';
+
+  @override
+  String get upnpOnThisNetwork => 'Servers on this network';
+
+  @override
+  String get homeSmbLocalShares => 'SMB shares on the local network';
+
+  @override
+  String get homeSmbViaFilesApp => 'SMB via the Files app';
+
+  @override
+  String get homeTitle => 'DreamPlayer';
+
+  @override
+  String get homeNothingYet => 'Nothing yet — open a file or connect a server';
 }

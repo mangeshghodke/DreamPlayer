@@ -2086,5 +2086,25 @@
   "settingsTmdbApiKey": "Clave API de TMDB",
   "@settingsTmdbApiKey": {
     "description": "Translated key"
+  },
+  "upnpOnThisNetwork": "Servidores en esta red",
+  "@upnpOnThisNetwork": {
+    "description": "Translated key"
+  },
+  "homeSmbLocalShares": "Shares SMB en la red local",
+  "@homeSmbLocalShares": {
+    "description": "Translated key"
+  },
+  "homeSmbViaFilesApp": "SMB vía la app Archivos",
+  "@homeSmbViaFilesApp": {
+    "description": "Translated key"
+  },
+  "homeTitle": "DreamPlayer",
+  "@homeTitle": {
+    "description": "Translated key"
+  },
+  "homeNothingYet": "Nada aún — abre un archivo o conecta un servidor",
+  "@homeNothingYet": {
+    "description": "Translated key"
   }
 }
