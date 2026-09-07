@@ -231,35 +231,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final current = LanguageService.instance.locale;
     final picked = await showDialog<Locale?>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(AppLocalizations.of(context).settingsLanguage),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              RadioGroup<Locale?>(
-                groupValue: current,
-                onChanged: (v) => Navigator.pop(ctx, v),
-                child: Column(
-                  children: [
-                    RadioListTile<Locale?>(
-                      value: null,
-                      title: Text(AppLocalizations.of(context).settingsSystemDefault),
+      builder: (ctx) {
+        Locale? selected = current;
+        return StatefulBuilder(
+          builder: (ctx, setState) => AlertDialog(
+            title: Text(AppLocalizations.of(context).settingsLanguage),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  ListTile(
+                    title: Text(AppLocalizations.of(context).settingsSystemDefault),
+                    trailing: selected == null
+                        ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                        : null,
+                    onTap: () => Navigator.pop(ctx, null),
+                  ),
+                  for (final loc in AppLocalizations.supportedLocales)
+                    ListTile(
+                      title: Text(_languageLabel(loc)),
+                      trailing: selected == loc
+                          ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, loc),
                     ),
-                    for (final loc in AppLocalizations.supportedLocales)
-                      RadioListTile<Locale?>(
-                        value: loc,
-                        title: Text(_languageLabel(loc)),
-                      ),
-                  ],
-                ),
+                ],
               ),
-            ],
+            ),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppLocalizations.of(context).commonCancel))],
           ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel'))],
-      ),
+        );
+      },
     );
     if (picked != null || (picked == null && current != null)) {
       await LanguageService.instance.setLanguage(picked);

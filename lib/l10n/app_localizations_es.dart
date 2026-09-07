@@ -102,7 +102,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get homeNetworkSources => 'Network sources';
 
   @override
-  String get homeNoFolders => 'No folders yet. Use the buttons above to add one.';
+  String get homeNoFolders =>
+      'No folders yet. Use the buttons above to add one.';
 
   @override
   String get homeNoVideos => 'Videos you play will appear here.';
@@ -111,7 +112,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get homeAuthorization => 'Authorization';
 
   @override
-  String get homeFolderPickerTimeout => 'The folder picker timed out. Please try again.';
+  String get homeFolderPickerTimeout =>
+      'The folder picker timed out. Please try again.';
 
   @override
   String get homeCouldNotPickFolder => 'Could not pick a folder';
@@ -183,7 +185,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get homeSmbViaFiles => 'SMB via the Files app';
 
   @override
-  String get playerNotSupported => 'Playback is not yet supported on this platform.';
+  String get playerNotSupported =>
+      'Playback is not yet supported on this platform.';
 
   @override
   String get playerNoSource => 'No video source provided.';
@@ -192,10 +195,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get playerNoPlayable => 'No playable source for this video.';
 
   @override
-  String get playerSmbStreamError => 'Could not stream this SMB file through the fallback engine.';
+  String get playerSmbStreamError =>
+      'Could not stream this SMB file through the fallback engine.';
 
   @override
-  String get playerControllerLost => 'Video controller lost before surface attach.';
+  String get playerControllerLost =>
+      'Video controller lost before surface attach.';
 
   @override
   String get playerAudioTracks => 'Audio tracks';
@@ -309,7 +314,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get playerDecoderAuto => 'Automatic (recommended)';
 
   @override
-  String get playerDecoderReopen => 'Reopens at same position to switch decoder.';
+  String get playerDecoderReopen =>
+      'Reopens at same position to switch decoder.';
 
   @override
   String get playerVolumeBoostTitle => 'Volume Boost';
@@ -438,25 +444,30 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsSwipeGestures => 'Swipe gestures';
 
   @override
-  String get settingsSwipeDesc => 'Swipe left side for brightness, right side for volume';
+  String get settingsSwipeDesc =>
+      'Swipe left side for brightness, right side for volume';
 
   @override
   String get settingsPip => 'Picture-in-picture';
 
   @override
-  String get settingsPipDesc => 'Keep playing in a floating window when you leave the app';
+  String get settingsPipDesc =>
+      'Keep playing in a floating window when you leave the app';
 
   @override
   String get settingsDefaultEngine => 'Default playback engine';
 
   @override
-  String get settingsEngineAutoDesc => 'Start with Media3, auto-fallback to libmpv if it fails';
+  String get settingsEngineAutoDesc =>
+      'Start with Media3, auto-fallback to libmpv if it fails';
 
   @override
-  String get settingsEngineMedia3Desc => 'Hardware-accelerated, supports Dolby Vision / HDR';
+  String get settingsEngineMedia3Desc =>
+      'Hardware-accelerated, supports Dolby Vision / HDR';
 
   @override
-  String get settingsEngineMpvDesc => 'Software-first, handles more codecs (SDR only)';
+  String get settingsEngineMpvDesc =>
+      'Software-first, handles more codecs (SDR only)';
 
   @override
   String get settingsEngineAskDesc => 'Show both options on every video';
@@ -516,7 +527,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsNightMode => 'Night Mode';
 
   @override
-  String get settingsNightModeDesc => 'Compress dynamic range for quiet listening';
+  String get settingsNightModeDesc =>
+      'Compress dynamic range for quiet listening';
 
   @override
   String get settingsVideoDecoder => 'Video decoder';
@@ -552,7 +564,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsCacheCleared => 'Cache cleared';
 
   @override
-  String get settingsCacheClearedDesc => 'Cached images and temporary files cleared';
+  String get settingsCacheClearedDesc =>
+      'Cached images and temporary files cleared';
 
   @override
   String get settingsOpenLicenses => 'Open-source licenses';
@@ -573,19 +586,22 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsFaqEngine => 'Which playback engine should I use?';
 
   @override
-  String get settingsFaqEngineAnswer => 'Use Media3 unless a specific file fails to play, in which case try MPV as a fallback.';
+  String get settingsFaqEngineAnswer =>
+      'Use Media3 unless a specific file fails to play, in which case try MPV as a fallback.';
 
   @override
   String get settingsFaqRefresh => 'How do I refresh network share listings?';
 
   @override
-  String get settingsFaqRefreshAnswer => 'Pull down on any folder listing in SMB, WebDAV, FTP, DLNA, or Jellyfin to refresh.';
+  String get settingsFaqRefreshAnswer =>
+      'Pull down on any folder listing in SMB, WebDAV, FTP, DLNA, or Jellyfin to refresh.';
 
   @override
   String get settingsFaqTmdb => 'How should I name my files for TMDB metadata?';
 
   @override
-  String get settingsFaqTmdbAnswer => 'DreamPlayer tries to match filenames against The Movie Database (TMDB) to fetch posters, titles, ratings, and more. Name files like \'Movie.Name.2024.1080p.mkv\' for best results.';
+  String get settingsFaqTmdbAnswer =>
+      'DreamPlayer tries to match filenames against The Movie Database (TMDB) to fetch posters, titles, ratings, and more. Name files like \'Movie.Name.2024.1080p.mkv\' for best results.';
 
   @override
   String get settingsSimklSync => 'Sync now';
@@ -606,10 +622,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsSimklSignInFirst => 'Sign in to SIMKL first';
 
   @override
-  String get settingsSyncWatched => 'Sync watched history with simkl.com (free unlimited)';
+  String get settingsSyncWatched =>
+      'Sync watched history with simkl.com (free unlimited)';
 
   @override
-  String get settingsGoToAddress => 'Go to the address below and enter this code:';
+  String get settingsGoToAddress =>
+      'Go to the address below and enter this code:';
 
   @override
   String get settingsWaitingAuth => 'Waiting for authorization…';
@@ -633,7 +651,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsAutoFetchSubs => 'Auto-fetch subtitles';
 
   @override
-  String get settingsAutoFetchDesc => 'Download best match when no subtitles found';
+  String get settingsAutoFetchDesc =>
+      'Download best match when no subtitles found';
 
   @override
   String get settingsAudioPassthrough => 'Audio passthrough';
@@ -730,7 +749,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get detailsMovie => 'Movie';
 
   @override
-  String get detailsSearchUnavailable => 'Search is unavailable right now. Try again in a moment.';
+  String get detailsSearchUnavailable =>
+      'Search is unavailable right now. Try again in a moment.';
 
   @override
   String get detailsSearchFailed => 'Search failed. Try again in a moment.';
@@ -927,10 +947,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get webdavSelfSigned => 'Self-signed certificate';
 
   @override
-  String get webdavSelfSignedDesc => 'Trust HTTPS servers without a CA certificate';
+  String get webdavSelfSignedDesc =>
+      'Trust HTTPS servers without a CA certificate';
 
   @override
-  String get webdavHttpInsecure => 'HTTP sends the password insecurely. Use HTTPS when connecting over the internet.';
+  String get webdavHttpInsecure =>
+      'HTTP sends the password insecurely. Use HTTPS when connecting over the internet.';
 
   @override
   String webdavBookmarkAdded(String folder, String server) {
@@ -989,7 +1011,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get ftpEditServer => 'Edit server';
 
   @override
-  String get ftpUnencryptedWarning => 'FTP sends credentials and data unencrypted. Use SFTP when connecting over the internet.';
+  String get ftpUnencryptedWarning =>
+      'FTP sends credentials and data unencrypted. Use SFTP when connecting over the internet.';
 
   @override
   String get jellyfinTitle => 'Jellyfin';
@@ -1046,7 +1069,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get jellyfinSelfSigned => 'Self-signed certificate';
 
   @override
-  String get jellyfinSelfSignedDesc => 'Trust HTTPS servers without a CA certificate';
+  String get jellyfinSelfSignedDesc =>
+      'Trust HTTPS servers without a CA certificate';
 
   @override
   String get jellyfinEnterUsername => 'Enter your username.';
@@ -1143,7 +1167,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get subtitlePosition => 'Vertical position';
 
   @override
-  String get subtitlePositionDesc => 'Move subtitle text up (higher) or down (lower).';
+  String get subtitlePositionDesc =>
+      'Move subtitle text up (higher) or down (lower).';
 
   @override
   String get subtitleDelay => 'Delay';
@@ -1170,7 +1195,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get fileBrowseFiles => 'Files';
 
   @override
-  String get fileBrowseAccessNeeded => 'All files access is needed to browse your storage';
+  String get fileBrowseAccessNeeded =>
+      'All files access is needed to browse your storage';
 
   @override
   String get fileBrowseGrant => 'Grant access';
@@ -1221,40 +1247,52 @@ class AppLocalizationsEs extends AppLocalizations {
   String get opensubtitlesNoResults => 'No results';
 
   @override
-  String get opensubtitlesFreeAccount => 'Free account = 20/day (anonymous = 5/day). Create at opensubtitles.com';
+  String get opensubtitlesFreeAccount =>
+      'Free account = 20/day (anonymous = 5/day). Create at opensubtitles.com';
 
   @override
-  String get opensubtitlesSignInRequired => 'Sign in required for this download (daily anonymous limit reached)';
+  String get opensubtitlesSignInRequired =>
+      'Sign in required for this download (daily anonymous limit reached)';
 
   @override
-  String get errorIo => 'The video file could not be accessed. It may have been moved, deleted, or the network connection was lost.';
+  String get errorIo =>
+      'The video file could not be accessed. It may have been moved, deleted, or the network connection was lost.';
 
   @override
-  String get errorConnection => 'Connection interrupted while playing. The file may have been moved, the network may be unstable, or the server may have closed the connection.';
+  String get errorConnection =>
+      'Connection interrupted while playing. The file may have been moved, the network may be unstable, or the server may have closed the connection.';
 
   @override
-  String get errorServer => 'Could not reach the server. Check your network connection and make sure the server is running.';
+  String get errorServer =>
+      'Could not reach the server. Check your network connection and make sure the server is running.';
 
   @override
-  String get errorHttp => 'Plain HTTP is blocked for this source. Use HTTPS if the server supports it.';
+  String get errorHttp =>
+      'Plain HTTP is blocked for this source. Use HTTPS if the server supports it.';
 
   @override
-  String get errorDvP5 => 'This device cannot decode Dolby Vision Profile 5. Play the HDR10 or SDR version of the file, or watch it on a Dolby Vision-capable device.';
+  String get errorDvP5 =>
+      'This device cannot decode Dolby Vision Profile 5. Play the HDR10 or SDR version of the file, or watch it on a Dolby Vision-capable device.';
 
   @override
-  String get errorDecoderFailed => 'The video decoder failed while playing this file. It may be corrupted or use an unsupported encoding.';
+  String get errorDecoderFailed =>
+      'The video decoder failed while playing this file. It may be corrupted or use an unsupported encoding.';
 
   @override
-  String get errorFormatUnsupported => 'This device cannot decode this video format. Common reasons include 10-bit HDR or an unsupported codec.';
+  String get errorFormatUnsupported =>
+      'This device cannot decode this video format. Common reasons include 10-bit HDR or an unsupported codec.';
 
   @override
-  String get errorResourcesReclaimed => 'The system reclaimed the video decoder. Reopening in software mode.';
+  String get errorResourcesReclaimed =>
+      'The system reclaimed the video decoder. Reopening in software mode.';
 
   @override
-  String get errorAudioInit => 'Audio output could not be initialized. Check if another app is using the audio system, or try a different audio track.';
+  String get errorAudioInit =>
+      'Audio output could not be initialized. Check if another app is using the audio system, or try a different audio track.';
 
   @override
-  String get errorContainerUnsupported => 'This file format is not supported. The container (e.g. .m2ts, .ts, .vob) may require a different decoder.';
+  String get errorContainerUnsupported =>
+      'This file format is not supported. The container (e.g. .m2ts, .ts, .vob) may require a different decoder.';
 
   @override
   String get errorNoVideoPlayer => 'No video player app found on this device';
@@ -1281,7 +1319,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get permissionsAllFiles => 'Allow all files access?';
 
   @override
-  String get permissionsAllFilesDesc => 'DreamPlayer needs All Files Access to browse your storage, play videos, and download files.';
+  String get permissionsAllFilesDesc =>
+      'DreamPlayer needs All Files Access to browse your storage, play videos, and download files.';
 
   @override
   String get permissionsNotNow => 'Not now';
@@ -1392,7 +1431,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tmdbHintEnable => 'Enable movie details?';
 
   @override
-  String get tmdbHintDesc => 'DreamPlayer can fetch movie posters, ratings, cast, and other details from The Movie Database (TMDB) for free.';
+  String get tmdbHintDesc =>
+      'DreamPlayer can fetch movie posters, ratings, cast, and other details from The Movie Database (TMDB) for free.';
 
   @override
   String get tmdbGetKey => 'Get a free TMDB API key';
@@ -1422,7 +1462,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get liveOnIos => 'Live on iOS · reopens at same position on Android';
 
   @override
-  String get reopensSamePosition => 'Reopens at same position to switch decoder.';
+  String get reopensSamePosition =>
+      'Reopens at same position to switch decoder.';
 
   @override
   String get hashMatchEnabled => 'Hash match enabled';
@@ -1445,7 +1486,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsSystemDefault => 'System default';
 
   @override
-  String get settingsOpensubAccountHint => 'Free account = 20/day (anonymous = 5/day). Create at opensubtitles.com';
+  String get settingsOpensubAccountHint =>
+      'Free account = 20/day (anonymous = 5/day). Create at opensubtitles.com';
 
   @override
   String get settingsSignIn => 'Sign in';
@@ -1472,13 +1514,15 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsOpensubtitles => 'OpenSubtitles';
 
   @override
-  String get settingsAutoDownloadSubs => 'Download best match when no subtitles found';
+  String get settingsAutoDownloadSubs =>
+      'Download best match when no subtitles found';
 
   @override
   String get settingsSimklSignOut => 'Sign out and stop syncing';
 
   @override
-  String get settingsSimklSyncDesc => 'Sync watched history with simkl.com (free unlimited)';
+  String get settingsSimklSyncDesc =>
+      'Sync watched history with simkl.com (free unlimited)';
 
   @override
   String get settingsGnuGpl => 'GNU GPL v3.0 and third-party notices';
@@ -1492,10 +1536,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsConnectSimkl => 'Connect SIMKL';
 
   @override
-  String get settingsSimklPairing => 'Go to the address below and enter this code:';
+  String get settingsSimklPairing =>
+      'Go to the address below and enter this code:';
 
   @override
-  String get opensubtitlesAnonymousHint => 'Anonymous = 5/day, free account = 20/day';
+  String get opensubtitlesAnonymousHint =>
+      'Anonymous = 5/day, free account = 20/day';
 
   @override
   String get opensubtitlesDownloading => 'Downloading…';
@@ -1515,7 +1561,8 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get folderSmbNoShares => 'No shares found. Check your NAS share settings.';
+  String get folderSmbNoShares =>
+      'No shares found. Check your NAS share settings.';
 
   @override
   String playerDownloadingTitle(String title) {
@@ -1528,10 +1575,12 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get playerVideoNotSupported => 'This video isn\'t supported by the built-in player, so the fallback player is being used.';
+  String get playerVideoNotSupported =>
+      'This video isn\'t supported by the built-in player, so the fallback player is being used.';
 
   @override
-  String get playerSleepTimerFinished => 'Sleep timer finished — playback paused';
+  String get playerSleepTimerFinished =>
+      'Sleep timer finished — playback paused';
 
   @override
   String get playerDownloaded => 'Downloaded';
@@ -1545,7 +1594,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get playerPictureInPicture => 'Picture-in-picture';
 
   @override
-  String get homeSmbNoShares => 'No shares found. Check your NAS share settings.';
+  String get homeSmbNoShares =>
+      'No shares found. Check your NAS share settings.';
 
   @override
   String get errorRetry => 'Retry';
