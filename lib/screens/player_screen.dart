@@ -704,7 +704,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppLocalizations.of(context).playerDownloadingTitle(video.title ?? '')),
+            content: Text(AppLocalizations.of(context).playerDownloadingTitle(video.title)),
             duration: const Duration(seconds: 3),
           ),
         );
