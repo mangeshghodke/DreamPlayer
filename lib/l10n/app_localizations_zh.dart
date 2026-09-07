@@ -1476,132 +1476,124 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsSubtitleEncoding => 'Subtitle encoding';
+  String get settingsSubtitleEncoding => '字幕编码';
 
   @override
-  String get settingsLanguage => 'Language';
+  String get settingsLanguage => '语言';
 
   @override
-  String get settingsSystemDefault => 'System default';
+  String get settingsSystemDefault => '跟随系统';
 
   @override
   String get settingsOpensubAccountHint =>
-      'Free account = 20/day (anonymous = 5/day). Create at opensubtitles.com';
+      '免费账户 = 20/天（匿名 = 5/天）。在opensubtitles.com注册';
 
   @override
-  String get settingsSignIn => 'Sign in';
+  String get settingsSignIn => '登录';
 
   @override
-  String get settingsRemove => 'Remove';
+  String get settingsRemove => '移除';
 
   @override
-  String get settingsClearCacheConfirm => 'Clear cache?';
+  String get settingsClearCacheConfirm => '清除缓存？';
 
   @override
-  String get settingsCouldNotOpenLink => 'Could not open this link';
+  String get settingsCouldNotOpenLink => '无法打开此链接';
 
   @override
-  String get settingsBadgeOptionsDesc => 'Choose which chips to show';
+  String get settingsBadgeOptionsDesc => '选择要显示的标签';
 
   @override
-  String get settingsTakesEffectNextVideo => 'Takes effect on next video';
+  String get settingsTakesEffectNextVideo => '将在下一个视频生效';
 
   @override
-  String get settingsTmdbApiKey => 'TMDB API key';
+  String get settingsTmdbApiKey => 'TMDB API密钥';
 
   @override
   String get settingsOpensubtitles => 'OpenSubtitles';
 
   @override
-  String get settingsAutoDownloadSubs =>
-      'Download best match when no subtitles found';
+  String get settingsAutoDownloadSubs => '未找到字幕时自动下载最佳匹配';
 
   @override
-  String get settingsSimklSignOut => 'Sign out and stop syncing';
+  String get settingsSimklSignOut => '退出登录并停止同步';
 
   @override
-  String get settingsSimklSyncDesc =>
-      'Sync watched history with simkl.com (free unlimited)';
+  String get settingsSimklSyncDesc => '与simkl.com同步观看记录（免费无限制）';
 
   @override
-  String get settingsGnuGpl => 'GNU GPL v3.0 and third-party notices';
+  String get settingsGnuGpl => 'GNU GPL v3.0 及第三方声明';
 
   @override
   String settingsSyncedCount(int count) {
-    return 'Synced $count item(s) to SIMKL';
+    return '已同步 $count 项到SIMKL';
   }
 
   @override
-  String get settingsConnectSimkl => 'Connect SIMKL';
+  String get settingsConnectSimkl => '连接SIMKL';
 
   @override
-  String get settingsSimklPairing =>
-      'Go to the address below and enter this code:';
+  String get settingsSimklPairing => '访问以下地址并输入此代码：';
 
   @override
-  String get opensubtitlesAnonymousHint =>
-      'Anonymous = 5/day, free account = 20/day';
+  String get opensubtitlesAnonymousHint => '匿名 = 5/天，免费账户 = 20/天';
 
   @override
-  String get opensubtitlesDownloading => 'Downloading…';
+  String get opensubtitlesDownloading => '下载中…';
 
   @override
-  String get folderNoVideosHere => 'No videos or folders here';
+  String get folderNoVideosHere => '此处没有视频或文件夹';
 
   @override
-  String get folderSimklNotConfigured => 'SIMKL not configured';
+  String get folderSimklNotConfigured => 'SIMKL未配置';
 
   @override
-  String get folderSimklSignInFirst => 'Sign in to SIMKL first';
+  String get folderSimklSignInFirst => '请先登录SIMKL';
 
   @override
   String folderSimklSyncFailed(String error) {
-    return 'SIMKL sync failed: $error';
+    return 'SIMKL同步失败：$error';
   }
 
   @override
-  String get folderSmbNoShares =>
-      'No shares found. Check your NAS share settings.';
+  String get folderSmbNoShares => '未找到共享。请检查NAS共享设置。';
 
   @override
   String playerDownloadingTitle(String title) {
-    return 'Downloading: $title';
+    return '下载中：$title';
   }
 
   @override
   String playerDownloadFailed(String error) {
-    return 'Download failed: $error';
+    return '下载失败：$error';
   }
 
   @override
-  String get playerVideoNotSupported =>
-      'This video isn\'t supported by the built-in player, so the fallback player is being used.';
+  String get playerVideoNotSupported => '此视频不兼容内置播放器，正在使用备用播放器。';
 
   @override
-  String get playerSleepTimerFinished =>
-      'Sleep timer finished — playback paused';
+  String get playerSleepTimerFinished => '睡眠定时结束 — 播放已暂停';
 
   @override
-  String get playerDownloaded => 'Downloaded';
+  String get playerDownloaded => '已下载';
 
   @override
   String playerAutoFetched(String fileName) {
-    return 'Auto-fetched: $fileName';
+    return '自动获取：$fileName';
   }
 
   @override
-  String get playerPictureInPicture => 'Picture-in-picture';
+  String get playerPictureInPicture => '画中画';
 
   @override
-  String get homeSmbNoShares =>
-      'No shares found. Check your NAS share settings.';
+  String get homeSmbNoShares => '未找到共享。请检查NAS共享设置。';
 
   @override
-  String get errorRetry => 'Retry';
+  String get errorRetry => '重试';
 
   @override
-  String get errorTryMpv => 'Try with MPV';
+  String get errorTryMpv => '尝试MPV';
 
   @override
-  String get errorOpenExternal => 'Open in external player';
+  String get errorOpenExternal => '在外部播放器中打开';
 }

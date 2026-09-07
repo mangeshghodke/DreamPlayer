@@ -1938,5 +1938,153 @@
         "type": "String"
       }
     }
+  },
+  "errorOpenExternal": "Abrir en reproductor externo",
+  "@errorOpenExternal": {
+    "description": "Translated key"
+  },
+  "errorRetry": "Reintentar",
+  "@errorRetry": {
+    "description": "Translated key"
+  },
+  "errorTryMpv": "Probar con MPV",
+  "@errorTryMpv": {
+    "description": "Translated key"
+  },
+  "folderNoVideosHere": "No hay videos ni carpetas aquí",
+  "@folderNoVideosHere": {
+    "description": "Translated key"
+  },
+  "folderSimklNotConfigured": "SIMKL no configurado",
+  "@folderSimklNotConfigured": {
+    "description": "Translated key"
+  },
+  "folderSimklSignInFirst": "Inicia sesión en SIMKL primero",
+  "@folderSimklSignInFirst": {
+    "description": "Translated key"
+  },
+  "folderSimklSyncFailed": "Error de sincronización con SIMKL: {error}",
+  "@folderSimklSyncFailed": {
+    "description": "Translated key"
+  },
+  "folderSmbNoShares": "No se encontraron shares. Revisa la configuración de tu NAS.",
+  "@folderSmbNoShares": {
+    "description": "Translated key"
+  },
+  "homeSmbNoShares": "No se encontraron shares. Revisa la configuración de tu NAS.",
+  "@homeSmbNoShares": {
+    "description": "Translated key"
+  },
+  "opensubtitlesAnonymousHint": "Anónimo = 5/día, cuenta gratuita = 20/día",
+  "@opensubtitlesAnonymousHint": {
+    "description": "Translated key"
+  },
+  "opensubtitlesDownloading": "Descargando…",
+  "@opensubtitlesDownloading": {
+    "description": "Translated key"
+  },
+  "playerAutoFetched": "Obtenido automáticamente: {fileName}",
+  "@playerAutoFetched": {
+    "description": "Translated key"
+  },
+  "playerDownloadFailed": "Descarga fallida: {error}",
+  "@playerDownloadFailed": {
+    "description": "Translated key"
+  },
+  "playerDownloaded": "Descargado",
+  "@playerDownloaded": {
+    "description": "Translated key"
+  },
+  "playerDownloadingTitle": "Descargando: {title}",
+  "@playerDownloadingTitle": {
+    "description": "Translated key"
+  },
+  "playerPictureInPicture": "Imagen en imagen",
+  "@playerPictureInPicture": {
+    "description": "Translated key"
+  },
+  "playerSleepTimerFinished": "Temporizador terminado — reproducción pausada",
+  "@playerSleepTimerFinished": {
+    "description": "Translated key"
+  },
+  "playerVideoNotSupported": "Este video no es compatible con el reproductor integrado, se usa el alternativo.",
+  "@playerVideoNotSupported": {
+    "description": "Translated key"
+  },
+  "settingsAutoDownloadSubs": "Descargar mejor coincidencia cuando no se encuentren subtítulos",
+  "@settingsAutoDownloadSubs": {
+    "description": "Translated key"
+  },
+  "settingsBadgeOptionsDesc": "Elegir qué chips mostrar",
+  "@settingsBadgeOptionsDesc": {
+    "description": "Translated key"
+  },
+  "settingsClearCacheConfirm": "¿Limpiar caché?",
+  "@settingsClearCacheConfirm": {
+    "description": "Translated key"
+  },
+  "settingsConnectSimkl": "Conectar SIMKL",
+  "@settingsConnectSimkl": {
+    "description": "Translated key"
+  },
+  "settingsCouldNotOpenLink": "No se pudo abrir este enlace",
+  "@settingsCouldNotOpenLink": {
+    "description": "Translated key"
+  },
+  "settingsGnuGpl": "GNU GPL v3.0 y avisos de terceros",
+  "@settingsGnuGpl": {
+    "description": "Translated key"
+  },
+  "settingsLanguage": "Idioma",
+  "@settingsLanguage": {
+    "description": "Translated key"
+  },
+  "settingsOpensubAccountHint": "Cuenta gratuita = 20/día (anónima = 5/día). Crea en opensubtitles.com",
+  "@settingsOpensubAccountHint": {
+    "description": "Translated key"
+  },
+  "settingsOpensubtitles": "OpenSubtitles",
+  "@settingsOpensubtitles": {
+    "description": "Translated key"
+  },
+  "settingsRemove": "Eliminar",
+  "@settingsRemove": {
+    "description": "Translated key"
+  },
+  "settingsSignIn": "Iniciar sesión",
+  "@settingsSignIn": {
+    "description": "Translated key"
+  },
+  "settingsSimklPairing": "Ve a la dirección de abajo e introduce este código:",
+  "@settingsSimklPairing": {
+    "description": "Translated key"
+  },
+  "settingsSimklSignOut": "Cerrar sesión y dejar de sincronizar",
+  "@settingsSimklSignOut": {
+    "description": "Translated key"
+  },
+  "settingsSimklSyncDesc": "Sincronizar historial con simkl.com (gratis ilimitado)",
+  "@settingsSimklSyncDesc": {
+    "description": "Translated key"
+  },
+  "settingsSubtitleEncoding": "Codificación de subtítulos",
+  "@settingsSubtitleEncoding": {
+    "description": "Translated key"
+  },
+  "settingsSyncedCount": "Sincronizados {count} elemento(s) a SIMKL",
+  "@settingsSyncedCount": {
+    "description": "Translated key"
+  },
+  "settingsSystemDefault": "Predeterminado del sistema",
+  "@settingsSystemDefault": {
+    "description": "Translated key"
+  },
+  "settingsTakesEffectNextVideo": "Surte efecto en el siguiente video",
+  "@settingsTakesEffectNextVideo": {
+    "description": "Translated key"
+  },
+  "settingsTmdbApiKey": "Clave API de TMDB",
+  "@settingsTmdbApiKey": {
+    "description": "Translated key"
   }
 }

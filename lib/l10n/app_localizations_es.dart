@@ -1481,132 +1481,133 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get settingsSubtitleEncoding => 'Subtitle encoding';
+  String get settingsSubtitleEncoding => 'Codificación de subtítulos';
 
   @override
-  String get settingsLanguage => 'Language';
+  String get settingsLanguage => 'Idioma';
 
   @override
-  String get settingsSystemDefault => 'System default';
+  String get settingsSystemDefault => 'Predeterminado del sistema';
 
   @override
   String get settingsOpensubAccountHint =>
-      'Free account = 20/day (anonymous = 5/day). Create at opensubtitles.com';
+      'Cuenta gratuita = 20/día (anónima = 5/día). Crea en opensubtitles.com';
 
   @override
-  String get settingsSignIn => 'Sign in';
+  String get settingsSignIn => 'Iniciar sesión';
 
   @override
-  String get settingsRemove => 'Remove';
+  String get settingsRemove => 'Eliminar';
 
   @override
-  String get settingsClearCacheConfirm => 'Clear cache?';
+  String get settingsClearCacheConfirm => '¿Limpiar caché?';
 
   @override
-  String get settingsCouldNotOpenLink => 'Could not open this link';
+  String get settingsCouldNotOpenLink => 'No se pudo abrir este enlace';
 
   @override
-  String get settingsBadgeOptionsDesc => 'Choose which chips to show';
+  String get settingsBadgeOptionsDesc => 'Elegir qué chips mostrar';
 
   @override
-  String get settingsTakesEffectNextVideo => 'Takes effect on next video';
+  String get settingsTakesEffectNextVideo =>
+      'Surte efecto en el siguiente video';
 
   @override
-  String get settingsTmdbApiKey => 'TMDB API key';
+  String get settingsTmdbApiKey => 'Clave API de TMDB';
 
   @override
   String get settingsOpensubtitles => 'OpenSubtitles';
 
   @override
   String get settingsAutoDownloadSubs =>
-      'Download best match when no subtitles found';
+      'Descargar mejor coincidencia cuando no se encuentren subtítulos';
 
   @override
-  String get settingsSimklSignOut => 'Sign out and stop syncing';
+  String get settingsSimklSignOut => 'Cerrar sesión y dejar de sincronizar';
 
   @override
   String get settingsSimklSyncDesc =>
-      'Sync watched history with simkl.com (free unlimited)';
+      'Sincronizar historial con simkl.com (gratis ilimitado)';
 
   @override
-  String get settingsGnuGpl => 'GNU GPL v3.0 and third-party notices';
+  String get settingsGnuGpl => 'GNU GPL v3.0 y avisos de terceros';
 
   @override
   String settingsSyncedCount(int count) {
-    return 'Synced $count item(s) to SIMKL';
+    return 'Sincronizados $count elemento(s) a SIMKL';
   }
 
   @override
-  String get settingsConnectSimkl => 'Connect SIMKL';
+  String get settingsConnectSimkl => 'Conectar SIMKL';
 
   @override
   String get settingsSimklPairing =>
-      'Go to the address below and enter this code:';
+      'Ve a la dirección de abajo e introduce este código:';
 
   @override
   String get opensubtitlesAnonymousHint =>
-      'Anonymous = 5/day, free account = 20/day';
+      'Anónimo = 5/día, cuenta gratuita = 20/día';
 
   @override
-  String get opensubtitlesDownloading => 'Downloading…';
+  String get opensubtitlesDownloading => 'Descargando…';
 
   @override
-  String get folderNoVideosHere => 'No videos or folders here';
+  String get folderNoVideosHere => 'No hay videos ni carpetas aquí';
 
   @override
-  String get folderSimklNotConfigured => 'SIMKL not configured';
+  String get folderSimklNotConfigured => 'SIMKL no configurado';
 
   @override
-  String get folderSimklSignInFirst => 'Sign in to SIMKL first';
+  String get folderSimklSignInFirst => 'Inicia sesión en SIMKL primero';
 
   @override
   String folderSimklSyncFailed(String error) {
-    return 'SIMKL sync failed: $error';
+    return 'Error de sincronización con SIMKL: $error';
   }
 
   @override
   String get folderSmbNoShares =>
-      'No shares found. Check your NAS share settings.';
+      'No se encontraron shares. Revisa la configuración de tu NAS.';
 
   @override
   String playerDownloadingTitle(String title) {
-    return 'Downloading: $title';
+    return 'Descargando: $title';
   }
 
   @override
   String playerDownloadFailed(String error) {
-    return 'Download failed: $error';
+    return 'Descarga fallida: $error';
   }
 
   @override
   String get playerVideoNotSupported =>
-      'This video isn\'t supported by the built-in player, so the fallback player is being used.';
+      'Este video no es compatible con el reproductor integrado, se usa el alternativo.';
 
   @override
   String get playerSleepTimerFinished =>
-      'Sleep timer finished — playback paused';
+      'Temporizador terminado — reproducción pausada';
 
   @override
-  String get playerDownloaded => 'Downloaded';
+  String get playerDownloaded => 'Descargado';
 
   @override
   String playerAutoFetched(String fileName) {
-    return 'Auto-fetched: $fileName';
+    return 'Obtenido automáticamente: $fileName';
   }
 
   @override
-  String get playerPictureInPicture => 'Picture-in-picture';
+  String get playerPictureInPicture => 'Imagen en imagen';
 
   @override
   String get homeSmbNoShares =>
-      'No shares found. Check your NAS share settings.';
+      'No se encontraron shares. Revisa la configuración de tu NAS.';
 
   @override
-  String get errorRetry => 'Retry';
+  String get errorRetry => 'Reintentar';
 
   @override
-  String get errorTryMpv => 'Try with MPV';
+  String get errorTryMpv => 'Probar con MPV';
 
   @override
-  String get errorOpenExternal => 'Open in external player';
+  String get errorOpenExternal => 'Abrir en reproductor externo';
 }

@@ -1938,5 +1938,153 @@
         "type": "String"
       }
     }
+  },
+  "errorOpenExternal": "Открыть во внешнем плеере",
+  "@errorOpenExternal": {
+    "description": "Translated key"
+  },
+  "errorRetry": "Повторить",
+  "@errorRetry": {
+    "description": "Translated key"
+  },
+  "errorTryMpv": "Попробовать MPV",
+  "@errorTryMpv": {
+    "description": "Translated key"
+  },
+  "folderNoVideosHere": "Здесь нет видео или папок",
+  "@folderNoVideosHere": {
+    "description": "Translated key"
+  },
+  "folderSimklNotConfigured": "SIMKL не настроен",
+  "@folderSimklNotConfigured": {
+    "description": "Translated key"
+  },
+  "folderSimklSignInFirst": "Сначала войдите в SIMKL",
+  "@folderSimklSignInFirst": {
+    "description": "Translated key"
+  },
+  "folderSimklSyncFailed": "Ошибка синхронизации SIMKL: {error}",
+  "@folderSimklSyncFailed": {
+    "description": "Translated key"
+  },
+  "folderSmbNoShares": "Ресурсы не найдены. Проверьте настройки NAS.",
+  "@folderSmbNoShares": {
+    "description": "Translated key"
+  },
+  "homeSmbNoShares": "Ресурсы не найдены. Проверьте настройки NAS.",
+  "@homeSmbNoShares": {
+    "description": "Translated key"
+  },
+  "opensubtitlesAnonymousHint": "Анонимно = 5/день, бесплатно = 20/день",
+  "@opensubtitlesAnonymousHint": {
+    "description": "Translated key"
+  },
+  "opensubtitlesDownloading": "Загрузка…",
+  "@opensubtitlesDownloading": {
+    "description": "Translated key"
+  },
+  "playerAutoFetched": "Получено автоматически: {fileName}",
+  "@playerAutoFetched": {
+    "description": "Translated key"
+  },
+  "playerDownloadFailed": "Ошибка загрузки: {error}",
+  "@playerDownloadFailed": {
+    "description": "Translated key"
+  },
+  "playerDownloaded": "Загружено",
+  "@playerDownloaded": {
+    "description": "Translated key"
+  },
+  "playerDownloadingTitle": "Загрузка: {title}",
+  "@playerDownloadingTitle": {
+    "description": "Translated key"
+  },
+  "playerPictureInPicture": "Картинка в картинке",
+  "@playerPictureInPicture": {
+    "description": "Translated key"
+  },
+  "playerSleepTimerFinished": "Таймер истёк — воспроизведение приостановлено",
+  "@playerSleepTimerFinished": {
+    "description": "Translated key"
+  },
+  "playerVideoNotSupported": "Видео не поддерживается встроенным плеером, используется альтернативный.",
+  "@playerVideoNotSupported": {
+    "description": "Translated key"
+  },
+  "settingsAutoDownloadSubs": "Скачивать лучшее совпадение при отсутствии субтитров",
+  "@settingsAutoDownloadSubs": {
+    "description": "Translated key"
+  },
+  "settingsBadgeOptionsDesc": "Выбрать, какие значки показывать",
+  "@settingsBadgeOptionsDesc": {
+    "description": "Translated key"
+  },
+  "settingsClearCacheConfirm": "Очистить кэш?",
+  "@settingsClearCacheConfirm": {
+    "description": "Translated key"
+  },
+  "settingsConnectSimkl": "Подключить SIMKL",
+  "@settingsConnectSimkl": {
+    "description": "Translated key"
+  },
+  "settingsCouldNotOpenLink": "Не удалось открыть ссылку",
+  "@settingsCouldNotOpenLink": {
+    "description": "Translated key"
+  },
+  "settingsGnuGpl": "GNU GPL v3.0 и уведомления сторонних авторов",
+  "@settingsGnuGpl": {
+    "description": "Translated key"
+  },
+  "settingsLanguage": "Язык",
+  "@settingsLanguage": {
+    "description": "Translated key"
+  },
+  "settingsOpensubAccountHint": "Бесплатно = 20/день (анонимно = 5/день). Регистрация на opensubtitles.com",
+  "@settingsOpensubAccountHint": {
+    "description": "Translated key"
+  },
+  "settingsOpensubtitles": "OpenSubtitles",
+  "@settingsOpensubtitles": {
+    "description": "Translated key"
+  },
+  "settingsRemove": "Удалить",
+  "@settingsRemove": {
+    "description": "Translated key"
+  },
+  "settingsSignIn": "Войти",
+  "@settingsSignIn": {
+    "description": "Translated key"
+  },
+  "settingsSimklPairing": "Перейдите по адресу ниже и введите этот код:",
+  "@settingsSimklPairing": {
+    "description": "Translated key"
+  },
+  "settingsSimklSignOut": "Выйти и отключить синхронизацию",
+  "@settingsSimklSignOut": {
+    "description": "Translated key"
+  },
+  "settingsSimklSyncDesc": "Синхронизировать историю с simkl.com (бесплатно, без ограничений)",
+  "@settingsSimklSyncDesc": {
+    "description": "Translated key"
+  },
+  "settingsSubtitleEncoding": "Кодировка субтитров",
+  "@settingsSubtitleEncoding": {
+    "description": "Translated key"
+  },
+  "settingsSyncedCount": "Синхронизировано {count} элемент(ов) в SIMKL",
+  "@settingsSyncedCount": {
+    "description": "Translated key"
+  },
+  "settingsSystemDefault": "Язык системы",
+  "@settingsSystemDefault": {
+    "description": "Translated key"
+  },
+  "settingsTakesEffectNextVideo": "Вступит в силу при следующем видео",
+  "@settingsTakesEffectNextVideo": {
+    "description": "Translated key"
+  },
+  "settingsTmdbApiKey": "Ключ API TMDB",
+  "@settingsTmdbApiKey": {
+    "description": "Translated key"
   }
 }

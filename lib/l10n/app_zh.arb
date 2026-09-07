@@ -1938,5 +1938,153 @@
         "type": "String"
       }
     }
+  },
+  "errorOpenExternal": "在外部播放器中打开",
+  "@errorOpenExternal": {
+    "description": "Translated key"
+  },
+  "errorRetry": "重试",
+  "@errorRetry": {
+    "description": "Translated key"
+  },
+  "errorTryMpv": "尝试MPV",
+  "@errorTryMpv": {
+    "description": "Translated key"
+  },
+  "folderNoVideosHere": "此处没有视频或文件夹",
+  "@folderNoVideosHere": {
+    "description": "Translated key"
+  },
+  "folderSimklNotConfigured": "SIMKL未配置",
+  "@folderSimklNotConfigured": {
+    "description": "Translated key"
+  },
+  "folderSimklSignInFirst": "请先登录SIMKL",
+  "@folderSimklSignInFirst": {
+    "description": "Translated key"
+  },
+  "folderSimklSyncFailed": "SIMKL同步失败：{error}",
+  "@folderSimklSyncFailed": {
+    "description": "Translated key"
+  },
+  "folderSmbNoShares": "未找到共享。请检查NAS共享设置。",
+  "@folderSmbNoShares": {
+    "description": "Translated key"
+  },
+  "homeSmbNoShares": "未找到共享。请检查NAS共享设置。",
+  "@homeSmbNoShares": {
+    "description": "Translated key"
+  },
+  "opensubtitlesAnonymousHint": "匿名 = 5/天，免费账户 = 20/天",
+  "@opensubtitlesAnonymousHint": {
+    "description": "Translated key"
+  },
+  "opensubtitlesDownloading": "下载中…",
+  "@opensubtitlesDownloading": {
+    "description": "Translated key"
+  },
+  "playerAutoFetched": "自动获取：{fileName}",
+  "@playerAutoFetched": {
+    "description": "Translated key"
+  },
+  "playerDownloadFailed": "下载失败：{error}",
+  "@playerDownloadFailed": {
+    "description": "Translated key"
+  },
+  "playerDownloaded": "已下载",
+  "@playerDownloaded": {
+    "description": "Translated key"
+  },
+  "playerDownloadingTitle": "下载中：{title}",
+  "@playerDownloadingTitle": {
+    "description": "Translated key"
+  },
+  "playerPictureInPicture": "画中画",
+  "@playerPictureInPicture": {
+    "description": "Translated key"
+  },
+  "playerSleepTimerFinished": "睡眠定时结束 — 播放已暂停",
+  "@playerSleepTimerFinished": {
+    "description": "Translated key"
+  },
+  "playerVideoNotSupported": "此视频不兼容内置播放器，正在使用备用播放器。",
+  "@playerVideoNotSupported": {
+    "description": "Translated key"
+  },
+  "settingsAutoDownloadSubs": "未找到字幕时自动下载最佳匹配",
+  "@settingsAutoDownloadSubs": {
+    "description": "Translated key"
+  },
+  "settingsBadgeOptionsDesc": "选择要显示的标签",
+  "@settingsBadgeOptionsDesc": {
+    "description": "Translated key"
+  },
+  "settingsClearCacheConfirm": "清除缓存？",
+  "@settingsClearCacheConfirm": {
+    "description": "Translated key"
+  },
+  "settingsConnectSimkl": "连接SIMKL",
+  "@settingsConnectSimkl": {
+    "description": "Translated key"
+  },
+  "settingsCouldNotOpenLink": "无法打开此链接",
+  "@settingsCouldNotOpenLink": {
+    "description": "Translated key"
+  },
+  "settingsGnuGpl": "GNU GPL v3.0 及第三方声明",
+  "@settingsGnuGpl": {
+    "description": "Translated key"
+  },
+  "settingsLanguage": "语言",
+  "@settingsLanguage": {
+    "description": "Translated key"
+  },
+  "settingsOpensubAccountHint": "免费账户 = 20/天（匿名 = 5/天）。在opensubtitles.com注册",
+  "@settingsOpensubAccountHint": {
+    "description": "Translated key"
+  },
+  "settingsOpensubtitles": "OpenSubtitles",
+  "@settingsOpensubtitles": {
+    "description": "Translated key"
+  },
+  "settingsRemove": "移除",
+  "@settingsRemove": {
+    "description": "Translated key"
+  },
+  "settingsSignIn": "登录",
+  "@settingsSignIn": {
+    "description": "Translated key"
+  },
+  "settingsSimklPairing": "访问以下地址并输入此代码：",
+  "@settingsSimklPairing": {
+    "description": "Translated key"
+  },
+  "settingsSimklSignOut": "退出登录并停止同步",
+  "@settingsSimklSignOut": {
+    "description": "Translated key"
+  },
+  "settingsSimklSyncDesc": "与simkl.com同步观看记录（免费无限制）",
+  "@settingsSimklSyncDesc": {
+    "description": "Translated key"
+  },
+  "settingsSubtitleEncoding": "字幕编码",
+  "@settingsSubtitleEncoding": {
+    "description": "Translated key"
+  },
+  "settingsSyncedCount": "已同步 {count} 项到SIMKL",
+  "@settingsSyncedCount": {
+    "description": "Translated key"
+  },
+  "settingsSystemDefault": "跟随系统",
+  "@settingsSystemDefault": {
+    "description": "Translated key"
+  },
+  "settingsTakesEffectNextVideo": "将在下一个视频生效",
+  "@settingsTakesEffectNextVideo": {
+    "description": "Translated key"
+  },
+  "settingsTmdbApiKey": "TMDB API密钥",
+  "@settingsTmdbApiKey": {
+    "description": "Translated key"
   }
 }
