@@ -211,10 +211,11 @@ class _FolderScreenState extends State<FolderScreen> {
       hasSequential = _hasSequentialNumbering(videoNames);
     }
 
-    // Trigger series view for any folder with video files — even a single
-    // episode gets the TMDB header so the user sees the show's poster,
-    // title, rating, and overview instead of a bare file list.
-    if (episodeNames.isEmpty && !hasSequential && videoNames.isEmpty) {
+    // Only trigger series view when the folder actually looks like a series
+    // (episode tags or sequential numbering). A mixed folder with both
+    // subfolders and non-episode video files stays in the flat list so
+    // subfolders remain visible — _seriesFolderBody filters to episodes only.
+    if (episodeNames.isEmpty && !hasSequential) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
       return;
     }
