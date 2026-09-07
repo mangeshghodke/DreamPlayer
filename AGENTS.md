@@ -708,7 +708,7 @@ Source: https://github.com/mangeshghodke/DreamPlayer/issues/6
 1. Android release signing (deferred — see CI/Deployment).
 2. **Anime4K real-time upscaling (future, low priority)**: [Anime4K](https://github.com/bloc97/anime4k) is a set of open-source GLSL shaders that upscale native 1080p anime → 4K in real-time, designed for mpv's GPU rendering pipeline. **Not implementable today** because (a) Android uses ExoPlayer/Media3 (no GLSL shader injection — video writes directly to a `Surface` backed by `SurfaceFlinger`), (b) the libmpv fallback renders into a Flutter texture (not a raw mpv `--vo=gpu` window, so Anime4K's shader chain can't run), and (c) it conflicts with HDR/DV passthrough (the panel receives BT.2020 PQ data; running a shader on tone-mapped SDR frames defeats the pipeline). **If the mpv fallback engine is ever promoted to a "GPU filters" path** (mpv `--vf=glslshader=…` with a raw rendering window), Anime4K shaders could be offered as an opt-in toggle for SDR anime content only — DV/HDR10 files must stay on Media3 + native `SurfaceView`. The upstream repo ([bloc97/Anime4K](https://github.com/bloc97/Anime4K)) has 21k stars and active maintenance; [Anime4KMetal](https://github.com/imxieyi/Anime4KMetal) exists for Apple platforms (Metal shaders) which could apply to the iOS AetherEngine path in a distant future. Keep this in the backlog; revisit only if user demand surfaces.
 3. **Download to device (done, 2026-09)**: download video files from network sources (SMB, WebDAV, HTTP, Jellyfin, UPnP) to local storage for offline playback. Modeled on Nova Video Player's `CopyCutEngine` + `FileManagerService` pattern. Core is built: Kotlin foreground service + Dart DownloadManager + UI triggers + download screen + SMB via loopback + silent notification with Cancel button + iOS local notification. iOS: notification shows banner once at start, then silent progress updates every 5s; cancel action forwards `jobId` to Dart; tap notification body opens the Downloads drawer. Local file copy uses async chunked I/O (256 KB) with event-loop yield each chunk — sync I/O blocked the UI and caused stutter. Cancel properly interrupts the copy loop via `_activeCompleter` and deletes the partial file. Progress bar renders for all downloads (indeterminate animation when `totalBytes` is unknown; HEAD probe runs before the GET on HTTP sources to resolve size). FTP download is hidden because Dart `HttpClient` cannot handle `ftp://` URIs. Remaining: downloaded files in home grid with badge + local playback, Settings download dir picker.
-4. **Localization / internationalization (in progress, 2026-09)**: full app translation via Flutter's built-in `flutter_localizations` + `intl` package. Languages: **English** (default/fallback), **Spanish** (es), **Chinese Simplified** (zh), **Russian** (ru). Auto-detects device system language on launch; optional Settings → Language override. Technical terms (codec names, HDR, Dolby Vision, etc.) stay English. ~350-400 user-facing strings across ~20 files. Architecture: `.arb` source files (`lib/l10n/app_en.arb` etc.), auto-generated `AppLocalizations` class via `gen-l10n`, `l10n.yaml` config at project root. New strings added in future code follow the same pattern: extract English → AI-generate translations → user review.
+4. **Localization / internationalization (DONE 2026-09, string replacement in progress)**: full app translation via Flutter's built-in `flutter_localizations` + `intl` package. Languages: **English** (default/fallback), **Spanish** (es), **Chinese Simplified** (zh), **Russian** (ru). Auto-detects device system language on launch; optional Settings → General → Language override. Technical terms (codec names, HDR, Dolby Vision, etc.) stay English. 467 user-facing strings in English ARB (`lib/l10n/app_en.arb`), auto-generated `AppLocalizations` class via `gen-l10n` with camelCase getters, `l10n.yaml` at project root. `LanguageService` (`lib/services/language_service.dart`) manages the locale override with SharedPreferences persistence. `MaterialApp` wired with `localizationsDelegates` + `supportedLocales` via `ListenableBuilder`. Placeholder ARB files for es/zh/ru exist (English content for now). String replacement done: `app.dart`, `home_screen.dart`. Remaining: player, settings, details, network screens, widgets.
 
    **Architecture (3 layers):**
    - **UI**: player ⋮ sheet "Download to device" row + details screen bottom bar Download button (visible only for network sources)
@@ -1026,7 +1026,16 @@ adb shell dumpsys SurfaceFlinger | grep -a activeMode                           
 ```
 lib/
   main.dart                     # entry point (native refresh rate, runs app)
-  app.dart                      # root MaterialApp, dark theme, text-scale clamp, nav shell, double-back-press exit guard (PopScope)
+  app.dart                      # root MaterialApp, dark theme, text-scale clamp, nav shell, double-back-press exit guard (PopScope) + localizationsDelegates + supportedLocales via ListenableBuilder
+  l10n.yaml                      # Flutter gen-l10n config (camelCase output)
+  l10n/
+    app_en.arb                    # English (source of truth, 467 strings)
+    app_es.arb                    # Spanish (placeholder)
+    app_zh.arb                    # Chinese Simplified (placeholder)
+    app_ru.arb                    # Russian (placeholder)
+    app_localizations.dart        # Generated AppLocalizations class
+    app_localizations_en.dart     # Generated English delegates
+    app_localizations_*.dart      # Generated delegates for other locales
   theme/app_theme.dart          # colors, dark theme (video apps are dark)
   models/
     video_item.dart             # VideoItem + codec label getters
@@ -1035,6 +1044,7 @@ lib/
   utils/codec_info.dart         # HDR detection + codec -> label mapping + live label merge
   utils/tv_helper.dart          # TV detection (isTvMode, isTvBox), swipe gesture prefs
   services/display_refresh_rate.dart  # high refresh rate selection (Android)
+  services/language_service.dart  # Language preference persistence (shared_preferences)
   services/exo_player.dart        # ExoPlayerController + ExoPlayerView platform view (hybrid composition on Android) + PlaybackController interface (brightness/volume) + VideoFitMode/FitModeStore + PlaybackSpeedStore
   services/continue_watching.dart # continue-watching list (shared_preferences JSON)
   services/watched_store.dart     # watched marks (prefs dreamplayer.watched, StringList of resume keys, auto on ended + manual toggle)
