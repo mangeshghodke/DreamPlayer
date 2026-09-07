@@ -588,6 +588,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
   Future<void> _openEntry(SmbEntry entry) async {
     if (entry.isDirectory) {
+      FocusScope.of(context).unfocus();
       if (_share.isEmpty) {
         // Tapping a share in the shares list: this entry IS the share. The
         // share name lives in `_share` (a folder path is relative to it), so

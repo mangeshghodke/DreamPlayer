@@ -461,6 +461,7 @@ class _FolderScreenState extends State<FolderScreen> {
 
   Future<void> _openEntry(FileEntry entry) async {
     if (entry.isDirectory) {
+      FocusScope.of(context).unfocus();
       setState(() => _currentPath = entry.path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), ''));
       await _load();
       return;
@@ -539,6 +540,7 @@ class _FolderScreenState extends State<FolderScreen> {
 
   Future<void> _openSmbEntry(SmbEntry entry) async {
     if (entry.isDirectory) {
+      FocusScope.of(context).unfocus();
       setState(() {
         _currentPath = entry.path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '');
         _loading = true;
