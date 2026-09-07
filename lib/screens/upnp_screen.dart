@@ -348,7 +348,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
     final isBrowsingServer = _activeServer != null;
 
     return PopScope(
-      canPop: !isBrowsingServer || _crumbs.length <= 1,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         await _onWillPop();

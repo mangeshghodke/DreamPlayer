@@ -326,7 +326,7 @@ class _FtpScreenState extends State<FtpScreen> {
   Widget build(BuildContext context) {
     final browsing = _browsing;
     return PopScope(
-      canPop: browsing == null,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         await _goUp();

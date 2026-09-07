@@ -291,7 +291,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_atRoot,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         await _goUp();

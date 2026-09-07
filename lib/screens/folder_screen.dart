@@ -454,7 +454,7 @@ class _FolderScreenState extends State<FolderScreen> {
 
   Future<void> _openEntry(FileEntry entry) async {
     if (entry.isDirectory) {
-      setState(() => _currentPath = entry.path);
+      setState(() => _currentPath = entry.path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), ''));
       await _load();
       return;
     }
@@ -533,7 +533,7 @@ class _FolderScreenState extends State<FolderScreen> {
   Future<void> _openSmbEntry(SmbEntry entry) async {
     if (entry.isDirectory) {
       setState(() {
-        _currentPath = entry.path;
+        _currentPath = entry.path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '');
         _loading = true;
       });
       await _loadSmb();
@@ -782,9 +782,10 @@ class _FolderScreenState extends State<FolderScreen> {
   }
 
   static String? _parentOf(String path) {
-    final index = path.lastIndexOf('/');
+    final cleaned = path.replaceAll(RegExp(r'/+$'), '');
+    final index = cleaned.lastIndexOf('/');
     if (index <= 0) return null;
-    return path.substring(0, index);
+    return cleaned.substring(0, index);
   }
 
   String get _title {
@@ -799,7 +800,7 @@ class _FolderScreenState extends State<FolderScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_atRoot,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         await _goUp();
