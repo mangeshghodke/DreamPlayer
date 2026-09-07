@@ -455,6 +455,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _pickDownloadDir() async {
     final current = await DownloadManager.instance.getDownloadDir();
+    if (!mounted) return;
     final controller = TextEditingController(text: current);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -500,7 +501,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirmed != true || !mounted) return;
     final path = controller.text.trim();
     await DownloadManager.instance.setDownloadDir(path);
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppLocalizations.of(context).settingsDownloadFolder)),
     );
