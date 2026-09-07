@@ -146,6 +146,10 @@ class _FolderScreenState extends State<FolderScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _seriesMeta = null;
+      _seriesDetails = null;
+      _isSeriesFolder = false;
+      _loadingSeriesMeta = true;
     });
     if (_isJellyfin) {
       await _loadJellyfin();
@@ -194,8 +198,6 @@ class _FolderScreenState extends State<FolderScreen> {
     final entries = _currentEntries;
     if (entries.isEmpty) return;
 
-    // Capture generation — if a newer load starts while we're fetching,
-    // discard stale results so they don't overwrite _seriesMeta.
     final gen = ++_seriesGeneration;
 
     // Count subfolders vs video files.
@@ -927,7 +929,7 @@ class _FolderScreenState extends State<FolderScreen> {
     }
 
     return CustomScrollView(
-      key: ValueKey('series_${_currentPath}'),
+      key: ValueKey('series_$_currentPath'),
       slivers: [
         // ── Series header ──
         SliverToBoxAdapter(
@@ -1049,7 +1051,7 @@ class _FolderScreenState extends State<FolderScreen> {
         if (_atRoot) _header(context),
         Expanded(
           child: ListView(
-            key: ValueKey('folder_${_currentPath}'),
+            key: ValueKey('folder_$_currentPath'),
             children: [
               for (final f in folders) _tileFor(f),
               if (hasSeasons)
@@ -1556,7 +1558,7 @@ class _FolderTile extends StatelessWidget {
     final effectiveLabel = parsed.isEpisode
         ? 'S${effectiveSeason.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
         : '';
-    final stillUrl = episode?.stillUrl();
+    final stillUrl = episode?.stillUrl() ?? posterUrlOf(tmdbMeta);
 
     final effectiveDurationMs = (durationMs != null && durationMs! > 0)
         ? durationMs
