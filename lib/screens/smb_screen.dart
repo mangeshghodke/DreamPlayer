@@ -79,6 +79,10 @@ class _SmbScreenState extends State<SmbScreen> {
   bool _loadingSeriesMeta = false;
   final Set<int> _expandedSeasons = {};
 
+  /// Generation counter to prevent stale async `_detectAndLoadSeriesFolder`
+  /// calls from overwriting `_seriesMeta` when a newer load is in flight.
+  int _seriesGeneration = 0;
+
   bool get _atBrowseRoot => _browsing == null || (_share.isEmpty && _path.isEmpty);
 
   @override
@@ -410,6 +414,10 @@ class _SmbScreenState extends State<SmbScreen> {
     final server = _browsing;
     if (server == null) return;
 
+    // Capture generation — if a newer load starts while we're fetching,
+    // discard stale results so they don't overwrite _seriesMeta.
+    final gen = ++_seriesGeneration;
+
     final videoEntries = entries.where((e) => !e.isDirectory).toList();
     if (videoEntries.isEmpty) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
@@ -463,7 +471,7 @@ class _SmbScreenState extends State<SmbScreen> {
       meta = await service.resolveFolder(metadataKey, folderName);
     }
 
-    if (!mounted) return;
+    if (!mounted || gen != _seriesGeneration) return;
     if (meta == null) {
       setState(() {
         _seriesMeta = null;
@@ -475,7 +483,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
     // Fetch full details (cast, overview, genres).
     final details = await service.detailsFor(metadataKey);
-    if (!mounted) return;
+    if (!mounted || gen != _seriesGeneration) return;
 
     setState(() {
       _seriesMeta = meta;
@@ -515,7 +523,7 @@ class _SmbScreenState extends State<SmbScreen> {
     // Without this, _episodeForEntry looks up an empty seasons map and
     // per-episode details (stills/names/ratings/overview) never appear
     // until the user backs out and re-enters.
-    if (!mounted) return;
+    if (!mounted || gen != _seriesGeneration) return;
     final freshMeta = service.metaFor(metadataKey) ?? meta;
     setState(() {
       _seriesMeta = freshMeta;
@@ -731,6 +739,7 @@ class _SmbScreenState extends State<SmbScreen> {
   }
 
   Future<void> _goUp() async {
+    FocusScope.of(context).unfocus();
     if (_browsing == null) {
       Navigator.of(context).pop();
       return;

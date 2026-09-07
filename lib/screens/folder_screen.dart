@@ -72,6 +72,10 @@ class _FolderScreenState extends State<FolderScreen> {
   bool _isSeriesFolder = false;
   TmdMeta? _seriesMeta;
   TmdDetails? _seriesDetails;
+
+  /// Generation counter to prevent stale async `_detectAndLoadSeriesFolder`
+  /// calls from overwriting `_seriesMeta` when a newer load is in flight.
+  int _seriesGeneration = 0;
   bool _loadingSeriesMeta = false;
   final Set<int> _expandedSeasons = {};
 
@@ -190,6 +194,10 @@ class _FolderScreenState extends State<FolderScreen> {
     final entries = _currentEntries;
     if (entries.isEmpty) return;
 
+    // Capture generation — if a newer load starts while we're fetching,
+    // discard stale results so they don't overwrite _seriesMeta.
+    final gen = ++_seriesGeneration;
+
     // Count subfolders vs video files.
     final hasSubfolders = entries.any(_isFolderEntry);
     final videoNames = <String>[];
@@ -241,7 +249,7 @@ class _FolderScreenState extends State<FolderScreen> {
     var meta = service.metaFor(metadataKey) ??
         await service.resolveFolder(metadataKey, folderName);
 
-    if (!mounted) return;
+    if (!mounted || gen != _seriesGeneration) return;
     if (meta == null) {
       setState(() {
         _seriesMeta = null;
@@ -252,7 +260,7 @@ class _FolderScreenState extends State<FolderScreen> {
     }
 
     final details = await service.detailsFor(metadataKey);
-    if (!mounted) return;
+    if (!mounted || gen != _seriesGeneration) return;
 
     setState(() {
       _seriesMeta = meta;
@@ -280,7 +288,7 @@ class _FolderScreenState extends State<FolderScreen> {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;
     }
-    if (!mounted) return;
+    if (!mounted || gen != _seriesGeneration) return;
     // Read the latest meta from the cache (each seasonFor replaces it with a
     // new TmdMeta; the `meta` reference we held earlier is stale). Without
     // this, _episodeFor looks up an empty seasons map and per-episode
@@ -768,6 +776,7 @@ class _FolderScreenState extends State<FolderScreen> {
   }
 
   Future<void> _goUp() async {
+    FocusScope.of(context).unfocus();
     if (_isJellyfin) {
       if (_jellyfinCrumbs.isEmpty) {
         Navigator.of(context).pop();
@@ -918,6 +927,7 @@ class _FolderScreenState extends State<FolderScreen> {
     }
 
     return CustomScrollView(
+      key: ValueKey('series_${_currentPath}'),
       slivers: [
         // ── Series header ──
         SliverToBoxAdapter(
@@ -1039,6 +1049,7 @@ class _FolderScreenState extends State<FolderScreen> {
         if (_atRoot) _header(context),
         Expanded(
           child: ListView(
+            key: ValueKey('folder_${_currentPath}'),
             children: [
               for (final f in folders) _tileFor(f),
               if (hasSeasons)
