@@ -9,40 +9,40 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
-  String get commonCancel => 'Cancel';
+  String get commonCancel => 'Отмена';
 
   @override
-  String get commonSave => 'Save';
+  String get commonSave => 'Сохранить';
 
   @override
-  String get commonDelete => 'Delete';
+  String get commonDelete => 'Удалить';
 
   @override
-  String get commonRemove => 'Remove';
+  String get commonRemove => 'Удалить';
 
   @override
   String get commonClose => 'Close';
 
   @override
-  String get commonRetry => 'Retry';
+  String get commonRetry => 'Повторить';
 
   @override
-  String get commonEdit => 'Edit';
+  String get commonEdit => 'Редактировать';
 
   @override
-  String get commonSearch => 'Search';
+  String get commonSearch => 'Поиск';
 
   @override
-  String get commonTest => 'Test';
+  String get commonTest => 'Тест';
 
   @override
-  String get commonOff => 'Off';
+  String get commonOff => 'Выкл';
 
   @override
-  String get commonReset => 'Reset';
+  String get commonReset => 'Сбросить';
 
   @override
-  String get commonClear => 'Clear';
+  String get commonClear => 'Очистить';
 
   @override
   String get commonDiscover => 'Discover';
@@ -54,13 +54,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get commonRetryAction => 'Retry';
 
   @override
-  String get commonNothingHere => 'Nothing here';
+  String get commonNothingHere => 'Здесь пусто';
 
   @override
-  String get commonNothingYet => 'Nothing yet';
+  String get commonNothingYet => 'Пока ничего';
 
   @override
-  String get commonSomethingWentWrong => 'Something went wrong';
+  String get commonSomethingWentWrong => 'Ч-то пошло не так';
 
   @override
   String get commonNoResults => 'No results';
@@ -81,25 +81,25 @@ class AppLocalizationsRu extends AppLocalizations {
   String get pressBackToExit => 'Press back again to exit';
 
   @override
-  String get homeContinueWatching => 'Continue watching';
+  String get homeContinueWatching => 'Продолжить просмотр';
 
   @override
-  String get homeYourLibrary => 'Your library';
+  String get homeYourLibrary => 'Ваша медиатека';
 
   @override
   String get homeAddSource => 'Add a source';
 
   @override
-  String get homeAddFolder => 'Add folder to library';
+  String get homeAddFolder => 'Добавить папку в медиатеку';
 
   @override
-  String get homeInternalStorage => 'Internal storage';
+  String get homeInternalStorage => 'Внутренняя память';
 
   @override
   String get homeBrowseFiles => 'Browse files on this device';
 
   @override
-  String get homeNetworkSources => 'Network sources';
+  String get homeNetworkSources => 'Сетевые источники';
 
   @override
   String get homeNoFolders =>
@@ -203,16 +203,16 @@ class AppLocalizationsRu extends AppLocalizations {
       'Video controller lost before surface attach.';
 
   @override
-  String get playerAudioTracks => 'Audio tracks';
+  String get playerAudioTracks => 'Аудиодорожки';
 
   @override
-  String get playerNoAudioTracks => 'No audio tracks found';
+  String get playerNoAudioTracks => 'Аудиодорожки не найдены';
 
   @override
-  String get playerSubtitles => 'Subtitles';
+  String get playerSubtitles => 'Субтитры';
 
   @override
-  String get playerNoSubtitles => 'No subtitles found in this video';
+  String get playerNoSubtitles => 'Субтитры не найдены';
 
   @override
   String get playerSearchOnlineSubs => 'Search online subtitles…';
@@ -233,7 +233,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get playerFileSize => 'File size';
 
   @override
-  String get playerVideoInfo => 'Video info';
+  String get playerVideoInfo => 'Инфо о видео';
 
   @override
   String get playerResolution => 'Resolution';
@@ -254,13 +254,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get playerSpatialAudio => 'Spatial audio';
 
   @override
-  String get playerVolumeBoost => 'Volume boost';
+  String get playerVolumeBoost => 'Усиление громкости';
 
   @override
-  String get playerNightMode => 'Night mode';
+  String get playerNightMode => 'Ночной режим';
 
   @override
-  String get playerBassBoost => 'Bass boost';
+  String get playerBassBoost => 'Усиление басов';
 
   @override
   String get playerSpeed => 'Speed';
@@ -269,10 +269,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get playerChapters => 'Chapters';
 
   @override
-  String get playerAspectRatio => 'Aspect ratio';
+  String get playerAspectRatio => 'Соотношение сторон';
 
   @override
-  String get playerPlaybackSpeed => 'Playback speed';
+  String get playerPlaybackSpeed => 'Скорость';
 
   @override
   String get playerPlaybackSettings => 'Playback settings';
@@ -287,22 +287,22 @@ class AppLocalizationsRu extends AppLocalizations {
   String get playerShuffleDesc => 'Random order inside the folder';
 
   @override
-  String get playerSleepTimer => 'Sleep timer';
+  String get playerSleepTimer => 'Таймер сна';
 
   @override
   String get playerSleepEndOfVideo => 'End of current video';
 
   @override
-  String get playerAudioDelay => 'Audio delay';
+  String get playerAudioDelay => 'Задержка звука';
 
   @override
-  String get playerSubtitleSettings => 'Subtitle settings';
+  String get playerSubtitleSettings => 'Настройки субтитров';
 
   @override
   String get playerSubtitleSettingsDesc => 'Size, color, background, delay';
 
   @override
-  String get playerVideoDecoder => 'Video decoder';
+  String get playerVideoDecoder => 'Декодер видео';
 
   @override
   String get playerDecoderHw => 'Force hardware decoders';
@@ -345,25 +345,25 @@ class AppLocalizationsRu extends AppLocalizations {
   String get playerSubtitleDelay => 'Subtitle delay';
 
   @override
-  String get playerDownloadToDevice => 'Download to device';
+  String get playerDownloadToDevice => 'Скачать на устройство';
 
   @override
-  String get playerOpenExternal => 'Open in external player';
+  String get playerOpenExternal => 'Открыть во внешнем плеере';
 
   @override
-  String get playerNoVideoInFolder => 'No videos or folders here';
+  String get playerNoVideoInFolder => 'Здесь нет видео или папок';
 
   @override
-  String get playerTryMpv => 'Try with MPV';
+  String get playerTryMpv => 'Попробовать MPV';
 
   @override
-  String get playerWatchBeginning => 'Watch from beginning';
+  String get playerWatchBeginning => 'С начала';
 
   @override
   String get playerWatchBeginningMpv => 'Watch from beginning (MPV)';
 
   @override
-  String get playerPlayWithMpv => 'Play with MPV';
+  String get playerPlayWithMpv => 'Воспроизвести через MPV';
 
   @override
   String playerChapterN(int count) {
@@ -408,7 +408,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sourceAppAsset => 'App asset';
 
   @override
-  String get sourceTranscoding => 'Transcoding';
+  String get sourceTranscoding => 'Транскодирование';
 
   @override
   String get sourceSwDecode => 'SW decode';
@@ -420,13 +420,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sourceHwDecodeAuto => 'HW decode (auto)';
 
   @override
-  String get settingsPlayer => 'Player';
+  String get settingsPlayer => 'Плеер';
 
   @override
   String get settingsAudio => 'Audio';
 
   @override
-  String get settingsStorage => 'Storage';
+  String get settingsStorage => 'Хранилище';
 
   @override
   String get settingsMetadata => 'Metadata';
@@ -435,17 +435,17 @@ class AppLocalizationsRu extends AppLocalizations {
   String get settingsSubtitles => 'Subtitles';
 
   @override
-  String get settingsAbout => 'About';
+  String get settingsAbout => 'О приложении';
 
   @override
-  String get settingsSupport => 'Support';
+  String get settingsSupport => 'Поддержка';
 
   @override
-  String get settingsSwipeGestures => 'Swipe gestures';
+  String get settingsSwipeGestures => 'Жесты';
 
   @override
   String get settingsSwipeDesc =>
-      'Swipe left side for brightness, right side for volume';
+      'Проведите вверх/вниз для регулировки яркости/громкости';
 
   @override
   String get settingsPip => 'Picture-in-picture';
@@ -455,7 +455,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Keep playing in a floating window when you leave the app';
 
   @override
-  String get settingsDefaultEngine => 'Default playback engine';
+  String get settingsDefaultEngine => 'Движок по умолчанию';
 
   @override
   String get settingsEngineAutoDesc =>
@@ -473,16 +473,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get settingsEngineAskDesc => 'Show both options on every video';
 
   @override
-  String get settingsAutoPlayNext => 'Auto-play next episode';
+  String get settingsAutoPlayNext => 'Авто-воспроизведение следующего';
 
   @override
-  String get settingsAutoPlayNextDesc => 'Play the next episode when one ends';
+  String get settingsAutoPlayNextDesc =>
+      'Воспроизводить следующую серию по окончании';
 
   @override
   String get settingsOnScreenBadges => 'On-screen badges';
 
   @override
-  String get settingsBadgesDesc => 'Show format chips on screen while playing';
+  String get settingsBadgesDesc =>
+      'Показывать форматные значки в верхней панели';
 
   @override
   String get settingsBadgeOptions => 'Badge options';
@@ -555,13 +557,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get settingsKeyMustBe32 => 'Key must be 32 characters';
 
   @override
-  String get settingsClearCache => 'Clear cache';
+  String get settingsClearCache => 'Очистить кэш';
 
   @override
-  String get settingsClearCacheTitle => 'Clear cache?';
+  String get settingsClearCacheTitle => 'Очистить кэш?';
 
   @override
-  String get settingsCacheCleared => 'Cache cleared';
+  String get settingsCacheCleared => 'Кэш очищен';
 
   @override
   String get settingsCacheClearedDesc =>
@@ -577,7 +579,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get settingsEngine => 'Engine';
 
   @override
-  String get settingsVersion => 'Version';
+  String get settingsVersion => 'Версия';
 
   @override
   String get settingsFaq => 'FAQ';
@@ -672,7 +674,7 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get detailsPlay => 'Play';
+  String get detailsPlay => 'Воспроизвести';
 
   @override
   String detailsPlayEngine(String engineSuffix) {
@@ -680,31 +682,31 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get detailsWatchBeginning => 'Watch from beginning';
+  String get detailsWatchBeginning => 'С начала';
 
   @override
-  String get detailsFindOnTmdb => 'Find on TMDB';
+  String get detailsFindOnTmdb => 'Найти на TMDB';
 
   @override
-  String get detailsGetInfo => 'Get Info';
+  String get detailsGetInfo => 'Получить инфо';
 
   @override
-  String get detailsNoMetadata => 'No metadata loaded';
+  String get detailsNoMetadata => 'Метаданные не загружены';
 
   @override
-  String get detailsFixMatch => 'Fix match';
+  String get detailsFixMatch => 'Исправить совпадение';
 
   @override
-  String get detailsRemoveInfo => 'Remove info';
+  String get detailsRemoveInfo => 'Удалить инфо';
 
   @override
-  String get detailsOverview => 'Overview';
+  String get detailsOverview => 'Описание';
 
   @override
   String get detailsEpisodeOverview => 'Episode overview';
 
   @override
-  String get detailsCast => 'Cast';
+  String get detailsCast => 'Актёры';
 
   @override
   String get detailsEpisodeCast => 'Episode cast';
@@ -713,40 +715,40 @@ class AppLocalizationsRu extends AppLocalizations {
   String get detailsGuestStars => 'Guest stars';
 
   @override
-  String get detailsEpisodes => 'Episodes';
+  String get detailsEpisodes => 'Серии';
 
   @override
-  String get detailsStills => 'Stills';
+  String get detailsStills => 'Кадры';
 
   @override
-  String get detailsTrailers => 'Trailers';
+  String get detailsTrailers => 'Трейлеры';
 
   @override
-  String get detailsSubtitles => 'Subtitles';
+  String get detailsSubtitles => 'Субтитры';
 
   @override
-  String get detailsSearchSubsOnline => 'Search subtitles online';
+  String get detailsSearchSubsOnline => 'Искать субтитры онлайн';
 
   @override
-  String get detailsFileInfo => 'File info';
+  String get detailsFileInfo => 'Инфо о файле';
 
   @override
   String get detailsProbingFile => 'Probing file…';
 
   @override
-  String get detailsDownloadToDevice => 'Download to device';
+  String get detailsDownloadToDevice => 'Скачать на устройство';
 
   @override
-  String get detailsDownloaded => 'Downloaded';
+  String get detailsDownloaded => 'Загружено';
 
   @override
   String get detailsSearchTitle => 'Search title';
 
   @override
-  String get detailsTvSeries => 'TV Series';
+  String get detailsTvSeries => 'Сериал';
 
   @override
-  String get detailsMovie => 'Movie';
+  String get detailsMovie => 'Фильм';
 
   @override
   String get detailsSearchUnavailable =>
@@ -756,7 +758,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get detailsSearchFailed => 'Search failed. Try again in a moment.';
 
   @override
-  String get detailsNoResults => 'No results. Try a different title.';
+  String get detailsNoResults => 'Ничего не найдено. Попробуйте другой запрос.';
 
   @override
   String get detailsCouldNotListFolder => 'Could not list this folder';
@@ -804,7 +806,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get detailsMonthDec => 'Dec';
 
   @override
-  String get smbNetworkShares => 'Network shares';
+  String get smbNetworkShares => 'SMB сетевые ресурсы';
 
   @override
   String get smbBookmarkHome => 'Bookmark this folder to Home';
@@ -816,13 +818,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get smbServerList => 'Server list';
 
   @override
-  String get smbScanNetwork => 'Scan network';
+  String get smbScanNetwork => 'Сканировать сеть';
 
   @override
-  String get smbAddServer => 'Add server';
+  String get smbAddServer => 'Добавить сервер';
 
   @override
-  String get smbNoShares => 'No shares found. Check your NAS share settings.';
+  String get smbNoShares => 'Ресурсы не найдены. Проверьте настройки NAS.';
 
   @override
   String get smbEpisodes => 'Episodes';
@@ -840,13 +842,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get smbDetectedNetwork => 'Detected on this network';
 
   @override
-  String get smbSavedServers => 'Saved servers';
+  String get smbSavedServers => 'Сохранённые серверы';
 
   @override
-  String get smbConnected => 'Connected';
+  String get smbConnected => 'Подключено';
 
   @override
-  String get smbHostRequired => 'Host is required';
+  String get smbHostRequired => 'Хост обязателен';
 
   @override
   String get smbSaveFailed => 'Save failed';
@@ -896,16 +898,16 @@ class AppLocalizationsRu extends AppLocalizations {
   String get webdavServerList => 'Server list';
 
   @override
-  String get webdavAddServer => 'Add server';
+  String get webdavAddServer => 'Добавить сервер';
 
   @override
-  String get webdavSavedServers => 'Saved servers';
+  String get webdavSavedServers => 'Сохранённые серверы';
 
   @override
-  String get webdavHostRequired => 'Host is required';
+  String get webdavHostRequired => 'Хост обязателен';
 
   @override
-  String get webdavConnected => 'Connected';
+  String get webdavConnected => 'Подключено';
 
   @override
   String get webdavConnectionFailed => 'Connection failed';
@@ -917,7 +919,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get webdavEditServer => 'Edit server';
 
   @override
-  String get webdavServerName => 'Server name';
+  String get webdavServerName => 'WebDAV';
 
   @override
   String get webdavHttp => 'HTTP';
@@ -966,10 +968,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get ftpServerList => 'Server list';
 
   @override
-  String get ftpAddServer => 'Add server';
+  String get ftpAddServer => 'Добавить сервер';
 
   @override
-  String get ftpSavedServers => 'Saved servers';
+  String get ftpSavedServers => 'Сохранённые серверы';
 
   @override
   String get ftpFtp => 'FTP';
@@ -996,10 +998,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get ftpPasswordKeep => 'Password (leave empty to keep)';
 
   @override
-  String get ftpHostRequired => 'Host is required';
+  String get ftpHostRequired => 'Хост обязателен';
 
   @override
-  String get ftpConnected => 'Connected';
+  String get ftpConnected => 'Подключено';
 
   @override
   String get ftpConnectionFailed => 'Connection failed';
@@ -1024,10 +1026,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get jellyfinScanNetwork => 'Scan network';
 
   @override
-  String get jellyfinAddServer => 'Add server';
+  String get jellyfinAddServer => 'Добавить сервер';
 
   @override
-  String get jellyfinSavedServers => 'Saved servers';
+  String get jellyfinSavedServers => 'Сохранённые серверы';
 
   @override
   String get jellyfinOnThisNetwork => 'On this network';
@@ -1042,7 +1044,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get jellyfinSessionExpired => 'Session expired';
 
   @override
-  String get jellyfinServerRequired => 'Server address is required';
+  String get jellyfinServerRequired => 'Адрес сервера обязателен';
 
   @override
   String get jellyfinEnterPassword => 'Enter a password to sign in.';
@@ -1079,22 +1081,22 @@ class AppLocalizationsRu extends AppLocalizations {
   String get jellyfinEnterPasswordHint => 'Enter your password.';
 
   @override
-  String get jellyfinSignIn => 'Sign in';
+  String get jellyfinSignIn => 'Войти';
 
   @override
   String get upnpTitle => 'DLNA';
 
   @override
-  String get upnpDiscover => 'Discover';
+  String get upnpDiscover => 'Обнаружить';
 
   @override
-  String get upnpDiscoverFailed => 'Discovery failed';
+  String get upnpDiscoverFailed => 'Ошибка обнаружения';
 
   @override
   String get upnpBrowseFailed => 'Browse failed';
 
   @override
-  String get upnpNoServers => 'No DLNA servers found';
+  String get upnpNoServers => 'Серверы DLNA не найдены';
 
   @override
   String get upnpDiscoverAgain => 'Discover again';
@@ -1103,13 +1105,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get upnpDiagnostics => 'Diagnostics';
 
   @override
-  String get downloadTitle => 'Downloads';
+  String get downloadTitle => 'Загрузки';
 
   @override
-  String get downloadNoDownloads => 'No downloads yet';
+  String get downloadNoDownloads => 'Загрузок пока нет';
 
   @override
-  String get downloadDownloading => 'Downloading…';
+  String get downloadDownloading => 'Загрузка…';
 
   @override
   String downloadDownloadingTitle(String title) {
@@ -1117,11 +1119,11 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get downloadComplete => 'Downloaded';
+  String get downloadComplete => 'Готово';
 
   @override
   String downloadFailed(String error) {
-    return 'Download failed: $error';
+    return 'Ошибка';
   }
 
   @override
@@ -1131,7 +1133,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get downloadQueued => 'Queued';
 
   @override
-  String get downloadCancelled => 'Cancelled';
+  String get downloadCancelled => 'Отменено';
 
   @override
   String get subtitleSettingsTitle => 'Subtitles';
@@ -1398,7 +1400,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get badgeSpatial => 'Spatial';
 
   @override
-  String get badgeTranscoding => 'Transcoding';
+  String get badgeTranscoding => 'Транскодирование';
 
   @override
   String get badgeSdrMpv => 'SDR (MPV)';

@@ -9,40 +9,40 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
-  String get commonCancel => 'Cancel';
+  String get commonCancel => '取消';
 
   @override
-  String get commonSave => 'Save';
+  String get commonSave => '保存';
 
   @override
-  String get commonDelete => 'Delete';
+  String get commonDelete => '删除';
 
   @override
-  String get commonRemove => 'Remove';
+  String get commonRemove => '移除';
 
   @override
   String get commonClose => 'Close';
 
   @override
-  String get commonRetry => 'Retry';
+  String get commonRetry => '重试';
 
   @override
-  String get commonEdit => 'Edit';
+  String get commonEdit => '编辑';
 
   @override
-  String get commonSearch => 'Search';
+  String get commonSearch => '搜索';
 
   @override
-  String get commonTest => 'Test';
+  String get commonTest => '测试';
 
   @override
-  String get commonOff => 'Off';
+  String get commonOff => '关闭';
 
   @override
-  String get commonReset => 'Reset';
+  String get commonReset => '重置';
 
   @override
-  String get commonClear => 'Clear';
+  String get commonClear => '清除';
 
   @override
   String get commonDiscover => 'Discover';
@@ -54,13 +54,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonRetryAction => 'Retry';
 
   @override
-  String get commonNothingHere => 'Nothing here';
+  String get commonNothingHere => '这里什么都没有';
 
   @override
-  String get commonNothingYet => 'Nothing yet';
+  String get commonNothingYet => '暂无内容';
 
   @override
-  String get commonSomethingWentWrong => 'Something went wrong';
+  String get commonSomethingWentWrong => '出了点问题';
 
   @override
   String get commonNoResults => 'No results';
@@ -81,25 +81,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pressBackToExit => 'Press back again to exit';
 
   @override
-  String get homeContinueWatching => 'Continue watching';
+  String get homeContinueWatching => '继续观看';
 
   @override
-  String get homeYourLibrary => 'Your library';
+  String get homeYourLibrary => '你的媒体库';
 
   @override
   String get homeAddSource => 'Add a source';
 
   @override
-  String get homeAddFolder => 'Add folder to library';
+  String get homeAddFolder => '添加文件夹到媒体库';
 
   @override
-  String get homeInternalStorage => 'Internal storage';
+  String get homeInternalStorage => '内部存储';
 
   @override
   String get homeBrowseFiles => 'Browse files on this device';
 
   @override
-  String get homeNetworkSources => 'Network sources';
+  String get homeNetworkSources => '网络源';
 
   @override
   String get homeNoFolders =>
@@ -203,16 +203,16 @@ class AppLocalizationsZh extends AppLocalizations {
       'Video controller lost before surface attach.';
 
   @override
-  String get playerAudioTracks => 'Audio tracks';
+  String get playerAudioTracks => '音轨';
 
   @override
-  String get playerNoAudioTracks => 'No audio tracks found';
+  String get playerNoAudioTracks => '未找到音轨';
 
   @override
-  String get playerSubtitles => 'Subtitles';
+  String get playerSubtitles => '字幕';
 
   @override
-  String get playerNoSubtitles => 'No subtitles found in this video';
+  String get playerNoSubtitles => '此视频未找到字幕';
 
   @override
   String get playerSearchOnlineSubs => 'Search online subtitles…';
@@ -233,7 +233,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerFileSize => 'File size';
 
   @override
-  String get playerVideoInfo => 'Video info';
+  String get playerVideoInfo => '视频信息';
 
   @override
   String get playerResolution => 'Resolution';
@@ -254,13 +254,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerSpatialAudio => 'Spatial audio';
 
   @override
-  String get playerVolumeBoost => 'Volume boost';
+  String get playerVolumeBoost => '音量增强';
 
   @override
-  String get playerNightMode => 'Night mode';
+  String get playerNightMode => '夜间模式';
 
   @override
-  String get playerBassBoost => 'Bass boost';
+  String get playerBassBoost => '低音增强';
 
   @override
   String get playerSpeed => 'Speed';
@@ -269,10 +269,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerChapters => 'Chapters';
 
   @override
-  String get playerAspectRatio => 'Aspect ratio';
+  String get playerAspectRatio => '宽高比';
 
   @override
-  String get playerPlaybackSpeed => 'Playback speed';
+  String get playerPlaybackSpeed => '播放速度';
 
   @override
   String get playerPlaybackSettings => 'Playback settings';
@@ -287,22 +287,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerShuffleDesc => 'Random order inside the folder';
 
   @override
-  String get playerSleepTimer => 'Sleep timer';
+  String get playerSleepTimer => '睡眠定时';
 
   @override
   String get playerSleepEndOfVideo => 'End of current video';
 
   @override
-  String get playerAudioDelay => 'Audio delay';
+  String get playerAudioDelay => '音频延迟';
 
   @override
-  String get playerSubtitleSettings => 'Subtitle settings';
+  String get playerSubtitleSettings => '字幕设置';
 
   @override
   String get playerSubtitleSettingsDesc => 'Size, color, background, delay';
 
   @override
-  String get playerVideoDecoder => 'Video decoder';
+  String get playerVideoDecoder => '视频解码器';
 
   @override
   String get playerDecoderHw => 'Force hardware decoders';
@@ -345,25 +345,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerSubtitleDelay => 'Subtitle delay';
 
   @override
-  String get playerDownloadToDevice => 'Download to device';
+  String get playerDownloadToDevice => '下载到设备';
 
   @override
-  String get playerOpenExternal => 'Open in external player';
+  String get playerOpenExternal => '在外部播放器中打开';
 
   @override
-  String get playerNoVideoInFolder => 'No videos or folders here';
+  String get playerNoVideoInFolder => '此处没有视频或文件夹';
 
   @override
-  String get playerTryMpv => 'Try with MPV';
+  String get playerTryMpv => '尝试MPV';
 
   @override
-  String get playerWatchBeginning => 'Watch from beginning';
+  String get playerWatchBeginning => '从头开始';
 
   @override
   String get playerWatchBeginningMpv => 'Watch from beginning (MPV)';
 
   @override
-  String get playerPlayWithMpv => 'Play with MPV';
+  String get playerPlayWithMpv => '用MPV播放';
 
   @override
   String playerChapterN(int count) {
@@ -408,7 +408,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sourceAppAsset => 'App asset';
 
   @override
-  String get sourceTranscoding => 'Transcoding';
+  String get sourceTranscoding => '转码';
 
   @override
   String get sourceSwDecode => 'SW decode';
@@ -420,13 +420,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sourceHwDecodeAuto => 'HW decode (auto)';
 
   @override
-  String get settingsPlayer => 'Player';
+  String get settingsPlayer => '播放器';
 
   @override
   String get settingsAudio => 'Audio';
 
   @override
-  String get settingsStorage => 'Storage';
+  String get settingsStorage => '存储';
 
   @override
   String get settingsMetadata => 'Metadata';
@@ -435,17 +435,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsSubtitles => 'Subtitles';
 
   @override
-  String get settingsAbout => 'About';
+  String get settingsAbout => '关于';
 
   @override
-  String get settingsSupport => 'Support';
+  String get settingsSupport => '支持';
 
   @override
-  String get settingsSwipeGestures => 'Swipe gestures';
+  String get settingsSwipeGestures => '滑动手势';
 
   @override
-  String get settingsSwipeDesc =>
-      'Swipe left side for brightness, right side for volume';
+  String get settingsSwipeDesc => '在屏幕上滑动来调节亮度/音量';
 
   @override
   String get settingsPip => 'Picture-in-picture';
@@ -455,7 +454,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'Keep playing in a floating window when you leave the app';
 
   @override
-  String get settingsDefaultEngine => 'Default playback engine';
+  String get settingsDefaultEngine => '默认播放引擎';
 
   @override
   String get settingsEngineAutoDesc =>
@@ -473,16 +472,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsEngineAskDesc => 'Show both options on every video';
 
   @override
-  String get settingsAutoPlayNext => 'Auto-play next episode';
+  String get settingsAutoPlayNext => '自动播放下一集';
 
   @override
-  String get settingsAutoPlayNextDesc => 'Play the next episode when one ends';
+  String get settingsAutoPlayNextDesc => '当一集结束时自动播放下一集';
 
   @override
   String get settingsOnScreenBadges => 'On-screen badges';
 
   @override
-  String get settingsBadgesDesc => 'Show format chips on screen while playing';
+  String get settingsBadgesDesc => '在顶部栏显示格式标签';
 
   @override
   String get settingsBadgeOptions => 'Badge options';
@@ -555,13 +554,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsKeyMustBe32 => 'Key must be 32 characters';
 
   @override
-  String get settingsClearCache => 'Clear cache';
+  String get settingsClearCache => '清除缓存';
 
   @override
-  String get settingsClearCacheTitle => 'Clear cache?';
+  String get settingsClearCacheTitle => '清除缓存？';
 
   @override
-  String get settingsCacheCleared => 'Cache cleared';
+  String get settingsCacheCleared => '缓存已清除';
 
   @override
   String get settingsCacheClearedDesc =>
@@ -577,7 +576,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsEngine => 'Engine';
 
   @override
-  String get settingsVersion => 'Version';
+  String get settingsVersion => '版本';
 
   @override
   String get settingsFaq => 'FAQ';
@@ -672,7 +671,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get detailsPlay => 'Play';
+  String get detailsPlay => '播放';
 
   @override
   String detailsPlayEngine(String engineSuffix) {
@@ -680,31 +679,31 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get detailsWatchBeginning => 'Watch from beginning';
+  String get detailsWatchBeginning => '从头开始';
 
   @override
-  String get detailsFindOnTmdb => 'Find on TMDB';
+  String get detailsFindOnTmdb => '在TMDB上搜索';
 
   @override
-  String get detailsGetInfo => 'Get Info';
+  String get detailsGetInfo => '获取信息';
 
   @override
-  String get detailsNoMetadata => 'No metadata loaded';
+  String get detailsNoMetadata => '未加载元数据';
 
   @override
-  String get detailsFixMatch => 'Fix match';
+  String get detailsFixMatch => '修正匹配';
 
   @override
-  String get detailsRemoveInfo => 'Remove info';
+  String get detailsRemoveInfo => '移除信息';
 
   @override
-  String get detailsOverview => 'Overview';
+  String get detailsOverview => '简介';
 
   @override
   String get detailsEpisodeOverview => 'Episode overview';
 
   @override
-  String get detailsCast => 'Cast';
+  String get detailsCast => '演员';
 
   @override
   String get detailsEpisodeCast => 'Episode cast';
@@ -713,40 +712,40 @@ class AppLocalizationsZh extends AppLocalizations {
   String get detailsGuestStars => 'Guest stars';
 
   @override
-  String get detailsEpisodes => 'Episodes';
+  String get detailsEpisodes => '剧集';
 
   @override
-  String get detailsStills => 'Stills';
+  String get detailsStills => '剧照';
 
   @override
-  String get detailsTrailers => 'Trailers';
+  String get detailsTrailers => '预告片';
 
   @override
-  String get detailsSubtitles => 'Subtitles';
+  String get detailsSubtitles => '字幕';
 
   @override
-  String get detailsSearchSubsOnline => 'Search subtitles online';
+  String get detailsSearchSubsOnline => '在线搜索字幕';
 
   @override
-  String get detailsFileInfo => 'File info';
+  String get detailsFileInfo => '文件信息';
 
   @override
   String get detailsProbingFile => 'Probing file…';
 
   @override
-  String get detailsDownloadToDevice => 'Download to device';
+  String get detailsDownloadToDevice => '下载到设备';
 
   @override
-  String get detailsDownloaded => 'Downloaded';
+  String get detailsDownloaded => '已下载';
 
   @override
   String get detailsSearchTitle => 'Search title';
 
   @override
-  String get detailsTvSeries => 'TV Series';
+  String get detailsTvSeries => '电视剧';
 
   @override
-  String get detailsMovie => 'Movie';
+  String get detailsMovie => '电影';
 
   @override
   String get detailsSearchUnavailable =>
@@ -756,7 +755,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get detailsSearchFailed => 'Search failed. Try again in a moment.';
 
   @override
-  String get detailsNoResults => 'No results. Try a different title.';
+  String get detailsNoResults => '无结果。请尝试其他标题。';
 
   @override
   String get detailsCouldNotListFolder => 'Could not list this folder';
@@ -804,7 +803,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get detailsMonthDec => 'Dec';
 
   @override
-  String get smbNetworkShares => 'Network shares';
+  String get smbNetworkShares => 'SMB网络共享';
 
   @override
   String get smbBookmarkHome => 'Bookmark this folder to Home';
@@ -816,13 +815,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get smbServerList => 'Server list';
 
   @override
-  String get smbScanNetwork => 'Scan network';
+  String get smbScanNetwork => '扫描网络';
 
   @override
-  String get smbAddServer => 'Add server';
+  String get smbAddServer => '添加服务器';
 
   @override
-  String get smbNoShares => 'No shares found. Check your NAS share settings.';
+  String get smbNoShares => '未找到共享。请检查NAS共享设置。';
 
   @override
   String get smbEpisodes => 'Episodes';
@@ -840,13 +839,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get smbDetectedNetwork => 'Detected on this network';
 
   @override
-  String get smbSavedServers => 'Saved servers';
+  String get smbSavedServers => '已保存的服务器';
 
   @override
-  String get smbConnected => 'Connected';
+  String get smbConnected => '已连接';
 
   @override
-  String get smbHostRequired => 'Host is required';
+  String get smbHostRequired => '主机为必填项';
 
   @override
   String get smbSaveFailed => 'Save failed';
@@ -896,16 +895,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get webdavServerList => 'Server list';
 
   @override
-  String get webdavAddServer => 'Add server';
+  String get webdavAddServer => '添加服务器';
 
   @override
-  String get webdavSavedServers => 'Saved servers';
+  String get webdavSavedServers => '已保存的服务器';
 
   @override
-  String get webdavHostRequired => 'Host is required';
+  String get webdavHostRequired => '主机为必填项';
 
   @override
-  String get webdavConnected => 'Connected';
+  String get webdavConnected => '已连接';
 
   @override
   String get webdavConnectionFailed => 'Connection failed';
@@ -917,7 +916,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get webdavEditServer => 'Edit server';
 
   @override
-  String get webdavServerName => 'Server name';
+  String get webdavServerName => 'WebDAV';
 
   @override
   String get webdavHttp => 'HTTP';
@@ -966,10 +965,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ftpServerList => 'Server list';
 
   @override
-  String get ftpAddServer => 'Add server';
+  String get ftpAddServer => '添加服务器';
 
   @override
-  String get ftpSavedServers => 'Saved servers';
+  String get ftpSavedServers => '已保存的服务器';
 
   @override
   String get ftpFtp => 'FTP';
@@ -996,10 +995,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ftpPasswordKeep => 'Password (leave empty to keep)';
 
   @override
-  String get ftpHostRequired => 'Host is required';
+  String get ftpHostRequired => '主机为必填项';
 
   @override
-  String get ftpConnected => 'Connected';
+  String get ftpConnected => '已连接';
 
   @override
   String get ftpConnectionFailed => 'Connection failed';
@@ -1024,10 +1023,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get jellyfinScanNetwork => 'Scan network';
 
   @override
-  String get jellyfinAddServer => 'Add server';
+  String get jellyfinAddServer => '添加服务器';
 
   @override
-  String get jellyfinSavedServers => 'Saved servers';
+  String get jellyfinSavedServers => '已保存的服务器';
 
   @override
   String get jellyfinOnThisNetwork => 'On this network';
@@ -1042,7 +1041,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get jellyfinSessionExpired => 'Session expired';
 
   @override
-  String get jellyfinServerRequired => 'Server address is required';
+  String get jellyfinServerRequired => '服务器地址为必填项';
 
   @override
   String get jellyfinEnterPassword => 'Enter a password to sign in.';
@@ -1079,22 +1078,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get jellyfinEnterPasswordHint => 'Enter your password.';
 
   @override
-  String get jellyfinSignIn => 'Sign in';
+  String get jellyfinSignIn => '登录';
 
   @override
   String get upnpTitle => 'DLNA';
 
   @override
-  String get upnpDiscover => 'Discover';
+  String get upnpDiscover => '发现';
 
   @override
-  String get upnpDiscoverFailed => 'Discovery failed';
+  String get upnpDiscoverFailed => '发现失败';
 
   @override
   String get upnpBrowseFailed => 'Browse failed';
 
   @override
-  String get upnpNoServers => 'No DLNA servers found';
+  String get upnpNoServers => '未找到DLNA服务器';
 
   @override
   String get upnpDiscoverAgain => 'Discover again';
@@ -1103,13 +1102,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get upnpDiagnostics => 'Diagnostics';
 
   @override
-  String get downloadTitle => 'Downloads';
+  String get downloadTitle => '下载';
 
   @override
-  String get downloadNoDownloads => 'No downloads yet';
+  String get downloadNoDownloads => '暂无下载';
 
   @override
-  String get downloadDownloading => 'Downloading…';
+  String get downloadDownloading => '下载中…';
 
   @override
   String downloadDownloadingTitle(String title) {
@@ -1117,11 +1116,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get downloadComplete => 'Downloaded';
+  String get downloadComplete => '完成';
 
   @override
   String downloadFailed(String error) {
-    return 'Download failed: $error';
+    return '失败';
   }
 
   @override
@@ -1131,7 +1130,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadQueued => 'Queued';
 
   @override
-  String get downloadCancelled => 'Cancelled';
+  String get downloadCancelled => '已取消';
 
   @override
   String get subtitleSettingsTitle => 'Subtitles';
@@ -1392,13 +1391,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get badgeSdr => 'SDR';
 
   @override
-  String get badgeDolbyVision => 'Dolby Vision';
+  String get badgeDolbyVision => '杜比视界';
 
   @override
   String get badgeSpatial => 'Spatial';
 
   @override
-  String get badgeTranscoding => 'Transcoding';
+  String get badgeTranscoding => '转码';
 
   @override
   String get badgeSdrMpv => 'SDR (MPV)';

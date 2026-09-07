@@ -1,18 +1,18 @@
 {
   "@@locale": "zh",
-  "commonCancel": "Cancel",
+  "commonCancel": "取消",
   "@commonCancel": {
     "description": "Cancel button"
   },
-  "commonSave": "Save",
+  "commonSave": "保存",
   "@commonSave": {
     "description": "Save button"
   },
-  "commonDelete": "Delete",
+  "commonDelete": "删除",
   "@commonDelete": {
     "description": "Delete button"
   },
-  "commonRemove": "Remove",
+  "commonRemove": "移除",
   "@commonRemove": {
     "description": "Remove button"
   },
@@ -20,31 +20,31 @@
   "@commonClose": {
     "description": "Close button"
   },
-  "commonRetry": "Retry",
+  "commonRetry": "重试",
   "@commonRetry": {
     "description": "Retry button"
   },
-  "commonEdit": "Edit",
+  "commonEdit": "编辑",
   "@commonEdit": {
     "description": "Edit button"
   },
-  "commonSearch": "Search",
+  "commonSearch": "搜索",
   "@commonSearch": {
     "description": "Search button/label"
   },
-  "commonTest": "Test",
+  "commonTest": "测试",
   "@commonTest": {
     "description": "Test connection button"
   },
-  "commonOff": "Off",
+  "commonOff": "关闭",
   "@commonOff": {
     "description": "Disabled/off state"
   },
-  "commonReset": "Reset",
+  "commonReset": "重置",
   "@commonReset": {
     "description": "Reset to defaults"
   },
-  "commonClear": "Clear",
+  "commonClear": "清除",
   "@commonClear": {
     "description": "Clear action"
   },
@@ -60,15 +60,15 @@
   "@commonRetryAction": {
     "description": "Retry a failed operation"
   },
-  "commonNothingHere": "Nothing here",
+  "commonNothingHere": "这里什么都没有",
   "@commonNothingHere": {
     "description": "Empty state message"
   },
-  "commonNothingYet": "Nothing yet",
+  "commonNothingYet": "暂无内容",
   "@commonNothingYet": {
     "description": "Empty list message"
   },
-  "commonSomethingWentWrong": "Something went wrong",
+  "commonSomethingWentWrong": "出了点问题",
   "@commonSomethingWentWrong": {
     "description": "Generic error message"
   },
@@ -96,11 +96,11 @@
   "@pressBackToExit": {
     "description": "Toast message when back is pressed once"
   },
-  "homeContinueWatching": "Continue watching",
+  "homeContinueWatching": "继续观看",
   "@homeContinueWatching": {
     "description": "Section header for resume list"
   },
-  "homeYourLibrary": "Your library",
+  "homeYourLibrary": "你的媒体库",
   "@homeYourLibrary": {
     "description": "Section header for user library folders"
   },
@@ -108,11 +108,11 @@
   "@homeAddSource": {
     "description": "FAB menu label"
   },
-  "homeAddFolder": "Add folder to library",
+  "homeAddFolder": "添加文件夹到媒体库",
   "@homeAddFolder": {
     "description": "Menu item to add a local folder"
   },
-  "homeInternalStorage": "Internal storage",
+  "homeInternalStorage": "内部存储",
   "@homeInternalStorage": {
     "description": "Menu item for local file browser"
   },
@@ -120,7 +120,7 @@
   "@homeBrowseFiles": {
     "description": "Subtitle for internal storage menu item"
   },
-  "homeNetworkSources": "Network sources",
+  "homeNetworkSources": "网络源",
   "@homeNetworkSources": {
     "description": "Expansion tile header for network options"
   },
@@ -252,19 +252,19 @@
   "@playerControllerLost": {
     "description": "Error when controller disposed early"
   },
-  "playerAudioTracks": "Audio tracks",
+  "playerAudioTracks": "音轨",
   "@playerAudioTracks": {
     "description": "Audio track picker title"
   },
-  "playerNoAudioTracks": "No audio tracks found",
+  "playerNoAudioTracks": "未找到音轨",
   "@playerNoAudioTracks": {
     "description": "No audio tracks available"
   },
-  "playerSubtitles": "Subtitles",
+  "playerSubtitles": "字幕",
   "@playerSubtitles": {
     "description": "Subtitle picker section title"
   },
-  "playerNoSubtitles": "No subtitles found in this video",
+  "playerNoSubtitles": "此视频未找到字幕",
   "@playerNoSubtitles": {
     "description": "No subtitle tracks available"
   },
@@ -292,7 +292,7 @@
   "@playerFileSize": {
     "description": "Info sheet row label"
   },
-  "playerVideoInfo": "Video info",
+  "playerVideoInfo": "视频信息",
   "@playerVideoInfo": {
     "description": "Button to open video info sheet"
   },
@@ -320,15 +320,15 @@
   "@playerSpatialAudio": {
     "description": "Info sheet row label"
   },
-  "playerVolumeBoost": "Volume boost",
+  "playerVolumeBoost": "音量增强",
   "@playerVolumeBoost": {
     "description": "Info sheet row label"
   },
-  "playerNightMode": "Night mode",
+  "playerNightMode": "夜间模式",
   "@playerNightMode": {
     "description": "Info sheet row label"
   },
-  "playerBassBoost": "Bass boost",
+  "playerBassBoost": "低音增强",
   "@playerBassBoost": {
     "description": "Info sheet row label"
   },
@@ -340,11 +340,11 @@
   "@playerChapters": {
     "description": "Chapters section label"
   },
-  "playerAspectRatio": "Aspect ratio",
+  "playerAspectRatio": "宽高比",
   "@playerAspectRatio": {
     "description": "Aspect ratio picker title"
   },
-  "playerPlaybackSpeed": "Playback speed",
+  "playerPlaybackSpeed": "播放速度",
   "@playerPlaybackSpeed": {
     "description": "Speed picker title"
   },
@@ -364,7 +364,7 @@
   "@playerShuffleDesc": {
     "description": "Shuffle subtitle"
   },
-  "playerSleepTimer": "Sleep timer",
+  "playerSleepTimer": "睡眠定时",
   "@playerSleepTimer": {
     "description": "Sleep timer section title"
   },
@@ -372,11 +372,11 @@
   "@playerSleepEndOfVideo": {
     "description": "Sleep timer option"
   },
-  "playerAudioDelay": "Audio delay",
+  "playerAudioDelay": "音频延迟",
   "@playerAudioDelay": {
     "description": "Audio delay section title"
   },
-  "playerSubtitleSettings": "Subtitle settings",
+  "playerSubtitleSettings": "字幕设置",
   "@playerSubtitleSettings": {
     "description": "Subtitle settings button"
   },
@@ -384,7 +384,7 @@
   "@playerSubtitleSettingsDesc": {
     "description": "Subtitle settings subtitle"
   },
-  "playerVideoDecoder": "Video decoder",
+  "playerVideoDecoder": "视频解码器",
   "@playerVideoDecoder": {
     "description": "Decoder picker title"
   },
@@ -440,23 +440,23 @@
   "@playerSubtitleDelay": {
     "description": "Subtitle delay slider label"
   },
-  "playerDownloadToDevice": "Download to device",
+  "playerDownloadToDevice": "下载到设备",
   "@playerDownloadToDevice": {
     "description": "Download button in ⋮ sheet"
   },
-  "playerOpenExternal": "Open in external player",
+  "playerOpenExternal": "在外部播放器中打开",
   "@playerOpenExternal": {
     "description": "External player handoff button"
   },
-  "playerNoVideoInFolder": "No videos or folders here",
+  "playerNoVideoInFolder": "此处没有视频或文件夹",
   "@playerNoVideoInFolder": {
     "description": "Empty folder state"
   },
-  "playerTryMpv": "Try with MPV",
+  "playerTryMpv": "尝试MPV",
   "@playerTryMpv": {
     "description": "Fallback engine button on error surface"
   },
-  "playerWatchBeginning": "Watch from beginning",
+  "playerWatchBeginning": "从头开始",
   "@playerWatchBeginning": {
     "description": "Replay from start button"
   },
@@ -464,7 +464,7 @@
   "@playerWatchBeginningMpv": {
     "description": "Replay from start via MPV"
   },
-  "playerPlayWithMpv": "Play with MPV",
+  "playerPlayWithMpv": "用MPV播放",
   "@playerPlayWithMpv": {
     "description": "Play via MPV engine button"
   },
@@ -531,7 +531,7 @@
   "@sourceAppAsset": {
     "description": "Source badge label"
   },
-  "sourceTranscoding": "Transcoding",
+  "sourceTranscoding": "转码",
   "@sourceTranscoding": {
     "description": "Transcoding badge"
   },
@@ -547,7 +547,7 @@
   "@sourceHwDecodeAuto": {
     "description": "Auto hardware decode chip"
   },
-  "settingsPlayer": "Player",
+  "settingsPlayer": "播放器",
   "@settingsPlayer": {
     "description": "Settings section header"
   },
@@ -555,7 +555,7 @@
   "@settingsAudio": {
     "description": "Settings section header"
   },
-  "settingsStorage": "Storage",
+  "settingsStorage": "存储",
   "@settingsStorage": {
     "description": "Settings section header"
   },
@@ -567,19 +567,19 @@
   "@settingsSubtitles": {
     "description": "Settings section header"
   },
-  "settingsAbout": "About",
+  "settingsAbout": "关于",
   "@settingsAbout": {
     "description": "Settings section header"
   },
-  "settingsSupport": "Support",
+  "settingsSupport": "支持",
   "@settingsSupport": {
     "description": "Settings section header"
   },
-  "settingsSwipeGestures": "Swipe gestures",
+  "settingsSwipeGestures": "滑动手势",
   "@settingsSwipeGestures": {
     "description": "Toggle for swipe brightness/volume"
   },
-  "settingsSwipeDesc": "Swipe left side for brightness, right side for volume",
+  "settingsSwipeDesc": "在屏幕上滑动来调节亮度/音量",
   "@settingsSwipeDesc": {
     "description": "Swipe gestures subtitle"
   },
@@ -591,7 +591,7 @@
   "@settingsPipDesc": {
     "description": "PiP subtitle"
   },
-  "settingsDefaultEngine": "Default playback engine",
+  "settingsDefaultEngine": "默认播放引擎",
   "@settingsDefaultEngine": {
     "description": "Engine picker label"
   },
@@ -611,11 +611,11 @@
   "@settingsEngineAskDesc": {
     "description": "Ask-every-time engine subtitle"
   },
-  "settingsAutoPlayNext": "Auto-play next episode",
+  "settingsAutoPlayNext": "自动播放下一集",
   "@settingsAutoPlayNext": {
     "description": "Auto-play toggle label"
   },
-  "settingsAutoPlayNextDesc": "Play the next episode when one ends",
+  "settingsAutoPlayNextDesc": "当一集结束时自动播放下一集",
   "@settingsAutoPlayNextDesc": {
     "description": "Auto-play subtitle"
   },
@@ -623,7 +623,7 @@
   "@settingsOnScreenBadges": {
     "description": "Badge toggle label"
   },
-  "settingsBadgesDesc": "Show format chips on screen while playing",
+  "settingsBadgesDesc": "在顶部栏显示格式标签",
   "@settingsBadgesDesc": {
     "description": "Badges subtitle"
   },
@@ -719,15 +719,15 @@
   "@settingsKeyMustBe32": {
     "description": "Validation error"
   },
-  "settingsClearCache": "Clear cache",
+  "settingsClearCache": "清除缓存",
   "@settingsClearCache": {
     "description": "Clear cache button"
   },
-  "settingsClearCacheTitle": "Clear cache?",
+  "settingsClearCacheTitle": "清除缓存？",
   "@settingsClearCacheTitle": {
     "description": "Cache clear confirmation dialog"
   },
-  "settingsCacheCleared": "Cache cleared",
+  "settingsCacheCleared": "缓存已清除",
   "@settingsCacheCleared": {
     "description": "Success message after clearing cache"
   },
@@ -747,7 +747,7 @@
   "@settingsEngine": {
     "description": "Engine label in About section"
   },
-  "settingsVersion": "Version",
+  "settingsVersion": "版本",
   "@settingsVersion": {
     "description": "Version label in About section"
   },
@@ -868,7 +868,7 @@
       }
     }
   },
-  "detailsPlay": "Play",
+  "detailsPlay": "播放",
   "@detailsPlay": {
     "description": "Play button"
   },
@@ -881,31 +881,31 @@
       }
     }
   },
-  "detailsWatchBeginning": "Watch from beginning",
+  "detailsWatchBeginning": "从头开始",
   "@detailsWatchBeginning": {
     "description": "Replay from start"
   },
-  "detailsFindOnTmdb": "Find on TMDB",
+  "detailsFindOnTmdb": "在TMDB上搜索",
   "@detailsFindOnTmdb": {
     "description": "Manual TMDB search button"
   },
-  "detailsGetInfo": "Get Info",
+  "detailsGetInfo": "获取信息",
   "@detailsGetInfo": {
     "description": "Open info/search dialog"
   },
-  "detailsNoMetadata": "No metadata loaded",
+  "detailsNoMetadata": "未加载元数据",
   "@detailsNoMetadata": {
     "description": "No TMDB match state"
   },
-  "detailsFixMatch": "Fix match",
+  "detailsFixMatch": "修正匹配",
   "@detailsFixMatch": {
     "description": "Re-search TMDB button"
   },
-  "detailsRemoveInfo": "Remove info",
+  "detailsRemoveInfo": "移除信息",
   "@detailsRemoveInfo": {
     "description": "Clear TMDB match button"
   },
-  "detailsOverview": "Overview",
+  "detailsOverview": "简介",
   "@detailsOverview": {
     "description": "Overview section header"
   },
@@ -913,7 +913,7 @@
   "@detailsEpisodeOverview": {
     "description": "Episode overview header"
   },
-  "detailsCast": "Cast",
+  "detailsCast": "演员",
   "@detailsCast": {
     "description": "Cast section header"
   },
@@ -925,27 +925,27 @@
   "@detailsGuestStars": {
     "description": "Guest stars header"
   },
-  "detailsEpisodes": "Episodes",
+  "detailsEpisodes": "剧集",
   "@detailsEpisodes": {
     "description": "Episodes section header"
   },
-  "detailsStills": "Stills",
+  "detailsStills": "剧照",
   "@detailsStills": {
     "description": "Stills gallery header"
   },
-  "detailsTrailers": "Trailers",
+  "detailsTrailers": "预告片",
   "@detailsTrailers": {
     "description": "Trailers section header"
   },
-  "detailsSubtitles": "Subtitles",
+  "detailsSubtitles": "字幕",
   "@detailsSubtitles": {
     "description": "Subtitles card title"
   },
-  "detailsSearchSubsOnline": "Search subtitles online",
+  "detailsSearchSubsOnline": "在线搜索字幕",
   "@detailsSearchSubsOnline": {
     "description": "Subtitle search button"
   },
-  "detailsFileInfo": "File info",
+  "detailsFileInfo": "文件信息",
   "@detailsFileInfo": {
     "description": "File info card title"
   },
@@ -953,11 +953,11 @@
   "@detailsProbingFile": {
     "description": "Loading state while probing"
   },
-  "detailsDownloadToDevice": "Download to device",
+  "detailsDownloadToDevice": "下载到设备",
   "@detailsDownloadToDevice": {
     "description": "Download button in details"
   },
-  "detailsDownloaded": "Downloaded",
+  "detailsDownloaded": "已下载",
   "@detailsDownloaded": {
     "description": "Download complete label"
   },
@@ -965,11 +965,11 @@
   "@detailsSearchTitle": {
     "description": "Search field hint in Fix match dialog"
   },
-  "detailsTvSeries": "TV Series",
+  "detailsTvSeries": "电视剧",
   "@detailsTvSeries": {
     "description": "Media type badge"
   },
-  "detailsMovie": "Movie",
+  "detailsMovie": "电影",
   "@detailsMovie": {
     "description": "Media type badge"
   },
@@ -981,7 +981,7 @@
   "@detailsSearchFailed": {
     "description": "TMDB search error"
   },
-  "detailsNoResults": "No results. Try a different title.",
+  "detailsNoResults": "无结果。请尝试其他标题。",
   "@detailsNoResults": {
     "description": "No TMDB results"
   },
@@ -1045,7 +1045,7 @@
   "@detailsMonthDec": {
     "description": "Month abbreviation"
   },
-  "smbNetworkShares": "Network shares",
+  "smbNetworkShares": "SMB网络共享",
   "@smbNetworkShares": {
     "description": "SMB browser title"
   },
@@ -1061,15 +1061,15 @@
   "@smbServerList": {
     "description": "Server list button"
   },
-  "smbScanNetwork": "Scan network",
+  "smbScanNetwork": "扫描网络",
   "@smbScanNetwork": {
     "description": "Network scan button"
   },
-  "smbAddServer": "Add server",
+  "smbAddServer": "添加服务器",
   "@smbAddServer": {
     "description": "Add SMB server button"
   },
-  "smbNoShares": "No shares found. Check your NAS share settings.",
+  "smbNoShares": "未找到共享。请检查NAS共享设置。",
   "@smbNoShares": {
     "description": "No shares found error"
   },
@@ -1093,15 +1093,15 @@
   "@smbDetectedNetwork": {
     "description": "Discovered servers section"
   },
-  "smbSavedServers": "Saved servers",
+  "smbSavedServers": "已保存的服务器",
   "@smbSavedServers": {
     "description": "Saved servers section"
   },
-  "smbConnected": "Connected",
+  "smbConnected": "已连接",
   "@smbConnected": {
     "description": "Connection success message"
   },
-  "smbHostRequired": "Host is required",
+  "smbHostRequired": "主机为必填项",
   "@smbHostRequired": {
     "description": "Validation error"
   },
@@ -1173,19 +1173,19 @@
   "@webdavServerList": {
     "description": "Server list button"
   },
-  "webdavAddServer": "Add server",
+  "webdavAddServer": "添加服务器",
   "@webdavAddServer": {
     "description": "Add WebDAV server button"
   },
-  "webdavSavedServers": "Saved servers",
+  "webdavSavedServers": "已保存的服务器",
   "@webdavSavedServers": {
     "description": "Saved servers section"
   },
-  "webdavHostRequired": "Host is required",
+  "webdavHostRequired": "主机为必填项",
   "@webdavHostRequired": {
     "description": "Validation error"
   },
-  "webdavConnected": "Connected",
+  "webdavConnected": "已连接",
   "@webdavConnected": {
     "description": "Connection success message"
   },
@@ -1201,7 +1201,7 @@
   "@webdavEditServer": {
     "description": "Edit dialog title"
   },
-  "webdavServerName": "Server name",
+  "webdavServerName": "WebDAV",
   "@webdavServerName": {
     "description": "Server name field label"
   },
@@ -1269,11 +1269,11 @@
   "@ftpServerList": {
     "description": "Server list button"
   },
-  "ftpAddServer": "Add server",
+  "ftpAddServer": "添加服务器",
   "@ftpAddServer": {
     "description": "Add FTP server button"
   },
-  "ftpSavedServers": "Saved servers",
+  "ftpSavedServers": "已保存的服务器",
   "@ftpSavedServers": {
     "description": "Saved servers section"
   },
@@ -1309,11 +1309,11 @@
   "@ftpPasswordKeep": {
     "description": "Password field hint on edit"
   },
-  "ftpHostRequired": "Host is required",
+  "ftpHostRequired": "主机为必填项",
   "@ftpHostRequired": {
     "description": "Validation error"
   },
-  "ftpConnected": "Connected",
+  "ftpConnected": "已连接",
   "@ftpConnected": {
     "description": "Connection success"
   },
@@ -1345,11 +1345,11 @@
   "@jellyfinScanNetwork": {
     "description": "Network scan button"
   },
-  "jellyfinAddServer": "Add server",
+  "jellyfinAddServer": "添加服务器",
   "@jellyfinAddServer": {
     "description": "Add Jellyfin server button"
   },
-  "jellyfinSavedServers": "Saved servers",
+  "jellyfinSavedServers": "已保存的服务器",
   "@jellyfinSavedServers": {
     "description": "Saved servers section"
   },
@@ -1369,7 +1369,7 @@
   "@jellyfinSessionExpired": {
     "description": "Token expired error"
   },
-  "jellyfinServerRequired": "Server address is required",
+  "jellyfinServerRequired": "服务器地址为必填项",
   "@jellyfinServerRequired": {
     "description": "Validation error"
   },
@@ -1417,7 +1417,7 @@
   "@jellyfinEnterPasswordHint": {
     "description": "Password field hint"
   },
-  "jellyfinSignIn": "Sign in",
+  "jellyfinSignIn": "登录",
   "@jellyfinSignIn": {
     "description": "Sign in button"
   },
@@ -1425,11 +1425,11 @@
   "@upnpTitle": {
     "description": "DLNA browser title"
   },
-  "upnpDiscover": "Discover",
+  "upnpDiscover": "发现",
   "@upnpDiscover": {
     "description": "Discovery button"
   },
-  "upnpDiscoverFailed": "Discovery failed",
+  "upnpDiscoverFailed": "发现失败",
   "@upnpDiscoverFailed": {
     "description": "Discovery error"
   },
@@ -1437,7 +1437,7 @@
   "@upnpBrowseFailed": {
     "description": "Browse error"
   },
-  "upnpNoServers": "No DLNA servers found",
+  "upnpNoServers": "未找到DLNA服务器",
   "@upnpNoServers": {
     "description": "Empty state"
   },
@@ -1449,15 +1449,15 @@
   "@upnpDiagnostics": {
     "description": "Diagnostics button"
   },
-  "downloadTitle": "Downloads",
+  "downloadTitle": "下载",
   "@downloadTitle": {
     "description": "Download screen title"
   },
-  "downloadNoDownloads": "No downloads yet",
+  "downloadNoDownloads": "暂无下载",
   "@downloadNoDownloads": {
     "description": "Empty download list"
   },
-  "downloadDownloading": "Downloading…",
+  "downloadDownloading": "下载中…",
   "@downloadDownloading": {
     "description": "Download in progress label"
   },
@@ -1470,11 +1470,11 @@
       }
     }
   },
-  "downloadComplete": "Downloaded",
+  "downloadComplete": "完成",
   "@downloadComplete": {
     "description": "Download complete label"
   },
-  "downloadFailed": "Download failed: {error}",
+  "downloadFailed": "失败",
   "@downloadFailed": {
     "description": "Download error",
     "placeholders": {
@@ -1491,7 +1491,7 @@
   "@downloadQueued": {
     "description": "Download queued status"
   },
-  "downloadCancelled": "Cancelled",
+  "downloadCancelled": "已取消",
   "@downloadCancelled": {
     "description": "Download cancelled status"
   },
@@ -1819,7 +1819,7 @@
   "@badgeSdr": {
     "description": "SDR badge"
   },
-  "badgeDolbyVision": "Dolby Vision",
+  "badgeDolbyVision": "杜比视界",
   "@badgeDolbyVision": {
     "description": "Dolby Vision badge"
   },
@@ -1827,7 +1827,7 @@
   "@badgeSpatial": {
     "description": "Spatial audio badge"
   },
-  "badgeTranscoding": "Transcoding",
+  "badgeTranscoding": "转码",
   "@badgeTranscoding": {
     "description": "Transcoding badge"
   },

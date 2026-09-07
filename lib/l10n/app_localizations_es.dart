@@ -9,40 +9,40 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
-  String get commonCancel => 'Cancel';
+  String get commonCancel => 'Cancelar';
 
   @override
-  String get commonSave => 'Save';
+  String get commonSave => 'Guardar';
 
   @override
-  String get commonDelete => 'Delete';
+  String get commonDelete => 'Borrar';
 
   @override
-  String get commonRemove => 'Remove';
+  String get commonRemove => 'Eliminar';
 
   @override
   String get commonClose => 'Close';
 
   @override
-  String get commonRetry => 'Retry';
+  String get commonRetry => 'Reintentar';
 
   @override
-  String get commonEdit => 'Edit';
+  String get commonEdit => 'Editar';
 
   @override
-  String get commonSearch => 'Search';
+  String get commonSearch => 'Buscar';
 
   @override
-  String get commonTest => 'Test';
+  String get commonTest => 'Probar';
 
   @override
-  String get commonOff => 'Off';
+  String get commonOff => 'Desactivado';
 
   @override
-  String get commonReset => 'Reset';
+  String get commonReset => 'Restablecer';
 
   @override
-  String get commonClear => 'Clear';
+  String get commonClear => 'Limpiar';
 
   @override
   String get commonDiscover => 'Discover';
@@ -54,13 +54,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get commonRetryAction => 'Retry';
 
   @override
-  String get commonNothingHere => 'Nothing here';
+  String get commonNothingHere => 'Nada aquí';
 
   @override
-  String get commonNothingYet => 'Nothing yet';
+  String get commonNothingYet => 'Nada aún';
 
   @override
-  String get commonSomethingWentWrong => 'Something went wrong';
+  String get commonSomethingWentWrong => 'Algo salió mal';
 
   @override
   String get commonNoResults => 'No results';
@@ -81,25 +81,25 @@ class AppLocalizationsEs extends AppLocalizations {
   String get pressBackToExit => 'Press back again to exit';
 
   @override
-  String get homeContinueWatching => 'Continue watching';
+  String get homeContinueWatching => 'Continuar viendo';
 
   @override
-  String get homeYourLibrary => 'Your library';
+  String get homeYourLibrary => 'Tu biblioteca';
 
   @override
   String get homeAddSource => 'Add a source';
 
   @override
-  String get homeAddFolder => 'Add folder to library';
+  String get homeAddFolder => 'Añadir carpeta a la biblioteca';
 
   @override
-  String get homeInternalStorage => 'Internal storage';
+  String get homeInternalStorage => 'Almacenamiento interno';
 
   @override
   String get homeBrowseFiles => 'Browse files on this device';
 
   @override
-  String get homeNetworkSources => 'Network sources';
+  String get homeNetworkSources => 'Fuentes de red';
 
   @override
   String get homeNoFolders =>
@@ -149,7 +149,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get homeRemoveDownload => 'Remove download?';
 
   @override
-  String get homePlayUrl => 'Play URL';
+  String get homePlayUrl => 'Reproducir URL';
 
   @override
   String get homeStreamLink => 'Stream a direct video link';
@@ -203,16 +203,16 @@ class AppLocalizationsEs extends AppLocalizations {
       'Video controller lost before surface attach.';
 
   @override
-  String get playerAudioTracks => 'Audio tracks';
+  String get playerAudioTracks => 'Pistas de audio';
 
   @override
-  String get playerNoAudioTracks => 'No audio tracks found';
+  String get playerNoAudioTracks => 'No se encontraron pistas de audio';
 
   @override
-  String get playerSubtitles => 'Subtitles';
+  String get playerSubtitles => 'Subtítulos';
 
   @override
-  String get playerNoSubtitles => 'No subtitles found in this video';
+  String get playerNoSubtitles => 'No se encontraron subtítulos en este video';
 
   @override
   String get playerSearchOnlineSubs => 'Search online subtitles…';
@@ -233,7 +233,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get playerFileSize => 'File size';
 
   @override
-  String get playerVideoInfo => 'Video info';
+  String get playerVideoInfo => 'Info del video';
 
   @override
   String get playerResolution => 'Resolution';
@@ -254,13 +254,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get playerSpatialAudio => 'Spatial audio';
 
   @override
-  String get playerVolumeBoost => 'Volume boost';
+  String get playerVolumeBoost => 'Aumento de volumen';
 
   @override
-  String get playerNightMode => 'Night mode';
+  String get playerNightMode => 'Modo nocturno';
 
   @override
-  String get playerBassBoost => 'Bass boost';
+  String get playerBassBoost => 'Refuerzo de graves';
 
   @override
   String get playerSpeed => 'Speed';
@@ -269,10 +269,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get playerChapters => 'Chapters';
 
   @override
-  String get playerAspectRatio => 'Aspect ratio';
+  String get playerAspectRatio => 'Relación de aspecto';
 
   @override
-  String get playerPlaybackSpeed => 'Playback speed';
+  String get playerPlaybackSpeed => 'Velocidad de reproducción';
 
   @override
   String get playerPlaybackSettings => 'Playback settings';
@@ -287,22 +287,22 @@ class AppLocalizationsEs extends AppLocalizations {
   String get playerShuffleDesc => 'Random order inside the folder';
 
   @override
-  String get playerSleepTimer => 'Sleep timer';
+  String get playerSleepTimer => 'Temporizador';
 
   @override
   String get playerSleepEndOfVideo => 'End of current video';
 
   @override
-  String get playerAudioDelay => 'Audio delay';
+  String get playerAudioDelay => 'Retraso de audio';
 
   @override
-  String get playerSubtitleSettings => 'Subtitle settings';
+  String get playerSubtitleSettings => 'Ajustes de subtítulos';
 
   @override
   String get playerSubtitleSettingsDesc => 'Size, color, background, delay';
 
   @override
-  String get playerVideoDecoder => 'Video decoder';
+  String get playerVideoDecoder => 'Decodificador de video';
 
   @override
   String get playerDecoderHw => 'Force hardware decoders';
@@ -345,25 +345,25 @@ class AppLocalizationsEs extends AppLocalizations {
   String get playerSubtitleDelay => 'Subtitle delay';
 
   @override
-  String get playerDownloadToDevice => 'Download to device';
+  String get playerDownloadToDevice => 'Descargar al dispositivo';
 
   @override
-  String get playerOpenExternal => 'Open in external player';
+  String get playerOpenExternal => 'Abrir en reproductor externo';
 
   @override
-  String get playerNoVideoInFolder => 'No videos or folders here';
+  String get playerNoVideoInFolder => 'No hay videos ni carpetas aquí';
 
   @override
-  String get playerTryMpv => 'Try with MPV';
+  String get playerTryMpv => 'Probar con MPV';
 
   @override
-  String get playerWatchBeginning => 'Watch from beginning';
+  String get playerWatchBeginning => 'Ver desde el principio';
 
   @override
-  String get playerWatchBeginningMpv => 'Watch from beginning (MPV)';
+  String get playerWatchBeginningMpv => 'Ver desde el principio (MPV)';
 
   @override
-  String get playerPlayWithMpv => 'Play with MPV';
+  String get playerPlayWithMpv => 'Reproducir con MPV';
 
   @override
   String playerChapterN(int count) {
@@ -420,13 +420,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sourceHwDecodeAuto => 'HW decode (auto)';
 
   @override
-  String get settingsPlayer => 'Player';
+  String get settingsPlayer => 'Reproductor';
 
   @override
   String get settingsAudio => 'Audio';
 
   @override
-  String get settingsStorage => 'Storage';
+  String get settingsStorage => 'Almacenamiento';
 
   @override
   String get settingsMetadata => 'Metadata';
@@ -435,17 +435,17 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsSubtitles => 'Subtitles';
 
   @override
-  String get settingsAbout => 'About';
+  String get settingsAbout => 'Acerca de';
 
   @override
-  String get settingsSupport => 'Support';
+  String get settingsSupport => 'Soporte';
 
   @override
-  String get settingsSwipeGestures => 'Swipe gestures';
+  String get settingsSwipeGestures => 'Gestos de deslizamiento';
 
   @override
   String get settingsSwipeDesc =>
-      'Swipe left side for brightness, right side for volume';
+      'Desliza arriba/abajo en la pantalla para ajustar brillo/volumen';
 
   @override
   String get settingsPip => 'Picture-in-picture';
@@ -455,7 +455,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Keep playing in a floating window when you leave the app';
 
   @override
-  String get settingsDefaultEngine => 'Default playback engine';
+  String get settingsDefaultEngine => 'Motor de reproducción predeterminado';
 
   @override
   String get settingsEngineAutoDesc =>
@@ -473,19 +473,21 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsEngineAskDesc => 'Show both options on every video';
 
   @override
-  String get settingsAutoPlayNext => 'Auto-play next episode';
+  String get settingsAutoPlayNext => 'Auto-reproducir siguiente';
 
   @override
-  String get settingsAutoPlayNextDesc => 'Play the next episode when one ends';
+  String get settingsAutoPlayNextDesc =>
+      'Reproducir el siguiente episodio cuando uno termine';
 
   @override
   String get settingsOnScreenBadges => 'On-screen badges';
 
   @override
-  String get settingsBadgesDesc => 'Show format chips on screen while playing';
+  String get settingsBadgesDesc =>
+      'Muestra chips de formato en la barra superior';
 
   @override
-  String get settingsBadgeOptions => 'Badge options';
+  String get settingsBadgeOptions => 'Opciones de insignias';
 
   @override
   String get settingsChooseBadges => 'Choose which chips to show';
@@ -555,13 +557,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsKeyMustBe32 => 'Key must be 32 characters';
 
   @override
-  String get settingsClearCache => 'Clear cache';
+  String get settingsClearCache => 'Limpiar caché';
 
   @override
-  String get settingsClearCacheTitle => 'Clear cache?';
+  String get settingsClearCacheTitle => '¿Limpiar caché?';
 
   @override
-  String get settingsCacheCleared => 'Cache cleared';
+  String get settingsCacheCleared => 'Caché limpiada';
 
   @override
   String get settingsCacheClearedDesc =>
@@ -577,7 +579,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsEngine => 'Engine';
 
   @override
-  String get settingsVersion => 'Version';
+  String get settingsVersion => 'Versión';
 
   @override
   String get settingsFaq => 'FAQ';
@@ -616,10 +618,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsSimklConnect => 'Connect SIMKL';
 
   @override
-  String get settingsSimklNotConfigured => 'SIMKL not configured';
+  String get settingsSimklNotConfigured => 'SIMKL no configurado';
 
   @override
-  String get settingsSimklSignInFirst => 'Sign in to SIMKL first';
+  String get settingsSimklSignInFirst => 'Inicia sesión en SIMKL primero';
 
   @override
   String get settingsSyncWatched =>
@@ -639,13 +641,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsOpenSubtitles => 'OpenSubtitles';
 
   @override
-  String get settingsSubReadingLang => 'Subtitle reading language';
+  String get settingsSubReadingLang => 'Idioma de lectura de subtítulos';
 
   @override
-  String get settingsSubDownloadLang => 'Subtitle download language';
+  String get settingsSubDownloadLang => 'Idioma de descarga de subtítulos';
 
   @override
-  String get settingsSubEncoding => 'Subtitle encoding';
+  String get settingsSubEncoding => 'Codificación de subtítulos';
 
   @override
   String get settingsAutoFetchSubs => 'Auto-fetch subtitles';
@@ -672,7 +674,7 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get detailsPlay => 'Play';
+  String get detailsPlay => 'Reproducir';
 
   @override
   String detailsPlayEngine(String engineSuffix) {
@@ -680,31 +682,31 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get detailsWatchBeginning => 'Watch from beginning';
+  String get detailsWatchBeginning => 'Ver desde el principio';
 
   @override
-  String get detailsFindOnTmdb => 'Find on TMDB';
+  String get detailsFindOnTmdb => 'Buscar en TMDB';
 
   @override
-  String get detailsGetInfo => 'Get Info';
+  String get detailsGetInfo => 'Obtener info';
 
   @override
-  String get detailsNoMetadata => 'No metadata loaded';
+  String get detailsNoMetadata => 'Sin metadatos cargados';
 
   @override
-  String get detailsFixMatch => 'Fix match';
+  String get detailsFixMatch => 'Corregir coincidencia';
 
   @override
-  String get detailsRemoveInfo => 'Remove info';
+  String get detailsRemoveInfo => 'Eliminar info';
 
   @override
-  String get detailsOverview => 'Overview';
+  String get detailsOverview => 'Sinopsis';
 
   @override
   String get detailsEpisodeOverview => 'Episode overview';
 
   @override
-  String get detailsCast => 'Cast';
+  String get detailsCast => 'Reparto';
 
   @override
   String get detailsEpisodeCast => 'Episode cast';
@@ -713,40 +715,40 @@ class AppLocalizationsEs extends AppLocalizations {
   String get detailsGuestStars => 'Guest stars';
 
   @override
-  String get detailsEpisodes => 'Episodes';
+  String get detailsEpisodes => 'Episodios';
 
   @override
-  String get detailsStills => 'Stills';
+  String get detailsStills => 'Fotos';
 
   @override
-  String get detailsTrailers => 'Trailers';
+  String get detailsTrailers => 'Tráilers';
 
   @override
-  String get detailsSubtitles => 'Subtitles';
+  String get detailsSubtitles => 'Subtítulos';
 
   @override
-  String get detailsSearchSubsOnline => 'Search subtitles online';
+  String get detailsSearchSubsOnline => 'Buscar subtítulos en línea';
 
   @override
-  String get detailsFileInfo => 'File info';
+  String get detailsFileInfo => 'Info del archivo';
 
   @override
-  String get detailsProbingFile => 'Probing file…';
+  String get detailsProbingFile => 'Analizando archivo…';
 
   @override
-  String get detailsDownloadToDevice => 'Download to device';
+  String get detailsDownloadToDevice => 'Descargar al dispositivo';
 
   @override
-  String get detailsDownloaded => 'Downloaded';
+  String get detailsDownloaded => 'Descargado';
 
   @override
-  String get detailsSearchTitle => 'Search title';
+  String get detailsSearchTitle => 'Título de búsqueda';
 
   @override
-  String get detailsTvSeries => 'TV Series';
+  String get detailsTvSeries => 'Serie de TV';
 
   @override
-  String get detailsMovie => 'Movie';
+  String get detailsMovie => 'Película';
 
   @override
   String get detailsSearchUnavailable =>
@@ -756,7 +758,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get detailsSearchFailed => 'Search failed. Try again in a moment.';
 
   @override
-  String get detailsNoResults => 'No results. Try a different title.';
+  String get detailsNoResults => 'Sin resultados. Prueba otro título.';
 
   @override
   String get detailsCouldNotListFolder => 'Could not list this folder';
@@ -804,7 +806,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get detailsMonthDec => 'Dec';
 
   @override
-  String get smbNetworkShares => 'Network shares';
+  String get smbNetworkShares => 'Acceso a red SMB';
 
   @override
   String get smbBookmarkHome => 'Bookmark this folder to Home';
@@ -816,13 +818,14 @@ class AppLocalizationsEs extends AppLocalizations {
   String get smbServerList => 'Server list';
 
   @override
-  String get smbScanNetwork => 'Scan network';
+  String get smbScanNetwork => 'Escanear red';
 
   @override
-  String get smbAddServer => 'Add server';
+  String get smbAddServer => 'Añadir servidor';
 
   @override
-  String get smbNoShares => 'No shares found. Check your NAS share settings.';
+  String get smbNoShares =>
+      'No se encontraron shares. Revisa la configuración de tu NAS.';
 
   @override
   String get smbEpisodes => 'Episodes';
@@ -840,13 +843,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get smbDetectedNetwork => 'Detected on this network';
 
   @override
-  String get smbSavedServers => 'Saved servers';
+  String get smbSavedServers => 'Servidores guardados';
 
   @override
-  String get smbConnected => 'Connected';
+  String get smbConnected => 'Conectado';
 
   @override
-  String get smbHostRequired => 'Host is required';
+  String get smbHostRequired => 'El host es obligatorio';
 
   @override
   String get smbSaveFailed => 'Save failed';
@@ -896,16 +899,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get webdavServerList => 'Server list';
 
   @override
-  String get webdavAddServer => 'Add server';
+  String get webdavAddServer => 'Añadir servidor';
 
   @override
-  String get webdavSavedServers => 'Saved servers';
+  String get webdavSavedServers => 'Servidores guardados';
 
   @override
-  String get webdavHostRequired => 'Host is required';
+  String get webdavHostRequired => 'El host es obligatorio';
 
   @override
-  String get webdavConnected => 'Connected';
+  String get webdavConnected => 'Conectado';
 
   @override
   String get webdavConnectionFailed => 'Connection failed';
@@ -917,7 +920,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get webdavEditServer => 'Edit server';
 
   @override
-  String get webdavServerName => 'Server name';
+  String get webdavServerName => 'WebDAV';
 
   @override
   String get webdavHttp => 'HTTP';
@@ -944,11 +947,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get webdavPasswordKeep => 'Password (leave empty to keep)';
 
   @override
-  String get webdavSelfSigned => 'Self-signed certificate';
+  String get webdavSelfSigned => 'Certificado autofirmado';
 
   @override
   String get webdavSelfSignedDesc =>
-      'Trust HTTPS servers without a CA certificate';
+      'Confiar en servidores HTTPS sin certificado CA';
 
   @override
   String get webdavHttpInsecure =>
@@ -966,10 +969,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get ftpServerList => 'Server list';
 
   @override
-  String get ftpAddServer => 'Add server';
+  String get ftpAddServer => 'Añadir servidor';
 
   @override
-  String get ftpSavedServers => 'Saved servers';
+  String get ftpSavedServers => 'Servidores guardados';
 
   @override
   String get ftpFtp => 'FTP';
@@ -996,13 +999,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get ftpPasswordKeep => 'Password (leave empty to keep)';
 
   @override
-  String get ftpHostRequired => 'Host is required';
+  String get ftpHostRequired => 'El host es obligatorio';
 
   @override
-  String get ftpConnected => 'Connected';
+  String get ftpConnected => 'Conectado';
 
   @override
-  String get ftpConnectionFailed => 'Connection failed';
+  String get ftpConnectionFailed => 'Conexión fallida';
 
   @override
   String get ftpSaveFailed => 'Save failed';
@@ -1021,13 +1024,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get jellyfinServerList => 'Server list';
 
   @override
-  String get jellyfinScanNetwork => 'Scan network';
+  String get jellyfinScanNetwork => 'Escanear red';
 
   @override
-  String get jellyfinAddServer => 'Add server';
+  String get jellyfinAddServer => 'Añadir servidor';
 
   @override
-  String get jellyfinSavedServers => 'Saved servers';
+  String get jellyfinSavedServers => 'Servidores guardados';
 
   @override
   String get jellyfinOnThisNetwork => 'On this network';
@@ -1039,10 +1042,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get jellyfinAddToLibrary => 'Add to library';
 
   @override
-  String get jellyfinSessionExpired => 'Session expired';
+  String get jellyfinSessionExpired => 'Sesión expirada';
 
   @override
-  String get jellyfinServerRequired => 'Server address is required';
+  String get jellyfinServerRequired =>
+      'La dirección del servidor es obligatoria';
 
   @override
   String get jellyfinEnterPassword => 'Enter a password to sign in.';
@@ -1079,37 +1083,37 @@ class AppLocalizationsEs extends AppLocalizations {
   String get jellyfinEnterPasswordHint => 'Enter your password.';
 
   @override
-  String get jellyfinSignIn => 'Sign in';
+  String get jellyfinSignIn => 'Iniciar sesión';
 
   @override
   String get upnpTitle => 'DLNA';
 
   @override
-  String get upnpDiscover => 'Discover';
+  String get upnpDiscover => 'Descubrir';
 
   @override
-  String get upnpDiscoverFailed => 'Discovery failed';
+  String get upnpDiscoverFailed => 'Descubrimiento fallido';
 
   @override
   String get upnpBrowseFailed => 'Browse failed';
 
   @override
-  String get upnpNoServers => 'No DLNA servers found';
+  String get upnpNoServers => 'No se encontraron servidores DLNA';
 
   @override
-  String get upnpDiscoverAgain => 'Discover again';
+  String get upnpDiscoverAgain => 'Descubrir de nuevo';
 
   @override
   String get upnpDiagnostics => 'Diagnostics';
 
   @override
-  String get downloadTitle => 'Downloads';
+  String get downloadTitle => 'Descargas';
 
   @override
-  String get downloadNoDownloads => 'No downloads yet';
+  String get downloadNoDownloads => 'Sin descargas aún';
 
   @override
-  String get downloadDownloading => 'Downloading…';
+  String get downloadDownloading => 'Descargando…';
 
   @override
   String downloadDownloadingTitle(String title) {
@@ -1117,11 +1121,11 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get downloadComplete => 'Downloaded';
+  String get downloadComplete => 'Completado';
 
   @override
   String downloadFailed(String error) {
-    return 'Download failed: $error';
+    return 'Fallido';
   }
 
   @override
@@ -1131,7 +1135,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get downloadQueued => 'Queued';
 
   @override
-  String get downloadCancelled => 'Cancelled';
+  String get downloadCancelled => 'Cancelado';
 
   @override
   String get subtitleSettingsTitle => 'Subtitles';
@@ -1223,10 +1227,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get folderCast => 'Cast';
 
   @override
-  String get opensubtitlesSearch => 'Search OpenSubtitles';
+  String get opensubtitlesSearch => 'Buscar en OpenSubtitles';
 
   @override
-  String get opensubtitlesSignIn => 'Sign in to OpenSubtitles';
+  String get opensubtitlesSignIn => 'Iniciar sesión en OpenSubtitles';
 
   @override
   String get opensubtitlesDownloadLang => 'Download language';
@@ -1244,7 +1248,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get opensubtitlesEnterSearch => 'Enter a search term';
 
   @override
-  String get opensubtitlesNoResults => 'No results';
+  String get opensubtitlesNoResults => 'Sin resultados';
 
   @override
   String get opensubtitlesFreeAccount =>

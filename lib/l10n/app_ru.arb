@@ -1,18 +1,18 @@
 {
   "@@locale": "ru",
-  "commonCancel": "Cancel",
+  "commonCancel": "Отмена",
   "@commonCancel": {
     "description": "Cancel button"
   },
-  "commonSave": "Save",
+  "commonSave": "Сохранить",
   "@commonSave": {
     "description": "Save button"
   },
-  "commonDelete": "Delete",
+  "commonDelete": "Удалить",
   "@commonDelete": {
     "description": "Delete button"
   },
-  "commonRemove": "Remove",
+  "commonRemove": "Удалить",
   "@commonRemove": {
     "description": "Remove button"
   },
@@ -20,31 +20,31 @@
   "@commonClose": {
     "description": "Close button"
   },
-  "commonRetry": "Retry",
+  "commonRetry": "Повторить",
   "@commonRetry": {
     "description": "Retry button"
   },
-  "commonEdit": "Edit",
+  "commonEdit": "Редактировать",
   "@commonEdit": {
     "description": "Edit button"
   },
-  "commonSearch": "Search",
+  "commonSearch": "Поиск",
   "@commonSearch": {
     "description": "Search button/label"
   },
-  "commonTest": "Test",
+  "commonTest": "Тест",
   "@commonTest": {
     "description": "Test connection button"
   },
-  "commonOff": "Off",
+  "commonOff": "Выкл",
   "@commonOff": {
     "description": "Disabled/off state"
   },
-  "commonReset": "Reset",
+  "commonReset": "Сбросить",
   "@commonReset": {
     "description": "Reset to defaults"
   },
-  "commonClear": "Clear",
+  "commonClear": "Очистить",
   "@commonClear": {
     "description": "Clear action"
   },
@@ -60,15 +60,15 @@
   "@commonRetryAction": {
     "description": "Retry a failed operation"
   },
-  "commonNothingHere": "Nothing here",
+  "commonNothingHere": "Здесь пусто",
   "@commonNothingHere": {
     "description": "Empty state message"
   },
-  "commonNothingYet": "Nothing yet",
+  "commonNothingYet": "Пока ничего",
   "@commonNothingYet": {
     "description": "Empty list message"
   },
-  "commonSomethingWentWrong": "Something went wrong",
+  "commonSomethingWentWrong": "Ч-то пошло не так",
   "@commonSomethingWentWrong": {
     "description": "Generic error message"
   },
@@ -96,11 +96,11 @@
   "@pressBackToExit": {
     "description": "Toast message when back is pressed once"
   },
-  "homeContinueWatching": "Continue watching",
+  "homeContinueWatching": "Продолжить просмотр",
   "@homeContinueWatching": {
     "description": "Section header for resume list"
   },
-  "homeYourLibrary": "Your library",
+  "homeYourLibrary": "Ваша медиатека",
   "@homeYourLibrary": {
     "description": "Section header for user library folders"
   },
@@ -108,11 +108,11 @@
   "@homeAddSource": {
     "description": "FAB menu label"
   },
-  "homeAddFolder": "Add folder to library",
+  "homeAddFolder": "Добавить папку в медиатеку",
   "@homeAddFolder": {
     "description": "Menu item to add a local folder"
   },
-  "homeInternalStorage": "Internal storage",
+  "homeInternalStorage": "Внутренняя память",
   "@homeInternalStorage": {
     "description": "Menu item for local file browser"
   },
@@ -120,7 +120,7 @@
   "@homeBrowseFiles": {
     "description": "Subtitle for internal storage menu item"
   },
-  "homeNetworkSources": "Network sources",
+  "homeNetworkSources": "Сетевые источники",
   "@homeNetworkSources": {
     "description": "Expansion tile header for network options"
   },
@@ -252,19 +252,19 @@
   "@playerControllerLost": {
     "description": "Error when controller disposed early"
   },
-  "playerAudioTracks": "Audio tracks",
+  "playerAudioTracks": "Аудиодорожки",
   "@playerAudioTracks": {
     "description": "Audio track picker title"
   },
-  "playerNoAudioTracks": "No audio tracks found",
+  "playerNoAudioTracks": "Аудиодорожки не найдены",
   "@playerNoAudioTracks": {
     "description": "No audio tracks available"
   },
-  "playerSubtitles": "Subtitles",
+  "playerSubtitles": "Субтитры",
   "@playerSubtitles": {
     "description": "Subtitle picker section title"
   },
-  "playerNoSubtitles": "No subtitles found in this video",
+  "playerNoSubtitles": "Субтитры не найдены",
   "@playerNoSubtitles": {
     "description": "No subtitle tracks available"
   },
@@ -292,7 +292,7 @@
   "@playerFileSize": {
     "description": "Info sheet row label"
   },
-  "playerVideoInfo": "Video info",
+  "playerVideoInfo": "Инфо о видео",
   "@playerVideoInfo": {
     "description": "Button to open video info sheet"
   },
@@ -320,15 +320,15 @@
   "@playerSpatialAudio": {
     "description": "Info sheet row label"
   },
-  "playerVolumeBoost": "Volume boost",
+  "playerVolumeBoost": "Усиление громкости",
   "@playerVolumeBoost": {
     "description": "Info sheet row label"
   },
-  "playerNightMode": "Night mode",
+  "playerNightMode": "Ночной режим",
   "@playerNightMode": {
     "description": "Info sheet row label"
   },
-  "playerBassBoost": "Bass boost",
+  "playerBassBoost": "Усиление басов",
   "@playerBassBoost": {
     "description": "Info sheet row label"
   },
@@ -340,11 +340,11 @@
   "@playerChapters": {
     "description": "Chapters section label"
   },
-  "playerAspectRatio": "Aspect ratio",
+  "playerAspectRatio": "Соотношение сторон",
   "@playerAspectRatio": {
     "description": "Aspect ratio picker title"
   },
-  "playerPlaybackSpeed": "Playback speed",
+  "playerPlaybackSpeed": "Скорость",
   "@playerPlaybackSpeed": {
     "description": "Speed picker title"
   },
@@ -364,7 +364,7 @@
   "@playerShuffleDesc": {
     "description": "Shuffle subtitle"
   },
-  "playerSleepTimer": "Sleep timer",
+  "playerSleepTimer": "Таймер сна",
   "@playerSleepTimer": {
     "description": "Sleep timer section title"
   },
@@ -372,11 +372,11 @@
   "@playerSleepEndOfVideo": {
     "description": "Sleep timer option"
   },
-  "playerAudioDelay": "Audio delay",
+  "playerAudioDelay": "Задержка звука",
   "@playerAudioDelay": {
     "description": "Audio delay section title"
   },
-  "playerSubtitleSettings": "Subtitle settings",
+  "playerSubtitleSettings": "Настройки субтитров",
   "@playerSubtitleSettings": {
     "description": "Subtitle settings button"
   },
@@ -384,7 +384,7 @@
   "@playerSubtitleSettingsDesc": {
     "description": "Subtitle settings subtitle"
   },
-  "playerVideoDecoder": "Video decoder",
+  "playerVideoDecoder": "Декодер видео",
   "@playerVideoDecoder": {
     "description": "Decoder picker title"
   },
@@ -440,23 +440,23 @@
   "@playerSubtitleDelay": {
     "description": "Subtitle delay slider label"
   },
-  "playerDownloadToDevice": "Download to device",
+  "playerDownloadToDevice": "Скачать на устройство",
   "@playerDownloadToDevice": {
     "description": "Download button in ⋮ sheet"
   },
-  "playerOpenExternal": "Open in external player",
+  "playerOpenExternal": "Открыть во внешнем плеере",
   "@playerOpenExternal": {
     "description": "External player handoff button"
   },
-  "playerNoVideoInFolder": "No videos or folders here",
+  "playerNoVideoInFolder": "Здесь нет видео или папок",
   "@playerNoVideoInFolder": {
     "description": "Empty folder state"
   },
-  "playerTryMpv": "Try with MPV",
+  "playerTryMpv": "Попробовать MPV",
   "@playerTryMpv": {
     "description": "Fallback engine button on error surface"
   },
-  "playerWatchBeginning": "Watch from beginning",
+  "playerWatchBeginning": "С начала",
   "@playerWatchBeginning": {
     "description": "Replay from start button"
   },
@@ -464,7 +464,7 @@
   "@playerWatchBeginningMpv": {
     "description": "Replay from start via MPV"
   },
-  "playerPlayWithMpv": "Play with MPV",
+  "playerPlayWithMpv": "Воспроизвести через MPV",
   "@playerPlayWithMpv": {
     "description": "Play via MPV engine button"
   },
@@ -531,7 +531,7 @@
   "@sourceAppAsset": {
     "description": "Source badge label"
   },
-  "sourceTranscoding": "Transcoding",
+  "sourceTranscoding": "Транскодирование",
   "@sourceTranscoding": {
     "description": "Transcoding badge"
   },
@@ -547,7 +547,7 @@
   "@sourceHwDecodeAuto": {
     "description": "Auto hardware decode chip"
   },
-  "settingsPlayer": "Player",
+  "settingsPlayer": "Плеер",
   "@settingsPlayer": {
     "description": "Settings section header"
   },
@@ -555,7 +555,7 @@
   "@settingsAudio": {
     "description": "Settings section header"
   },
-  "settingsStorage": "Storage",
+  "settingsStorage": "Хранилище",
   "@settingsStorage": {
     "description": "Settings section header"
   },
@@ -567,19 +567,19 @@
   "@settingsSubtitles": {
     "description": "Settings section header"
   },
-  "settingsAbout": "About",
+  "settingsAbout": "О приложении",
   "@settingsAbout": {
     "description": "Settings section header"
   },
-  "settingsSupport": "Support",
+  "settingsSupport": "Поддержка",
   "@settingsSupport": {
     "description": "Settings section header"
   },
-  "settingsSwipeGestures": "Swipe gestures",
+  "settingsSwipeGestures": "Жесты",
   "@settingsSwipeGestures": {
     "description": "Toggle for swipe brightness/volume"
   },
-  "settingsSwipeDesc": "Swipe left side for brightness, right side for volume",
+  "settingsSwipeDesc": "Проведите вверх/вниз для регулировки яркости/громкости",
   "@settingsSwipeDesc": {
     "description": "Swipe gestures subtitle"
   },
@@ -591,7 +591,7 @@
   "@settingsPipDesc": {
     "description": "PiP subtitle"
   },
-  "settingsDefaultEngine": "Default playback engine",
+  "settingsDefaultEngine": "Движок по умолчанию",
   "@settingsDefaultEngine": {
     "description": "Engine picker label"
   },
@@ -611,11 +611,11 @@
   "@settingsEngineAskDesc": {
     "description": "Ask-every-time engine subtitle"
   },
-  "settingsAutoPlayNext": "Auto-play next episode",
+  "settingsAutoPlayNext": "Авто-воспроизведение следующего",
   "@settingsAutoPlayNext": {
     "description": "Auto-play toggle label"
   },
-  "settingsAutoPlayNextDesc": "Play the next episode when one ends",
+  "settingsAutoPlayNextDesc": "Воспроизводить следующую серию по окончании",
   "@settingsAutoPlayNextDesc": {
     "description": "Auto-play subtitle"
   },
@@ -623,7 +623,7 @@
   "@settingsOnScreenBadges": {
     "description": "Badge toggle label"
   },
-  "settingsBadgesDesc": "Show format chips on screen while playing",
+  "settingsBadgesDesc": "Показывать форматные значки в верхней панели",
   "@settingsBadgesDesc": {
     "description": "Badges subtitle"
   },
@@ -719,15 +719,15 @@
   "@settingsKeyMustBe32": {
     "description": "Validation error"
   },
-  "settingsClearCache": "Clear cache",
+  "settingsClearCache": "Очистить кэш",
   "@settingsClearCache": {
     "description": "Clear cache button"
   },
-  "settingsClearCacheTitle": "Clear cache?",
+  "settingsClearCacheTitle": "Очистить кэш?",
   "@settingsClearCacheTitle": {
     "description": "Cache clear confirmation dialog"
   },
-  "settingsCacheCleared": "Cache cleared",
+  "settingsCacheCleared": "Кэш очищен",
   "@settingsCacheCleared": {
     "description": "Success message after clearing cache"
   },
@@ -747,7 +747,7 @@
   "@settingsEngine": {
     "description": "Engine label in About section"
   },
-  "settingsVersion": "Version",
+  "settingsVersion": "Версия",
   "@settingsVersion": {
     "description": "Version label in About section"
   },
@@ -868,7 +868,7 @@
       }
     }
   },
-  "detailsPlay": "Play",
+  "detailsPlay": "Воспроизвести",
   "@detailsPlay": {
     "description": "Play button"
   },
@@ -881,31 +881,31 @@
       }
     }
   },
-  "detailsWatchBeginning": "Watch from beginning",
+  "detailsWatchBeginning": "С начала",
   "@detailsWatchBeginning": {
     "description": "Replay from start"
   },
-  "detailsFindOnTmdb": "Find on TMDB",
+  "detailsFindOnTmdb": "Найти на TMDB",
   "@detailsFindOnTmdb": {
     "description": "Manual TMDB search button"
   },
-  "detailsGetInfo": "Get Info",
+  "detailsGetInfo": "Получить инфо",
   "@detailsGetInfo": {
     "description": "Open info/search dialog"
   },
-  "detailsNoMetadata": "No metadata loaded",
+  "detailsNoMetadata": "Метаданные не загружены",
   "@detailsNoMetadata": {
     "description": "No TMDB match state"
   },
-  "detailsFixMatch": "Fix match",
+  "detailsFixMatch": "Исправить совпадение",
   "@detailsFixMatch": {
     "description": "Re-search TMDB button"
   },
-  "detailsRemoveInfo": "Remove info",
+  "detailsRemoveInfo": "Удалить инфо",
   "@detailsRemoveInfo": {
     "description": "Clear TMDB match button"
   },
-  "detailsOverview": "Overview",
+  "detailsOverview": "Описание",
   "@detailsOverview": {
     "description": "Overview section header"
   },
@@ -913,7 +913,7 @@
   "@detailsEpisodeOverview": {
     "description": "Episode overview header"
   },
-  "detailsCast": "Cast",
+  "detailsCast": "Актёры",
   "@detailsCast": {
     "description": "Cast section header"
   },
@@ -925,27 +925,27 @@
   "@detailsGuestStars": {
     "description": "Guest stars header"
   },
-  "detailsEpisodes": "Episodes",
+  "detailsEpisodes": "Серии",
   "@detailsEpisodes": {
     "description": "Episodes section header"
   },
-  "detailsStills": "Stills",
+  "detailsStills": "Кадры",
   "@detailsStills": {
     "description": "Stills gallery header"
   },
-  "detailsTrailers": "Trailers",
+  "detailsTrailers": "Трейлеры",
   "@detailsTrailers": {
     "description": "Trailers section header"
   },
-  "detailsSubtitles": "Subtitles",
+  "detailsSubtitles": "Субтитры",
   "@detailsSubtitles": {
     "description": "Subtitles card title"
   },
-  "detailsSearchSubsOnline": "Search subtitles online",
+  "detailsSearchSubsOnline": "Искать субтитры онлайн",
   "@detailsSearchSubsOnline": {
     "description": "Subtitle search button"
   },
-  "detailsFileInfo": "File info",
+  "detailsFileInfo": "Инфо о файле",
   "@detailsFileInfo": {
     "description": "File info card title"
   },
@@ -953,11 +953,11 @@
   "@detailsProbingFile": {
     "description": "Loading state while probing"
   },
-  "detailsDownloadToDevice": "Download to device",
+  "detailsDownloadToDevice": "Скачать на устройство",
   "@detailsDownloadToDevice": {
     "description": "Download button in details"
   },
-  "detailsDownloaded": "Downloaded",
+  "detailsDownloaded": "Загружено",
   "@detailsDownloaded": {
     "description": "Download complete label"
   },
@@ -965,11 +965,11 @@
   "@detailsSearchTitle": {
     "description": "Search field hint in Fix match dialog"
   },
-  "detailsTvSeries": "TV Series",
+  "detailsTvSeries": "Сериал",
   "@detailsTvSeries": {
     "description": "Media type badge"
   },
-  "detailsMovie": "Movie",
+  "detailsMovie": "Фильм",
   "@detailsMovie": {
     "description": "Media type badge"
   },
@@ -981,7 +981,7 @@
   "@detailsSearchFailed": {
     "description": "TMDB search error"
   },
-  "detailsNoResults": "No results. Try a different title.",
+  "detailsNoResults": "Ничего не найдено. Попробуйте другой запрос.",
   "@detailsNoResults": {
     "description": "No TMDB results"
   },
@@ -1045,7 +1045,7 @@
   "@detailsMonthDec": {
     "description": "Month abbreviation"
   },
-  "smbNetworkShares": "Network shares",
+  "smbNetworkShares": "SMB сетевые ресурсы",
   "@smbNetworkShares": {
     "description": "SMB browser title"
   },
@@ -1061,15 +1061,15 @@
   "@smbServerList": {
     "description": "Server list button"
   },
-  "smbScanNetwork": "Scan network",
+  "smbScanNetwork": "Сканировать сеть",
   "@smbScanNetwork": {
     "description": "Network scan button"
   },
-  "smbAddServer": "Add server",
+  "smbAddServer": "Добавить сервер",
   "@smbAddServer": {
     "description": "Add SMB server button"
   },
-  "smbNoShares": "No shares found. Check your NAS share settings.",
+  "smbNoShares": "Ресурсы не найдены. Проверьте настройки NAS.",
   "@smbNoShares": {
     "description": "No shares found error"
   },
@@ -1093,15 +1093,15 @@
   "@smbDetectedNetwork": {
     "description": "Discovered servers section"
   },
-  "smbSavedServers": "Saved servers",
+  "smbSavedServers": "Сохранённые серверы",
   "@smbSavedServers": {
     "description": "Saved servers section"
   },
-  "smbConnected": "Connected",
+  "smbConnected": "Подключено",
   "@smbConnected": {
     "description": "Connection success message"
   },
-  "smbHostRequired": "Host is required",
+  "smbHostRequired": "Хост обязателен",
   "@smbHostRequired": {
     "description": "Validation error"
   },
@@ -1173,19 +1173,19 @@
   "@webdavServerList": {
     "description": "Server list button"
   },
-  "webdavAddServer": "Add server",
+  "webdavAddServer": "Добавить сервер",
   "@webdavAddServer": {
     "description": "Add WebDAV server button"
   },
-  "webdavSavedServers": "Saved servers",
+  "webdavSavedServers": "Сохранённые серверы",
   "@webdavSavedServers": {
     "description": "Saved servers section"
   },
-  "webdavHostRequired": "Host is required",
+  "webdavHostRequired": "Хост обязателен",
   "@webdavHostRequired": {
     "description": "Validation error"
   },
-  "webdavConnected": "Connected",
+  "webdavConnected": "Подключено",
   "@webdavConnected": {
     "description": "Connection success message"
   },
@@ -1201,7 +1201,7 @@
   "@webdavEditServer": {
     "description": "Edit dialog title"
   },
-  "webdavServerName": "Server name",
+  "webdavServerName": "WebDAV",
   "@webdavServerName": {
     "description": "Server name field label"
   },
@@ -1269,11 +1269,11 @@
   "@ftpServerList": {
     "description": "Server list button"
   },
-  "ftpAddServer": "Add server",
+  "ftpAddServer": "Добавить сервер",
   "@ftpAddServer": {
     "description": "Add FTP server button"
   },
-  "ftpSavedServers": "Saved servers",
+  "ftpSavedServers": "Сохранённые серверы",
   "@ftpSavedServers": {
     "description": "Saved servers section"
   },
@@ -1309,11 +1309,11 @@
   "@ftpPasswordKeep": {
     "description": "Password field hint on edit"
   },
-  "ftpHostRequired": "Host is required",
+  "ftpHostRequired": "Хост обязателен",
   "@ftpHostRequired": {
     "description": "Validation error"
   },
-  "ftpConnected": "Connected",
+  "ftpConnected": "Подключено",
   "@ftpConnected": {
     "description": "Connection success"
   },
@@ -1345,11 +1345,11 @@
   "@jellyfinScanNetwork": {
     "description": "Network scan button"
   },
-  "jellyfinAddServer": "Add server",
+  "jellyfinAddServer": "Добавить сервер",
   "@jellyfinAddServer": {
     "description": "Add Jellyfin server button"
   },
-  "jellyfinSavedServers": "Saved servers",
+  "jellyfinSavedServers": "Сохранённые серверы",
   "@jellyfinSavedServers": {
     "description": "Saved servers section"
   },
@@ -1369,7 +1369,7 @@
   "@jellyfinSessionExpired": {
     "description": "Token expired error"
   },
-  "jellyfinServerRequired": "Server address is required",
+  "jellyfinServerRequired": "Адрес сервера обязателен",
   "@jellyfinServerRequired": {
     "description": "Validation error"
   },
@@ -1417,7 +1417,7 @@
   "@jellyfinEnterPasswordHint": {
     "description": "Password field hint"
   },
-  "jellyfinSignIn": "Sign in",
+  "jellyfinSignIn": "Войти",
   "@jellyfinSignIn": {
     "description": "Sign in button"
   },
@@ -1425,11 +1425,11 @@
   "@upnpTitle": {
     "description": "DLNA browser title"
   },
-  "upnpDiscover": "Discover",
+  "upnpDiscover": "Обнаружить",
   "@upnpDiscover": {
     "description": "Discovery button"
   },
-  "upnpDiscoverFailed": "Discovery failed",
+  "upnpDiscoverFailed": "Ошибка обнаружения",
   "@upnpDiscoverFailed": {
     "description": "Discovery error"
   },
@@ -1437,7 +1437,7 @@
   "@upnpBrowseFailed": {
     "description": "Browse error"
   },
-  "upnpNoServers": "No DLNA servers found",
+  "upnpNoServers": "Серверы DLNA не найдены",
   "@upnpNoServers": {
     "description": "Empty state"
   },
@@ -1449,15 +1449,15 @@
   "@upnpDiagnostics": {
     "description": "Diagnostics button"
   },
-  "downloadTitle": "Downloads",
+  "downloadTitle": "Загрузки",
   "@downloadTitle": {
     "description": "Download screen title"
   },
-  "downloadNoDownloads": "No downloads yet",
+  "downloadNoDownloads": "Загрузок пока нет",
   "@downloadNoDownloads": {
     "description": "Empty download list"
   },
-  "downloadDownloading": "Downloading…",
+  "downloadDownloading": "Загрузка…",
   "@downloadDownloading": {
     "description": "Download in progress label"
   },
@@ -1470,11 +1470,11 @@
       }
     }
   },
-  "downloadComplete": "Downloaded",
+  "downloadComplete": "Готово",
   "@downloadComplete": {
     "description": "Download complete label"
   },
-  "downloadFailed": "Download failed: {error}",
+  "downloadFailed": "Ошибка",
   "@downloadFailed": {
     "description": "Download error",
     "placeholders": {
@@ -1491,7 +1491,7 @@
   "@downloadQueued": {
     "description": "Download queued status"
   },
-  "downloadCancelled": "Cancelled",
+  "downloadCancelled": "Отменено",
   "@downloadCancelled": {
     "description": "Download cancelled status"
   },
@@ -1827,7 +1827,7 @@
   "@badgeSpatial": {
     "description": "Spatial audio badge"
   },
-  "badgeTranscoding": "Transcoding",
+  "badgeTranscoding": "Транскодирование",
   "@badgeTranscoding": {
     "description": "Transcoding badge"
   },

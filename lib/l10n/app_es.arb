@@ -1,18 +1,18 @@
 {
   "@@locale": "es",
-  "commonCancel": "Cancel",
+  "commonCancel": "Cancelar",
   "@commonCancel": {
     "description": "Cancel button"
   },
-  "commonSave": "Save",
+  "commonSave": "Guardar",
   "@commonSave": {
     "description": "Save button"
   },
-  "commonDelete": "Delete",
+  "commonDelete": "Borrar",
   "@commonDelete": {
     "description": "Delete button"
   },
-  "commonRemove": "Remove",
+  "commonRemove": "Eliminar",
   "@commonRemove": {
     "description": "Remove button"
   },
@@ -20,31 +20,31 @@
   "@commonClose": {
     "description": "Close button"
   },
-  "commonRetry": "Retry",
+  "commonRetry": "Reintentar",
   "@commonRetry": {
     "description": "Retry button"
   },
-  "commonEdit": "Edit",
+  "commonEdit": "Editar",
   "@commonEdit": {
     "description": "Edit button"
   },
-  "commonSearch": "Search",
+  "commonSearch": "Buscar",
   "@commonSearch": {
     "description": "Search button/label"
   },
-  "commonTest": "Test",
+  "commonTest": "Probar",
   "@commonTest": {
     "description": "Test connection button"
   },
-  "commonOff": "Off",
+  "commonOff": "Desactivado",
   "@commonOff": {
     "description": "Disabled/off state"
   },
-  "commonReset": "Reset",
+  "commonReset": "Restablecer",
   "@commonReset": {
     "description": "Reset to defaults"
   },
-  "commonClear": "Clear",
+  "commonClear": "Limpiar",
   "@commonClear": {
     "description": "Clear action"
   },
@@ -60,15 +60,15 @@
   "@commonRetryAction": {
     "description": "Retry a failed operation"
   },
-  "commonNothingHere": "Nothing here",
+  "commonNothingHere": "Nada aquí",
   "@commonNothingHere": {
     "description": "Empty state message"
   },
-  "commonNothingYet": "Nothing yet",
+  "commonNothingYet": "Nada aún",
   "@commonNothingYet": {
     "description": "Empty list message"
   },
-  "commonSomethingWentWrong": "Something went wrong",
+  "commonSomethingWentWrong": "Algo salió mal",
   "@commonSomethingWentWrong": {
     "description": "Generic error message"
   },
@@ -96,11 +96,11 @@
   "@pressBackToExit": {
     "description": "Toast message when back is pressed once"
   },
-  "homeContinueWatching": "Continue watching",
+  "homeContinueWatching": "Continuar viendo",
   "@homeContinueWatching": {
     "description": "Section header for resume list"
   },
-  "homeYourLibrary": "Your library",
+  "homeYourLibrary": "Tu biblioteca",
   "@homeYourLibrary": {
     "description": "Section header for user library folders"
   },
@@ -108,11 +108,11 @@
   "@homeAddSource": {
     "description": "FAB menu label"
   },
-  "homeAddFolder": "Add folder to library",
+  "homeAddFolder": "Añadir carpeta a la biblioteca",
   "@homeAddFolder": {
     "description": "Menu item to add a local folder"
   },
-  "homeInternalStorage": "Internal storage",
+  "homeInternalStorage": "Almacenamiento interno",
   "@homeInternalStorage": {
     "description": "Menu item for local file browser"
   },
@@ -120,7 +120,7 @@
   "@homeBrowseFiles": {
     "description": "Subtitle for internal storage menu item"
   },
-  "homeNetworkSources": "Network sources",
+  "homeNetworkSources": "Fuentes de red",
   "@homeNetworkSources": {
     "description": "Expansion tile header for network options"
   },
@@ -184,7 +184,7 @@
   "@homeRemoveDownload": {
     "description": "Dialog title for removing a download"
   },
-  "homePlayUrl": "Play URL",
+  "homePlayUrl": "Reproducir URL",
   "@homePlayUrl": {
     "description": "Menu item to play a direct URL"
   },
@@ -252,19 +252,19 @@
   "@playerControllerLost": {
     "description": "Error when controller disposed early"
   },
-  "playerAudioTracks": "Audio tracks",
+  "playerAudioTracks": "Pistas de audio",
   "@playerAudioTracks": {
     "description": "Audio track picker title"
   },
-  "playerNoAudioTracks": "No audio tracks found",
+  "playerNoAudioTracks": "No se encontraron pistas de audio",
   "@playerNoAudioTracks": {
     "description": "No audio tracks available"
   },
-  "playerSubtitles": "Subtitles",
+  "playerSubtitles": "Subtítulos",
   "@playerSubtitles": {
     "description": "Subtitle picker section title"
   },
-  "playerNoSubtitles": "No subtitles found in this video",
+  "playerNoSubtitles": "No se encontraron subtítulos en este video",
   "@playerNoSubtitles": {
     "description": "No subtitle tracks available"
   },
@@ -292,7 +292,7 @@
   "@playerFileSize": {
     "description": "Info sheet row label"
   },
-  "playerVideoInfo": "Video info",
+  "playerVideoInfo": "Info del video",
   "@playerVideoInfo": {
     "description": "Button to open video info sheet"
   },
@@ -320,15 +320,15 @@
   "@playerSpatialAudio": {
     "description": "Info sheet row label"
   },
-  "playerVolumeBoost": "Volume boost",
+  "playerVolumeBoost": "Aumento de volumen",
   "@playerVolumeBoost": {
     "description": "Info sheet row label"
   },
-  "playerNightMode": "Night mode",
+  "playerNightMode": "Modo nocturno",
   "@playerNightMode": {
     "description": "Info sheet row label"
   },
-  "playerBassBoost": "Bass boost",
+  "playerBassBoost": "Refuerzo de graves",
   "@playerBassBoost": {
     "description": "Info sheet row label"
   },
@@ -340,11 +340,11 @@
   "@playerChapters": {
     "description": "Chapters section label"
   },
-  "playerAspectRatio": "Aspect ratio",
+  "playerAspectRatio": "Relación de aspecto",
   "@playerAspectRatio": {
     "description": "Aspect ratio picker title"
   },
-  "playerPlaybackSpeed": "Playback speed",
+  "playerPlaybackSpeed": "Velocidad de reproducción",
   "@playerPlaybackSpeed": {
     "description": "Speed picker title"
   },
@@ -364,7 +364,7 @@
   "@playerShuffleDesc": {
     "description": "Shuffle subtitle"
   },
-  "playerSleepTimer": "Sleep timer",
+  "playerSleepTimer": "Temporizador",
   "@playerSleepTimer": {
     "description": "Sleep timer section title"
   },
@@ -372,11 +372,11 @@
   "@playerSleepEndOfVideo": {
     "description": "Sleep timer option"
   },
-  "playerAudioDelay": "Audio delay",
+  "playerAudioDelay": "Retraso de audio",
   "@playerAudioDelay": {
     "description": "Audio delay section title"
   },
-  "playerSubtitleSettings": "Subtitle settings",
+  "playerSubtitleSettings": "Ajustes de subtítulos",
   "@playerSubtitleSettings": {
     "description": "Subtitle settings button"
   },
@@ -384,7 +384,7 @@
   "@playerSubtitleSettingsDesc": {
     "description": "Subtitle settings subtitle"
   },
-  "playerVideoDecoder": "Video decoder",
+  "playerVideoDecoder": "Decodificador de video",
   "@playerVideoDecoder": {
     "description": "Decoder picker title"
   },
@@ -440,31 +440,31 @@
   "@playerSubtitleDelay": {
     "description": "Subtitle delay slider label"
   },
-  "playerDownloadToDevice": "Download to device",
+  "playerDownloadToDevice": "Descargar al dispositivo",
   "@playerDownloadToDevice": {
     "description": "Download button in ⋮ sheet"
   },
-  "playerOpenExternal": "Open in external player",
+  "playerOpenExternal": "Abrir en reproductor externo",
   "@playerOpenExternal": {
     "description": "External player handoff button"
   },
-  "playerNoVideoInFolder": "No videos or folders here",
+  "playerNoVideoInFolder": "No hay videos ni carpetas aquí",
   "@playerNoVideoInFolder": {
     "description": "Empty folder state"
   },
-  "playerTryMpv": "Try with MPV",
+  "playerTryMpv": "Probar con MPV",
   "@playerTryMpv": {
     "description": "Fallback engine button on error surface"
   },
-  "playerWatchBeginning": "Watch from beginning",
+  "playerWatchBeginning": "Ver desde el principio",
   "@playerWatchBeginning": {
     "description": "Replay from start button"
   },
-  "playerWatchBeginningMpv": "Watch from beginning (MPV)",
+  "playerWatchBeginningMpv": "Ver desde el principio (MPV)",
   "@playerWatchBeginningMpv": {
     "description": "Replay from start via MPV"
   },
-  "playerPlayWithMpv": "Play with MPV",
+  "playerPlayWithMpv": "Reproducir con MPV",
   "@playerPlayWithMpv": {
     "description": "Play via MPV engine button"
   },
@@ -547,7 +547,7 @@
   "@sourceHwDecodeAuto": {
     "description": "Auto hardware decode chip"
   },
-  "settingsPlayer": "Player",
+  "settingsPlayer": "Reproductor",
   "@settingsPlayer": {
     "description": "Settings section header"
   },
@@ -555,7 +555,7 @@
   "@settingsAudio": {
     "description": "Settings section header"
   },
-  "settingsStorage": "Storage",
+  "settingsStorage": "Almacenamiento",
   "@settingsStorage": {
     "description": "Settings section header"
   },
@@ -567,19 +567,19 @@
   "@settingsSubtitles": {
     "description": "Settings section header"
   },
-  "settingsAbout": "About",
+  "settingsAbout": "Acerca de",
   "@settingsAbout": {
     "description": "Settings section header"
   },
-  "settingsSupport": "Support",
+  "settingsSupport": "Soporte",
   "@settingsSupport": {
     "description": "Settings section header"
   },
-  "settingsSwipeGestures": "Swipe gestures",
+  "settingsSwipeGestures": "Gestos de deslizamiento",
   "@settingsSwipeGestures": {
     "description": "Toggle for swipe brightness/volume"
   },
-  "settingsSwipeDesc": "Swipe left side for brightness, right side for volume",
+  "settingsSwipeDesc": "Desliza arriba/abajo en la pantalla para ajustar brillo/volumen",
   "@settingsSwipeDesc": {
     "description": "Swipe gestures subtitle"
   },
@@ -591,7 +591,7 @@
   "@settingsPipDesc": {
     "description": "PiP subtitle"
   },
-  "settingsDefaultEngine": "Default playback engine",
+  "settingsDefaultEngine": "Motor de reproducción predeterminado",
   "@settingsDefaultEngine": {
     "description": "Engine picker label"
   },
@@ -611,11 +611,11 @@
   "@settingsEngineAskDesc": {
     "description": "Ask-every-time engine subtitle"
   },
-  "settingsAutoPlayNext": "Auto-play next episode",
+  "settingsAutoPlayNext": "Auto-reproducir siguiente",
   "@settingsAutoPlayNext": {
     "description": "Auto-play toggle label"
   },
-  "settingsAutoPlayNextDesc": "Play the next episode when one ends",
+  "settingsAutoPlayNextDesc": "Reproducir el siguiente episodio cuando uno termine",
   "@settingsAutoPlayNextDesc": {
     "description": "Auto-play subtitle"
   },
@@ -623,11 +623,11 @@
   "@settingsOnScreenBadges": {
     "description": "Badge toggle label"
   },
-  "settingsBadgesDesc": "Show format chips on screen while playing",
+  "settingsBadgesDesc": "Muestra chips de formato en la barra superior",
   "@settingsBadgesDesc": {
     "description": "Badges subtitle"
   },
-  "settingsBadgeOptions": "Badge options",
+  "settingsBadgeOptions": "Opciones de insignias",
   "@settingsBadgeOptions": {
     "description": "Badge selection dialog title"
   },
@@ -719,15 +719,15 @@
   "@settingsKeyMustBe32": {
     "description": "Validation error"
   },
-  "settingsClearCache": "Clear cache",
+  "settingsClearCache": "Limpiar caché",
   "@settingsClearCache": {
     "description": "Clear cache button"
   },
-  "settingsClearCacheTitle": "Clear cache?",
+  "settingsClearCacheTitle": "¿Limpiar caché?",
   "@settingsClearCacheTitle": {
     "description": "Cache clear confirmation dialog"
   },
-  "settingsCacheCleared": "Cache cleared",
+  "settingsCacheCleared": "Caché limpiada",
   "@settingsCacheCleared": {
     "description": "Success message after clearing cache"
   },
@@ -747,7 +747,7 @@
   "@settingsEngine": {
     "description": "Engine label in About section"
   },
-  "settingsVersion": "Version",
+  "settingsVersion": "Versión",
   "@settingsVersion": {
     "description": "Version label in About section"
   },
@@ -795,11 +795,11 @@
   "@settingsSimklConnect": {
     "description": "SIMKL connect button"
   },
-  "settingsSimklNotConfigured": "SIMKL not configured",
+  "settingsSimklNotConfigured": "SIMKL no configurado",
   "@settingsSimklNotConfigured": {
     "description": "SIMKL not set up"
   },
-  "settingsSimklSignInFirst": "Sign in to SIMKL first",
+  "settingsSimklSignInFirst": "Inicia sesión en SIMKL primero",
   "@settingsSimklSignInFirst": {
     "description": "Error when not signed in"
   },
@@ -823,15 +823,15 @@
   "@settingsOpenSubtitles": {
     "description": "OpenSubtitles section header"
   },
-  "settingsSubReadingLang": "Subtitle reading language",
+  "settingsSubReadingLang": "Idioma de lectura de subtítulos",
   "@settingsSubReadingLang": {
     "description": "OpenSubtitles reading language"
   },
-  "settingsSubDownloadLang": "Subtitle download language",
+  "settingsSubDownloadLang": "Idioma de descarga de subtítulos",
   "@settingsSubDownloadLang": {
     "description": "OpenSubtitles download language"
   },
-  "settingsSubEncoding": "Subtitle encoding",
+  "settingsSubEncoding": "Codificación de subtítulos",
   "@settingsSubEncoding": {
     "description": "Subtitle file encoding"
   },
@@ -868,7 +868,7 @@
       }
     }
   },
-  "detailsPlay": "Play",
+  "detailsPlay": "Reproducir",
   "@detailsPlay": {
     "description": "Play button"
   },
@@ -881,31 +881,31 @@
       }
     }
   },
-  "detailsWatchBeginning": "Watch from beginning",
+  "detailsWatchBeginning": "Ver desde el principio",
   "@detailsWatchBeginning": {
     "description": "Replay from start"
   },
-  "detailsFindOnTmdb": "Find on TMDB",
+  "detailsFindOnTmdb": "Buscar en TMDB",
   "@detailsFindOnTmdb": {
     "description": "Manual TMDB search button"
   },
-  "detailsGetInfo": "Get Info",
+  "detailsGetInfo": "Obtener info",
   "@detailsGetInfo": {
     "description": "Open info/search dialog"
   },
-  "detailsNoMetadata": "No metadata loaded",
+  "detailsNoMetadata": "Sin metadatos cargados",
   "@detailsNoMetadata": {
     "description": "No TMDB match state"
   },
-  "detailsFixMatch": "Fix match",
+  "detailsFixMatch": "Corregir coincidencia",
   "@detailsFixMatch": {
     "description": "Re-search TMDB button"
   },
-  "detailsRemoveInfo": "Remove info",
+  "detailsRemoveInfo": "Eliminar info",
   "@detailsRemoveInfo": {
     "description": "Clear TMDB match button"
   },
-  "detailsOverview": "Overview",
+  "detailsOverview": "Sinopsis",
   "@detailsOverview": {
     "description": "Overview section header"
   },
@@ -913,7 +913,7 @@
   "@detailsEpisodeOverview": {
     "description": "Episode overview header"
   },
-  "detailsCast": "Cast",
+  "detailsCast": "Reparto",
   "@detailsCast": {
     "description": "Cast section header"
   },
@@ -925,51 +925,51 @@
   "@detailsGuestStars": {
     "description": "Guest stars header"
   },
-  "detailsEpisodes": "Episodes",
+  "detailsEpisodes": "Episodios",
   "@detailsEpisodes": {
     "description": "Episodes section header"
   },
-  "detailsStills": "Stills",
+  "detailsStills": "Fotos",
   "@detailsStills": {
     "description": "Stills gallery header"
   },
-  "detailsTrailers": "Trailers",
+  "detailsTrailers": "Tráilers",
   "@detailsTrailers": {
     "description": "Trailers section header"
   },
-  "detailsSubtitles": "Subtitles",
+  "detailsSubtitles": "Subtítulos",
   "@detailsSubtitles": {
     "description": "Subtitles card title"
   },
-  "detailsSearchSubsOnline": "Search subtitles online",
+  "detailsSearchSubsOnline": "Buscar subtítulos en línea",
   "@detailsSearchSubsOnline": {
     "description": "Subtitle search button"
   },
-  "detailsFileInfo": "File info",
+  "detailsFileInfo": "Info del archivo",
   "@detailsFileInfo": {
     "description": "File info card title"
   },
-  "detailsProbingFile": "Probing file…",
+  "detailsProbingFile": "Analizando archivo…",
   "@detailsProbingFile": {
     "description": "Loading state while probing"
   },
-  "detailsDownloadToDevice": "Download to device",
+  "detailsDownloadToDevice": "Descargar al dispositivo",
   "@detailsDownloadToDevice": {
     "description": "Download button in details"
   },
-  "detailsDownloaded": "Downloaded",
+  "detailsDownloaded": "Descargado",
   "@detailsDownloaded": {
     "description": "Download complete label"
   },
-  "detailsSearchTitle": "Search title",
+  "detailsSearchTitle": "Título de búsqueda",
   "@detailsSearchTitle": {
     "description": "Search field hint in Fix match dialog"
   },
-  "detailsTvSeries": "TV Series",
+  "detailsTvSeries": "Serie de TV",
   "@detailsTvSeries": {
     "description": "Media type badge"
   },
-  "detailsMovie": "Movie",
+  "detailsMovie": "Película",
   "@detailsMovie": {
     "description": "Media type badge"
   },
@@ -981,7 +981,7 @@
   "@detailsSearchFailed": {
     "description": "TMDB search error"
   },
-  "detailsNoResults": "No results. Try a different title.",
+  "detailsNoResults": "Sin resultados. Prueba otro título.",
   "@detailsNoResults": {
     "description": "No TMDB results"
   },
@@ -1045,7 +1045,7 @@
   "@detailsMonthDec": {
     "description": "Month abbreviation"
   },
-  "smbNetworkShares": "Network shares",
+  "smbNetworkShares": "Acceso a red SMB",
   "@smbNetworkShares": {
     "description": "SMB browser title"
   },
@@ -1061,15 +1061,15 @@
   "@smbServerList": {
     "description": "Server list button"
   },
-  "smbScanNetwork": "Scan network",
+  "smbScanNetwork": "Escanear red",
   "@smbScanNetwork": {
     "description": "Network scan button"
   },
-  "smbAddServer": "Add server",
+  "smbAddServer": "Añadir servidor",
   "@smbAddServer": {
     "description": "Add SMB server button"
   },
-  "smbNoShares": "No shares found. Check your NAS share settings.",
+  "smbNoShares": "No se encontraron shares. Revisa la configuración de tu NAS.",
   "@smbNoShares": {
     "description": "No shares found error"
   },
@@ -1093,15 +1093,15 @@
   "@smbDetectedNetwork": {
     "description": "Discovered servers section"
   },
-  "smbSavedServers": "Saved servers",
+  "smbSavedServers": "Servidores guardados",
   "@smbSavedServers": {
     "description": "Saved servers section"
   },
-  "smbConnected": "Connected",
+  "smbConnected": "Conectado",
   "@smbConnected": {
     "description": "Connection success message"
   },
-  "smbHostRequired": "Host is required",
+  "smbHostRequired": "El host es obligatorio",
   "@smbHostRequired": {
     "description": "Validation error"
   },
@@ -1173,19 +1173,19 @@
   "@webdavServerList": {
     "description": "Server list button"
   },
-  "webdavAddServer": "Add server",
+  "webdavAddServer": "Añadir servidor",
   "@webdavAddServer": {
     "description": "Add WebDAV server button"
   },
-  "webdavSavedServers": "Saved servers",
+  "webdavSavedServers": "Servidores guardados",
   "@webdavSavedServers": {
     "description": "Saved servers section"
   },
-  "webdavHostRequired": "Host is required",
+  "webdavHostRequired": "El host es obligatorio",
   "@webdavHostRequired": {
     "description": "Validation error"
   },
-  "webdavConnected": "Connected",
+  "webdavConnected": "Conectado",
   "@webdavConnected": {
     "description": "Connection success message"
   },
@@ -1201,7 +1201,7 @@
   "@webdavEditServer": {
     "description": "Edit dialog title"
   },
-  "webdavServerName": "Server name",
+  "webdavServerName": "WebDAV",
   "@webdavServerName": {
     "description": "Server name field label"
   },
@@ -1237,11 +1237,11 @@
   "@webdavPasswordKeep": {
     "description": "Password field hint on edit"
   },
-  "webdavSelfSigned": "Self-signed certificate",
+  "webdavSelfSigned": "Certificado autofirmado",
   "@webdavSelfSigned": {
     "description": "Self-signed toggle label"
   },
-  "webdavSelfSignedDesc": "Trust HTTPS servers without a CA certificate",
+  "webdavSelfSignedDesc": "Confiar en servidores HTTPS sin certificado CA",
   "@webdavSelfSignedDesc": {
     "description": "Self-signed subtitle"
   },
@@ -1269,11 +1269,11 @@
   "@ftpServerList": {
     "description": "Server list button"
   },
-  "ftpAddServer": "Add server",
+  "ftpAddServer": "Añadir servidor",
   "@ftpAddServer": {
     "description": "Add FTP server button"
   },
-  "ftpSavedServers": "Saved servers",
+  "ftpSavedServers": "Servidores guardados",
   "@ftpSavedServers": {
     "description": "Saved servers section"
   },
@@ -1309,15 +1309,15 @@
   "@ftpPasswordKeep": {
     "description": "Password field hint on edit"
   },
-  "ftpHostRequired": "Host is required",
+  "ftpHostRequired": "El host es obligatorio",
   "@ftpHostRequired": {
     "description": "Validation error"
   },
-  "ftpConnected": "Connected",
+  "ftpConnected": "Conectado",
   "@ftpConnected": {
     "description": "Connection success"
   },
-  "ftpConnectionFailed": "Connection failed",
+  "ftpConnectionFailed": "Conexión fallida",
   "@ftpConnectionFailed": {
     "description": "Connection error"
   },
@@ -1341,15 +1341,15 @@
   "@jellyfinServerList": {
     "description": "Server list button"
   },
-  "jellyfinScanNetwork": "Scan network",
+  "jellyfinScanNetwork": "Escanear red",
   "@jellyfinScanNetwork": {
     "description": "Network scan button"
   },
-  "jellyfinAddServer": "Add server",
+  "jellyfinAddServer": "Añadir servidor",
   "@jellyfinAddServer": {
     "description": "Add Jellyfin server button"
   },
-  "jellyfinSavedServers": "Saved servers",
+  "jellyfinSavedServers": "Servidores guardados",
   "@jellyfinSavedServers": {
     "description": "Saved servers section"
   },
@@ -1365,11 +1365,11 @@
   "@jellyfinAddToLibrary": {
     "description": "Add folder to library button"
   },
-  "jellyfinSessionExpired": "Session expired",
+  "jellyfinSessionExpired": "Sesión expirada",
   "@jellyfinSessionExpired": {
     "description": "Token expired error"
   },
-  "jellyfinServerRequired": "Server address is required",
+  "jellyfinServerRequired": "La dirección del servidor es obligatoria",
   "@jellyfinServerRequired": {
     "description": "Validation error"
   },
@@ -1417,7 +1417,7 @@
   "@jellyfinEnterPasswordHint": {
     "description": "Password field hint"
   },
-  "jellyfinSignIn": "Sign in",
+  "jellyfinSignIn": "Iniciar sesión",
   "@jellyfinSignIn": {
     "description": "Sign in button"
   },
@@ -1425,11 +1425,11 @@
   "@upnpTitle": {
     "description": "DLNA browser title"
   },
-  "upnpDiscover": "Discover",
+  "upnpDiscover": "Descubrir",
   "@upnpDiscover": {
     "description": "Discovery button"
   },
-  "upnpDiscoverFailed": "Discovery failed",
+  "upnpDiscoverFailed": "Descubrimiento fallido",
   "@upnpDiscoverFailed": {
     "description": "Discovery error"
   },
@@ -1437,11 +1437,11 @@
   "@upnpBrowseFailed": {
     "description": "Browse error"
   },
-  "upnpNoServers": "No DLNA servers found",
+  "upnpNoServers": "No se encontraron servidores DLNA",
   "@upnpNoServers": {
     "description": "Empty state"
   },
-  "upnpDiscoverAgain": "Discover again",
+  "upnpDiscoverAgain": "Descubrir de nuevo",
   "@upnpDiscoverAgain": {
     "description": "Retry discovery button"
   },
@@ -1449,15 +1449,15 @@
   "@upnpDiagnostics": {
     "description": "Diagnostics button"
   },
-  "downloadTitle": "Downloads",
+  "downloadTitle": "Descargas",
   "@downloadTitle": {
     "description": "Download screen title"
   },
-  "downloadNoDownloads": "No downloads yet",
+  "downloadNoDownloads": "Sin descargas aún",
   "@downloadNoDownloads": {
     "description": "Empty download list"
   },
-  "downloadDownloading": "Downloading…",
+  "downloadDownloading": "Descargando…",
   "@downloadDownloading": {
     "description": "Download in progress label"
   },
@@ -1470,11 +1470,11 @@
       }
     }
   },
-  "downloadComplete": "Downloaded",
+  "downloadComplete": "Completado",
   "@downloadComplete": {
     "description": "Download complete label"
   },
-  "downloadFailed": "Download failed: {error}",
+  "downloadFailed": "Fallido",
   "@downloadFailed": {
     "description": "Download error",
     "placeholders": {
@@ -1491,7 +1491,7 @@
   "@downloadQueued": {
     "description": "Download queued status"
   },
-  "downloadCancelled": "Cancelled",
+  "downloadCancelled": "Cancelado",
   "@downloadCancelled": {
     "description": "Download cancelled status"
   },
@@ -1611,11 +1611,11 @@
   "@folderCast": {
     "description": "Cast section header"
   },
-  "opensubtitlesSearch": "Search OpenSubtitles",
+  "opensubtitlesSearch": "Buscar en OpenSubtitles",
   "@opensubtitlesSearch": {
     "description": "Search dialog title"
   },
-  "opensubtitlesSignIn": "Sign in to OpenSubtitles",
+  "opensubtitlesSignIn": "Iniciar sesión en OpenSubtitles",
   "@opensubtitlesSignIn": {
     "description": "Login dialog title"
   },
@@ -1639,7 +1639,7 @@
   "@opensubtitlesEnterSearch": {
     "description": "Empty search validation"
   },
-  "opensubtitlesNoResults": "No results",
+  "opensubtitlesNoResults": "Sin resultados",
   "@opensubtitlesNoResults": {
     "description": "No results state"
   },
