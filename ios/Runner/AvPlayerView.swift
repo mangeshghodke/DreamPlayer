@@ -1702,7 +1702,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         stopTickTimer()
         cancellables.removeAll()
         engine?.stop()
-        engine?.unbind(view: container)
+        engine?.unbind(view: engineView)
         methodChannel.setMethodCallHandler(nil)
         eventChannel.setStreamHandler(nil)
         eventSink = nil
