@@ -55,6 +55,22 @@ enum _SwipeType { brightness, volume }
 
 enum _PanAxis { horizontal, vertical }
 
+/// Heuristic for deciding whether an mpv playback-error string is really a
+/// video-decode failure (vs. an IO/network error that a software retry would
+/// never fix). mpv's mid-stream codec deaths typically surface as
+/// "Could not open codec." — with the given error messages reaching the app as
+/// free text, we treat any message mentioning a codec/decoder/hardware/pixel
+/// format as a candidate for the automatic software-decode retry.
+bool mpvErrorLooksLikeCodec(String msg) {
+  final lower = msg.toLowerCase();
+  return lower.contains('codec') ||
+      lower.contains('decoder') ||
+      lower.contains('decod') ||
+      lower.contains('pixfmt') ||
+      lower.contains('pixel format') ||
+      lower.contains('hardware');
+}
+
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({
     super.key,
@@ -128,6 +144,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// 'mediacodec', 'no'). Displayed in the ⓘ info sheet so the user can see
   /// whether mpv is using hardware or software decoding.
   String _mpvHwdecMode = 'mediacodec-copy';
+  /// Resume key of the file currently forced into software decode after a
+  /// mid-stream hardware-decoder failure (see [_maybeMpvSoftwareRetry]).
+  /// Non-null only for that file — a later file opens with hardware first.
+  String? _mpvSwRetriedKey;
   /// Active SMB loopback-bridge token (see [SmbHttpProxy] / `startLoopback`);
   /// null when the fallback's current source isn't served through the bridge.
   String? _mpvProxyToken;
@@ -956,17 +976,23 @@ class _PlayerScreenState extends State<PlayerScreen>
       'm2ts', 'ts', 'm2t', 'm2p', 'vob', 'mpg', 'mpeg',
       'wmv', 'rmvb', 'flv', 'ogv', 'dat',
     }.contains(ext);
-    final value = switch (_decoderMode) {
-      DecoderMode.hw => 'mediacodec',
-      DecoderMode.sw => 'no',
-      // Auto mode: try mediacodec (zero-copy, lowest latency) first, then
-      // fall back to mediacodec-copy (copy to CPU). This matches mpv-android
-      // and SVPlayer defaults — zero-copy works on most modern SoCs and is
-      // significantly faster for 4K/10-bit content. The hwdec-software-fallback
-      // property (set in _configureMpvAudio) handles the case where both HW
-      // paths fail (broken drivers, unsupported profiles).
-      _ => swOnly ? 'no' : 'mediacodec,mediacodec-copy',
-    };
+    // A previous mid-stream hardware failure on THIS file forced software
+    // decode (see [_maybeMpvSoftwareRetry]) — keep it software so we don't
+    // re-trigger the same codec death on the reload.
+    final swForced = _mpvSwRetriedKey == _resumeKey;
+    final value = swForced
+        ? 'no'
+        : switch (_decoderMode) {
+            DecoderMode.hw => 'mediacodec',
+            DecoderMode.sw => 'no',
+            // Auto mode: try mediacodec (zero-copy, lowest latency) first, then
+            // fall back to mediacodec-copy (copy to CPU). This matches mpv-android
+            // and SVPlayer defaults — zero-copy works on most modern SoCs and is
+            // significantly faster for 4K/10-bit content. The hwdec-software-fallback
+            // property (set in _configureMpvAudio) handles the case where both HW
+            // paths fail (broken drivers, unsupported profiles).
+            _ => swOnly ? 'no' : 'mediacodec,mediacodec-copy',
+          };
     try {
       await platform.setProperty('hwdec', value);
       _mpvHwdecMode = value;
@@ -1265,6 +1291,43 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (_) {}
   }
 
+  /// Auto-retry with software decode when mpv surfaces a mid-stream codec
+  /// failure. mpv's own `hwdec-software-fallback` only rescues *decoder-init*
+  /// errors — a MediaCodec hardware decoder that starts producing frames and
+  /// then dies (common on HEVC Main10 4:2:0: ~0.5 s of video, then "Could not
+  /// open codec") is reported by mpv as a terminal playback error instead.
+  /// Seeing ~0.5 s of video before the failure proves the demuxer/audio are
+  /// fine, so the culprit is the video-decode path — reload the same file in
+  /// software once (the bundled FFmpeg decoder) at the current position.
+  /// Latch is per-file ([_mpvSwRetriedKey]) so a later-file still tries
+  /// hardware first. Mirrors the Media3 `_trySoftwareDecodeFallback`.
+  /// Returns true when a software retry was armed (caller should skip the
+  /// terminal error surface); false when the error should surface normally.
+  bool _maybeMpvSoftwareRetry(String msg) {
+    if (Platform.isAndroid == false || _inTests) return false;
+    if (_mpvPlayer == null) return false; // engine gone — surface the error
+    if (_mpvSwRetriedKey == _resumeKey) return false; // already retried
+    if (_mpvHwdecMode == 'no') return false; // already software
+    final looksLikeCodecFailure = mpvErrorLooksLikeCodec(msg);
+    if (!looksLikeCodecFailure) return false;
+    final pos = _position.inMilliseconds;
+    _mpvSwRetriedKey = _resumeKey;
+    debugPrint(
+        'mpv: mid-stream codec failure on this file — reloading in software '
+        'at ${pos}ms ($msg)');
+    if (mounted) {
+      final messenger = ScaffoldMessenger.of(context);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(AppLocalizations.of(context).playerVideoDecodeRetrySw),
+          duration: Duration(seconds: 3),
+        ));
+    }
+    unawaited(_reloadMpv(_current, pos));
+    return true;
+  }
+
   void _markMpvFailed(String message) {
     _mpvFailed = true;
     _mpvError = message;
@@ -1371,6 +1434,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     _mpvSubs.add(player.stream.error.listen((msg) {
       debugPrint('mpv: playback error: $msg');
       if (!mounted) return;
+      // Mid-stream hardware decode failure (e.g. HEVC Main10 4:2:0 files
+      // whose MediaCodec decoder dies a few frames in) — auto-reload in
+      // software before surfacing the terminal error.
+      if (_maybeMpvSoftwareRetry(msg)) return;
       _markMpvFailed('Fallback player error: $msg');
     }));
     _mpvSubs.add(player.stream.log.listen((l) {

@@ -1582,6 +1582,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Видео не поддерживается встроенным плеером, используется альтернативный.';
 
   @override
+  String get playerVideoDecodeRetrySw =>
+      'Аппаратный декодер не смог декодировать это видео — повторяем с программным декодированием.';
+
+  @override
   String get playerSleepTimerFinished =>
       'Таймер истёк — воспроизведение приостановлено';
 

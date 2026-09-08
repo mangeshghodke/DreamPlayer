@@ -3078,6 +3078,12 @@ abstract class AppLocalizations {
   /// **'This video isn\'t supported by the built-in player, so the fallback player is being used.'**
   String get playerVideoNotSupported;
 
+  /// Hardware decoder failed mid-stream, retrying with software
+  ///
+  /// In en, this message translates to:
+  /// **'The hardware decoder failed to decode this video — retrying with software decoding.'**
+  String get playerVideoDecodeRetrySw;
+
   /// Sleep timer finished message
   ///
   /// In en, this message translates to:

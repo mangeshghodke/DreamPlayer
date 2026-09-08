@@ -1584,6 +1584,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'Este video no es compatible con el reproductor integrado, se usa el alternativo.';
 
   @override
+  String get playerVideoDecodeRetrySw =>
+      'El decodificador de hardware no pudo decodificar este video; reintentando con decodificación por software.';
+
+  @override
   String get playerSleepTimerFinished =>
       'Temporizador terminado — reproducción pausada';
 

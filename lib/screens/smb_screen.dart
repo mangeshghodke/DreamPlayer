@@ -250,6 +250,9 @@ class _SmbScreenState extends State<SmbScreen> {
       networkShare: _share,
       networkPath: cleanPath,
       networkLabel: server.name,
+      yearHint: ParsedFileName.yearFromNames(
+        _entries.map((e) => e.name),
+      ),
     );
     await LibraryFoldersStore.add(folder);
     if (mounted) {
@@ -317,30 +320,65 @@ class _SmbScreenState extends State<SmbScreen> {
     final server = _browsing;
     if (server == null) return;
     path = path.replaceAll(RegExp(r'/+$'), '');
-    setState(() {
-      _loading = true;
-      _error = null;
-      _isSeriesFolder = false;
-      _seriesMeta = null;
-      _seriesDetails = null;
-      _expandedSeasons.clear();
-    });
+    final service = TmdService.instance;
     try {
       final entries = await _smb.listDirectory(server.id, _share, path);
       if (!mounted) return;
+
+      // Pre-populate ALL cached data in ONE setState to avoid any flash.
+      final cachedMeta = <String, TmdMeta?>{};
+      for (final entry in entries) {
+        if (entry.isDirectory) continue;
+        final key = 'smb:${server.id}/$_share/${entry.path}';
+        cachedMeta[entry.path] = service.metaFor(key);
+      }
+      final cleanPath = path.replaceAll(RegExp(r'/+$'), '');
+      final metadataKey = 'smb_folder:${server.id}/$_share/$cleanPath';
+      final cachedSeriesMeta = service.metaFor(metadataKey);
+      final isCachedSeries = cachedSeriesMeta != null &&
+          cachedSeriesMeta.folderSeason != null &&
+          cachedSeriesMeta.details != null;
+      final cachedSeasonsReady = isCachedSeries &&
+          cachedSeriesMeta.seasons.isNotEmpty;
+
       setState(() {
         _path = path;
         _entries = entries;
         _loading = false;
+        _error = null;
         _fileSizes.clear();
+        _tmdbMeta
+          ..clear()
+          ..addAll(cachedMeta);
+        if (isCachedSeries) {
+          _isSeriesFolder = true;
+          _seriesMeta = cachedSeriesMeta;
+          _seriesDetails = cachedSeriesMeta.details;
+          _loadingSeriesMeta = false;
+        } else {
+          _isSeriesFolder = false;
+          _seriesMeta = null;
+          _seriesDetails = null;
+          _loadingSeriesMeta = false;
+        }
       });
       await _refreshWatched();
-      // Clear stale poster cache so fix-match / resolve changes are reflected
-      // when navigating back into a folder.
-      _tmdbMeta.clear();
-      _prefetchTmdbMeta(entries);
-      // Detect TV series folder and load rich metadata.
-      _detectAndLoadSeriesFolder(entries);
+
+      // Only prefetch entries that aren't already cached — skip entirely when
+      // every entry is already in TmdService cache (no .then() → setState churn).
+      final uncachedEntries = <SmbEntry>[];
+      for (final entry in entries) {
+        if (entry.isDirectory) continue;
+        if (_tmdbMeta[entry.path] != null) continue;
+        uncachedEntries.add(entry);
+      }
+      if (uncachedEntries.isNotEmpty) {
+        _prefetchTmdbMeta(uncachedEntries);
+      }
+      // Only run async series detection when season data isn't fully cached.
+      if (!cachedSeasonsReady) {
+        _detectAndLoadSeriesFolder(entries);
+      }
       // Background-fetch file sizes (listDirectory returns 0 for performance).
       _fetchSizes(entries);
     } on PlatformException catch (e) {
@@ -452,7 +490,6 @@ class _SmbScreenState extends State<SmbScreen> {
 
     setState(() {
       _isSeriesFolder = true;
-      _loadingSeriesMeta = true;
     });
 
     final service = TmdService.instance;
@@ -468,7 +505,14 @@ class _SmbScreenState extends State<SmbScreen> {
     if (meta != null && meta.folderSeason != null) {
       // Cache hit with season data — use it.
     } else {
-      meta = await service.resolveFolder(metadataKey, folderName);
+      setState(() => _loadingSeriesMeta = true);
+      meta = await service.resolveFolder(
+        metadataKey,
+        folderName,
+        yearHint: ParsedFileName.yearFromNames(
+          videoEntries.map((e) => e.name),
+        ),
+      );
     }
 
     if (!mounted || gen != _seriesGeneration) return;
@@ -1479,7 +1523,7 @@ class _SmbTile extends StatelessWidget {
         ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
         : '';
 
-    final posterUrl = posterUrlOf(tmdbMeta);
+    final posterUrl = parsed.isEpisode ? null : posterUrlOf(tmdbMeta);
 
     final filenameWidget = Text(
       entry.name,

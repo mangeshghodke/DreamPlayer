@@ -2011,6 +2011,10 @@
   "@playerVideoNotSupported": {
     "description": "Translated key"
   },
+  "playerVideoDecodeRetrySw": "El decodificador de hardware no pudo decodificar este video; reintentando con decodificación por software.",
+  "@playerVideoDecodeRetrySw": {
+    "description": "Translated key"
+  },
   "settingsAutoDownloadSubs": "Descargar mejor coincidencia cuando no se encuentren subtítulos",
   "@settingsAutoDownloadSubs": {
     "description": "Translated key"

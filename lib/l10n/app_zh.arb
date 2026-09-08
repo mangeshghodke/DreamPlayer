@@ -2011,6 +2011,10 @@
   "@playerVideoNotSupported": {
     "description": "Translated key"
   },
+  "playerVideoDecodeRetrySw": "硬件解码器无法解码此视频，正在改用软件解码重试。",
+  "@playerVideoDecodeRetrySw": {
+    "description": "Translated key"
+  },
   "settingsAutoDownloadSubs": "未找到字幕时自动下载最佳匹配",
   "@settingsAutoDownloadSubs": {
     "description": "Translated key"

@@ -422,6 +422,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         await _service.resolveFolder(
           widget.folder!.metadataKey,
           widget.folder!.name,
+          yearHint: widget.folder!.yearHint,
         );
       } catch (_) {}
       if (!mounted) return;
@@ -573,11 +574,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
     // Single episode (video mode, not a folder): enrich it with its own cast
     // and still frames once the season list is loaded.
-    // When parentMetadataKey is set (opening from a series folder), use
-    // folderSeason from the cached metadata instead of parsed.season.
-    final effectiveSeason = widget.parentMetadataKey != null
-        ? (meta.folderSeason ?? _parsed.season)
-        : _parsed.season;
+    // Prefer folderSeason from the cached metadata (season-name matched, e.g.
+    // "Strike the Blood Final" → S5) over the parsed season (0 for anime [01]).
+    final effectiveSeason = meta.folderSeason ?? _parsed.season;
     if (widget.folder == null &&
         _parsed.isEpisode &&
         effectiveSeason > 0 &&
@@ -620,9 +619,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       // When parentMetadataKey is set (from a series folder with folderSeason),
       // use the folder's season instead of the parsed season (which may be 0
       // for anime [01] numbering).
-      final effectiveSeason = widget.parentMetadataKey != null
-          ? (_meta?.folderSeason ?? _parsed.season)
-          : _parsed.season;
+      final effectiveSeason = _meta?.folderSeason ?? _parsed.season;
       return [effectiveSeason].where((s) => s > 0).toList();
     }
     return const [];
@@ -1186,15 +1183,45 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final movie = meta.movie;
     final details = _details;
     final colorScheme = theme.colorScheme;
-    final effectiveSeason = widget.parentMetadataKey != null
-        ? (meta.folderSeason ?? _parsed.season)
-        : _parsed.season;
+    final effectiveSeason = meta.folderSeason ?? _parsed.season;
     final singleEpisode = _parsed.isEpisode && widget.folder == null
         ? meta.seasons[effectiveSeason]?.episode(_parsed.episode)
+        : null;
+
+    // Prefer season poster when a specific season is resolved, else series poster.
+    final seasonPoster = effectiveSeason > 0
+        ? meta.seasons[effectiveSeason]?.posterUrl(width: 342)
+        : null;
+    final headerPosterUrl = seasonPoster ?? movie.posterUrl(width: 342);
+    // When a specific season folder is open, prefer the season's name/overview
+    // over the series title/overview (e.g. "Strike the Blood Final" folder →
+    // Season 5 "Strike the Blood Final", not the base "Strike the Blood").
+    final seasonName = effectiveSeason > 0
+        ? meta.seasons[effectiveSeason]?.name
+        : null;
+    final displayTitle =
+        (seasonName?.isNotEmpty ?? false) && seasonName != movie.title
+            ? seasonName!
+            : movie.title;
+    final seasonOverview = effectiveSeason > 0
+        ? (meta.seasons[effectiveSeason]?.overview.isNotEmpty ?? false)
+            ? meta.seasons[effectiveSeason]!.overview
+            : null
         : null;
     final episodeAirDate = singleEpisode?.airDate;
     final episodeOverview =
         (singleEpisode?.overview.isNotEmpty ?? false) ? singleEpisode!.overview : null;
+    // When a specific season is resolved (season folder or single episode),
+    // show that season's overview only — never fall back to the series
+    // synopsis (a season like "Strike the Blood Final" has no overview of its
+    // own, so it renders blank rather than the base show's text).
+    final displayOverview = effectiveSeason > 0
+        ? (episodeOverview ??
+            seasonOverview ??
+            (widget.folder == null && singleEpisode == null
+                ? (details?.overview ?? movie.overview)
+                : ''))
+        : (episodeOverview ?? details?.overview ?? movie.overview);
     // Build episode label using effectiveSeason instead of parsed season (which
     // may be 0 for anime [01] bracket numbering).
     final effectiveEpisodeLabel = _parsed.isEpisode
@@ -1214,9 +1241,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: movie.posterUrl(width: 342) != null
+                      child: headerPosterUrl != null
                           ? Image.network(
-                              movie.posterUrl(width: 342)!,
+                              headerPosterUrl,
                               width: 104,
                               height: 156,
                               fit: BoxFit.cover,
@@ -1286,9 +1313,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                 ),
                               ),
                           ] else ...[
-                            if (movie.title.isNotEmpty)
+                            if (displayTitle.isNotEmpty)
                               Text(
-                                movie.title,
+                                displayTitle,
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -1360,7 +1387,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  episodeOverview ?? (details?.overview ?? movie.overview),
+                  displayOverview,
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                 ),
 

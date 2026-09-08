@@ -25,13 +25,20 @@ void main() {
 
   group('LibraryFolder', () {
     test('json round-trip preserves fields', () {
-      final original = folder('b1', name: 'Dune', path: '/sdcard/Movies');
+      final original = LibraryFolder(
+        id: 'b1',
+        name: 'Dune',
+        path: '/sdcard/Movies',
+        addedAt: DateTime.fromMillisecondsSinceEpoch(1000),
+        yearHint: 2021,
+      );
       final restored = LibraryFolder.fromJson(original.toJson());
       expect(restored.id, 'b1');
       expect(restored.name, 'Dune');
       expect(restored.path, '/sdcard/Movies');
       expect(restored.addedAt, original.addedAt);
       expect(restored.isJellyfin, false);
+      expect(restored.yearHint, 2021);
     });
 
     test('metadataKey is folder:<id>', () {

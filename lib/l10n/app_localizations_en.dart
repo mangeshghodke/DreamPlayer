@@ -1579,6 +1579,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'This video isn\'t supported by the built-in player, so the fallback player is being used.';
 
   @override
+  String get playerVideoDecodeRetrySw =>
+      'The hardware decoder failed to decode this video — retrying with software decoding.';
+
+  @override
   String get playerSleepTimerFinished =>
       'Sleep timer finished — playback paused';
 

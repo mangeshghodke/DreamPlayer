@@ -102,6 +102,36 @@ void main() {
       expect(parsed.title, 'Trailer');
     });
 
+    test('yearFromNames returns the most common year among file names', () {
+      final year = ParsedFileName.yearFromNames(const [
+        'kakegurui twin (2021) s01e01.mkv',
+        'kakegurui twin (2021) s01e02.mkv',
+        'kakegurui twin (2021) s01e03.mkv',
+      ]);
+      expect(year, 2021);
+    });
+
+    test('yearFromNames handles mixed and year-less names', () {
+      final year = ParsedFileName.yearFromNames(const [
+        'show.s01e01.mkv',
+        'show.s01e02.mkv',
+        'show (2019) e03.mkv',
+      ]);
+      expect(year, 2019);
+    });
+
+    test('yearFromNames returns null when no file carries a year', () {
+      final year = ParsedFileName.yearFromNames(const [
+        'show.s01e01.mkv',
+        'show.s01e02.mkv',
+      ]);
+      expect(year, isNull);
+    });
+
+    test('yearFromNames handles an empty list', () {
+      expect(ParsedFileName.yearFromNames(const []), isNull);
+    });
+
     test('strips a bare season tag from a whole-season folder name', () {
       final parsed = ParsedFileName.parse(
         'HOUSE.S02.1080p.10bit.BluRay.English.AAC.5.1.x265-Panda',

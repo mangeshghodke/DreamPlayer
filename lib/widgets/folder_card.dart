@@ -24,6 +24,12 @@ class FolderCard extends StatefulWidget {
     this.jellyfinInfo,
     required this.onTap,
     this.onLongPress,
+
+    /// When this card represents a [SeriesGroup] (Flux-style collapse of
+    /// multiple folders into one), pass the number of folders that were
+    /// collapsed. A small badge ("2", "3", ...) appears on the card so the
+    /// user knows the group contains more than one folder.
+    this.groupCount,
   });
 
   final LibraryFolder folder;
@@ -34,6 +40,9 @@ class FolderCard extends StatefulWidget {
   final JellyfinItemInfo? jellyfinInfo;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+
+  /// Number of folders collapsed into this card (Flux-style series group).
+  final int? groupCount;
 
   @override
   State<FolderCard> createState() => _FolderCardState();
@@ -248,9 +257,6 @@ class _FolderCardState extends State<FolderCard> {
     final hasMeta = movie != null && movie.title.isNotEmpty;
     final info = widget.jellyfinInfo;
     final hasJellyfin = info != null && info.name.isNotEmpty;
-    final title = hasMeta
-        ? movie.title
-        : (hasJellyfin ? info.name : folder.name);
     final networkTag = folder.isNetwork ? _networkLabel(folder) : null;
     final subtitle = hasMeta
         ? [
@@ -269,11 +275,30 @@ class _FolderCardState extends State<FolderCard> {
                 if (networkTag != null && networkTag.isNotEmpty) networkTag,
               ].join(' · ');
 
-    // Poster: TMDB when matched, else the Jellyfin server art, else the
-    // gradient placeholder.
+    // Poster: season poster when a single folder with folderSeason is set,
+    // else series poster, else Jellyfin art, else gradient placeholder.
+    // Grouped cards (groupCount > 1) always show the series poster since
+    // they represent multiple seasons.
+    final folderSeason = (widget.groupCount == null || widget.groupCount! <= 1)
+        ? widget.tmdbMeta?.folderSeason
+        : null;
+    final seasonPoster = folderSeason != null
+        ? widget.tmdbMeta?.seasons[folderSeason]?.posterUrl()
+        : null;
     final posterUrl = hasMeta
-        ? movie.posterUrl()
+        ? (seasonPoster ?? movie.posterUrl())
         : (hasJellyfin ? info.imageUrl : null);
+
+    // Title mirrors the poster rule: a single season folder shows that
+    // season's exact name ("Strike the Blood II"), while a grouped card (or a
+    // folder that resolves to the whole show) shows the base series title
+    // ("Strike the Blood").
+    final seasonName = folderSeason != null
+        ? widget.tmdbMeta?.seasons[folderSeason]?.name
+        : null;
+    final title = (seasonName?.isNotEmpty ?? false)
+        ? seasonName!
+        : (hasMeta ? movie.title : (hasJellyfin ? info.name : folder.name));
 
     // TV/Movie badge: TMDB kind, else the Jellyfin type, else none.
     final kindBadge = hasMeta
@@ -369,7 +394,17 @@ class _FolderCardState extends State<FolderCard> {
                                 background: kindColor,
                               ),
                             ),
-                          if (folder.isNetwork)
+                          if (widget.groupCount != null &&
+                              widget.groupCount! > 1)
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: _FolderBadge(
+                                label: '${widget.groupCount} folders',
+                                background: const Color(0xFF455A64),
+                              ),
+                            )
+                          else if (folder.isNetwork)
                             Positioned(
                               top: 8,
                               left: 8,

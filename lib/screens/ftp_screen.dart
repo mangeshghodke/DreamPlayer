@@ -214,7 +214,13 @@ class _FtpScreenState extends State<FtpScreen> {
     final service = TmdService.instance;
     await service.ensureLoaded();
     final meta = service.metaFor(metadataKey) ??
-        await service.resolveFolder(metadataKey, folderName);
+        await service.resolveFolder(
+          metadataKey,
+          folderName,
+          yearHint: ParsedFileName.yearFromNames(
+            videos.map((e) => e.name),
+          ),
+        );
     if (meta == null || !mounted) return;
     setState(() {
       _isSeriesFolder = true;

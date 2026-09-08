@@ -221,7 +221,13 @@ class _WebDavScreenState extends State<WebDavScreen> {
     final service = TmdService.instance;
     await service.ensureLoaded();
     final meta = service.metaFor(metadataKey) ??
-        await service.resolveFolder(metadataKey, folderName);
+        await service.resolveFolder(
+          metadataKey,
+          folderName,
+          yearHint: ParsedFileName.yearFromNames(
+            videos.map((e) => e.name),
+          ),
+        );
     if (meta == null || !mounted) return;
     setState(() {
       _isSeriesFolder = true;
@@ -341,6 +347,9 @@ class _WebDavScreenState extends State<WebDavScreen> {
       networkServerId: server.id,
       networkPath: cleanPath,
       networkLabel: server.name,
+      yearHint: ParsedFileName.yearFromNames(
+        _entries.map((e) => e.name),
+      ),
     );
     await LibraryFoldersStore.add(folder);
     if (mounted) {

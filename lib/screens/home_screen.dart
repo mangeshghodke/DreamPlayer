@@ -14,12 +14,14 @@ import '../services/download_manager.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
+import '../services/series_grouping.dart';
 import '../services/tmdb_client.dart';
 import '../services/webdav_client.dart';
 import '../widgets/folder_card.dart';
 import '../widgets/tv_text_field.dart';
 import 'ftp_screen.dart';
 import 'player_screen.dart';
+import 'series_seasons_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/video_card.dart';
@@ -55,6 +57,12 @@ class _HomeScreenState extends State<HomeScreen>
   /// "Your library": the folders the user added (e.g. TV-show folders), most
   /// recently added first. Nothing is auto-scanned — only these appear.
   List<LibraryFolder> _folders = const [];
+
+  /// Flux-style grouping: folders that share a base series name
+  /// (`Strike the Blood`, `Strike the Blood II`, `Strike the Blood III`,
+  /// `Strike the Blood IV`) collapse into one entry so they appear as a
+  /// single card on the library grid.
+  List<SeriesGroup> _seriesGroups = const [];
 
   /// Cached server-side metadata for the [JellyfinItemInfo] folders, keyed by
   /// `LibraryFolder.id` (fetch-on-bookmark, refreshed on open).
@@ -223,9 +231,11 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _loadLibraryFolders() async {
     final folders = await LibraryFoldersStore.load();
     final metas = await _client.loadAllFolderMeta();
+    final groups = const SeriesGroupingService().group(folders);
     if (mounted) {
       setState(() {
         _folders = folders;
+        _seriesGroups = groups;
         _jellyfinMeta = metas;
       });
     }
@@ -244,7 +254,11 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _entries = entries);
     final folders = await LibraryFoldersStore.load();
     if (!mounted) return;
-    setState(() => _folders = folders);
+    final groups = const SeriesGroupingService().group(folders);
+    setState(() {
+      _folders = folders;
+      _seriesGroups = groups;
+    });
     await _resolveFolderMetadata(folders);
     await _refreshJellyfinMeta(folders);
   }
@@ -284,11 +298,22 @@ class _HomeScreenState extends State<HomeScreen>
       final existing = service.metaFor(key);
       if (existing == null || existing.folderSeason == null) {
         try {
-          await service.resolveFolder(key, folder.name);
+          await service.resolveFolder(
+            key,
+            folder.name,
+            yearHint: folder.yearHint,
+          );
         } catch (_) {
           // Network failures are non-fatal; the card stays a placeholder.
           continue;
         }
+      }
+      // Fetch season data so the season poster is available for the card.
+      final meta = service.metaFor(key);
+      if (meta != null && meta.folderSeason != null && meta.movie.kind == TmdKind.tv) {
+        try {
+          await service.seasonFor(key, meta.folderSeason!);
+        } catch (_) {}
       }
       // Pull the full details (backdrop/overview/cast) right away so the
       // folder's details screen is complete the moment it's opened — metadata
@@ -327,6 +352,20 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
     if (picked == null || !mounted) return;
+    // Best-effort year hint from the folder's own files (helps TMDB pick the
+    // right entry when the folder name has no year but the episodes do, e.g.
+    // a folder named `Kakegurui Twin-1080p BD` whose files say `(2021)`).
+    int? yearHint;
+    try {
+      final listing = await FileBrowserService.instance
+          .listDirectory(picked.path)
+          .timeout(const Duration(seconds: 15));
+      yearHint = ParsedFileName.yearFromNames(
+        listing.where((e) => !e.isDirectory).map((e) => e.name),
+      );
+    } catch (_) {
+      yearHint = null; // listing failure is non-fatal; name may still carry a year
+    }
     final folder = LibraryFolder(
       id:
           picked.bookmarkId ??
@@ -334,6 +373,7 @@ class _HomeScreenState extends State<HomeScreen>
       name: picked.name,
       path: picked.path,
       addedAt: DateTime.now(),
+      yearHint: yearHint,
     );
     await LibraryFoldersStore.add(folder);
     if (!mounted) return;
@@ -371,6 +411,24 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
     await _loadLibrary();
+  }
+
+  /// Opens a grouped series (`Strike the Blood`, `Strike the Blood II`, etc
+  /// collapsed into one card). When the group contains a single folder the
+  /// existing per-folder flow is used (so behavior stays identical to v0.4.0).
+  /// When the group contains multiple folders, a new
+  /// [SeriesSeasonsScreen] shows every season across the collapsed folders
+  /// — the Flux-style "Series → Seasons" hierarchy.
+  void _openGroup(SeriesGroup group) {
+    if (group.folders.length > 1) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => SeriesSeasonsScreen(group: group),
+        ),
+      );
+      return;
+    }
+    _openFolder(group.primary);
   }
 
   Future<void> _removeFolder(LibraryFolder folder) async {
@@ -667,7 +725,7 @@ class _HomeScreenState extends State<HomeScreen>
               pinned: true,
             ),
             // ---- Your library: user-added folders (e.g. TV-show folders) ----
-            if (_folders.isEmpty)
+            if (_seriesGroups.isEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -694,16 +752,17 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
               _folderGridSliver(
-                count: _folders.length,
+                count: _seriesGroups.length,
                 itemBuilder: (context, index) {
-                  final folder = _folders[index];
+                  final group = _seriesGroups[index];
                   return FolderCard(
-                    key: ValueKey(folder.id),
-                    folder: folder,
-                    tmdbMeta: TmdService.instance.metaFor(folder.metadataKey),
-                    jellyfinInfo: _jellyfinMeta[folder.id],
-                    onTap: () => _openFolder(folder),
-                    onLongPress: () => _removeFolder(folder),
+                    key: ValueKey(group.metadataKey),
+                    folder: group.primary,
+                    tmdbMeta: TmdService.instance.metaFor(group.metadataKey),
+                    jellyfinInfo: _jellyfinMeta[group.primary.id],
+                    groupCount: group.folders.length,
+                    onTap: () => _openGroup(group),
+                    onLongPress: () => _removeFolder(group.primary),
                   );
                 },
               ),

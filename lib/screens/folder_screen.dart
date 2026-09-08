@@ -135,22 +135,48 @@ class _FolderScreenState extends State<FolderScreen> {
 
   Future<void> _resolveMeta() async {
     try {
-      await TmdService.instance
-          .resolveFolder(widget.folder.metadataKey, widget.folder.name);
+      await TmdService.instance.resolveFolder(
+        widget.folder.metadataKey,
+        widget.folder.name,
+        yearHint: widget.folder.yearHint,
+      );
     } catch (_) {
       // Non-fatal: the header just stays a placeholder.
     }
   }
 
   Future<void> _load() async {
+    // Pre-populate series state from cache for the CURRENT subfolder path so
+    // there's no stale-view flash when navigating between subfolders.  At root
+    // level, always start with _isSeriesFolder = false — root folders with
+    // subfolders are never series folders, and _detectAndLoadSeriesFolder will
+    // set the correct state once it knows whether subfolders exist.
+    final service = TmdService.instance;
+    final folderName = _atRoot
+        ? widget.folder.name
+        : (_currentPath.split('/').lastOrNull ?? widget.folder.name);
+    final metadataKey = _atRoot
+        ? widget.folder.metadataKey
+        : '${widget.folder.metadataKey}/$folderName';
+    final cachedSeriesMeta = service.metaFor(metadataKey);
+    final hasCachedSeries = !_atRoot &&
+        cachedSeriesMeta != null &&
+        cachedSeriesMeta.folderSeason != null;
     setState(() {
       _loading = true;
       _error = null;
-      _seriesMeta = null;
-      _seriesDetails = null;
-      _isSeriesFolder = false;
-      _loadingSeriesMeta = true;
       _expandedSeasons.clear();
+      if (hasCachedSeries) {
+        _isSeriesFolder = true;
+        _seriesMeta = cachedSeriesMeta;
+        _seriesDetails = cachedSeriesMeta.details;
+        _loadingSeriesMeta = false;
+      } else {
+        _isSeriesFolder = false;
+        _seriesMeta = null;
+        _seriesDetails = null;
+        _loadingSeriesMeta = false;
+      }
     });
     if (_isJellyfin) {
       await _loadJellyfin();
@@ -173,9 +199,7 @@ class _FolderScreenState extends State<FolderScreen> {
       });
       await _refreshWatched();
       // Nova-style: background-resolve TMDB for all video files so metadata
-      // is ready when the user taps a file.  Each file resolves independently
-      // (no stagger) so the listener fires immediately per file and the tile
-      // shows its poster as soon as the TMDB match lands — same as v0.3.8.
+      // is ready when the user taps a file.
       for (final entry in entries) {
         if (entry.isDirectory) continue;
         TmdService.instance.resolve(_toVideoItem(entry)).catchError((_) {
@@ -243,14 +267,22 @@ class _FolderScreenState extends State<FolderScreen> {
 
     setState(() {
       _isSeriesFolder = true;
-      _loadingSeriesMeta = true;
     });
 
     final service = TmdService.instance;
     await service.ensureLoaded();
 
-    var meta = service.metaFor(metadataKey) ??
-        await service.resolveFolder(metadataKey, folderName);
+    var meta = service.metaFor(metadataKey);
+    if (meta != null && meta.folderSeason != null) {
+      // Cache hit with season data — use it directly.
+    } else {
+      setState(() => _loadingSeriesMeta = true);
+      meta = await service.resolveFolder(
+        metadataKey,
+        folderName,
+        yearHint: ParsedFileName.yearFromNames(videoNames),
+      );
+    }
 
     if (!mounted || gen != _seriesGeneration) return;
     if (meta == null) {
@@ -405,18 +437,44 @@ class _FolderScreenState extends State<FolderScreen> {
       final path = _currentPath.replaceAll(RegExp(r'/+$'), '').replaceAll(RegExp(r'^/+'), '');
       final entries = await SmbClient.instance.listDirectory(serverId, share, path);
       if (!mounted) return;
+
+      // Pre-populate ALL cached data in ONE setState.
+      final service = TmdService.instance;
+      final cleanPath = path.replaceAll(RegExp(r'/+$'), '');
+      final folderName = cleanPath.split('/').lastOrNull ?? widget.folder.name;
+      final metadataKey = cleanPath.isEmpty || cleanPath == widget.folder.path
+          ? widget.folder.metadataKey
+          : '${widget.folder.metadataKey}/$folderName';
+      final cachedSeriesMeta = service.metaFor(metadataKey);
+      final isCachedSeries = cachedSeriesMeta != null &&
+          cachedSeriesMeta.folderSeason != null &&
+          cachedSeriesMeta.details != null;
+      final cachedSeasonsReady = isCachedSeries &&
+          cachedSeriesMeta.seasons.isNotEmpty;
+
       setState(() {
         _smbEntries = entries;
         _loading = false;
         _smbFileSizes.clear();
+        if (isCachedSeries) {
+          _isSeriesFolder = true;
+          _seriesMeta = cachedSeriesMeta;
+          _seriesDetails = cachedSeriesMeta.details;
+          _loadingSeriesMeta = false;
+        }
       });
       await _refreshWatched();
+
+      // Only prefetch uncached entries.
       for (final e in entries) {
         if (e.isDirectory) continue;
-        TmdService.instance.resolve(_toVideoItem(e)).catchError((_) => null);
+        final key = 'smb:$serverId/$share/${e.path}';
+        if (service.metaFor(key) != null) continue;
+        service.resolve(_toVideoItem(e)).catchError((_) => null);
       }
-      _detectAndLoadSeriesFolder();
-      // Background-fetch file sizes (listDirectory returns 0 for performance).
+      if (!cachedSeasonsReady) {
+        _detectAndLoadSeriesFolder();
+      }
       _fetchSmbSizes(entries);
     } on PlatformException catch (e) {
       if (!mounted) return;
@@ -478,7 +536,14 @@ class _FolderScreenState extends State<FolderScreen> {
       return;
     }
     final video = _toVideoItem(entry);
-    final folderKey = widget.folder.metadataKey;
+    // Use the subfolder-aware metadataKey so episodes in subfolders
+    // (e.g. "Strike the Blood Final") resolve to the correct season.
+    final folderName = _atRoot
+        ? widget.folder.name
+        : (_currentPath.split('/').lastOrNull ?? widget.folder.name);
+    final folderKey = _atRoot
+        ? widget.folder.metadataKey
+        : '${widget.folder.metadataKey}/$folderName';
     final folderMeta = TmdService.instance.metaFor(folderKey);
     final parsed = ParsedFileName.parse(entry.name);
     final isEp = parsed.isEpisode || _epPattern.hasMatch(entry.name);
@@ -581,7 +646,14 @@ class _FolderScreenState extends State<FolderScreen> {
       hdrHint: fi.hdrHint,
     );
     if (!mounted) return;
-    final folderKey = widget.folder.metadataKey;
+    // Use the subfolder-aware metadataKey so episodes in subfolders
+    // (e.g. "Strike the Blood Final") resolve to the correct season.
+    final smbFolderName = _atRoot
+        ? widget.folder.name
+        : (_currentPath.split('/').lastOrNull ?? widget.folder.name);
+    final folderKey = _atRoot
+        ? widget.folder.metadataKey
+        : '${widget.folder.metadataKey}/$smbFolderName';
     final folderMeta = TmdService.instance.metaFor(folderKey);
     final parsed = ParsedFileName.parse(entry.name);
     final isEp = parsed.isEpisode || _epPattern.hasMatch(entry.name);
@@ -797,8 +869,16 @@ class _FolderScreenState extends State<FolderScreen> {
       Navigator.of(context).pop();
       return;
     }
+    // When opened from TmdDetailsScreen with an initialPath, the first back
+    // should pop back to TmdDetailsScreen — not navigate internally to root
+    // and show the header/backdrop (which looks like a stale "still image").
+    final parent = _parentOf(_currentPath);
     final fallback = _isNetworkFolder ? _networkPath : widget.folder.path;
-    setState(() => _currentPath = _parentOf(_currentPath) ?? fallback);
+    if (widget.initialPath != null && parent == fallback) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() => _currentPath = parent ?? fallback);
     await _load();
   }
 
@@ -1559,7 +1639,7 @@ class _FolderTile extends StatelessWidget {
     final effectiveLabel = parsed.isEpisode
         ? 'S${effectiveSeason.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
         : '';
-    final stillUrl = episode?.stillUrl() ?? posterUrlOf(tmdbMeta);
+    final stillUrl = episode?.stillUrl();
 
     final effectiveDurationMs = (durationMs != null && durationMs! > 0)
         ? durationMs

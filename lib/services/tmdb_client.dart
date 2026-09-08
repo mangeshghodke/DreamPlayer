@@ -598,6 +598,25 @@ class ParsedFileName {
   String get seasonEpisodeLabel =>
       isEpisode ? 'Season $season · Episode $episode' : '';
 
+  /// Best-effort year derived from the names of the files inside a folder,
+  /// used when the folder name itself carries no year. Returns the most
+  /// common year found (ties → the first in listing order), or null when no
+  /// name carries a year. E.g. a folder named `Kakegurui Twin-1080p BD`
+  /// containing `kakegurui twin (2021) s01e01.mkv` yields the hint `2021`,
+  /// letting the TMDB search pin the correct year entry instead of picking a
+  /// same-titled duplicate by popularity order.
+  static int? yearFromNames(Iterable<String> names) {
+    final counts = <int, int>{};
+    for (final name in names) {
+      final year = parse(name).year;
+      if (year != null) counts[year] = (counts[year] ?? 0) + 1;
+    }
+    if (counts.isEmpty) return null;
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.first.key;
+  }
+
   static final RegExp _yearPattern = RegExp(r'\b(18|19|20)\d{2}\b');
   static final RegExp _episodePattern = RegExp(r'\bS(\d{1,2})E(\d{1,2})\b', caseSensitive: false);
   static final RegExp _episodeShortPattern =
@@ -1451,26 +1470,74 @@ class TmdService extends ChangeNotifier {
   /// Resolves a folder's name against TMDB (TV preferred) so its library card
   /// can show the show's poster. Best-effort; null when nothing matches.
   /// [metadataKey] is the folder's stable identity (see `LibraryFolder`).
-  Future<TmdMeta?> resolveFolder(String metadataKey, String folderName) async {
+  ///
+  /// [yearHint] supplies a year the folder name itself doesn't carry — e.g.
+  /// derived via [ParsedFileName.yearFromNames] from the files inside the
+  /// folder. When parsing [folderName] yields no year, [yearHint] is used to
+  /// disambiguate same-titled entries that differ only by release year (TMDB
+  /// returns both, sorted by popularity — which can pick the wrong duplicate).
+  Future<TmdMeta?> resolveFolder(
+    String metadataKey,
+    String folderName, {
+    int? yearHint,
+  }) async {
     await ensureLoaded();
     final cached = _cache[metadataKey];
-    if (cached != null && cached.folderSeason != null) return cached;
+    debugPrint('TMDB resolveFolder("$metadataKey","$folderName") cached=$cached keepSeasons=${cached?.seasons[cached.folderSeason ?? -1]?.posterPath != null}');
+    // Return cache when it already has both folderSeason AND the season poster
+    // for that season. A stale cache with folderSeason set but no seasons
+    // entry (e.g. from a build that didn't fetch the season poster, or where
+    // the season fetch failed) would make the home card fall back to the
+    // show's main poster — so refill the season data here. seasonFor() itself
+    // short-circuits when its own cache already has a poster, so this is one
+    // extra request only when the season cache is actually incomplete.
+    if (cached != null &&
+        cached.folderSeason != null &&
+        (cached.seasons[cached.folderSeason]?.posterPath != null ||
+            cached.movie.kind != TmdKind.tv)) {
+      return cached;
+    }
     final inFlight = _pending[metadataKey];
     if (inFlight != null) return inFlight;
 
     final parsed = ParsedFileName.parse(folderName);
     if (parsed.title.isEmpty) return null;
 
-    final future = _resolveFolderNow(metadataKey, parsed.title, parsed.year,
+    final year = parsed.year ?? yearHint;
+    final future = _resolveFolderNow(metadataKey, parsed.title, year,
         liveAction: parsed.liveAction, folderName: folderName);
     _pending[metadataKey] = future;
     try {
-      return await future;
+      final meta = await future;
+      // Inline-fill the season poster so the home card renders the season
+      // artwork on its very first paint instead of falling back to the show's
+      // main poster. seasonFor() is awaited inside this critical section so
+      // the meta returned from resolveFolder() already has seasons[folderSeason].
+      if (meta != null &&
+          meta.folderSeason != null &&
+          meta.movie.kind == TmdKind.tv &&
+          meta.seasons[meta.folderSeason]?.posterPath == null) {
+        await seasonFor(metadataKey, meta.folderSeason!);
+        return _cache[metadataKey];
+      }
+      return meta;
     } finally {
       _pending.remove(metadataKey);
       notifyListeners();
     }
   }
+
+  /// Matches [folderName] to a TMDB season number using the season names
+  /// already fetched for [showId]. Returns the season number or null.
+  /// Makes NO API calls — the season names must already be cached.
+  int? matchFolderToSeason(String folderName, int showId) {
+    final names = _seasonNamesCache[showId];
+    if (names == null || names.isEmpty) return null;
+    return _matchSeasonFromFolder(folderName, names);
+  }
+
+  /// Cached season names per show ID, populated by [seasonNames] calls.
+  final Map<int, Map<int, String>> _seasonNamesCache = {};
 
   Future<TmdMeta?> _resolveFolderNow(
       String metadataKey, String query, int? year,
@@ -1486,7 +1553,9 @@ class TmdService extends ChangeNotifier {
     int? folderSeason;
     if (match.movie.kind == TmdKind.tv) {
       final names = await _api.seasonNames(match.movie);
+      _seasonNamesCache[match.movie.id] = names;
       folderSeason = _matchSeasonFromFolder(folderName ?? query, names);
+      debugPrint('TMDB _resolveFolderNow $metadataKey matchId=${match.movie.id} seasons=$names folderSeason=$folderSeason');
     }
 
     final meta = TmdMeta(movie: match.movie, folderSeason: folderSeason);
@@ -1518,8 +1587,8 @@ class TmdService extends ChangeNotifier {
       if (q == sName) return entry.key;
 
       // 2. One contains the other
-      if (sName.contains(q) || q.contains(sName)) {
-        // Prefer the longer season name (more specific match)
+      if (sName.contains(q)) {
+        // Season name contains the whole folder query — very specific match
         final score = sName.length;
         if (score > bestScore) {
           bestScore = score;
@@ -1527,6 +1596,19 @@ class TmdService extends ChangeNotifier {
         }
         continue;
       }
+      if (q.contains(sName) && sName.length > q.length) {
+        // Folder contains a LONGER season name (unlikely, but treat as specific)
+        final score = sName.length;
+        if (score > bestScore) {
+          bestScore = score;
+          bestSeason = entry.key;
+        }
+        continue;
+      }
+      // When q contains a shorter season name (e.g. "Strike the Blood Final"
+      // contains S1 "Strike the Blood"), don't match here — fall through to
+      // word-overlap below, which requires ALL season words to appear in the
+      // folder, producing a more specific result.
 
       // 3. Significant word overlap
       final qWords = q.split(RegExp(r'\s+')).where((w) => w.length > 2).toList();
@@ -1609,7 +1691,14 @@ class TmdService extends ChangeNotifier {
     if (meta.details != null) return meta.details;
     try {
       final details = await _api.details(meta.movie);
-      _cache[identityKey] = meta.withDetails(details);
+      // Merge onto the FRESHEST cache entry, not the snapshot taken before the
+      // network call — a concurrent seasonFor/withDetails write may have added
+      // seasons to the same key while this request was in flight. Writing back
+      // the stale snapshot would silently drop those seasons (regression: a
+      // folder card that briefly showed its season poster reverted to the
+      // show's main poster).
+      final fresh = _cache[identityKey] ?? meta;
+      _cache[identityKey] = fresh.withDetails(details);
       await TmdStore.save(identityKey, _cache[identityKey]!);
       notifyListeners();
       return details;
@@ -1626,6 +1715,7 @@ class TmdService extends ChangeNotifier {
     await ensureLoaded();
     if (seasonNumber <= 0) return null;
     final cached = _cache[identityKey];
+    debugPrint('TMDB seasonFor($identityKey,$seasonNumber) cached=${cached != null} hasSeason=${cached?.seasons[seasonNumber]?.posterPath != null}');
     if (cached == null || cached.movie.kind != TmdKind.tv) return null;
     final already = cached.seasons[seasonNumber];
     if (already != null) return already;
@@ -1634,10 +1724,28 @@ class TmdService extends ChangeNotifier {
 
     _pendingDetail.add(pendingKey);
     try {
-      final episodes = await _api.seasonEpisodes(cached.movie, seasonNumber);
+      // Fetch the full season endpoint — it includes poster_path, name,
+      // overview AND the episodes list.
+      final key = await _api.effectiveApiKey();
+      if (key.isEmpty) return null;
+      final json = await _api._get(
+        '/tv/${cached.movie.id}/season/$seasonNumber?api_key=$key&language=en-US',
+      );
+      final episodes = (json['episodes'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(TmdEpisode.fromJson)
+          .where((e) => e.episodeNumber > 0)
+          .toList();
       if (episodes.isEmpty) return null;
-      final season = TmdSeason(seasonNumber: seasonNumber, episodes: episodes);
-      _cache[identityKey] = cached.withSeason(season);
+      final season = TmdSeason(
+        seasonNumber: seasonNumber,
+        name: json['name'] as String? ?? '',
+        overview: json['overview'] as String? ?? '',
+        posterPath: json['poster_path'] as String?,
+        episodes: episodes,
+      );
+      _cache[identityKey] = (_cache[identityKey] ?? cached).withSeason(season);
+      debugPrint('TMDB seasonFor STORED $identityKey season=$seasonNumber poster=${season.posterPath} episodes=${episodes.length}');
       await TmdStore.save(identityKey, _cache[identityKey]!);
       return season;
     } catch (_) {
@@ -1681,7 +1789,9 @@ class TmdService extends ChangeNotifier {
         episodeNumber,
       );
       if (enriched == null) return existing;
-      _cache[identityKey] = cached.withSeason(season.withEpisode(enriched));
+      final fresh = _cache[identityKey] ?? cached;
+      final freshSeason = fresh.seasons[seasonNumber] ?? season;
+      _cache[identityKey] = fresh.withSeason(freshSeason.withEpisode(enriched));
       await TmdStore.save(identityKey, _cache[identityKey]!);
       return enriched;
     } catch (_) {

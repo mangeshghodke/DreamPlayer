@@ -3,7 +3,19 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
-## [Unreleased]
+## 0.4.2
+
+Bug-fix release: TMDB year-duplicate folder resolution, MPV mid-stream codec-death software retry, and the Flux-style cross-folder series library.
+
+### Added
+
+- **Flux-style cross-folder series grouping (home library)** — same-base series folders now collapse into one library card. `Strike the Blood` + `Strike the Blood II/III/IV` (or any folders differing only in Roman-numeral / ordinal / season tags) group under a single card showing the series poster and title, with a small count badge when more than one folder is collapsed. Tapping a single-folder group opens the existing per-folder flow (identical to 0.4.1); tapping a multi-folder group opens a new **`SeriesSeasonsScreen`** that lists **every season across all grouped folders** in one place — Nova-style `Series → Seasons` hierarchy with a TMDB header (poster, title, rating, overview, "Fix match"), per-season `ExpansionTile`s (season name + watched badge like `3/10`), and per-episode rows with TMDB stills, `SxxExx` badges, watched checkmarks, and resume progress bars. All sources are supported (local, SMB, WebDAV, FTP/SFTP, UPnP/DLNA, Jellyfin). Folders are matched to TMDB seasons from the cached season names already fetched at group level (`matchFolderToSeason`, no extra API calls) with anime-bracket `[01]` numbering handled. Tapping an episode opens the details screen carrying that folder's metadata key. `FolderCard` gained `groupCount`; a lone season folder shows its season title + season poster (e.g. "Strike the Blood II"). Grouping helpers (`groupBySeason`, `watchedCount`, `seasonHeader`, `watchedBadge`) live in `lib/utils/season_group.dart` (pure Dart, unit-tested in `test/series_grouping_test.dart`).
+
+### Fixed
+
+- **TMDB folder lookups pick the wrong entry when a same-titled duplicate has a different year (e.g. Kakegurui Twin 2021 vs 2022)** — a folder named `Kakegurui Twin-1080p BD` (no year in the name) whose files were `kakegurui twin (2021) s01e01.mkv` resolved to the higher-popularity 2022 Netflix listing because both TMDB entries matched 1.00 and `bestForQuery` kept the first result. Fix: a `yearHint` pipeline. `ParsedFileName.yearFromNames(...)` derives the most-common year from the folder's file names, `LibraryFolder` persists it (`yearHint`) through bookmarks and JSON, and `TmdService.resolveFolder(..., {yearHint})` feeds it to the TMDB search (`first_air_date_year`) whenever the folder name itself parses no year. Wired at every resolution point: SMB and WebDAV bookmarking, the home "Add folder to library" local picker (lists the picked folder), SMB/WebDAV/FTP/UPnP/folder-browser series detection, home `_resolveFolderMetadata`, `TmdDetailsScreen` folder mode, and `FolderScreen._resolveMeta`. Verified live: `search/tv?query=Kakegurui Twin&first_air_date_year=2021` returns exactly the 2021 entry (id 121860).
+
+- **MPV engine: auto software retry on mid-stream codec death (issue #7)** — some HEVC Main10 4:2:0 files play for ~0.5 s then die with a terminal "Could not open codec." because the MediaCodec hardware decoder starts producing frames and then dies mid-stream; mpv's `hwdec-software-fallback` only rescues decoder-init failures. Fix: when the mpv error text mentions a codec/decoder/pixel-format/hardware problem, the player auto-reloads the same file in software (`hwdec=no`) at the current position, once per file keyed by the resume key. Mirrors Media3's software-decode fallback. Pure IO/network errors are never retried.
 
 ## 0.4.1
 

@@ -44,6 +44,7 @@ class LibraryFolder {
     this.networkShare,
     this.networkPath,
     this.networkLabel,
+    this.yearHint,
   });
 
   /// Bookmark id from the folder picker (`FileEntry.bookmarkId`), or a
@@ -76,6 +77,13 @@ class LibraryFolder {
   final String? networkPath;
   final String? networkLabel;
 
+  /// Best-effort release year for the TMDB search, derived from the files
+  /// inside the folder when the folder name itself carries no year (e.g. a
+  /// folder named `Kakegurui Twin-1080p BD` whose episodes say `(2021)`).
+  /// Lets `TmdService.resolveFolder` disambiguate same-titled entries that
+  /// differ only by year. Null when unknown.
+  final int? yearHint;
+
   bool get isJellyfin => source == LibraryFolderSource.jellyfin;
   bool get isNetwork => source != LibraryFolderSource.files;
 
@@ -95,6 +103,7 @@ class LibraryFolder {
         'networkShare': networkShare,
         'networkPath': networkPath,
         'networkLabel': networkLabel,
+        'yearHint': yearHint,
       };
 
   factory LibraryFolder.fromJson(Map<String, dynamic> json) {
@@ -120,6 +129,7 @@ class LibraryFolder {
       networkShare: json['networkShare'] as String?,
       networkPath: json['networkPath'] as String?,
       networkLabel: json['networkLabel'] as String?,
+      yearHint: (json['yearHint'] as num?)?.toInt(),
     );
   }
 }

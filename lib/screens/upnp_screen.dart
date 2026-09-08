@@ -216,7 +216,13 @@ class _UpnpScreenState extends State<UpnpScreen> {
     final service = TmdService.instance;
     await service.ensureLoaded();
     final meta = service.metaFor(metadataKey) ??
-        await service.resolveFolder(metadataKey, crumbName);
+        await service.resolveFolder(
+          metadataKey,
+          crumbName,
+          yearHint: ParsedFileName.yearFromNames(
+            videos.map((e) => e.name),
+          ),
+        );
     if (meta == null || !mounted) return;
     await service.detailsFor(metadataKey);
     if (!mounted) return;

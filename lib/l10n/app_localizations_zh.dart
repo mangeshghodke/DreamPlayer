@@ -1572,6 +1572,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerVideoNotSupported => '此视频不兼容内置播放器，正在使用备用播放器。';
 
   @override
+  String get playerVideoDecodeRetrySw => '硬件解码器无法解码此视频，正在改用软件解码重试。';
+
+  @override
   String get playerSleepTimerFinished => '睡眠定时结束 — 播放已暂停';
 
   @override

@@ -2011,6 +2011,10 @@
   "@playerVideoNotSupported": {
     "description": "Translated key"
   },
+  "playerVideoDecodeRetrySw": "Аппаратный декодер не смог декодировать это видео — повторяем с программным декодированием.",
+  "@playerVideoDecodeRetrySw": {
+    "description": "Translated key"
+  },
   "settingsAutoDownloadSubs": "Скачивать лучшее совпадение при отсутствии субтитров",
   "@settingsAutoDownloadSubs": {
     "description": "Translated key"
