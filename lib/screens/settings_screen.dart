@@ -11,6 +11,7 @@ import '../services/cache_cleaner.dart';
 import '../services/decoder_mode.dart';
 import '../services/default_engine_store.dart';
 import '../services/download_manager.dart';
+import '../services/entitlements.dart';
 import '../services/exo_player.dart';
 import '../l10n/app_localizations.dart';
 import '../services/language_service.dart';
@@ -27,6 +28,7 @@ import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_tile.dart';
 import 'licenses_screen.dart';
+import 'paywall_sheet.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -304,6 +306,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) setState(() { _osLoggedIn = false; _osUsername = null; _osRemaining = null; });
   }
 
+  /// Returns true if a gated Settings feature is allowed, or shows the paywall.
+  /// Mirrors `PlayerScreen._gate` — Android is always advanced, so this is a
+  /// guaranteed no-op there (iOS-only monetization).
+  Future<bool> _settingsGate() async {
+    final gate = checkGate(
+      gateEnabled: true,
+      advanced: Entitlements.instance.isEntitled,
+      paywallActive: Entitlements.instance.effectivePaywallEnabled,
+    );
+    if (gate != GateResult.paywallNeeded) return true;
+    final purchased = await showPaywall(context);
+    return purchased;
+  }
+
   Future<void> _loadTmdbKey() async {
     // Read only the user's SAVED key from prefs — NOT effectiveApiKey(),
     // which falls through to the compile-time TMDB_API_KEY define (injected
@@ -519,36 +535,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Text(
-                'Support',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+            // Support (donations) is Android-only: it unlocks nothing (fine
+            // under Guideline 3.1.1) but the Razorpay/GitHub-Sponsors links
+            // are out of place on iOS, where the paid tier is the IAP paywall.
+            if (defaultTargetPlatform != TargetPlatform.iOS) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text(
+                  'Support',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-            for (final option in supportOptions)
-              TvTile(
-                leading: Icon(option.icon),
-                title: Text(option.title),
-                subtitle: Text(option.subtitle),
-                trailing: const Icon(Icons.open_in_new, size: 18),
-                onTap: () async {
-                  try {
-                    await openSupportUrl(option.url);
-                  } on PlatformException {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(AppLocalizations.of(context).settingsCouldNotOpenLink),
-                        ),
-                      );
+              for (final option in supportOptions)
+                TvTile(
+                  leading: Icon(option.icon),
+                  title: Text(option.title),
+                  subtitle: Text(option.subtitle),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () async {
+                    try {
+                      await openSupportUrl(option.url);
+                    } on PlatformException {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(AppLocalizations.of(context).settingsCouldNotOpenLink),
+                          ),
+                        );
+                      }
                     }
-                  }
-                },
-              ),
+                  },
+                ),
+            ],
             const Divider(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -604,6 +625,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               onTap: _pickDownloadDir,
             ),
+            // Debug: simulate free user (debug builds only).
+            if (kDebugMode) ...[
+              ListenableBuilder(
+                listenable: Entitlements.instance,
+                builder: (context, _) => SwitchListTile(
+                  secondary: const Icon(Icons.bug_report, color: Colors.orange),
+                  title: const Text('Debug: simulate free user', style: TextStyle(color: Colors.orange)),
+                  subtitle: Text(
+                    Entitlements.instance.debugFreeUser
+                        ? 'ON — paywall + gates active on Android'
+                        : 'OFF — Android = advanced (no paywall)',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  value: Entitlements.instance.debugFreeUser,
+                  onChanged: (v) => Entitlements.instance.setDebugFreeUser(v),
+                ),
+              ),
+              ListenableBuilder(
+                listenable: Entitlements.instance,
+                builder: (context, _) {
+                  final e = Entitlements.instance;
+                  final sub = e.debugTrialExpired
+                      ? 'ON — trial expired, gates fire (7-day trial bypassed)'
+                      : e.trialActive
+                          ? 'OFF — 7-day trial active, ${e.trialRemaining.inHours}h left'
+                          : 'OFF — no active trial';
+                  return SwitchListTile(
+                    secondary: const Icon(Icons.event_busy, color: Colors.orange),
+                    title: const Text('Debug: simulate trial expired', style: TextStyle(color: Colors.orange)),
+                    subtitle: Text(sub, style: const TextStyle(fontSize: 12)),
+                    value: e.debugTrialExpired,
+                    onChanged: (v) => Entitlements.instance.setDebugTrialExpired(v),
+                  );
+                },
+              ),
+            ],
             if (defaultTargetPlatform == TargetPlatform.android) ...[
               const Divider(),
               Padding(
@@ -1008,7 +1065,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ? null
                   : _osLoggedIn
                       ? _logoutOpensubtitles
-                      : _loginOpensubtitles,
+                      // Signing in is the entry to the online-subtitle
+                      // feature (#37, choice-gated) — gate it like the player
+                      // sheet's "Search online subtitles".
+                      : () async {
+                          if (!await _settingsGate()) return;
+                          if (!mounted) return;
+                          await _loginOpensubtitles();
+                        },
             ),
             TvTile(
               leading: const Icon(Icons.closed_caption),
@@ -1020,7 +1084,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: const Icon(Icons.download),
               title: Text(AppLocalizations.of(context).settingsSubDownloadLang),
               subtitle: Text(displayNameForNovaCode(_downloadLang)),
-              onTap: () => _pickLanguage(isReading: false),
+              // #37 — what gets downloaded online is gated; reading language is free.
+              onTap: () async {
+                if (!await _settingsGate()) return;
+                if (!mounted) return;
+                _pickLanguage(isReading: false);
+              },
             ),
             TvTile(
               leading: const Icon(Icons.text_fields),
@@ -1034,6 +1103,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(AppLocalizations.of(context).settingsAutoDownloadSubs),
               value: _autoFetchSubs,
               onChanged: (v) async {
+                // #37 — auto-downloading online subtitles is the gated search
+                // feature in automatic form. Disabling is always free.
+                if (v && !await _settingsGate()) return;
+                if (!mounted) return;
                 await SubtitlePrefs.saveAutoFetch(v);
                 if (mounted) setState(() => _autoFetchSubs = v);
               },

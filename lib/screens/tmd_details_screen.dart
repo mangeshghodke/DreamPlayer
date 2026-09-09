@@ -16,11 +16,13 @@ import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/watched_store.dart';
 import '../services/download_manager.dart';
+import '../services/entitlements.dart';
 import '../utils/codec_info.dart';
 import '../utils/file_info_extractor.dart';
 import '../utils/season_group.dart' as sg;
 import '../widgets/season_progress_ring.dart';
 import '../widgets/tv_tile.dart';
+import 'paywall_sheet.dart';
 import 'folder_screen.dart';
 import 'opensubtitles_sheet.dart';
 import 'player_screen.dart';
@@ -790,6 +792,15 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   Future<void> _downloadVideo() async {
     final video = widget.video;
     if (video == null) return;
+    final gate = checkGate(
+      gateEnabled: true,
+      advanced: Entitlements.instance.isEntitled,
+      paywallActive: Entitlements.instance.effectivePaywallEnabled,
+    );
+    if (gate == GateResult.paywallNeeded) {
+      final purchased = await showPaywall(context);
+      if (!purchased) return;
+    }
     try {
       await DownloadManager.instance.startDownload(video);
       if (mounted) {
@@ -2298,7 +2309,18 @@ class _SubtitlesCard extends StatelessWidget {
               title: const Text('Search subtitles online'),
               subtitle: Text(AppLocalizations.of(context).opensubtitlesSearch),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => _openSubtitleSearch(context),
+              onTap: () async {
+                final gate = checkGate(
+                  gateEnabled: true,
+                  advanced: Entitlements.instance.isEntitled,
+                  paywallActive: Entitlements.instance.effectivePaywallEnabled,
+                );
+                if (gate == GateResult.paywallNeeded) {
+                  await showPaywall(context);
+                  return;
+                }
+                _openSubtitleSearch(context);
+              },
             ),
           ],
         ),

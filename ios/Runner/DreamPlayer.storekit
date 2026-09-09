@@ -1,0 +1,18 @@
+ lamentations of a paywall developer
+
+//
+//  DreamPlayer.storekit
+//  StoreKit Configuration File
+//
+//  Add this file to the Xcode project (File → Add to "Runner" → select this file).
+//  Products are defined below; Xcode auto-registers them for the local StoreKit sandbox.
+//
+
+configurations {
+    defaultConfiguration = Release
+
+    configurations {
+        Debug {}
+        Release {}
+    }
+}

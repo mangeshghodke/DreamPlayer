@@ -46,6 +46,8 @@ import '../utils/file_info_extractor.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/format_chip.dart';
 import 'player_error.dart';
+import '../services/entitlements.dart';
+import 'paywall_sheet.dart';
 import '../l10n/app_localizations.dart';
 
 /// Whether the app is running under `flutter test`.
@@ -184,6 +186,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _buffering = false;
   bool _completed = false;
 
+  // The 7-day free trial (wall-clock, persisted) replaced the old 30-minute
+  // HDR countdown — no per-playback meter, nothing to reset on seek/resume.
+  // `_hdrPaywallShowing` guards the #9 post-trial paywall against stacking;
+  // it re-arms when the sheet closes so the next play attempt is re-gated.
+  bool _hdrPaywallShowing = false;
+
   /// Which on-screen badge categories the user wants to see during playback.
   /// Loaded once from [BadgePrefs] at init; the settings screen writes the
   /// prefs and the player reads them fresh on each open.
@@ -303,8 +311,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Sleep timer: absolute deadline for minute-based timers, a flag for
   /// "end of current video", and the periodic ticker driving the countdown.
   DateTime? _sleepUntil;
+  Duration? _sleepOption;
   bool _sleepAtEnd = false;
   Timer? _sleepTicker;
+  StateSetter? _sheetSetSheet;
   DecoderMode _decoderMode = DecoderMode.auto;
 
   /// Whether the app is running on a TV (set once on first build).
@@ -498,6 +508,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // A-B loop points are per-video.
     _abA = null;
     _abB = null;
+    _hdrPaywallShowing = false;
     // Seed chapters from the VideoItem (e.g. Jellyfin `MediaSources[].Chapters`);
     // native MKV parsing (`e.chapters`) will override once available.
     _chapters = video.chapters
@@ -714,6 +725,43 @@ class _PlayerScreenState extends State<PlayerScreen>
         );
       }
     }
+  }
+
+  /// Returns true if the gated feature is allowed, or shows the paywall.
+  /// Use before any gated action (speed ≠1×, A-B, sleep timer, subtitle
+  /// styling, download, OpenSubtitles search).
+  Future<bool> _gate() async {
+    final gate = checkGate(
+      gateEnabled: true,
+      advanced: Entitlements.instance.isEntitled,
+      paywallActive: Entitlements.instance.effectivePaywallEnabled,
+    );
+    if (gate != GateResult.paywallNeeded) return true;
+    final purchased = await showPaywall(context);
+    return purchased;
+  }
+
+  /// HDR (#9) is trial-gated: after the 7-day trial expires, a free
+  /// non-subscriber playing Dolby Vision / HDR10 / HDR10+ / HLG content gets
+  /// paused + the paywall. No countdown — the trial is wall-clock based, so
+  /// nothing resets on seek/resume. Returns true if playback may proceed
+  /// (entitled / not gated), false if it must stay paused.
+  Future<bool> _checkHdrGate() async {
+    final ent = Entitlements.instance;
+    if (!ent.effectivePaywallEnabled || ent.isEntitled) return true;
+    final isHdr = _liveHdr == HdrFormat.hdr10 ||
+        _liveHdr == HdrFormat.hdr10plus ||
+        _liveHdr == HdrFormat.dolbyVision ||
+        _liveHdr == HdrFormat.hlg;
+    if (!isHdr) return true;
+    _exo?.pause();
+    if (!mounted) return false;
+    if (_hdrPaywallShowing) return false; // already up — don't stack
+    _hdrPaywallShowing = true;
+    final purchased = await showPaywall(context);
+    _hdrPaywallShowing = false;
+    if (purchased) return true; // just bought → allow playback
+    return false; // dismissed without buying → keep it paused
   }
 
   Future<void> _downloadToDevice() async {
@@ -1910,6 +1958,13 @@ class _PlayerScreenState extends State<PlayerScreen>
       isHdr10Plus: e.isHdr10Plus,
       isHdr10: e.isHdr10,
     );
+    // HDR gate: only re-gate on an actual transition INTO the playing
+    // state (auto-play on open, resume, etc.) — re-checking on every
+    // 4×/s position event would re-open the paywall in a loop after the
+    // user dismisses it.
+    if (e.playing && !wasPlaying) {
+      unawaited(_checkHdrGate());
+    }
     if (e.videoWidth > 0 && e.videoHeight > 0) {
       _liveResolution = '${e.videoWidth}x${e.videoHeight}';
     }
@@ -2081,10 +2136,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     _sleepTicker?.cancel();
     _sleepTicker = null;
     _sleepUntil = null;
+    _sleepOption = null;
     _sleepAtEnd = false;
     if (endOfVideo) {
       _sleepAtEnd = true;
     } else if (duration != null && duration > Duration.zero) {
+      _sleepOption = duration;
       _sleepUntil = DateTime.now().add(duration);
       _sleepTicker = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
@@ -2093,18 +2150,26 @@ class _PlayerScreenState extends State<PlayerScreen>
           _fireSleepTimer();
         } else if (_sleepUntil != null) {
           setState(() {}); // refresh the countdown label
+          _sheetSetSheet?.call(() {}); // keep the open sheet's countdown live
         }
       });
     }
     if (mounted) setState(() {});
+    _sheetSetSheet?.call(() {});
   }
 
   void _fireSleepTimer() {
     _sleepTicker?.cancel();
     _sleepTicker = null;
     _sleepUntil = null;
+    _sleepOption = null;
     _sleepAtEnd = false;
-    _exo?.pause();
+    final mpv = _mpvPlayer;
+    if (_mpvReady && mpv != null) {
+      unawaited(mpv.pause());
+    } else {
+      _exo?.pause();
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -2114,6 +2179,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       );
       setState(() {});
     }
+    _sheetSetSheet?.call(() {});
   }
 
   /// "12:34" remaining, or null when no minute-based timer is armed.
@@ -3537,11 +3603,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _searchOnlineSubtitle({bool attachToMpv = false}) async {
+    if (!await _gate()) return;
     // Prefill with the video title without extension / noise.
     final raw = _current.title.trim();
     final q = raw.isEmpty ? _current.id : raw;
     final filePath = _current.path;
     final resumeKey = _current.resumeKey ?? _current.id;
+    if (!mounted) return;
     final result = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
@@ -3571,6 +3639,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       final auto = await SubtitlePrefs.loadAutoFetch();
       if (!auto) return;
       if (!OpensubtitlesClient.instance.hasApiKey) return;
+      // #37 — the online subtitle search feature in its automatic form.
+      // (Android is always advanced, so this is a no-op there.)
+      if (!await _gate()) return;
       if (_subtitleTracks.isNotEmpty) return;
       final resumeKey = _current.resumeKey ?? _current.id;
       final downloaded = await DownloadedSubtitlesStore.loadForVideo(resumeKey);
@@ -4046,7 +4117,9 @@ class _PlayerScreenState extends State<PlayerScreen>
             maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.75,
           ),
           child: StatefulBuilder(
-            builder: (ctx, setSheet) => SingleChildScrollView(
+            builder: (ctx, setSheet) {
+              _sheetSetSheet = setSheet;
+              return SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -4125,8 +4198,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 color: _playbackSpeed == s ? Colors.white : Colors.white54,
                               ),
                               title: Text(speedLabel(s), style: const TextStyle(color: Colors.white)),
-                              onTap: () {
+                              onTap: () async {
                                 if (_playbackSpeed != s) {
+                                  if (s != 1.0 && !await _gate()) { setSheet(() {}); return; }
                                   setState(() => _playbackSpeed = s);
                                   if (_mpvReady) {
                                     unawaited(_mpvPlayer?.setRate(s));
@@ -4227,21 +4301,27 @@ class _PlayerScreenState extends State<PlayerScreen>
                             (Duration(minutes: 30), '30 minutes'),
                             (Duration(minutes: 60), '60 minutes'),
                           ])
-                            _tvListTile(
-                              leading: Icon(
-                                (_sleepUntil != null ? option.$1 : Duration.zero) == option.$1
-                                    ? Icons.radio_button_checked
-                                    : Icons.radio_button_off,
-                                color: (_sleepUntil != null ? option.$1 : Duration.zero) == option.$1
-                                    ? Colors.white
-                                    : Colors.white54,
-                              ),
-                              title: Text(option.$2, style: const TextStyle(color: Colors.white)),
-                              onTap: () {
-                                _setSleepTimer(
-                                  duration: option.$1 == Duration.zero ? null : option.$1,
+                            Builder(
+                              builder: (context) {
+                                final selected = option.$1 == Duration.zero
+                                    ? _sleepOption == null && !_sleepAtEnd
+                                    : _sleepOption == option.$1;
+                                return _tvListTile(
+                                  leading: Icon(
+                                    selected
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
+                                    color: selected ? Colors.white : Colors.white54,
+                                  ),
+                                  title: Text(option.$2, style: const TextStyle(color: Colors.white)),
+                                  onTap: () async {
+                                    if (option.$1 != Duration.zero && !await _gate()) return;
+                                    _setSleepTimer(
+                                      duration: option.$1 == Duration.zero ? null : option.$1,
+                                    );
+                                    setSheet(() {});
+                                  },
                                 );
-                                setSheet(() {});
                               },
                             ),
                           _tvListTile(
@@ -4250,7 +4330,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                               color: _sleepAtEnd ? Colors.white : Colors.white54,
                             ),
                             title: Text(AppLocalizations.of(context).playerSleepEndOfVideo, style: TextStyle(color: Colors.white)),
-                            onTap: () {
+                            onTap: () async {
+                              if (!await _gate()) return;
                               _setSleepTimer(endOfVideo: true);
                               setSheet(() {});
                             },
@@ -4339,7 +4420,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                           _tvListTile(
                             leading: const Icon(Icons.flag, color: Colors.white54),
                             title: Text('Set A to current position', style: TextStyle(color: Colors.white)),
-                            onTap: () {
+                            onTap: () async {
+                              if (!await _gate()) return;
                               setState(() => _abA = _position.inMilliseconds);
                               setSheet(() {});
                             },
@@ -4347,7 +4429,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                           _tvListTile(
                             leading: const Icon(Icons.flag, color: Colors.white54),
                             title: Text('Set B to current position', style: TextStyle(color: Colors.white)),
-                            onTap: () {
+                            onTap: () async {
+                              if (!await _gate()) return;
                               setState(() => _abB = _position.inMilliseconds);
                               setSheet(() {});
                             },
@@ -4375,8 +4458,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                     subtitle: Text(AppLocalizations.of(context).playerSubtitleSettingsDesc, style: TextStyle(color: Colors.white54, fontSize: 12)),
                     trailing: const Icon(Icons.chevron_right, color: Colors.white54),
                   onTap: () async {
-                    Navigator.of(sheetContext).pop();
-                    await Navigator.of(context).push(
+                    final navigator = Navigator.of(context);
+                    final sheetNavigator = Navigator.of(sheetContext);
+                    if (!await _gate()) return;
+                    if (!mounted) return;
+                    sheetNavigator.pop();
+                    await navigator.push(
                       MaterialPageRoute<void>(
                         builder: (_) => const SubtitleSettingsScreen(),
                       ),
@@ -4719,8 +4806,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                     _tvListTile(
                       leading: const Icon(Icons.file_download_outlined, color: Colors.white70),
                       title: Text(AppLocalizations.of(context).playerDownloadToDevice, style: TextStyle(color: Colors.white)),
-                      onTap: () {
+                      onTap: () async {
                         Navigator.of(sheetContext).pop();
+                        if (!await _gate()) return;
                         _downloadToDevice();
                       },
                     ),
@@ -4747,11 +4835,13 @@ class _PlayerScreenState extends State<PlayerScreen>
                   SizedBox(height: 8),
                 ],
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
+    ),
     );
+    _sheetSetSheet = null;
   }
 
   Future<void> _applySubtitleDelay(int ms, StateSetter setSheet) async {
@@ -4819,7 +4909,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _showControls();
   }
 
-  void _togglePlayPause() {
+  Future<void> _togglePlayPause() async {
     if (_touchLocked) return;
     final mpv = _mpvPlayer;
     if (_mpvReady && mpv != null) {
@@ -4845,6 +4935,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     } else if (_playing) {
       exo.pause();
     } else {
+      // Don't start HDR playback for a post-trial free user — re-gate every
+      // play attempt (not just the first), so dismissing the paywall and
+      // tapping play again keeps the video paused.
+      if (!await _checkHdrGate()) return;
       exo.play();
     }
     _showControls();

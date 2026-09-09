@@ -38,6 +38,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_displaymode: ^0.7.0
   permission_handler: ^13.0.0
+  in_app_purchase: ^3.2.1
   shared_preferences: ^2.5.5
   path_provider: ^2.1.5
   url_launcher: ^6.3.0
