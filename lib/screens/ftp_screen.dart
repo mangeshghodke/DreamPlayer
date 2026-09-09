@@ -39,6 +39,7 @@ class _FtpScreenState extends State<FtpScreen> {
   bool _loading = true;
   String? _error;
   bool _isSeriesFolder = false;
+  TmdMeta? _seriesMeta;
 
   /// Watched marks for the current folder, keyed by the same stable resume
   /// key each video uses for playback.
@@ -224,6 +225,7 @@ class _FtpScreenState extends State<FtpScreen> {
     if (meta == null || !mounted) return;
     setState(() {
       _isSeriesFolder = true;
+      _seriesMeta = meta;
     });
     await service.detailsFor(metadataKey);
     if (!mounted) return;
@@ -241,7 +243,35 @@ class _FtpScreenState extends State<FtpScreen> {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;
     }
-    if (mounted) setState(() {});
+    if (mounted) {
+      // Read the latest meta from the cache (each seasonFor replaces it with a
+      // fresh object; the reference captured earlier is stale).
+      setState(() {
+        _seriesMeta = service.metaFor(metadataKey) ?? meta;
+      });
+    }
+  }
+
+  /// The TMDB episode matching a file row, or null (movie / no series data /
+  /// not an episode). Resolves through the folder-level series meta (which
+  /// carries the fetched seasons) with the anime `[01]`-bracket fallback.
+  TmdEpisode? _episodeFor(FtpEntry entry) {
+    final meta = _seriesMeta;
+    if (meta == null || entry.isDirectory) return null;
+    final parsed = ParsedFileName.parse(entry.name);
+    if (!parsed.isEpisode) return null;
+    int s;
+    if (meta.folderSeason != null) {
+      s = meta.folderSeason!;
+    } else if (parsed.season > 0) {
+      s = parsed.season;
+    } else if (meta.seasons.isNotEmpty) {
+      // Anime bracket numbering — use the first fetched season on TMDB.
+      s = meta.seasons.keys.first;
+    } else {
+      s = 1;
+    }
+    return meta.seasons[s]?.episode(parsed.episode);
   }
 
   Future<void> _openEntry(FtpEntry entry) async {
@@ -455,6 +485,7 @@ class _FtpScreenState extends State<FtpScreen> {
           return _FtpTile(
             entry: entry,
             tmdbMeta: meta,
+            episode: _episodeFor(entry),
             watched: !entry.isDirectory &&
                 _watchedKeys.contains(_watchedKeyFor(entry)),
             onToggleWatched:
@@ -554,6 +585,7 @@ class _FtpTile extends StatelessWidget {
     required this.entry,
     required this.tmdbMeta,
     required this.onTap,
+    this.episode,
     this.watched = false,
     this.onToggleWatched,
     this.resumeProgress,
@@ -562,6 +594,7 @@ class _FtpTile extends StatelessWidget {
   final FtpEntry entry;
   final TmdMeta? tmdbMeta;
   final VoidCallback onTap;
+  final TmdEpisode? episode;
   final bool watched;
   final VoidCallback? onToggleWatched;
   final double? resumeProgress;
@@ -595,7 +628,8 @@ class _FtpTile extends StatelessWidget {
         ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
         : '';
 
-    final posterUrl = posterUrlOf(tmdbMeta);
+    final stillUrl = episode?.stillUrl();
+    final posterUrl = stillUrl ?? posterUrlOf(tmdbMeta);
 
     final filenameWidget = Text(
       entry.name,
@@ -629,9 +663,11 @@ class _FtpTile extends StatelessWidget {
         Expanded(
           child: Text(
             parsed.isEpisode
-                ? (tmdbMeta?.movie.title.isNotEmpty == true
-                    ? tmdbMeta!.movie.title
-                    : parsed.title)
+                ? (episode?.nameLabel.isNotEmpty == true
+                    ? episode!.nameLabel
+                    : tmdbMeta?.movie.title.isNotEmpty == true
+                        ? tmdbMeta!.movie.title
+                        : parsed.title)
                 : (tmdbMeta?.movie.title.isNotEmpty == true
                     ? tmdbMeta!.movie.title
                     : entry.name),
@@ -689,12 +725,30 @@ class _FtpTile extends StatelessWidget {
     );
 
     return TvTile(
-      leading: posterUrl != null
-          ? _Poster(posterUrl: posterUrl)
-          : Icon(
-              parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
-              color: colorScheme.secondary,
-            ),
+      leading: stillUrl != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.network(
+                stillUrl,
+                width: 64,
+                height: 40,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Icon(
+                  parsed.isEpisode
+                      ? Icons.movie_outlined
+                      : Icons.play_circle_outline,
+                  color: colorScheme.secondary,
+                ),
+              ),
+            )
+          : posterUrl != null
+              ? _Poster(posterUrl: posterUrl)
+              : Icon(
+                  parsed.isEpisode
+                      ? Icons.movie_outlined
+                      : Icons.play_circle_outline,
+                  color: colorScheme.secondary,
+                ),
       title: titleWidget,
       subtitle: subtitleWidget,
       trailing: Row(

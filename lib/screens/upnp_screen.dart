@@ -37,6 +37,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
   List<UpnpEntry> _entries = const [];
   bool _browsing = false;
   String? _browseError;
+  TmdMeta? _seriesMeta;
   /// Watched marks for the current folder, keyed by the same stable resume
   /// key each video uses for playback.
   Set<String> _watchedKeys = {};
@@ -240,7 +241,35 @@ class _UpnpScreenState extends State<UpnpScreen> {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;
     }
-    if (mounted) setState(() {});
+    if (mounted) {
+      // Read the latest meta from the cache (each seasonFor replaces it with a
+      // fresh object; the reference captured earlier is stale).
+      setState(() {
+        _seriesMeta = service.metaFor(metadataKey) ?? meta;
+      });
+    }
+  }
+
+  /// The TMDB episode matching a file row, or null (movie / no series data /
+  /// not an episode). Resolves through the folder-level series meta (which
+  /// carries the fetched seasons) with the anime `[01]`-bracket fallback.
+  TmdEpisode? _episodeFor(UpnpEntry entry) {
+    final meta = _seriesMeta;
+    if (meta == null || entry.isDirectory) return null;
+    final parsed = ParsedFileName.parse(entry.name);
+    if (!parsed.isEpisode) return null;
+    int s;
+    if (meta.folderSeason != null) {
+      s = meta.folderSeason!;
+    } else if (parsed.season > 0) {
+      s = parsed.season;
+    } else if (meta.seasons.isNotEmpty) {
+      // Anime bracket numbering — use the first fetched season on TMDB.
+      s = meta.seasons.keys.first;
+    } else {
+      s = 1;
+    }
+    return meta.seasons[s]?.episode(parsed.episode);
   }
 
   Future<void> _onEntryTap(UpnpEntry entry) async {
@@ -577,7 +606,9 @@ class _UpnpScreenState extends State<UpnpScreen> {
                               final effectiveLabel = parsed.isEpisode
                                   ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
                                   : '';
-                              final posterUrl = posterUrlOf(tmdbMeta);
+                              final episode = _episodeFor(e);
+                              final stillUrl = episode?.stillUrl();
+                              final posterUrl = stillUrl ?? posterUrlOf(tmdbMeta);
 
                               final filenameWidget = Text(
                                 e.name,
@@ -610,13 +641,15 @@ class _UpnpScreenState extends State<UpnpScreen> {
                                   ],
                                   Expanded(
                                     child: Text(
-                                      parsed.isEpisode
-                                          ? (tmdbMeta?.movie.title.isNotEmpty == true
-                                              ? tmdbMeta!.movie.title
-                                              : parsed.title)
-                                          : (tmdbMeta?.movie.title.isNotEmpty == true
-                                              ? tmdbMeta!.movie.title
-                                              : e.name),
+parsed.isEpisode
+                                           ? (episode?.nameLabel.isNotEmpty == true
+                                               ? episode!.nameLabel
+                                               : tmdbMeta?.movie.title.isNotEmpty == true
+                                                   ? tmdbMeta!.movie.title
+                                                   : parsed.title)
+                                           : (tmdbMeta?.movie.title.isNotEmpty == true
+                                               ? tmdbMeta!.movie.title
+                                               : e.name),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -671,12 +704,26 @@ class _UpnpScreenState extends State<UpnpScreen> {
                               );
 
                               return TvTile(
-                                leading: posterUrl != null
-                                    ? _Poster(posterUrl: posterUrl)
-                                    : Icon(
-                                        parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
-                                        color: colorScheme.secondary,
-                                      ),
+                                leading: stillUrl != null
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: Image.network(
+                                          stillUrl,
+                                          width: 64,
+                                          height: 40,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) => Icon(
+                                            parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
+                                            color: colorScheme.secondary,
+                                          ),
+                                        ),
+                                      )
+                                    : posterUrl != null
+                                        ? _Poster(posterUrl: posterUrl)
+                                        : Icon(
+                                            parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
+                                            color: colorScheme.secondary,
+                                          ),
                                 title: titleWidget,
                                 subtitle: subtitleWidget,
                                 trailing: Row(

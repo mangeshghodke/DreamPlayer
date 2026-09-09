@@ -44,6 +44,10 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   bool _loading = true;
   String? _error;
 
+  /// Folder-level series meta (with seasons) for the current level, when the
+  /// level holds episodes. Drives per-episode stills in the tiles.
+  TmdMeta? _seriesMeta;
+
   /// Watched marks for the current folder, keyed by the same stable resume
   /// key each video uses for playback (`client.resumeKey`).
   Set<String> _watchedKeys = {};
@@ -121,6 +125,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _seriesMeta = null;
     });
     try {
       final items = _crumbs.isEmpty
@@ -135,6 +140,10 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
         _loading = false;
       });
       await _refreshWatched();
+      // Jellyfin items carry structured values: when this level holds episodes
+      // (parentIndexNumber/indexNumber), resolve the SEASON folders' meta
+      // directly and fetch the seasons present — no filename parsing needed.
+      _detectAndLoadSeasonLevel();
     } on JellyfinException catch (e) {
       if (!mounted) return;
       if (e.message.contains('Session expired')) {
@@ -211,6 +220,60 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     try {
       await WatchedStore.set(key, now);
     } catch (_) {}
+  }
+
+  /// Best-effort TV-series detection for the current level. Jellyfin items are
+  /// structured — playables with `parentIndexNumber`/`indexNumber` are episodes
+  /// in a season; the season folder is one crumb down (`_crumbs.last`), and the
+  /// show itself is the series folder two crumbs down. Resolve that series'
+  /// TMDB meta (with details + stars) and fetch every season present.
+  Future<void> _detectAndLoadSeasonLevel() async {
+    final server = _browsing;
+    if (server == null || _crumbs.length < 2) return;
+    final episodes = _items.where((i) =>
+        !i.isFolder && i.parentIndexNumber != null && i.indexNumber != null);
+    if (episodes.isEmpty) return;
+    // The series is `_crumbs[_crumbs.length - 2]` — the crumb above the
+    // season — named e.g. "House" with the Series folder's parent id.
+    final seriesCrumb = _crumbs[_crumbs.length - 2];
+    final seriesKey = 'jellyfin:${server.urlHost}/${seriesCrumb.parentId}';
+    if (seriesKey.isEmpty) return;
+    final service = TmdService.instance;
+    TmdMeta? meta;
+    try {
+      meta = await service.resolveFolder(seriesKey, seriesCrumb.title);
+    } catch (_) {}
+    if (meta == null || meta.movie.kind != TmdKind.tv || !mounted) return;
+    setState(() => _seriesMeta = meta);
+    // Fetch details + every season that appears in this folder's episodes.
+    try {
+      await service.detailsFor(seriesKey);
+    } catch (_) {}
+    final seasonsNeeded = episodes
+        .map((e) => e.parentIndexNumber!)
+        .where((s) => s > 0)
+        .toSet();
+    for (final season in seasonsNeeded) {
+      if (!mounted) return;
+      try {
+        await service.seasonFor(seriesKey, season);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _seriesMeta = service.metaFor(seriesKey) ?? meta;
+    });
+  }
+
+  /// The TMDB episode matching a Jellyfin playable, or null (movie / folder /
+  /// no series data yet). Uses the item's structured season/episode numbers.
+  TmdEpisode? _episodeForItem(JellyfinItem item) {
+    final meta = _seriesMeta;
+    if (meta == null || item.isFolder) return null;
+    final season = item.parentIndexNumber;
+    final episode = item.indexNumber;
+    if (season == null || episode == null) return null;
+    return meta.seasons[season]?.episode(episode);
   }
 
   Future<void> _handleSessionExpired() async {
@@ -532,6 +595,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
           return _JellyfinTile(
             item: item,
             tmdbMeta: _tmdbFor(item),
+            episode: _episodeForItem(item),
             watched: !item.isFolder &&
                 _watchedKeys.contains(_watchedKeyFor(item)),
             onToggleWatched:
@@ -654,6 +718,7 @@ class _JellyfinTile extends StatelessWidget {
     required this.item,
     required this.tmdbMeta,
     required this.onTap,
+    this.episode,
     this.watched = false,
     this.onToggleWatched,
     this.onAddToLibrary,
@@ -663,6 +728,7 @@ class _JellyfinTile extends StatelessWidget {
   final JellyfinItem item;
   final TmdMeta? tmdbMeta;
   final VoidCallback onTap;
+  final TmdEpisode? episode;
   final bool watched;
   final VoidCallback? onToggleWatched;
   final double? resumeProgress;
@@ -695,11 +761,15 @@ class _JellyfinTile extends StatelessWidget {
     }
 
     final parsed = ParsedFileName.parse(item.name);
-    final effectiveLabel = parsed.isEpisode
-        ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
+    final isEpisode = parsed.isEpisode || episode != null;
+    final effectiveLabel = isEpisode
+        ? (parsed.isEpisode
+            ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
+            : item.seasonLabel)
         : '';
 
-    final posterUrl = posterUrlOf(tmdbMeta);
+    final stillUrl = episode?.stillUrl();
+    final posterUrl = stillUrl ?? posterUrlOf(tmdbMeta);
 
     final filenameWidget = Text(
       item.name,
@@ -713,7 +783,7 @@ class _JellyfinTile extends StatelessWidget {
     final titleWidget = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        if (parsed.isEpisode) ...[
+        if (isEpisode) ...[
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
@@ -732,10 +802,12 @@ class _JellyfinTile extends StatelessWidget {
         ],
         Expanded(
           child: Text(
-            parsed.isEpisode
-                ? (tmdbMeta?.movie.title.isNotEmpty == true
-                    ? tmdbMeta!.movie.title
-                    : parsed.title)
+            isEpisode
+                ? (episode?.nameLabel.isNotEmpty == true
+                    ? episode!.nameLabel
+                    : tmdbMeta?.movie.title.isNotEmpty == true
+                        ? tmdbMeta!.movie.title
+                        : parsed.title)
                 : (tmdbMeta?.movie.title.isNotEmpty == true
                     ? tmdbMeta!.movie.title
                     : item.name),
@@ -793,12 +865,28 @@ class _JellyfinTile extends StatelessWidget {
     );
 
     return TvTile(
-      leading: posterUrl != null
-          ? _Poster(posterUrl: posterUrl)
-          : Icon(
-              parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
-              color: colorScheme.secondary,
-            ),
+      leading: stillUrl != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.network(
+                stillUrl,
+                width: 64,
+                height: 40,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Icon(
+                  parsed.isEpisode
+                      ? Icons.movie_outlined
+                      : Icons.play_circle_outline,
+                  color: colorScheme.secondary,
+                ),
+              ),
+            )
+          : posterUrl != null
+              ? _Poster(posterUrl: posterUrl)
+              : Icon(
+                  parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
+                  color: colorScheme.secondary,
+                ),
       title: titleWidget,
       subtitle: subtitleWidget,
       trailing: Row(
