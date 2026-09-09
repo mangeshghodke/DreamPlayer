@@ -453,7 +453,7 @@ A video player app supporting:
 - **Repeat / shuffle / A-B / sleep timer (Phase 2, 2026-08-26)**: all four live in the player ⋮ sheet as collapsible sections (same `_tvListTile` dropdown pattern as aspect/speed).
   - **Repeat & shuffle** (`lib/services/playback_modes.dart`): `LoopMode` (off/one/all — named `LoopMode` because Flutter's material library exports a clashing `RepeatMode`) + shuffle, persisted (`dreamplayer.repeatMode`/`dreamplayer.shuffle`). **Repeat one** loops natively on Android via a new `setRepeatMode` channel method → `Player.REPEAT_MODE_ONE` (no ended event, seamless — verified on-device: a 60 s clip still `PLAYING position=14.3s` at t≈78 s); iOS restarts from the Dart ended-handler (`seekTo(Duration.zero)` + `play()` → the engine's play-after-ended reload). **Repeat all + shuffle** drive folder loops: `_orderedSiblings()` lists the current folder (season/episode-aware ordering, the old `_findNextEpisode` list source refactored out) and `nextPlaybackIndex()` (pure, unit-tested) picks sequential/wrapping/random — shuffle never repeats the current file when the folder has >1; a single-video folder replays itself under repeat-all. Ended-routing priority: sleep-at-end → repeat-one → (latched) repeat-all/shuffle → existing auto-play-next. Jellyfin folders stay sequential-only (no sibling listing yet).
   - **A-B repeat**: ⋮ sheet sets A/B at the current position (per-video, cleared on open); the event handler seeks back to A when playing position passes B (skipped while dragging). Status label shows `A m:ss – B m:ss`.
-  - **Sleep timer**: Off / 5 / 10 / 15 / 30 / 60 min / **End of current video**. Minute-based arms a 1 s ticker (`_sleepTicker`, countdown shown in the sheet subtitle, fires → pause + SnackBar); end-of-video sets a flag consumed by the ended-router so nothing auto-plays after. Timer survives auto-next opens, cancelled on player dispose.
+  - **Sleep timer**: Off / 5 / 10 / 15 / 30 / 60 min / **End of current video**. Minute-based arms a 1 s ticker (`_sleepTicker`, countdown shown in the sheet subtitle, fires → pause + SnackBar); end-of-video sets a flag consumed by the ended-router so nothing auto-plays after. Timer survives auto-next opens, cancelled on player dispose. **Radio-only-checked fix (2026-09)**: all minute-option radios appeared checked simultaneously because the ternary `(_sleepUntil != null ? option.$1 : Duration.zero) == option.$1` evaluated true for every row; fix: track armed Duration in `_sleepOption` field and compare against `option.$1` directly. **Live-countdown fix (2026-09)**: the 1s ticker called `setState` on the player screen, not the `StatefulBuilder` inside the modal sheet, so the countdown label and radio states froze; fix: capture `setSheet` in `_sheetSetSheet` field and call it from the ticker.
 
 - **Play URL + audio delay (Phase 3, 2026-08-26)**:
   - **Play URL** (both platforms): home **+** → "Play URL" → dialog (`TvTextField`, TV-IME-safe) → any http(s) link plays directly through the normal pipeline (Android `DefaultHttpDataSource`, iOS engine loopback producer). Title = decoded last path segment (fallback host); **resume key is the URL itself** (`url:<url>`), so re-entering the same link resumes. Invalid/non-http(s) input → SnackBar, no navigation. Verified end-to-end on-device: phone streamed `http://<pc>:30000/dp_long.mp4` (`PLAYING position=6194` in dumpsys).
@@ -532,7 +532,7 @@ A video player app supporting:
 - **TMDB movie metadata** (`lib/services/tmdb_client.dart`, `lib/screens/tmd_details_screen.dart`, `lib/config/tmdb_api_key.dart`, pure Dart — no native code): continue-watching cards resolve their filename against **The Movie Database** for poster/backdrop art, the real title, year, synopsis, rating, genres, runtime, and cast. `TmdApi` keeps **one shared keep-alive `HttpClient`** for the app lifetime (a fresh client per request re-armed DNS+TLS each call → slow + intermittent `SocketException` on flaky links) with 15 s connect / 30 s response timeouts and **one retry** for transient failures (`SocketException`, `TimeoutException`, HTTP 429 rate-limit burst) before surfacing the `TmdException`. The scene-name parser (`ParsedFileName`) strips quality/codec/audio-channel noise (`1080p`, `WEB-DL`, `DDP5.1`, release groups after a dash like `-GROUP`, season/episode tags `S01E03`) while keeping title words like "Part" (`Dune.Part.Two`). **Search-query parser cleanup (2026-08)**: bracketed/parenthesized audio metadata is dropped from the query (`[Hindi AMZN DDP 2.0 224kbps + English DTS-HD MA 5.1]`, `(Hindi DDP 5.1 Korean DTS 5.1)`) unless the group carries an episode tag (`[S02E04]`) or the year (`(2013)`), both of which must survive for detection; bitrate tokens (`224kbps`, `640kbps`) are removed; `<group>-<site>` release suffixes (`USURY-4kHdHub.com`) are cut including the bare group; and underscore/bracket-glued tags (`Stranger_Things_[S02E04]_1080p`) are normalized to spaces so the word-boundary noise rules fire. Verified on-device against real NAS filenames: `Silence`, `Identity`, `Oldboy`, `Her (2013)`, `24`, `Main Vaapas Aaunga` all auto-match at score 1.00 (the old parser searched for garbage like "Silence MA"). Resolution order for the API key: the `--dart-define=TMDB_API_KEY` build-time value (seeded into prefs on first launch so later plain `flutter run`s keep working) → empty. **No key is ever committed**: the repo default is the empty env define; the user's key lives in gitignored `.env` (see `.env.example`) and is baked in via `--dart-define-from-file=.env`. (The Settings → Metadata screen has an API-key entry: it reads only the user's SAVED prefs key — not `effectiveApiKey()` — so the Remove button correctly flips the tile to "Not set" even when a build-time default exists.) **UI flow**: tapping a continue-watching card now opens `TmdDetailsScreen` (backdrop header, poster, star rating, runtime + genre chips, overview, cast row, big Play button) instead of the player directly; "Fix match" opens a TMDB search dialog to re-pin the entry (persisted via `TmdStore.setManual`) and "Remove info" clears a wrong auto-fetched match (`TmdService.clear` → cache + prefs dropped, home cards fall back to placeholder). Metadata is cached in shared_preferences (`dreamplayer.tmdbMeta`, keyed by `TmdStore.identityKeyFor` = resumeKey ?? path ?? uri); `home_screen` pre-resolves cards on load and the player shows the movie backdrop behind its loading/error layer. Cards without a match keep the gradient placeholder. Search/details run over `dart:io` HttpClient; no new native code.
 - **Per-file TMDB posters in every file list (2026-08)**: the library-folder screens (`folder_screen.dart` — folder root + subfolders, and `tmd_details_screen.dart` folder mode) plus the **WebDAV** (`webdav_screen.dart`) and **Jellyfin** (`jellyfin_screen.dart`) browsers now **auto-fetch** TMDB metadata for each movie/episode as the list loads (`_prefetchMeta`/`_prefetchJellyfinMeta`/`_prefetchTmdbMeta`) and render the file's **poster thumbnail** (`_Poster`, 48×72 rounded; `posterUrlOf()` lives in `tmdb_client.dart` so all row tiles share it) instead of the plain play icon. Each row resolves under the **same stable key its tap uses** (`TmdStore.identityKeyFor` = `resumeKey ?? path ?? uri`; WebDAV `webdav_<serverId><path>`; Jellyfin `_client.resumeKey` = `jellyfin:<host>/<itemId>`), so the prefetched match is a direct cache hit and the details screen opens already resolved. Every screen listens to `TmdService.instance` (rebuild on change), so a manual **"Fix match"/"Search TMDB"** pick from the opened file's details screen persists the poster and the row shows it immediately on return. Prefetch is fire-and-forget (`resolve(...).catchError((_) => null)`) — a TMDB failure just leaves the play icon. **Folder-meta inheritance fix (2026-08)**: `_openFolderEntry`/`_openJellyfinItem` previously called `carryMeta` for **every** file in a folder, stamping the folder's match onto standalone movie keys (a "Movies" folder's meta shown for each movie in it). `carryMeta` now runs only when the tapped file is an **episode** (`ParsedFileName.parse(...).isEpisode`, or Jellyfin `type == 'Episode'`) **and** the folder's meta is `TmdKind.tv`; for non-episode files any folder meta an older build stamped onto the key is cleared (`existing.movie.id == meta.movie.id` → `clear`) so the movie resolves its own title.
 - **Per-episode details** (`lib/services/tmdb_client.dart`, `lib/screens/tmd_details_screen.dart`): the single-episode details page shows **that episode's** name, overview, air date, runtime, rating, guest cast, and still frames instead of only the show's metadata. The season endpoint (`/tv/{id}/season/{n}`) supplies the name/overview/still; `TmdApi.episodeDetails` additionally hits the **per-episode endpoint** (`/tv/{id}/season/{n}/episode/{m}` with `append_to_response=credits,images`) for the guest cast + full still gallery. `TmdService.episodeDetailsFor` enriches the cached `TmdEpisode` in place (via `TmdSeason.withEpisode`) and runs only for the single-episode view (video mode), never for whole folder lists — so a folder with 100 files triggers no per-episode requests. `TmdEpisode` gained `cast`/`stills` fields with **dual-key JSON** (API `credits.cast`/`images.stills` vs cached `cast`/`stills`), so the prefs cache round-trips. UI: the header uses the episode still when season data is loaded, and an "Episode cast" row + horizontal **Stills** gallery sit between the episode overview and the show's cast. All best-effort: on API failure the episode silently keeps its season-level data.
-- **Donations**: Settings → **Support** lists two donation channels (Razorpay, GitHub Sponsors) via `lib/services/support_links.dart` (`url_launcher`). **Razorpay is set** (`https://rzp.io/rzp/cZ5afqVG`, a live payment link → `plink_TOrUqMDPRxYQFp`) and **GitHub Sponsors is set** (`https://github.com/sponsors/mangeshghodke/`). README has matching badges + a Support section.
+- **Donations**: Settings → **Support** lists two donation channels (Razorpay, GitHub Sponsors) via `lib/services/support_links.dart` (`url_launcher`). **Razorpay is set** (`https://rzp.io/rzp/cZ5afqVG`, a live payment link → `plink_TOrUqMDPRxYQFp`) and **GitHub Sponsors is set** (`https://github.com/sponsors/mangeshghodke/`). README has matching badges + a Support section. **iOS hides the whole Support section (2026-09-09)**: donations unlock nothing (Guideline 3.1.1-safe) but the links are Android-only — on iOS the paid tier is the IAP paywall, so `defaultTargetPlatform != TargetPlatform.iOS` gates the section (`settings_screen.dart`).
 - **Settings footer (2026-08)**: Settings → bottom shows "Made with ❤️ by Mangesh Ghodke".
 - **Network-share directory-listing cache (2026-09, all four sources)**: each native client (SMB/WebDAV/FTP/UPnP) keeps an in-memory `ConcurrentHashMap<String, CachedListing>` keyed by `(serverId|share|path)`, `(baseUrl|path|selfSigned)`, `(serverId|path|videoOnly)`, and `(serverId|objectId)` respectively — **60 s TTL**, auto-invalidated on `deleteServer`, plus an explicit `invalidateListingCache` channel method (mirrored Dart wrappers on `SmbClient`/`WebDavClient`/`FtpClient`/`UpnpClient`). Re-visiting a folder within the TTL is instant — no SMB2 `QUERY_DIRECTORY`, no WebDAV `PROPFIND` + DIDL parse, no fresh FTP/SFTP login, no DLNA SOAP `Browse`. Wins the most for plain FTP/SFTP (full handshake per `listFiles()`) and UPnP (SOAP round-trip + DIDL-Lite XML parse). Logcat tag per source prints `cache hit: <key>` on a hit. SMB's per-file `length()`/`lastModified()` were already removed earlier; this is the next layer above the protocol.
 - **Bookmarked SMB/WebDAV/Jellyfin folders render the full Nova-style series view (2026-09)**: opening a bookmarked TV-series folder from the home grid now shows the same poster + title + rating + genres + overview + cast header and season-grouped episodes with stills/names/ratings/overviews as the SMB browser — not just a flat file list. Three changes in `folder_screen.dart`: (1) `_loadSmb` / `_loadWebDav` / `_loadJellyfin` now also call `_detectAndLoadSeriesFolder()` after the directory listing returns (was missing on the home-bookmark path); (2) `_toVideoItem` widened to accept `SmbEntry`/`WebDavEntry`/`FileEntry` with proper per-source resume-key generation (`smb:<serverId>/<share>/<path>` / `webdav:<serverId><path>` / `fe.resumeKey`); (3) the missing widget classes (`_RatingBadge`, `_FactChip`, `_CastRow`, `_posterFallback`) were copied into `folder_screen.dart` so `_SeriesHeader` can build the same layout as `smb_screen.dart`'s `_SeriesFolderHeader`. The `_FolderTile` episode row also gained the **rating star + value** that `_SmbEpisodeTile` already had (was missing on the home-bookmark view).
@@ -775,50 +775,165 @@ So adding mpv back would re-break **the thing the user came here for** (real DV 
 **If MPV is ever added back, it must be opt-in and behind a clear warning.** A future opt-in "MP engine" toggle could route SDR/SDR-HEVC files through libmpv for users who want its filter/subtitle power — but DV/HDR10/HDR10+/HLG files MUST stay on Media3 + native SurfaceView or the panel stops receiving HDR. There is no way to get both from the same engine on Android today.
 
 
-### iOS monetization — Apple Developer + IAP paywall (planned, 2026-08-25)
+### iOS monetization — Apple Developer + IAP paywall (LOCKED 2026-09-09)
 
-User is buying the $99/yr Apple Developer Program; DreamPlayer gets a paid
-tier once it's active. Research summary so implementation starts cold:
+iOS-ONLY monetization; **Android is explicitly excluded and stays 100% free**
+(no Google Play Billing — sideload distribution; Entitlements returns
+`advanced = true` on Android, no HDR meter, no paywall). User is buying the
+$99/yr Apple Developer Program; the paywall goes live once the account + ASC
+products exist. Everything ships behind `--dart-define=PAYWALL_ENABLED=true`;
+with the define OFF (shipped releases today) the app is byte-for-byte what it
+is now — all free, no meter, no paywall.
 
-**Model decision**: single **non-consumable lifetime unlock**
-(`com.dreamplayer.app.advanced`) — OutPlayer-style freemium ("Advanced"),
-no subscription for v1. Optionally a yearly sub later; never double-gate the
-same feature.
+**LOCKED MODEL (2026-09-09, user-approved)**:
+- **Three product tiers** in App Store Connect (iOS):
+  - `advanced_monthly` — auto-renew sub, **₹199 (~$1.99)**
+  - `advanced_yearly` — auto-renew sub, **₹1,499 (~$14.99)**
+  - `advanced_lifetime` — non-consumable, **₹4,999 (~$49.99)**
+- **Entitlement logic**: app reads StoreKit 2 `Transaction.currentEntitlements`
+  at launch + subscribes to updates. If ANY product is active ends →
+  `advanced = true`. No server, no receipt validation beyond StoreKit's built-in.
+  Subscriptions are Apple-ID-bound → reinstall/restore is automatic (subs
+  auto-restore; lifetime via a mandatory **Restore Purchases** button).
+- **NO free-trial period** configured on any subscription. The discovery
+  mechanism is instead a **7-day free trial of the whole app**: the trial starts
+  on the first launch where the paywall is relevant (real PAYWALL_ENABLED builds
+  on iOS, or the debug "simulate free user" build on Android) and runs on the
+  **wall clock** (persisted `dreamplayer.trialStartedAt`; `trialActive` =
+  now - start < 7 days). While the trial is active every gate passes
+  (`isEntitled = isAdvanced || trialActive` — no per-playback meter, nothing to
+  reset on seek/resume, which is why the fragile 30-min playback-countdown was
+  dropped 2026-09). At trial end, gates fire normally for non-subscribers.
+  The Keychain (`trialStartedAt`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`,
+  NOT synchronizable) → survives restart AND reinstall on the same device
+  (anti free-trial-abuse) is the deferred native-iOS implementation; today the
+  start time is in SharedPreferences (per-session/device, testable on Android
+  via the two debug toggles).
+- **Paywall sheet** (list-based, `ListTile`/`_TvListTile`): three products
+  with live StoreKit prices, Buy → Apple sheet → entitlement flips → paywall
+  closes instantly (no restart). Restore Purchases button mandatory.
+- **Debug toggles (Settings → General, `kDebugMode` only, Android test path)**:
+  (1) "Debug: simulate free user" — forces `isAdvanced=false` + paywall active
+  on Android (starts the trial lazily on first flip); (2) "Debug: simulate
+  trial expired" — forces `trialActive=false` so gates fire immediately without
+  waiting 7 days. Both disabled in release builds (Android stays immune).
+- **Apple's cut**: 30% standard, **15% Small Business Program** (first $1M/yr,
+  apply in ASC immediately). India GST 18% added at checkout by Apple; dev cut
+  computed on the base tier (₹169/₹1,274/₹4,249 net @15%).
+- **Policy constraints (App Store Review)**: Guideline 3.1.1 (feature unlocks
+  MUST use Apple IAP; existing Support/Razorpay donations are fine — they
+  unlock nothing); Paid Apps Agreement + bank/tax forms before products;
+  Restore Purchases wherever a paywall exists; privacy-policy URL at submission.
 
-**Policy constraints (App Store Review)**:
-- Guideline 3.1.1: in-app feature unlocks MUST use Apple IAP — no external
-  (Razorpay/UPI) links that gate functionality. Existing Support donations
-  are fine as long as they unlock nothing.
-- Revenue: 30% cut, **85% under the Small Business Program** (apply in ASC
-  immediately; free if revenue < $1M).
-- Mandatory: Paid Apps Agreement + bank/tax forms before products can be
-  created; **Restore Purchases button** wherever a paywall exists; privacy
-  policy URL at submission.
-- Prices configured in App Store Connect (localized currencies/taxes handled
-  by Apple); receipts validated on-device via StoreKit 2 signed transactions
-  (no server needed).
+**LOCKED GATE MAP (final, 2026-09-09)** — gated features behind `advanced`:
+
+| # | Feature | Gate type |
+|---|---|---|
+| 9 | **Dolby Vision / HDR10 / HDR10+ / HLG playback** | Trial-gated (7-day free trial; gates fire after expiry) |
+| 36 | Subtitle styling (size/color/background/outline/delay) | Choice-gate on tap (paywall) |
+| 19 | Playback speed (any value ≠ 1×) | Choice-gate on selecting ≠ 1× |
+| 17 | A-B loop | Choice-gate on setting A/B |
+| 18 | Sleep timer | Choice-gate on arming timer |
+| 56 | Download to device | Choice-gate on start |
+| 37 | OpenSubtitles online search | Choice-gate on opening search sheet |
+
+**Explicitly NOT gated (iOS free forever)** — gating these would burn reviews
+(OutPlayer lesson: gating table-stakes = 1★ wave):
+- **PiP (22)** — only works on the native-AVPlayer path; Jellyfin/WebDAV/Files
+  FFmpeg-sourced files have NO PiP on iOS today. Gating it = "paid and PiP
+  doesn't work on my NAS file".
+- Gestures (15), aspect/fit (12), repeat/shuffle (16), auto-next (20),
+  chapters — table-stakes.
+- All codec audio decode (24) — every format plays free or the player has no
+  reason to exist.
+- All sources & browsing library/TMDB (41–55) — bread and butter; never gate
+  WebDAV/Jellyfin/SMB/FTP.
+- Subtitle VIEWING (32–35, 38–40) — only *styling* is gated.
+- Background playback (5), resume (21), watched (45), cover art (54),
+  info probe (55), downloads-list VIEWING (57), download dir picker (58).
+- **Android = every feature free forever** (hardcoded `advanced = true`,
+  zero gated code paths; the gate map is iOS-only).
+
+**ANDROID IMMUNITY GUARANTEE (2026-09-09)** — Android builds (esp. GitHub
+Releases sideloads) must NEVER show a paywall even after future bug-fix and
+feature releases. Three independent layers make a paywall leak on Android
+structurally impossible:
+1. **Source-level platform gate (the chokepoint)**: the ONLY authority is
+   `Entitlements.advanced` in `lib/services/entitlements.dart`. It returns
+   `true` UNCONDITIONALLY when `defaultTargetPlatform == TargetPlatform.android`
+   before any StoreKit read. No widget reads StoreKit directly — every gate
+   call site consumes this one getter, so Android can never be "not advanced".
+2. **StoreKit never initializes on Android**: the `in_app_purchase` plugin
+   setup (product fetch, transaction listener, entitlement refresh) is wrapped
+   in `Platform.isIOS` and skipped on Android — zero IAP code paths exist on
+   that OS, so nothing can even attempt a purchase state.
+3. **`PAYWALL_ENABLED` is OFF by default AND ignored on Android**:
+   `paywallEnabled = bool.fromEnvironment('PAYWALL_ENABLED', defaultValue: false)`.
+   The Android release workflow (`release.yml`) NEVER passes the define. Even
+   if someone forces it, every paywall call site ANDs `paywallEnabled &&
+   Platform.isIOS && !advanced`; on Android `advanced` is always true so the
+   paywall sheet's `show()` is a guaranteed no-op.
+Enforced by tests: `test/entitlements_test.dart` asserts (a) on Android
+`advanced` is always true, (b) all 7 gate helper functions return
+`notRequired` on Android regardless of store state, and (c) the paywall
+sheet builder returns null on Android. CI (`flutter test`) gates the paywall
+branch. Future Android-only features must follow the same pattern: read
+`Entitlements.advanced`, never touch StoreKit, never gate.
+- Note: bass/volume-boost/night-mode/spatial (28–31) are **Android-only today**;
+  they don't exist on iOS, so they're NOT in this gate map. If iOS audio DSP
+  is ever built (AVAudioEngine), it can be added behind the paywall later —
+  never double-gate the same feature.
+
+**Testing gate** (2026-09-09): ✅ **ALL 7 GATES VERIFIED** on-device
+(OnePlus CPH2573, `a019b7f3`, debug APK, 2026-09-09). Paywall code can
+now be written behind `PAYWALL_ENABLED`.
+- ✅ #9 HDR10+ playback — `hdr10+test_lake_2021_02_01.mp4` decoded via
+  `c2.qti.hevc.decoder`, SurfaceFlinger `BT2020_ITU_PQ hdr metadata types=7`,
+  `desired hdr/sdr ratio=5.0` (EDR ramp engaged).
+- ✅ #36 Subtitle styling — House S02E05 + `.srt` sibling; CC sheet →
+  "Subtitle settings" → size/color/background/outline/delay all functional,
+  XL preview rendered at 1204 px.
+- ✅ #19 Playback speed 1.5× — confirmed via MediaSessionService logcat
+  `speed=1.5`.
+- ✅ #17 A-B loop — A at 12:29, B at 14:17; user-confirmed loop on-device.
+- ✅ #18 Sleep timer — radio-only-checked bug fixed (`_sleepOption` field +
+  `_sheetSetSheet` capture), 5-min timer counted down live in sheet, paused
+  both engines on fire.
+- ✅ #56 Download to device — network source ⋮ → "Download to device" triggers
+  foreground service + notification + progress; completed file playable from
+  home grid.
+- ✅ #37 OpenSubtitles search — CC sheet → "Search online subtitles…" opened
+  search form, results returned, subtitle downloaded and applied.
 
 **Implementation sketch**:
 - Official `in_app_purchase` Flutter plugin (StoreKit 2 + Play Billing behind
   one API). New `Entitlements` ChangeNotifier service: loads
   `Transaction.currentEntitlements`, caches locally for instant UI, exposes
-  `advanced` bool; `buy()` → `buyNonConsumable` + `completePurchase`.
-- Paywall sheet widget reads localized price from `Product.products(for:)`.
-- Gate NEW premium features only (never strip existing free behavior):
-  candidates = Bass Boost/EQ presets, subtitle extras (custom fonts/dual subs),
-  themes/accents, future skip-intro/cloud sync.
-
-**Android reality check**: current GitHub-Releases sideloading means Google
-Play Billing does NOT work there (needs Play distribution). Options: keep
-Android free + donations (recommended v1), publish to Play and mirror IAP,
-or self-hosted Razorpay license keys (high effort). Phase: iOS first.
-
-**Testing**: sandbox testers (ASC), `.storekit` configuration file for local/
-CI testing without money, TestFlight for production products in sandbox.
+  `advanced`; `buy()`. Paywall sheet reads localized prices from
+  `Product.products(for:)`.
+- iOS native: Keychain store for `trialStartedAt` (channel `dreamplayer/trial`)
+  so the 7-day trial survives restart/reinstall; gates read `isEntitled`
+  (`isAdvanced || trialActive`).
+- Gate wiring: paywall-on-tap at the 7 call sites via `_gate()`; all behind
+  `PAYWALL_ENABLED`.
+- **Settings-tab gates (2026-09-09, premium tiles only)**: `SettingsScreen` has
+  its own `_settingsGate()` (same `checkGate` shape as `PlayerScreen._gate`);
+  Android is always advanced so it is a guaranteed no-op there. Wired onto the
+  **#37 family** only — OpenSubtitles sign-in (settings_screen.dart OpenSubtitles
+  tile, gated on the login branch; logout stays free), **Subtitle download
+  language** (`settingsSubDownloadLang`), and **Auto-fetch online subtitles**
+  (toggle gated only when turning ON; off is always free). Subtitle **Reading
+  language** + **Encoding** stay free (documented "subtitle viewing free",
+  App Review risk). **Auto-fetch loophole closed (2026-09-09)**: `_maybeAutoFetchSubs`
+  (player_screen.dart) downloaded online subtitles with NO gate — an automatic
+  bypass of #37's choice-gate; it now calls `_gate()` before searching
+  (`_autoFetchFired` latch means a gated user isn't nagged per state change).
+- `.storekit` configuration file for local/CI without money; sandbox testers
+  + TestFlight for production products.
 
 **Order of ops when account clears**: agreements/bank/tax -> Small Business
-Program -> create product (~₹299/$4.99 tier) -> Entitlements + paywall (1–2
-days) -> gate features + Restore button -> sandbox verify -> submit.
+Program -> create 3 products (₹199 / ₹1,499 / ₹4,999) -> Entitlements + paywall
+(1–2 days) -> gates + Restore button -> sandbox verify -> submit.
 
 ### Competitor-gap roadmap, phased (2026-08)
 
@@ -994,7 +1109,8 @@ The home library shows **only folders the user explicitly adds** — nothing is 
   - **Manual-only** (`workflow_dispatch` — no push trigger): run it from the Actions tab when a build is wanted; builds unsigned IPA artifact always.
   - Signed build + TestFlight upload run only when secrets are configured.
   - Secrets needed: `IOS_CERT_BASE64`, `IOS_CERT_PASSWORD`, `IOS_PROFILE_BASE64`, `APPSTORE_API_KEY`, `APPSTORE_API_KEY_ID`, `APPSTORE_ISSUER_ID`.
-- **GitHub Releases** (`.github/workflows/release.yml`): push a `v*` tag (`git tag v0.3.8 && git push origin v0.3.8`) → builds the **universal** release APK + **split-per-abi** APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) on `ubuntu-latest` (+ tests first), and the unsigned iOS IPA (`DreamPlayer-<version>.ipa`) on `macos-latest`; then creates the GitHub Release on the tag with the matching `## <version>` section extracted from CHANGELOG.md + `.github/release_notes.md`, attaching all artifacts. App version is **0.3.8** (`pubspec.yaml` `version: 0.3.8+1`) and must be bumped per release to match the tag. Android APKs are still **debug-signed** (`build.gradle.kts` falls back to debug config) — fine for sideloading; real signing setup was deferred (2026-08-21): generate an upload keystore, gitignored `android/key.properties`, gradle reads it with debug fallback, optional CI secrets later.
+- **GitHub Releases** (`.github/workflows/release.yml`): push a `v*` tag (`git tag v0.3.8 && git push origin v0.3.8`) → builds the **universal** release APK + **split-per-abi** APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) on `ubuntu-latest` (+ tests first), and the unsigned iOS IPA (`DreamPlayer-<version>.ipa`) on `macos-latest`; then creates the GitHub Release on the tag with the matching `## <version>` section extracted from CHANGELOG.md + `.github/release_notes.md`, attaching all artifacts. App version is **0.3.8** (`pubspec.yaml` `version: 0.3.8+1`) and must be bumped per release to match the tag.
+- **Android release signing (DONE 2026-09-09)**: `android/app/upload-keystore.jks` (`alias upload`, RSA 2048, 10000-day validity, `CN=DreamPlayer`; `SHA-256 2ff29762…`) + gitignored `android/key.properties` (store/key passwords, alias, `storeFile=upload-keystore.jks` — the `storeFile` path resolves relative to the **app module** dir, so the keystore lives in `android/app/`). `build.gradle.kts` now defines a `release` signing config **only when** `key.properties` exists (`hasUploadKeystore`, existence checked via `file(...)` — NOT `rootProject.file(...)`, which checks the wrong dir — and the debug fallback stays `signingConfigs.getByName("debug")`). Verified on-device builds: with the keystore present the APK signs as `CN=DreamPlayer`; with it absent (CI) it falls back to `Android Debug` — both `assembleRelease` paths build. **The keystore + passwords are irrecoverable — back them up** (they're gitignored, machine-local, 600 perms). CI releases stay **debug-signed** by design (no keystore secrets in a public repo for sideload-only distribution); when Play publishing starts, add the keystore as base64 GH secrets + a `google-play` upload step and switch CI to producing `.aab` via the Play console. Play requires the SAME upload key forever — do not lose it.
 - **Bundle ID (iOS)**: `com.dreamplayer.app`. **App display name**: `DreamPlayer`.
 - **Android**: app label `DreamPlayer`; package `com.dreamplayer.app` (matches iOS bundle ID `com.dreamplayer.app`). Build/test locally on the phone.
 
