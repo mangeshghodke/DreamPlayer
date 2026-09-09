@@ -93,7 +93,11 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
 
       // Use the cached meta if available; otherwise resolve fresh.
       var meta = service.metaFor(_groupKey);
-      meta ??= await service.resolveFolder(_groupKey, widget.group.displayName);
+      meta ??= await service.resolveFolder(
+        _groupKey,
+        widget.group.displayName,
+        yearHint: widget.group.primary.yearHint,
+      );
 
       // Fetch details (overview, genres, etc.) — this is what the old
       // implementation skipped, causing the null-details blank header.
@@ -126,6 +130,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           final folderMeta = await service.resolveFolder(
             folder.metadataKey,
             folder.name,
+            yearHint: folder.yearHint,
           );
           folderSeason = folderMeta?.folderSeason;
         }

@@ -800,7 +800,15 @@ final yearMatch = _yearPattern.firstMatch(name);
     if (effectiveSeriesName == null &&
         parentFolderName != null &&
         parentFolderName.isNotEmpty &&
-        !_hasEpisodePattern(parentFolderName)) {
+        !_hasEpisodePattern(parentFolderName) &&
+        // Only inherit the parent folder as seriesName when the file itself
+        // has no proper searchable title (e.g. "01.mkv", "Episode 02.mkv").
+        // A standalone movie like "24 (2016).mkv" already has title="24" and
+        // year=2016 — using the parent folder "24" as seriesName turns the
+        // movie into a TV search and picks the wrong duplicate (2001 series).
+        // The generic-title check covers the episode-only cases the fallback
+        // was designed for, while year!=null blocks the movie case.
+        (title.isEmpty || year == null && _isGenericTitle(title))) {
       final folderParsed = parse(parentFolderName);
       effectiveSeriesName = folderParsed.title.isNotEmpty
           ? folderParsed.title
@@ -842,6 +850,16 @@ final yearMatch = _yearPattern.firstMatch(name);
         .hasMatch(lower)) {
       return true;
     }
+    return false;
+  }
+
+  static bool _isGenericTitle(String title) {
+    final t = title.trim().toLowerCase();
+    if (t.isEmpty) return true;
+    // Bare episode/partition labels like "episode", "ep1", "01", "part 2".
+    if (RegExp(r'^(episode|ep|part|chapter)\s*\d*$').hasMatch(t)) return true;
+    if (RegExp(r'^\d{1,3}$').hasMatch(t)) return true;
+    if (t == 'episode' || t == 'ep') return true;
     return false;
   }
 
@@ -1222,7 +1240,7 @@ class TmdApi {
       if (candidateYear == year) {
         score += 0.5;
       } else if (candidateYear != null) {
-        score -= 0.1;
+        score -= 0.2;
       }
     }
 
@@ -1431,20 +1449,40 @@ class TmdService extends ChangeNotifier {
     final identityKey = TmdStore.identityKeyFor(video);
     if (identityKey.isEmpty) return null;
     await ensureLoaded();
-    final cached = _cache[identityKey];
-    if (cached != null) {
-      return cached;
-    }
-    final inFlight = _pending[identityKey];
-    if (inFlight != null) {
-      return inFlight;
-    }
-
     final parsed = ParsedFileName.parse(
       video.title,
       parentFolderName: parentFolderName,
     );
     if (parsed.title.isEmpty) return null;
+
+    final cached = _cache[identityKey];
+    if (cached != null) {
+      // Stale-cache guard: the old parentFolderName fallback used the SMB
+      // parent folder ("24") as seriesName for files like "24 (2016).mkv",
+      // caching the 2001 TV series under the file's key. That wrong entry
+      // would be returned forever via the early `return cached` above and the
+      // prefetch's `service.metaFor(key) != null` skip. Detect the mismatch
+      // (wrong kind or year) and re-resolve instead of returning stale data.
+      final hasSeries = parsed.isEpisode ||
+          (parsed.seriesName?.isNotEmpty ?? false);
+      final expectedKind = hasSeries ? TmdKind.tv : TmdKind.movie;
+      final isStaleKind = cached.movie.kind != expectedKind;
+      final isStaleYear = parsed.year != null &&
+          cached.movie.year != null &&
+          cached.movie.year != parsed.year;
+      if (!isStaleKind && !isStaleYear) {
+        return cached;
+      }
+      // Stale — drop it so _resolveNow overwrites with the correct match.
+      _cache.remove(identityKey);
+      try {
+        await TmdStore.remove(identityKey);
+      } catch (_) {}
+    }
+    final inFlight = _pending[identityKey];
+    if (inFlight != null) {
+      return inFlight;
+    }
 
     final future = _resolveNow(identityKey, parsed);
     _pending[identityKey] = future;
