@@ -1,10 +1,34 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Keystore-aware signing config. key.properties is gitignored; when present
+// the release build signs with the upload key, otherwise it falls back to the
+// debug key so `flutter run --release` / CI without the keystore still work.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) load(FileInputStream(f))
+}
+val hasUploadKeystore =
+    keystoreProps.containsKey("storeFile") &&
+        file(keystoreProps.getProperty("storeFile")).isFile
+
 android {
+    signingConfigs {
+        if (hasUploadKeystore) {
+            create("release") {
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+            }
+        }
+    }
     namespace = "com.dreamplayer.app"
     compileSdk = 37
     ndkVersion = flutter.ndkVersion
@@ -26,9 +50,14 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Sign with the upload keystore when key.properties exists
+            // (gitignored); fall back to the debug key otherwise so local
+            // `flutter run --release` and CI keep working without it.
+            signingConfig = if (hasUploadKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             // R8 shrinks+obfuscates by default. BouncyCastle registers its
             // algorithms by string reflection (Provider.put -> class name), so
             // we keep it unminified in proguard-rules.pro.
