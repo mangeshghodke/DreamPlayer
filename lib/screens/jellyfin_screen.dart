@@ -349,6 +349,57 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   Future<void> _addToLibrary(JellyfinItem item) async {
     final server = _browsing;
     if (server == null) return;
+
+    // Check auto-expand: list children and create individual cards.
+    final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
+    if (autoExpand && item.isFolder && server.isAuthenticated) {
+      try {
+        final children = await _client.getItems(server, item.id);
+        if (children.isNotEmpty) {
+          final parentId = 'jellyfin_folder_${server.urlHost}_${item.id}';
+          final expanded = <LibraryFolder>[];
+          for (final child in children) {
+            final childId = '${parentId}_${child.id}';
+            if (child.isFolder) {
+              expanded.add(LibraryFolder(
+                id: childId,
+                name: child.name,
+                path: 'jellyfin:${child.id}',
+                addedAt: DateTime.now(),
+                source: LibraryFolderSource.jellyfin,
+                jellyfinServerUrl: server.url,
+                jellyfinItemId: child.id,
+                parentId: parentId,
+              ));
+            } else if (child.isPlayable && child.mediaType == 'Video') {
+              expanded.add(LibraryFolder(
+                id: childId,
+                name: child.name,
+                path: 'jellyfin:${child.id}',
+                addedAt: DateTime.now(),
+                source: LibraryFolderSource.jellyfin,
+                jellyfinServerUrl: server.url,
+                jellyfinItemId: child.id,
+                parentId: parentId,
+                isFile: true,
+              ));
+            }
+          }
+          if (expanded.isNotEmpty) {
+            await LibraryFoldersStore.bulkAdd(expanded);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('"${item.name}" expanded into ${expanded.length} items')),
+            );
+            return;
+          }
+        }
+      } catch (_) {
+        // Fallback to single card on listing failure.
+      }
+    }
+
+    // Fallback: single card.
     final folder = LibraryFolder(
       id: 'jellyfin_folder_${server.urlHost}_${item.id}',
       name: item.name,

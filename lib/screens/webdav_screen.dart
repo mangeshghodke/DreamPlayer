@@ -368,6 +368,56 @@ class _WebDavScreenState extends State<WebDavScreen> {
     final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
     final folderName = cleanPath.split('/').last;
     final id = 'webdav_${server.id}_${cleanPath.hashCode}';
+
+    // Check auto-expand.
+    final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
+    if (autoExpand && _entries.isNotEmpty) {
+      final parentId = id;
+      final expanded = <LibraryFolder>[];
+      for (final entry in _entries) {
+        final childId = '${parentId}_${entry.name.hashCode}';
+        final childPath = '$cleanPath/${entry.name}';
+        if (entry.isDirectory) {
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: entry.name,
+            path: 'webdav:${server.id}$childPath',
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.webdav,
+            networkServerId: server.id,
+            networkPath: childPath,
+            networkLabel: server.name,
+            parentId: parentId,
+            yearHint: ParsedFileName.yearFromNames([entry.name]),
+          ));
+        } else if (_isVideoFile(entry.name)) {
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: entry.name,
+            path: 'webdav:${server.id}$childPath',
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.webdav,
+            networkServerId: server.id,
+            networkPath: childPath,
+            networkLabel: server.name,
+            parentId: parentId,
+            isFile: true,
+            videoSizeBytes: entry.size > 0 ? entry.size : null,
+          ));
+        }
+      }
+      if (expanded.isNotEmpty) {
+        await LibraryFoldersStore.bulkAdd(expanded);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Bookmarked $folderName to Home — ${expanded.length} items (WebDAV · ${server.name})')),
+          );
+        }
+        return;
+      }
+    }
+
+    // Fallback: single card.
     final folder = LibraryFolder(
       id: id,
       name: folderName,
@@ -387,6 +437,25 @@ class _WebDavScreenState extends State<WebDavScreen> {
         SnackBar(content: Text('Bookmarked $folderName to Home (WebDAV · ${server.name})')),
       );
     }
+  }
+
+  static bool _isVideoFile(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.mkv') ||
+        lower.endsWith('.mp4') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.webm') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.ts') ||
+        lower.endsWith('.m2ts') ||
+        lower.endsWith('.wmv') ||
+        lower.endsWith('.flv') ||
+        lower.endsWith('.ogv') ||
+        lower.endsWith('.rmvb') ||
+        lower.endsWith('.mpg') ||
+        lower.endsWith('.mpeg') ||
+        lower.endsWith('.vob') ||
+        lower.endsWith('.3gp');
   }
 
   void _addServer() => _showServerDialog();

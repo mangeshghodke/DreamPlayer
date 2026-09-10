@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
 import '../services/ftp_client.dart';
+import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
@@ -318,6 +319,115 @@ class _FtpScreenState extends State<FtpScreen> {
     _refreshResumes();
   }
 
+  /// Bookmarks the current FTP/SFTP folder to the home library (with the
+  /// auto-expand pattern: subfolders + video files become child cards when
+  /// enabled — same as SMB/WebDAV).
+  Future<void> _bookmarkCurrentFolder() async {
+    final server = _browsing;
+    if (server == null || _atBrowseRoot) return;
+    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+    final folderName =
+        cleanPath.split('/').where((s) => s.isNotEmpty).lastOrNull ?? server.name;
+    final id = 'ftp_${server.id}_${cleanPath.hashCode}';
+
+    final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
+    if (autoExpand && _entries.isNotEmpty) {
+      final parentId = id;
+      final expanded = <LibraryFolder>[];
+      for (final entry in _entries) {
+        final childId = '${parentId}_${entry.name.hashCode}';
+        final childPath = '$cleanPath/${entry.name}';
+        if (entry.isDirectory) {
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: entry.name,
+            path: 'ftp:${server.id}$childPath',
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.ftp,
+            networkServerId: server.id,
+            networkPath: childPath,
+            networkLabel: server.name,
+            parentId: parentId,
+            yearHint: ParsedFileName.yearFromNames([entry.name]),
+          ));
+        } else if (_isVideoFile(entry.name)) {
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: entry.name,
+            path: 'ftp:${server.id}$childPath',
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.ftp,
+            networkServerId: server.id,
+            networkPath: childPath,
+            networkLabel: server.name,
+            parentId: parentId,
+            isFile: true,
+            videoSizeBytes: entry.size > 0 ? entry.size : null,
+          ));
+        }
+      }
+      if (expanded.isNotEmpty) {
+        await LibraryFoldersStore.bulkAdd(expanded);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Bookmarked $folderName to Home — ${expanded.length} items '
+                '(${server.isSftp ? 'SFTP' : 'FTP'} · ${server.name})',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    // Fallback: single card.
+    final folder = LibraryFolder(
+      id: id,
+      name: folderName,
+      path: 'ftp:${server.id}$cleanPath',
+      addedAt: DateTime.now(),
+      source: LibraryFolderSource.ftp,
+      networkServerId: server.id,
+      networkPath: cleanPath,
+      networkLabel: server.name,
+      yearHint: ParsedFileName.yearFromNames(
+        _entries.map((e) => e.name),
+      ),
+    );
+    await LibraryFoldersStore.add(folder);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Bookmarked $folderName to Home '
+            '(${server.isSftp ? 'SFTP' : 'FTP'} · ${server.name})',
+          ),
+        ),
+      );
+    }
+  }
+
+  static bool _isVideoFile(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.mkv') ||
+        lower.endsWith('.mp4') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.webm') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.ts') ||
+        lower.endsWith('.m2ts') ||
+        lower.endsWith('.wmv') ||
+        lower.endsWith('.flv') ||
+        lower.endsWith('.ogv') ||
+        lower.endsWith('.rmvb') ||
+        lower.endsWith('.mpg') ||
+        lower.endsWith('.mpeg') ||
+        lower.endsWith('.vob') ||
+        lower.endsWith('.3gp');
+  }
+
   Future<void> _goUp() async {
     if (_browsing == null) {
       Navigator.of(context).pop();
@@ -378,6 +488,12 @@ class _FtpScreenState extends State<FtpScreen> {
               )
             : null,
         actions: [
+          if (browsing != null && !_atBrowseRoot)
+            IconButton(
+              tooltip: 'Add to library',
+              icon: const Icon(Icons.bookmark_add_outlined),
+              onPressed: _bookmarkCurrentFolder,
+            ),
           if (browsing != null)
             IconButton(
               tooltip: AppLocalizations.of(context).ftpServerList,

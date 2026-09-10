@@ -45,6 +45,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     String metadataKey,
     List<Object> entries,
     int? folderSeason,
+    LibraryFolder folder,
   })> _folders = [];
   TmdMeta? _meta;
   TmdDetails? _details;
@@ -79,6 +80,16 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       setState(() => _details = d);
     });
     setState(() => _meta = meta);
+  }
+
+  Future<void> _toggleWatched(Object entry) async {
+    final key = _resumeKeyFor(entry);
+    if (key == null || key.isEmpty) return;
+    final now = !_watchedKeys.contains(key);
+    final updated = {..._watchedKeys};
+    now ? updated.add(key) : updated.remove(key);
+    setState(() => _watchedKeys = updated);
+    await WatchedStore.set(key, now);
   }
 
   Future<void> _load() async {
@@ -117,6 +128,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         String metadataKey,
         List<Object> entries,
         int? folderSeason,
+        LibraryFolder folder,
       })>[];
       final showId = meta?.movie.id;
       for (final folder in widget.group.folders) {
@@ -136,12 +148,92 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         }
 
         final entries = await _listFolder(folder);
-        folderEntries.add((
-          folderLabel: folder.name,
-          metadataKey: folder.metadataKey,
-          entries: entries,
-          folderSeason: folderSeason,
-        ));
+        // Scan subdirectories inside this folder — for series like Strike the
+        // Blood that have season subfolders (II, III, Final, etc.).
+        final subfolderEntries = <({String folderLabel, String metadataKey, List<Object> entries, int? folderSeason, LibraryFolder folder})>[];
+        for (final e in entries) {
+          if (!_isFolder(e)) continue;
+          final subName = _nameOf(e);
+          final p = ParsedFileName.parse(subName);
+          int? subSeason = p.season > 0 ? p.season : null;
+          if (subSeason == null && showId != null && meta != null) {
+            final names = await service.seasonNameMapFor(_groupKey);
+            if (names.isNotEmpty) {
+              subSeason = service.matchFolderToSeason(subName, meta.movie.id);
+            }
+          }
+          // For subfolder seasons (II, III, Final), list contents via the
+          // synthetic subfolder or fall back to the entry's own listing.
+          final subFolderSynthetic = LibraryFolder(
+            id: '${folder.id}_${subName.hashCode}',
+            name: subName,
+            path: folder.source == LibraryFolderSource.smb
+                ? 'smb:${folder.networkServerId}/${folder.networkShare}/${folder.networkPath!.isNotEmpty ? "${folder.networkPath}/" : ""}$subName'
+                : (e is FileEntry ? e.path : folder.path),
+            addedAt: folder.addedAt,
+            source: folder.source,
+            networkServerId: folder.networkServerId,
+            networkShare: folder.networkShare,
+            networkPath: folder.source == LibraryFolderSource.smb
+                 ? '${folder.networkPath!.isNotEmpty ? "${folder.networkPath}/" : ""}$subName'
+                : (e is FileEntry ? e.path : folder.networkPath),
+          );
+          final subEntries = await _listFolder(subFolderSynthetic);
+          if (subSeason == null) {
+            for (final f in subEntries) {
+              if (f is FileEntry && !f.isDirectory) {
+                final epS = _seasonOfFromFileEntry(f);
+                if (epS > 0) {
+                  subSeason = epS;
+                  break;
+                }
+              }
+            }
+          }
+          subfolderEntries.add((
+            folderLabel: subName,
+            metadataKey: '${folder.metadataKey}_sub',
+            entries: subEntries,
+            folderSeason: subSeason ?? 1,
+            folder: LibraryFolder(
+              id: '${folder.id}_${subName.hashCode}',
+              name: subName,
+              path: (e is FileEntry ? e.path : folder.path),
+              addedAt: folder.addedAt,
+              source: folder.source,
+              networkServerId: folder.networkServerId,
+              networkShare: folder.networkShare,
+              networkPath: (e is FileEntry ? e.path : folder.networkPath),
+            ),
+          ));
+        }
+        // If subfolders found, use them as season entries.
+        if (subfolderEntries.isNotEmpty) {
+          folderEntries.clear();
+          folderEntries.addAll(subfolderEntries);
+        } else {
+          if (folderSeason == null) {
+            final p = ParsedFileName.parse(folder.name);
+            if (p.season > 0) {
+              folderSeason = p.season;
+            } else {
+              for (final e in entries) {
+                final epSeason = _seasonOf(e);
+                if (epSeason > 0) {
+                  folderSeason = epSeason;
+                  break;
+                }
+              }
+            }
+          }
+          folderEntries.add((
+            folderLabel: folder.name,
+            metadataKey: folder.metadataKey,
+            entries: entries,
+            folderSeason: folderSeason,
+            folder: folder,
+          ));
+        }
       }
       if (!mounted) return;
       setState(() {
@@ -336,14 +428,30 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     return false;
   }
 
+  int _seasonOfFromFileEntry(FileEntry entry) {
+    final name = entry.name;
+    if (name.isEmpty) return 1;
+    final parsed = ParsedFileName.parse(name);
+    if (parsed.season > 0) return parsed.season;
+    return 1;
+  }
+
   int _seasonOf(Object e) {
     if (e is JellyfinItem) return e.parentIndexNumber ?? 1;
 
     // Find which folder this entry belongs to and use its folderSeason.
     for (final f in _folders) {
       if (f.entries.contains(e)) {
-        if (f.folderSeason != null && f.folderSeason! > 0) {
-          return f.folderSeason!;
+        // For single-folder groups, prefer the TMDB-resolved folderSeason from meta
+        // (e.g. "Final" → Season 5) over the folder-name-parsed value.
+        int? effectiveFolderSeason;
+        if (_folders.length == 1 && _meta?.folderSeason != null) {
+          effectiveFolderSeason = _meta!.folderSeason;
+        } else {
+          effectiveFolderSeason = f.folderSeason;
+        }
+        if (effectiveFolderSeason != null && effectiveFolderSeason > 0) {
+          return effectiveFolderSeason;
         }
         break;
       }
@@ -385,10 +493,11 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   String _seasonLabel(int seasonNumber, int episodeCount) {
     final season = _meta?.seasons[seasonNumber];
     final tmdbName = season?.name.trim();
-    if (tmdbName != null && tmdbName.isNotEmpty) {
-      return '${sg.seasonHeader(seasonNumber)} · $tmdbName';
+    final genericName = sg.seasonHeader(seasonNumber);
+    if (tmdbName != null && tmdbName.isNotEmpty && tmdbName != genericName) {
+      return '$genericName · $tmdbName';
     }
-    return sg.seasonHeader(seasonNumber);
+    return genericName;
   }
 
   @override
@@ -456,7 +565,9 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             child: _SeriesHeader(
               meta: meta,
               details: _details,
+              metadataKey: _groupKey,
               onFixMatch: () => _fixMatch(),
+              onRemoveInfo: null,
             ),
           ),
         ),
@@ -505,85 +616,230 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       );
     }
 
-    // Total file count header.
-    final totalCount = grouped.values.fold<int>(0, (sum, l) => sum + l.length);
-    slivers.add(
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-        sliver: SliverToBoxAdapter(
-          child: Row(
-            children: [
-              Text(
-                'Seasons',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$totalCount ${totalCount == 1 ? 'file' : 'files'}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    for (final s in sortedSeasons) {
-      final entries = grouped[s]!;
-      entries.sort((a, b) => _episodeOf(a).compareTo(_episodeOf(b)));
-      final watchedCount =
-          sg.watchedCount(entries, _watchedKeys, _resumeKeyFor);
+    // Cast row (Nova-style) — above seasons.
+    if (_details != null && _details!.cast.isNotEmpty) {
       slivers.add(
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           sliver: SliverToBoxAdapter(
-            child: ExpansionTile(
-              initiallyExpanded: true,
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: EdgeInsets.zero,
-              shape: const Border(),
-              collapsedShape: const Border(),
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _seasonLabel(s, entries.length),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                    ),
-                  ),
-                  _SeasonBadge(
-                    text: sg.watchedBadge(watchedCount, entries.length),
-                  ),
-                ],
-              ),
-              children: [
-                for (final entry in entries)
-                  _EntryTile(
-                    entry: entry,
-                    resumePositionMs:
-                        _resumePositionsMs[_resumeKeyFor(entry) ?? ''],
-                    durationMs: _durationsMs[_resumeKeyFor(entry) ?? ''],
-                    watched:
-                        _watchedKeys.contains(_resumeKeyFor(entry) ?? ''),
-                    seasonNumber: s,
-                    episode: _episodeFor(entry),
-                    onTap: () => _openEntry(entry),
-                  ),
-              ],
-            ),
+            child: _CastRow(cast: _details!.cast),
           ),
         ),
       );
     }
 
+    // Season poster cards grid (Nova-style) — only for groups with
+    // multiple seasons. Single-season folders skip straight to episodes.
+    if (sortedSeasons.length > 1) {
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              'Seasons',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+        ),
+      );
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.58,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final s = sortedSeasons[index];
+                final posterUrl = _meta?.seasons[s]?.posterUrl(width: 300) ??
+                    _meta?.movie.posterUrl(width: 300);
+                final tmdbName = _meta?.seasons[s]?.name;
+                final genericName = 'Season $s';
+                final seasonName = (tmdbName != null && tmdbName != genericName)
+                    ? '$genericName · $tmdbName'
+                    : genericName;
+                final matchFolder = _folders
+                    .where((f) => f.folderSeason == s)
+                    .firstOrNull
+                    ?.folder ??
+                    widget.group.folders.where((f) {
+                      final p = ParsedFileName.parse(f.name);
+                      return p.season == s;
+                    }).firstOrNull ??
+                    _folders.where((f) {
+                      final sOfEntries = f.entries.map(_seasonOf).where((n) => n > 0).firstOrNull;
+                      return sOfEntries == s;
+                    }).firstOrNull?.folder;
+                return _SeasonPosterCard(
+                  seasonNumber: s,
+                  posterUrl: posterUrl,
+                  seasonName: seasonName,
+                  onTap: () {
+                    if (matchFolder != null) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => TmdDetailsScreen(folder: matchFolder),
+                        ),
+                      );
+                    }
+                  },
+                  onLongPress: matchFolder != null ? () => _removeSeason(matchFolder) : null,
+                );
+              },
+              childCount: sortedSeasons.length,
+            ),
+          ),
+        ),
+      );
+      slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 12)));
+    }
+
+    // When there are multiple seasons, each season card opens its own
+    // dedicated season view (with that season's details + episodes).
+    // When there is only 1 season (or 0), render episodes directly here.
+    if (sortedSeasons.length <= 1) {
+      final totalCount = grouped.values.fold<int>(0, (sum, l) => sum + l.length);
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          sliver: SliverToBoxAdapter(
+            child: Row(
+              children: [
+                Text(
+                  'Episodes',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$totalCount ${totalCount == 1 ? 'file' : 'files'}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      for (final s in sortedSeasons) {
+        final entries = grouped[s]!;
+        entries.sort((a, b) => _episodeOf(a).compareTo(_episodeOf(b)));
+        final watchedCount =
+            sg.watchedCount(entries, _watchedKeys, _resumeKeyFor);
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: ExpansionTile(
+                initiallyExpanded: true,
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                shape: const Border(),
+                collapsedShape: const Border(),
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _seasonLabel(s, entries.length),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                      ),
+                    ),
+                    _SeasonBadge(
+                      text: sg.watchedBadge(watchedCount, entries.length),
+                    ),
+                  ],
+                ),
+                children: [
+                  for (final entry in entries)
+                    _EntryTile(
+                      entry: entry,
+                      resumePositionMs:
+                          _resumePositionsMs[_resumeKeyFor(entry) ?? ''],
+                      durationMs: _durationsMs[_resumeKeyFor(entry) ?? ''],
+                      watched:
+                          _watchedKeys.contains(_resumeKeyFor(entry) ?? ''),
+                      seasonNumber: s,
+                      episode: _episodeFor(entry),
+                      onTap: () => _openEntry(entry),
+                      onToggleWatched: () => _toggleWatched(entry),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
     return slivers;
+  }
+
+  /// Remove a season subfolder from the library (e.g. long-press on a season
+  /// poster card to remove that season folder).
+  Future<void> _removeSeason(LibraryFolder folder) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove season'),
+        content: Text(
+          '"${folder.name}" will no longer appear here. '
+          'The files stay on your device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await LibraryFoldersStore.remove(folder.id);
+    if (folder.source == LibraryFolderSource.files) {
+      try {
+        await FileBrowserService.instance.removeLibraryBookmark(folder.id);
+      } catch (_) {}
+    }
+    try {
+      await TmdService.instance.clear(folder.metadataKey);
+    } catch (_) {}
+    if (!mounted) return;
+    final remaining = <({String folderLabel, String metadataKey, List<Object> entries, int? folderSeason, LibraryFolder folder})>[];
+    for (final f in _folders) {
+      if (f.folder.id != folder.id) remaining.add(f);
+    }
+    if (!mounted) return;
+    setState(() {
+      _folders.clear();
+      _folders.addAll(remaining);
+    });
+    // Only reload from the store for real bookmarked folders; synthetic
+    // subfolder seasons should just disappear from local state.
+    final isBookmarked = await _isBookmarkedFolder(folder);
+    if (isBookmarked) await _load();
+  }
+
+  /// Whether [folder] exists in the persisted library store (i.e. it is a
+  /// real bookmarked folder, not a synthetic subfolder season entry).
+  Future<bool> _isBookmarkedFolder(LibraryFolder folder) async {
+    final all = await LibraryFoldersStore.load();
+    return all.any((f) => f.id == folder.id);
   }
 
   Future<void> _fixMatch() async {
@@ -741,6 +997,7 @@ class _EntryTile extends StatelessWidget {
     required this.watched,
     required this.seasonNumber,
     this.episode,
+    this.onToggleWatched,
   });
 
   final Object entry;
@@ -750,6 +1007,7 @@ class _EntryTile extends StatelessWidget {
   final bool watched;
   final int seasonNumber;
   final TmdEpisode? episode;
+  final VoidCallback? onToggleWatched;
 
   String get _name {
     if (entry is SmbEntry) return (entry as SmbEntry).name;
@@ -761,118 +1019,202 @@ class _EntryTile extends StatelessWidget {
     return '';
   }
 
+  int? _entrySize() {
+    if (entry is SmbEntry) return (entry as SmbEntry).size;
+    if (entry is WebDavEntry) return (entry as WebDavEntry).size;
+    if (entry is FtpEntry) return (entry as FtpEntry).size;
+    if (entry is UpnpEntry) return (entry as UpnpEntry).size;
+    if (entry is FileEntry) return (entry as FileEntry).size;
+    return 0;
+  }
+
+  String _sizeLabel(int bytes) {
+    if (bytes <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var value = bytes.toDouble();
+    var unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit++;
+    }
+    return '${value.toStringAsFixed(value >= 100 ? 0 : 1)} ${units[unit]}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final parsed = ParsedFileName.parse(_name);
     final hasEpisode = parsed.isEpisode;
     final stillUrl = episode?.stillUrl();
-    final progress = (resumePositionMs != null &&
+    final epData = episode;
+    final sizeValue = _entrySize() ?? 0;
+    final fileSizeLabel = sizeValue > 0 ? _sizeLabel(sizeValue) : '';
+    final ratingValue = episode?.voteAverage ?? 0;
+    final hasRating = ratingValue > 0;
+    final hasOverviewText = episode != null && episode!.overview.isNotEmpty;
+
+    final double? progress = (resumePositionMs != null &&
             resumePositionMs! > 0 &&
             durationMs != null &&
             durationMs! > 0)
         ? (resumePositionMs! / durationMs!).clamp(0.0, 1.0)
         : null;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TvTile(
-            leading: stillUrl != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: Image.network(
-                      stillUrl,
-                      width: 64,
-                      height: 40,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Icon(
-                        Icons.movie_outlined,
-                        color: Theme.of(context).colorScheme.secondary,
-                      ),
-                    ),
-                  )
-                : Icon(
-                    Icons.movie_outlined,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
-            title: Row(
-              children: [
-                if (hasEpisode)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Text(
-                      'S${seasonNumber.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color:
-                                Theme.of(context).colorScheme.onPrimaryContainer,
-                          ),
-                    ),
-                  ),
-                if (hasEpisode) const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    episode?.nameLabel ??
-                        (parsed.isEpisode ? parsed.title : _name),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                ),
-                if (watched)
-                  const Padding(
-                    padding: EdgeInsets.only(left: 4),
-                    child: Icon(Icons.check_circle,
-                        color: Colors.green, size: 18),
-                  ),
-              ],
+
+    final titleWidget = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (hasEpisode) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(3),
             ),
-            onTap: onTap,
+            child: Text(
+              'S${seasonNumber.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+            ),
           ),
-          if (progress != null)
-            ClipRRect(
+          const SizedBox(width: 6),
+        ],
+        Expanded(
+          child: Text(
+            epData?.nameLabel ?? (parsed.isEpisode ? parsed.title : _name),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        if (hasRating) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.star, size: 13, color: Colors.amber),
+          const SizedBox(width: 2),
+          Text(
+            ratingValue.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final subtitleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (hasOverviewText)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              episode!.overview,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        if (fileSizeLabel.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              fileSizeLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        if (progress != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(1),
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 2,
-                backgroundColor:
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme.of(context).colorScheme.primary),
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
+    );
+
+    return TvTile(
+      leading: stillUrl != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.network(
+                stillUrl,
+                width: 64,
+                height: 40,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Icon(
+                  Icons.movie_outlined,
+                  color: colorScheme.secondary,
+                ),
+              ),
+            )
+          : Icon(
+              Icons.movie_outlined,
+              color: colorScheme.secondary,
+            ),
+      title: titleWidget,
+      subtitle: subtitleWidget,
+      trailing: onToggleWatched != null
+          ? IconButton(
+              tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
+              icon: Icon(
+                watched ? Icons.check_circle : Icons.check_circle_outline,
+                color: watched ? Colors.green.shade400 : colorScheme.onSurfaceVariant,
+                size: 22,
+              ),
+              onPressed: onToggleWatched,
+            )
+          : null,
+      onTap: onTap,
     );
   }
 }
 
-class _SeriesHeader extends StatelessWidget {
+class _SeriesHeader extends StatefulWidget {
   const _SeriesHeader({
     required this.meta,
     required this.details,
+    required this.metadataKey,
     required this.onFixMatch,
+    this.onRemoveInfo,
   });
 
   final TmdMeta meta;
   final TmdDetails? details;
+  final String metadataKey;
   final VoidCallback onFixMatch;
+  final VoidCallback? onRemoveInfo;
+
+  @override
+  State<_SeriesHeader> createState() => _SeriesHeaderState();
+}
+
+class _SeriesHeaderState extends State<_SeriesHeader> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final movie = meta.movie;
+    final movie = widget.meta.movie;
     final rating = movie.voteAverage;
+    final overview = widget.details?.overview ?? '';
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -894,17 +1236,65 @@ class _SeriesHeader extends StatelessWidget {
                 children: [
                   Text(
                     movie.title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
                   ),
-                  if (details?.overview.isNotEmpty == true) ...[
+                  if (movie.year != null)
+                    Text(
+                      '${movie.year}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    ),
+                  if (overview.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Overview',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                      details!.overview,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
+                      overview,
+                      maxLines: _expanded ? null : 4,
+                      overflow:
+                          _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _expanded = !_expanded),
+                      child: Text(
+                        _expanded ? 'Less' : 'More',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                  ],
+                  // Genres (like SMB browser).
+                  if (widget.details?.genres != null && widget.details!.genres.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (final genre in widget.details!.genres)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              genre,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 6),
@@ -920,9 +1310,14 @@ class _SeriesHeader extends StatelessWidget {
                         const SizedBox(width: 12),
                       ],
                       TextButton(
-                        onPressed: onFixMatch,
+                        onPressed: widget.onFixMatch,
                         child: const Text('Fix match'),
                       ),
+                      if (widget.onRemoveInfo != null)
+                        TextButton(
+                          onPressed: widget.onRemoveInfo,
+                          child: const Text('Remove info'),
+                        ),
                     ],
                   ),
                 ],
@@ -1031,6 +1426,182 @@ class _FixMatchDialogState extends State<_FixMatchDialog> {
           child: const Text('Cancel'),
         ),
       ],
+    );
+  }
+}
+
+/// Poster card for a season in [SeriesSeasonsScreen].
+class _SeasonPosterCard extends StatelessWidget {
+  const _SeasonPosterCard({
+    required this.seasonNumber,
+    this.posterUrl,
+    required this.seasonName,
+    required this.onTap,
+    this.onLongPress,
+  });
+
+  final int seasonNumber;
+  final String? posterUrl;
+  final String seasonName;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: posterUrl != null
+                  ? Image.network(
+                      posterUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _placeholder(colorScheme),
+                    )
+                  : _placeholder(colorScheme),
+            ),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: (theme.textTheme.bodySmall?.fontSize ?? 12) * 1.4 * 2,
+            child: Text(
+              seasonName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(ColorScheme colorScheme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colorScheme.surfaceContainerHighest,
+            colorScheme.surfaceContainer,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.folder_outlined,
+          size: 48,
+          color: colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+/// Horizontal scrollable cast row (Nova-style).
+class _CastRow extends StatelessWidget {
+  const _CastRow({required this.cast});
+  final List<TmdCastMember> cast;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cast',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 130,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: cast.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final member = cast[index];
+              return SizedBox(
+                width: 80,
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(40),
+                      child: member.profileUrl() != null
+                          ? Image.network(
+                              member.profileUrl()!,
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => _avatarFallback(
+                                  theme.colorScheme, member.name),
+                            )
+                          : _avatarFallback(theme.colorScheme, member.name),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      member.name,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    if (member.character != null &&
+                        member.character!.isNotEmpty)
+                      Text(
+                        member.character!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _avatarFallback(ColorScheme colorScheme, String name) {
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onPrimaryContainer,
+          ),
+        ),
+      ),
     );
   }
 }

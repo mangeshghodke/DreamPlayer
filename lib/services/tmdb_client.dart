@@ -1010,11 +1010,13 @@ class TmdApi {
     };
     final json = await _get('$endpoint?${_query(params)}');
     final results = json['results'] as List? ?? const [];
-    return results
+    final movies = results
         .whereType<Map<String, dynamic>>()
         .map((r) => TmdMovie.fromJson(r, kind: kind))
         .where((m) => m.id != 0)
         .toList();
+    debugPrint('TMDB search("$query") kind=$kind year=$year → ${movies.length} results: ${movies.map((m) => '${m.title}(${m.year})').join(', ')}');
+    return movies;
   }
 
   Future<TmdDetails> details(TmdMovie movie) async {
@@ -1205,10 +1207,12 @@ class TmdApi {
     if (clean.isEmpty) return null;
     final tv = await search(clean, year: year, kind: TmdKind.tv);
     final movie = await search(clean, year: year, kind: TmdKind.movie);
+    debugPrint('TMDB bestForQuery("$query") year=$year liveAction=$liveAction tv=${tv.length} movie=${movie.length}');
     TmdMatch? best;
     void consider(TmdMovie candidate, double tieBoost) {
       final score = _queryScore(candidate, clean, year: year, liveAction: liveAction) +
           tieBoost;
+      debugPrint('TMDB   consider(${candidate.title} (${candidate.year}) kind=${candidate.kind}) score=${score.toStringAsFixed(4)} tieBoost=$tieBoost');
       if (score < 0.5) return;
       if (best == null || score > best!.score) {
         best = TmdMatch(candidate, score);
@@ -1221,6 +1225,7 @@ class TmdApi {
     for (final m in movie) {
       consider(m, 0.0);
     }
+    debugPrint('TMDB bestForQuery result: ${best?.movie.title} (${best?.movie.year}) score=${best?.score.toStringAsFixed(4)}');
     return best;
   }
 
@@ -1231,6 +1236,7 @@ class TmdApi {
     final maxLen = q.length > title.length ? q.length : title.length;
     if (maxLen == 0) return 0.0;
     var score = (1.0 - dist / maxLen).clamp(0.0, 1.0);
+    debugPrint('TMDB _queryScore: q="$q" title="$title" dist=$dist maxLen=$maxLen baseScore=${score.toStringAsFixed(4)}');
 
     // Year disambiguation: when a year is provided, strongly boost results
     // whose release year matches. This breaks ties between identically-named
@@ -1239,8 +1245,10 @@ class TmdApi {
       final candidateYear = movie.year;
       if (candidateYear == year) {
         score += 0.5;
+        debugPrint('TMDB _queryScore: year boost +0.5 (candidateYear=$candidateYear == year=$year)');
       } else if (candidateYear != null) {
         score -= 0.2;
+        debugPrint('TMDB _queryScore: year penalty -0.2 (candidateYear=$candidateYear != year=$year)');
       }
     }
 
@@ -1251,9 +1259,11 @@ class TmdApi {
     if (liveAction && score >= 0.5) {
       if (RegExp(r'(?:^|\W)(anime|animation|animated)(?:\W|$)').hasMatch(title)) {
         score -= 0.15;
+        debugPrint('TMDB _queryScore: liveAction penalty -0.15 (anime hint in title)');
       }
     }
 
+    debugPrint('TMDB _queryScore: final score=${score.toStringAsFixed(4)}');
     return score;
   }
 
@@ -1539,6 +1549,7 @@ class TmdService extends ChangeNotifier {
     if (inFlight != null) return inFlight;
 
     final parsed = ParsedFileName.parse(folderName);
+    debugPrint('TMDB resolveFolder parsed: title="${parsed.title}" year=${parsed.year} season=${parsed.season} episode=${parsed.episode} isEpisode=${parsed.isEpisode} seriesName=${parsed.seriesName}');
     if (parsed.title.isEmpty) return null;
 
     final year = parsed.year ?? yearHint;
@@ -1574,25 +1585,44 @@ class TmdService extends ChangeNotifier {
     return _matchSeasonFromFolder(folderName, names);
   }
 
+  /// Season-name map (number → name) for the show matched under
+  /// [identityKey], fetched once per show and cached in memory. Empty when
+  /// there is no key, the match is not a TV show, or the request fails. Used
+  /// to resolve roman-numeral season subfolders ("Strike the Blood II" →
+  /// Season 2) against the names the show-level endpoint returns — a single
+  /// call per show, much cheaper than one /season/{n} request per candidate.
+  Future<Map<int, String>> seasonNameMapFor(String identityKey) async {
+    await ensureLoaded();
+    final meta = _cache[identityKey];
+    if (meta == null || meta.movie.kind != TmdKind.tv) return const {};
+    final cached = _seasonNamesCache[meta.movie.id];
+    if (cached != null) return cached;
+    final names = await _api.seasonNames(meta.movie);
+    if (names.isNotEmpty) _seasonNamesCache[meta.movie.id] = names;
+    return names;
+  }
+
   /// Cached season names per show ID, populated by [seasonNames] calls.
   final Map<int, Map<int, String>> _seasonNamesCache = {};
 
   Future<TmdMeta?> _resolveFolderNow(
       String metadataKey, String query, int? year,
       {bool liveAction = false, String? folderName}) async {
+    debugPrint('TMDB _resolveFolderNow key="$metadataKey" query="$query" year=$year liveAction=$liveAction folderName="$folderName"');
     final match =
         await _api.bestForQuery(query, year: year, liveAction: liveAction);
     if (match == null) return null;
 
     // Check if the folder name matches a season name on TMDB.
     // e.g. "Strike the Blood Final" → Season 5 "Strike the Blood Final".
-    // Use the ORIGINAL folder name (not the cleaned query) so the season
-    // indicator ("Final", "II", "III") is not lost during parsing.
+    // Use the CLEANED query (ParsedFileName.parse title) which preserves
+    // season indicators ("Final", "II", "III") but strips quality/noise tags
+    // (1080p, WEB-DL, etc.) so exact/containment matching works correctly.
     int? folderSeason;
     if (match.movie.kind == TmdKind.tv) {
       final names = await _api.seasonNames(match.movie);
       _seasonNamesCache[match.movie.id] = names;
-      folderSeason = _matchSeasonFromFolder(folderName ?? query, names);
+      folderSeason = _matchSeasonFromFolder(query, names);
       debugPrint('TMDB _resolveFolderNow $metadataKey matchId=${match.movie.id} seasons=$names folderSeason=$folderSeason');
     }
 
@@ -1604,67 +1634,175 @@ class TmdService extends ChangeNotifier {
 
   /// Checks if [folderName] matches any season name in [seasonNames].
   /// Returns the matched season number, or null if no match.
-  ///
-  /// Matching strategy (prefers most specific / longest match):
-  /// 1. Exact match (case-insensitive): "Strike the Blood Final" == "Strike the Blood Final"
-  /// 2. One contains the other — prefer the LONGER season name (more specific)
-  /// 3. Significant word overlap: all words of the shorter name appear in the longer
   int? _matchSeasonFromFolder(
       String folderName, Map<int, String> seasonNames) {
-    final q = folderName.toLowerCase().trim();
-    if (q.isEmpty || seasonNames.isEmpty) return null;
+    return matchFolderToSeasonName(folderName, seasonNames);
+  }
 
-    int? bestSeason;
-    var bestScore = 0;
+  /// Pure matcher: resolves [folderName] to a season number given the show's
+  /// [seasonNames]. No API calls — testable without an HTTP client.
+  ///
+  /// Matching strategy:
+  /// 1. Release-group / language noise (`[VCB-Studio]`, `[SubsPlease]`) is
+  ///    stripped from the folder name — it is not part of any season name, and
+  ///    it breaks the exact/containment match below (which is how
+  ///    "[VCB-Studio] Strike the Blood" used to land on Season 2 — see 2026-09
+  ///    regression below).
+  /// 2. Exact match (case-insensitive): "Strike the Blood Final" == "Strike the Blood Final"
+  /// 3. Containment: the LONGEST season name contained in (or containing) the
+  ///    query wins — "Strike the Blood II" is more specific than "Strike the
+  ///    Blood". There is no `sName.length > q.length` gate here: a folder
+  ///    "Strike the Blood 1080p" used to fall through to word-overlap and be
+  ///    mis-matched to Season 2 (see below).
+  /// 4. Word overlap (fallback when neither name contains the other): all
+  ///    words of the shorter name appear in the longer.
+  ///
+  /// 2026-09 regression fixed here: the old matcher dropped ≤2-char tokens
+  /// (`ii`, `iv`) before word-overlap, which made Season 1 "Strike the Blood",
+  /// Season 2 "Strike the Blood II" and Season 4 "Strike the Blood IV" all
+  /// reduce to the word set {strike, the, blood}. The score then tied on the
+  /// name-length term and favored the LONGER name — Season 2. So a folder
+  /// "[VCB-Studio] Strike the Blood" displayed as "Strike the Blood II" on the
+  /// home card. The bracket-strip + containment passes resolve Season 1 (and
+  /// every real roman-suffix folder) deterministically before overlap runs.
+  static int? matchFolderToSeasonName(
+      String folderName, Map<int, String> seasonNames) {
+    if (folderName.isEmpty || seasonNames.isEmpty) return null;
 
-    for (final entry in seasonNames.entries) {
+    // Fast path: explicit Sxx or Season N tag in the folder name
+    // (e.g. "HOUSE.S02.1080p..." → 2, "House Season 3" → 3).
+    final parsed = ParsedFileName.parse(folderName);
+    if (parsed.season > 0 && seasonNames.containsKey(parsed.season)) {
+      return parsed.season;
+    }
+    final sMatch = RegExp(r'\bS(\d{1,2})\b', caseSensitive: false).firstMatch(folderName);
+    if (sMatch != null) {
+      final s = int.tryParse(sMatch.group(1)!);
+      if (s != null && seasonNames.containsKey(s)) return s;
+    }
+    final seasonMatch = RegExp(r'\bSeason\s+(\d{1,2})\b', caseSensitive: false).firstMatch(folderName);
+    if (seasonMatch != null) {
+      final s = int.tryParse(seasonMatch.group(1)!);
+      if (s != null && seasonNames.containsKey(s)) return s;
+    }
+
+    final q = folderName
+        .replaceAll(RegExp(r'\[[^\]]*\]'), ' ')
+        .toLowerCase()
+        .trim();
+    if (q.isEmpty) return null;
+
+    final entries = seasonNames.entries.toList();
+
+    // Exact match — always wins.
+    for (final entry in entries) {
       final sName = entry.value.toLowerCase().trim();
       if (sName.isEmpty) continue;
-
-      // 1. Exact match — always wins
       if (q == sName) return entry.key;
+    }
 
-      // 2. One contains the other
-      if (sName.contains(q)) {
-        // Season name contains the whole folder query — very specific match
-        final score = sName.length;
-        if (score > bestScore) {
-          bestScore = score;
-          bestSeason = entry.key;
+    // Containment — longest matching season name wins, but only when the rest
+    // of the folder name is release noise (resolution/source/codec/group
+    // tags). A folder like "Strike the Blood Kieta Seisou Hen" contains the
+    // string "Strike the Blood" yet has extra real content beyond any season
+    // title — it is NOT a season folder and must not masquerade as Season 1
+    // (it should render as a gradient card, not steal Season 1's poster).
+    int? bestSeason;
+    var bestNameLen = 0;
+    for (final entry in entries) {
+      final sName = entry.value.toLowerCase().trim();
+      if (sName.isEmpty) continue;
+      final qIdx = q.indexOf(sName);
+      if (qIdx >= 0) {
+        // Folder name contains the whole season name — accept only if the
+        // leftover words are all release noise.
+        final leftover = q
+            .replaceRange(qIdx, qIdx + sName.length, ' ')
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty);
+        if (leftover.every(_isSeasonNoiseToken)) {
+          if (sName.length > bestNameLen) {
+            bestNameLen = sName.length;
+            bestSeason = entry.key;
+          }
         }
-        continue;
-      }
-      if (q.contains(sName) && sName.length > q.length) {
-        // Folder contains a LONGER season name (unlikely, but treat as specific)
-        final score = sName.length;
-        if (score > bestScore) {
-          bestScore = score;
-          bestSeason = entry.key;
-        }
-        continue;
-      }
-      // When q contains a shorter season name (e.g. "Strike the Blood Final"
-      // contains S1 "Strike the Blood"), don't match here — fall through to
-      // word-overlap below, which requires ALL season words to appear in the
-      // folder, producing a more specific result.
-
-      // 3. Significant word overlap
-      final qWords = q.split(RegExp(r'\s+')).where((w) => w.length > 2).toList();
-      final sWords = sName.split(RegExp(r'\s+')).where((w) => w.length > 2).toList();
-      if (qWords.isEmpty || sWords.isEmpty) continue;
-
-      // All words of the shorter name must appear in the longer
-      final shorter = qWords.length <= sWords.length ? qWords : sWords;
-      final longer = qWords.length <= sWords.length ? sWords : qWords;
-      if (shorter.every((w) => longer.contains(w))) {
-        final score = shorter.length * 10 + sName.length;
-        if (score > bestScore) {
-          bestScore = score;
-          bestSeason = entry.key;
+      } else if (sName.contains(q)) {
+        // Folder name is a strict prefix of a season name. Accept only if the
+        // season-name remainder is noise-free glue. (The exact pass already
+        // catches "Strike the Blood" = Season 1; this is a rare fallback.)
+        final sIdx = sName.indexOf(q);
+        final leftover = sName
+            .replaceRange(sIdx, sIdx + q.length, ' ')
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty);
+        if (leftover.every(_isSeasonNoiseToken)) {
+          if (sName.length > bestNameLen) {
+            bestNameLen = sName.length;
+            bestSeason = entry.key;
+          }
         }
       }
     }
-    return bestSeason;
+    if (bestSeason != null) return bestSeason;
+
+    // Word overlap — every word of the shorter name must appear in the longer,
+    // AND any extra words in the longer name must all be release noise. This
+    // preserves the old behavior for pure-name folders while disqualifying
+    // folders whose extra words are real content ("Kieta Seisou Hen" behind
+    // "Strike the Blood" cannot claim any season).
+    int? overlapSeason;
+    var bestScore = 0;
+    for (final entry in entries) {
+      final sName = entry.value.toLowerCase().trim();
+      if (sName.isEmpty) continue;
+      final qWords = q.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      final sWords = sName.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      if (qWords.isEmpty || sWords.isEmpty) continue;
+      final shorter = qWords.length <= sWords.length ? qWords : sWords;
+      final longer = qWords.length <= sWords.length ? sWords : qWords;
+      if (!shorter.every(longer.contains)) continue;
+      final remainingShorter = shorter.toList();
+      final extra = <String>[];
+      for (final w in longer) {
+        final i = remainingShorter.indexOf(w);
+        if (i >= 0) {
+          remainingShorter.removeAt(i);
+        } else {
+          extra.add(w);
+        }
+      }
+      if (extra.any((w) => !_isSeasonNoiseToken(w))) continue;
+      final score = shorter.length * 10 + sName.length;
+      if (score > bestScore) {
+        bestScore = score;
+        overlapSeason = entry.key;
+      }
+    }
+    return overlapSeason;
+  }
+
+  /// Whether one lowercased token is release noise that may legitimately
+  /// surround a season name in a folder title (resolution/source/codec/audio
+  /// tags, glue words, group names, years, plain numbers). Everything else is
+  /// treated as real title content — so "Kieta" / "Seisou" / "Hen" disqualify
+  /// a folder from being a season folder and it keeps its gradient card.
+  static bool _isSeasonNoiseToken(String w) {
+    if (w.isEmpty) return false;
+    if (RegExp(r'^\d{1,4}$').hasMatch(w)) return true; // 1080, 2021, 60, 5
+    if (w.length <= 2) return true;                    // glue + compact tags
+    const noise = <String>{
+      'web', 'webdl', 'webrip', 'webhd', 'bluray', 'brrip', 'bdrip',
+      'hdtv', 'dvdr', 'dvd', 'remux', 'proper', 'repack', 'internal',
+      'limited', 'complete', 'extended', 'uncut', 'retail', 'rip',
+      '480p', '576p', '720p', '1080p', '2160p', '4320p',
+      'x264', 'x265', 'h264', 'h265', 'avc', 'hevc', 'av1', 'vp9',
+      '10bit', '8bit', 'hdr', 'hdr10', 'sdr', 'atmos', 'truehd', 'dts',
+      'eac3', 'ac3', 'aac', 'flac', 'opus', 'pcm', 'mp3', 'multi', 'dual',
+      'dubbed', 'subbed', 'subs', 'eng', 'jap', 'jpn', 'english', 'japanese',
+      'romaji', 'collection', 'edition', 'season', 'fansub', 'vcb', 'studio',
+      'raws', 'disc', 'blu', 'ray',
+    };
+    return noise.contains(w);
   }
 
   /// Nova-style: background-resolve TMDB metadata for every video in a folder.

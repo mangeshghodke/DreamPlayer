@@ -174,10 +174,11 @@ class SeriesGroupingService {
       ' ',
     );
 
-    // Drop season-name suffixes like "Final", "Grand", "Z" that act as
-    // ordinal season labels (`Strike the Blood Final` → `Strike the Blood`).
+    // Drop season-name suffixes like "Grand", "Z" that act as
+    // ordinal season labels. "Final" is NOT stripped because it can be
+    // a legitimate season title (e.g. "Strike the Blood Final" = Season 5).
     name = name.replaceAll(
-      RegExp(r'\b(?:Final|Grand|Ultimate|Z)\b', caseSensitive: false),
+      RegExp(r'\b(?:Grand|Ultimate|Z)\b', caseSensitive: false),
       ' ',
     );
 

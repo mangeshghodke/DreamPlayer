@@ -3,12 +3,14 @@ import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
+import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/smb_client.dart';
 import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
+import '../services/upnp_client.dart';
 import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
 import '../utils/file_info_extractor.dart';
@@ -89,19 +91,33 @@ class _FolderScreenState extends State<FolderScreen> {
   List<SmbEntry> _smbEntries = const [];
   // WebDAV entries reuse simple maps; keep as dynamic for now.
   List<Object> _networkEntries = const [];
+  List<FtpEntry> _ftpEntries = const [];
+  List<UpnpEntry> _upnpEntries = const [];
+
+  /// UPnP mode: the container crumbs (object id + name) below the root so
+  /// object-id-based navigation can go back up. Root = empty crumbs.
+  List<({String id, String name})> _upnpCrumbs = const [];
+
+  /// FTP mode: the bookmarked server is an SFTP server (scheme for playback
+  /// URIs). Looked up once on open from the saved servers.
+  bool _ftpIsSftp = false;
+  bool _ftpIsSftpResolved = false;
 
   /// Background-fetched SMB file sizes (path → bytes).
   final Map<String, int> _smbFileSizes = {};
 
   bool get _atRoot {
     if (_isJellyfin) return _jellyfinCrumbs.isEmpty;
-    if (_isSmb || _isWebDav) return _currentPath == _networkPath;
+    if (_isUpnp) return _upnpCrumbs.isEmpty;
+    if (_isSmb || _isWebDav || _isFtp) return _currentPath == _networkPath;
     return _currentPath == widget.folder.path;
   }
 
   bool get _isJellyfin => widget.folder.isJellyfin;
   bool get _isSmb => widget.folder.source == LibraryFolderSource.smb;
   bool get _isWebDav => widget.folder.source == LibraryFolderSource.webdav;
+  bool get _isFtp => widget.folder.source == LibraryFolderSource.ftp;
+  bool get _isUpnp => widget.folder.source == LibraryFolderSource.upnp;
   bool get _isNetworkFolder => widget.folder.isNetwork && !_isJellyfin;
 
   // Network folder navigation state (SMB/WebDAV share + subpath).
@@ -152,9 +168,7 @@ class _FolderScreenState extends State<FolderScreen> {
     // subfolders are never series folders, and _detectAndLoadSeriesFolder will
     // set the correct state once it knows whether subfolders exist.
     final service = TmdService.instance;
-    final folderName = _atRoot
-        ? widget.folder.name
-        : (_currentPath.split('/').lastOrNull ?? widget.folder.name);
+    final folderName = _subfolderName;
     final metadataKey = _atRoot
         ? widget.folder.metadataKey
         : '${widget.folder.metadataKey}/$folderName';
@@ -188,6 +202,14 @@ class _FolderScreenState extends State<FolderScreen> {
     }
     if (_isWebDav) {
       await _loadWebDav();
+      return;
+    }
+    if (_isFtp) {
+      await _loadFtp();
+      return;
+    }
+    if (_isUpnp) {
+      await _loadUpnp();
       return;
     }
     try {
@@ -232,38 +254,102 @@ class _FolderScreenState extends State<FolderScreen> {
       if (_isFolderEntry(e)) continue;
       videoNames.add(_nameOf(e));
     }
+    // Folder contains only subfolders (no direct video files) — check if they
+    // look like season folders and fetch TMDB metadata for the poster grid.
+    if (hasSubfolders && videoNames.isEmpty) {
+      // Folder contains only subfolders — check if they look like seasons.
+      final folderSeasons = <int>{};
+      for (final e in entries) {
+        if (!_isFolderEntry(e)) continue;
+        final s = _parseSeasonFromFolderName(_nameOf(e));
+        if (s != null && s > 0) folderSeasons.add(s);
+      }
+      if (folderSeasons.isEmpty) {
+        // Subfolders don't look like seasons — stay in flat list.
+        if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
+        return;
+      }
+      // Season subfolders detected — fetch TMDB metadata for poster grid.
+      final folderName = _subfolderName;
+      final metadataKey = _atRoot
+          ? widget.folder.metadataKey
+          : '${widget.folder.metadataKey}/$folderName';
+      setState(() {
+        _loadingSeriesMeta = true;
+      });
+      final service = TmdService.instance;
+      await service.ensureLoaded();
+      var meta = service.metaFor(metadataKey);
+      if (meta == null || meta.folderSeason == null) {
+        meta = await service.resolveFolder(
+          metadataKey,
+          folderName,
+          yearHint: ParsedFileName.yearFromNames([]),
+        );
+      }
+      if (!mounted || gen != _seriesGeneration) return;
+      if (meta != null) {
+        final details = await service.detailsFor(metadataKey);
+        if (!mounted || gen != _seriesGeneration) return;
+        // Fetch season data for each detected season folder.
+        for (final s in folderSeasons) {
+          await service.seasonFor(metadataKey, s);
+          if (!mounted) return;
+        }
+        final freshMeta = service.metaFor(metadataKey) ?? meta;
+        setState(() {
+          _seriesMeta = freshMeta;
+          _seriesDetails = details;
+          _loadingSeriesMeta = false;
+        });
+      } else {
+        setState(() {
+          _loadingSeriesMeta = false;
+        });
+      }
+      return;
+    }
+
+    // Bail: no video files and no season-subfolder match.
     if (videoNames.isEmpty) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
       return;
     }
+
+    // Mixed subfolders + video files → detect seasons and show grid + episodes.
+    if (hasSubfolders) {
+      // Check if any subfolders look like seasons.
+      final folderSeasons = <int>{};
+      for (final e in entries) {
+        if (!_isFolderEntry(e)) continue;
+        final s = _parseSeasonFromFolderName(_nameOf(e));
+        if (s != null && s > 0) folderSeasons.add(s);
+      }
+      if (folderSeasons.isEmpty) {
+        // Subfolders don't look like seasons — stay in flat list.
+        if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
+        return;
+      }
+      // Season subfolders detected — set series mode and fall through to
+      // the normal series-folder path below.
+      setState(() {
+        _isSeriesFolder = true;
+      });
+    }
+
+    // Series detected — fetch TMDB metadata for the current folder, not
+    // the root bookmark. When navigating into a subfolder, use its name.
+    final folderName = _subfolderName;
+    final metadataKey = _atRoot
+        ? widget.folder.metadataKey
+        : '${widget.folder.metadataKey}/$folderName';
 
     // Check for SxxExx episode patterns.
     final episodeNames =
         videoNames.where((n) => ParsedFileName.parse(n).isEpisode).toList();
 
     // Fallback: sequential numbering detection.
-    bool hasSequential = false;
-    if (episodeNames.isEmpty) {
-      hasSequential = _hasSequentialNumbering(videoNames);
-    }
-
-    // If the folder has subfolders, stay in flat list — the user expects
-    // to navigate into subfolders (e.g. Season 1/, Season 2/) not see a
-    // series view that hides them. Series view only for flat folders
-    // whose video files have episode patterns or sequential numbering.
-    if (hasSubfolders || (episodeNames.isEmpty && !hasSequential)) {
-      if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
-      return;
-    }
-
-    // Series detected — fetch TMDB metadata for the current folder, not
-    // the root bookmark. When navigating into a subfolder, use its name.
-    final folderName = _atRoot
-        ? widget.folder.name
-        : (_currentPath.split('/').lastOrNull ?? widget.folder.name);
-    final metadataKey = _atRoot
-        ? widget.folder.metadataKey
-        : '${widget.folder.metadataKey}/$folderName';
+    final hasSequential = episodeNames.isEmpty && _hasSequentialNumbering(videoNames);
 
     setState(() {
       _isSeriesFolder = true;
@@ -334,6 +420,20 @@ class _FolderScreenState extends State<FolderScreen> {
     setState(() {
       _seriesMeta = freshMeta;
     });
+  }
+
+  /// Parse a season number from a subfolder name (e.g. "House S02 1080p" → 2).
+  static int? _parseSeasonFromFolderName(String name) {
+    final parsed = ParsedFileName.parse(name);
+    if (parsed.season > 0) return parsed.season;
+    final sMatch =
+        RegExp(r'\bS(\d{1,2})\b', caseSensitive: false).firstMatch(name);
+    if (sMatch != null) return int.tryParse(sMatch.group(1)!);
+    final seasonMatch =
+        RegExp(r'\bSeason\s+(\d{1,2})\b', caseSensitive: false)
+            .firstMatch(name);
+    if (seasonMatch != null) return int.tryParse(seasonMatch.group(1)!);
+    return null;
   }
 
   /// Checks whether file names have sequential numbering (e.g. `- 01.mkv`,
@@ -527,6 +627,117 @@ class _FolderScreenState extends State<FolderScreen> {
     }
   }
 
+  Future<void> _loadFtp() async {
+    try {
+      if (!_ftpIsSftpResolved) {
+        // Look up the saved server once so playback URIs pick ftp:// vs
+        // sftp:// (the FTP channel is iOS-only; on Android it's missing).
+        try {
+          final servers = await FtpClient.instance.listServers();
+          if (mounted) {
+            _ftpIsSftp = servers.any((s) =>
+                s.id == widget.folder.networkServerId && s.isSftp);
+          }
+        } catch (_) {}
+        _ftpIsSftpResolved = true;
+      }
+      final serverId = widget.folder.networkServerId ?? '';
+      final basePath = widget.folder.networkPath ?? '';
+      final path = _currentPath.isEmpty ? basePath : _currentPath;
+      final entries = await FtpClient.instance.listDirectory(serverId, path);
+      if (!mounted) return;
+      setState(() {
+        _ftpEntries = entries;
+        _loading = false;
+      });
+      await _refreshWatched();
+      for (final e in entries) {
+        if (e.isDirectory) continue;
+        TmdService.instance.resolve(_toVideoItem(e)).catchError((_) => null);
+      }
+      _detectAndLoadSeriesFolder();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e is PlatformException
+            ? (e.message ?? 'Could not list this folder')
+            : 'Could not list this folder';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadUpnp() async {
+    try {
+      final serverId = widget.folder.networkServerId ?? '';
+      // Root container: the bookmarked object id is the root's own id.
+      final objectId = _upnpCrumbs.isEmpty
+          ? (widget.folder.networkPath ?? '0')
+          : _upnpCrumbs.last.id;
+      final entries = await UpnpClient.instance.browse(serverId, objectId);
+      if (!mounted) return;
+      setState(() {
+        _upnpEntries = entries;
+        _loading = false;
+      });
+      await _refreshWatched();
+      for (final e in entries) {
+        if (e.isDirectory) continue;
+        TmdService.instance.resolve(_toVideoItem(e)).catchError((_) => null);
+      }
+      _detectAndLoadSeriesFolder();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e is PlatformException
+            ? (e.message ?? 'Could not list this folder')
+            : 'Could not list this folder';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _openWebDavEntry(WebDavEntry entry) async {
+    if (entry.isDirectory) {
+      FocusScope.of(context).unfocus();
+      setState(() {
+        _currentPath = entry.path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '');
+        _loading = true;
+      });
+      await _loadWebDav();
+      return;
+    }
+    final video = _toVideoItem(entry);
+    final folderName = _subfolderName;
+    final folderKey = _atRoot
+        ? widget.folder.metadataKey
+        : '${widget.folder.metadataKey}/$folderName';
+    final folderMeta = TmdService.instance.metaFor(folderKey);
+    final parsed = ParsedFileName.parse(entry.name);
+    final isEp = parsed.isEpisode || _epPattern.hasMatch(entry.name);
+    String? parentKey;
+    if (isEp && folderMeta != null && folderMeta.movie.kind == TmdKind.tv) {
+      parentKey = folderKey;
+      try { await TmdService.instance.carryMeta(folderKey, TmdStore.identityKeyFor(video)); } catch (_) {}
+    } else if (!isEp && folderMeta != null) {
+      final videoKey = TmdStore.identityKeyFor(video);
+      final existing = TmdService.instance.metaFor(videoKey);
+      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+        try { await TmdService.instance.clear(videoKey); } catch (_) {}
+      }
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TmdDetailsScreen(
+          video: video,
+          parentMetadataKey: parentKey,
+        ),
+      ),
+    );
+    await _loadWebDav();
+  }
+
 
   Future<void> _openEntry(FileEntry entry) async {
     if (entry.isDirectory) {
@@ -538,9 +749,7 @@ class _FolderScreenState extends State<FolderScreen> {
     final video = _toVideoItem(entry);
     // Use the subfolder-aware metadataKey so episodes in subfolders
     // (e.g. "Strike the Blood Final") resolve to the correct season.
-    final folderName = _atRoot
-        ? widget.folder.name
-        : (_currentPath.split('/').lastOrNull ?? widget.folder.name);
+    final folderName = _subfolderName;
     final folderKey = _atRoot
         ? widget.folder.metadataKey
         : '${widget.folder.metadataKey}/$folderName';
@@ -648,9 +857,7 @@ class _FolderScreenState extends State<FolderScreen> {
     if (!mounted) return;
     // Use the subfolder-aware metadataKey so episodes in subfolders
     // (e.g. "Strike the Blood Final") resolve to the correct season.
-    final smbFolderName = _atRoot
-        ? widget.folder.name
-        : (_currentPath.split('/').lastOrNull ?? widget.folder.name);
+    final smbFolderName = _subfolderName;
     final folderKey = _atRoot
         ? widget.folder.metadataKey
         : '${widget.folder.metadataKey}/$smbFolderName';
@@ -680,6 +887,144 @@ class _FolderScreenState extends State<FolderScreen> {
     await _loadSmb();
   }
 
+  Future<void> _openFtpEntry(FtpEntry entry) async {
+    if (entry.isDirectory) {
+      FocusScope.of(context).unfocus();
+      setState(() {
+        _currentPath = entry.path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '');
+        _loading = true;
+      });
+      await _loadFtp();
+      return;
+    }
+    final item = _toVideoItem(entry);
+    if (!mounted) return;
+    // Use the subfolder-aware metadataKey so episodes in subfolders
+    // resolve to the correct season.
+    final folderName = _subfolderName;
+    final folderKey = _atRoot
+        ? widget.folder.metadataKey
+        : '${widget.folder.metadataKey}/$folderName';
+    final folderMeta = TmdService.instance.metaFor(folderKey);
+    final parsed = ParsedFileName.parse(entry.name);
+    final isEp = parsed.isEpisode || _epPattern.hasMatch(entry.name);
+    String? parentKey;
+    if (isEp && folderMeta != null && folderMeta.movie.kind == TmdKind.tv) {
+      parentKey = folderKey;
+      try { await TmdService.instance.carryMeta(folderKey, TmdStore.identityKeyFor(item)); } catch (_) {}
+    } else if (!isEp && folderMeta != null) {
+      final videoKey = TmdStore.identityKeyFor(item);
+      final existing = TmdService.instance.metaFor(videoKey);
+      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+        try { await TmdService.instance.clear(videoKey); } catch (_) {}
+      }
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TmdDetailsScreen(
+          video: item,
+          parentMetadataKey: parentKey,
+        ),
+      ),
+    );
+    await _loadFtp();
+  }
+
+  Future<void> _openUpnpEntry(UpnpEntry entry) async {
+    if (entry.isDirectory) {
+      FocusScope.of(context).unfocus();
+      setState(() {
+        _upnpCrumbs = [..._upnpCrumbs, (id: entry.id, name: entry.name)];
+        _loading = true;
+      });
+      await _loadUpnp();
+      return;
+    }
+    if (entry.url == null || entry.url!.isEmpty) return;
+    final serverId = widget.folder.networkServerId ?? '';
+    final key = 'upnp:$serverId/${entry.id}';
+    // Jellyfin DLNA servers transcode items with external subtitles; play
+    // the original bytes via the saved Jellyfin server when this URL is one.
+    VideoItem? video = await JellyfinClient().upgradeDlnaUrl(
+      url: entry.url!,
+      title: entry.name,
+      sizeBytes: entry.size,
+    );
+    if (video != null) {
+      video = VideoItem(
+        id: key,
+        title: video.title,
+        uri: video.uri,
+        resumeKey: key,
+        duration: video.duration,
+        resolution: video.resolution,
+        sizeBytes: video.sizeBytes,
+        allowSelfSigned: video.allowSelfSigned,
+        jellyfinServerId: video.jellyfinServerId,
+        jellyfinItemId: video.jellyfinItemId,
+        externalSubtitles: video.externalSubtitles,
+        chapters: video.chapters,
+      );
+    }
+    video ??= _toVideoItem(entry);
+    if (!mounted) return;
+    final folderName = _subfolderName;
+    final folderKey = _atRoot
+        ? widget.folder.metadataKey
+        : '${widget.folder.metadataKey}/$folderName';
+    final folderMeta = TmdService.instance.metaFor(folderKey);
+    final parsed = ParsedFileName.parse(entry.name);
+    final isEp = parsed.isEpisode || _epPattern.hasMatch(entry.name);
+    String? parentKey;
+    if (isEp && folderMeta != null && folderMeta.movie.kind == TmdKind.tv) {
+      parentKey = folderKey;
+      try { await TmdService.instance.carryMeta(folderKey, TmdStore.identityKeyFor(video)); } catch (_) {}
+    } else if (!isEp && folderMeta != null) {
+      final videoKey = TmdStore.identityKeyFor(video);
+      final existing = TmdService.instance.metaFor(videoKey);
+      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+        try { await TmdService.instance.clear(videoKey); } catch (_) {}
+      }
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TmdDetailsScreen(
+          video: video,
+          parentMetadataKey: parentKey,
+        ),
+      ),
+    );
+    await _loadUpnp();
+  }
+
+  /// Open a season folder entry from the poster grid. Navigates into the
+  /// subfolder regardless of entry type (SMB, FileEntry, WebDAV, Jellyfin,
+  /// FTP, UPnP).
+  void _openSeasonFolder(Object entry) {
+    if (_isSmb) {
+      _openSmbEntry(entry as SmbEntry);
+    } else if (_isJellyfin) {
+      _openJellyfinItem(entry as JellyfinItem);
+    } else if (entry is FileEntry) {
+      _openEntry(entry);
+    } else if (_isFtp && entry is FtpEntry) {
+      _openFtpEntry(entry);
+    } else if (_isUpnp && entry is UpnpEntry) {
+      _openUpnpEntry(entry);
+    } else if (_isWebDav && entry is WebDavEntry) {
+      if (entry.isDirectory) {
+        FocusScope.of(context).unfocus();
+        setState(() {
+          _currentPath = entry.path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '');
+          _loading = true;
+        });
+        _loadWebDav();
+      }
+    }
+  }
+
   VideoItem _toVideoItem(Object entry) {
     // Bookmarked-tree videos come back as content:// URIs (no real file
     // path), so hand those to the player's `uri` field.
@@ -687,6 +1032,9 @@ class _FolderScreenState extends State<FolderScreen> {
     String path;
     String? resumeKey;
     int size;
+    Uri? rawUri;
+    bool isTranscoded = false;
+    List<VideoExternalSub> externalSubs = const [];
     if (entry is SmbEntry) {
       name = entry.name;
       path = entry.path;
@@ -697,6 +1045,30 @@ class _FolderScreenState extends State<FolderScreen> {
       path = entry.path;
       resumeKey = 'webdav:${widget.folder.networkServerId}${entry.path}';
       size = entry.size;
+    } else if (entry is FtpEntry) {
+      name = entry.name;
+      path = entry.path;
+      final scheme = _ftpIsSftp ? 'sftp' : 'ftp';
+      rawUri = Uri.parse('$scheme://${widget.folder.networkServerId}${_encodeFtpPath(entry.path)}');
+      resumeKey = 'ftp_${widget.folder.networkServerId}${entry.path}';
+      size = entry.size;
+    } else if (entry is UpnpEntry) {
+      name = entry.name;
+      path = '';
+      rawUri = entry.url != null && entry.url!.isNotEmpty ? Uri.parse(entry.url!) : null;
+      resumeKey = 'upnp:${widget.folder.networkServerId}/${entry.id}';
+      size = entry.size;
+      isTranscoded = entry.transcoded;
+      if (entry.externalSubs.isNotEmpty) {
+        externalSubs = [
+          for (final e in entry.externalSubs.asMap().entries)
+            VideoExternalSub(
+              uri: e.value.url,
+              label: 'Subtitle ${e.key + 1} · ${e.value.extension.toUpperCase()}',
+              mimeType: e.value.mimeType,
+            ),
+        ];
+      }
     } else {
       final fe = entry as FileEntry;
       name = fe.name;
@@ -707,13 +1079,15 @@ class _FolderScreenState extends State<FolderScreen> {
     final isContentUri = path.startsWith('content://');
     final info = extractFileInfo(name);
     return VideoItem(
-      id: 'folder_${widget.folder.id}_${path.hashCode}',
+      id: 'folder_${widget.folder.id}_${(path.isEmpty ? resumeKey ?? name : path).hashCode}',
       title: name,
-      path: isContentUri ? null : path,
-      uri: isContentUri ? path : null,
+      path: isContentUri ? null : (rawUri != null ? null : path),
+      uri: isContentUri ? path : rawUri?.toString(),
       resumeKey: resumeKey,
       duration: Duration.zero,
       sizeBytes: size,
+      isTranscoded: isTranscoded,
+      externalSubtitles: externalSubs,
       videoCodec: info.videoCodec,
       audioCodec: info.audioCodec,
       audioChannels: info.audioChannels,
@@ -722,6 +1096,11 @@ class _FolderScreenState extends State<FolderScreen> {
       fps: info.fps,
       hdrHint: info.hdrHint,
     );
+  }
+
+  static String _encodeFtpPath(String path) {
+    final clean = path.startsWith('/') ? path : '/$path';
+    return clean.split('/').map((s) => Uri.encodeComponent(s)).join('/');
   }
 
   /// Reloads the watched-mark set and resume positions for the current list.
@@ -765,11 +1144,20 @@ class _FolderScreenState extends State<FolderScreen> {
       return 'smb:$serverId/$share/${e.path}';
     }
     if (_isWebDav) {
-      // WebDAV entries are maps with 'path'
-      if (entry is Map && entry['isDirectory'] == true) return null;
+      final wd = entry as WebDavEntry;
+      if (wd.isDirectory) return null;
       final id = widget.folder.networkServerId ?? '';
-      final p = (entry is Map ? entry['path'] as String? : null) ?? '';
-      return 'webdav:$id$p';
+      return 'webdav:$id${wd.path}';
+    }
+    if (_isFtp) {
+      final e = entry as FtpEntry;
+      if (e.isDirectory) return null;
+      return 'ftp_${widget.folder.networkServerId ?? ''}${e.path}';
+    }
+    if (_isUpnp) {
+      final e = entry as UpnpEntry;
+      if (e.isDirectory) return null;
+      return 'upnp:${widget.folder.networkServerId ?? ''}/${e.id}';
     }
     return (entry as FileEntry).isDirectory ? null : (entry.resumeKey ?? entry.path);
   }
@@ -865,6 +1253,20 @@ class _FolderScreenState extends State<FolderScreen> {
       await _loadJellyfin();
       return;
     }
+    if (_isUpnp) {
+      if (_upnpCrumbs.isEmpty) {
+        Navigator.of(context).pop();
+        return;
+      }
+      // Mirror the DLNA container hierarchy (root container id "0"): back
+      // walks the crumb stack; each container is navigated by object id.
+      setState(() {
+        _upnpCrumbs = _upnpCrumbs.sublist(0, _upnpCrumbs.length - 1);
+        _loading = true;
+      });
+      await _loadUpnp();
+      return;
+    }
     if (_atRoot) {
       Navigator.of(context).pop();
       return;
@@ -895,7 +1297,24 @@ class _FolderScreenState extends State<FolderScreen> {
           ? widget.folder.name
           : _jellyfinCrumbs.last.name;
     }
+    if (_isUpnp) {
+      return _upnpCrumbs.isEmpty
+          ? widget.folder.name
+          : _upnpCrumbs.last.name;
+    }
     return _atRoot ? widget.folder.name : (_currentPath.split('/').lastOrNull ?? '');
+  }
+
+  /// The display name of the subfolder being viewed (used for TMDB
+  /// metadata keys and title). UPnP uses the crumb name (the DLNA container
+  /// name), not the object id; on the root it's the bookmark name.
+  String get _subfolderName {
+    if (_isUpnp) {
+      if (_upnpCrumbs.isNotEmpty) return _upnpCrumbs.last.name;
+      return widget.folder.name;
+    }
+    if (_atRoot) return widget.folder.name;
+    return _currentPath.split('/').lastOrNull ?? widget.folder.name;
   }
 
   @override
@@ -963,6 +1382,66 @@ class _FolderScreenState extends State<FolderScreen> {
 
     // Regular mode: folders + season-grouped videos.
     return _regularBody(context);
+  }
+
+  /// Nova-style "Seasons" poster-card grid, shown when the current folder
+  /// contains season-like subfolders and the series' TMDB metadata (with
+  /// season posters) is available. Tapping a card opens that season's folder.
+  /// Shared by the series and regular bodies so both render identically.
+  List<Widget> _seasonPosterGridSlivers(BuildContext context) {
+    final all = _currentEntries;
+    final folders = all.where(_isFolderEntry).toList();
+    final seasonFolders = <Object>[];
+    for (final f in folders) {
+      final name = _nameOf(f);
+      final s = _parseSeasonFromFolderName(name);
+      if (s != null && s > 0) seasonFolders.add(f);
+    }
+    if (seasonFolders.isEmpty) return const [];
+    final theme = Theme.of(context);
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+        sliver: SliverToBoxAdapter(
+          child: Text(
+            'Seasons',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverGrid(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 0.58,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final entry = seasonFolders[index];
+              final name = _nameOf(entry);
+              final s = _parseSeasonFromFolderName(name);
+              return _FolderSeasonPosterCard(
+                seasonNumber: s,
+                seasonPosterUrl: (s != null && _seriesMeta != null)
+                    ? _seriesMeta!.seasons[s]?.posterUrl(width: 300)
+                    : null,
+                seasonName: (s != null && _seriesMeta?.seasons[s]?.name != null)
+                    ? _seriesMeta!.seasons[s]!.name
+                    : name,
+                onTap: () => _openSeasonFolder(entry),
+              );
+            },
+            childCount: seasonFolders.length,
+          ),
+        ),
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: 4)),
+    ];
   }
 
   /// Nova-style series folder body: series header (poster, title, rating,
@@ -1035,8 +1514,12 @@ class _FolderScreenState extends State<FolderScreen> {
           ),
         ),
 
+        // ── Season poster grid (season-subfolder folders) ──
+        ..._seasonPosterGridSlivers(context),
+
         // ── Episodes section header ──
-        SliverPadding(
+        if (episodes.isNotEmpty)
+          SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
           sliver: SliverToBoxAdapter(
             child: Row(
@@ -1103,17 +1586,16 @@ class _FolderScreenState extends State<FolderScreen> {
   /// Regular flat body (non-series folder).
   Widget _regularBody(BuildContext context) {
     final entries = _currentEntries;
+    final theme = Theme.of(context);
+    final folderName = _subfolderName;
+    final metadataKey = _atRoot
+        ? widget.folder.metadataKey
+        : '${widget.folder.metadataKey}/$folderName';
     // Separate folders from playable videos so seasons group only videos.
     final folders = <Object>[];
     final videos = <Object>[];
     for (final e in entries) {
-      final isFolder = _isJellyfin
-          ? (e as JellyfinItem).isFolder
-          : _isSmb
-              ? (e as SmbEntry).isDirectory
-              : _isWebDav
-                  ? (e as Map)['isDirectory'] == true
-                  : (e as FileEntry).isDirectory;
+      final isFolder = _isFolderEntry(e);
       (isFolder ? folders : videos).add(e);
     }
     // Build season groups for episode videos; movies stay ungrouped.
@@ -1127,14 +1609,102 @@ class _FolderScreenState extends State<FolderScreen> {
     final hasSeasons = seasonGroups.isNotEmpty;
     final sortedSeasons = seasonGroups.keys.toList()..sort();
 
+    // Check if folders look like season subfolders (TMDB metadata optional).
+    final seasonFolders = <Object>[];
+    final otherFolders = <Object>[];
+    for (final f in folders) {
+      final s = _parseSeasonFromFolderName(_nameOf(f));
+      if (s != null && s > 0) {
+        seasonFolders.add(f);
+      } else {
+        otherFolders.add(f);
+      }
+    }
+    final showSeasonGrid = seasonFolders.isNotEmpty;
+
     return Column(
       children: [
         if (_atRoot) _header(context),
         Expanded(
-          child: ListView(
-            key: ValueKey('folder_$_currentPath'),
-            children: [
-              for (final f in folders) _tileFor(f),
+          child: showSeasonGrid
+              ? CustomScrollView(
+                  key: ValueKey('folder_$_currentPath'),
+                  slivers: [
+                    // ── Season poster grid ──
+                    ..._seasonPosterGridSlivers(context),
+                    // ── Other subfolders ──
+                    if (otherFolders.isNotEmpty)
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => _tileFor(otherFolders[index]),
+                          childCount: otherFolders.length,
+                        ),
+                      ),
+                    // ── Season-grouped episodes ──
+                    if (hasSeasons)
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        sliver: SliverToBoxAdapter(
+                          child: Text(
+                            'Episodes',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    for (final s in sortedSeasons) ...[
+                      SliverToBoxAdapter(
+                        child: Builder(builder: (context) {
+                          final seasonList = seasonGroups[s]!;
+                          final expanded = _expandedSeasons.contains(s);
+                          final watchedCount = sg.watchedCount(
+                            seasonList,
+                            _watchedKeys,
+                            _watchedKeyForEntry,
+                          );
+                          final total = seasonList.length;
+                          final cachedMeta =
+                              TmdService.instance.metaFor(metadataKey);
+                          return _FolderSeasonExpansion(
+                            season: s,
+                            expanded: expanded,
+                            onToggle: () {
+                              setState(() {
+                                if (expanded) {
+                                  _expandedSeasons.remove(s);
+                                } else {
+                                  _expandedSeasons.add(s);
+                                }
+                              });
+                            },
+                            watchedCount: watchedCount,
+                            total: total,
+                            seasonName: cachedMeta?.seasons[s]?.name,
+                            child: Column(
+                              children: [
+                                for (final v in seasonList) _tileFor(v),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                    // ── Movies ──
+                    if (movies.isNotEmpty)
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => _tileFor(movies[index]),
+                          childCount: movies.length,
+                        ),
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  ],
+                )
+              : ListView(
+                  key: ValueKey('folder_$_currentPath'),
+                  children: [
+                    for (final f in folders) _tileFor(f),
               if (hasSeasons)
                 for (final s in sortedSeasons) ...[
                   Padding(
@@ -1230,6 +1800,69 @@ class _FolderScreenState extends State<FolderScreen> {
         onTap: () => _openSmbEntry(smb),
       );
     }
+    if (_isWebDav) {
+      final wd = e as WebDavEntry;
+      final key = _watchedKeyForEntry(wd);
+      return _FolderTile(
+        entry: FileEntry(
+          name: wd.name,
+          path: wd.path,
+          isDirectory: wd.isDirectory,
+          size: wd.size,
+          resumeKey: key,
+        ),
+        tmdbMeta: wd.isDirectory ? null : _tmdbForWebDav(wd),
+        watched: _watchedKeys.contains(key),
+        onToggleWatched: () => _toggleWatched(wd),
+        episode: wd.isDirectory ? null : _episodeFor(wd),
+        folderSeason: _seriesMeta?.folderSeason,
+        resumePositionMs: _resumePositionsMs[key],
+        durationMs: _durationsMs[key],
+        onTap: () => _openWebDavEntry(wd),
+      );
+    }
+    if (_isFtp) {
+      final ftp = e as FtpEntry;
+      final key = _watchedKeyForEntry(ftp);
+      return _FolderTile(
+        entry: FileEntry(
+          name: ftp.name,
+          path: ftp.path,
+          isDirectory: ftp.isDirectory,
+          size: ftp.size,
+          resumeKey: key,
+        ),
+        tmdbMeta: ftp.isDirectory ? null : _tmdbForFtp(ftp),
+        watched: _watchedKeys.contains(key),
+        onToggleWatched: () => _toggleWatched(ftp),
+        episode: ftp.isDirectory ? null : _episodeFor(ftp),
+        folderSeason: _seriesMeta?.folderSeason,
+        resumePositionMs: _resumePositionsMs[key],
+        durationMs: _durationsMs[key],
+        onTap: () => _openFtpEntry(ftp),
+      );
+    }
+    if (_isUpnp) {
+      final upnp = e as UpnpEntry;
+      final key = _watchedKeyForEntry(upnp);
+      return _FolderTile(
+        entry: FileEntry(
+          name: upnp.name,
+          path: upnp.name,
+          isDirectory: upnp.isDirectory,
+          size: upnp.size,
+          resumeKey: key,
+        ),
+        tmdbMeta: upnp.isDirectory ? null : _tmdbForUpnp(upnp),
+        watched: _watchedKeys.contains(key),
+        onToggleWatched: () => _toggleWatched(upnp),
+        episode: upnp.isDirectory ? null : _episodeFor(upnp),
+        folderSeason: _seriesMeta?.folderSeason,
+        resumePositionMs: _resumePositionsMs[key],
+        durationMs: _durationsMs[key],
+        onTap: () => _openUpnpEntry(upnp),
+      );
+    }
     final fileEntry = e as FileEntry;
     final key = _watchedKeyForEntry(fileEntry);
     return _FolderTile(
@@ -1282,7 +1915,9 @@ class _FolderScreenState extends State<FolderScreen> {
   bool _isFolderEntry(Object e) {
     if (_isJellyfin) return (e as JellyfinItem).isFolder;
     if (_isSmb) return (e as SmbEntry).isDirectory;
-    if (_isWebDav) return (e as Map)['isDirectory'] == true;
+    if (_isWebDav) return (e as WebDavEntry).isDirectory;
+    if (_isFtp) return (e as FtpEntry).isDirectory;
+    if (_isUpnp) return (e as UpnpEntry).isDirectory;
     return (e as FileEntry).isDirectory;
   }
 
@@ -1298,7 +1933,17 @@ class _FolderScreenState extends State<FolderScreen> {
       return p.isEpisode || _epPattern.hasMatch(smb.name);
     }
     if (_isWebDav) {
-      final name = (e as Map)['name'] as String? ?? '';
+      final name = (e as WebDavEntry).name;
+      final p = ParsedFileName.parse(name);
+      return p.isEpisode || _epPattern.hasMatch(name);
+    }
+    if (_isFtp) {
+      final name = (e as FtpEntry).name;
+      final p = ParsedFileName.parse(name);
+      return p.isEpisode || _epPattern.hasMatch(name);
+    }
+    if (_isUpnp) {
+      final name = (e as UpnpEntry).name;
       final p = ParsedFileName.parse(name);
       return p.isEpisode || _epPattern.hasMatch(name);
     }
@@ -1310,7 +1955,9 @@ class _FolderScreenState extends State<FolderScreen> {
   String _nameOf(Object e) {
     if (_isJellyfin) return (e as JellyfinItem).name;
     if (_isSmb) return (e as SmbEntry).name;
-    if (_isWebDav) return (e as Map)['name'] as String? ?? '';
+    if (_isWebDav) return (e as WebDavEntry).name;
+    if (_isFtp) return (e as FtpEntry).name;
+    if (_isUpnp) return (e as UpnpEntry).name;
     return (e as FileEntry).name;
   }
 
@@ -1323,8 +1970,12 @@ class _FolderScreenState extends State<FolderScreen> {
     } else if (_isSmb) {
       parsedSeason = ParsedFileName.parse((e as SmbEntry).name).season;
     } else if (_isWebDav) {
-      final name = (e as Map)['name'] as String? ?? '';
+      final name = (e as WebDavEntry).name;
       parsedSeason = ParsedFileName.parse(name).season;
+    } else if (_isFtp) {
+      parsedSeason = ParsedFileName.parse((e as FtpEntry).name).season;
+    } else if (_isUpnp) {
+      parsedSeason = ParsedFileName.parse((e as UpnpEntry).name).season;
     } else {
       parsedSeason = ParsedFileName.parse((e as FileEntry).name).season;
     }
@@ -1348,8 +1999,7 @@ class _FolderScreenState extends State<FolderScreen> {
       parsedSeason = parsed.season;
       parsedEpisode = parsed.episode;
     } else {
-      final fe = e as FileEntry;
-      final parsed = ParsedFileName.parse(fe.name);
+      final parsed = ParsedFileName.parse(_nameOf(e));
       if (!parsed.isEpisode) return null;
       parsedSeason = parsed.season;
       parsedEpisode = parsed.episode;
@@ -1373,9 +2023,11 @@ class _FolderScreenState extends State<FolderScreen> {
     if (_isJellyfin) return (e as JellyfinItem).indexNumber ?? 0;
     if (_isSmb) return ParsedFileName.parse((e as SmbEntry).name).episode;
     if (_isWebDav) {
-      final name = (e as Map)['name'] as String? ?? '';
+      final name = (e as WebDavEntry).name;
       return ParsedFileName.parse(name).episode;
     }
+    if (_isFtp) return ParsedFileName.parse((e as FtpEntry).name).episode;
+    if (_isUpnp) return ParsedFileName.parse((e as UpnpEntry).name).episode;
     return ParsedFileName.parse((e as FileEntry).name).episode;
   }
 
@@ -1384,6 +2036,8 @@ class _FolderScreenState extends State<FolderScreen> {
     if (_isJellyfin) return _jellyfinEntries;
     if (_isSmb) return _smbEntries;
     if (_isWebDav) return _networkEntries;
+    if (_isFtp) return _ftpEntries;
+    if (_isUpnp) return _upnpEntries;
     return _entries;
   }
 
@@ -1399,6 +2053,24 @@ class _FolderScreenState extends State<FolderScreen> {
     final serverId = widget.folder.networkServerId ?? '';
     final share = widget.folder.networkShare ?? _networkShare;
     final key = 'smb:$serverId/$share/${entry.path}';
+    return TmdService.instance.metaFor(key);
+  }
+
+  TmdMeta? _tmdbForFtp(FtpEntry entry) {
+    final serverId = widget.folder.networkServerId ?? '';
+    final key = 'ftp_$serverId${entry.path}';
+    return TmdService.instance.metaFor(key);
+  }
+
+  TmdMeta? _tmdbForWebDav(WebDavEntry entry) {
+    final serverId = widget.folder.networkServerId ?? '';
+    final key = 'webdav:$serverId${entry.path}';
+    return TmdService.instance.metaFor(key);
+  }
+
+  TmdMeta? _tmdbForUpnp(UpnpEntry entry) {
+    final serverId = widget.folder.networkServerId ?? '';
+    final key = 'upnp:$serverId/${entry.id}';
     return TmdService.instance.metaFor(key);
   }
 
@@ -1641,26 +2313,18 @@ class _FolderTile extends StatelessWidget {
         : '';
     final stillUrl = episode?.stillUrl();
 
-    final effectiveDurationMs = (durationMs != null && durationMs! > 0)
-        ? durationMs
-        : (episode?.runtimeMinutes != null && episode!.runtimeMinutes! > 0)
-            ? episode!.runtimeMinutes! * 60 * 1000
-            : null;
     final double? progress = (resumePositionMs != null &&
             resumePositionMs! > 0 &&
-            effectiveDurationMs != null &&
-            effectiveDurationMs > 0)
-        ? (resumePositionMs! / effectiveDurationMs).clamp(0.0, 1.0)
+            durationMs != null &&
+            durationMs! > 0)
+        ? (resumePositionMs! / durationMs!).clamp(0.0, 1.0)
         : null;
 
-    final filenameWidget = Text(
-      entry.name,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-    );
+    final hasOverviewText = episode != null && episode!.overview.isNotEmpty;
+    final fileSizeLabel = _sizeLabel(effectiveSize ?? entry.size);
+    final hasFileSize = fileSizeLabel.isNotEmpty;
+    final ratingValue = episode?.voteAverage ?? 0;
+    final hasRating = ratingValue > 0;
 
     final titleWidget = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1692,18 +2356,23 @@ class _FolderTile extends StatelessWidget {
                 ),
           ),
         ),
-        if (episode != null && episode!.voteAverage > 0) ...[
+        if (hasRating) ...[
           SizedBox(width: 6),
           const Icon(Icons.star, size: 13, color: Colors.amber),
           SizedBox(width: 2),
           Text(
-            episode!.voteAverage.toStringAsFixed(1),
+            ratingValue.toStringAsFixed(1),
             style: TextStyle(
               fontSize: 11,
               color: colorScheme.onSurfaceVariant,
             ),
           ),
         ],
+        if (watched)
+          const Padding(
+            padding: EdgeInsets.only(left: 6),
+            child: Icon(Icons.check_circle, color: Colors.green, size: 18),
+          ),
       ],
     );
 
@@ -1711,12 +2380,23 @@ class _FolderTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        filenameWidget,
-        if (_sizeLabel(effectiveSize ?? entry.size).isNotEmpty)
+        if (hasOverviewText)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
-              _sizeLabel(effectiveSize ?? entry.size),
+              episode!.overview,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        if (hasFileSize)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              fileSizeLabel,
               style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -1744,39 +2424,22 @@ class _FolderTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
               child: Image.network(
                 stillUrl,
-                width: 48,
-                height: 72,
+                width: 64,
+                height: 40,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _fallbackIcon(colorScheme, parsed),
+                errorBuilder: (_, _, _) => Icon(
+                  Icons.movie_outlined,
+                  color: colorScheme.secondary,
+                ),
               ),
             )
-          : _fallbackIcon(colorScheme, parsed),
+          : Icon(Icons.movie_outlined, color: colorScheme.secondary),
       title: titleWidget,
       subtitle: subtitleWidget,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (onToggleWatched != null)
-            IconButton(
-              tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
-              icon: Icon(
-                watched ? Icons.check_circle : Icons.check_circle_outline,
-                color: watched ? Colors.green.shade400 : colorScheme.onSurfaceVariant,
-              ),
-              onPressed: onToggleWatched,
-            ),
-        ],
-      ),
       onTap: onTap,
     );
   }
 
-  Widget _fallbackIcon(ColorScheme colorScheme, ParsedFileName parsed) {
-    return Icon(
-      parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
-      color: colorScheme.secondary,
-    );
-  }
 }
 
 /// Nova-style series folder header: poster + title + year + rating + genres +
@@ -1817,9 +2480,11 @@ class _SeriesHeader extends StatelessWidget {
         ? seasonName
         : movie.title;
 
-    // Season overview — fall back to series overview when the season has none.
+    // Season overview — show ONLY the season's own text. TMDB leaves most
+    // seasons without an overview, so a season folder renders blank rather
+    // than repeating the base show's synopsis.
     final seasonOverview = season?.overview ?? '';
-    final displayOverview = seasonOverview.isNotEmpty
+    final displayOverview = season != null
         ? seasonOverview
         : (details?.overview ?? '');
 
@@ -2378,6 +3043,95 @@ class _Poster extends StatelessWidget {
           Icons.play_circle_outline,
           color: Theme.of(context).colorScheme.secondary,
         ),
+      ),
+    );
+  }
+}
+
+/// Poster card for a season subfolder. Shows the TMDB season poster (or a
+/// gradient placeholder) + season name.
+class _FolderSeasonPosterCard extends StatelessWidget {
+  const _FolderSeasonPosterCard({
+    this.seasonNumber,
+    this.seasonPosterUrl,
+    required this.seasonName,
+    required this.onTap,
+  });
+
+  final int? seasonNumber;
+  final String? seasonPosterUrl;
+  final String seasonName;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: seasonPosterUrl != null
+                  ? Image.network(
+                      seasonPosterUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _placeholder(colorScheme),
+                    )
+                  : _placeholder(colorScheme),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Fixed two-line slot so every poster area in the grid stays the
+          // same size whether or not the season name wraps.
+          SizedBox(
+            height: (theme.textTheme.bodySmall?.fontSize ?? 12) * 1.4 * 2,
+            child: Text(
+              seasonName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(ColorScheme colorScheme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colorScheme.primaryContainer,
+            colorScheme.secondaryContainer,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: seasonNumber != null
+            ? Text(
+                'S${seasonNumber.toString().padLeft(2, '0')}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onPrimaryContainer,
+                ),
+              )
+            : Icon(
+                Icons.folder,
+                size: 32,
+                color: colorScheme.onPrimaryContainer,
+              ),
       ),
     );
   }

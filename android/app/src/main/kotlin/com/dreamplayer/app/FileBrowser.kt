@@ -190,6 +190,13 @@ class FileBrowser(private val activity: MainActivity) {
         val (id, relative) = parseTreePath(path)
         val treeUri = treeUriFor(id)
             ?: return listOf(mapOf("error" to "not_found", "path" to path))
+        // Re-grant bookmark permission — Android revokes SAF grants
+        // (e.g. after every flutter install / APK reinstall).
+        try {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            activity.contentResolver.takePersistableUriPermission(treeUri, flags)
+        } catch (_: Exception) { /* grant may fail; best-effort */ }
         var doc = DocumentFile.fromTreeUri(activity, treeUri)
             ?: return listOf(mapOf("error" to "not_found", "path" to path))
         if (relative.isNotEmpty()) {

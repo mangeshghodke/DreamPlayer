@@ -57,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _downloadLang = 'eng';
   int _subEncoding = 0;
   bool _autoFetchSubs = false;
+  bool _autoExpandFolders = true;
   bool _badgeEnabled = true;
   bool _badgeHdr = true;
   bool _badgeAudio = true;
@@ -83,6 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSubtitlePrefs();
     _loadBadgePrefs();
     _loadTmdbKey();
+    _loadAutoExpandFolders();
   }
 
   Future<void> _loadSimkl() async {
@@ -126,6 +128,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final enc = await SubtitlePrefs.loadEncoding();
       final auto = await SubtitlePrefs.loadAutoFetch();
       if (mounted) setState(() { _readingLang = reading; _downloadLang = download; _subEncoding = enc; _autoFetchSubs = auto; });
+    } catch (_) {}
+  }
+
+  Future<void> _loadAutoExpandFolders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) setState(() => _autoExpandFolders = prefs.getBool('dreamplayer.autoExpandFolders') ?? true);
     } catch (_) {}
   }
 
@@ -589,6 +598,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: Text(_languageLabel(LanguageService.instance.locale)),
                 onTap: () => _pickAppLanguage(context),
               ),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.unfold_more),
+              title: const Text('Auto-expand folders'),
+              subtitle: const Text('Show each subfolder and video file as its own card on the home screen'),
+              value: _autoExpandFolders,
+              onChanged: (v) async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('dreamplayer.autoExpandFolders', v);
+                if (mounted) setState(() => _autoExpandFolders = v);
+              },
             ),
             const Divider(),
             Padding(

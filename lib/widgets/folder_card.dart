@@ -258,7 +258,9 @@ class _FolderCardState extends State<FolderCard> {
     final info = widget.jellyfinInfo;
     final hasJellyfin = info != null && info.name.isNotEmpty;
     final networkTag = folder.isNetwork ? _networkLabel(folder) : null;
-    final subtitle = hasMeta
+    final subtitle = folder.isFile
+        ? _formatFileSize(folder.videoSizeBytes)
+        : hasMeta
         ? [
             if (movie.year != null) '${movie.year}',
             movie.kind == TmdKind.tv ? 'TV Series' : 'Movie',
@@ -413,7 +415,18 @@ class _FolderCardState extends State<FolderCard> {
                                 background: _networkColor(folder),
                               ),
                             ),
-                          if (_isShow &&
+                          if (folder.isFile &&
+                              folder.videoSizeBytes != null &&
+                              folder.videoSizeBytes! > 0)
+                            Positioned(
+                              bottom: 8,
+                              left: 8,
+                              child: _FolderBadge(
+                                label: _formatFileSize(folder.videoSizeBytes),
+                                background: const Color(0xFF455A64),
+                              ),
+                            )
+                          else if (_isShow &&
                               _seasonWatched != null &&
                               _seasonTotal != null &&
                               _seasonTotal! > 0)
@@ -497,6 +510,16 @@ class _FolderCardState extends State<FolderCard> {
       },
     );
   }
+}
+
+String _formatFileSize(int? bytes) {
+  if (bytes == null || bytes <= 0) return '';
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  if (bytes < 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }
 
 class _FolderBadge extends StatelessWidget {

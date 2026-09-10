@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
+import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
 import '../services/upnp_client.dart';
 import '../services/resume_progress_helper.dart';
@@ -144,6 +145,93 @@ class _UpnpScreenState extends State<UpnpScreen> {
     if (server == null || _crumbs.isEmpty) return;
     await UpnpClient.instance.invalidateListingCache(serverId: server.id);
     await _browse(server, _crumbs.last.id);
+  }
+
+  /// Bookmarks the current DLNA container to the home library (auto-expand
+  /// pattern: subfolders + video children become child cards when enabled —
+  /// same as SMB/WebDAV/FTP).
+  Future<void> _bookmarkCurrentFolder() async {
+    final server = _activeServer;
+    if (server == null || _crumbs.length <= 1) return;
+    final crumb = _crumbs.last;
+    final folderName = crumb.name;
+    final id = 'upnp_${server.id}_${crumb.id.hashCode}';
+
+    final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
+    if (autoExpand && _entries.isNotEmpty) {
+      final parentId = id;
+      final expanded = <LibraryFolder>[];
+      for (final entry in _entries) {
+        final childId = '${parentId}_${entry.id.hashCode}';
+        if (entry.isDirectory) {
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: entry.name,
+            path: 'upnp:${server.id}/${entry.id}',
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.upnp,
+            networkServerId: server.id,
+            networkPath: entry.id,
+            networkLabel: server.name,
+            parentId: parentId,
+            yearHint: ParsedFileName.yearFromNames([entry.name]),
+          ));
+        } else if (entry.url != null && entry.url!.isNotEmpty) {
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: entry.name,
+            path: 'upnp:${server.id}/${entry.id}',
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.upnp,
+            networkServerId: server.id,
+            networkPath: entry.id,
+            networkLabel: server.name,
+            parentId: parentId,
+            isFile: true,
+            videoUri: entry.url,
+            videoSizeBytes: entry.size > 0 ? entry.size : null,
+          ));
+        }
+      }
+      if (expanded.isNotEmpty) {
+        await LibraryFoldersStore.bulkAdd(expanded);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Bookmarked $folderName to Home — ${expanded.length} items (DLNA · ${server.name})',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    // Fallback: single card.
+    final folder = LibraryFolder(
+      id: id,
+      name: folderName,
+      path: 'upnp:${server.id}/${crumb.id}',
+      addedAt: DateTime.now(),
+      source: LibraryFolderSource.upnp,
+      networkServerId: server.id,
+      networkPath: crumb.id,
+      networkLabel: server.name,
+      yearHint: ParsedFileName.yearFromNames(
+        _entries.map((e) => e.name),
+      ),
+    );
+    await LibraryFoldersStore.add(folder);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Bookmarked $folderName to Home (DLNA · ${server.name})',
+          ),
+        ),
+      );
+    }
   }
 
   /// Best-effort TMDB prefetch for the current folder's video files.
@@ -392,6 +480,12 @@ class _UpnpScreenState extends State<UpnpScreen> {
         appBar: AppBar(
           title: Text(isBrowsingServer ? (_activeServer!.name) : 'DLNA'),
           actions: [
+            if (isBrowsingServer && _crumbs.length > 1)
+              IconButton(
+                tooltip: 'Add to library',
+                icon: const Icon(Icons.bookmark_add_outlined),
+                onPressed: _bookmarkCurrentFolder,
+              ),
             if (!isBrowsingServer)
               IconButton(
                 icon: _discovering

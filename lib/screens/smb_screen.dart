@@ -236,10 +236,13 @@ class _SmbScreenState extends State<SmbScreen> {
   Future<void> _bookmarkCurrentFolder() async {
     final server = _browsing;
     if (server == null || _share.isEmpty) return;
-    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+    final cleanPath = _path.replaceAll(RegExp(r'^/+'), '').replaceAll(RegExp(r'/+$'), '');
     final folderName = cleanPath.isEmpty ? _share : cleanPath.split('/').last;
     final repoPath = cleanPath.isEmpty ? _share : '$_share/$cleanPath';
     final id = 'smb_${server.id}_${repoPath.hashCode}';
+
+    // Bookmark always saves a single folder card (not expanded children).
+    // Auto-expand is handled by FolderScreen when the card is opened.
     final folder = LibraryFolder(
       id: id,
       name: folderName,
@@ -261,6 +264,8 @@ class _SmbScreenState extends State<SmbScreen> {
       );
     }
   }
+
+
 
   Future<void> _syncFromSimkl() async {
     final client = SimklClient();
@@ -1076,7 +1081,7 @@ class _SmbScreenState extends State<SmbScreen> {
             metadataKey: metadataKey,
             folderSeason: _seriesMeta?.folderSeason,
             onFixMatch: () async {
-              final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
               final folderName =
                   cleanPath.isEmpty ? _share : cleanPath.split('/').last;
               await _fixMatchSeries(folderName);
@@ -1590,6 +1595,19 @@ class _SmbTile extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         filenameWidget,
+        // Episode overview from TMDB meta (like series seasons tile).
+        if (tmdbMeta != null && tmdbMeta!.movie.overview.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Text(
+              tmdbMeta!.movie.overview,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
         if (_sizeLabel(effectiveSize ?? entry.size).isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2),
@@ -1694,7 +1712,7 @@ class _SeriesFolderHeader extends StatelessWidget {
         : movie.title;
 
     final seasonOverview = season?.overview ?? '';
-    final displayOverview = seasonOverview.isNotEmpty
+    final displayOverview = season != null
         ? seasonOverview
         : (details?.overview ?? '');
 
@@ -1857,9 +1875,12 @@ class _SmbSeasonExpansion extends StatelessWidget {
         e.isDirectory ? '' : 'smb:$serverId/$share/${e.path}';
     final watched = sg.watchedCount(entries, watchedKeys, keyOf);
     final total = entries.length;
-    final headerLabel = (seasonName != null && seasonName!.isNotEmpty)
-        ? '${sg.seasonHeader(season)} · $seasonName'
-        : sg.seasonHeader(season);
+    final genericLabel = sg.seasonHeader(season);
+    final headerLabel = (seasonName != null &&
+            seasonName!.isNotEmpty &&
+            seasonName != genericLabel)
+        ? '$genericLabel · $seasonName'
+        : genericLabel;
     final seasonData = cachedMeta?.seasons[season];
 
     return Theme(

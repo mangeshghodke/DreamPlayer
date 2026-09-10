@@ -615,4 +615,69 @@ void main() {
       expect(ParsedFileName.parse('Kakegurui Twin (2017)').liveAction, isFalse);
     });
   });
+
+  group('matchFolderToSeasonName', () {
+    const names = {
+      0: 'Specials',
+      1: 'Strike the Blood',
+      2: 'Strike the Blood II',
+      3: 'Strike the Blood III',
+      4: 'Strike the Blood IV',
+      5: 'Strike the Blood Final',
+    };
+    final match = TmdService.matchFolderToSeasonName;
+
+    test('exact folder name resolves to its own season', () {
+      expect(match('Strike the Blood', names), 1);
+      expect(match('Strike the Blood II', names), 2);
+      expect(match('Strike the Blood Final', names), 5);
+    });
+
+    test('release-group brackets are stripped before matching', () {
+      // Regression 2026-09: "[VCB-Studio] Strike the Blood" used to land on
+      // Season 2 because the bracket noise broke the exact match and the word
+      // overlap dropped the 2-char "ii"/"iv" tokens, so Seasons 1/2/4 tied and
+      // the longer name ("Strike the Blood II") won the length tie-break.
+      expect(match('[VCB-Studio] Strike the Blood', names), 1);
+      expect(match('[SubsPlease] Strike the Blood Final', names), 5);
+    });
+
+    test('quality suffixes no longer mis-match the base season', () {
+      // Regression 2026-09: "Strike the Blood 1080p" used to fall through to
+      // word-overlap (the sName-longer-than-q gate) and resolve to Season 2.
+      expect(match('Strike the Blood 1080p', names), 1);
+      expect(match('Strike the Blood II - 1080p BluRay', names), 2);
+    });
+
+    test('bracket noise combined with a quality suffix', () {
+      expect(match('[VCB-Studio] Strike the Blood II - 1080p BluRay', names), 2);
+    });
+
+    test('different shows / generic season names do not match', () {
+      expect(match('house', {1: 'Season 1', 2: 'Season 2'}), isNull);
+      expect(match('Kakegurui Twin', {1: 'Season 1'}), isNull);
+    });
+
+    test('non-season extra content yields no match (gradient card)', () {
+      // Regression 2026-09: "Strike the Blood Kieta Seisou Hen" contains the
+      // string "Strike the Blood" but is NOT a season of the show (TMDB lists
+      // no such season) — it used to be absorbed by Season 1's poster/name via
+      // substring containment. Real content beyond any season title must win
+      // out over the loose prefix, so the subfolder keeps its gradient card.
+      expect(match('Strike the Blood Kieta Seisou Hen', names), isNull);
+    });
+
+    test('release noise after a season name still matches', () {
+      // Noise tokens (resolution/source/codec/audio/group) legitimately wrap
+      // a season folder name and must NOT disqualify it.
+      expect(match('[VCB-Studio] Strike the Blood II [1080p HEVC FLAC]', names), 2);
+      expect(match('Strike the Blood Final Complete BluRay', names), 5);
+      expect(match('Strike the Blood 4K HDR10 2160p', names), 1);
+    });
+
+    test('extra title words anywhere in the folder name disqualify it', () {
+      expect(match('Strike the Blood Kieta Seisou Hen II', names), isNull);
+      expect(match('Strike the Blood - The Movie 2021', names), isNull);
+    });
+  });
 }

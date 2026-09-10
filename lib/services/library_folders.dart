@@ -45,6 +45,11 @@ class LibraryFolder {
     this.networkPath,
     this.networkLabel,
     this.yearHint,
+    this.isFile = false,
+    this.parentId,
+    this.videoPath,
+    this.videoUri,
+    this.videoSizeBytes,
   });
 
   /// Bookmark id from the folder picker (`FileEntry.bookmarkId`), or a
@@ -84,6 +89,24 @@ class LibraryFolder {
   /// differ only by year. Null when unknown.
   final int? yearHint;
 
+  /// When true, this entry represents a standalone video file (not a
+  /// directory). Expanded by the auto-expand feature from a parent folder.
+  final bool isFile;
+
+  /// Groups expanded children — all entries with the same [parentId] were
+  /// expanded from one parent folder. Used by "Remove from library" to delete
+  /// the whole batch. Null for non-expanded entries.
+  final String? parentId;
+
+  /// Absolute path for file entries (for opening in the player).
+  final String? videoPath;
+
+  /// Content/document URI for file entries (e.g. `content://` SAF URIs).
+  final String? videoUri;
+
+  /// File size in bytes for display on the card.
+  final int? videoSizeBytes;
+
   bool get isJellyfin => source == LibraryFolderSource.jellyfin;
   bool get isNetwork => source != LibraryFolderSource.files;
 
@@ -104,6 +127,11 @@ class LibraryFolder {
         'networkPath': networkPath,
         'networkLabel': networkLabel,
         'yearHint': yearHint,
+        if (isFile) 'isFile': true,
+        if (parentId != null) 'parentId': parentId,
+        if (videoPath != null) 'videoPath': videoPath,
+        if (videoUri != null) 'videoUri': videoUri,
+        if (videoSizeBytes != null) 'videoSizeBytes': videoSizeBytes,
       };
 
   factory LibraryFolder.fromJson(Map<String, dynamic> json) {
@@ -130,6 +158,11 @@ class LibraryFolder {
       networkPath: json['networkPath'] as String?,
       networkLabel: json['networkLabel'] as String?,
       yearHint: (json['yearHint'] as num?)?.toInt(),
+      isFile: json['isFile'] as bool? ?? false,
+      parentId: json['parentId'] as String?,
+      videoPath: json['videoPath'] as String?,
+      videoUri: json['videoUri'] as String?,
+      videoSizeBytes: (json['videoSizeBytes'] as num?)?.toInt(),
     );
   }
 }
@@ -179,5 +212,42 @@ class LibraryFoldersStore {
       jsonEncode(all.map((f) => f.toJson()).toList()),
     );
     changes.notify();
+  }
+
+  /// Adds multiple folders in a single prefs write. Deduplicates by [id]
+  /// (existing entries with the same id are replaced). Most-recently-added
+  /// first — the list is reversed so the oldest of the batch ends up on top.
+  static Future<void> bulkAdd(List<LibraryFolder> folders) async {
+    if (folders.isEmpty) return;
+    final all = await load();
+    for (final folder in folders) {
+      all.removeWhere((f) => f.id == folder.id);
+    }
+    all.insertAll(0, folders);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _prefsKey,
+      jsonEncode(all.map((f) => f.toJson()).toList()),
+    );
+    changes.notify();
+  }
+
+  /// Removes all entries that share the same [parentId] (expanded children
+  /// of one parent folder). If [parentId] is null, this is a no-op.
+  static Future<void> removeByParentId(String parentId) async {
+    final all = await load();
+    all.removeWhere((f) => f.parentId == parentId);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _prefsKey,
+      jsonEncode(all.map((f) => f.toJson()).toList()),
+    );
+    changes.notify();
+  }
+
+  /// Whether the auto-expand-folders feature is enabled (default `true`).
+  static Future<bool> isAutoExpandEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('dreamplayer.autoExpandFolders') ?? true;
   }
 }

@@ -31,7 +31,6 @@ import 'jellyfin_screen.dart';
 import '../utils/file_info_extractor.dart';
 import '../utils/startup_permissions.dart';
 import 'smb_screen.dart';
-import 'folder_screen.dart';
 import 'tmd_details_screen.dart';
 import 'upnp_screen.dart';
 import 'webdav_screen.dart';
@@ -352,24 +351,77 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
     if (picked == null || !mounted) return;
-    // Best-effort year hint from the folder's own files (helps TMDB pick the
-    // right entry when the folder name has no year but the episodes do, e.g.
-    // a folder named `Kakegurui Twin-1080p BD` whose files say `(2021)`).
-    int? yearHint;
+
+    // List children to decide: expand or add as a single card.
+    List<FileEntry> children = const [];
     try {
-      final listing = await FileBrowserService.instance
+      children = await FileBrowserService.instance
           .listDirectory(picked.path)
           .timeout(const Duration(seconds: 15));
-      yearHint = ParsedFileName.yearFromNames(
-        listing.where((e) => !e.isDirectory).map((e) => e.name),
-      );
-    } catch (_) {
-      yearHint = null; // listing failure is non-fatal; name may still carry a year
+    } catch (_) {}
+
+    // Check auto-expand pref.
+    final prefs = await SharedPreferences.getInstance();
+    final autoExpand = prefs.getBool('dreamplayer.autoExpandFolders') ?? true;
+
+    if (autoExpand && children.isNotEmpty) {
+      // Expand: create one LibraryFolder per child (directories + video files).
+      final parentId = picked.bookmarkId ?? 'folder_${DateTime.now().millisecondsSinceEpoch}';
+      final expanded = <LibraryFolder>[];
+      for (final child in children) {
+        final childId = '${parentId}_${child.name.hashCode}';
+        if (child.isDirectory) {
+          int? childYearHint;
+          try {
+            final grandChildren = await FileBrowserService.instance
+                .listDirectory(child.path)
+                .timeout(const Duration(seconds: 10));
+            childYearHint = ParsedFileName.yearFromNames(
+              grandChildren.where((e) => !e.isDirectory).map((e) => e.name),
+            );
+          } catch (_) {}
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: child.name,
+            path: child.path,
+            addedAt: DateTime.now(),
+            parentId: parentId,
+            yearHint: childYearHint,
+          ));
+        } else if (_isVideoFile(child.name)) {
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: child.name,
+            path: child.path,
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.files,
+            parentId: parentId,
+            isFile: true,
+            videoPath: child.path,
+            videoSizeBytes: child.size > 0 ? child.size : null,
+          ));
+        }
+      }
+      if (expanded.isNotEmpty) {
+        await LibraryFoldersStore.bulkAdd(expanded);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${picked.name}" expanded into ${expanded.length} items')),
+        );
+        _resolveFolderMetadata(expanded.where((f) => !f.isFile).toList());
+        return;
+      }
     }
+
+    // Fallback: add as a single card (current behavior).
+    int? yearHint;
+    try {
+      yearHint = ParsedFileName.yearFromNames(
+        children.where((e) => !e.isDirectory).map((e) => e.name),
+      );
+    } catch (_) {}
     final folder = LibraryFolder(
-      id:
-          picked.bookmarkId ??
-          'folder_${DateTime.now().millisecondsSinceEpoch}',
+      id: picked.bookmarkId ?? 'folder_${DateTime.now().millisecondsSinceEpoch}',
       name: picked.name,
       path: picked.path,
       addedAt: DateTime.now(),
@@ -380,65 +432,71 @@ class _HomeScreenState extends State<HomeScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('"${picked.name}" added to your library')),
     );
-    // TMDB poster for the new card resolves in the background.
     _resolveFolderMetadata([folder]);
   }
 
-  /// Opens a library folder: the show/movie details screen with the folder's
-  /// files (episodes) listed below it.
-  void _openFolder(LibraryFolder folder) async {
-    // Network bookmarks (SMB/WebDAV) open the folder browser directly
-    // so the file list appears immediately — TmdDetailsScreen's file list
-    // only knows FileBrowser/Jellyfin.
-    if (folder.source == LibraryFolderSource.smb ||
-        folder.source == LibraryFolderSource.webdav ||
-        folder.source == LibraryFolderSource.ftp ||
-        folder.source == LibraryFolderSource.upnp) {
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => FolderScreen(folder: folder),
-        ),
-      );
-      await _loadLibrary();
-      return;
-    }
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(
-          folder: folder,
-          jellyfinInfo: _jellyfinMeta[folder.id],
-        ),
-      ),
-    );
-    await _loadLibrary();
+  /// Quick check: does the filename look like a video file?
+  static bool _isVideoFile(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.mkv') ||
+        lower.endsWith('.mp4') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.webm') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.ts') ||
+        lower.endsWith('.m2ts') ||
+        lower.endsWith('.wmv') ||
+        lower.endsWith('.flv') ||
+        lower.endsWith('.ogv') ||
+        lower.endsWith('.rmvb') ||
+        lower.endsWith('.mpg') ||
+        lower.endsWith('.mpeg') ||
+        lower.endsWith('.vob') ||
+        lower.endsWith('.3gp');
   }
 
+  /// Builds a playable [VideoItem] for an auto-expanded network FILE card on
+  /// the home grid. Local (`files`) cards carry path/uri directly; network
+  /// cards store only ids/paths, so the source must be re-resolved live
+  /// (SMB needs a fresh loopback/proxy token, WebDAV needs auth, UPnP keeps
+  /// the stored raw URL, FTP is iOS-only and picks ftp:// vs sftp://).
   /// Opens a grouped series (`Strike the Blood`, `Strike the Blood II`, etc
-  /// collapsed into one card). When the group contains a single folder the
-  /// existing per-folder flow is used (so behavior stays identical to v0.4.0).
-  /// When the group contains multiple folders, a new
-  /// [SeriesSeasonsScreen] shows every season across the collapsed folders
-  /// — the Flux-style "Series → Seasons" hierarchy.
+  /// collapsed into one card). Always opens [SeriesSeasonsScreen] for the
+  /// Nova-style season poster grid UI.
   void _openGroup(SeriesGroup group) {
-    if (group.folders.length > 1) {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => SeriesSeasonsScreen(group: group),
-        ),
-      );
-      return;
-    }
-    _openFolder(group.primary);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SeriesSeasonsScreen(group: group),
+      ),
+    );
   }
 
   Future<void> _removeFolder(LibraryFolder folder) async {
+    // Find the group this folder belongs to (if any) so we can remove the
+    // whole series at once (e.g. Strike the Blood + all its seasons).
+    final group = _seriesGroups.firstWhere(
+      (g) => g.folders.any((f) => f.id == folder.id),
+      orElse: () => SeriesGroup(
+            baseName: '',
+            displayName: folder.name,
+            folders: [folder],
+          ),
+    );
+    final isGroup = group.folders.length > 1 ||
+        (group.folders.length == 1 &&
+            group.folders.first.id == folder.id &&
+            _seriesGroups.any((g) => g.folders.any((f) => f.id == folder.id)));
+    final foldersToRemove = isGroup ? group.folders : [folder];
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(AppLocalizations.of(context).homeRemoveFromLibrary),
         content: Text(
-          '"${folder.name}" will no longer appear here. '
-          'The files stay on your device.',
+          isGroup
+              ? '"${group.displayName}" and all its seasons will no longer '
+                'appear here. The files stay on your device.'
+              : '"${folder.name}" will no longer appear here. '
+                'The files stay on your device.',
         ),
         actions: [
           TextButton(
@@ -453,26 +511,28 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
     if (confirmed != true) return;
-    await LibraryFoldersStore.remove(folder.id);
-    // Release the native library bookmark so its grant doesn't linger (only
-    // for on-device folders — network/Jellyfin bookmarks have no native grant).
-    if (folder.source == LibraryFolderSource.files) {
+
+    for (final f in foldersToRemove) {
+      await LibraryFoldersStore.remove(f.id);
+      if (f.source == LibraryFolderSource.files) {
+        try {
+          await FileBrowserService.instance.removeLibraryBookmark(f.id);
+        } catch (_) {}
+      } else if (f.isJellyfin) {
+        try {
+          await _client.removeFolderMeta(f.id);
+        } catch (_) {}
+      }
       try {
-        await FileBrowserService.instance.removeLibraryBookmark(folder.id);
-      } catch (_) {}
-    } else if (folder.isJellyfin) {
-      // Drop the cached server-side metadata too so a re-add re-fetches fresh.
-      try {
-        await _client.removeFolderMeta(folder.id);
+        await TmdService.instance.clear(f.metadataKey);
       } catch (_) {}
     }
-    // Drop the folder's TMDB metadata too so a re-add re-matches cleanly.
-    try {
-      await TmdService.instance.clear(folder.metadataKey);
-    } catch (_) {}
+
     if (!mounted) return;
     setState(() {
-      _folders = _folders.where((f) => f.id != folder.id).toList();
+      _folders = _folders
+          .where((f) => !foldersToRemove.any((r) => r.id == f.id))
+          .toList();
     });
   }
 

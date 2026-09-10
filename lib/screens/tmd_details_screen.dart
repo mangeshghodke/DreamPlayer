@@ -13,6 +13,7 @@ import '../services/resume_progress_helper.dart';
 import '../services/resume_store.dart';
 import '../services/default_engine_store.dart';
 import '../services/simkl_client.dart';
+import '../services/smb_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/watched_store.dart';
 import '../services/download_manager.dart';
@@ -132,6 +133,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   TmdDetails? _details;
   bool _loading = true;
 
+  /// Season-name map (number → name) for the matched show, used to resolve
+  /// roman-numeral season subfolders ("Strike the Blood II" → Season 2).
+  Map<int, String>? _seasonNameMap;
+
   /// Saved playhead for this video per engine.
   Duration? _resumePosition;     // Media3 playhead
   Duration? _resumePositionMpv;  // MPV playhead
@@ -172,6 +177,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   /// Which seasons are expanded (all true initially).
   final Set<int> _expandedSeasons = {};
+
+  /// Overview expand/collapse toggle.
+  bool _overviewExpanded = false;
 
   MediaProbeResult? _probe;
   bool _probing = false;
@@ -463,13 +471,54 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   /// Folder mode: load the folder's direct entries so the file list renders.
   Future<void> _loadFolderEntries() async {
-    if (widget.folder!.isJellyfin) {
+    final folder = widget.folder!;
+    if (folder.isJellyfin) {
       await _loadJellyfinEntries();
       return;
     }
+    // SMB folder listing
+    if (folder.source == LibraryFolderSource.smb) {
+      try {
+        final serverId = folder.networkServerId ?? '';
+        final share = folder.networkShare ?? '';
+        final path = folder.networkPath ?? '';
+        final rawEntries = await SmbClient.instance.listDirectory(
+          serverId,
+          share,
+          path,
+        );
+        if (!mounted) return;
+        final entries = rawEntries.map((e) {
+          final relPath = e.path.replaceAll('//', '/').replaceAll(RegExp(r'^/+'), '');
+          return FileEntry(
+            name: e.name,
+            path: relPath,
+            isDirectory: e.isDirectory,
+            size: e.size,
+            resumeKey: 'smb:$serverId/$share/$relPath',
+          );
+        }).toList();
+        setState(() {
+          _entries = entries;
+          _folderError = null;
+        });
+        _refreshWatched();
+        for (final entry in entries) {
+          if (entry.isDirectory) continue;
+          _service.resolve(_toVideoItem(entry)).catchError((_) => null);
+        }
+      } on PlatformException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _folderError = e.message ?? 'Could not list SMB folder';
+        });
+      }
+      return;
+    }
+    // Local folder listing
     try {
       final entries =
-          await FileBrowserService.instance.listDirectory(widget.folder!.path);
+          await FileBrowserService.instance.listDirectory(folder.path);
       if (!mounted) return;
       setState(() {
         _entries = entries;
@@ -570,9 +619,21 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final details = await _service.detailsFor(_identityKey);
     if (mounted) setState(() => _details = details);
     if (meta.movie.kind != TmdKind.tv) return;
+    // Season names first so _seasonsNeeded can map roman-numeral / titled
+    // season subfolders ("Strike the Blood II") onto their TMDB season number.
+    _seasonNameMap = await _service.seasonNameMapFor(_identityKey);
+    if (!mounted) return;
     for (final season in _seasonsNeeded()) {
       await _service.seasonFor(_identityKey, season);
       if (!mounted) return;
+    }
+    // Re-read meta from cache — seasonFor may have enriched it with poster
+    // data.  The listener (_onServiceChanged) should fire, but the final
+    // rebuild must happen here too to avoid a stale _meta when the last
+    // seasonFor finishes and the widget is already idle.
+    if (mounted) {
+      final freshMeta = _service.metaFor(_identityKey) ?? meta;
+      setState(() => _meta = freshMeta);
     }
     // Single episode (video mode, not a folder): enrich it with its own cast
     // and still frames once the season list is loaded.
@@ -594,7 +655,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   /// Which season numbers to fetch per-episode data for. Single episode → its
   /// own season; folder mode → the seasons present in the local file list (or
-  /// the Jellyfin item's season numbers).
+  /// the Jellyfin item's season numbers). Also scans subfolder names so season
+  /// folders (e.g. "Show Name S02 1080p") get their TMDB season posters.
   List<int> _seasonsNeeded() {
     if (widget.folder != null) {
       if (widget.folder!.isJellyfin) {
@@ -605,17 +667,21 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
             .toSet()
             .toList();
       }
-      return _entries
-          .where((e) => !e.isDirectory)
-          .map((e) => ParsedFileName.parse(e.name))
-          .where((p) => p.isEpisode)
-          .map((p) => p.season)
-          .where((s) => s > 0)
-          .toSet()
-          .toList()
-        // When folderSeason is set (from TMDB season-name matching), always
-        // fetch that season's data even if parsed seasons are all 0 (anime [01]).
-        ..addAll([if (_meta?.folderSeason != null) _meta!.folderSeason!]);
+      final seasons = <int>{};
+      // Seasons from video file names.
+      for (final e in _entries.where((e) => !e.isDirectory)) {
+        final p = ParsedFileName.parse(e.name);
+        if (p.isEpisode && p.season > 0) seasons.add(p.season);
+      }
+      // Seasons from subfolder names (e.g. "Show S02 ...").
+      for (final e in _entries.where((e) => e.isDirectory)) {
+        final s = _seasonNumberFromFolder(e.name);
+        if (s != null && s > 0) seasons.add(s);
+      }
+      // When folderSeason is set (from TMDB season-name matching), always
+      // fetch that season's data even if parsed seasons are all 0 (anime [01]).
+      if (_meta?.folderSeason != null) seasons.add(_meta!.folderSeason!);
+      return seasons.toList();
     }
     if (_parsed.isEpisode) {
       // When parentMetadataKey is set (from a series folder with folderSeason),
@@ -641,6 +707,55 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final episode = item.indexNumber;
     if (season == null || episode == null) return null;
     return _meta?.seasons[season]?.episode(episode);
+  }
+
+  /// Parse a season number from a subfolder name (e.g. "Strike The Blood S02
+  /// [1080p]..." → 2). Returns null when the name doesn't contain a season
+  /// tag.
+  int? _seasonNumberFromFolder(String name) {
+    final parsed = ParsedFileName.parse(name);
+    if (parsed.season > 0) return parsed.season;
+    // Fallback: bare Sxx pattern (e.g. "S02", "Season 2").
+    final sMatch = RegExp(r'\bS(\d{1,2})\b', caseSensitive: false)
+        .firstMatch(name);
+    if (sMatch != null) return int.tryParse(sMatch.group(1)!);
+    final seasonMatch =
+        RegExp(r'\bSeason\s+(\d{1,2})\b', caseSensitive: false)
+            .firstMatch(name);
+    if (seasonMatch != null) return int.tryParse(seasonMatch.group(1)!);
+    // Season folders named by their TMDB title (roman numerals — "Strike the
+    // Blood II" → 2). _seasonNameMap is loaded by _loadDetailsAndSeasons.
+    final names = _seasonNameMap;
+    if (names != null && names.isNotEmpty) {
+      final s = TmdService.matchFolderToSeasonName(name, names);
+      if (s != null && s > 0) return s;
+    }
+    return null;
+  }
+
+  /// TMDB season poster URL for a subfolder, or null.
+  String? _seasonPosterUrlForFolder(FileEntry entry) {
+    final s = _seasonNumberFromFolder(entry.name);
+    if (s == null || _meta == null) {
+      debugPrint('POSTER_GRID posterUrl null: s=$s meta=${_meta != null} entry=${entry.name}');
+      return null;
+    }
+    final url = _meta!.seasons[s]?.posterUrl(width: 300);
+    debugPrint('POSTER_GRID posterUrl: season=$s url=$url seasons=${_meta!.seasons.keys.toList()} entry=${entry.name}');
+    return url;
+  }
+
+  /// Display name for a season subfolder.
+  String _seasonNameForFolder(FileEntry entry) {
+    final s = _seasonNumberFromFolder(entry.name);
+    if (s != null && _meta?.seasons[s]?.name != null) {
+      final genericName = 'Season $s';
+      final tmdbName = _meta!.seasons[s]!.name;
+      if (tmdbName != genericName) return '$genericName · $tmdbName';
+      return genericName;
+    }
+    // Fall back to the folder name (strip trailing noise for cleaner display).
+    return entry.name;
   }
 
   /// Mirrors the player's resume rules: ignore trivial positions and
@@ -894,10 +1009,38 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// standalone movies must resolve their own title.
   Future<void> _openFolderEntry(FileEntry entry) async {
     if (entry.isDirectory) {
+      final isSmb = widget.folder?.source == LibraryFolderSource.smb;
+      String subNetworkPath = entry.path;
+      if (!subNetworkPath.startsWith('/')) {
+        final parentPath = widget.folder?.networkPath ?? '';
+        subNetworkPath = '$parentPath/${entry.path}'.replaceAll('//', '/');
+      }
+      String subLocalPath = entry.path;
+      if (!subLocalPath.startsWith('/')) {
+        final parentPath = widget.folder?.path ?? '';
+        subLocalPath = '$parentPath/${entry.path}'.replaceAll('//', '/');
+      }
+      final subFolder = isSmb
+          ? LibraryFolder(
+              id: '${widget.folder!.id}_${entry.name.hashCode}',
+              name: entry.name,
+              path: 'smb://${widget.folder!.networkShare}/$subNetworkPath',
+              addedAt: widget.folder!.addedAt,
+              source: LibraryFolderSource.smb,
+              networkServerId: widget.folder!.networkServerId,
+              networkShare: widget.folder!.networkShare,
+              networkPath: subNetworkPath,
+            )
+          : LibraryFolder(
+              id: '${widget.folder!.id}_${entry.name.hashCode}',
+              name: entry.name,
+              path: subLocalPath,
+              addedAt: widget.folder!.addedAt,
+              source: widget.folder?.source ?? LibraryFolderSource.files,
+            );
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              FolderScreen(folder: widget.folder!, initialPath: entry.path),
+          builder: (_) => TmdDetailsScreen(folder: subFolder),
         ),
       );
       await _loadFolderEntries();
@@ -939,8 +1082,29 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   }
 
   VideoItem _toVideoItem(FileEntry entry) {
-    final isContentUri = entry.path.startsWith('content://');
     final info = extractFileInfo(entry.name);
+    if (widget.folder?.source == LibraryFolderSource.smb) {
+      final share = widget.folder!.networkShare ?? '';
+      final serverId = widget.folder!.networkServerId ?? '';
+      final relPath = entry.path.replaceAll('//', '/').replaceAll(RegExp(r'^/+'), '');
+      final resumeKey = 'smb:$serverId/$share/$relPath';
+      return VideoItem(
+        id: 'smb_${widget.folder!.id}_${entry.path.hashCode}',
+        title: entry.name,
+        path: 'smb://$share/$relPath',
+        resumeKey: resumeKey,
+        duration: Duration.zero,
+        sizeBytes: entry.size,
+        videoCodec: info.videoCodec,
+        audioCodec: info.audioCodec,
+        audioChannels: info.audioChannels,
+        audioLanguage: info.audioLanguage,
+        resolution: info.resolution,
+        fps: info.fps,
+        hdrHint: info.hdrHint,
+      );
+    }
+    final isContentUri = entry.path.startsWith('content://');
     return VideoItem(
       id: 'folder_${widget.folder!.id}_${entry.path.hashCode}',
       title: entry.name,
@@ -1204,16 +1368,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         ? meta.seasons[effectiveSeason]?.posterUrl(width: 342)
         : null;
     final headerPosterUrl = seasonPoster ?? movie.posterUrl(width: 342);
-    // When a specific season folder is open, prefer the season's name/overview
-    // over the series title/overview (e.g. "Strike the Blood Final" folder →
-    // Season 5 "Strike the Blood Final", not the base "Strike the Blood").
+    // When a specific season folder is open, always show the series title
+    // as the main title and the season name as a subtitle below it.
     final seasonName = effectiveSeason > 0
         ? meta.seasons[effectiveSeason]?.name
         : null;
-    final displayTitle =
-        (seasonName?.isNotEmpty ?? false) && seasonName != movie.title
-            ? seasonName!
-            : movie.title;
+    final displayTitle = movie.title;
     final seasonOverview = effectiveSeason > 0
         ? (meta.seasons[effectiveSeason]?.overview.isNotEmpty ?? false)
             ? meta.seasons[effectiveSeason]!.overview
@@ -1333,7 +1493,16 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                            if (movie.year != null)
+                              if (seasonName != null &&
+                                  seasonName.isNotEmpty &&
+                                  seasonName != movie.title)
+                                Text(
+                                  seasonName,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              if (movie.year != null)
                               Text(
                                 '${movie.year}',
                                 style: theme.textTheme.bodyLarge?.copyWith(
@@ -1399,8 +1568,24 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                 const SizedBox(height: 6),
                 Text(
                   displayOverview,
+                  maxLines: _overviewExpanded ? null : 4,
+                  overflow: _overviewExpanded
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                 ),
+                if (displayOverview.length > 200)
+                  GestureDetector(
+                    onTap: () =>
+                        setState(() => _overviewExpanded = !_overviewExpanded),
+                    child: Text(
+                      _overviewExpanded ? 'Less' : 'More',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
 
                 // ── Cast row (Nova-style) ──
                 if (details != null && details.cast.isNotEmpty) ...[
@@ -1567,21 +1752,44 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           ),
         ),
       ),
-      if (folders.isNotEmpty)
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final entry = folders[index];
-              return _FolderEntryTile(
-                entry: entry,
-                episode: null,
-                tmdbMeta: null,
-                onTap: () => _openFolderEntry(entry),
-              );
-            },
-            childCount: folders.length,
+      if (folders.isNotEmpty) ...[
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              'Seasons',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.58,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final entry = folders[index];
+                return _SeasonFolderCard(
+                  entry: entry,
+                  seasonNumber: _seasonNumberFromFolder(entry.name),
+                  seasonPosterUrl: _seasonPosterUrlForFolder(entry),
+                  seasonName: _seasonNameForFolder(entry),
+                  onTap: () => _openFolderEntry(entry),
+                );
+              },
+              childCount: folders.length,
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 8)),
+      ],
       for (final s in sortedSeasons)
         SliverToBoxAdapter(
           child: _SeasonExpansion<FileEntry>(
@@ -1705,21 +1913,54 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           ),
         ),
       ),
-      if (folders.isNotEmpty)
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final item = folders[index];
-              return _JellyfinEntryTile(
-                item: item,
-                episode: null,
-                tmdbMeta: null,
-                onTap: () => _openJellyfinItem(item),
-              );
-            },
-            childCount: folders.length,
+      if (folders.isNotEmpty) ...[
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              'Seasons',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.58,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final item = folders[index];
+                final s = item.parentIndexNumber;
+                return _SeasonFolderCard(
+                  entry: FileEntry(
+                    name: item.name,
+                    path: '',
+                    isDirectory: true,
+                    size: 0,
+                  ),
+                  seasonNumber: s,
+                  seasonPosterUrl: (s != null && _meta != null)
+                      ? _meta!.seasons[s]?.posterUrl(width: 300)
+                      : null,
+                  seasonName: (s != null && _meta?.seasons[s]?.name != null)
+                      ? _meta!.seasons[s]!.name
+                      : item.name,
+                  onTap: () => _openJellyfinItem(item),
+                );
+              },
+              childCount: folders.length,
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 8)),
+      ],
       for (final s in sortedSeasons)
         SliverToBoxAdapter(
           child: _SeasonExpansion<JellyfinItem>(
@@ -2594,9 +2835,12 @@ class _SeasonExpansion<T> extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     // Show "Season 2: The One Where..." when a name is available,
     // falling back to the generic "Season 2" header.
-    final headerLabel = (seasonName != null && seasonName!.isNotEmpty)
-        ? '${sg.seasonHeader(season)} · $seasonName'
-        : sg.seasonHeader(season);
+    final genericLabel = sg.seasonHeader(season);
+    final headerLabel = (seasonName != null &&
+            seasonName!.isNotEmpty &&
+            seasonName != genericLabel)
+        ? '$genericLabel · $seasonName'
+        : genericLabel;
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
@@ -3139,6 +3383,97 @@ class _SearchDialogState extends State<_SearchDialog> {
           child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ],
+    );
+  }
+}
+
+/// Poster card for a season subfolder inside a TV series details screen.
+/// Shows the TMDB season poster (or a gradient placeholder) + season name.
+class _SeasonFolderCard extends StatelessWidget {
+  const _SeasonFolderCard({
+    required this.entry,
+    this.seasonNumber,
+    this.seasonPosterUrl,
+    required this.seasonName,
+    required this.onTap,
+  });
+
+  final FileEntry entry;
+  final int? seasonNumber;
+  final String? seasonPosterUrl;
+  final String seasonName;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: seasonPosterUrl != null
+                  ? Image.network(
+                      seasonPosterUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _placeholder(colorScheme),
+                    )
+                  : _placeholder(colorScheme),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Fixed two-line slot so every poster area in the grid stays the
+          // same size whether or not the season name wraps.
+          SizedBox(
+            height: (theme.textTheme.bodySmall?.fontSize ?? 12) * 1.4 * 2,
+            child: Text(
+              seasonName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(ColorScheme colorScheme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colorScheme.primaryContainer,
+            colorScheme.secondaryContainer,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: seasonNumber != null
+            ? Text(
+                'S${seasonNumber.toString().padLeft(2, '0')}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onPrimaryContainer,
+                ),
+              )
+            : Icon(
+                Icons.folder,
+                size: 32,
+                color: colorScheme.onPrimaryContainer,
+              ),
+      ),
     );
   }
 }
