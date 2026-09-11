@@ -364,7 +364,8 @@ class _HomeScreenState extends State<HomeScreen>
     final prefs = await SharedPreferences.getInstance();
     final autoExpand = prefs.getBool('dreamplayer.autoExpandFolders') ?? true;
 
-    if (autoExpand && children.isNotEmpty) {
+    final hasSubdirs = children.any((c) => c.isDirectory);
+    if (autoExpand && children.isNotEmpty && hasSubdirs) {
       // Expand: create one LibraryFolder per child (directories + video files).
       final parentId = picked.bookmarkId ?? 'folder_${DateTime.now().millisecondsSinceEpoch}';
       final expanded = <LibraryFolder>[];
@@ -523,8 +524,13 @@ class _HomeScreenState extends State<HomeScreen>
           await _client.removeFolderMeta(f.id);
         } catch (_) {}
       }
+    }
+    // Only clear TMDB metadata when removing the whole group (or the last
+    // folder). Removing a single folder from a multi-folder group must NOT
+    // clear the shared metadata key — the remaining folders still need it.
+    if (foldersToRemove.length >= group.folders.length) {
       try {
-        await TmdService.instance.clear(f.metadataKey);
+        await TmdService.instance.clear(group.metadataKey);
       } catch (_) {}
     }
 

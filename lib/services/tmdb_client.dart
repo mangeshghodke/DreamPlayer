@@ -635,6 +635,11 @@ class ParsedFileName {
   static final RegExp _seasonOnlyPattern =
       RegExp(r'\bS(\d{1,2})\b', caseSensitive: false);
 
+  /// Word-style season tag (`Season 2`, `Season 03`) — used by SMB/browser
+  /// season folders like "Season 2". Parsed for season detection.
+  static final RegExp _seasonWordPattern =
+      RegExp(r'\bSeason\s+(\d{1,2})\b', caseSensitive: false);
+
   static const List<String> _noise = [
     '1080p', '720p', '2160p', '480p', '4k', 'uhd', 'hd', 'sdr',
     'bluray', 'blu-ray', 'bdremux', 'remux', 'web-dl', 'webdl', 'webrip', 'web',
@@ -746,6 +751,7 @@ final yearMatch = _yearPattern.firstMatch(name);
     final episodeOnlyMatch = _episodeOnlyPattern.firstMatch(name);
     final bracketMatch = _bracketEpisodePattern.firstMatch(name);
     final seasonOnlyMatch = _seasonOnlyPattern.firstMatch(name);
+    final seasonWordMatch = _seasonWordPattern.firstMatch(name);
 
     var isEpisode = false;
     String? seriesName;
@@ -781,6 +787,12 @@ final yearMatch = _yearPattern.firstMatch(name);
       season = int.parse(seasonOnlyMatch.group(1)!);
       seriesName = name.substring(0, seasonOnlyMatch.start).trim();
       name = name.replaceAll(seasonOnlyMatch.group(0)!, ' ');
+    } else if (seasonWordMatch != null) {
+      // Word-style season folder (`Season 2`, `Season 03`): keep the season
+      // number for context but drop the tag so the cleaned title stays searchable.
+      season = int.parse(seasonWordMatch.group(1)!);
+      seriesName = name.substring(0, seasonWordMatch.start).trim();
+      name = name.replaceAll(seasonWordMatch.group(0)!, ' ');
     }
 
     final title = _cleanName(name);
@@ -1539,11 +1551,43 @@ class TmdService extends ChangeNotifier {
     // show's main poster — so refill the season data here. seasonFor() itself
     // short-circuits when its own cache already has a poster, so this is one
     // extra request only when the season cache is actually incomplete.
-    if (cached != null &&
-        cached.folderSeason != null &&
-        (cached.seasons[cached.folderSeason]?.posterPath != null ||
-            cached.movie.kind != TmdKind.tv)) {
-      return cached;
+    //
+    // When multiple auto-expanded folders share a metadataKey (via
+    // SeriesGroup), the cache may hold a folderSeason from a DIFFERENT
+    // folder (e.g. "Final" → Season 5 overwrites "Strike the Blood" →
+    // Season 1). Detect staleness by checking if the cached season name
+    // is consistent with the current folder name.
+    if (cached != null && cached.folderSeason != null) {
+      final names = _seasonNamesCache[cached.movie.id];
+      if (names != null) {
+        final cachedSeasonName = names[cached.folderSeason];
+        if (cachedSeasonName != null) {
+          final q = folderName
+              .replaceAll(RegExp(r'\[[^\]]*\]'), ' ')
+              .toLowerCase()
+              .trim();
+          final sLower = cachedSeasonName.toLowerCase().trim();
+          // If the folder name is the same as the cached season name, it's
+          // a match. If the folder name doesn't contain the season name and
+          // the season name doesn't contain the folder name, it's stale.
+          final matches = q.contains(sLower) || sLower.contains(q);
+          if (!matches) {
+            _cache.remove(metadataKey);
+            TmdStore.remove(metadataKey);
+          } else if (cached.seasons[cached.folderSeason]?.posterPath != null ||
+              cached.movie.kind != TmdKind.tv) {
+            return cached;
+          }
+        } else if (cached.seasons[cached.folderSeason]?.posterPath != null ||
+            cached.movie.kind != TmdKind.tv) {
+          return cached;
+        }
+      } else {
+        // Season names not cached yet — can't verify folderSeason.
+        // Clear potentially stale entry and let _resolveFolderNow re-resolve.
+        _cache.remove(metadataKey);
+        TmdStore.remove(metadataKey);
+      }
     }
     final inFlight = _pending[metadataKey];
     if (inFlight != null) return inFlight;
@@ -1624,6 +1668,17 @@ class TmdService extends ChangeNotifier {
       _seasonNamesCache[match.movie.id] = names;
       folderSeason = _matchSeasonFromFolder(query, names);
       debugPrint('TMDB _resolveFolderNow $metadataKey matchId=${match.movie.id} seasons=$names folderSeason=$folderSeason');
+    }
+
+    // When multiple auto-expanded folders share the same metadataKey
+    // (via SeriesGroup), each folder's resolution overwrites the cache.
+    // The first folder that matched a season "owns" this key — don't let
+    // a later folder's resolution replace its folderSeason.
+    final existing = _cache[metadataKey];
+    if (existing != null &&
+        existing.folderSeason != null &&
+        existing.movie.id == match.movie.id) {
+      return existing;
     }
 
     final meta = TmdMeta(movie: match.movie, folderSeason: folderSeason);

@@ -736,13 +736,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// TMDB season poster URL for a subfolder, or null.
   String? _seasonPosterUrlForFolder(FileEntry entry) {
     final s = _seasonNumberFromFolder(entry.name);
-    if (s == null || _meta == null) {
-      debugPrint('POSTER_GRID posterUrl null: s=$s meta=${_meta != null} entry=${entry.name}');
-      return null;
-    }
-    final url = _meta!.seasons[s]?.posterUrl(width: 300);
-    debugPrint('POSTER_GRID posterUrl: season=$s url=$url seasons=${_meta!.seasons.keys.toList()} entry=${entry.name}');
-    return url;
+    if (s == null || _meta == null) return null;
+    return _meta!.seasons[s]?.posterUrl(width: 300);
   }
 
   /// Display name for a season subfolder.

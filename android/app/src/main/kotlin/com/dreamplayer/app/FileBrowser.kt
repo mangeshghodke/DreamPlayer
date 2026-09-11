@@ -187,11 +187,29 @@ class FileBrowser(private val activity: MainActivity) {
     /// files carry their `content://` document URI so playback works through the
     /// player's `uri` path.
     private fun listTreeDirectory(path: String): List<Map<String, Any?>> {
+        android.util.Log.d("FileBrowser", "listTreeDirectory path=$path")
         val (id, relative) = parseTreePath(path)
         val treeUri = treeUriFor(id)
-            ?: return listOf(mapOf("error" to "not_found", "path" to path))
-        // Re-grant bookmark permission — Android revokes SAF grants
-        // (e.g. after every flutter install / APK reinstall).
+        android.util.Log.d("FileBrowser", "listTreeDirectory id=$id relative=$relative treeUri=$treeUri")
+        if (treeUri == null) {
+            android.util.Log.e("FileBrowser", "listTreeDirectory: treeUriFor($id) returned null")
+            return listOf(mapOf("error" to "not_found", "path" to path))
+        }
+
+        // For local-storage trees (primary:..., secondary:...), resolve the
+        // actual file-system path and list directly — this avoids SAF grant
+        // issues where DocumentFile.listFiles() returns empty after a
+        // flutter install / APK reinstall.
+        val localPath = resolveLocalPath(treeUri, relative)
+        android.util.Log.d("FileBrowser", "listTreeDirectory: resolveLocalPath=$localPath")
+        if (localPath != null) {
+            android.util.Log.d("FileBrowser", "listTreeDirectory: listing local path=$localPath")
+            val result = listFileDirectory(localPath)
+            android.util.Log.d("FileBrowser", "listTreeDirectory: local result size=${result.size}")
+            return result
+        }
+
+        // Fallback: SAF DocumentFile path (for non-local providers).
         try {
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -236,6 +254,40 @@ class FileBrowser(private val activity: MainActivity) {
         dirs.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
         files.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
         return dirs + files
+    }
+
+    /// Attempts to resolve a tree URI to an actual local file-system path.
+    /// Works for `primary:` (internal) and `secondary:` (SD card) volumes.
+    /// Returns null for non-local providers (USB, cloud, etc.).
+    private fun resolveLocalPath(treeUri: android.net.Uri, relative: String): String? {
+        val treeId = try {
+            android.provider.DocumentsContract.getTreeDocumentId(treeUri)
+        } catch (e: Exception) {
+            android.util.Log.e("FileBrowser", "resolveLocalPath: getTreeDocumentId failed: $e")
+            return null
+        }
+        if (treeId == null) {
+            android.util.Log.e("FileBrowser", "resolveLocalPath: treeId is null")
+            return null
+        }
+        val prefix = treeId.substringBefore(':', "")
+        val rest = treeId.substringAfter(':', "")
+        val basePath = when (prefix) {
+            "primary" -> "/storage/emulated/0/$rest"
+            "secondary" -> "/storage/sdcard1/$rest"
+            else -> {
+                android.util.Log.d("FileBrowser", "resolveLocalPath: non-local prefix=$prefix, treeId=$treeId")
+                return null
+            }
+        }
+        val dir = if (relative.isEmpty()) File(basePath) else File(basePath, relative)
+        android.util.Log.d("FileBrowser", "resolveLocalPath: treeId=$treeId prefix=$prefix rest=$rest basePath=$basePath relative=$relative dir=${dir.absolutePath} exists=${dir.exists()} isDir=${dir.isDirectory}")
+        if (dir.exists() && dir.isDirectory) {
+            val children = dir.listFiles()
+            android.util.Log.d("FileBrowser", "resolveLocalPath: children count=${children?.size}")
+            children?.take(5)?.forEach { android.util.Log.d("FileBrowser", "resolveLocalPath: child=${it.name} isDir=${it.isDirectory}") }
+        }
+        return if (dir.exists() && dir.isDirectory) dir.absolutePath else null
     }
 
     private fun isVideo(name: String): Boolean {

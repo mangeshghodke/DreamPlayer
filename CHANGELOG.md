@@ -17,6 +17,20 @@ Bug-fix release: TMDB year-duplicate folder resolution, MPV mid-stream codec-dea
 
 - **MPV engine: auto software retry on mid-stream codec death (issue #7)** — some HEVC Main10 4:2:0 files play for ~0.5 s then die with a terminal "Could not open codec." because the MediaCodec hardware decoder starts producing frames and then dies mid-stream; mpv's `hwdec-software-fallback` only rescues decoder-init failures. Fix: when the mpv error text mentions a codec/decoder/pixel-format/hardware problem, the player auto-reloads the same file in software (`hwdec=no`) at the current position, once per file keyed by the resume key. Mirrors Media3's software-decode fallback. Pure IO/network errors are never retried.
 
+## 0.4.3
+
+Bug-fix release: SMB season detection, series header overflow fixes, and Get Info / Remove button improvements.
+
+### Fixed
+
+- **SMB season subfolder detection** — bookmarked TV-series folders with "Season N" style subfolders (e.g. `House/Season 2`, `House/Season 3`) now correctly detect season numbers instead of defaulting to season 1. Added `_seasonWordPattern` regex to `ParsedFileName.parse()` to handle "Season N" folder names, so SMB, WebDAV, FTP, and UPnP season subfolders get the right `folderSeason` value and display as separate season poster cards on the home screen.
+
+- **SeriesSeasonsScreen overflow fixes** — fixed multiple overflow issues in the series details header: (1) "Fix match" and "Remove info" buttons now use `Flexible` to shrink when space is tight; (2) the Get Info dialog wraps content in `SingleChildScrollView` and uses `ConstrainedBox(maxHeight:)` for the results list so it scrolls when the keyboard appears; (3) replaced the slow manual-search-only `_FixMatchDialog` with an auto-searching `_SearchDialog` pattern (auto-searches on open, TV/Movie toggle, shows poster thumbnails).
+
+- **Get Info / Remove buttons** — the series header now always shows a "Get Info" button when no TMDB metadata is loaded (allowing manual search), and "Fix match" + "Remove" buttons when metadata exists. Rating always displays even for single-season views.
+
+- **Season title deduplication** — single-season folder headers no longer show duplicated titles like "Season 2 · Season 2"; when `season.name` already starts with "Season", just the name is used.
+
 ## 0.4.1
 
 Bug-fix release: iOS resume-after-lock, stretched-video-after-unlock fix, folder navigation reliability, downloaded files on the home grid, and download directory picker.

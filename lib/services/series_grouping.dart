@@ -31,9 +31,12 @@ class SeriesGroup {
   final List<LibraryFolder> folders;
 
   /// The "primary" folder used for the card artwork (TMDB poster, etc).
-  /// For now, this is just the first folder — picking the folder with
-  /// the best existing TMDB match is a future refinement.
-  LibraryFolder get primary => folders.first;
+  /// Prefer the shortest-name folder (the canonical show name, e.g.
+  /// "Strike the Blood" over "Strike the Blood Final") so the group's
+  /// metadataKey resolves to the correct base-season poster.
+  LibraryFolder get primary => folders.reduce(
+        (a, b) => a.name.length <= b.name.length ? a : b,
+      );
 
   /// The TMDB metadata key shared by all folders in this group. Each folder
   /// has its own key (because it has its own [LibraryFolder.metadataKey]),
@@ -174,11 +177,10 @@ class SeriesGroupingService {
       ' ',
     );
 
-    // Drop season-name suffixes like "Grand", "Z" that act as
-    // ordinal season labels. "Final" is NOT stripped because it can be
-    // a legitimate season title (e.g. "Strike the Blood Final" = Season 5).
+    // Drop season-name suffixes like "Grand", "Final", "Z" that act as
+    // ordinal season labels.
     name = name.replaceAll(
-      RegExp(r'\b(?:Grand|Ultimate|Z)\b', caseSensitive: false),
+      RegExp(r'\b(?:Grand|Ultimate|Final|Z)\b', caseSensitive: false),
       ' ',
     );
 

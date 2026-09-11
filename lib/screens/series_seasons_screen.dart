@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
@@ -52,8 +54,27 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   Set<String> _watchedKeys = {};
   Map<String, int> _resumePositionsMs = {};
   Map<String, int> _durationsMs = {};
+  Set<String> _hiddenSeasonFolderIds = {};
 
   String get _groupKey => widget.group.metadataKey;
+
+  static const _hiddenSeasonsPrefKey = 'dreamplayer.hiddenSeriesSeasons';
+
+  Future<void> _loadHiddenSeasons() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_hiddenSeasonsPrefKey) ?? const [];
+    if (mounted) {
+      setState(() => _hiddenSeasonFolderIds = list.toSet());
+    } else {
+      _hiddenSeasonFolderIds = list.toSet();
+    }
+  }
+
+  Future<void> _saveHiddenSeasons() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+        _hiddenSeasonsPrefKey, _hiddenSeasonFolderIds.toList());
+  }
 
   @override
   void initState() {
@@ -62,7 +83,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     WatchedStore.load().then((w) {
       if (mounted) setState(() => _watchedKeys = w);
     });
-    _load();
+    _loadHiddenSeasons().then((_) => _load());
   }
 
   @override
@@ -74,6 +95,17 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   void _onMetadataChanged() {
     if (!mounted) return;
     final meta = TmdService.instance.metaFor(_groupKey);
+    // Only update _meta when:
+    // 1. We have no meta yet (initial load), OR
+    // 2. The incoming meta has MORE seasons than the current one (enhancement
+    //    from _fetchSeasonData), OR
+    // 3. The incoming meta has a different movie.id (fix-match / new resolve).
+    // This prevents stale cached data from overwriting a correct _meta when
+    // multiple auto-expanded folders share the same metadataKey.
+    final current = _meta;
+    if (current != null && meta != null && meta.movie.id == current.movie.id) {
+      if (meta.seasons.length <= current.seasons.length) return;
+    }
     // detailsFor is async — fire and forget; if it returns, refresh again.
     TmdService.instance.detailsFor(_groupKey).then((d) {
       if (!mounted) return;
@@ -98,31 +130,10 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       _error = null;
     });
     try {
-      // Resolve TMDB for the primary folder's group key.
       final service = TmdService.instance;
       await service.ensureLoaded();
 
-      // Use the cached meta if available; otherwise resolve fresh.
-      var meta = service.metaFor(_groupKey);
-      meta ??= await service.resolveFolder(
-        _groupKey,
-        widget.group.displayName,
-        yearHint: widget.group.primary.yearHint,
-      );
-
-      // Fetch details (overview, genres, etc.) — this is what the old
-      // implementation skipped, causing the null-details blank header.
-      final details = await service.detailsFor(_groupKey);
-
-      if (!mounted) return;
-      setState(() {
-        _meta = meta;
-        _details = details;
-      });
-
-      // List files from each folder in the group, matching each folder to its
-      // TMDB season using the season names already fetched by the group-level
-      // resolveFolder (no extra API calls).
+      // === PHASE 1: List files (no network dependency) ===
       final folderEntries = <({
         String folderLabel,
         String metadataKey,
@@ -130,40 +141,26 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         int? folderSeason,
         LibraryFolder folder,
       })>[];
-      final showId = meta?.movie.id;
+
       for (final folder in widget.group.folders) {
-        // Match folder name to season using cached season names — no API calls.
-        int? folderSeason;
-        if (showId != null) {
-          folderSeason = service.matchFolderToSeason(folder.name, showId);
-        }
-        // If no season match, try resolveFolder (cached or fresh).
-        if (folderSeason == null) {
-          final folderMeta = await service.resolveFolder(
-            folder.metadataKey,
-            folder.name,
-            yearHint: folder.yearHint,
-          );
-          folderSeason = folderMeta?.folderSeason;
+        List<Object> entries;
+        try {
+          entries = await _listFolder(folder);
+        } catch (_) {
+          // Network source unreachable — skip this folder, don't kill the whole load.
+          continue;
         }
 
-        final entries = await _listFolder(folder);
-        // Scan subdirectories inside this folder — for series like Strike the
-        // Blood that have season subfolders (II, III, Final, etc.).
+        // Scan subdirectories inside this folder.
         final subfolderEntries = <({String folderLabel, String metadataKey, List<Object> entries, int? folderSeason, LibraryFolder folder})>[];
         for (final e in entries) {
           if (!_isFolder(e)) continue;
           final subName = _nameOf(e);
+          final subFolderId = '${folder.id}_${subName.hashCode}';
+          // Skip seasons the user removed from this series view.
+          if (_hiddenSeasonFolderIds.contains(subFolderId)) continue;
           final p = ParsedFileName.parse(subName);
           int? subSeason = p.season > 0 ? p.season : null;
-          if (subSeason == null && showId != null && meta != null) {
-            final names = await service.seasonNameMapFor(_groupKey);
-            if (names.isNotEmpty) {
-              subSeason = service.matchFolderToSeason(subName, meta.movie.id);
-            }
-          }
-          // For subfolder seasons (II, III, Final), list contents via the
-          // synthetic subfolder or fall back to the entry's own listing.
           final subFolderSynthetic = LibraryFolder(
             id: '${folder.id}_${subName.hashCode}',
             name: subName,
@@ -178,7 +175,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                  ? '${folder.networkPath!.isNotEmpty ? "${folder.networkPath}/" : ""}$subName'
                 : (e is FileEntry ? e.path : folder.networkPath),
           );
-          final subEntries = await _listFolder(subFolderSynthetic);
+          final subEntries = await _listFolder(subFolderSynthetic).catchError((_) => <Object>[]);
           if (subSeason == null) {
             for (final f in subEntries) {
               if (f is FileEntry && !f.isDirectory) {
@@ -195,34 +192,23 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             metadataKey: '${folder.metadataKey}_sub',
             entries: subEntries,
             folderSeason: subSeason ?? 1,
-            folder: LibraryFolder(
-              id: '${folder.id}_${subName.hashCode}',
-              name: subName,
-              path: (e is FileEntry ? e.path : folder.path),
-              addedAt: folder.addedAt,
-              source: folder.source,
-              networkServerId: folder.networkServerId,
-              networkShare: folder.networkShare,
-              networkPath: (e is FileEntry ? e.path : folder.networkPath),
-            ),
+            folder: subFolderSynthetic,
           ));
         }
-        // If subfolders found, use them as season entries.
         if (subfolderEntries.isNotEmpty) {
-          folderEntries.clear();
           folderEntries.addAll(subfolderEntries);
         } else {
-          if (folderSeason == null) {
-            final p = ParsedFileName.parse(folder.name);
-            if (p.season > 0) {
-              folderSeason = p.season;
-            } else {
-              for (final e in entries) {
-                final epSeason = _seasonOf(e);
-                if (epSeason > 0) {
-                  folderSeason = epSeason;
-                  break;
-                }
+          // Guess season from folder/filename parsing.
+          int? folderSeason;
+          final parsed = ParsedFileName.parse(folder.name);
+          if (parsed.season > 0) {
+            folderSeason = parsed.season;
+          } else {
+            for (final e in entries) {
+              final epSeason = _seasonOf(e);
+              if (epSeason > 0) {
+                folderSeason = epSeason;
+                break;
               }
             }
           }
@@ -236,6 +222,8 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         }
       }
       if (!mounted) return;
+
+      // Show files immediately — no TMDB yet.
       setState(() {
         _folders
           ..clear()
@@ -243,12 +231,67 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         _loading = false;
       });
 
-      // Fetch season data AFTER _folders is populated — _fetchSeasonData reads
-      // _folders to collect all folderSeason values it needs to fetch.
-      await _fetchSeasonData(meta);
-
       // Refresh resume positions for everything we found.
       _refreshResumes();
+
+      // === PHASE 2: TMDB in background (best-effort, offline-safe) ===
+      try {
+        // Resolve metadata for the group (poster/title/overview).
+        var meta = service.metaFor(_groupKey);
+        meta ??= await service.resolveFolder(
+          _groupKey,
+          widget.group.displayName,
+          yearHint: widget.group.primary.yearHint,
+        );
+
+        final details = await service.detailsFor(_groupKey);
+
+        if (!mounted) return;
+        setState(() {
+          _meta = meta;
+          _details = details;
+        });
+
+        // Resolve per-folder metadata so each folder gets its own
+        // folderSeason (e.g. "Strike the Blood" → Season 1,
+        // "Strike the Blood Final" → Season 5).
+        for (int i = 0; i < _folders.length; i++) {
+          final f = _folders[i];
+          if (f.metadataKey == _groupKey) continue;
+          try {
+            var fMeta = service.metaFor(f.metadataKey);
+            fMeta ??= await service.resolveFolder(
+              f.metadataKey,
+              f.folder.name,
+              yearHint: f.folder.yearHint,
+            );
+            if (fMeta?.movie.id != null) {
+              final tmdbSeason = service.matchFolderToSeason(f.folder.name, fMeta!.movie.id);
+              if (tmdbSeason != null && tmdbSeason != f.folderSeason) {
+                _folders[i] = (folderLabel: f.folderLabel, metadataKey: f.metadataKey, entries: f.entries, folderSeason: tmdbSeason, folder: f.folder);
+              }
+            }
+          } catch (_) {}
+        }
+
+        // Refine folderSeason using TMDB season names (if available).
+        if (meta?.movie.id != null) {
+          bool changed = false;
+          for (int i = 0; i < _folders.length; i++) {
+            final f = _folders[i];
+            final tmdbSeason = service.matchFolderToSeason(f.folder.name, meta!.movie.id);
+            if (tmdbSeason != null && tmdbSeason != f.folderSeason) {
+              _folders[i] = (folderLabel: f.folderLabel, metadataKey: f.metadataKey, entries: f.entries, folderSeason: tmdbSeason, folder: f.folder);
+              changed = true;
+            }
+          }
+          if (changed && mounted) setState(() {});
+
+          await _fetchSeasonData(meta);
+        }
+      } catch (_) {
+        // TMDB offline — files already shown, metadata stays null.
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -442,16 +485,8 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     // Find which folder this entry belongs to and use its folderSeason.
     for (final f in _folders) {
       if (f.entries.contains(e)) {
-        // For single-folder groups, prefer the TMDB-resolved folderSeason from meta
-        // (e.g. "Final" → Season 5) over the folder-name-parsed value.
-        int? effectiveFolderSeason;
-        if (_folders.length == 1 && _meta?.folderSeason != null) {
-          effectiveFolderSeason = _meta!.folderSeason;
-        } else {
-          effectiveFolderSeason = f.folderSeason;
-        }
-        if (effectiveFolderSeason != null && effectiveFolderSeason > 0) {
-          return effectiveFolderSeason;
+        if (f.folderSeason != null && f.folderSeason! > 0) {
+          return f.folderSeason!;
         }
         break;
       }
@@ -555,9 +590,28 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     final sortedSeasons = grouped.keys.toList()..sort();
     final slivers = <Widget>[];
 
-    // Series header — poster + meta, only when TMDB resolved.
-    final meta = _meta;
-    if (meta != null && meta.movie.title.isNotEmpty) {
+      // Series header — poster + meta, only when TMDB resolved.
+      final meta = _meta;
+      if (meta != null && meta.movie.title.isNotEmpty) {
+        // Show season-specific info ONLY when there's a single season
+        // displayed (e.g. user added "Strike the Blood Final" directly,
+        // which has no subdirectories — _folders has 0-1 entries).
+        // When there are multiple seasons (_folders.length > 1), show the
+        // series-level poster/info instead.
+        TmdSeason? seasonInfo;
+        if (_folders.length <= 1 && meta.seasons.isNotEmpty) {
+          final folder = _folders.isNotEmpty ? _folders.first : null;
+          if (folder != null) {
+            final fMeta = TmdService.instance.metaFor(folder.metadataKey);
+            final folderSeason = folder.folderSeason ?? fMeta?.folderSeason;
+            if (folderSeason != null) {
+              final seasons = fMeta?.seasons ?? meta.seasons;
+              if (seasons.containsKey(folderSeason)) {
+                seasonInfo = seasons[folderSeason];
+              }
+            }
+          }
+        }
       slivers.add(
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -567,12 +621,33 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
               details: _details,
               metadataKey: _groupKey,
               onFixMatch: () => _fixMatch(),
-              onRemoveInfo: null,
+              onRemoveInfo: () => _removeInfo(),
+              season: seasonInfo,
+              seriesTitle: seasonInfo != null ? meta.movie.title : null,
             ),
           ),
         ),
       );
-    }
+      }
+      // No-match state: show a simple header with just Get Info button.
+      else {
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            sliver: SliverToBoxAdapter(
+              child: _SeriesHeader(
+                meta: null,
+                details: null,
+                metadataKey: _groupKey,
+                onFixMatch: () => _fixMatch(),
+                onRemoveInfo: null,
+                season: null,
+                seriesTitle: null,
+              ),
+            ),
+          ),
+        );
+      }
 
     // Naming hint when no TMDB metadata resolved — tell the user to
     // name files with SxxExx patterns so the parser can find them.
@@ -786,16 +861,38 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     return slivers;
   }
 
-  /// Remove a season subfolder from the library (e.g. long-press on a season
-  /// poster card to remove that season folder).
+  /// Remove a season from the series view.
+  ///
+  /// When the group has multiple real library folders (e.g. "Strike the
+  /// Blood" + "Strike the Blood Final" as separate library entries), removing
+  /// a season removes that real folder from the store.
+  ///
+  /// When the season is a synthetic subdirectory of a single real library
+  /// folder (created on-the-fly by [_load]), the season is added to the
+  /// persisted hidden-seasons list so it stops appearing here; the real
+  /// parent folder — and therefore the show card on the home screen — stays.
   Future<void> _removeSeason(LibraryFolder folder) async {
+    // Check if this folder is a real library entry or a synthetic subfolder.
+    final isReal = widget.group.folders.any((f) => f.id == folder.id);
+
+    // Find the real parent for synthetic subfolders.
+    final realParent = isReal
+        ? null
+        : widget.group.folders.cast<LibraryFolder?>().firstWhere(
+              (f) => f != null && folder.id.startsWith('${f.id}_'),
+              orElse: () => null,
+            );
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove season'),
+        title: Text(isReal ? 'Remove season' : 'Remove season'),
         content: Text(
-          '"${folder.name}" will no longer appear here. '
-          'The files stay on your device.',
+          isReal
+              ? '"${folder.name}" will be removed from your library. '
+                  'The files stay on your device.'
+              : '"${folder.name}" will no longer appear in this series view. '
+                  'The other seasons and the show stay in your library.',
         ),
         actions: [
           TextButton(
@@ -810,36 +907,38 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       ),
     );
     if (confirmed != true) return;
-    await LibraryFoldersStore.remove(folder.id);
-    if (folder.source == LibraryFolderSource.files) {
-      try {
-        await FileBrowserService.instance.removeLibraryBookmark(folder.id);
-      } catch (_) {}
+
+    final targetId = realParent?.id ?? folder.id;
+
+    if (isReal) {
+      // Remove the real folder from the library.
+      await LibraryFoldersStore.remove(targetId);
+      if (folder.source == LibraryFolderSource.files) {
+        try {
+          await FileBrowserService.instance.removeLibraryBookmark(targetId);
+        } catch (_) {}
+      }
+      // Clear TMDB only when removing the last folder in the group.
+      final remainingFolders =
+          widget.group.folders.where((f) => f.id != targetId).toList();
+      if (remainingFolders.isEmpty) {
+        try {
+          await TmdService.instance.clear(folder.metadataKey);
+        } catch (_) {}
+      }
+    } else {
+      // Synthetic subfolder: hide only this season, keep the parent + show.
+      _hiddenSeasonFolderIds.add(folder.id);
+      await _saveHiddenSeasons();
     }
-    try {
-      await TmdService.instance.clear(folder.metadataKey);
-    } catch (_) {}
-    if (!mounted) return;
-    final remaining = <({String folderLabel, String metadataKey, List<Object> entries, int? folderSeason, LibraryFolder folder})>[];
-    for (final f in _folders) {
-      if (f.folder.id != folder.id) remaining.add(f);
-    }
+
+    // Stay on this screen — just drop the removed season card. Home screen
+    // re-reads the store when the user backs out (didPopNext), so the show
+    // card reflects the removal there too.
     if (!mounted) return;
     setState(() {
-      _folders.clear();
-      _folders.addAll(remaining);
+      _folders.removeWhere((f) => f.folder.id == folder.id);
     });
-    // Only reload from the store for real bookmarked folders; synthetic
-    // subfolder seasons should just disappear from local state.
-    final isBookmarked = await _isBookmarkedFolder(folder);
-    if (isBookmarked) await _load();
-  }
-
-  /// Whether [folder] exists in the persisted library store (i.e. it is a
-  /// real bookmarked folder, not a synthetic subfolder season entry).
-  Future<bool> _isBookmarkedFolder(LibraryFolder folder) async {
-    final all = await LibraryFoldersStore.load();
-    return all.any((f) => f.id == folder.id);
   }
 
   Future<void> _fixMatch() async {
@@ -853,6 +952,15 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     if (picked == null || !mounted) return;
     await TmdService.instance.setManualFolder(_groupKey, picked);
     if (mounted) setState(() {});
+  }
+
+  Future<void> _removeInfo() async {
+    await TmdService.instance.clear(_groupKey);
+    if (!mounted) return;
+    setState(() {
+      _meta = null;
+      _details = null;
+    });
   }
 
   Future<void> _openEntry(Object entry) async {
@@ -1186,18 +1294,26 @@ class _EntryTile extends StatelessWidget {
 
 class _SeriesHeader extends StatefulWidget {
   const _SeriesHeader({
-    required this.meta,
-    required this.details,
+    this.meta,
+    this.details,
     required this.metadataKey,
     required this.onFixMatch,
     this.onRemoveInfo,
+    this.season,
+    this.seriesTitle,
   });
 
-  final TmdMeta meta;
+  final TmdMeta? meta;
   final TmdDetails? details;
   final String metadataKey;
   final VoidCallback onFixMatch;
   final VoidCallback? onRemoveInfo;
+
+  /// When set, shows this season's info instead of the series-level info.
+  final TmdSeason? season;
+
+  /// The series title to show as subtitle when displaying season info.
+  final String? seriesTitle;
 
   @override
   State<_SeriesHeader> createState() => _SeriesHeaderState();
@@ -1208,9 +1324,49 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final movie = widget.meta.movie;
-    final rating = movie.voteAverage;
-    final overview = widget.details?.overview ?? '';
+    final movie = widget.meta?.movie;
+    final season = widget.season;
+    final bool showSeason = season != null && season.name.isNotEmpty;
+    final bool hasMeta = movie != null && movie.title.isNotEmpty;
+
+    // Use season poster/overview when showing season info, series otherwise.
+    // Always show the show's rating (seasons don't have their own on TMDB).
+    final String displayTitle = showSeason
+        ? (season.name.toLowerCase().startsWith('season')
+            ? season.name
+            : 'Season ${season.seasonNumber} · ${season.name}')
+        : (movie?.title ?? '');
+    final String? displayPoster = showSeason ? season.posterUrl() : movie?.posterUrl();
+    final String displayOverview = showSeason ? season.overview : (widget.details?.overview ?? '');
+    final double displayRating = movie?.voteAverage ?? 0;
+    final List<String> displayGenres = showSeason ? [] : (widget.details?.genres ?? []);
+
+    // No-match state: simple card with just Get Info button.
+    if (!hasMeta) {
+      return Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline, size: 20, color: Colors.grey),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'No metadata loaded',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+              TextButton(
+                onPressed: widget.onFixMatch,
+                child: const Text('Get Info'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -1218,11 +1374,11 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (movie.posterUrl() != null)
+            if (displayPoster != null)
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: Image.network(
-                  movie.posterUrl()!,
+                  displayPoster,
                   width: 72,
                   height: 108,
                   fit: BoxFit.cover,
@@ -1235,19 +1391,27 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    movie.title,
+                    displayTitle,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                   ),
-                  if (movie.year != null)
+                  // Show series name as subtitle when displaying season info.
+                  if (showSeason && widget.seriesTitle != null)
+                    Text(
+                      widget.seriesTitle!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    ),
+                  if (movie.year != null && !showSeason)
                     Text(
                       '${movie.year}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                     ),
-                  if (overview.isNotEmpty) ...[
+                  if (displayOverview.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
                       'Overview',
@@ -1257,7 +1421,7 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      overview,
+                      displayOverview,
                       maxLines: _expanded ? null : 4,
                       overflow:
                           _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
@@ -1274,14 +1438,41 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
                       ),
                     ),
                   ],
-                  // Genres (like SMB browser).
-                  if (widget.details?.genres != null && widget.details!.genres.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      if (displayRating > 0) ...[
+                        const Icon(Icons.star, size: 14, color: Colors.amber),
+                        const SizedBox(width: 2),
+                        Text(
+                          displayRating.toStringAsFixed(1),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Flexible(
+                        child: TextButton(
+                          onPressed: widget.onFixMatch,
+                          child: Text(widget.onRemoveInfo != null ? 'Fix match' : 'Get Info'),
+                        ),
+                      ),
+                      if (widget.onRemoveInfo != null)
+                        Flexible(
+                          child: TextButton(
+                            onPressed: widget.onRemoveInfo,
+                            child: const Text('Remove'),
+                          ),
+                        ),
+                    ],
+                  ),
+                  // Genres (like SMB browser) — only for series-level view.
+                  if (displayGenres.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
                       children: [
-                        for (final genre in widget.details!.genres)
+                        for (final genre in displayGenres)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -1297,29 +1488,6 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
                       ],
                     ),
                   ],
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      if (rating > 0) ...[
-                        const Icon(Icons.star, size: 14, color: Colors.amber),
-                        const SizedBox(width: 2),
-                        Text(
-                          rating.toStringAsFixed(1),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      TextButton(
-                        onPressed: widget.onFixMatch,
-                        child: const Text('Fix match'),
-                      ),
-                      if (widget.onRemoveInfo != null)
-                        TextButton(
-                          onPressed: widget.onRemoveInfo,
-                          child: const Text('Remove info'),
-                        ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -1344,79 +1512,162 @@ class _FixMatchDialog extends StatefulWidget {
 }
 
 class _FixMatchDialogState extends State<_FixMatchDialog> {
-  final _query = TextEditingController();
-  final _year = TextEditingController();
+  final _controller = TextEditingController();
+  final _api = TmdApi();
+  List<TmdMovie>? _results;
   bool _searching = false;
-  List<TmdMovie> _results = const [];
+  bool _noKey = false;
+  String? _error;
+  late TmdKind _kind;
 
   @override
   void initState() {
     super.initState();
-    _query.text = widget.initialQuery;
-    if (widget.initialYear != null) _year.text = widget.initialYear.toString();
+    _controller.text = widget.initialQuery;
+    _kind = TmdKind.tv;
+    if (_controller.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _search();
+      });
+    }
   }
 
   @override
   void dispose() {
-    _query.dispose();
-    _year.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _runSearch() async {
-    setState(() => _searching = true);
-    final results = await TmdApi().search(
-      _query.text.trim(),
-      year: int.tryParse(_year.text.trim()),
-      kind: TmdKind.tv,
-    );
+  Future<void> _search() async {
+    final query = _controller.text.trim();
+    if (query.isEmpty) return;
+    final key = await _api.effectiveApiKey();
     if (!mounted) return;
+    if (key.isEmpty) {
+      setState(() {
+        _searching = false;
+        _results = null;
+        _noKey = true;
+      });
+      return;
+    }
     setState(() {
-      _searching = false;
-      _results = results;
+      _searching = true;
+      _results = null;
+      _error = null;
+      _noKey = false;
     });
+    try {
+      final primary = await _api.search(
+        query,
+        year: widget.initialYear,
+        kind: _kind,
+      );
+      final fallbackKind = _kind == TmdKind.tv ? TmdKind.movie : TmdKind.tv;
+      final fallback = await _api.search(query, kind: fallbackKind);
+      final results = <TmdMovie>[...primary, ...fallback];
+      final seen = <int>{};
+      results.removeWhere((m) => !seen.add(m.id));
+      if (!mounted) return;
+      setState(() => _results = results);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Search failed: $e');
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return AlertDialog(
-      title: const Text('Fix TMDB match'),
+      title: const Text('Get Info'),
       content: SizedBox(
-        width: 480,
+        width: 420,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
-              controller: _query,
-              decoration: const InputDecoration(labelText: 'Query'),
-            ),
-            TextField(
-              controller: _year,
-              decoration: const InputDecoration(labelText: 'Year (optional)'),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _searching ? null : _runSearch,
-              child: Text(_searching ? 'Searching…' : 'Search'),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 200,
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: _results.length,
-                itemBuilder: (context, i) {
-                  final r = _results[i];
-                  return ListTile(
-                    title: Text(r.title),
-                    subtitle: r.year != null ? Text('${r.year}') : null,
-                    onTap: () => Navigator.of(context).pop(r),
-                  );
-                },
+              controller: _controller,
+              autofocus: true,
+              onSubmitted: (_) => _search(),
+              decoration: const InputDecoration(
+                hintText: 'Search TMDB...',
+                prefixIcon: Icon(Icons.search),
               ),
             ),
+            const SizedBox(height: 8),
+            SegmentedButton<TmdKind>(
+              segments: const [
+                ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
+                ButtonSegment(value: TmdKind.movie, label: Text('Movie')),
+              ],
+              selected: {_kind},
+              onSelectionChanged: (sel) => setState(() => _kind = sel.first),
+            ),
+            const SizedBox(height: 8),
+            if (_searching)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_noKey)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Search is unavailable right now. Try again in a moment.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Search failed. Try again in a moment.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colorScheme.error),
+                ),
+              )
+            else if (_results != null)
+              if (_results!.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No results. Try a different title.'),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _results!.length,
+                    itemBuilder: (context, index) {
+                      final movie = _results![index];
+                      return ListTile(
+                        leading: movie.posterUrl(width: 92) != null
+                            ? Image.network(
+                                movie.posterUrl(width: 92)!,
+                                width: 36,
+                                height: 54,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    const Icon(Icons.movie),
+                              )
+                            : const Icon(Icons.movie),
+                        title: Text(movie.title),
+                        subtitle: Text(
+                          [
+                            if (movie.kind == TmdKind.tv) 'TV Series',
+                            if (movie.year != null) '${movie.year}',
+                            if (movie.voteAverage > 0)
+                              movie.voteAverage.toStringAsFixed(1),
+                          ].join('  ·  '),
+                        ),
+                        onTap: () => Navigator.of(context).pop(movie),
+                      );
+                    },
+                  ),
+                ),
           ],
         ),
       ),
@@ -1452,7 +1703,12 @@ class _SeasonPosterCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     return GestureDetector(
       onTap: onTap,
-      onLongPress: onLongPress,
+      onLongPress: onLongPress != null
+          ? () {
+              HapticFeedback.mediumImpact();
+              onLongPress!();
+            }
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
