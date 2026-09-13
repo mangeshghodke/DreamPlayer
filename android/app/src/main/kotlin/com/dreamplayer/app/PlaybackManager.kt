@@ -46,6 +46,23 @@ object PlaybackManager {
     private var lastNotifyKey: String? = null
     private var lastNotifyAtMs = 0L
 
+    /// Background-service lifecycle handshake. `startForegroundService` must be
+    /// followed by `startForeground` within the service's `onStartCommand`;
+    /// calling `stopService` before that lands kills the service pre-foreground
+    /// and Android 12+ turns it into a
+    /// `ForegroundServiceDidNotStartInTimeException` crash. So the flags here
+    /// serialize the three states:
+    ///  - [servicePending]: a start was requested, the service hasn't yet run
+    ///    `onStartCommand` + `startForeground`.
+    ///  - [serviceRunning]: the service is currently foregrounded.
+    ///  - [pendingStop]: a stop was requested while [servicePending] — the
+    ///    service must stop itself immediately after it foregrounds.
+    /// All three live on the platform-main thread (start/stop/onStartCommand
+    /// all arrive there), so no synchronization is needed.
+    private var servicePending = false
+    private var serviceRunning = false
+    private var pendingStop = false
+
     val sessionCompatToken: MediaSessionCompat.Token?
         get() = session?.sessionToken
 
@@ -147,7 +164,16 @@ object PlaybackManager {
                 .build(),
         )
 
-        ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java))
+        // Start the foreground service only when it isn't already running (or
+        // still pending its foreground). A redundant startForegroundService per
+        // emit is normally harmless, but if a stop raced in between the start
+        // and the service's onStartCommand the service would be torn down
+        // before startForeground → ForegroundServiceDidNotStartInTimeException.
+        if (!servicePending && !serviceRunning) {
+            pendingStop = false
+            servicePending = true
+            ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java))
+        }
 
         // Rebuild the notification when a visible aspect changed, or once a
         // second while playing so the progress bar tracks playback. The
@@ -166,14 +192,54 @@ object PlaybackManager {
     fun stop(context: Context) {
         lastNotifyKey = null
         context.getSystemService(NotificationManager::class.java)?.cancel(NOTIF_ID)
-        context.stopService(Intent(context, PlaybackService::class.java))
         session?.isActive = false
+        when {
+            servicePending -> {
+                // The service hasn't reached startForeground yet — stopping it
+                // now would trigger the FGS start-timeout crash. Ask it to stop
+                // as soon as it foregrounds instead.
+                servicePending = false
+                pendingStop = true
+            }
+            serviceRunning -> {
+                // Already foregrounded — safe to stopService immediately.
+                serviceRunning = false
+                pendingStop = false
+                context.stopService(Intent(context, PlaybackService::class.java))
+            }
+            else -> pendingStop = false
+        }
+    }
+
+    /// Called from [PlaybackService.onStartCommand] right after the
+    /// foreground notification went up. Returns true when a stop was requested
+    /// while the start was still pending — the caller must stopSelf now.
+    fun serviceStarted(): Boolean {
+        servicePending = false
+        serviceRunning = true
+        if (pendingStop) {
+            pendingStop = false
+            serviceRunning = false
+            return true
+        }
+        return false
+    }
+
+    /// Called from the service's onDestroy so the flags track reality even if
+    /// the system kills or restarts the service behind our back.
+    fun serviceDestroyed() {
+        servicePending = false
+        serviceRunning = false
+        pendingStop = false
     }
 
     /// Full teardown when the platform view goes away: the player is being
     /// released, so the notification/service must not outlive it.
     fun release(context: Context) {
         stop(context)
+        servicePending = false
+        serviceRunning = false
+        pendingStop = false
         player = null
         lastNotifyKey = null
         try {

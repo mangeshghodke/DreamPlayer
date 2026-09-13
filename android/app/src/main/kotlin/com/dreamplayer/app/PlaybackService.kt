@@ -35,7 +35,25 @@ class PlaybackService : Service() {
         } else {
             startForeground(NOTIF_ID, notification)
         }
+        // Tell PlaybackManager the foreground is up. If a stop was requested
+        // while this start was still pending (a fast STATE_ENDED/IDLE right
+        // after open), honor it here — stopping BEFORE startForeground would
+        // trigger ForegroundServiceDidNotStartInTimeException on Android 12+.
+        if (PlaybackManager.serviceStarted()) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+            stopSelf()
+        }
         return START_NOT_STICKY
+    }
+
+    override fun onDestroy() {
+        PlaybackManager.serviceDestroyed()
+        super.onDestroy()
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {

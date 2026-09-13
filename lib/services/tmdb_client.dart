@@ -130,6 +130,7 @@ class TmdDetails {
     this.genres = const [],
     this.cast = const [],
     this.trailers = const [],
+    this.stills = const [],
     this.posterPath,
     this.backdropPath,
     this.originalTitle,
@@ -147,6 +148,10 @@ class TmdDetails {
   final List<String> genres;
   final List<TmdCastMember> cast;
   final List<TmdTrailer> trailers;
+  /// Backdrop file paths (no host) for a movie — the 16:9 stills gallery.
+  /// TV shows populate this too via `images.backdrops` (harmless), but the
+  /// per-episode gallery (_TmdEpisode.stills) is what episodes use instead.
+  final List<String> stills;
   final String? posterPath;
   final String? backdropPath;
   final String? originalTitle;
@@ -158,6 +163,11 @@ class TmdDetails {
 
   String get runtimeLabel =>
       runtimeMinutes == null ? '' : '${runtimeMinutes! ~/ 60}h ${runtimeMinutes! % 60}m';
+
+  /// Absolute URLs for every still in [stills] (wide enough for a gallery row).
+  List<String> stillUrls({int width = 780}) => stills
+      .map((s) => 'https://image.tmdb.org/t/p/w$width$s')
+      .toList();
 
   factory TmdDetails.fromJson(Map<String, dynamic> json, {TmdKind kind = TmdKind.movie}) {
     final date = json[kind == TmdKind.movie ? 'release_date' : 'first_air_date'] as String?;
@@ -190,6 +200,12 @@ class TmdDetails {
           .where((c) => c.name.isNotEmpty)
           .toList(),
       trailers: _parseTrailers(json),
+      stills: ((json['images'] as Map<String, dynamic>?)?['backdrops'] as List? ??
+              const [])
+          .whereType<Map<String, dynamic>>()
+          .map((b) => b['file_path'] as String? ?? '')
+          .where((p) => p.isNotEmpty)
+          .toList(),
       posterPath: json['poster_path'] as String?,
       backdropPath: json['backdrop_path'] as String?,
       originalTitle: json[kind == TmdKind.movie ? 'original_title' : 'original_name'] as String?,
@@ -1034,7 +1050,7 @@ class TmdApi {
   Future<TmdDetails> details(TmdMovie movie) async {
     final key = await effectiveApiKey();
     final endpoint = movie.kind == TmdKind.movie ? '/movie/${movie.id}' : '/tv/${movie.id}';
-    final json = await _get('$endpoint?api_key=$key&language=en-US&append_to_response=credits,videos');
+    final json = await _get('$endpoint?api_key=$key&language=en-US&append_to_response=credits,videos,images');
     var details = TmdDetails.fromJson(json, kind: movie.kind);
     return details;
   }

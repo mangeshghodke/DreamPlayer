@@ -141,6 +141,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   Duration? _resumePosition;     // Media3 playhead
   Duration? _resumePositionMpv;  // MPV playhead
 
+  /// Folder mode only: saved playhead for the folder's standalone movie file.
+  Duration? _folderMovieResumeM3;
+  Duration? _folderMovieResumeMpv;
+  String? _folderMovieLastEngine;
+
   /// Folder mode only: the folder's direct entries (files + subfolders).
   List<FileEntry> _entries = const [];
   String? _folderError;
@@ -251,6 +256,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           _durationsMs = result.durations;
         });
       }
+      await _loadFolderMovieResume();
     } catch (_) {}
   }
 
@@ -368,8 +374,50 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     return null;
   }
 
+  /// Folder mode: the folder's first standalone (non-episode) video, if any.
+  /// A movie folder holds exactly one of these, which gets a direct Play
+  /// button instead of the seasons/episodes view.
+  FileEntry? get _folderMovieEntry {
+    if (widget.folder == null || widget.folder!.isJellyfin) return null;
+    for (final e in _entries) {
+      if (e.isDirectory) continue;
+      if (ParsedFileName.parse(e.name).isEpisode) continue;
+      if (_epPattern.hasMatch(e.name)) continue;
+      return e;
+    }
+    return null;
+  }
+
+  /// Whether the folder should be treated as a movie folder (a single Play
+  /// button rather than a seasons/episodes list). True when TMDB matched a
+  /// movie; when it matched a TV show it is always false. With no match, a
+  /// flat folder of standalone videos (and no episodes/subfolders) is treated
+  /// as a movie so a keyless/offline build still plays it.
+  bool get _isMovieFolder {
+    if (widget.folder == null || widget.folder!.isJellyfin) return false;
+    final kind = _meta?.movie.kind;
+    if (kind == TmdKind.movie) return true;
+    if (kind == TmdKind.tv) return false;
+    if (_folderMovieEntry == null) return false;
+    final hasSeriesStructure = _entries.any((e) =>
+        e.isDirectory ||
+        ParsedFileName.parse(e.name).isEpisode ||
+        _epPattern.hasMatch(e.name));
+    return !hasSeriesStructure;
+  }
+
+  /// Folder mode: the folder's standalone movie as a playable [VideoItem]
+  /// (built from [_folderMovieEntry]). Drives the movie-folder Play bar, the
+  /// file info card and the subtitles card. Null when the folder is a series
+  /// or has no standalone video.
+  VideoItem? get _folderMovieVideo {
+    final entry = _folderMovieEntry;
+    if (entry == null) return null;
+    return _toVideoItem(entry);
+  }
+
   Future<void> _probeFile() async {
-    final v = widget.video;
+    final v = widget.video ?? _folderMovieVideo;
     if (v == null) return;
     try {
       // Ensure security-scoped bookmark is active for Files-app bookmarked
@@ -418,6 +466,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       // visible. Never hold the full-screen spinner hostage to a metadata
       // fetch — details/seasons enrich the header progressively.
       setState(() => _loading = false);
+      // Movie folder: probe the movie file once its entry is known (video mode
+      // probes from initState; here the entry only exists after the listing).
+      if (_probe == null && _folderMovieVideo != null) {
+        _probing = true;
+        _probeFile();
+      }
     }
     // Server-side series info (poster/title/year/overview) for Jellyfin
     // folders — refreshed on open so image URLs carry the current token.
@@ -790,6 +844,59 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
   }
 
+  /// Folder mode: load the per-engine playhead for the folder's movie file so
+  /// the bottom Play bar can show "Resume from m:ss". Mirrors [_loadResume].
+  Future<void> _loadFolderMovieResume() async {
+    final entry = _folderMovieEntry;
+    final key = entry == null ? null : _watchedKeyForFile(entry);
+    if (key == null || key.isEmpty) {
+      if (mounted &&
+          (_folderMovieResumeM3 != null ||
+              _folderMovieResumeMpv != null ||
+              _folderMovieLastEngine != null)) {
+        setState(() {
+          _folderMovieResumeM3 = null;
+          _folderMovieResumeMpv = null;
+          _folderMovieLastEngine = null;
+        });
+      }
+      return;
+    }
+    final results = await Future.wait([
+      ResumeStore.positionFor(key, engine: 'media3'),
+      ResumeStore.positionFor(key, engine: 'mpv'),
+      LastEngineStore.load(key),
+    ]);
+    Duration? position = results[0] as Duration?;
+    Duration? positionMpv = results[1] as Duration?;
+    final lastEngine = results[2] as String?;
+    if (position != null && position < const Duration(seconds: 10)) {
+      position = null;
+    }
+    if (positionMpv != null && positionMpv < const Duration(seconds: 10)) {
+      positionMpv = null;
+    }
+    final durMs = _durationsMs[key];
+    if (durMs != null && durMs > 0) {
+      if (position != null && durMs - position.inMilliseconds < 5000) {
+        position = null;
+      }
+      if (positionMpv != null && durMs - positionMpv.inMilliseconds < 5000) {
+        positionMpv = null;
+      }
+    }
+    if (!mounted) return;
+    if (position != _folderMovieResumeM3 ||
+        positionMpv != _folderMovieResumeMpv ||
+        lastEngine != _folderMovieLastEngine) {
+      setState(() {
+        _folderMovieResumeM3 = position;
+        _folderMovieResumeMpv = positionMpv;
+        _folderMovieLastEngine = lastEngine;
+      });
+    }
+  }
+
   /// Clears a wrong auto-fetched (or manually pinned) match so the metadata
   /// is dropped everywhere (home cards included) and the screen falls back to
   /// the no-match state, where it can be re-searched or just played.
@@ -863,6 +970,36 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     // The playhead may have moved (or the video finished) — refresh the label.
     await _loadResume();
     // Also refresh progress bars for sibling episode tiles.
+    await _refreshPositions();
+  }
+
+  /// Folder mode: play the folder's standalone movie file directly. Unlike
+  /// [_play] (video mode), the video is built from the folder's entry, not
+  /// [widget.video], which is null in folder mode.
+  Future<void> _playFolderMovie({bool fromBeginning = false}) async {
+    final entry = _folderMovieEntry;
+    if (entry == null) return;
+    final video = _toVideoItem(entry);
+    PlayEngine resolved;
+    if (!fromBeginning && _folderMovieLastEngine == 'mpv') {
+      resolved = PlayEngine.mpv;
+    } else {
+      resolved = _defaultEngine == DefaultEngine.mpv
+          ? PlayEngine.mpv
+          : PlayEngine.media3;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PlayerScreen(
+          video: video,
+          startFromBeginning: fromBeginning,
+          initialEngine: resolved,
+        ),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+    await _loadFolderMovieResume();
     await _refreshPositions();
   }
 
@@ -1086,7 +1223,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       return VideoItem(
         id: 'smb_${widget.folder!.id}_${entry.path.hashCode}',
         title: entry.name,
-        path: 'smb://$share/$relPath',
+        // Native Media3 (SmbDataSource) and the libmpv SMB loopback both
+        // resolve `smb://<serverId>/<share>/<path>` — the <serverId> is the
+        // native server id whose saved credentials SmbStore resolves. Omitting
+        // it (as `smb://<share>/<path>`) makes both engines fail to open.
+        path: 'smb://$serverId/$share/$relPath',
         resumeKey: resumeKey,
         duration: Duration.zero,
         sizeBytes: entry.size,
@@ -1188,9 +1329,16 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     // instead of "Resume from m:ss".
     final bestResume = _lastEngine == 'mpv' ? (resumeMpv ?? resume) : (resume ?? resumeMpv);
     final hasAnyResume = resume != null || resumeMpv != null;
+    // A matched movie folder renders its own pinned SliverAppBar hero (the
+    // SeriesSeasonsScreen-style backdrop + title), so the standard app bar is
+    // suppressed — otherwise the top of the screen would carry two bars.
+    final movieFolderHero =
+        widget.folder != null && _meta != null && _isMovieFolder;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: movieFolderHero
+          ? null
+          : AppBar(
         title: Text(title),
         actions: [
           if (widget.folder != null && (_enableSimklSync))
@@ -1311,7 +1459,88 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                       ),
               ),
             )
-          : null,
+          : _isMovieFolder
+              ? _buildFolderMovieBar()
+              : null,
+    );
+  }
+
+  /// Folder mode: the bottom Play/Resume bar for a movie folder — mirrors the
+  /// video-mode bar but plays the folder's standalone movie file via
+  /// [_playFolderMovie]. Series folders never render it (they use the
+  /// episodes/seasons list, which has no bottom bar).
+  Widget _buildFolderMovieBar() {
+    final resume = _folderMovieResumeM3;
+    final resumeMpv = _folderMovieResumeMpv;
+    final bestResume = _folderMovieLastEngine == 'mpv'
+        ? (resumeMpv ?? resume)
+        : (resume ?? resumeMpv);
+    final hasAnyResume = resume != null || resumeMpv != null;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: hasAnyResume
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (bestResume != null)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _playFolderMovie,
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(52),
+                            ),
+                            icon: const Icon(Icons.play_arrow),
+                            label: Text(
+                              'Resume from ${_formatClock(bestResume)}$_engineSuffix',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Tooltip(
+                          message: 'Watch from beginning',
+                          child: FilledButton.tonal(
+                            onPressed: () =>
+                                _playFolderMovie(fromBeginning: true),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(52, 52),
+                              padding: EdgeInsets.zero,
+                            ),
+                            child: const Icon(Icons.replay),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    FilledButton.icon(
+                      onPressed: _playFolderMovie,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text('Play$_engineSuffix'),
+                    ),
+                ],
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FilledButton.icon(
+                    onPressed: _playFolderMovie,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    icon: const Icon(Icons.play_arrow),
+                    label: Text('Play$_engineSuffix'),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -1357,6 +1586,15 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final singleEpisode = _parsed.isEpisode && widget.folder == null
         ? meta.seasons[effectiveSeason]?.episode(_parsed.episode)
         : null;
+    // Movie folder: the standalone movie file to show Play/file-info/subtitle
+    // affordances for. The folder's entries list itself is hidden for movie
+    // folders — they present as a single movie (SeriesSeasonsScreen-style
+    // hero), not a season/episode listing. The entry can still be null on the
+    // first frames (TMDB match cached, SMB listing in flight) — rebuild clean.
+    final folderMovie = widget.folder != null && _isMovieFolder && _folderMovieEntry != null
+        ? _toVideoItem(_folderMovieEntry!)
+        : null;
+    final infoVideo = widget.video ?? folderMovie;
 
     // Prefer season poster when a specific season is resolved, else series poster.
     final seasonPoster = effectiveSeason > 0
@@ -1396,6 +1634,25 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
     return CustomScrollView(
       slivers: [
+        // SeriesSeasonsScreen-style hero: pinned backdrop + title at the very
+        // top of the screen for movie folders (the folder presents as a single
+        // movie, matching the series-details header rather than a file list).
+        if (_isMovieFolder)
+          SliverAppBar(
+            pinned: true,
+            expandedHeight: 200,
+            flexibleSpace: FlexibleSpaceBar(
+              title: Text(movie.title),
+              background: movie.backdropUrl() != null
+                  ? Image.network(
+                      movie.backdropUrl()!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                          color: colorScheme.surfaceContainerHighest),
+                    )
+                  : Container(color: colorScheme.surfaceContainerHighest),
+            ),
+          ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -1602,28 +1859,40 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                   ),
                 ],
 
-                // ── Stills gallery (Nova-style, single episode only) ──
-                if (singleEpisode != null && singleEpisode.stills.isNotEmpty) ...[
+                // ── Stills gallery (Nova-style, right below cast) ──
+                // A matched movie (incl. movie folders) shows the TMDB
+                // backdrops as a 16:9 stills row; a single episode shows its
+                // own stills gallery.
+                if ((singleEpisode == null &&
+                        details != null &&
+                        details.stills.isNotEmpty) ||
+                    (singleEpisode != null &&
+                        singleEpisode.stills.isNotEmpty)) ...[
                   const SizedBox(height: 20),
-                  _StillsGallery(stills: singleEpisode.stillUrls()),
-                ],
-
-                // ── File info card (Nova-style) ──
-                if (widget.video != null) ...[
-                  const SizedBox(height: 20),
-                  _FileInfoCard(video: widget.video!, probe: _probe, probing: _probing),
-                ],
-
-                // ── Subtitles card ──
-                if (widget.video != null) ...[
-                  const SizedBox(height: 16),
-                  _SubtitlesCard(video: widget.video!),
+                  _StillsGallery(
+                    stills: singleEpisode != null
+                        ? singleEpisode.stillUrls()
+                        : details!.stillUrls(),
+                  ),
                 ],
 
                 // ── Trailers card (Nova-style) ──
                 if (details != null && details.trailers.isNotEmpty) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   _TrailersCard(trailers: details.trailers),
+                ],
+
+                // ── File info card (Nova-style) ──
+                if (infoVideo != null) ...[
+                  const SizedBox(height: 20),
+                  _FileInfoCard(
+                      video: infoVideo, probe: _probe, probing: _probing),
+                ],
+
+                // ── Subtitles card ──
+                if (infoVideo != null) ...[
+                  const SizedBox(height: 16),
+                  _SubtitlesCard(video: infoVideo),
                 ],
 
                 // ── Fix match / Remove info ──
@@ -1649,7 +1918,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
             ),
           ),
         ),
-        if (widget.folder != null) ..._entriesSlivers(theme),
+        if (widget.folder != null && !_isMovieFolder) ..._entriesSlivers(theme),
       ],
     );
   }
@@ -2124,9 +2393,36 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
               ),
             ),
           ),
-        ..._entriesSlivers(theme),
+        if (!_isMovieFolder)
+          ..._entriesSlivers(theme)
+        else
+          ..._folderMovieCardsSliver(theme),
       ],
     );
+  }
+
+  /// Movie folder with no TMDB match: a card with the movie file's probed
+  /// info plus the subtitles card, sitting above the bottom Play bar. The
+  /// folder's entries list stays hidden (a movie folder presents as a single
+  /// movie, not a file listing).
+  List<Widget> _folderMovieCardsSliver(ThemeData theme) {
+    final video = _folderMovieVideo;
+    if (video == null) return const [];
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _FileInfoCard(video: video, probe: _probe, probing: _probing),
+              const SizedBox(height: 16),
+              _SubtitlesCard(video: video),
+            ],
+          ),
+        ),
+      ),
+    ];
   }
 
   Widget _buildNoMatch(ThemeData theme) {

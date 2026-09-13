@@ -1079,7 +1079,7 @@ class ExoPlayerView(
                     // label the source ("Local" / "SMB" / "WebDAV" / etc.).
                     val resolvedUri = when {
                         !uri.isNullOrEmpty() -> android.net.Uri.parse(uri)
-                        !path.isNullOrEmpty() -> android.net.Uri.fromFile(java.io.File(path))
+                        path != null -> schemeOrFileUri(path!!)
                         else -> null
                     }
                     currentUriScheme = resolvedUri?.scheme?.lowercase() ?: ""
@@ -1090,7 +1090,7 @@ class ExoPlayerView(
                         .apply {
                             when {
                                 !uri.isNullOrEmpty() -> setUri(android.net.Uri.parse(uri))
-                                path != null -> setUri(android.net.Uri.fromFile(File(path)))
+                                path != null -> setUri(schemeOrFileUri(path!!))
                                 else -> {
                                     result.error("bad_args", "Missing path or uri", null)
                                     return@setMethodCallHandler
@@ -2302,4 +2302,23 @@ private class SmbMediaDataSource private constructor(
             }
         }
     }
+}
+
+/// Parses a `path` argument from the Dart `open()` channel call into the
+/// android.net.Uri the player should play.
+///
+/// A plain filesystem path (`/storage/emulated/0/...`) becomes a `file://`
+/// Uri. A string that already carries an explicit network/content scheme
+/// (`smb://`, `http(s)://`, `ftp://`, `content://`) is parsed AS that Uri and
+/// routed to the matching DataSource (SmbDataSource / FtpDataSource / OkHttp /
+/// content resolver). Wrapping such a string in `File(...)` (the old behavior)
+/// produced a `file:///smb:/serverId/...` Uri — a nonexistent local file — so
+/// any source whose playable URI lives in `path` instead of `uri` (e.g. a
+/// bookmarked SMB folder's movie file) silently failed to open and the app
+/// fell back to the mpv engine.
+private fun schemeOrFileUri(path: String): android.net.Uri {
+    val parsed = runCatching { android.net.Uri.parse(path) }.getOrNull()
+    val scheme = parsed?.scheme?.lowercase()
+    if (scheme in setOf("smb", "ftp", "sftp", "http", "https", "content")) return parsed!!
+    return android.net.Uri.fromFile(java.io.File(path))
 }

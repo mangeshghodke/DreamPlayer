@@ -461,13 +461,19 @@ class _HomeScreenState extends State<HomeScreen>
   /// cards store only ids/paths, so the source must be re-resolved live
   /// (SMB needs a fresh loopback/proxy token, WebDAV needs auth, UPnP keeps
   /// the stored raw URL, FTP is iOS-only and picks ftp:// vs sftp://).
-  /// Opens a grouped series (`Strike the Blood`, `Strike the Blood II`, etc
-  /// collapsed into one card). Always opens [SeriesSeasonsScreen] for the
-  /// Nova-style season poster grid UI.
+  /// Opens a grouped folder (`Strike the Blood`, `Strike the Blood II`, etc
+  /// collapsed into one card). A folder whose TMDB match is a **movie** opens
+  /// the movie details screen (with a Play bar) — the season/episode view would
+  /// render a lone film as "Episode 1" with no way to play it. Everything else
+  /// opens [SeriesSeasonsScreen] for the Nova-style season poster grid UI.
   void _openGroup(SeriesGroup group) {
+    final meta = TmdService.instance.metaFor(group.metadataKey);
+    final isMovie = meta?.movie.kind == TmdKind.movie;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => SeriesSeasonsScreen(group: group),
+        builder: (_) => isMovie
+            ? TmdDetailsScreen(folder: group.primary)
+            : SeriesSeasonsScreen(group: group),
       ),
     );
   }
