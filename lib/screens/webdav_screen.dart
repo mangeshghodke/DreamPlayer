@@ -228,6 +228,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
           yearHint: ParsedFileName.yearFromNames(
             videos.map((e) => e.name),
           ),
+          fileNames: videos.map((e) => e.name).toList(),
         );
     if (meta == null || !mounted) return;
     setState(() {

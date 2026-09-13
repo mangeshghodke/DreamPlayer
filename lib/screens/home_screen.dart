@@ -295,12 +295,33 @@ class _HomeScreenState extends State<HomeScreen>
     for (final folder in folders) {
       final key = folder.metadataKey;
       final existing = service.metaFor(key);
-      if (existing == null || existing.folderSeason == null) {
+      // Movies never carry a folderSeason, so a naive `existing == null ||
+      // folderSeason == null` would re-resolve every movie folder on every
+      // home load/refresh — churn that can silently swap a good auto match or
+      // defeat a Fix-match pin. Only (re)resolve when there's nothing cached
+      // OR the cached entry is a TV match still missing its season data.
+      final needsResolve = existing == null ||
+          (existing.folderSeason == null &&
+              existing.movie.kind != TmdKind.movie);
+      if (needsResolve) {
+        // For local folders, list the contents so resolveFolder can detect
+        // episode markers in the file names (e.g. S02E05 in a folder simply
+        // named "house") — without this, a plain folder name always resolves
+        // as a movie because parsed.isEpisode is false.
+        List<String>? fileNames;
+        if (folder.source == LibraryFolderSource.files) {
+          try {
+            final entries =
+                await FileBrowserService.instance.listDirectory(folder.path);
+            fileNames = entries.map((e) => e.name).toList();
+          } catch (_) {}
+        }
         try {
           await service.resolveFolder(
             key,
             folder.name,
             yearHint: folder.yearHint,
+            fileNames: fileNames,
           );
         } catch (_) {
           // Network failures are non-fatal; the card stays a placeholder.

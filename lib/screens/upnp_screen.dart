@@ -311,6 +311,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
           yearHint: ParsedFileName.yearFromNames(
             videos.map((e) => e.name),
           ),
+          fileNames: videos.map((e) => e.name).toList(),
         );
     if (meta == null || !mounted) return;
     await service.detailsFor(metadataKey);

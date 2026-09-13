@@ -468,6 +468,7 @@ class TmdMeta {
     this.details,
     this.seasons = const {},
     this.folderSeason,
+    this.manual = false,
   });
 
   final TmdMovie movie;
@@ -482,24 +483,45 @@ class TmdMeta {
   /// grouping uses it instead of the parsed season from the filename.
   final int? folderSeason;
 
+  /// True when the user pinned this match explicitly with "Fix match"
+  /// ([TmdService.setManual] / [setManualFolder]). Manual matches are sacred:
+  /// automatic re-resolution (folder scans, library refreshes, prefetch)
+  /// must NEVER overwrite them — only `clear()`/Remove-info removes them.
+  /// Without this flag a manual fix was recalculated on the next scan and the
+  /// match was silently lost (issue #11).
+  final bool manual;
+
   TmdMeta withDetails(TmdDetails d) => TmdMeta(
-      movie: movie, details: d, seasons: seasons, folderSeason: folderSeason);
+      movie: movie,
+      details: d,
+      seasons: seasons,
+      folderSeason: folderSeason,
+      manual: manual);
 
   TmdMeta withSeason(TmdSeason season) {
     final next = Map<int, TmdSeason>.of(seasons);
     next[season.seasonNumber] = season;
     return TmdMeta(
-        movie: movie, details: details, seasons: next, folderSeason: folderSeason);
+        movie: movie,
+        details: details,
+        seasons: next,
+        folderSeason: folderSeason,
+        manual: manual);
   }
 
   TmdMeta withFolderSeason(int s) => TmdMeta(
-      movie: movie, details: details, seasons: seasons, folderSeason: s);
+      movie: movie,
+      details: details,
+      seasons: seasons,
+      folderSeason: s,
+      manual: manual);
 
   Map<String, dynamic> toJson() => {
         'movie': movie.toJson(),
         'details': details == null ? null : _detailsToJson(details!),
         'seasons': seasons.values.map((s) => s.toJson()).toList(),
         if (folderSeason != null) 'folderSeason': folderSeason,
+        if (manual) 'manual': true,
       };
 
   static Map<String, dynamic> _detailsToJson(TmdDetails d) => {
@@ -539,6 +561,7 @@ class TmdMeta {
       details: _detailsFromJson(json['details'] as Map<String, dynamic>?),
       seasons: seasons,
       folderSeason: json['folderSeason'] as int?,
+      manual: json['manual'] == true,
     );
   }
 
@@ -669,6 +692,7 @@ class ParsedFileName {
     'english', 'eng', 'hindi', 'tamil', 'telugu', 'korean', 'japanese', 'spanish',
     'french', 'german', 'uncut', 'esub', 'subs', 'subtitle', 'tk',
     'nf', 'netflix', 'amzn', 'amazon', 'hbo', 'hulu', 'hdhub4u', 'hdbr',
+    'hi10p', 'ma10p', 'hi444',
     // Nova-style additional garbage
     'dvdscr', 'bdrip', 'brrip', 'hdrip', 'hdlight', 'minibdrip',
     'xvid', 'divx', 'wmv', 'flv', 'f4v', 'asf', 'vob',
@@ -715,6 +739,36 @@ class ParsedFileName {
     // after the final dash contains a dot — additionally drop the group token
     // sitting right before the dash when it's an all-caps release-group name
     // (`USURY`), so the search query stays title-only.
+    //
+    // Un-bracketed fan-sub folders use the REVERSE convention `<GROUP> - 
+    // <Title>` (`VCB-Studio - Show`, `Ohys-Raws - Show`). Without handling
+    // that first, the dash-cut below keeps the group token ("VCB-Studio")
+    // as the whole title. Strip a leading group ONLY when it looks like a
+    // release group (contains a `.`/`_`/`-` separator or is all-caps) — a
+    // plain Capitalized title like `Dune - Part Two` must be preserved.
+    final groupPrefixMatch = RegExp(
+            r'^\s*([^\s-]+(?:[-._][^\s-]+){1,3})\s*-\s+',
+            caseSensitive: false)
+        .matchAsPrefix(name);
+    if (groupPrefixMatch != null) {
+      final prefix = groupPrefixMatch.group(1)!;
+      // Release-group guard: only strip a prefix that actually looks like a
+      // group (contains a `.`/`_`/`-` separator, or is all-caps). A plain
+      // Capitalized title like `Dune - Part Two` / `In the Mood for Love`
+      // must be preserved (the separator check is what keeps "Dune" intact:
+      // the single word has no dot/underscore/hyphen of its own).
+      final looksLikeGroup = prefix.contains('-') ||
+          prefix.contains('.') ||
+          prefix.contains('_') ||
+          (prefix.length >= 3 && prefix == prefix.toUpperCase());
+      if (looksLikeGroup && prefix.length <= 24) {
+        final remainder = name.substring(groupPrefixMatch.end).trim();
+        if (remainder.split(RegExp(r'\s+')).length >= 2) {
+          name = remainder;
+        }
+      }
+    }
+
     final dash = name.lastIndexOf('-');
     if (dash > 0) {
       final beforeDash = name.substring(0, dash);
@@ -732,7 +786,10 @@ class ParsedFileName {
         } else {
           name = beforeDash;
         }
-      } else {
+      } else if (!site.contains(' ')) {
+        // Single-word dashed suffix with no dot is a release group (`Title -
+        // VCB-Studio`). Cut it. Multi-word suffixes (`"Dune - Part Two"`,
+        // `"In the Mood for Love - Part 2"`) are titles, not groups — keep them.
         name = beforeDash;
       }
     }
@@ -1228,14 +1285,19 @@ class TmdApi {
   /// Action" or "X (2021) Drama"), results are gently demoted if their title
   /// contains the word "anime" / "animation" hint, since the user clearly
   /// wants the live-action adaptation, not the animated original.
-  Future<TmdMatch?> bestForQuery(String query, {int? year, bool liveAction = false}) async {
+  /// Best TV-or-movie match for [query]. TV wins ties with a +0.001 tieBoost
+  /// (library folders are primarily shows) unless [preferMovie] is set — used
+  /// when available evidence (standalone movie files, no SxxEyy anywhere)
+  /// says the folder holds movies rather than a series.
+  Future<TmdMatch?> bestForQuery(String query,
+      {int? year, bool liveAction = false, bool preferMovie = false}) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return null;
     final clean = query.trim();
     if (clean.isEmpty) return null;
     final tv = await search(clean, year: year, kind: TmdKind.tv);
     final movie = await search(clean, year: year, kind: TmdKind.movie);
-    debugPrint('TMDB bestForQuery("$query") year=$year liveAction=$liveAction tv=${tv.length} movie=${movie.length}');
+    debugPrint('TMDB bestForQuery("$query") year=$year liveAction=$liveAction preferMovie=$preferMovie tv=${tv.length} movie=${movie.length}');
     TmdMatch? best;
     void consider(TmdMovie candidate, double tieBoost) {
       final score = _queryScore(candidate, clean, year: year, liveAction: liveAction) +
@@ -1247,11 +1309,20 @@ class TmdApi {
       }
     }
 
-    for (final m in tv) {
-      consider(m, 0.001);
-    }
-    for (final m in movie) {
-      consider(m, 0.0);
+    if (preferMovie) {
+      for (final m in movie) {
+        consider(m, 0.001);
+      }
+      for (final m in tv) {
+        consider(m, 0.0);
+      }
+    } else {
+      for (final m in tv) {
+        consider(m, 0.001);
+      }
+      for (final m in movie) {
+        consider(m, 0.0);
+      }
     }
     debugPrint('TMDB bestForQuery result: ${best?.movie.title} (${best?.movie.year}) score=${best?.score.toStringAsFixed(4)}');
     return best;
@@ -1436,6 +1507,42 @@ class TmdStore {
       changes.notify();
     }
   }
+
+  // ── Suppression list (user "Remove info" intent) ─────────────────────────
+  // A separate prefs list of identity keys the user explicitly dismissed via
+  // "Remove info". Auto-resolution skips these keys so the same poster never
+  // silently re-fetches on the next home refresh/rescan/folder open (the
+  // remove-info loop the user hit on-device). Keys are un-suppressed only by
+  // an explicit Fix match (setManual/setManualFolder) or by a fresh add
+  // (a re-added folder gets a brand-new id → new key).
+
+  static const String suppressedPrefsKey = 'dreamplayer.tmdbSuppressed';
+
+  static Future<Set<String>> loadSuppressed() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(suppressedPrefsKey) ?? const []).toSet();
+  }
+
+  static Future<void> suppress(String identityKey) async {
+    if (identityKey.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final list = [
+      ...(prefs.getStringList(suppressedPrefsKey) ?? const <String>[])
+    ];
+    if (list.contains(identityKey)) return;
+    list.add(identityKey);
+    await prefs.setStringList(suppressedPrefsKey, list);
+  }
+
+  static Future<void> unsuppress(String identityKey) async {
+    if (identityKey.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final list = [
+      ...(prefs.getStringList(suppressedPrefsKey) ?? const <String>[])
+    ];
+    if (!list.remove(identityKey)) return;
+    await prefs.setStringList(suppressedPrefsKey, list);
+  }
 }
 
 /// Exposes [ChangeNotifier.notifyListeners] publicly so [TmdStore]'s static
@@ -1455,6 +1562,11 @@ class TmdService extends ChangeNotifier {
   Map<String, TmdMeta> _cache = {};
   final Map<String, Future<TmdMeta?>> _pending = {};
 
+  /// Identity keys the user dismissed via "Remove info". Auto-resolution
+  /// (`resolve`/`resolveFolder`) returns null for these until an explicit
+  /// Fix match (or a folder re-add → new key) lifts the suppression.
+  final Set<String> _suppressed = {};
+
   /// In-flight season/episode detail fetches (dedup only; these return
   /// non-[TmdMeta] types so they can't share the [_pending] future map).
   final Set<String> _pendingDetail = {};
@@ -1470,9 +1582,14 @@ class TmdService extends ChangeNotifier {
 
   bool isResolving(String identityKey) => _pending.containsKey(identityKey);
 
+  bool isSuppressed(String identityKey) => _suppressed.contains(identityKey);
+
   Future<void> ensureLoaded() async {
     if (_loaded) return;
     _cache = await TmdStore.loadAll();
+    _suppressed
+      ..clear()
+      ..addAll(await TmdStore.loadSuppressed());
     _loaded = true;
     notifyListeners();
   }
@@ -1487,6 +1604,10 @@ class TmdService extends ChangeNotifier {
     final identityKey = TmdStore.identityKeyFor(video);
     if (identityKey.isEmpty) return null;
     await ensureLoaded();
+    // User dismissed this entry via "Remove info" — do not silently re-fetch
+    // it on the next prefetch/rescan/folder open. Only an explicit Fix match
+    // clears the suppression.
+    if (_suppressed.contains(identityKey)) return null;
     final parsed = ParsedFileName.parse(
       video.title,
       parentFolderName: parentFolderName,
@@ -1495,6 +1616,10 @@ class TmdService extends ChangeNotifier {
 
     final cached = _cache[identityKey];
     if (cached != null) {
+      // A user-pinned "Fix match" entry is sacred: never re-resolve or drop
+      // it based on stale-cache heuristics (issue #11). Only `clear()` removes
+      // a manual match.
+      if (cached.manual) return cached;
       // Stale-cache guard: the old parentFolderName fallback used the SMB
       // parent folder ("24") as seriesName for files like "24 (2016).mkv",
       // caching the 2001 TV series under the file's key. That wrong entry
@@ -1552,14 +1677,30 @@ class TmdService extends ChangeNotifier {
   /// folder. When parsing [folderName] yields no year, [yearHint] is used to
   /// disambiguate same-titled entries that differ only by release year (TMDB
   /// returns both, sorted by popularity — which can pick the wrong duplicate).
+  ///
+  /// [fileNames] lists the folder's file names (when the caller has them
+  /// cheaply, e.g. after a directory listing). Used as additional search
+  /// queries when the folder name doesn't match: a video filename that carries
+  /// `SxxEyy` (or a clean title) is the most reliable source for TMDB, and a
+  /// folder name full of release-group tags ([VCB-Studio] / [Hi10p_1080p])
+  /// can be useless for search even after cleaning (issue #11).
   Future<TmdMeta?> resolveFolder(
     String metadataKey,
     String folderName, {
     int? yearHint,
+    List<String>? fileNames,
   }) async {
     await ensureLoaded();
+    // User dismissed this folder via "Remove info" — do not silently
+    // re-match on the next home refresh / folder re-open (issue #11).
+    if (_suppressed.contains(metadataKey)) return null;
     final cached = _cache[metadataKey];
     debugPrint('TMDB resolveFolder("$metadataKey","$folderName") cached=$cached keepSeasons=${cached?.seasons[cached.folderSeason ?? -1]?.posterPath != null}');
+    // A user-pinned "Fix match" entry is sacred: re-resolution (home refresh,
+    // library rescan, prefetch) must NEVER overwrite it — the old path
+    // recalculated the match from the folder name every call and silently
+    // replaced or dropped the manual fix (issue #11). Only `clear()` removes it.
+    if (cached != null && cached.manual) return cached;
     // Return cache when it already has both folderSeason AND the season poster
     // for that season. A stale cache with folderSeason set but no seasons
     // entry (e.g. from a build that didn't fetch the season poster, or where
@@ -1610,11 +1751,46 @@ class TmdService extends ChangeNotifier {
 
     final parsed = ParsedFileName.parse(folderName);
     debugPrint('TMDB resolveFolder parsed: title="${parsed.title}" year=${parsed.year} season=${parsed.season} episode=${parsed.episode} isEpisode=${parsed.isEpisode} seriesName=${parsed.seriesName}');
-    if (parsed.title.isEmpty) return null;
+    if (parsed.title.isEmpty && (fileNames == null || fileNames.isEmpty)) {
+      return null;
+    }
 
     final year = parsed.year ?? yearHint;
-    final future = _resolveFolderNow(metadataKey, parsed.title, year,
-        liveAction: parsed.liveAction, folderName: folderName);
+    // Candidate search queries, tried in order of reliability. The folder's
+    // own cleaned title first, then queries derived from the files inside
+    // (an episode filename's seriesName, or standalone movie titles). File
+    // evidence also flips the TV/movie tie-break: a folder of standalone
+    // movies (no SxxEyy anywhere) should match a movie before a TV show.
+    final candidates = <({String q, int? y})>[];
+    if (parsed.title.isNotEmpty) {
+      candidates.add((q: parsed.title, y: parsed.year ?? yearHint));
+    }
+    final fileEvidence = _queriesFromFileNames(fileNames ?? const []);
+    for (final fq in fileEvidence.queries) {
+      if (candidates.every((c) => c.q.toLowerCase() != fq.toLowerCase())) {
+        candidates.add((q: fq, y: year));
+      }
+    }
+    final preferMovie = !parsed.isEpisode && !fileEvidence.hasEpisodes;
+    // A folder of movie *parts* ("GIRLS und PANZER das FINALE 01") — also
+    // try the query without the trailing part number, which otherwise drags
+    // the Levenshtein match away from the TMDB collection entry.
+    if (preferMovie) {
+      for (final c in List.of(candidates)) {
+        final m = RegExp(r'^(.*?)\s+\d{1,3}$').firstMatch(c.q.trim());
+        final base = m?.group(1);
+        if (base != null &&
+            base.isNotEmpty &&
+            candidates.every((c2) => c2.q.toLowerCase() != base.toLowerCase())) {
+          candidates.add((q: base, y: c.y));
+        }
+      }
+    }
+
+    final future = _resolveFolderCandidates(metadataKey, candidates,
+        preferMovie: preferMovie,
+        liveAction: parsed.liveAction,
+        folderName: folderName);
     _pending[metadataKey] = future;
     try {
       final meta = await future;
@@ -1634,6 +1810,53 @@ class TmdService extends ChangeNotifier {
       _pending.remove(metadataKey);
       notifyListeners();
     }
+  }
+
+  /// Pure helper: derives candidate TMDB queries from the names of the files
+  /// inside a folder. Episode files contribute their show name; standalone
+  /// files contribute their title. Returns up to [maxQueries] unique queries
+  /// (most common first) plus whether any file looked like an episode.
+  static ({List<String> queries, bool hasEpisodes}) _queriesFromFileNames(
+      Iterable<String> names, {int maxQueries = 4}) {
+    final counts = <String, int>{};
+    var hasEpisodes = false;
+    for (final name in names) {
+      final p = ParsedFileName.parse(name);
+      final q =
+          (p.isEpisode ? (p.seriesName ?? p.title) : p.title).trim().toLowerCase();
+      if (q.isEmpty) continue;
+      if (p.isEpisode) hasEpisodes = true;
+      counts[q] = (counts[q] ?? 0) + 1;
+    }
+    final ranked = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final queries = <String>[];
+    for (final e in ranked) {
+      if (queries.length >= maxQueries) break;
+      queries.add(e.key);
+    }
+    return (queries: queries, hasEpisodes: hasEpisodes);
+  }
+
+  /// Runs [_resolveFolderNow] across [candidates] in order, returning the
+  /// first that produces a match.
+  Future<TmdMeta?> _resolveFolderCandidates(
+    String metadataKey,
+    List<({String q, int? y})> candidates, {
+    required bool preferMovie,
+    bool liveAction = false,
+    String? folderName,
+  }) async {
+    TmdMeta? last;
+    for (final c in candidates) {
+      last = await _resolveFolderNow(metadataKey, c.q, c.y,
+          liveAction: liveAction,
+          folderName: folderName,
+          preferMovie: preferMovie);
+      if (last != null) return last;
+      // No match for this query — move on to the next candidate query.
+    }
+    return last;
   }
 
   /// Matches [folderName] to a TMDB season number using the season names
@@ -1667,10 +1890,10 @@ class TmdService extends ChangeNotifier {
 
   Future<TmdMeta?> _resolveFolderNow(
       String metadataKey, String query, int? year,
-      {bool liveAction = false, String? folderName}) async {
-    debugPrint('TMDB _resolveFolderNow key="$metadataKey" query="$query" year=$year liveAction=$liveAction folderName="$folderName"');
-    final match =
-        await _api.bestForQuery(query, year: year, liveAction: liveAction);
+      {bool liveAction = false, String? folderName, bool preferMovie = false}) async {
+    debugPrint('TMDB _resolveFolderNow key="$metadataKey" query="$query" year=$year liveAction=$liveAction folderName="$folderName" preferMovie=$preferMovie');
+    final match = await _api.bestForQuery(query,
+        year: year, liveAction: liveAction, preferMovie: preferMovie);
     if (match == null) return null;
 
     // Check if the folder name matches a season name on TMDB.
@@ -2053,8 +2276,12 @@ class TmdService extends ChangeNotifier {
   Future<void> setManual(VideoItem video, TmdMovie movie) async {
     final identityKey = TmdStore.identityKeyFor(video);
     if (identityKey.isEmpty) return;
-    _cache[identityKey] = TmdMeta(movie: movie);
+    _cache[identityKey] = TmdMeta(movie: movie, manual: true);
     await TmdStore.save(identityKey, _cache[identityKey]!);
+    // Lift any "Remove info" suppression so the manual entry is returned
+    // by resolve()/resolveFolder() on subsequent calls.
+    _suppressed.remove(identityKey);
+    await TmdStore.unsuppress(identityKey);
     notifyListeners();
   }
 
@@ -2062,8 +2289,10 @@ class TmdService extends ChangeNotifier {
   /// details screen can be pinned to a TV series without a video.
   Future<void> setManualFolder(String metadataKey, TmdMovie movie) async {
     await ensureLoaded();
-    _cache[metadataKey] = TmdMeta(movie: movie);
+    _cache[metadataKey] = TmdMeta(movie: movie, manual: true);
     await TmdStore.save(metadataKey, _cache[metadataKey]!);
+    _suppressed.remove(metadataKey);
+    await TmdStore.unsuppress(metadataKey);
     notifyListeners();
   }
 
@@ -2091,6 +2320,19 @@ class TmdService extends ChangeNotifier {
   Future<void> clear(String identityKey) async {
     _cache.remove(identityKey);
     await TmdStore.remove(identityKey);
+    notifyListeners();
+  }
+
+  /// "Remove info" (user intent): clears the entry AND records it in the
+  /// suppression list so no auto-resolution re-fetches the same match on the
+  /// next home refresh/rescan/folder open. An explicit Fix match
+  /// ([setManual]/[setManualFolder]) lifts the suppression.
+  Future<void> removeInfo(String identityKey) async {
+    if (identityKey.isEmpty) return;
+    _cache.remove(identityKey);
+    await TmdStore.remove(identityKey);
+    _suppressed.add(identityKey);
+    await TmdStore.suppress(identityKey);
     notifyListeners();
   }
 

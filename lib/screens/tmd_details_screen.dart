@@ -84,6 +84,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       ParsedFileName.parse(widget.folder?.name ?? widget.video!.title);
 
   String _computeParentFolderName() {
+    if (widget.video == null) return '';
     final path = widget.video!.path ?? widget.video!.uri ?? '';
     if (path.isEmpty) return '';
     // SAF content URIs encode the document path in the last URI segment
@@ -481,12 +482,16 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
     // Auto-resolve TMDB metadata for folders when not cached (e.g. the home
     // pre-fetch hadn't reached this folder yet, or TMDB was unreachable).
+    // Pass the folder's file names so a folder name full of release-group
+    // tags (`[VCB-Studio] … [Hi10p_1080p]`) can still resolve from the
+    // episode filenames inside (issue #11).
     if (_meta == null && widget.folder != null) {
       try {
         await _service.resolveFolder(
           widget.folder!.metadataKey,
           widget.folder!.name,
           yearHint: widget.folder!.yearHint,
+          fileNames: _entries.map((e) => e.name).toList(),
         );
       } catch (_) {}
       if (!mounted) return;
@@ -900,8 +905,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// Clears a wrong auto-fetched (or manually pinned) match so the metadata
   /// is dropped everywhere (home cards included) and the screen falls back to
   /// the no-match state, where it can be re-searched or just played.
+  /// [TmdService.removeInfo] also suppresses the key so home/refresh never
+  /// silently re-fetches the same match (the remove-info loop on-device).
   Future<void> _removeInfo() async {
-    await _service.clear(_identityKey);
+    await _service.removeInfo(_identityKey);
     if (!mounted) return;
     setState(() {
       _meta = null;
@@ -1839,6 +1846,25 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                     ),
                   ),
 
+                // ── Fix match / Remove info (right below overview) ──
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: _fixMatch,
+                      child: Text(AppLocalizations.of(context).detailsFixMatch),
+                    ),
+                    TextButton(
+                      onPressed: _removeInfo,
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error,
+                      ),
+                      child: Text(AppLocalizations.of(context).detailsRemoveInfo),
+                    ),
+                  ],
+                ),
+
                 // ── Cast row (Nova-style) ──
                 if (details != null && details.cast.isNotEmpty) ...[
                   const SizedBox(height: 20),
@@ -1895,24 +1921,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                   _SubtitlesCard(video: infoVideo),
                 ],
 
-                // ── Fix match / Remove info ──
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: _fixMatch,
-                      child: Text(AppLocalizations.of(context).detailsFixMatch),
-                    ),
-                    TextButton(
-                      onPressed: _removeInfo,
-                      style: TextButton.styleFrom(
-                        foregroundColor: theme.colorScheme.error,
-                      ),
-                      child: Text(AppLocalizations.of(context).detailsRemoveInfo),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 12),
               ],
             ),
@@ -3581,8 +3589,9 @@ class _SearchDialogState extends State<_SearchDialog> {
       title: const Text('Get Info'),
       content: SizedBox(
         width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _controller,
@@ -3594,7 +3603,6 @@ class _SearchDialogState extends State<_SearchDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            // Kind toggle: TV or Movie
             SegmentedButton<TmdKind>(
               segments: const [
                 ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
@@ -3634,7 +3642,10 @@ class _SearchDialogState extends State<_SearchDialog> {
                   child: Text('No results. Try a different title.'),
                 )
               else
-                Flexible(
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.4,
+                  ),
                   child: ListView.builder(
                     shrinkWrap: true,
                     itemCount: _results!.length,
@@ -3666,6 +3677,7 @@ class _SearchDialogState extends State<_SearchDialog> {
                   ),
                 ),
           ],
+        ),
         ),
       ),
       actions: [

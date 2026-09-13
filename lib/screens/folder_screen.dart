@@ -151,10 +151,16 @@ class _FolderScreenState extends State<FolderScreen> {
 
   Future<void> _resolveMeta() async {
     try {
+      // Pass the folder's file names so release-group-heavy names
+      // (`[VCB-Studio] … [Hi10p_1080p]`) still resolve via the episode
+      // filenames inside the folder (issue #11).
       await TmdService.instance.resolveFolder(
         widget.folder.metadataKey,
         widget.folder.name,
         yearHint: widget.folder.yearHint,
+        fileNames: _entries
+            .map((e) => e.name)
+            .toList(),
       );
     } catch (_) {
       // Non-fatal: the header just stays a placeholder.
@@ -367,6 +373,7 @@ class _FolderScreenState extends State<FolderScreen> {
         metadataKey,
         folderName,
         yearHint: ParsedFileName.yearFromNames(videoNames),
+        fileNames: videoNames,
       );
     }
 

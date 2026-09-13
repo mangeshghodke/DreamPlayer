@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:dream_player/models/video_item.dart';
 import 'package:dream_player/services/tmdb_client.dart';
 
 void main() {
@@ -263,6 +264,51 @@ void main() {
         expect(parsed.year, isNull);
       });
     });
+
+    group('issue #11 — release-group folder names', () {
+      test('bracket release-group folder name strips the group + codec/res tags', () {
+        final parsed = ParsedFileName.parse(
+          '[VCB-Studio] Toaru Kagaku no Railgun [Hi10p_1080p]',
+        );
+        expect(parsed.title, 'Toaru Kagaku no Railgun');
+        expect(parsed.year, isNull);
+        expect(parsed.isEpisode, isFalse);
+      });
+
+      test('bracket movie-part folders are NOT mis-detected as episodes', () {
+        final parsed = ParsedFileName.parse(
+          '[VCB-Studio] GIRLS und PANZER das FINALE 01 [Ma10p_1080p]',
+        );
+        expect(parsed.title, 'GIRLS und PANZER das FINALE 01');
+        expect(parsed.isEpisode, isFalse);
+        expect(parsed.seriesName, isNull);
+      });
+
+      test('un-bracketed `<GROUP> - <Title>` keeps the title, not the group', () {
+        final parsed = ParsedFileName.parse('VCB-Studio - Toaru Kagaku no Railgun');
+        expect(parsed.title, 'Toaru Kagaku no Railgun');
+      });
+
+      test('`GROUP - Title` with a dotted group token is stripped', () {
+        final parsed = ParsedFileName.parse('Ohys-Raws - Jujutsu Kaisen');
+        expect(parsed.title, 'Jujutsu Kaisen');
+      });
+
+      test('a plain Capitalized title like "Dune - Part Two" is preserved', () {
+        final parsed = ParsedFileName.parse('Dune - Part Two');
+        expect(parsed.title, 'Dune Part Two');
+      });
+
+      test('multi-word non-group prefixes are preserved', () {
+        final parsed = ParsedFileName.parse('In the Mood for Love - Part 2');
+        expect(parsed.title, contains('In the Mood for Love'));
+      });
+
+      test('hi10p/ma10p tags outside brackets are stripped', () {
+        final parsed = ParsedFileName.parse('Show.Hi10p.1080p.MKV');
+        expect(parsed.title, 'Show');
+      });
+    });
   });
 
   group('TmdStore', () {
@@ -414,6 +460,37 @@ void main() {
       expect(restored.details!.numberOfEpisodes, 177);
       expect(restored.seasons[2], isNotNull);
       expect(restored.seasons[2]!.episode(4)!.name, 'Humble');
+    });
+
+    test('manual flag persists through JSON and withX helpers (issue #11)', () {
+      // A user "Fix match" pin must survive a library refresh. The manual flag
+      // is stored (only when true, so old cache entries stay compact) and
+      // carried through every transformation that resolve()/resolveFolder()
+      // applies to cached entries.
+      final manual = TmdMeta(
+        movie: const TmdMovie(id: 121860, title: 'Kakegurui Twin', kind: TmdKind.tv),
+        manual: true,
+      );
+      final restored = TmdMeta.fromJson(
+        jsonDecode(jsonEncode(manual.toJson())) as Map<String, dynamic>,
+      );
+      expect(restored.manual, isTrue);
+
+      final withDetails = restored.withDetails(const TmdDetails(title: 'Kakegurui Twin'));
+      expect(withDetails.manual, isTrue);
+      final withSeason = withDetails.withSeason(
+        const TmdSeason(seasonNumber: 1, name: 'Season 1'),
+      );
+      expect(withSeason.manual, isTrue);
+      expect(withSeason.withFolderSeason(1).manual, isTrue);
+
+      // Auto-resolved metas are not manual by default, and the NULL occurrence
+      // is absent from their JSON.
+      final auto = TmdMeta(
+        movie: const TmdMovie(id: 1, title: 'X', kind: TmdKind.tv),
+      );
+      expect(auto.manual, isFalse);
+      expect(jsonDecode(jsonEncode(auto.toJson())), isNot(contains('manual')));
     });
 
     test('withSeason adds a season without dropping details', () {
@@ -678,6 +755,68 @@ void main() {
     test('extra title words anywhere in the folder name disqualify it', () {
       expect(match('Strike the Blood Kieta Seisou Hen II', names), isNull);
       expect(match('Strike the Blood - The Movie 2021', names), isNull);
+    });
+  });
+
+  group('Remove-info suppression (issue #11)', () {
+    test('removeInfo suppresses auto re-resolution; Fix match lifts it',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final service = TmdService.instance;
+      await service.ensureLoaded();
+
+      const movie = TmdMovie(
+        id: 603,
+        title: 'The Matrix',
+        year: 1999,
+        kind: TmdKind.movie,
+      );
+      // Simulate an auto-resolved movie folder on the home grid.
+      await TmdStore.save('folder:11', const TmdMeta(movie: movie));
+
+      // "Remove info" → entry dropped AND the key suppressed.
+      await service.removeInfo('folder:11');
+      expect(service.isSuppressed('folder:11'), isTrue);
+      expect(service.metaFor('folder:11'), isNull);
+
+      // The next home refresh / folder re-open must NOT silently re-fetch the
+      // same poster (the on-device loop the user reported).
+      expect(await service.resolveFolder('folder:11', 'The Matrix'), isNull);
+      expect(service.metaFor('folder:11'), isNull);
+
+      // A re-added folder gets a brand-new key → never suppressed.
+      expect(service.isSuppressed('folder:12'), isFalse);
+
+      // An explicit Fix match lifts the suppression and pins the entry, so
+      // subsequent resolves keep returning the manual (matching) result.
+      await service.setManualFolder('folder:11', movie);
+      expect(service.isSuppressed('folder:11'), isFalse);
+      final cached = service.metaFor('folder:11');
+      expect(cached, isNotNull);
+      expect(cached!.manual, isTrue);
+      final resolved = await service.resolveFolder('folder:11', 'The Matrix');
+      expect(resolved?.movie.id, 603);
+    });
+
+    test('removeInfo on a video key also blocks auto resolve()', () async {
+      SharedPreferences.setMockInitialValues({});
+      final service = TmdService.instance;
+      await service.ensureLoaded();
+
+      const video = VideoItem(
+        id: 'v11',
+        title: 'The Matrix (1999).mkv',
+        path: '/mnt/movies/the-matrix.mkv',
+        duration: Duration(minutes: 136),
+      );
+      final key = TmdStore.identityKeyFor(video);
+      expect(key, '/mnt/movies/the-matrix.mkv');
+
+      await service.removeInfo(key);
+      expect(service.isSuppressed(key), isTrue);
+      // resolve() short-circuits on the suppressed key before any search.
+      expect(await service.resolve(video), isNull);
+      expect(service.metaFor(key), isNull);
     });
   });
 }

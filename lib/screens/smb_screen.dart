@@ -367,6 +367,17 @@ class _SmbScreenState extends State<SmbScreen> {
           _loadingSeriesMeta = false;
         }
       });
+      // Prevent focus from the previously tapped directory from jumping to
+      // whatever new item lands at the same index after the list rebuilds.
+      // Must run AFTER the rebuild (post-frame) because the ListView rebuild
+      // re-creates children and Flutter's focus manager auto-focuses the
+      // child at the same index — unfocusing before is too early.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          FocusManager.instance.primaryFocus?.unfocus();
+          FocusScope.of(context).unfocus();
+        }
+      });
       await _refreshWatched();
 
       // Only prefetch entries that aren't already cached — skip entirely when
@@ -462,6 +473,7 @@ class _SmbScreenState extends State<SmbScreen> {
     final gen = ++_seriesGeneration;
 
     final videoEntries = entries.where((e) => !e.isDirectory).toList();
+    final dirEntries = entries.where((e) => e.isDirectory).toList();
     if (videoEntries.isEmpty) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
       return;
@@ -482,7 +494,11 @@ class _SmbScreenState extends State<SmbScreen> {
     // list — otherwise _seriesFolderBody filters to episodes only and the
     // non-episode videos disappear (bookmark via FolderScreen groups ALL
     // videos so they stay visible there).
-    final isSeries = episodes.isNotEmpty || hasSequentialNumbering;
+    //
+    // Also: when the folder contains subdirectories, the user needs to
+    // navigate INTO them (season subfolders). Don't hide directories behind
+    // the series view — stay in flat file list so subdirectories are visible.
+    final isSeries = (episodes.isNotEmpty || hasSequentialNumbering) && dirEntries.isEmpty;
 
     if (!isSeries) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
@@ -517,6 +533,7 @@ class _SmbScreenState extends State<SmbScreen> {
         yearHint: ParsedFileName.yearFromNames(
           videoEntries.map((e) => e.name),
         ),
+        fileNames: videoEntries.map((e) => e.name).toList(),
       );
     }
 
@@ -663,16 +680,18 @@ class _SmbScreenState extends State<SmbScreen> {
     }
 
     final server = _browsing;
-    if (server == null || _opening) return;
-
+    if (server == null || _opening) {
+      return;
+    }
     // Only the tapped video's stream URL is needed (play-next was removed), so
     // open just it and navigate immediately — the folder loop that opened every
     // video up-front made TMDB details feel slow (ring spinner while N serial
     // openShare round-trips ran).
     final index = _entries.indexWhere((e) => !e.isDirectory && e.path == entry.path);
-    if (index < 0) return;
+    if (index < 0) {
+      return;
+    }
     final video = _entries[index];
-
     setState(() => _opening = true);
     String? videoUrl;
     List<VideoExternalSub> externalSubs = const [];
@@ -1072,6 +1091,7 @@ class _SmbScreenState extends State<SmbScreen> {
     return RefreshIndicator(
       onRefresh: _onRefresh,
       child: CustomScrollView(
+        key: ValueKey('smb-series-$_share-$_path'),
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
         SliverToBoxAdapter(
@@ -1145,7 +1165,9 @@ class _SmbScreenState extends State<SmbScreen> {
                 });
               },
               seasonName: cachedMeta?.seasons[s]?.name,
-              onTapEntry: (entry) => _openEntry(entry),
+              onTapEntry: (entry) {
+                _openEntry(entry);
+              },
               onToggleWatched: (entry) => _toggleWatched(entry),
               resumePositionsMs: _resumePositionsMs,
               durationsMs: _durationsMs,
@@ -1178,7 +1200,9 @@ class _SmbScreenState extends State<SmbScreen> {
               final mKey = 'smb:${server.id}/$_share/${m.path}';
               return _SmbTile(
                 entry: m,
-                onTap: () => _openEntry(m),
+                onTap: () {
+                  _openEntry(m);
+                },
                 tmdbMeta: TmdService.instance.metaFor(mKey),
                 watched: _watchedKeys.contains(mKey),
                 onToggleWatched: () => _toggleWatched(m),
@@ -1200,6 +1224,7 @@ class _SmbScreenState extends State<SmbScreen> {
     return RefreshIndicator(
       onRefresh: _onRefresh,
       child: ListView.builder(
+        key: ValueKey('smb-$_share-$_path'),
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: _entries.length,
         itemBuilder: (context, index) {
@@ -1228,7 +1253,9 @@ class _SmbScreenState extends State<SmbScreen> {
           }
           return _SmbTile(
             entry: entry,
-            onTap: () => _openEntry(entry),
+            onTap: () {
+              _openEntry(entry);
+            },
             tmdbMeta: meta,
             watched: key.isNotEmpty && _watchedKeys.contains(key),
             onToggleWatched: () => _toggleWatched(entry),
@@ -1519,7 +1546,9 @@ class _SmbTile extends StatelessWidget {
         leading: Icon(Icons.folder, color: colorScheme.primary),
         title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
+        onTap: () {
+          onTap();
+        },
       );
     }
 
@@ -1670,7 +1699,9 @@ class _SmbTile extends StatelessWidget {
             ),
         ],
       ),
-      onTap: onTap,
+      onTap: () {
+        onTap();
+      },
     );
   }
 }
@@ -2139,7 +2170,9 @@ class _SmbEpisodeTile extends StatelessWidget {
           ),
         ],
       ),
-      onTap: onTap,
+      onTap: () {
+        onTap();
+      },
     );
 
     return tile;

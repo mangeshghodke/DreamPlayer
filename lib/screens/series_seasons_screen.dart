@@ -942,11 +942,19 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   }
 
   Future<void> _fixMatch() async {
+    // Prefill with the CLEANED title (strip release-group / resolution tags
+    // like `[VCB-Studio]`, `[Hi10p_1080p]`) so the user isn't confronted with
+    // the raw folder name in the search box (issue #11).
+    final displayParsed = ParsedFileName.parse(widget.group.displayName);
     final picked = await showDialog<TmdMovie>(
       context: context,
       builder: (context) => _FixMatchDialog(
-        initialQuery: widget.group.displayName,
-        initialYear: ParsedFileName.parse(widget.group.displayName).year,
+        initialQuery: displayParsed.seriesName?.isNotEmpty == true
+            ? displayParsed.seriesName!
+            : displayParsed.title.isNotEmpty
+                ? displayParsed.title
+                : widget.group.displayName,
+        initialYear: displayParsed.year,
       ),
     );
     if (picked == null || !mounted) return;
@@ -955,7 +963,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   }
 
   Future<void> _removeInfo() async {
-    await TmdService.instance.clear(_groupKey);
+    await TmdService.instance.removeInfo(_groupKey);
     if (!mounted) return;
     setState(() {
       _meta = null;
