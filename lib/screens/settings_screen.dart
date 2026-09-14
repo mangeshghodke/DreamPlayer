@@ -544,6 +544,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
+            // Buy — DreamPlayer Advanced (the IAP paywall). Shown at the top
+            // of iOS PAYWALL_ENABLED builds, or on Android debug builds with
+            // the "simulate free user" override active. Android real builds
+            // are always advanced, so `effectivePaywallEnabled` is false and
+            // this section never appears (monetization is iOS-only).
+            if (Entitlements.instance.effectivePaywallEnabled) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text(
+                  'Buy',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ListenableBuilder(
+                listenable: Entitlements.instance,
+                builder: (context, _) {
+                  final e = Entitlements.instance;
+                  final entitled = e.isEntitled;
+                  return TvTile(
+                    leading: Icon(
+                      Icons.workspace_premium,
+                      color: entitled ? theme.colorScheme.primary : null,
+                    ),
+                    title: Text(
+                      entitled
+                          ? 'DreamPlayer Advanced — Active'
+                          : 'DreamPlayer Advanced',
+                    ),
+                    subtitle: Text(
+                      entitled
+                          ? 'Thank you for supporting DreamPlayer'
+                          : 'Monthly subscription · Yearly · Lifetime',
+                    ),
+                    onTap: () => showPaywall(context),
+                  );
+                },
+              ),
+              const Divider(),
+            ],
             // Support (donations) is Android-only: it unlocks nothing (fine
             // under Guideline 3.1.1) but the Razorpay/GitHub-Sponsors links
             // are out of place on iOS, where the paid tier is the IAP paywall.

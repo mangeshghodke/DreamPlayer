@@ -197,6 +197,31 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         }
         if (subfolderEntries.isNotEmpty) {
           folderEntries.addAll(subfolderEntries);
+          // Also include root-level individual files (movies + episodes
+          // that sit alongside the series subfolders).
+          final rootFiles = entries.where((e) => !_isFolder(e)).toList();
+          if (rootFiles.isNotEmpty) {
+            int? folderSeason;
+            final parsed = ParsedFileName.parse(folder.name);
+            if (parsed.season > 0) {
+              folderSeason = parsed.season;
+            } else {
+              for (final e in rootFiles) {
+                final epSeason = _seasonOf(e);
+                if (epSeason > 0) {
+                  folderSeason = epSeason;
+                  break;
+                }
+              }
+            }
+            folderEntries.add((
+              folderLabel: folder.name,
+              metadataKey: folder.metadataKey,
+              entries: rootFiles,
+              folderSeason: folderSeason,
+              folder: folder,
+            ));
+          }
         } else {
           // Guess season from folder/filename parsing.
           int? folderSeason;

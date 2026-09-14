@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dream_player/app.dart';
 import 'package:dream_player/l10n/app_localizations.dart';
 import 'package:dream_player/models/video_item.dart';
 import 'package:dream_player/screens/file_browser_screen.dart';
 import 'package:dream_player/screens/player_screen.dart';
+import 'package:dream_player/services/entitlements.dart';
 import 'package:dream_player/widgets/format_chip.dart';
 
 void main() {
@@ -39,6 +41,33 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.text('Version'), findsOneWidget);
+  });
+
+  testWidgets('Settings shows Buy section at top when paywall is active', (
+    tester,
+  ) async {
+    // The debug setters persist through SharedPreferences; provide a mock
+    // store so getInstance() resolves without a platform channel. Also mark
+    // the TMDB hint as shown so its dialog doesn't swallow the Settings tap.
+    SharedPreferences.setMockInitialValues({'dreamplayer.tmdbHintShown': true});
+    // Android test runner + no date define: paywall is off by default. The
+    // debug "simulate free user" override flips it on so the Buy tile surfaces.
+    await Entitlements.instance.setDebugFreeUser(true);
+    // The debug override lazily starts the 7-day trial; expire it so the tile
+    // shows the "not yet entitled" buy state (not "Active").
+    await Entitlements.instance.setDebugTrialExpired(true);
+    addTearDown(() => Entitlements.instance.resetForTest());
+
+    await tester.pumpWidget(const DreamPlayerApp());
+
+    // Tap on the first frame before the TMDB hint dialog mounts — it would
+    // swallow the tap on the nav button (mirrors the sibling shell tests).
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Buy'), findsOneWidget);
+    expect(find.text('DreamPlayer Advanced'), findsOneWidget);
+    expect(find.text('Monthly subscription · Yearly · Lifetime'), findsOneWidget);
   });
 
   testWidgets('About lists open-source licenses', (tester) async {

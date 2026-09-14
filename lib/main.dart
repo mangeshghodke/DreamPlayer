@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 import 'services/display_refresh_rate.dart';
 import 'services/download_manager.dart';
+import 'services/entitlements.dart';
 import 'services/language_service.dart';
 import 'utils/tv_helper.dart';
 
@@ -14,5 +15,8 @@ Future<void> main() async {
   unawaited(initTvMode());
   unawaited(LanguageService.instance.init());
   unawaited(DownloadManager.instance.init());
+  // StoreKit entitlement + 7-day trial state (iOS-only monetization; Android
+  // stays permanently advanced — see Entitlements). Safe to run everywhere.
+  unawaited(Entitlements.instance.init());
   runApp(const DreamPlayerApp());
 }

@@ -477,17 +477,42 @@ class _HomeScreenState extends State<HomeScreen>
         lower.endsWith('.3gp');
   }
 
-  /// Builds a playable [VideoItem] for an auto-expanded network FILE card on
-  /// the home grid. Local (`files`) cards carry path/uri directly; network
-  /// cards store only ids/paths, so the source must be re-resolved live
-  /// (SMB needs a fresh loopback/proxy token, WebDAV needs auth, UPnP keeps
-  /// the stored raw URL, FTP is iOS-only and picks ftp:// vs sftp://).
   /// Opens a grouped folder (`Strike the Blood`, `Strike the Blood II`, etc
-  /// collapsed into one card). A folder whose TMDB match is a **movie** opens
-  /// the movie details screen (with a Play bar) — the season/episode view would
-  /// render a lone film as "Episode 1" with no way to play it. Everything else
-  /// opens [SeriesSeasonsScreen] for the Nova-style season poster grid UI.
+  /// collapsed into one card). A single-**file** card (an individual video
+  /// bookmarked to Home) opens in video mode directly. A folder whose TMDB
+  /// match is a **movie** opens the movie details screen (with a Play bar) —
+  /// the season/episode view would render a lone film as "Episode 1" with no
+  /// way to play it. Everything else opens [SeriesSeasonsScreen] for the
+  /// Nova-style season poster grid UI.
   void _openGroup(SeriesGroup group) {
+    if (group.primary.isFile) {
+      final folder = group.primary;
+      final path = folder.videoPath ?? folder.path;
+      final uri = folder.videoUri;
+      final info = extractFileInfo(folder.name);
+      final video = VideoItem(
+        id: 'home_${folder.id}',
+        title: folder.name,
+        path: uri == null ? path : null,
+        uri: uri ?? path,
+        resumeKey: uri ?? path,
+        duration: Duration.zero,
+        sizeBytes: folder.videoSizeBytes,
+        videoCodec: info.videoCodec,
+        audioCodec: info.audioCodec,
+        audioChannels: info.audioChannels,
+        audioLanguage: info.audioLanguage,
+        resolution: info.resolution,
+        fps: info.fps,
+        hdrHint: info.hdrHint,
+      );
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => TmdDetailsScreen(video: video),
+        ),
+      );
+      return;
+    }
     final meta = TmdService.instance.metaFor(group.metadataKey);
     final isMovie = meta?.movie.kind == TmdKind.movie;
     Navigator.of(context).push(

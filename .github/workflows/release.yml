@@ -1,8 +1,11 @@
 name: Release
 
 # Publishing a release is just tagging: `git tag v0.1.0 && git push origin v0.1.0`.
-# This workflow builds the Android split-per-abi APKs and the unsigned
-# iOS IPA, then creates a GitHub Release on the tag and attaches them all.
+# This workflow builds the Android split-per-abi APKs and creates a GitHub
+# Release on the tag with them attached. No iOS artifact is built or attached
+# here — unsigned IPA sideloading is retired (DPLA 7.6/3.2(g): iOS apps may
+# only be distributed via the App Store, TestFlight, or Ad Hoc). Signed
+# TestFlight builds come from the separate ios.yml workflow.
 # (No AAB — Play Store publishing isn't set up yet.)
 on:
   push:
@@ -56,53 +59,9 @@ jobs:
           path: |
             build/app/outputs/flutter-apk/DreamPlayer-*.apk
 
-  ios:
-    name: Build unsigned iOS IPA
-    runs-on: macos-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Accept Xcode license
-        run: sudo xcodebuild -license accept || true
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - name: Fetch dependencies
-        run: |
-          flutter config --enable-ios
-          flutter pub get
-
-      - name: Build unsigned iOS app
-        # Release builds NEVER bundle the TMDB API key on any platform — users
-        # enter their own in Settings → Metadata. Signed TestFlight builds that
-        # need the key bundled are produced by the separate ios.yml workflow.
-        run: >-
-          flutter build ios --release --no-codesign
-          --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }}
-          --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
-
-      - name: Package unsigned IPA
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -ryq "DreamPlayer-${VERSION}.ipa" Payload
-
-      - name: Upload iOS artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dreamplayer-ios
-          path: DreamPlayer-*.ipa
-
   release:
     name: Create GitHub Release
-    needs: [android, ios]
+    needs: [android]
     runs-on: ubuntu-latest
 
     steps:
@@ -138,4 +97,3 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/dreamplayer-android/**/*.apk
-            artifacts/dreamplayer-ios/DreamPlayer-*.ipa
