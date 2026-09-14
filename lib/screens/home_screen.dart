@@ -12,11 +12,13 @@ import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/download_manager.dart';
 import '../services/file_browser.dart';
+import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/series_grouping.dart';
 import '../services/smb_client.dart';
 import '../services/tmdb_client.dart';
+import '../services/upnp_client.dart';
 import '../services/webdav_client.dart';
 import '../widgets/folder_card.dart';
 import '../widgets/tv_text_field.dart';
@@ -323,6 +325,32 @@ class _HomeScreenState extends State<HomeScreen>
               final rawEntries =
                   await SmbClient.instance.listDirectory(serverId, share, path);
               fileNames = rawEntries.map((e) => e.name).toList();
+            } else if (folder.source == LibraryFolderSource.webdav) {
+              final serverId = folder.networkServerId ?? '';
+              final path = folder.networkPath ?? '';
+              final rawEntries =
+                  await WebDavClient.instance.listDirectory(serverId, path);
+              fileNames = rawEntries.map((e) => e.name).toList();
+            } else if (folder.source == LibraryFolderSource.ftp) {
+              final serverId = folder.networkServerId ?? '';
+              final path = folder.networkPath ?? '';
+              final rawEntries =
+                  await FtpClient.instance.listDirectory(serverId, path);
+              fileNames = rawEntries.map((e) => e.name).toList();
+            } else if (folder.source == LibraryFolderSource.upnp) {
+              final serverId = folder.networkServerId ?? '';
+              final path = folder.networkPath ?? '';
+              final rawEntries =
+                  await UpnpClient.instance.browse(serverId, path);
+              fileNames = rawEntries.map((e) => e.name).toList();
+            } else if (folder.source == LibraryFolderSource.jellyfin) {
+              final serverUrl = folder.jellyfinServerUrl ?? '';
+              final itemId = folder.jellyfinItemId ?? '';
+              final server = await _client.serverForUrl(serverUrl);
+              if (server != null && server.isAuthenticated) {
+                final rawEntries = await _client.getItems(server, itemId);
+                fileNames = rawEntries.map((e) => e.name).toList();
+              }
             }
           } catch (_) {}
         }
