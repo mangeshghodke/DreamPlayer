@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/cached_image.dart';
 
 import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
@@ -919,7 +920,7 @@ class _JellyfinTile extends StatelessWidget {
       leading: stillUrl != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(
+              child: CachedImage(
                 stillUrl,
                 width: 64,
                 height: 40,
@@ -971,7 +972,7 @@ class _Poster extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
-      child: Image.network(
+      child: CachedImage(
         posterUrl,
         width: 48,
         height: 72,

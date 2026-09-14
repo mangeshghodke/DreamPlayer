@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../models/hdr_format.dart';
@@ -220,7 +221,7 @@ class _VideoCardState extends State<VideoCard> {
                               gaplessPlayback: true,
                             ),
                           if (tmdbMeta?.movie.backdropUrl() != null)
-                            Image.network(
+                            CachedImage(
                               tmdbMeta!.movie.backdropUrl()!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) =>

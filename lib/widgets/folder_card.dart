@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../services/file_browser.dart';
@@ -377,7 +378,7 @@ class _FolderCardState extends State<FolderCard> {
                             ),
                           ),
                           if (posterUrl != null)
-                            Image.network(
+                            CachedImage(
                               posterUrl,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) =>

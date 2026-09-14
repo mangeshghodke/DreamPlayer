@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import '../widgets/cached_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/video_item.dart';
@@ -42,6 +43,8 @@ class SeriesSeasonsScreen extends StatefulWidget {
 class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   bool _loading = true;
   String? _error;
+  final ScrollController _scrollController = ScrollController();
+  bool _collapsed = false;
   final List<({
     String folderLabel,
     String metadataKey,
@@ -79,6 +82,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     TmdService.instance.addListener(_onMetadataChanged);
     WatchedStore.load().then((w) {
       if (mounted) setState(() => _watchedKeys = w);
@@ -88,8 +92,18 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     TmdService.instance.removeListener(_onMetadataChanged);
     super.dispose();
+  }
+
+  void _onScroll() {
+    final threshold = (isTvMode(context) ? 200.0 : 220.0) - kToolbarHeight - 24;
+    final collapsed = _scrollController.hasClients &&
+        _scrollController.offset > threshold;
+    if (collapsed != _collapsed) {
+      setState(() => _collapsed = collapsed);
+    }
   }
 
   void _onMetadataChanged() {
@@ -280,6 +294,11 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         // Resolve per-folder metadata so each folder gets its own
         // folderSeason (e.g. "Strike the Blood" → Season 1,
         // "Strike the Blood Final" → Season 5).
+
+        // Seed the in-memory season-names cache from persisted TmdMeta.seasons
+        // so that matchFolderToSeason works offline after a restart.
+        service.seedSeasonNamesFromCache();
+
         for (int i = 0; i < _folders.length; i++) {
           final f = _folders[i];
           if (f.metadataKey == _groupKey) continue;
@@ -292,8 +311,11 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             );
             if (fMeta?.movie.id != null) {
               final tmdbSeason = service.matchFolderToSeason(f.folder.name, fMeta!.movie.id);
-              if (tmdbSeason != null && tmdbSeason != f.folderSeason) {
-                _folders[i] = (folderLabel: f.folderLabel, metadataKey: f.metadataKey, entries: f.entries, folderSeason: tmdbSeason, folder: f.folder);
+              // When _seasonNamesCache is empty (after restart), matchFolderToSeason
+              // returns null — fall back to the persisted folderSeason from TmdMeta.
+              final effectiveSeason = tmdbSeason ?? fMeta.folderSeason;
+              if (effectiveSeason != null && effectiveSeason != f.folderSeason) {
+                _folders[i] = (folderLabel: f.folderLabel, metadataKey: f.metadataKey, entries: f.entries, folderSeason: effectiveSeason, folder: f.folder);
               }
             }
           } catch (_) {}
@@ -562,29 +584,28 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final tv = isTvMode(context);
     final backdrop = _meta?.movie.backdropUrl();
+    final displayTitle = _meta?.movie.title.isNotEmpty == true
+        ? _meta!.movie.title
+        : widget.group.displayName;
     return Scaffold(
       body: CustomScrollView(
+        controller: _scrollController,
         slivers: [
           SliverAppBar(
             pinned: true,
             expandedHeight: tv ? 200 : 220,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                _meta?.movie.title.isNotEmpty == true
-                    ? _meta!.movie.title
-                    : widget.group.displayName,
-              ),
-              background: backdrop != null
-                  ? Image.network(
-                      backdrop,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          Container(color: theme.colorScheme.surfaceContainerHighest),
-                    )
-                  : Container(color: theme.colorScheme.surfaceContainerHighest),
+            // Title uses the real toolbar slot so it aligns with the back
+            // button in every orientation; it's only visible once collapsed.
+            title: AnimatedOpacity(
+              opacity: _collapsed ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: Text(displayTitle),
+            ),
+            flexibleSpace: _CollapsingBackdrop(
+              backdrop: backdrop,
+              collapsed: _collapsed,
             ),
           ),
           if (_loading)
@@ -1292,7 +1313,7 @@ class _EntryTile extends StatelessWidget {
       leading: stillUrl != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(
+              child: CachedImage(
                 stillUrl,
                 width: 64,
                 height: 40,
@@ -1410,7 +1431,7 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
             if (displayPoster != null)
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Image.network(
+                child: CachedImage(
                   displayPoster,
                   width: 72,
                   height: 108,
@@ -1678,7 +1699,7 @@ class _FixMatchDialogState extends State<_FixMatchDialog> {
                       final movie = _results![index];
                       return ListTile(
                         leading: movie.posterUrl(width: 92) != null
-                            ? Image.network(
+                            ? CachedImage(
                                 movie.posterUrl(width: 92)!,
                                 width: 36,
                                 height: 54,
@@ -1749,7 +1770,7 @@ class _SeasonPosterCard extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: posterUrl != null
-                  ? Image.network(
+                  ? CachedImage(
                       posterUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => _placeholder(colorScheme),
@@ -1832,7 +1853,7 @@ class _CastRow extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(40),
                       child: member.profileUrl() != null
-                          ? Image.network(
+                          ? CachedImage(
                               member.profileUrl()!,
                               width: 72,
                               height: 72,
@@ -1891,6 +1912,42 @@ class _CastRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A flexible space that shows a clean backdrop when expanded and fades it
+/// out as the app bar collapses. The title lives in the real app-bar slot so
+/// it aligns with the back button in every orientation.
+class _CollapsingBackdrop extends StatelessWidget {
+  const _CollapsingBackdrop({
+    required this.backdrop,
+    required this.collapsed,
+  });
+
+  final String? backdrop;
+  final bool collapsed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (backdrop != null)
+          AnimatedOpacity(
+            opacity: collapsed ? 0 : 1,
+            duration: const Duration(milliseconds: 200),
+            child: CachedImage(
+              backdrop!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) =>
+                  Container(color: theme.colorScheme.surfaceContainerHighest),
+            ),
+          )
+        else
+          Container(color: theme.colorScheme.surfaceContainerHighest),
+      ],
     );
   }
 }

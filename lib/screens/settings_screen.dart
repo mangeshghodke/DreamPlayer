@@ -13,6 +13,7 @@ import '../services/default_engine_store.dart';
 import '../services/download_manager.dart';
 import '../services/entitlements.dart';
 import '../services/exo_player.dart';
+import '../services/image_cache_service.dart';
 import '../l10n/app_localizations.dart';
 import '../services/language_service.dart';
 import '../services/opensubtitles_client.dart';
@@ -39,6 +40,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   int _diskBytes = 0;
+  int _imageCacheBytes = 0;
   bool _cleared = false;
   bool _passthrough = false;
   bool _swipeGestures = true;
@@ -439,13 +441,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {}
   }
 
+  String _cacheSizeLabel() {
+    final parts = <String>[];
+    if (_imageCacheBytes > 0) parts.add('${CacheCleaner.formatBytes(_imageCacheBytes)} images');
+    if (_diskBytes > 0) parts.add('${CacheCleaner.formatBytes(_diskBytes)} temp');
+    final memBytes = CacheCleaner.memoryBytes();
+    if (memBytes > 0) parts.add('${CacheCleaner.formatBytes(memBytes)} memory');
+    return parts.isEmpty ? 'Empty' : parts.join(' · ');
+  }
+
   Future<void> _refreshDiskSize() async {
     final size = await CacheCleaner.diskSizeBytes();
-    if (mounted) setState(() => _diskBytes = size);
+    final imgSize = await ImageCacheService.instance.diskSizeBytes();
+    if (mounted) {
+      setState(() {
+        _diskBytes = size;
+        _imageCacheBytes = imgSize;
+      });
+    }
   }
 
   Future<void> _clearCache() async {
-    final totalBytes = _diskBytes + CacheCleaner.memoryBytes();
+    final totalBytes = _diskBytes + _imageCacheBytes + CacheCleaner.memoryBytes();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -469,6 +486,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (confirmed != true || !mounted) return;
     await CacheCleaner.clearDisk();
+    await ImageCacheService.instance.clear();
     CacheCleaner.clearMemoryImages();
     if (!mounted) return;
     setState(() => _cleared = true);
@@ -538,6 +556,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isTv = isTvMode(context);
+    // Refresh cache size on every build so it stays live as images are cached.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshDiskSize());
 
     return SafeArea(
       child: TvOverscan(
@@ -652,6 +672,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (mounted) setState(() => _autoExpandFolders = v);
               },
             ),
+            SwitchListTile(
+              secondary: const Icon(Icons.offline_pin),
+              title: const Text('Offline image cache'),
+              subtitle: const Text('Save posters and backdrops for offline use'),
+              value: ImageCacheService.instance.enabled,
+              onChanged: (v) async {
+                await ImageCacheService.instance.setEnabled(v);
+                await _refreshDiskSize();
+                if (mounted) setState(() {});
+              },
+            ),
             const Divider(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -669,8 +700,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(
                 _cleared
                     ? AppLocalizations.of(context).settingsCacheClearedDesc
-                    : '${CacheCleaner.formatBytes(_diskBytes)} on disk · '
-                          '${CacheCleaner.formatBytes(CacheCleaner.memoryBytes())} in memory',
+                    : _cacheSizeLabel(),
               ),
               onTap: _clearCache,
             ),

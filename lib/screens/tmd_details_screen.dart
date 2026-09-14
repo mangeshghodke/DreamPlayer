@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:url_launcher/url_launcher.dart';
@@ -190,10 +191,13 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   MediaProbeResult? _probe;
   bool _probing = false;
   DefaultEngine _defaultEngine = DefaultEngine.ask;
+  final ScrollController _scrollController = ScrollController();
+  bool _heroCollapsed = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onHeroScroll);
     _service.addListener(_onServiceChanged);
     _jellyfinInfo = widget.jellyfinInfo;
     _load();
@@ -205,8 +209,17 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
   }
 
+  void _onHeroScroll() {
+    final collapsed = _scrollController.hasClients &&
+        _scrollController.offset > 200 - kToolbarHeight - 24;
+    if (collapsed != _heroCollapsed) {
+      setState(() => _heroCollapsed = collapsed);
+    }
+  }
+
   @override
   void dispose() {
+    _scrollController.dispose();
     _service.removeListener(_onServiceChanged);
     super.dispose();
   }
@@ -936,6 +949,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     } else {
       await _service.setManual(widget.video!, picked);
     }
+    // When the file card was opened from the home grid, the home card reads
+    // metaFor(parentMetadataKey), not metaFor(video.resumeKey). Update the
+    // folder key too so the poster refreshes on return.
+    if (widget.parentMetadataKey != null && widget.folder == null) {
+      await _service.setManualFolder(widget.parentMetadataKey!, picked);
+    }
     if (!mounted) return;
     final meta = _service.metaFor(_identityKey);
     setState(() => _meta = meta);
@@ -1321,6 +1340,14 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     await _loadResume();
   }
 
+  /// Whether the screen renders the SeriesSeasonsScreen-style backdrop hero.
+  /// Used for movie folders AND standalone single video files (both present as
+  /// one title with rich artwork rather than a season/episode list).
+  bool get _useHero =>
+      _meta != null &&
+      (widget.folder == null || _isMovieFolder) &&
+      _meta!.movie.backdropUrl() != null;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1336,11 +1363,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     // instead of "Resume from m:ss".
     final bestResume = _lastEngine == 'mpv' ? (resumeMpv ?? resume) : (resume ?? resumeMpv);
     final hasAnyResume = resume != null || resumeMpv != null;
-    // A matched movie folder renders its own pinned SliverAppBar hero (the
-    // SeriesSeasonsScreen-style backdrop + title), so the standard app bar is
-    // suppressed — otherwise the top of the screen would carry two bars.
-    final movieFolderHero =
-        widget.folder != null && _meta != null && _isMovieFolder;
+    // A matched movie folder / single video renders its own pinned
+    // SliverAppBar hero (the SeriesSeasonsScreen-style backdrop + title), so
+    // the standard app bar is suppressed — otherwise the top of the screen
+    // would carry two bars.
+    final movieFolderHero = _useHero;
 
     return Scaffold(
       appBar: movieFolderHero
@@ -1640,24 +1667,23 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         : '';
 
     return CustomScrollView(
+      controller: _scrollController,
       slivers: [
         // SeriesSeasonsScreen-style hero: pinned backdrop + title at the very
-        // top of the screen for movie folders (the folder presents as a single
-        // movie, matching the series-details header rather than a file list).
-        if (_isMovieFolder)
+        // top of the screen for movie folders and standalone single videos
+        // (the title presents as one rich item, not a file list).
+        if (_useHero)
           SliverAppBar(
             pinned: true,
             expandedHeight: 200,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(movie.title),
-              background: movie.backdropUrl() != null
-                  ? Image.network(
-                      movie.backdropUrl()!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                          color: colorScheme.surfaceContainerHighest),
-                    )
-                  : Container(color: colorScheme.surfaceContainerHighest),
+            title: AnimatedOpacity(
+              opacity: _heroCollapsed ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: Text(movie.title),
+            ),
+            flexibleSpace: _CollapsingBackdrop(
+              backdrop: movie.backdropUrl(),
+              collapsed: _heroCollapsed,
             ),
           ),
         SliverToBoxAdapter(
@@ -1672,7 +1698,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: headerPosterUrl != null
-                          ? Image.network(
+                          ? CachedImage(
                               headerPosterUrl,
                               width: 104,
                               height: 156,
@@ -2297,7 +2323,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: info.imageUrl != null
-                            ? Image.network(
+                            ? CachedImage(
                                 info.imageUrl!,
                                 width: 104,
                                 height: 156,
@@ -2963,7 +2989,7 @@ class _CastRow extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(40),
                       child: member.profileUrl() != null
-                          ? Image.network(
+                          ? CachedImage(
                               member.profileUrl()!,
                               width: 72,
                               height: 72,
@@ -3053,7 +3079,7 @@ class _StillsGallery extends StatelessWidget {
             itemBuilder: (context, index) {
               return ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.network(
+                child: CachedImage(
                   stills[index],
                   height: 120,
                   width: 213, // 16:9 aspect
@@ -3484,7 +3510,7 @@ class _Poster extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
-      child: Image.network(
+      child: CachedImage(
         posterUrl,
         width: 48,
         height: 72,
@@ -3653,7 +3679,7 @@ class _SearchDialogState extends State<_SearchDialog> {
                       final movie = _results![index];
                       return ListTile(
                         leading: movie.posterUrl(width: 92) != null
-                            ? Image.network(
+                            ? CachedImage(
                                 movie.posterUrl(width: 92)!,
                                 width: 36,
                                 height: 54,
@@ -3720,7 +3746,7 @@ class _SeasonFolderCard extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: seasonPosterUrl != null
-                  ? Image.network(
+                  ? CachedImage(
                       seasonPosterUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => _placeholder(colorScheme),
@@ -3777,6 +3803,43 @@ class _SeasonFolderCard extends StatelessWidget {
                 color: colorScheme.onPrimaryContainer,
               ),
       ),
+    );
+  }
+}
+
+/// A flexible space that shows a clean backdrop when expanded,
+/// A flexible space that shows a clean backdrop when expanded and fades it
+/// out as the app bar collapses. The title lives in the real app-bar slot so
+/// it aligns with the back button in every orientation.
+class _CollapsingBackdrop extends StatelessWidget {
+  const _CollapsingBackdrop({
+    required this.backdrop,
+    required this.collapsed,
+  });
+
+  final String? backdrop;
+  final bool collapsed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (backdrop != null)
+          AnimatedOpacity(
+            opacity: collapsed ? 0 : 1,
+            duration: const Duration(milliseconds: 200),
+            child: CachedImage(
+              backdrop!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) =>
+                  Container(color: theme.colorScheme.surfaceContainerHighest),
+            ),
+          )
+        else
+          Container(color: theme.colorScheme.surfaceContainerHighest),
+      ],
     );
   }
 }

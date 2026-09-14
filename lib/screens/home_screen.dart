@@ -295,17 +295,22 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _resolveFolderMetadata(List<LibraryFolder> folders) async {
     final service = TmdService.instance;
     await service.ensureLoaded();
+    // Regex to detect season-like folder names (S01, Season N, roman numerals).
+    // Matches the logic in tmdb_client.dart for staleness check.
+    final seasonTagRegex = RegExp(
+      r'\bs\d{1,2}\b|\bseason\s+\d+|\b(?:I{1,3}|IV|V|VI{0,3}|IX|X)\b',
+      caseSensitive: false,
+    );
     for (final folder in folders) {
       final key = folder.metadataKey;
       final existing = service.metaFor(key);
-      // Movies never carry a folderSeason, so a naive `existing == null ||
-      // folderSeason == null` would re-resolve every movie folder on every
-      // home load/refresh — churn that can silently swap a good auto match or
-      // defeat a Fix-match pin. Only (re)resolve when there's nothing cached
-      // OR the cached entry is a TV match still missing its season data.
+      final hasSeasonTag = seasonTagRegex.hasMatch(folder.name);
+      // Only require folderSeason for folders that look like season subfolders.
+      // Top-level show folders (e.g. "House") have no folderSeason and that's OK.
       final needsResolve = existing == null ||
-          (existing.folderSeason == null &&
+          (hasSeasonTag && existing.folderSeason == null &&
               existing.movie.kind != TmdKind.movie);
+      debugPrint('TMDB _resolveFolderMeta: folder="${folder.name}" key="$key" existing=${existing != null ? 'meta(${existing.movie.title}, fs=${existing.folderSeason})' : 'null'} needsResolve=$needsResolve');
       if (needsResolve) {
         // List the folder's children so resolveFolder can detect episode/season
         // markers in file OR subfolder names (e.g. S02E05, s02, s03) — without
@@ -361,12 +366,12 @@ class _HomeScreenState extends State<HomeScreen>
             yearHint: folder.yearHint,
             fileNames: fileNames,
           );
-        } catch (_) {
-          // Network failures are non-fatal; the card stays a placeholder.
+        } catch (e) {
+          debugPrint('TMDB _resolveFolderMeta: resolveFolder FAILED for "$key" ($e)');
           continue;
         }
+        debugPrint('TMDB _resolveFolderMeta: resolveFolder OK for "$key", post-resolve meta=${service.metaFor(key) != null ? 'meta(${service.metaFor(key)!.movie.title}, fs=${service.metaFor(key)!.folderSeason})' : 'null'}');
       }
-      // Fetch season data so the season poster is available for the card.
       final meta = service.metaFor(key);
       if (meta != null && meta.folderSeason != null && meta.movie.kind == TmdKind.tv) {
         try {
@@ -546,7 +551,10 @@ class _HomeScreenState extends State<HomeScreen>
       );
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => TmdDetailsScreen(video: video),
+          builder: (_) => TmdDetailsScreen(
+            video: video,
+            parentMetadataKey: group.metadataKey,
+          ),
         ),
       );
       return;

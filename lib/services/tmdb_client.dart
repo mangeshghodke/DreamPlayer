@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/tmdb_api_key.dart';
 import '../models/video_item.dart';
+import 'image_cache_service.dart';
 
 /// The TMDB poster URL (w185) for a cached meta, or null when there's no
 /// poster. Shared by the folder/WebDAV/SMB row tiles that show per-file art.
@@ -1290,14 +1291,14 @@ class TmdApi {
   /// when available evidence (standalone movie files, no SxxEyy anywhere)
   /// says the folder holds movies rather than a series.
   Future<TmdMatch?> bestForQuery(String query,
-      {int? year, bool liveAction = false, bool preferMovie = false}) async {
+      {int? year, bool liveAction = false, bool preferMovie = false, bool hasMovieSequelPattern = false}) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return null;
     final clean = query.trim();
     if (clean.isEmpty) return null;
     final tv = await search(clean, year: year, kind: TmdKind.tv);
     final movie = await search(clean, year: year, kind: TmdKind.movie);
-    debugPrint('TMDB bestForQuery("$query") year=$year liveAction=$liveAction preferMovie=$preferMovie tv=${tv.length} movie=${movie.length}');
+    debugPrint('TMDB bestForQuery("$query") year=$year liveAction=$liveAction preferMovie=$preferMovie hasMovieSequelPattern=$hasMovieSequelPattern tv=${tv.length} movie=${movie.length}');
     TmdMatch? best;
     void consider(TmdMovie candidate, double tieBoost) {
       final score = _queryScore(candidate, clean, year: year, liveAction: liveAction) +
@@ -1310,8 +1311,12 @@ class TmdApi {
     }
 
     if (preferMovie) {
+      // Movie sequel patterns (Part/Vol/Movie/Chapter N) get a strong boost
+      // so "Girls und Panzer das Finale" matches the movie collection, not
+      // the TV series.
+      final movieBoost = hasMovieSequelPattern ? 0.15 : 0.001;
       for (final m in movie) {
-        consider(m, 0.001);
+        consider(m, movieBoost);
       }
       for (final m in tv) {
         consider(m, 0.0);
@@ -1724,13 +1729,23 @@ class TmdService extends ChangeNotifier {
               .toLowerCase()
               .trim();
           final sLower = cachedSeasonName.toLowerCase().trim();
-          // If the folder name is the same as the cached season name, it's
-          // a match. If the folder name doesn't contain the season name and
-          // the season name doesn't contain the folder name, it's stale.
-          final matches = q.contains(sLower) || sLower.contains(q);
-          if (!matches) {
-            _cache.remove(metadataKey);
-            TmdStore.remove(metadataKey);
+          // The staleness check is only valid when the folder name looks like
+          // a season subfolder (e.g. "Strike the Blood Final", "Season 2").
+          // For a top-level show folder like "House" the folder name is the
+          // show title, not the season name — "House" will never contain
+          // "Season 2". Only run the check when the folder name contains a
+          // season-like pattern (S01, Season N, roman numeral) so single-show
+          // folders aren't incorrectly wiped.
+          final hasSeasonTag = RegExp(r'\bs\d{1,2}\b|\bseason\s+\d+|\b(?:I{1,3}|IV|V|VI{0,3}|IX|X)\b', caseSensitive: false).hasMatch(q);
+          if (hasSeasonTag) {
+            final matches = q.contains(sLower) || sLower.contains(q);
+            if (!matches) {
+              _cache.remove(metadataKey);
+              TmdStore.remove(metadataKey);
+            } else if (cached.seasons[cached.folderSeason]?.posterPath != null ||
+                cached.movie.kind != TmdKind.tv) {
+              return cached;
+            }
           } else if (cached.seasons[cached.folderSeason]?.posterPath != null ||
               cached.movie.kind != TmdKind.tv) {
             return cached;
@@ -1740,10 +1755,13 @@ class TmdService extends ChangeNotifier {
           return cached;
         }
       } else {
-        // Season names not cached yet — can't verify folderSeason.
-        // Clear potentially stale entry and let _resolveFolderNow re-resolve.
-        _cache.remove(metadataKey);
-        TmdStore.remove(metadataKey);
+        // Season names not cached yet (in-memory only, lost on restart) —
+        // can't verify folderSeason. Trust the cached entry rather than
+        // deleting it: the metadata was correct when first resolved, and
+        // destroying it here loses the poster/title/seasons on every offline
+        // restart. The staleness check only runs when season names ARE
+        // available (same session); when they aren't, just return what we have.
+        return cached;
       }
     }
     final inFlight = _pending[metadataKey];
@@ -1791,11 +1809,15 @@ class TmdService extends ChangeNotifier {
         }
       }
     }
+    // Detect movie sequel patterns: "Part 1", "Vol 2", "Movie 3", "Chapter 1".
+    // These are standalone movie files, not episodes — boost movie preference.
+    final hasMovieSequelPattern = fileEvidence.hasMovieSequelPattern;
 
     final future = _resolveFolderCandidates(metadataKey, candidates,
         preferMovie: preferMovie,
         liveAction: parsed.liveAction,
-        folderName: folderName);
+        folderName: folderName,
+        hasMovieSequelPattern: hasMovieSequelPattern);
     _pending[metadataKey] = future;
     try {
       final meta = await future;
@@ -1821,10 +1843,11 @@ class TmdService extends ChangeNotifier {
   /// inside a folder. Episode files contribute their show name; standalone
   /// files contribute their title. Returns up to [maxQueries] unique queries
   /// (most common first) plus whether any file looked like an episode.
-  static ({List<String> queries, bool hasEpisodes}) _queriesFromFileNames(
+  static ({List<String> queries, bool hasEpisodes, bool hasMovieSequelPattern}) _queriesFromFileNames(
       Iterable<String> names, {int maxQueries = 4}) {
     final counts = <String, int>{};
     var hasEpisodes = false;
+    var hasMovieSequelPattern = false;
     for (final name in names) {
       final p = ParsedFileName.parse(name);
       // Season-only folder names (e.g. "s02", "Season 3") are a strong TV
@@ -1835,6 +1858,10 @@ class TmdService extends ChangeNotifier {
           (p.isEpisode ? (p.seriesName ?? p.title) : p.title).trim().toLowerCase();
       if (q.isEmpty) continue;
       if (p.isEpisode) hasEpisodes = true;
+      // Detect movie sequel patterns: "Part 1", "Vol 2", "Movie 3", "Chapter 1".
+      if (RegExp(r'\b(?:part|vol(?:ume)?|movie|chapter|film)\s+\d+\b', caseSensitive: false).hasMatch(name)) {
+        hasMovieSequelPattern = true;
+      }
       counts[q] = (counts[q] ?? 0) + 1;
     }
     final ranked = counts.entries.toList()
@@ -1844,7 +1871,7 @@ class TmdService extends ChangeNotifier {
       if (queries.length >= maxQueries) break;
       queries.add(e.key);
     }
-    return (queries: queries, hasEpisodes: hasEpisodes);
+    return (queries: queries, hasEpisodes: hasEpisodes, hasMovieSequelPattern: hasMovieSequelPattern);
   }
 
   /// Runs [_resolveFolderNow] across [candidates] in order, returning the
@@ -1855,13 +1882,15 @@ class TmdService extends ChangeNotifier {
     required bool preferMovie,
     bool liveAction = false,
     String? folderName,
+    bool hasMovieSequelPattern = false,
   }) async {
     TmdMeta? last;
     for (final c in candidates) {
       last = await _resolveFolderNow(metadataKey, c.q, c.y,
           liveAction: liveAction,
           folderName: folderName,
-          preferMovie: preferMovie);
+          preferMovie: preferMovie,
+          hasMovieSequelPattern: hasMovieSequelPattern);
       if (last != null) return last;
       // No match for this query — move on to the next candidate query.
     }
@@ -1897,12 +1926,30 @@ class TmdService extends ChangeNotifier {
   /// Cached season names per show ID, populated by [seasonNames] calls.
   final Map<int, Map<int, String>> _seasonNamesCache = {};
 
+  /// Seed the in-memory season-names cache from persisted [TmdMeta.seasons]
+  /// so that [matchFolderToSeason] works offline (after a restart where
+  /// the in-memory cache is empty but the seasons data was saved to prefs).
+  void seedSeasonNamesFromCache() {
+    for (final entry in _cache.entries) {
+      final meta = entry.value;
+      if (meta.movie.kind != TmdKind.tv || meta.seasons.isEmpty) continue;
+      final showId = meta.movie.id;
+      if (_seasonNamesCache.containsKey(showId)) continue;
+      final names = <int, String>{};
+      for (final sEntry in meta.seasons.entries) {
+        final name = sEntry.value.name.trim();
+        if (name.isNotEmpty) names[sEntry.key] = name;
+      }
+      if (names.isNotEmpty) _seasonNamesCache[showId] = names;
+    }
+  }
+
   Future<TmdMeta?> _resolveFolderNow(
       String metadataKey, String query, int? year,
-      {bool liveAction = false, String? folderName, bool preferMovie = false}) async {
+      {bool liveAction = false, String? folderName, bool preferMovie = false, bool hasMovieSequelPattern = false}) async {
     debugPrint('TMDB _resolveFolderNow key="$metadataKey" query="$query" year=$year liveAction=$liveAction folderName="$folderName" preferMovie=$preferMovie');
     final match = await _api.bestForQuery(query,
-        year: year, liveAction: liveAction, preferMovie: preferMovie);
+        year: year, liveAction: liveAction, preferMovie: preferMovie, hasMovieSequelPattern: hasMovieSequelPattern);
     if (match == null) return null;
 
     // Check if the folder name matches a season name on TMDB.
@@ -1932,6 +1979,11 @@ class TmdService extends ChangeNotifier {
     final meta = TmdMeta(movie: match.movie, folderSeason: folderSeason);
     _cache[metadataKey] = meta;
     await TmdStore.save(metadataKey, meta);
+    // Prefetch images to the permanent disk cache so they're available offline.
+    ImageCacheService.instance.prefetchImages(
+      posterUrl: match.movie.posterUrl(),
+      backdropUrl: match.movie.backdropUrl(),
+    );
     return meta;
   }
 
@@ -2179,6 +2231,14 @@ class TmdService extends ChangeNotifier {
       final fresh = _cache[identityKey] ?? meta;
       _cache[identityKey] = fresh.withDetails(details);
       await TmdStore.save(identityKey, _cache[identityKey]!);
+      // Prefetch backdrop, cast profiles, and stills for offline use.
+      ImageCacheService.instance.prefetchImages(
+        backdropUrl: details.backdropPath != null
+            ? 'https://image.tmdb.org/t/p/w780${details.backdropPath}'
+            : null,
+        stillUrls: details.stills,
+        profileUrls: details.cast.map((c) => c.profileUrl()).whereType<String>().toList(),
+      );
       notifyListeners();
       return details;
     } catch (_) {
@@ -2226,6 +2286,11 @@ class TmdService extends ChangeNotifier {
       _cache[identityKey] = (_cache[identityKey] ?? cached).withSeason(season);
       debugPrint('TMDB seasonFor STORED $identityKey season=$seasonNumber poster=${season.posterPath} episodes=${episodes.length}');
       await TmdStore.save(identityKey, _cache[identityKey]!);
+      // Prefetch season poster + episode stills for offline use.
+      ImageCacheService.instance.prefetchImages(
+        posterUrl: season.posterUrl(),
+        stillUrls: episodes.map((e) => e.stillUrl()).whereType<String>().toList(),
+      );
       return season;
     } catch (_) {
       return null;

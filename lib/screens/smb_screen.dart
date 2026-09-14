@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
@@ -1739,7 +1740,7 @@ class _SmbTile extends StatelessWidget {
       leading: posterUrl != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(
+              child: CachedImage(
                 posterUrl,
                 width: 48,
                 height: 72,
@@ -1830,7 +1831,7 @@ class _SeriesFolderHeader extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: posterUrl != null
-                    ? Image.network(
+                    ? CachedImage(
                         posterUrl,
                         width: 104,
                         height: 156,
@@ -2122,7 +2123,7 @@ class _SmbEpisodeTile extends StatelessWidget {
       leading: stillUrl != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(
+              child: CachedImage(
                 stillUrl,
                 width: 64,
                 height: 40,
@@ -2292,7 +2293,7 @@ class _CastRow extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(40),
                       child: member.profileUrl() != null
-                          ? Image.network(
+                          ? CachedImage(
                               member.profileUrl()!,
                               width: 72,
                               height: 72,
@@ -2567,7 +2568,7 @@ class _SearchDialogState extends State<_SearchDialog> {
                       final movie = _results![index];
                       return ListTile(
                         leading: movie.posterUrl(width: 92) != null
-                            ? Image.network(
+                            ? CachedImage(
                                 movie.posterUrl(width: 92)!,
                                 width: 36,
                                 height: 54,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
@@ -2106,7 +2107,7 @@ class _FolderScreenState extends State<FolderScreen> {
       child: Stack(
         children: [
           if (backdrop != null)
-            Image.network(
+            CachedImage(
               backdrop,
               height: 140,
               width: double.infinity,
@@ -2429,7 +2430,7 @@ class _FolderTile extends StatelessWidget {
       leading: stillUrl != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(
+              child: CachedImage(
                 stillUrl,
                 width: 64,
                 height: 40,
@@ -2506,7 +2507,7 @@ class _SeriesHeader extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: posterUrl != null
-                    ? Image.network(
+                    ? CachedImage(
                         posterUrl,
                         width: 104,
                         height: 156,
@@ -2819,7 +2820,7 @@ class _FolderSearchDialogState extends State<_FolderSearchDialog> {
                       final movie = _results![index];
                       return ListTile(
                         leading: movie.posterUrl(width: 92) != null
-                            ? Image.network(
+                            ? CachedImage(
                                 movie.posterUrl(width: 92)!,
                                 width: 36,
                                 height: 54,
@@ -2954,7 +2955,7 @@ class _CastRow extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(40),
                       child: member.profileUrl() != null
-                          ? Image.network(
+                          ? CachedImage(
                               member.profileUrl()!,
                               width: 72,
                               height: 72,
@@ -3041,7 +3042,7 @@ class _Poster extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
-      child: Image.network(
+      child: CachedImage(
         posterUrl,
         width: 48,
         height: 72,
@@ -3083,7 +3084,7 @@ class _FolderSeasonPosterCard extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: seasonPosterUrl != null
-                  ? Image.network(
+                  ? CachedImage(
                       seasonPosterUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => _placeholder(colorScheme),
