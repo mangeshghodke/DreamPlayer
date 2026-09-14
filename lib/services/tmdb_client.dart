@@ -1762,8 +1762,13 @@ class TmdService extends ChangeNotifier {
     // evidence also flips the TV/movie tie-break: a folder of standalone
     // movies (no SxxEyy anywhere) should match a movie before a TV show.
     final candidates = <({String q, int? y})>[];
-    if (parsed.title.isNotEmpty) {
-      candidates.add((q: parsed.title, y: parsed.year ?? yearHint));
+    // For episode filenames, search by series name (not the full title which
+    // includes the episode name and returns 0 TMDB results).
+    final searchTitle = parsed.isEpisode && parsed.seriesName != null
+        ? parsed.seriesName!
+        : parsed.title;
+    if (searchTitle.isNotEmpty) {
+      candidates.add((q: searchTitle, y: parsed.year ?? yearHint));
     }
     final fileEvidence = _queriesFromFileNames(fileNames ?? const []);
     for (final fq in fileEvidence.queries) {
@@ -1822,6 +1827,10 @@ class TmdService extends ChangeNotifier {
     var hasEpisodes = false;
     for (final name in names) {
       final p = ParsedFileName.parse(name);
+      // Season-only folder names (e.g. "s02", "Season 3") are a strong TV
+      // signal even without episode markers — treat them as episode evidence
+      // so the folder resolves as a TV show instead of a same-named movie.
+      if (p.season > 0 && !p.isEpisode) hasEpisodes = true;
       final q =
           (p.isEpisode ? (p.seriesName ?? p.title) : p.title).trim().toLowerCase();
       if (q.isEmpty) continue;

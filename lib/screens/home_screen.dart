@@ -15,6 +15,7 @@ import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/series_grouping.dart';
+import '../services/smb_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/webdav_client.dart';
 import '../widgets/folder_card.dart';
@@ -304,16 +305,25 @@ class _HomeScreenState extends State<HomeScreen>
           (existing.folderSeason == null &&
               existing.movie.kind != TmdKind.movie);
       if (needsResolve) {
-        // For local folders, list the contents so resolveFolder can detect
-        // episode markers in the file names (e.g. S02E05 in a folder simply
-        // named "house") — without this, a plain folder name always resolves
-        // as a movie because parsed.isEpisode is false.
+        // List the folder's children so resolveFolder can detect episode/season
+        // markers in file OR subfolder names (e.g. S02E05, s02, s03) — without
+        // this, a plain folder name always resolves as a movie because
+        // parsed.isEpisode is false.
         List<String>? fileNames;
-        if (folder.source == LibraryFolderSource.files) {
+        if (!folder.isFile) {
           try {
-            final entries =
-                await FileBrowserService.instance.listDirectory(folder.path);
-            fileNames = entries.map((e) => e.name).toList();
+            if (folder.source == LibraryFolderSource.files) {
+              final entries =
+                  await FileBrowserService.instance.listDirectory(folder.path);
+              fileNames = entries.map((e) => e.name).toList();
+            } else if (folder.source == LibraryFolderSource.smb) {
+              final serverId = folder.networkServerId ?? '';
+              final share = folder.networkShare ?? '';
+              final path = folder.networkPath ?? '';
+              final rawEntries =
+                  await SmbClient.instance.listDirectory(serverId, share, path);
+              fileNames = rawEntries.map((e) => e.name).toList();
+            }
           } catch (_) {}
         }
         try {
@@ -430,7 +440,7 @@ class _HomeScreenState extends State<HomeScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('"${picked.name}" expanded into ${expanded.length} items')),
         );
-        _resolveFolderMetadata(expanded.where((f) => !f.isFile).toList());
+        _resolveFolderMetadata(expanded);
         return;
       }
     }

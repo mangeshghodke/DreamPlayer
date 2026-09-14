@@ -241,8 +241,61 @@ class _SmbScreenState extends State<SmbScreen> {
     final repoPath = cleanPath.isEmpty ? _share : '$_share/$cleanPath';
     final id = 'smb_${server.id}_${repoPath.hashCode}';
 
-    // Bookmark always saves a single folder card (not expanded children).
-    // Auto-expand is handled by FolderScreen when the card is opened.
+    // Check if the folder has subdirectories — expand into individual cards
+    // (same pattern as local folder auto-expand in home_screen.dart).
+    final hasSubdirs = _entries.any((e) => e.isDirectory);
+    if (hasSubdirs && _entries.isNotEmpty) {
+      final expanded = <LibraryFolder>[];
+      for (final child in _entries) {
+        final childId = '${id}_${child.name.hashCode}';
+        // Build the child's share-relative path.
+        final childRepoPath =
+            cleanPath.isEmpty ? child.name : '$cleanPath/${child.name}';
+        if (child.isDirectory) {
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: child.name,
+            path: 'smb:${server.id}/$childRepoPath',
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.smb,
+            networkServerId: server.id,
+            networkShare: _share,
+            networkPath: childRepoPath,
+            networkLabel: server.name,
+            parentId: id,
+          ));
+        } else if (_isVideoFile(child.name)) {
+          expanded.add(LibraryFolder(
+            id: childId,
+            name: child.name,
+            path: 'smb:${server.id}/$childRepoPath',
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.smb,
+            networkServerId: server.id,
+            networkShare: _share,
+            networkPath: childRepoPath,
+            networkLabel: server.name,
+            parentId: id,
+            isFile: true,
+            videoUri: 'smb://${server.id}/$_share/$childRepoPath',
+            videoSizeBytes: child.size > 0 ? child.size : null,
+          ));
+        }
+      }
+      if (expanded.isNotEmpty) {
+        await LibraryFoldersStore.bulkAdd(expanded);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content:
+                    Text('"$folderName" expanded into ${expanded.length} items')),
+          );
+        }
+        return;
+      }
+    }
+
+    // Fallback: add as a single card.
     final folder = LibraryFolder(
       id: id,
       name: folderName,
@@ -263,6 +316,25 @@ class _SmbScreenState extends State<SmbScreen> {
         SnackBar(content: Text('Bookmarked $folderName to Home (SMB · ${server.name})')),
       );
     }
+  }
+
+  static bool _isVideoFile(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.mkv') ||
+        lower.endsWith('.mp4') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.webm') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.ts') ||
+        lower.endsWith('.m2ts') ||
+        lower.endsWith('.wmv') ||
+        lower.endsWith('.flv') ||
+        lower.endsWith('.ogv') ||
+        lower.endsWith('.rmvb') ||
+        lower.endsWith('.mpg') ||
+        lower.endsWith('.mpeg') ||
+        lower.endsWith('.vob') ||
+        lower.endsWith('.3gp');
   }
 
 
