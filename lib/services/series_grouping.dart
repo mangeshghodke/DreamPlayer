@@ -100,6 +100,14 @@ class SeriesGroupingService {
     // normaliser disagrees by a single character).
     _mergeAliases(byBase);
 
+    // Step 3b: fold groups where one compact form is a long prefix of another
+    // (e.g. "striketheblood" vs "strikethebloodkietaiseisouhen").  The extra
+    // suffix may be a Japanese arc name, OVA subtitle, or other text that
+    // baseNameOf can't strip.  Only merge when the shared prefix is at least
+    // as long as the remaining extra text (and ≥ 6 chars) to avoid false
+    // positives like "house" + "houseofcards".
+    _mergePrefixGroups(byBase);
+
     // Step 4: emit SeriesGroup list, sorted newest-group-first.
     final groups = byBase.values
         .map((g) => SeriesGroup(
@@ -140,6 +148,60 @@ class SeriesGroupingService {
       final compact = _compact(k);
       return !identical(byCompact[compact], v);
     });
+  }
+
+  /// Merges groups whose compact names share a long common prefix.
+  ///
+  /// Handles cases like `"striketheblood"` vs
+  /// `"strikethebloodkietaiseisouhen"` where an unstrippable suffix (Japanese
+  /// arc name, OVA subtitle, etc.) prevents the compact dedup from firing.
+  ///
+  /// The rule: if compact A is a prefix of compact B and the shared prefix is
+  /// at least as long as the remaining extra text (and ≥ 6 chars), merge them.
+  /// This prevents false positives like `"house"` + `"houseofcards"` (shared 5
+  /// < extra 7 → no merge) while catching real franchises like
+  /// `"striketheblood"` (15) + `"strikethebloodkietaiseisouhen"` (30) →
+  /// shared 15 ≥ extra 15 → merge.
+  void _mergePrefixGroups(Map<String, _MutableGroup> byBase) {
+    final keys = byBase.keys.toList();
+    // Sort shorter-first so the canonical (shorter) entry is always the target.
+    keys.sort((a, b) => a.length.compareTo(b.length));
+
+    for (int i = 0; i < keys.length; i++) {
+      final shortKey = keys[i];
+      final shortGroup = byBase[shortKey];
+      if (shortGroup == null) continue; // already absorbed
+      final shortCompact = _compact(shortKey);
+
+      for (int j = i + 1; j < keys.length; j++) {
+        final longKey = keys[j];
+        final longGroup = byBase[longKey];
+        if (longGroup == null) continue;
+        final longCompact = _compact(longKey);
+
+        // Check if shortCompact is a prefix of longCompact.
+        if (!longCompact.startsWith(shortCompact)) continue;
+
+        final shared = shortCompact.length;
+        final extra = longCompact.length - shared;
+        // Require shared prefix ≥ extra chars AND ≥ 6 chars minimum to
+        // avoid merging very short names or false positives.
+        if (shared < extra || shared < 6) continue;
+
+        // Merge long into short (short is the canonical group).
+        shortGroup.folders.addAll(longGroup.folders);
+        if (longGroup.addedAt.isAfter(shortGroup.addedAt)) {
+          shortGroup.addedAt = longGroup.addedAt;
+        }
+        if (longGroup.displayName.length < shortGroup.displayName.length) {
+          shortGroup.displayName = longGroup.displayName;
+        }
+        if (longKey.length < shortGroup.baseName.length) {
+          shortGroup.baseName = longKey;
+        }
+        byBase.remove(longKey);
+      }
+    }
   }
 
   /// Returns the base name for [folderName] — the series name without
