@@ -641,7 +641,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _clearAll() async {
-    final theme = Theme.of(context);
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
@@ -668,7 +667,7 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
-    if (choice == null) return;
+    if (choice == null || !mounted) return;
 
     if (choice == 'library') {
       final confirmed = await showDialog<bool>(
@@ -709,6 +708,7 @@ class _HomeScreenState extends State<HomeScreen>
         _jellyfinMeta = const {};
       });
     } else if (choice == 'continue') {
+      if (!mounted) return;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
