@@ -205,7 +205,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             folderLabel: subName,
             metadataKey: '${folder.metadataKey}_sub',
             entries: subEntries,
-            folderSeason: subSeason ?? 1,
+            folderSeason: subSeason,
             folder: subFolderSynthetic,
           ));
         }
@@ -303,32 +303,47 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           final f = _folders[i];
           if (f.metadataKey == _groupKey) continue;
           try {
+            // Resolve the folder's own metadata. This warms the season-name
+            // cache for the base show AND gives standalone folders (e.g.
+            // "Strike the Blood Kieta Seisou Hen" — a movie, not a season)
+            // their own poster at render time. Season assignment is the sole
+            // job of the refine pass below, which validates against the BASE
+            // show — a plainly non-season folder must never inherit a season
+            // from its own stale meta or the old scan default (issue #6: Kieta
+            // used to be lumped into "Season 5 · Strike the Blood Final").
             var fMeta = service.metaFor(f.metadataKey);
             fMeta ??= await service.resolveFolder(
               f.metadataKey,
               f.folder.name,
               yearHint: f.folder.yearHint,
             );
-            if (fMeta?.movie.id != null) {
-              final tmdbSeason = service.matchFolderToSeason(f.folder.name, fMeta!.movie.id);
-              // When _seasonNamesCache is empty (after restart), matchFolderToSeason
-              // returns null — fall back to the persisted folderSeason from TmdMeta.
-              final effectiveSeason = tmdbSeason ?? fMeta.folderSeason;
-              if (effectiveSeason != null && effectiveSeason != f.folderSeason) {
-                _folders[i] = (folderLabel: f.folderLabel, metadataKey: f.metadataKey, entries: f.entries, folderSeason: effectiveSeason, folder: f.folder);
-              }
-            }
           } catch (_) {}
         }
 
         // Refine folderSeason using TMDB season names (if available).
         if (meta?.movie.id != null) {
           bool changed = false;
+          // When season names are NOT cached (offline restart before any
+          // season fetch), matchFolderToSeason returns null for everything —
+          // in that case keep the scan/file-evidence season rather than
+          // ungrouping every folder blindly.
+          final namesAvailable = service.hasSeasonNames(meta!.movie.id);
           for (int i = 0; i < _folders.length; i++) {
             final f = _folders[i];
-            final tmdbSeason = service.matchFolderToSeason(f.folder.name, meta!.movie.id);
-            if (tmdbSeason != null && tmdbSeason != f.folderSeason) {
-              _folders[i] = (folderLabel: f.folderLabel, metadataKey: f.metadataKey, entries: f.entries, folderSeason: tmdbSeason, folder: f.folder);
+            final s = service.matchFolderToSeason(f.folder.name, meta.movie.id);
+            int? eff;
+            if (s != null) {
+              eff = s;
+            } else if (!namesAvailable) {
+              eff = f.folderSeason;
+            } else {
+              // Names ARE available and the folder name matches NO season —
+              // it is a standalone title ("Strike the Blood Kieta Seisou
+              // Hen" is the 2021 movie), NOT a season. Ungroup it.
+              eff = null;
+            }
+            if (eff != f.folderSeason) {
+              _folders[i] = (folderLabel: f.folderLabel, metadataKey: f.metadataKey, entries: f.entries, folderSeason: eff, folder: f.folder);
               changed = true;
             }
           }
@@ -499,6 +514,10 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   Map<int, List<Object>> _seasonGroups() {
     final allEntries = <Object>[];
     for (final f in _folders) {
+      // Standalone folders (folderSeason == null, e.g. "Strike the Blood
+      // Kieta Seisou Hen") are rendered under their own card/section — they
+      // are NOT grouped into any season.
+      if (f.folderSeason == null || f.folderSeason! <= 0) continue;
       allEntries.addAll(f.entries.where((e) => !_isFolder(e)));
     }
     return sg.groupBySeason<Object>(
@@ -634,6 +653,12 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   List<Widget> _buildBody(BuildContext context) {
     final grouped = _seasonGroups();
     final sortedSeasons = grouped.keys.toList()..sort();
+    // Folders that belong to NO season (e.g. the "Strike the Blood Kieta
+    // Seisou Hen" movie inside a Strike the Blood group) — ungrouped and
+    // rendered as their own cards + sections, never merged into a season.
+    final standalone = _folders
+        .where((f) => f.folderSeason == null || f.folderSeason! <= 0)
+        .toList();
     final slivers = <Widget>[];
 
       // Series header — poster + meta, only when TMDB resolved.
@@ -749,9 +774,12 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       );
     }
 
-    // Season poster cards grid (Nova-style) — only for groups with
-    // multiple seasons. Single-season folders skip straight to episodes.
-    if (sortedSeasons.length > 1) {
+    // Season poster cards grid (Nova-style) — shown when there are multiple
+    // seasons OR standalone (unseasoned) folders. A standalone folder is its
+    // own card (e.g. the "Strike the Blood Kieta Seisou Hen" movie), never a
+    // season. Single-season-only groups skip straight to episodes.
+    final gridCount = sortedSeasons.length + standalone.length;
+    if (gridCount > 1) {
       slivers.add(
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -777,6 +805,27 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             ),
             delegate: SliverChildBuilderDelegate(
               (context, index) {
+                if (index >= sortedSeasons.length) {
+                  // Standalone folder card — its own title + poster.
+                  final st = standalone[index - sortedSeasons.length];
+                  final stMeta = TmdService.instance.metaFor(st.metadataKey);
+                  final label = st.folderLabel.endsWith('/')
+                      ? st.folderLabel.substring(0, st.folderLabel.length - 1)
+                      : st.folderLabel;
+                  return _SeasonPosterCard(
+                    seasonNumber: 0,
+                    posterUrl: stMeta?.movie.posterUrl(width: 300),
+                    seasonName: label,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => TmdDetailsScreen(folder: st.folder),
+                        ),
+                      );
+                    },
+                    onLongPress: () => _removeSeason(st.folder),
+                  );
+                }
                 final s = sortedSeasons[index];
                 final posterUrl = _meta?.seasons[s]?.posterUrl(width: 300) ??
                     _meta?.movie.posterUrl(width: 300);
@@ -813,7 +862,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                   onLongPress: matchFolder != null ? () => _removeSeason(matchFolder) : null,
                 );
               },
-              childCount: sortedSeasons.length,
+              childCount: gridCount,
             ),
           ),
         ),
@@ -824,8 +873,10 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     // When there are multiple seasons, each season card opens its own
     // dedicated season view (with that season's details + episodes).
     // When there is only 1 season (or 0), render episodes directly here.
-    if (sortedSeasons.length <= 1) {
-      final totalCount = grouped.values.fold<int>(0, (sum, l) => sum + l.length);
+    final seasonEntryCount =
+        grouped.values.fold<int>(0, (sum, l) => sum + l.length);
+    if (sortedSeasons.length <= 1 && seasonEntryCount > 0) {
+      final totalCount = seasonEntryCount;
       slivers.add(
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -893,6 +944,69 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                           _watchedKeys.contains(_resumeKeyFor(entry) ?? ''),
                       seasonNumber: s,
                       episode: _episodeFor(entry),
+                      onTap: () => _openEntry(entry),
+                      onToggleWatched: () => _toggleWatched(entry),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    // Standalone (unseasoned) folders — e.g. the "Strike the Blood Kieta
+    // Seisou Hen" movie grouped inside Strike the Blood. When the card grid
+    // is already shown above (gridCount > 1) each standalone card opens its
+    // own folder view on tap, so we only list episodes inline here in the
+    // flat (0-1 season) layout.
+    if (gridCount <= 1) {
+      for (final f in standalone) {
+        final entries = f.entries.where((e) => !_isFolder(e)).toList()
+          ..sort((a, b) => _episodeOf(a).compareTo(_episodeOf(b)));
+        final watchedCount =
+            sg.watchedCount(entries, _watchedKeys, _resumeKeyFor);
+        final label = f.folderLabel.endsWith('/')
+            ? f.folderLabel.substring(0, f.folderLabel.length - 1)
+            : f.folderLabel;
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: ExpansionTile(
+                initiallyExpanded: true,
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                shape: const Border(),
+                collapsedShape: const Border(),
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                      ),
+                    ),
+                    if (entries.isNotEmpty)
+                      _SeasonBadge(
+                        text: sg.watchedBadge(watchedCount, entries.length),
+                      ),
+                  ],
+                ),
+                children: [
+                  for (final entry in entries)
+                    _EntryTile(
+                      entry: entry,
+                      resumePositionMs:
+                          _resumePositionsMs[_resumeKeyFor(entry) ?? ''],
+                      durationMs: _durationsMs[_resumeKeyFor(entry) ?? ''],
+                      watched:
+                          _watchedKeys.contains(_resumeKeyFor(entry) ?? ''),
+                      seasonNumber: 0,
+                      episode: null,
                       onTap: () => _openEntry(entry),
                       onToggleWatched: () => _toggleWatched(entry),
                     ),

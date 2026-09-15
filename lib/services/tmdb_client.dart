@@ -1906,6 +1906,12 @@ class TmdService extends ChangeNotifier {
     return _matchSeasonFromFolder(folderName, names);
   }
 
+  /// Whether TMDB season names are cached in memory for [showId] — i.e. a
+  /// [matchFolderToSeason] returning null means "folder is genuinely not a
+  /// season" rather than "names unavailable (offline restart)".
+  bool hasSeasonNames(int showId) =>
+      _seasonNamesCache[showId]?.isNotEmpty ?? false;
+
   /// Season-name map (number → name) for the show matched under
   /// [identityKey], fetched once per show and cached in memory. Empty when
   /// there is no key, the match is not a TV show, or the request fails. Used
