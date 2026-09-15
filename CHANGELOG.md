@@ -3,6 +3,37 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.4.5
+
+Feature + polish release: offline image cache for TMDB artwork, backdrop hero on details/series screens, TMDB resolution for all network sources, SMB auto-expand, smarter series grouping for arc-named folders, collapsible settings with clear-all actions, HDR probe validation, and season-discovery reliability fixes.
+
+### Added
+
+- **Offline image cache (`ImageCacheService` + `CachedImage`)** — permanent disk cache for TMDB posters, backdrops, stills, and cast profile images. Prefetched on metadata resolve; `CachedImage` replaces `Image.network` across every browser (`file_browser`, `folder`, `series_seasons`, `tmd_details`, `jellyfin`, `smb`, `webdav`, `ftp`, `upnp`) and folder cards. Settings → General shows live cache size with a clear action. Survives offline restarts — posters/backdrops remain visible without network.
+- **Backdrop hero for `SeriesSeasonsScreen` + `TmdDetailsScreen`** — clean backdrop when expanded, fades to toolbar with title beside back arrow when collapsed. Uses the real app-bar title slot for correct alignment in portrait/landscape.
+- **TMDB movie sequel detection + live-action vs anime disambiguation** — `Part N` / `Vol N` / `Movie N` / `Chapter N` patterns (e.g. `Girls und Panzer das Finale`) boost the movie match for collections that previously pinned to the wrong series entry; `Live Action` / `J-Drama` markers disambiguate live-action adaptations from anime with the same title.
+- **TMDB context for all source types** — `_resolveFolderMetadata` in `home_screen.dart` now lists children for **WebDAV, FTP, UPnP, and Jellyfin** (was SMB/files only) so season/episode patterns in folder/file names resolve as TV series instead of a wrong movie match. The recursive library scanner roadmap item (#5) is now documented in `AGENTS.md`.
+- **SMB bookmark auto-expands into individual folder/file cards** — same parity as local, WebDAV, FTP, UPnP, and Jellyfin bookmarks. File entries now get TMDB resolution (was skipped by the `!f.isFile` filter); `listDirectory` is skipped for file entries to avoid listing a file path as a directory. `resolveFolder` uses `parsed.seriesName` for episode filenames (`Lanterns Lights Out` now searches `Lanterns` instead of 0 results). Home `_resolveFolderMetadata` lists SMB children for season/folder context so `House` with `S02`/`S03` subfolders resolves as a TV series, not the 1977 movie. `SeriesSeasonsScreen` includes root-level files alongside subfolders.
+- **Home: clear library + clear continue watching** — delete-sweep icons on the `Your library` and `Continue watching` headers with confirmation dialogs. Clears `LibraryFoldersStore` / `ContinueWatchingStore` and all associated TMDB metadata where applicable. (`lib/services/library_folders.dart` + `continue_watching.dart` expose `clearAll()`; l10n strings added for all four languages.)
+- **Settings: all sections collapsible + iOS paywall section** — every settings group is now an `ExpansionTile` (cleaner on long settings pages). New iOS-only IAP paywall section (`PAYWALL_ENABLED` build flag) with `Entitlements` service init in `main.dart`; Android builds remain free/sideload.
+- **Home grid single-file card play button** — standalone-file library entries now show a centered play action for direct playback.
+
+### Fixed
+
+- **Home grid single-file card crashed `SeriesSeasonsScreen`** — `isFile` cards in the grouped library routed to `SeriesSeasonsScreen`, which called `listDirectory` on a file path and crashed. Guard in `_openGroup`: `isFile` entries now open `TmdDetailsScreen(video:)` directly for immediate playback.
+- **Prefix-based series grouping fallback for unstrippable suffixes** — Japanese romanized arc names (`Kieta Seisou Hen` etc.) and other opaque suffixes that `baseNameOf` cannot strip now group correctly: when one compact form is a long prefix of another (shared ≥ 10 and extra ≥ shared, ≥ 10 chars) they merge. Tightened from the initial ≥ 6 threshold to avoid false positives like `House` + `House of Cards` and `Kakegurui` + `Kakegurui Twin` (`lib/services/series_grouping.dart`, unit-tested).
+- **Standalone non-season folders no longer forced into an existing season** — folders that match no TMDB season name (e.g. `Strike the Blood Kieta Seisou Hen` — a standalone movie, not a season) were incorrectly merged into the last season. They now render as their own card in the seasons grid and their own episode section, keeping the folder name as label. Phase-2 refine is now the single authority for season assignment, validated against the base show's cached season names; phase-1 no longer inherits stale `folderSeason` from the folder's own metadata. `hasSeasonNames()` distinguishes "genuinely not a season" from "names unavailable (offline restart)" (`lib/screens/series_seasons_screen.dart`, `lib/services/tmdb_client.dart`).
+- **Folder cards: watched progress ring and season badge overlays removed** — cleaner `FolderCard` without per-tile progress/season pills; progress lives in the series/season detail views.
+- **HDR10 Android SEI probe now validates luminance values (iOS parity)** — `ExoPlayerView.kt` previously accepted any payload type 137/144 as HDR. Now `137` (Mastering Display Colour Volume, 24 B) checks `max luminance 50..10000 nits` (`500000..100000000` in 0.0001-nit units) and `min < max`; `144` (Content Light Level, 4 B) checks `maxCLL 10..10000` and `maxFALL ≤ maxCLL`. Prevents zeroed SDR placeholders from being labeled HDR. Matches iOS probe strictness.
+- **Season discovery: correct season numbers for standalone entries** — standalone file entries now scan their own filenames for season numbers instead of defaulting to season 1; standalone episode details show TMDB episode name/overview/still on first open; `seasonFor` re-fetches when the cached season has no episodes.
+- **TMDB season metadata persistence after offline restart** — season names are seeded from cached `TmdMeta.seasons` on restart; falls back to persisted `folderSeason` when cache is empty. Home `needsResolve` guard uses `hasSeasonTag` regex so top-level show folders (e.g. `House`) don't re-resolve on every load/offline restart.
+- **Lint: unused variable and async-context warnings in `_clearAll`** — removed dead `existing` variable; wrapped `ScaffoldMessenger` SnackBars with `mounted` guard.
+
+### Changed
+
+- **Release workflow is now Android-only** — `release.yml` no longer builds or attaches an unsigned iOS IPA (retired per DPLA 7.6/3.2(g): iOS apps may only be distributed via App Store / TestFlight / Ad Hoc). Signed TestFlight builds continue via the separate `ios.yml` workflow. Tag `v0.4.5` produces universal + split-per-abi APKs on `ubuntu-latest` and creates the GitHub Release from the `## 0.4.5` changelog section.
+- **Cached image migration** — all `Image.network` call sites for TMDB artwork now route through `CachedImage` (`lib/widgets/cached_image.dart`) for consistent offline behavior and fade-in.
+
 ## 0.4.4
 
 Bug-fix release: movie folders (bookmarked to the home screen) now open as movies with a Play bar, SMB bookmarked folders play through Media3, the foreground-service crash on movie Play is fixed, release-group-heavy folder names resolve their TMDB match via the files inside (issue #11), and manual Fix-match pins survive automatic reprocessing.
