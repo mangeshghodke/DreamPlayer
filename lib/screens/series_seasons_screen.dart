@@ -203,7 +203,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           }
           subfolderEntries.add((
             folderLabel: subName,
-            metadataKey: '${folder.metadataKey}_sub',
+            metadataKey: '${folder.metadataKey}_sub_$subName',
             entries: subEntries,
             folderSeason: subSeason,
             folder: subFolderSynthetic,
@@ -372,18 +372,18 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     // Collect all unique season numbers needed:
     // 1. From folderSeason values (e.g. "Strike the Blood II" → Season 2).
     // 2. From entry filenames (e.g. "House.S02E04..." → season 2).
+    // Always scan file entries to discover ALL seasons — a folder with
+    // folderSeason=1 might also contain S02E0x files that need their
+    // season poster fetched.
     final seasonsNeeded = <int>{};
     for (final f in _folders) {
       if (f.folderSeason != null && f.folderSeason! > 0) {
         seasonsNeeded.add(f.folderSeason!);
       }
-      // Also scan filenames to discover seasons when folderSeason is null.
-      if (f.folderSeason == null || f.folderSeason! <= 0) {
-        for (final e in f.entries) {
-          if (_isFolder(e)) continue;
-          final s = _seasonOf(e);
-          if (s > 0) seasonsNeeded.add(s);
-        }
+      for (final e in f.entries) {
+        if (_isFolder(e)) continue;
+        final s = _seasonOf(e);
+        if (s > 0) seasonsNeeded.add(s);
       }
     }
     // Always fetch at least season 1 for anime bracket numbering ([01]/[02]).

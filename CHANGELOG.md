@@ -3,9 +3,44 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.4.6
+
+Bug-fix release. Season artwork now consistently displays across all views:
+season cards fetch artwork for every season found in file entries (not just
+`folderSeason`), subfolders resolve to unique TMDB cache keys so individually
+matched movies use their own poster instead of the parent series poster, and
+season data is preserved when the home screen re-resolves the series folder.
+
+### Fixed
+
+- **Season cards consistently display artwork** — `_fetchSeasonData` in
+  `series_seasons_screen.dart` now scans ALL file entries for ALL seasons, not
+  just when `folderSeason` is null. Previously, folders that already had a
+  `folderSeason` (e.g. "Strike the Blood II") would only fetch that season's
+  data — seasons found in file entries (S02E04, etc.) were skipped. Season
+  posters are now fetched for every season discovered from filenames.
+- **Individually matched movies use their own TMDB poster** — each subfolder
+  in the seasons grid now gets a unique `metadataKey`
+  (`'${folder.metadataKey}_sub_$subName'` instead of the shared
+  `'${folder.metadataKey}_sub'`). Previously, all subfolders shared the same
+  cache key, so they all resolved to the same TMDB entry and displayed the
+  same series poster. Each movie folder now resolves independently and shows
+  its own poster via `TmdMeta.movie.posterUrl()`.
+- **Artwork persists after navigating into/out of Seasons** — `_resolveFolderNow`
+  in `tmdb_client.dart` now preserves the existing `seasons` map and `details`
+  when re-resolving the same TMDB show. Previously, a home screen refresh
+  called `resolveFolder` which overwrote the group's cache entry with a fresh
+  meta that had no seasons (the `_fetchSeasonData` results were lost).
+- **Episode-level TMDB metadata cached for offline access (issue #16)** —
+  `_resolveFolderMetadata` in `home_screen.dart` now parses file names to
+  discover ALL locally-present seasons and calls `seasonFor(key, season)` for
+  each. Previously, only `folderSeason` episodes were cached — when
+  `folderSeason` was null, zero episodes were cached and episode titles/stills/
+  overviews/ratings disappeared offline.
+
 ## 0.4.5
 
-Feature + polish release: offline image cache for TMDB artwork, backdrop hero on details/series screens, TMDB resolution for all network sources, SMB auto-expand, smarter series grouping for arc-named folders, collapsible settings with clear-all actions, HDR probe validation, and season-discovery reliability fixes.
+Feature + polish release: offline image cache for TMDB artwork, backdrop hero on details/series screens, TMDB resolution for all network sources, SMB auto-expand, smarter series grouping for arc-named folders, collapsible settings with clear-all actions, HDR probe validation, season-discovery reliability fixes, and complete offline episode metadata (issue #16).
 
 ### Added
 
@@ -20,6 +55,7 @@ Feature + polish release: offline image cache for TMDB artwork, backdrop hero on
 
 ### Fixed
 
+- **Episode-level TMDB metadata now cached for offline access (issue #16)** — `_resolveFolderMetadata` in `home_screen.dart` now parses the folder's file names to discover which seasons are locally present, then calls `seasonFor(key, season)` for each. Previously, only `folderSeason` episodes were cached — when `folderSeason` was null (folder name doesn't match a TMDB season name, e.g. "Dark"), zero episodes were cached and episode titles/stills/overviews/ratings disappeared offline. After this fix, all locally-present seasons are fetched during the online prefetch and persist in SharedPreferences. Episode stills are also prefetched to the permanent disk cache (`ImageCacheService`).
 - **Home grid single-file card crashed `SeriesSeasonsScreen`** — `isFile` cards in the grouped library routed to `SeriesSeasonsScreen`, which called `listDirectory` on a file path and crashed. Guard in `_openGroup`: `isFile` entries now open `TmdDetailsScreen(video:)` directly for immediate playback.
 - **Prefix-based series grouping fallback for unstrippable suffixes** — Japanese romanized arc names (`Kieta Seisou Hen` etc.) and other opaque suffixes that `baseNameOf` cannot strip now group correctly: when one compact form is a long prefix of another (shared ≥ 10 and extra ≥ shared, ≥ 10 chars) they merge. Tightened from the initial ≥ 6 threshold to avoid false positives like `House` + `House of Cards` and `Kakegurui` + `Kakegurui Twin` (`lib/services/series_grouping.dart`, unit-tested).
 - **Standalone non-season folders no longer forced into an existing season** — folders that match no TMDB season name (e.g. `Strike the Blood Kieta Seisou Hen` — a standalone movie, not a season) were incorrectly merged into the last season. They now render as their own card in the seasons grid and their own episode section, keeping the folder name as label. Phase-2 refine is now the single authority for season assignment, validated against the base show's cached season names; phase-1 no longer inherits stale `folderSeason` from the folder's own metadata. `hasSeasonNames()` distinguishes "genuinely not a season" from "names unavailable (offline restart)" (`lib/screens/series_seasons_screen.dart`, `lib/services/tmdb_client.dart`).

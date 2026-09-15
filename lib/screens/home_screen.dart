@@ -371,6 +371,34 @@ class _HomeScreenState extends State<HomeScreen>
           continue;
         }
         debugPrint('TMDB _resolveFolderMeta: resolveFolder OK for "$key", post-resolve meta=${service.metaFor(key) != null ? 'meta(${service.metaFor(key)!.movie.title}, fs=${service.metaFor(key)!.folderSeason})' : 'null'}');
+        // Cache episode metadata for ALL locally-present seasons so that
+        // episode titles, stills, overviews and ratings are available offline.
+        // Without this, only folderSeason episodes are cached — other seasons
+        // fail when the user opens the folder without a network connection.
+        final postMeta = service.metaFor(key);
+        if (postMeta != null &&
+            postMeta.movie.kind == TmdKind.tv &&
+            fileNames != null) {
+          final seasonsNeeded = <int>{};
+          for (final name in fileNames) {
+            final parsed = ParsedFileName.parse(name);
+            if (parsed.isEpisode && parsed.season > 0) {
+              seasonsNeeded.add(parsed.season);
+            }
+          }
+          if (postMeta.folderSeason != null) {
+            seasonsNeeded.add(postMeta.folderSeason!);
+          }
+          // Anime bracket numbering ([01]/[02]) — parsed seasons are all 0
+          // and folderSeason may be null.  Always fetch season 1 so episode
+          // stills resolve to the first (only) season on TMDB.
+          if (seasonsNeeded.isEmpty) seasonsNeeded.add(1);
+          for (final season in seasonsNeeded) {
+            try {
+              await service.seasonFor(key, season);
+            } catch (_) {}
+          }
+        }
       }
       final meta = service.metaFor(key);
       if (meta != null && meta.folderSeason != null && meta.movie.kind == TmdKind.tv) {

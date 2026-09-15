@@ -1982,7 +1982,22 @@ class TmdService extends ChangeNotifier {
       return existing;
     }
 
-    final meta = TmdMeta(movie: match.movie, folderSeason: folderSeason);
+    // Preserve previously fetched seasons from _fetchSeasonData when
+    // re-resolving the same show (e.g. home screen refresh). The new
+    // resolution only provides folderSeason; _fetchSeasonData adds the
+    // full per-season data (episodes, posters) later.
+    final mergedSeasons = <int, TmdSeason>{};
+    if (existing != null && existing.movie.id == match.movie.id) {
+      mergedSeasons.addAll(existing.seasons);
+    }
+
+    final meta = TmdMeta(
+      movie: match.movie,
+      details: existing?.details,
+      seasons: mergedSeasons,
+      folderSeason: folderSeason,
+      manual: false,
+    );
     _cache[metadataKey] = meta;
     await TmdStore.save(metadataKey, meta);
     // Prefetch images to the permanent disk cache so they're available offline.
