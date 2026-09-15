@@ -3179,6 +3179,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download folder'**
   String get settingsDownloadFolder;
+
+  /// Button to remove all library folders and continue watching entries
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all'**
+  String get homeClearAll;
+
+  /// Option to remove all library folders
+  ///
+  /// In en, this message translates to:
+  /// **'Clear library'**
+  String get homeClearLibrary;
+
+  /// Subtitle for clear library option
+  ///
+  /// In en, this message translates to:
+  /// **'Remove all folder cards from the home screen'**
+  String get homeClearLibraryDesc;
+
+  /// Confirmation dialog title for clearing library
+  ///
+  /// In en, this message translates to:
+  /// **'Clear library?'**
+  String get homeClearLibraryTitle;
+
+  /// Confirmation dialog body for clearing library
+  ///
+  /// In en, this message translates to:
+  /// **'All library folders will be removed. The files stay on your device.'**
+  String get homeClearLibraryContent;
+
+  /// Option to remove all continue watching entries
+  ///
+  /// In en, this message translates to:
+  /// **'Clear continue watching'**
+  String get homeClearContinueWatching;
+
+  /// Subtitle for clear continue watching option
+  ///
+  /// In en, this message translates to:
+  /// **'Remove all continue watching cards'**
+  String get homeClearContinueWatchingDesc;
+
+  /// Confirmation dialog title for clearing continue watching
+  ///
+  /// In en, this message translates to:
+  /// **'Clear continue watching?'**
+  String get homeClearContinueWatchingTitle;
+
+  /// Confirmation dialog body for clearing continue watching
+  ///
+  /// In en, this message translates to:
+  /// **'All continue watching entries will be removed.'**
+  String get homeClearContinueWatchingContent;
 }
 
 class _AppLocalizationsDelegate

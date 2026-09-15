@@ -640,6 +640,103 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  Future<void> _clearAll() async {
+    final theme = Theme.of(context);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.library_add_check_outlined),
+              title: Text(AppLocalizations.of(context).homeClearLibrary),
+              subtitle: Text(
+                AppLocalizations.of(context).homeClearLibraryDesc,
+              ),
+              onTap: () => Navigator.of(context).pop('library'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: Text(AppLocalizations.of(context).homeClearContinueWatching),
+              subtitle: Text(
+                AppLocalizations.of(context).homeClearContinueWatchingDesc,
+              ),
+              onTap: () => Navigator.of(context).pop('continue'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null) return;
+
+    if (choice == 'library') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(AppLocalizations.of(context).homeClearLibraryTitle),
+          content: Text(AppLocalizations.of(context).homeClearLibraryContent),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(AppLocalizations.of(context).commonCancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(AppLocalizations.of(context).commonRemove),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+
+      for (final f in _folders) {
+        if (f.source == LibraryFolderSource.files) {
+          try {
+            await FileBrowserService.instance.removeLibraryBookmark(f.id);
+          } catch (_) {}
+        } else if (f.isJellyfin) {
+          try {
+            await _client.removeFolderMeta(f.id);
+          } catch (_) {}
+        }
+      }
+      await LibraryFoldersStore.clearAll();
+      if (!mounted) return;
+      setState(() {
+        _folders = const [];
+        _seriesGroups = const [];
+        _jellyfinMeta = const {};
+      });
+    } else if (choice == 'continue') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            AppLocalizations.of(context).homeClearContinueWatchingTitle,
+          ),
+          content: Text(
+            AppLocalizations.of(context).homeClearContinueWatchingContent,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(AppLocalizations.of(context).commonCancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(AppLocalizations.of(context).commonRemove),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      await ContinueWatchingStore.clearAll();
+      if (!mounted) return;
+      setState(() => _entries = const []);
+    }
+  }
+
   /// Best-effort TMDB lookups so cards can show poster art and real titles
   /// without waiting for a tap.
   Future<void> _resolveMetadata(List<ContinueWatchingEntry> entries) async {
@@ -887,6 +984,14 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               title: Text(AppLocalizations.of(context).homeTitle),
               pinned: true,
+              actions: [
+                if (_seriesGroups.isNotEmpty || _entries.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                    tooltip: AppLocalizations.of(context).homeClearAll,
+                    onPressed: _clearAll,
+                  ),
+              ],
             ),
             // ---- Your library: user-added folders (e.g. TV-show folders) ----
             if (_seriesGroups.isEmpty)

@@ -781,7 +781,28 @@ class ExoPlayerView(
             if (i >= end) return false
             payloadSize += buf[i].toInt() and 0xFF
             i++
-            if (payloadType == 137 || payloadType == 144) return true
+            if (payloadType == 137 && payloadSize == 24 && i + 24 <= end) {
+                // ST 2086 mastering display colour volume: 24 B payload.
+                // Validate max display luminance (bytes 16-19, uint32 BE in
+                // 0.0001-nit units) — must be 50..10000 nits (500000..100000000)
+                // to distinguish real HDR mastering from zeroed SDR placeholders.
+                val maxNits = ((buf[i + 16].toInt() and 0xFF) shl 24) or
+                    ((buf[i + 17].toInt() and 0xFF) shl 16) or
+                    ((buf[i + 18].toInt() and 0xFF) shl 8) or
+                    (buf[i + 19].toInt() and 0xFF)
+                val minNits = ((buf[i + 20].toInt() and 0xFF) shl 24) or
+                    ((buf[i + 21].toInt() and 0xFF) shl 16) or
+                    ((buf[i + 22].toInt() and 0xFF) shl 8) or
+                    (buf[i + 23].toInt() and 0xFF)
+                if (maxNits in 500_000..100_000_000 && minNits < maxNits) return true
+            } else if (payloadType == 144 && payloadSize == 4 && i + 4 <= end) {
+                // Content light level: 4 B (maxCLL u16 + maxFALL u16).
+                val maxCLL = ((buf[i].toInt() and 0xFF) shl 8) or
+                    (buf[i + 1].toInt() and 0xFF)
+                val maxFALL = ((buf[i + 2].toInt() and 0xFF) shl 8) or
+                    (buf[i + 3].toInt() and 0xFF)
+                if (maxCLL in 10..10000 && maxFALL <= maxCLL) return true
+            }
             i += payloadSize
             if (i > end) return false
         }

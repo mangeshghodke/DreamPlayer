@@ -28,13 +28,18 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
+    // "Support" is a flat section header on Android, visible without expanding.
     expect(find.text('Support'), findsOneWidget);
+    // "About" is the title of an ExpansionTile — visible without expanding.
     await tester.scrollUntilVisible(
       find.text('About'),
       200,
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.text('About'), findsOneWidget);
+    // "Version" is inside the collapsed About section — tap to expand first.
+    await tester.tap(find.text('About'));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Version'),
       200,
@@ -65,7 +70,7 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Buy'), findsOneWidget);
+    // The "Buy" section header was removed — the tile sits at the top.
     expect(find.text('DreamPlayer Advanced'), findsOneWidget);
     expect(find.text('Monthly subscription · Yearly · Lifetime'), findsOneWidget);
   });
@@ -74,6 +79,15 @@ void main() {
     await tester.pumpWidget(const DreamPlayerApp());
 
     await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    // Expand the About section first.
+    await tester.scrollUntilVisible(
+      find.text('About'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('About'));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
@@ -104,6 +118,15 @@ void main() {
     await tester.pumpWidget(const DreamPlayerApp());
 
     await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    // Expand the General section first (Clear cache is inside it now).
+    await tester.scrollUntilVisible(
+      find.text('General'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('General'));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(

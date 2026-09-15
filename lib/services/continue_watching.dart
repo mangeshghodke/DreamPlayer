@@ -117,4 +117,10 @@ class ContinueWatchingStore {
     );
     changes.notify();
   }
+
+  static Future<void> clearAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
+    changes.notify();
+  }
 }

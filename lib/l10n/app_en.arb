@@ -2185,5 +2185,41 @@
   "settingsDownloadFolder": "Download folder",
   "@settingsDownloadFolder": {
     "description": "Download folder setting title"
+  },
+  "homeClearAll": "Clear all",
+  "@homeClearAll": {
+    "description": "Button to remove all library folders and continue watching entries"
+  },
+  "homeClearLibrary": "Clear library",
+  "@homeClearLibrary": {
+    "description": "Option to remove all library folders"
+  },
+  "homeClearLibraryDesc": "Remove all folder cards from the home screen",
+  "@homeClearLibraryDesc": {
+    "description": "Subtitle for clear library option"
+  },
+  "homeClearLibraryTitle": "Clear library?",
+  "@homeClearLibraryTitle": {
+    "description": "Confirmation dialog title for clearing library"
+  },
+  "homeClearLibraryContent": "All library folders will be removed. The files stay on your device.",
+  "@homeClearLibraryContent": {
+    "description": "Confirmation dialog body for clearing library"
+  },
+  "homeClearContinueWatching": "Clear continue watching",
+  "@homeClearContinueWatching": {
+    "description": "Option to remove all continue watching entries"
+  },
+  "homeClearContinueWatchingDesc": "Remove all continue watching cards",
+  "@homeClearContinueWatchingDesc": {
+    "description": "Subtitle for clear continue watching option"
+  },
+  "homeClearContinueWatchingTitle": "Clear continue watching?",
+  "@homeClearContinueWatchingTitle": {
+    "description": "Confirmation dialog title for clearing continue watching"
+  },
+  "homeClearContinueWatchingContent": "All continue watching entries will be removed.",
+  "@homeClearContinueWatchingContent": {
+    "description": "Confirmation dialog body for clearing continue watching"
   }
 }

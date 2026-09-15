@@ -570,16 +570,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // are always advanced, so `effectivePaywallEnabled` is false and
             // this section never appears (monetization is iOS-only).
             if (Entitlements.instance.effectivePaywallEnabled) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Text(
-                  'Buy',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
               ListenableBuilder(
                 listenable: Entitlements.instance,
                 builder: (context, _) {
@@ -640,666 +630,621 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
                   },
                 ),
-            ],
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                'General',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ListenableBuilder(
-              listenable: LanguageService.instance,
-              builder: (context, _) => TvTile(
-                leading: const Icon(Icons.language),
-                title: Text(AppLocalizations.of(context).settingsLanguage),
-                subtitle: Text(_languageLabel(LanguageService.instance.locale)),
-                onTap: () => _pickAppLanguage(context),
-              ),
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.unfold_more),
-              title: const Text('Auto-expand folders'),
-              subtitle: const Text('Show each subfolder and video file as its own card on the home screen'),
-              value: _autoExpandFolders,
-              onChanged: (v) async {
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setBool('dreamplayer.autoExpandFolders', v);
-                if (mounted) setState(() => _autoExpandFolders = v);
-              },
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.offline_pin),
-              title: const Text('Offline image cache'),
-              subtitle: const Text('Save posters and backdrops for offline use'),
-              value: ImageCacheService.instance.enabled,
-              onChanged: (v) async {
-                await ImageCacheService.instance.setEnabled(v);
-                await _refreshDiskSize();
-                if (mounted) setState(() {});
-              },
-            ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                AppLocalizations.of(context).settingsStorage,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TvTile(
-              leading: const Icon(Icons.cleaning_services),
-              title: Text(AppLocalizations.of(context).settingsClearCache),
-              subtitle: Text(
-                _cleared
-                    ? AppLocalizations.of(context).settingsCacheClearedDesc
-                    : _cacheSizeLabel(),
-              ),
-              onTap: _clearCache,
-            ),
-            TvTile(
-              leading: const Icon(Icons.folder),
-              title: Text(AppLocalizations.of(context).settingsDownloadFolder),
-              subtitle: FutureBuilder<String>(
-                future: DownloadManager.instance.getDownloadDir(),
-                builder: (ctx, snap) {
-                  final dir = snap.data ?? '';
-                  final display = dir.replaceAll('/storage/emulated/0/', '/');
-                  return Text(display.isEmpty ? 'Default' : display);
-                },
-              ),
-              onTap: _pickDownloadDir,
-            ),
-            // Debug: simulate free user (debug builds only).
-            if (kDebugMode) ...[
-              ListenableBuilder(
-                listenable: Entitlements.instance,
-                builder: (context, _) => SwitchListTile(
-                  secondary: const Icon(Icons.bug_report, color: Colors.orange),
-                  title: const Text('Debug: simulate free user', style: TextStyle(color: Colors.orange)),
-                  subtitle: Text(
-                    Entitlements.instance.debugFreeUser
-                        ? 'ON — paywall + gates active on Android'
-                        : 'OFF — Android = advanced (no paywall)',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  value: Entitlements.instance.debugFreeUser,
-                  onChanged: (v) => Entitlements.instance.setDebugFreeUser(v),
-                ),
-              ),
-              ListenableBuilder(
-                listenable: Entitlements.instance,
-                builder: (context, _) {
-                  final e = Entitlements.instance;
-                  final sub = e.debugTrialExpired
-                      ? 'ON — trial expired, gates fire (7-day trial bypassed)'
-                      : e.trialActive
-                          ? 'OFF — 7-day trial active, ${e.trialRemaining.inHours}h left'
-                          : 'OFF — no active trial';
-                  return SwitchListTile(
-                    secondary: const Icon(Icons.event_busy, color: Colors.orange),
-                    title: const Text('Debug: simulate trial expired', style: TextStyle(color: Colors.orange)),
-                    subtitle: Text(sub, style: const TextStyle(fontSize: 12)),
-                    value: e.debugTrialExpired,
-                    onChanged: (v) => Entitlements.instance.setDebugTrialExpired(v),
-                  );
-                },
-              ),
-            ],
-            if (defaultTargetPlatform == TargetPlatform.android) ...[
               const Divider(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  AppLocalizations.of(context).settingsAudio,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.surround_sound),
-                title: Text(AppLocalizations.of(context).settingsAudioPassthrough),
-                subtitle: Text(
-                  _passthrough
-                      ? 'Auto — passthrough when HDMI detected'
-                      : 'Off — decode to PCM (default)',
-                ),
-                value: _passthrough,
-                onChanged: (value) async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool(kAudioPassthroughKey, value);
-                  if (mounted) setState(() => _passthrough = value);
-                },
-              ),
             ],
-            if (!isTv) ...[
-              const Divider(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  AppLocalizations.of(context).settingsPlayer,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w600,
+            // === General ===
+            ExpansionTile(
+              leading: const Icon(Icons.settings),
+              title: Text('General'),
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              children: [
+                ListenableBuilder(
+                  listenable: LanguageService.instance,
+                  builder: (context, _) => TvTile(
+                    leading: const Icon(Icons.language),
+                    title: Text(AppLocalizations.of(context).settingsLanguage),
+                    subtitle: Text(_languageLabel(LanguageService.instance.locale)),
+                    onTap: () => _pickAppLanguage(context),
                   ),
                 ),
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.swipe),
-                title: Text(AppLocalizations.of(context).settingsSwipeGestures),
-                subtitle: Text(
-                  AppLocalizations.of(context).settingsSwipeDesc,
-                ),
-                value: _swipeGestures,
-                onChanged: (value) async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool(kSwipeGesturesKey, value);
-                  if (mounted) setState(() => _swipeGestures = value);
-                },
-              ),
-              // PiP on both platforms: Android auto-enters from
-              // onUserLeaveHint (native pref read), iOS arms
-              // canStartPictureInPictureAutomaticallyFromInline from the same
-              // pref. Pointless on TV, so it hides with the other
-              // phone-only controls.
-              if (defaultTargetPlatform == TargetPlatform.android ||
-                  defaultTargetPlatform == TargetPlatform.iOS)
                 SwitchListTile(
-                  secondary: const Icon(Icons.picture_in_picture),
-                  title: Text(AppLocalizations.of(context).settingsPip),
-                  subtitle: Text(
-                    AppLocalizations.of(context).settingsPipDesc,
-                  ),
-                  value: _pipEnabled,
-                  onChanged: (value) async {
+                  secondary: const Icon(Icons.unfold_more),
+                  title: const Text('Auto-expand folders'),
+                  subtitle: const Text('Show each subfolder and video file as its own card on the home screen'),
+                  value: _autoExpandFolders,
+                  onChanged: (v) async {
                     final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool(kPipEnabledKey, value);
-                    if (mounted) setState(() => _pipEnabled = value);
+                    await prefs.setBool('dreamplayer.autoExpandFolders', v);
+                    if (mounted) setState(() => _autoExpandFolders = v);
                   },
                 ),
-              if (defaultTargetPlatform == TargetPlatform.android)
-                ListTile(
-                  leading: const Icon(Icons.play_circle_outline),
-                  title: Text(AppLocalizations.of(context).settingsDefaultEngine),
-                  subtitle: Text(_defaultEngine.label),
-                  onTap: () async {
-                    final picked = await showDialog<DefaultEngine>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text(AppLocalizations.of(context).settingsDefaultEngine),
-                        content: RadioGroup<DefaultEngine>(
-                          groupValue: _defaultEngine,
-                          onChanged: (v) => Navigator.pop(ctx, v),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: DefaultEngine.values.map((e) {
-                              final subtitle = switch (e) {
-                                DefaultEngine.auto =>
-                                  AppLocalizations.of(context).settingsEngineAutoDesc,
-                                DefaultEngine.media3 =>
-                                  AppLocalizations.of(context).settingsEngineMedia3Desc,
-                                DefaultEngine.mpv =>
-                                  AppLocalizations.of(context).settingsEngineMpvDesc,
-                                DefaultEngine.ask =>
-                                  AppLocalizations.of(context).settingsEngineAskDesc,
-                              };
-                              return RadioListTile<DefaultEngine>(
-                                value: e,
-                                title: Text(e.label),
-                                subtitle: Text(subtitle,
-                                    style: const TextStyle(fontSize: 12)),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: Text(AppLocalizations.of(context).commonCancel),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (picked != null && mounted) {
-                      await DefaultEngineStore.save(picked);
-                      setState(() => _defaultEngine = picked);
-                    }
+                SwitchListTile(
+                  secondary: const Icon(Icons.offline_pin),
+                  title: const Text('Offline image cache'),
+                  subtitle: const Text('Save posters and backdrops for offline use'),
+                  value: ImageCacheService.instance.enabled,
+                  onChanged: (v) async {
+                    await ImageCacheService.instance.setEnabled(v);
+                    await _refreshDiskSize();
+                    if (mounted) setState(() {});
                   },
                 ),
-              SwitchListTile(
-                secondary: const Icon(Icons.skip_next),
-                title: Text(AppLocalizations.of(context).settingsAutoPlayNext),
-                subtitle: Text(AppLocalizations.of(context).settingsAutoPlayNextDesc),
-                value: _autoPlayNext,
-                onChanged: (value) async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool(kAutoPlayNextKey, value);
-                  if (mounted) setState(() => _autoPlayNext = value);
-                },
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.label),
-                title: Text(AppLocalizations.of(context).settingsOnScreenBadges),
-                subtitle: Text(
-                  AppLocalizations.of(context).settingsBadgesDesc,
-                ),
-                value: _badgeEnabled,
-                onChanged: (value) async {
-                  await BadgePrefs.setEnabled(value);
-                  if (mounted) setState(() => _badgeEnabled = value);
-                },
-              ),
-              if (_badgeEnabled)
-                ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-                  childrenPadding: const EdgeInsets.only(bottom: 8),
-                  leading: const Icon(Icons.tune),
-                  title: Text(AppLocalizations.of(context).settingsBadgeOptions),
-                  subtitle: Text(AppLocalizations.of(context).settingsBadgeOptionsDesc),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
-                      child: Text(
-                        'Format',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    _BadgeToggle(
-                      icon: Icons.high_quality,
-                      label: 'HDR',
-                      subtitle: 'DV / HDR10 / HDR10+ / HLG / SDR',
-                      value: _badgeHdr,
-                      onChanged: (v) async {
-                        await BadgePrefs.setHdr(v);
-                        if (mounted) setState(() => _badgeHdr = v);
-                      },
-                    ),
-                    _BadgeToggle(
-                      icon: Icons.audiotrack,
-                      label: 'Audio codec',
-                      subtitle: 'E-AC3 · 5.1 / DTS-HD · 7.1 / AAC …',
-                      value: _badgeAudio,
-                      onChanged: (v) async {
-                        await BadgePrefs.setAudio(v);
-                        if (mounted) setState(() => _badgeAudio = v);
-                      },
-                    ),
-                    _BadgeToggle(
-                      icon: Icons.videocam,
-                      label: 'Video codec',
-                      subtitle: AppLocalizations.of(context).settingsBadgeVideoCodecDesc,
-                      value: _badgeVideoCodec,
-                      onChanged: (v) async {
-                        await BadgePrefs.setVideoCodec(v);
-                        if (mounted) setState(() => _badgeVideoCodec = v);
-                      },
-                    ),
-                    _BadgeToggle(
-                      icon: Icons.aspect_ratio,
-                      label: 'Resolution',
-                      value: _badgeResolution,
-                      onChanged: (v) async {
-                        await BadgePrefs.setResolution(v);
-                        if (mounted) setState(() => _badgeResolution = v);
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(56, 8, 16, 4),
-                      child: Text(
-                        AppLocalizations.of(context).settingsBadgePlayback,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    if (defaultTargetPlatform == TargetPlatform.android)
-                      _BadgeToggle(
-                        icon: Icons.spatial_audio,
-                        label: 'Spatial audio',
-                        value: _badgeSpatialAudio,
-                        onChanged: (v) async {
-                          await BadgePrefs.setSpatialAudio(v);
-                          if (mounted) setState(() => _badgeSpatialAudio = v);
-                        },
-                      ),
-                    _BadgeToggle(
-                      icon: Icons.sync,
-                      label: AppLocalizations.of(context).settingsBadgeTranscoding,
-                      value: _badgeServerTranscode,
-                      onChanged: (v) async {
-                        await BadgePrefs.setServerTranscode(v);
-                        if (mounted) setState(() => _badgeServerTranscode = v);
-                      },
-                    ),
-                    _BadgeToggle(
-                      icon: Icons.memory,
-                      label: AppLocalizations.of(context).settingsBadgeDecoder,
-                      subtitle: AppLocalizations.of(context).settingsBadgeDecoderDesc,
-                      value: _badgeDecoder,
-                      onChanged: (v) async {
-                        await BadgePrefs.setDecoder(v);
-                        if (mounted) setState(() => _badgeDecoder = v);
-                      },
-                    ),
-                  ],
-                ),
-              // Subtitle appearance settings moved into the player's ⋮ sheet
-              // (subtitle_settings_screen.dart is pushed from there now).
-              // Volume Boost + Night Mode need Media3's LoudnessEnhancer
-              // (Android only) — AVPlayer caps volume at 1.0 and exposes no
-              // DRC, so showing these on iOS would be cosmetic no-ops.
-              if (defaultTargetPlatform == TargetPlatform.android) ...[
                 TvTile(
-                  leading: const Icon(Icons.volume_up),
-                  title: Text(AppLocalizations.of(context).settingsVolumeBoost),
+                  leading: const Icon(Icons.cleaning_services),
+                  title: Text(AppLocalizations.of(context).settingsClearCache),
                   subtitle: Text(
-                    _audioBoost > 1.01
-                        ? '${_audioBoost.toStringAsFixed(1)}× (LoudnessEnhancer)'
-                        : 'Off — 1.0×',
+                    _cleared
+                        ? AppLocalizations.of(context).settingsCacheClearedDesc
+                        : _cacheSizeLabel(),
                   ),
-                  onTap: () async {
-                    double temp = _audioBoost;
-                    final picked = await showDialog<double>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(AppLocalizations.of(context).playerVolumeBoostTitle),
-                        content: StatefulBuilder(
-                          builder: (context, setD) => Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Slider(
-                                value: temp.clamp(1.0, 3.0),
-                                min: 1.0,
-                                max: 3.0,
-                                divisions: 20,
-                                label: '${temp.toStringAsFixed(1)}×',
-                                onChanged: (v) => setD(
-                                  () =>
-                                      temp = double.parse(v.toStringAsFixed(1)),
-                                ),
+                  onTap: _clearCache,
+                ),
+                TvTile(
+                  leading: const Icon(Icons.folder),
+                  title: Text(AppLocalizations.of(context).settingsDownloadFolder),
+                  subtitle: FutureBuilder<String>(
+                    future: DownloadManager.instance.getDownloadDir(),
+                    builder: (ctx, snap) {
+                      final dir = snap.data ?? '';
+                      final display = dir.replaceAll('/storage/emulated/0/', '/');
+                      return Text(display.isEmpty ? 'Default' : display);
+                    },
+                  ),
+                  onTap: _pickDownloadDir,
+                ),
+                // Debug: simulate free user (debug builds only).
+                if (kDebugMode) ...[
+                  ListenableBuilder(
+                    listenable: Entitlements.instance,
+                    builder: (context, _) => SwitchListTile(
+                      secondary: const Icon(Icons.bug_report, color: Colors.orange),
+                      title: const Text('Debug: simulate free user', style: TextStyle(color: Colors.orange)),
+                      subtitle: Text(
+                        Entitlements.instance.debugFreeUser
+                            ? 'ON — paywall + gates active on Android'
+                            : 'OFF — Android = advanced (no paywall)',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      value: Entitlements.instance.debugFreeUser,
+                      onChanged: (v) => Entitlements.instance.setDebugFreeUser(v),
+                    ),
+                  ),
+                  ListenableBuilder(
+                    listenable: Entitlements.instance,
+                    builder: (context, _) {
+                      final e = Entitlements.instance;
+                      final sub = e.debugTrialExpired
+                          ? 'ON — trial expired, gates fire (7-day trial bypassed)'
+                          : e.trialActive
+                              ? 'OFF — 7-day trial active, ${e.trialRemaining.inHours}h left'
+                              : 'OFF — no active trial';
+                      return SwitchListTile(
+                        secondary: const Icon(Icons.event_busy, color: Colors.orange),
+                        title: const Text('Debug: simulate trial expired', style: TextStyle(color: Colors.orange)),
+                        subtitle: Text(sub, style: const TextStyle(fontSize: 12)),
+                        value: e.debugTrialExpired,
+                        onChanged: (v) => Entitlements.instance.setDebugTrialExpired(v),
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+            // === Player ===
+            if (!isTv)
+              ExpansionTile(
+                leading: const Icon(Icons.play_circle_outline),
+                title: Text(AppLocalizations.of(context).settingsPlayer),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  SwitchListTile(
+                    secondary: const Icon(Icons.swipe),
+                    title: Text(AppLocalizations.of(context).settingsSwipeGestures),
+                    subtitle: Text(
+                      AppLocalizations.of(context).settingsSwipeDesc,
+                    ),
+                    value: _swipeGestures,
+                    onChanged: (value) async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool(kSwipeGesturesKey, value);
+                      if (mounted) setState(() => _swipeGestures = value);
+                    },
+                  ),
+                  if (defaultTargetPlatform == TargetPlatform.android ||
+                      defaultTargetPlatform == TargetPlatform.iOS)
+                    SwitchListTile(
+                      secondary: const Icon(Icons.picture_in_picture),
+                      title: Text(AppLocalizations.of(context).settingsPip),
+                      subtitle: Text(
+                        AppLocalizations.of(context).settingsPipDesc,
+                      ),
+                      value: _pipEnabled,
+                      onChanged: (value) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool(kPipEnabledKey, value);
+                        if (mounted) setState(() => _pipEnabled = value);
+                      },
+                    ),
+                  if (defaultTargetPlatform == TargetPlatform.android)
+                    ListTile(
+                      leading: const Icon(Icons.play_circle_outline),
+                      title: Text(AppLocalizations.of(context).settingsDefaultEngine),
+                      subtitle: Text(_defaultEngine.label),
+                      onTap: () async {
+                        final picked = await showDialog<DefaultEngine>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text(AppLocalizations.of(context).settingsDefaultEngine),
+                            content: RadioGroup<DefaultEngine>(
+                              groupValue: _defaultEngine,
+                              onChanged: (v) => Navigator.pop(ctx, v),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: DefaultEngine.values.map((e) {
+                                  final subtitle = switch (e) {
+                                    DefaultEngine.auto =>
+                                      AppLocalizations.of(context).settingsEngineAutoDesc,
+                                    DefaultEngine.media3 =>
+                                      AppLocalizations.of(context).settingsEngineMedia3Desc,
+                                    DefaultEngine.mpv =>
+                                      AppLocalizations.of(context).settingsEngineMpvDesc,
+                                    DefaultEngine.ask =>
+                                      AppLocalizations.of(context).settingsEngineAskDesc,
+                                  };
+                                  return RadioListTile<DefaultEngine>(
+                                    value: e,
+                                    title: Text(e.label),
+                                    subtitle: Text(subtitle,
+                                        style: const TextStyle(fontSize: 12)),
+                                  );
+                                }).toList(),
                               ),
-                              Text(
-                                '${temp.toStringAsFixed(1)}×',
-                                style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(AppLocalizations.of(context).commonCancel),
                               ),
                             ],
                           ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text(AppLocalizations.of(context).commonCancel),
+                        );
+                        if (picked != null && mounted) {
+                          await DefaultEngineStore.save(picked);
+                          setState(() => _defaultEngine = picked);
+                        }
+                      },
+                    ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.skip_next),
+                    title: Text(AppLocalizations.of(context).settingsAutoPlayNext),
+                    subtitle: Text(AppLocalizations.of(context).settingsAutoPlayNextDesc),
+                    value: _autoPlayNext,
+                    onChanged: (value) async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool(kAutoPlayNextKey, value);
+                      if (mounted) setState(() => _autoPlayNext = value);
+                    },
+                  ),
+                  if (defaultTargetPlatform == TargetPlatform.android)
+                    TvTile(
+                      leading: const Icon(Icons.memory),
+                      title: Text(AppLocalizations.of(context).settingsVideoDecoder),
+                      subtitle: Text(switch (_decoderMode) {
+                        DecoderMode.hw => 'Hardware — fastest, HDR passthrough',
+                        DecoderMode.sw => 'Software — compatibility fallback',
+                        _ => 'Auto — hardware when available',
+                      }),
+                      onTap: () async {
+                        final picked = await showDialog<DecoderMode>(
+                          context: context,
+                          builder: (context) => SimpleDialog(
+                            title: Text(AppLocalizations.of(context).playerVideoDecoder),
+                            children: [
+                              RadioGroup<DecoderMode>(
+                                groupValue: _decoderMode,
+                                onChanged: (v) => Navigator.of(context).pop(v),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    for (final m in DecoderMode.values)
+                                      RadioListTile<DecoderMode>(
+                                        value: m,
+                                        title: Text(m.label),
+                                        subtitle: Text(switch (m) {
+                                          DecoderMode.hw =>
+                                            AppLocalizations.of(context).settingsDecoderHw,
+                                          DecoderMode.sw =>
+                                            AppLocalizations.of(context).settingsDecoderSw,
+                                          _ =>
+                                            AppLocalizations.of(context).settingsDecoderAuto,
+                                        }),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, temp),
-                            child: Text(AppLocalizations.of(context).commonSave),
+                        );
+                        if (picked != null) {
+                          await DecoderModeStore.save(picked);
+                          if (mounted) setState(() => _decoderMode = picked);
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(AppLocalizations.of(context).settingsTakesEffectNextVideo),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.label),
+                    title: Text(AppLocalizations.of(context).settingsOnScreenBadges),
+                    subtitle: Text(
+                      AppLocalizations.of(context).settingsBadgesDesc,
+                    ),
+                    value: _badgeEnabled,
+                    onChanged: (value) async {
+                      await BadgePrefs.setEnabled(value);
+                      if (mounted) setState(() => _badgeEnabled = value);
+                    },
+                  ),
+                  if (_badgeEnabled)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(40, 8, 16, 4),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Format',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          _BadgeToggle(
+                            icon: Icons.high_quality,
+                            label: 'HDR',
+                            subtitle: 'DV / HDR10 / HDR10+ / HLG / SDR',
+                            value: _badgeHdr,
+                            onChanged: (v) async {
+                              await BadgePrefs.setHdr(v);
+                              if (mounted) setState(() => _badgeHdr = v);
+                            },
+                          ),
+                          _BadgeToggle(
+                            icon: Icons.audiotrack,
+                            label: 'Audio codec',
+                            subtitle: 'E-AC3 · 5.1 / DTS-HD · 7.1 / AAC …',
+                            value: _badgeAudio,
+                            onChanged: (v) async {
+                              await BadgePrefs.setAudio(v);
+                              if (mounted) setState(() => _badgeAudio = v);
+                            },
+                          ),
+                          _BadgeToggle(
+                            icon: Icons.videocam,
+                            label: 'Video codec',
+                            subtitle: AppLocalizations.of(context).settingsBadgeVideoCodecDesc,
+                            value: _badgeVideoCodec,
+                            onChanged: (v) async {
+                              await BadgePrefs.setVideoCodec(v);
+                              if (mounted) setState(() => _badgeVideoCodec = v);
+                            },
+                          ),
+                          _BadgeToggle(
+                            icon: Icons.aspect_ratio,
+                            label: 'Resolution',
+                            value: _badgeResolution,
+                            onChanged: (v) async {
+                              await BadgePrefs.setResolution(v);
+                              if (mounted) setState(() => _badgeResolution = v);
+                            },
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(40, 8, 16, 4),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                AppLocalizations.of(context).settingsBadgePlayback,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (defaultTargetPlatform == TargetPlatform.android)
+                            _BadgeToggle(
+                              icon: Icons.spatial_audio,
+                              label: 'Spatial audio',
+                              value: _badgeSpatialAudio,
+                              onChanged: (v) async {
+                                await BadgePrefs.setSpatialAudio(v);
+                                if (mounted) setState(() => _badgeSpatialAudio = v);
+                              },
+                            ),
+                          _BadgeToggle(
+                            icon: Icons.sync,
+                            label: AppLocalizations.of(context).settingsBadgeTranscoding,
+                            value: _badgeServerTranscode,
+                            onChanged: (v) async {
+                              await BadgePrefs.setServerTranscode(v);
+                              if (mounted) setState(() => _badgeServerTranscode = v);
+                            },
+                          ),
+                          _BadgeToggle(
+                            icon: Icons.memory,
+                            label: AppLocalizations.of(context).settingsBadgeDecoder,
+                            subtitle: AppLocalizations.of(context).settingsBadgeDecoderDesc,
+                            value: _badgeDecoder,
+                            onChanged: (v) async {
+                              await BadgePrefs.setDecoder(v);
+                              if (mounted) setState(() => _badgeDecoder = v);
+                            },
                           ),
                         ],
                       ),
-                    );
-                    if (picked != null) {
-                      await PlaybackBoostStore.save(picked);
-                      if (mounted) setState(() => _audioBoost = picked);
-                    }
+                    ),
+                  if (defaultTargetPlatform == TargetPlatform.android) ...[
+                    TvTile(
+                      leading: const Icon(Icons.volume_up),
+                      title: Text(AppLocalizations.of(context).settingsVolumeBoost),
+                      subtitle: Text(
+                        _audioBoost > 1.01
+                            ? '${_audioBoost.toStringAsFixed(1)}× (LoudnessEnhancer)'
+                            : 'Off — 1.0×',
+                      ),
+                      onTap: () async {
+                        double temp = _audioBoost;
+                        final picked = await showDialog<double>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text(AppLocalizations.of(context).playerVolumeBoostTitle),
+                            content: StatefulBuilder(
+                              builder: (context, setD) => Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Slider(
+                                    value: temp.clamp(1.0, 3.0),
+                                    min: 1.0,
+                                    max: 3.0,
+                                    divisions: 20,
+                                    label: '${temp.toStringAsFixed(1)}×',
+                                    onChanged: (v) => setD(
+                                      () =>
+                                          temp = double.parse(v.toStringAsFixed(1)),
+                                    ),
+                                  ),
+                                  Text(
+                                    '${temp.toStringAsFixed(1)}×',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text(AppLocalizations.of(context).commonCancel),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, temp),
+                                child: Text(AppLocalizations.of(context).commonSave),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (picked != null) {
+                          await PlaybackBoostStore.save(picked);
+                          if (mounted) setState(() => _audioBoost = picked);
+                        }
+                      },
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.nights_stay),
+                      title: Text(AppLocalizations.of(context).settingsNightMode),
+                      subtitle: Text(
+                        AppLocalizations.of(context).settingsNightModeDesc,
+                      ),
+                      value: _nightMode,
+                      onChanged: (value) async {
+                        await NightModeStore.save(value);
+                        if (mounted) setState(() => _nightMode = value);
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            // === Audio (Android only) ===
+            if (defaultTargetPlatform == TargetPlatform.android)
+              ExpansionTile(
+                leading: const Icon(Icons.surround_sound),
+                title: Text(AppLocalizations.of(context).settingsAudio),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  SwitchListTile(
+                    secondary: const Icon(Icons.surround_sound),
+                    title: Text(AppLocalizations.of(context).settingsAudioPassthrough),
+                    subtitle: Text(
+                      _passthrough
+                          ? 'Auto — passthrough when HDMI detected'
+                          : 'Off — decode to PCM (default)',
+                    ),
+                    value: _passthrough,
+                    onChanged: (value) async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool(kAudioPassthroughKey, value);
+                      if (mounted) setState(() => _passthrough = value);
+                    },
+                  ),
+                ],
+              ),
+            // === Subtitles ===
+            ExpansionTile(
+              leading: const Icon(Icons.subtitles),
+              title: Text(AppLocalizations.of(context).settingsSubtitles),
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              children: [
+                TvTile(
+                  leading: const Icon(Icons.subtitles),
+                  title: Text(AppLocalizations.of(context).settingsOpensubtitles),
+                  subtitle: Text(
+                    !OpensubtitlesClient.instance.hasApiKey
+                        ? 'Add OPENSUBTITLES_API_KEY in .env and rebuild'
+                        : _osLoggedIn
+                            ? 'Signed in as ${_osUsername ?? ''}${_osRemaining != null ? ' · $_osRemaining remaining' : ''}'
+                            : 'Anonymous — 5/day, sign in for 20/day',
+                  ),
+                  onTap: !OpensubtitlesClient.instance.hasApiKey
+                      ? null
+                      : _osLoggedIn
+                          ? _logoutOpensubtitles
+                          : () async {
+                              if (!await _settingsGate()) return;
+                              if (!mounted) return;
+                              await _loginOpensubtitles();
+                            },
+                ),
+                TvTile(
+                  leading: const Icon(Icons.closed_caption),
+                  title: Text(AppLocalizations.of(context).settingsSubReadingLang),
+                  subtitle: Text(displayNameForNovaCode(_readingLang)),
+                  onTap: () => _pickLanguage(isReading: true),
+                ),
+                TvTile(
+                  leading: const Icon(Icons.download),
+                  title: Text(AppLocalizations.of(context).settingsSubDownloadLang),
+                  subtitle: Text(displayNameForNovaCode(_downloadLang)),
+                  onTap: () async {
+                    if (!await _settingsGate()) return;
+                    if (!mounted) return;
+                    _pickLanguage(isReading: false);
                   },
                 ),
+                TvTile(
+                  leading: const Icon(Icons.text_fields),
+                  title: Text(AppLocalizations.of(context).settingsSubEncoding),
+                  subtitle: Text(displayNameForCodepage(_subEncoding)),
+                  onTap: _pickEncoding,
+                ),
                 SwitchListTile(
-                  secondary: const Icon(Icons.nights_stay),
-                  title: Text(AppLocalizations.of(context).settingsNightMode),
-                  subtitle: Text(
-                    AppLocalizations.of(context).settingsNightModeDesc,
-                  ),
-                  value: _nightMode,
-                  onChanged: (value) async {
-                    await NightModeStore.save(value);
-                    if (mounted) setState(() => _nightMode = value);
+                  secondary: const Icon(Icons.auto_awesome),
+                  title: Text(AppLocalizations.of(context).settingsAutoFetchSubs),
+                  subtitle: Text(AppLocalizations.of(context).settingsAutoDownloadSubs),
+                  value: _autoFetchSubs,
+                  onChanged: (v) async {
+                    if (v && !await _settingsGate()) return;
+                    if (!mounted) return;
+                    await SubtitlePrefs.saveAutoFetch(v);
+                    if (mounted) setState(() => _autoFetchSubs = v);
                   },
                 ),
               ],
-              if (defaultTargetPlatform == TargetPlatform.android)
+            ),
+            // === Metadata ===
+            ExpansionTile(
+              leading: const Icon(Icons.movie),
+              title: Text(AppLocalizations.of(context).settingsMetadata),
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              children: [
+                TvTile(
+                  leading: const Icon(Icons.movie),
+                  title: Text(AppLocalizations.of(context).settingsTmdbApiKey),
+                  subtitle: Text(
+                    _tmdbKey.isEmpty
+                        ? 'Not set — enter your own key'
+                        : 'Set (${_tmdbKey.substring(0, 4)}…${_tmdbKey.substring(_tmdbKey.length - 4)})',
+                  ),
+                  onTap: _editTmdbKey,
+                ),
+              ],
+            ),
+            // === SIMKL ===
+            if (simklClientId.isNotEmpty)
+              ExpansionTile(
+                leading: const Icon(Icons.sync),
+                title: const Text('SIMKL'),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  if (_simklConnected) ...[
+                    TvTile(
+                      leading: const Icon(Icons.sync),
+                      title: Text(AppLocalizations.of(context).settingsSimklSync),
+                      subtitle: Text(
+                        _simklLastSync == null
+                            ? 'Push watched + resume to SIMKL'
+                            : 'Last synced ${_formatWhen(_simklLastSync!)}',
+                      ),
+                      onTap: _syncSimkl,
+                    ),
+                    TvTile(
+                      leading: const Icon(Icons.link_off),
+                      title: Text(AppLocalizations.of(context).settingsSimklDisconnect),
+                      subtitle: Text(AppLocalizations.of(context).settingsSimklSignOut),
+                      onTap: () async {
+                        await SimklClient().signOut();
+                        if (mounted) {
+                          setState(() {
+                            _simklConnected = false;
+                            _simklLastSync = null;
+                          });
+                        }
+                      },
+                    ),
+                  ] else
+                    TvTile(
+                      leading: const Icon(Icons.link),
+                      title: Text(AppLocalizations.of(context).settingsSimklConnect),
+                      subtitle: Text(AppLocalizations.of(context).settingsSimklSyncDesc),
+                      onTap: _connectSimkl,
+                    ),
+                ],
+              ),
+            // === About ===
+            ExpansionTile(
+              leading: const Icon(Icons.info_outline),
+              title: Text(AppLocalizations.of(context).settingsAbout),
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              children: [
                 TvTile(
                   leading: const Icon(Icons.memory),
-                  title: Text(AppLocalizations.of(context).settingsVideoDecoder),
-                  subtitle: Text(switch (_decoderMode) {
-                    DecoderMode.hw => 'Hardware — fastest, HDR passthrough',
-                    DecoderMode.sw => 'Software — compatibility fallback',
-                    _ => 'Auto — hardware when available',
-                  }),
-                  onTap: () async {
-                    final picked = await showDialog<DecoderMode>(
-                      context: context,
-                      builder: (context) => SimpleDialog(
-                        title: Text(AppLocalizations.of(context).playerVideoDecoder),
-                        children: [
-                          RadioGroup<DecoderMode>(
-                            groupValue: _decoderMode,
-                            onChanged: (v) => Navigator.of(context).pop(v),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                for (final m in DecoderMode.values)
-                                  RadioListTile<DecoderMode>(
-                                    value: m,
-                                    title: Text(m.label),
-                                    subtitle: Text(switch (m) {
-                                      DecoderMode.hw =>
-                                        AppLocalizations.of(context).settingsDecoderHw,
-                                      DecoderMode.sw =>
-                                        AppLocalizations.of(context).settingsDecoderSw,
-                                      _ =>
-                                        AppLocalizations.of(context).settingsDecoderAuto,
-                                    }),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
+                  title: Text(AppLocalizations.of(context).settingsEngine),
+                  subtitle: Text(
+                    defaultTargetPlatform == TargetPlatform.iOS
+                        ? 'AetherEngine (AVPlayer + FFmpeg)'
+                        : 'ExoPlayer (Media3) + FFmpeg',
+                  ),
+                ),
+                TvTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(AppLocalizations.of(context).settingsVersion),
+                  subtitle: FutureBuilder<String>(
+                    future: _loadVersion(),
+                    builder: (context, snapshot) =>
+                        Text(snapshot.hasData ? snapshot.data! : '…'),
+                  ),
+                ),
+                TvTile(
+                  leading: const Icon(Icons.gavel),
+                  title: Text(AppLocalizations.of(context).settingsOpenLicenses),
+                  subtitle: Text(AppLocalizations.of(context).settingsGnuGpl),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const LicensesScreen(),
                       ),
                     );
-                    if (picked != null) {
-                      await DecoderModeStore.save(picked);
-                      if (mounted) setState(() => _decoderMode = picked);
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(AppLocalizations.of(context).settingsTakesEffectNextVideo),
-                        ),
-                      );
-                    }
                   },
                 ),
-            ],
-            // Subtitles — OpenSubtitles (Nova-style): anonymous 5/day, free login 20/day
-            const Divider(),
-            Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(AppLocalizations.of(context).settingsMetadata, style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 12)),
+              ],
             ),
-            TvTile(
-              leading: const Icon(Icons.movie),
-              title: Text(AppLocalizations.of(context).settingsTmdbApiKey),
-              subtitle: Text(
-                _tmdbKey.isEmpty
-                    ? 'Not set — enter your own key'
-                    : 'Set (${_tmdbKey.substring(0, 4)}…${_tmdbKey.substring(_tmdbKey.length - 4)})',
-              ),
-              onTap: _editTmdbKey,
-            ),
-            const Divider(),
-            Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(AppLocalizations.of(context).settingsSubtitles, style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.w600, fontSize: 12)),
-            ),
-            TvTile(
-              leading: const Icon(Icons.subtitles),
-              title: Text(AppLocalizations.of(context).settingsOpensubtitles),
-              subtitle: Text(
-                !OpensubtitlesClient.instance.hasApiKey
-                    ? 'Add OPENSUBTITLES_API_KEY in .env and rebuild'
-                    : _osLoggedIn
-                        ? 'Signed in as ${_osUsername ?? ''}${_osRemaining != null ? ' · $_osRemaining remaining' : ''}'
-                        : 'Anonymous — 5/day, sign in for 20/day',
-              ),
-              onTap: !OpensubtitlesClient.instance.hasApiKey
-                  ? null
-                  : _osLoggedIn
-                      ? _logoutOpensubtitles
-                      // Signing in is the entry to the online-subtitle
-                      // feature (#37, choice-gated) — gate it like the player
-                      // sheet's "Search online subtitles".
-                      : () async {
-                          if (!await _settingsGate()) return;
-                          if (!mounted) return;
-                          await _loginOpensubtitles();
-                        },
-            ),
-            TvTile(
-              leading: const Icon(Icons.closed_caption),
-              title: Text(AppLocalizations.of(context).settingsSubReadingLang),
-              subtitle: Text(displayNameForNovaCode(_readingLang)),
-              onTap: () => _pickLanguage(isReading: true),
-            ),
-            TvTile(
-              leading: const Icon(Icons.download),
-              title: Text(AppLocalizations.of(context).settingsSubDownloadLang),
-              subtitle: Text(displayNameForNovaCode(_downloadLang)),
-              // #37 — what gets downloaded online is gated; reading language is free.
-              onTap: () async {
-                if (!await _settingsGate()) return;
-                if (!mounted) return;
-                _pickLanguage(isReading: false);
-              },
-            ),
-            TvTile(
-              leading: const Icon(Icons.text_fields),
-              title: Text(AppLocalizations.of(context).settingsSubEncoding),
-              subtitle: Text(displayNameForCodepage(_subEncoding)),
-              onTap: _pickEncoding,
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.auto_awesome),
-              title: Text(AppLocalizations.of(context).settingsAutoFetchSubs),
-              subtitle: Text(AppLocalizations.of(context).settingsAutoDownloadSubs),
-              value: _autoFetchSubs,
-              onChanged: (v) async {
-                // #37 — auto-downloading online subtitles is the gated search
-                // feature in automatic form. Disabling is always free.
-                if (v && !await _settingsGate()) return;
-                if (!mounted) return;
-                await SubtitlePrefs.saveAutoFetch(v);
-                if (mounted) setState(() => _autoFetchSubs = v);
-              },
-            ),
-            if (simklClientId.isNotEmpty) ...[
-              const Divider(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  'SIMKL',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (_simklConnected) ...[
-                TvTile(
-                  leading: const Icon(Icons.sync),
-                  title: Text(AppLocalizations.of(context).settingsSimklSync),
-                  subtitle: Text(
-                    _simklLastSync == null
-                        ? 'Push watched + resume to SIMKL'
-                        : 'Last synced ${_formatWhen(_simklLastSync!)}',
-                  ),
-                  onTap: _syncSimkl,
-                ),
-                TvTile(
-                  leading: const Icon(Icons.link_off),
-                  title: Text(AppLocalizations.of(context).settingsSimklDisconnect),
-                  subtitle: Text(AppLocalizations.of(context).settingsSimklSignOut),
-                  onTap: () async {
-                    await SimklClient().signOut();
-                    if (mounted) {
-                      setState(() {
-                        _simklConnected = false;
-                        _simklLastSync = null;
-                      });
-                    }
-                  },
-                ),
-              ] else
-                TvTile(
-                  leading: const Icon(Icons.link),
-                  title: Text(AppLocalizations.of(context).settingsSimklConnect),
-                  subtitle: Text(AppLocalizations.of(context).settingsSimklSyncDesc),
-                  onTap: _connectSimkl,
-                ),
-            ],
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                AppLocalizations.of(context).settingsAbout,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TvTile(
-              leading: const Icon(Icons.memory),
-              title: Text(AppLocalizations.of(context).settingsEngine),
-              subtitle: Text(
-                defaultTargetPlatform == TargetPlatform.iOS
-                    ? 'AetherEngine (AVPlayer + FFmpeg)'
-                    : 'ExoPlayer (Media3) + FFmpeg',
-              ),
-            ),
-            TvTile(
-              leading: const Icon(Icons.info_outline),
-              title: Text(AppLocalizations.of(context).settingsVersion),
-              subtitle: FutureBuilder<String>(
-                future: _loadVersion(),
-                builder: (context, snapshot) =>
-                    Text(snapshot.hasData ? snapshot.data! : '…'),
-              ),
-            ),
-            TvTile(
-              leading: const Icon(Icons.gavel),
-              title: Text(AppLocalizations.of(context).settingsOpenLicenses),
-              subtitle: Text(AppLocalizations.of(context).settingsGnuGpl),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const LicensesScreen(),
-                  ),
-                );
-              },
-            ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                'FAQ',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+            // === FAQ ===
             if (defaultTargetPlatform == TargetPlatform.android)
               _FaqTile(
                 icon: Icons.play_circle_outline,

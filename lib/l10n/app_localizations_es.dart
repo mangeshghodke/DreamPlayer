@@ -1640,4 +1640,35 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get settingsDownloadFolder => 'Carpeta de descargas';
+
+  @override
+  String get homeClearAll => 'Clear all';
+
+  @override
+  String get homeClearLibrary => 'Clear library';
+
+  @override
+  String get homeClearLibraryDesc =>
+      'Remove all folder cards from the home screen';
+
+  @override
+  String get homeClearLibraryTitle => 'Clear library?';
+
+  @override
+  String get homeClearLibraryContent =>
+      'All library folders will be removed. The files stay on your device.';
+
+  @override
+  String get homeClearContinueWatching => 'Clear continue watching';
+
+  @override
+  String get homeClearContinueWatchingDesc =>
+      'Remove all continue watching cards';
+
+  @override
+  String get homeClearContinueWatchingTitle => 'Clear continue watching?';
+
+  @override
+  String get homeClearContinueWatchingContent =>
+      'All continue watching entries will be removed.';
 }

@@ -369,12 +369,21 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     if (meta == null || meta.movie.kind != TmdKind.tv) return;
     final service = TmdService.instance;
 
-    // Collect all unique folderSeason values across the group — each folder
-    // maps to a different TMDB season (e.g. "Strike the Blood II" → Season 2).
+    // Collect all unique season numbers needed:
+    // 1. From folderSeason values (e.g. "Strike the Blood II" → Season 2).
+    // 2. From entry filenames (e.g. "House.S02E04..." → season 2).
     final seasonsNeeded = <int>{};
     for (final f in _folders) {
       if (f.folderSeason != null && f.folderSeason! > 0) {
         seasonsNeeded.add(f.folderSeason!);
+      }
+      // Also scan filenames to discover seasons when folderSeason is null.
+      if (f.folderSeason == null || f.folderSeason! <= 0) {
+        for (final e in f.entries) {
+          if (_isFolder(e)) continue;
+          final s = _seasonOf(e);
+          if (s > 0) seasonsNeeded.add(s);
+        }
       }
     }
     // Always fetch at least season 1 for anime bracket numbering ([01]/[02]).
@@ -1005,8 +1014,8 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                       durationMs: _durationsMs[_resumeKeyFor(entry) ?? ''],
                       watched:
                           _watchedKeys.contains(_resumeKeyFor(entry) ?? ''),
-                      seasonNumber: 0,
-                      episode: null,
+                      seasonNumber: _seasonOf(entry),
+                      episode: _episodeFor(entry),
                       onTap: () => _openEntry(entry),
                       onToggleWatched: () => _toggleWatched(entry),
                     ),

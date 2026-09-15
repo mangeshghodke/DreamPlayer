@@ -2263,7 +2263,10 @@ class TmdService extends ChangeNotifier {
     debugPrint('TMDB seasonFor($identityKey,$seasonNumber) cached=${cached != null} hasSeason=${cached?.seasons[seasonNumber]?.posterPath != null}');
     if (cached == null || cached.movie.kind != TmdKind.tv) return null;
     final already = cached.seasons[seasonNumber];
-    if (already != null) return already;
+    // A season may exist with only a poster/name (from the show-details
+    // endpoint) but no episodes.  Only short-circuit when episodes are
+    // actually present — otherwise we must fetch the per-season endpoint.
+    if (already != null && already.episodes.isNotEmpty) return already;
     final pendingKey = '$identityKey#s$seasonNumber';
     if (_pendingDetail.contains(pendingKey)) return null;
 

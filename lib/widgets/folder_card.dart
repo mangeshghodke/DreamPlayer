@@ -4,14 +4,10 @@ import 'package:flutter/material.dart';
 import 'cached_image.dart';
 import 'package:flutter/services.dart';
 
-import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
-import '../services/watched_store.dart';
-import '../utils/season_group.dart' as sg;
 import '../utils/tv_helper.dart';
-import 'season_progress_ring.dart';
 
 /// Library card for a user-added folder. Shows the folder's TMDB match (poster
 /// art, real title, year, TV/Movie chip) when one resolves, otherwise the
@@ -61,115 +57,15 @@ class _FolderCardState extends State<FolderCard> {
   Timer? _holdTimer;
   bool _longPressFired = false;
 
-  int? _seasonWatched;
-  int? _seasonTotal;
-  int? _seasonNumber;
-
   @override
   void initState() {
     super.initState();
     _focusNode.onKeyEvent = _handleKeyEvent;
-    _loadSeasonProgress();
   }
 
   @override
   void didUpdateWidget(FolderCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.folder.id != widget.folder.id ||
-        oldWidget.tmdbMeta != widget.tmdbMeta ||
-        oldWidget.jellyfinInfo != widget.jellyfinInfo) {
-      _loadSeasonProgress();
-    }
-  }
-
-  bool get _isShow {
-    final meta = widget.tmdbMeta;
-    if (meta != null) return meta.movie.kind == TmdKind.tv;
-    final info = widget.jellyfinInfo;
-    if (info != null) return info.isTv;
-    return false;
-  }
-
-  Future<void> _loadSeasonProgress() async {
-    if (!_isShow) return;
-    try {
-      final folder = widget.folder;
-      final watchedKeys = await WatchedStore.load();
-      if (folder.isJellyfin) {
-        final client = JellyfinClient();
-        final server = await client.serverForUrl(folder.jellyfinServerUrl ?? '');
-        if (server == null || !server.isAuthenticated) return;
-        final items = await client.getItems(server, folder.jellyfinItemId ?? '');
-        final playables = items.where((i) => i.isPlayable).toList();
-        if (playables.isEmpty) return;
-        final episodes = playables
-            .where((i) => i.parentIndexNumber != null && i.indexNumber != null)
-            .toList();
-        final List<dynamic> source = episodes.isNotEmpty ? episodes : playables;
-        // Group if episodes, else treat as single season 1.
-        Map<int, List<dynamic>> grouped;
-        if (episodes.isNotEmpty) {
-          grouped = sg.groupBySeason<dynamic>(
-            episodes,
-            (e) => (e as JellyfinItem).parentIndexNumber ?? 0,
-            (e) => (e as JellyfinItem).indexNumber ?? 0,
-          );
-        } else {
-          grouped = {1: source};
-        }
-        if (grouped.isEmpty) return;
-        final season = grouped.keys.reduce((a, b) => a < b ? a : b);
-        final list = grouped[season]!;
-        final watched = sg.watchedCount<dynamic>(
-          list,
-          watchedKeys,
-          (e) {
-            final item = e as JellyfinItem;
-            return client.videoItem(server, item).resumeKey;
-          },
-        );
-        if (!mounted) return;
-        setState(() {
-          _seasonNumber = season;
-          _seasonWatched = watched;
-          _seasonTotal = list.length;
-        });
-      } else {
-        final entries =
-            await FileBrowserService.instance.listDirectory(folder.path);
-        final videos = entries.where((e) => !e.isDirectory).toList();
-        if (videos.isEmpty) return;
-        final episodes = videos
-            .where((e) => ParsedFileName.parse(e.name).isEpisode)
-            .toList();
-        final List<FileEntry> source =
-            episodes.isNotEmpty ? episodes : videos;
-        Map<int, List<FileEntry>> grouped;
-        if (episodes.isNotEmpty) {
-          grouped = sg.groupBySeason<FileEntry>(
-            episodes,
-            (e) => ParsedFileName.parse(e.name).season,
-            (e) => ParsedFileName.parse(e.name).episode,
-          );
-        } else {
-          grouped = {1: source};
-        }
-        if (grouped.isEmpty) return;
-        final season = grouped.keys.reduce((a, b) => a < b ? a : b);
-        final list = grouped[season]!;
-        final watched = sg.watchedCount<FileEntry>(
-          list,
-          watchedKeys,
-          (e) => e.resumeKey,
-        );
-        if (!mounted) return;
-        setState(() {
-          _seasonNumber = season;
-          _seasonWatched = watched;
-          _seasonTotal = list.length;
-        });
-      }
-    } catch (_) {}
   }
 
   @override
@@ -425,53 +321,6 @@ class _FolderCardState extends State<FolderCard> {
                               child: _FolderBadge(
                                 label: _formatFileSize(folder.videoSizeBytes),
                                 background: const Color(0xFF455A64),
-                              ),
-                            )
-                          else if (_isShow &&
-                              _seasonWatched != null &&
-                              _seasonTotal != null &&
-                              _seasonTotal! > 0)
-                            Positioned(
-                              bottom: 8,
-                              right: 8,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.55),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: SeasonProgressRing(
-                                  watched: _seasonWatched!,
-                                  total: _seasonTotal!,
-                                  size: 32,
-                                  strokeWidth: 2.5,
-                                ),
-                              ),
-                            ),
-                          if (_isShow &&
-                              _seasonWatched != null &&
-                              _seasonTotal != null &&
-                              _seasonNumber != null &&
-                              _seasonTotal! > 0)
-                            Positioned(
-                              bottom: 8,
-                              left: 8,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.6),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  sg.seasonBadge(_seasonNumber!,
-                                      _seasonWatched!, _seasonTotal!),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
                               ),
                             ),
                         ],

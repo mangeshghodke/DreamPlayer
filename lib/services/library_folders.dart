@@ -245,6 +245,12 @@ class LibraryFoldersStore {
     changes.notify();
   }
 
+  static Future<void> clearAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
+    changes.notify();
+  }
+
   /// Whether the auto-expand-folders feature is enabled (default `true`).
   static Future<bool> isAutoExpandEnabled() async {
     final prefs = await SharedPreferences.getInstance();
