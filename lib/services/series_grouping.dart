@@ -184,9 +184,13 @@ class SeriesGroupingService {
 
         final shared = shortCompact.length;
         final extra = longCompact.length - shared;
-        // Require shared prefix ≥ extra chars AND ≥ 6 chars minimum to
-        // avoid merging very short names or false positives.
-        if (shared < extra || shared < 6) continue;
+        // Require the shared prefix to be substantial (≥ 10 chars) and the
+        // extra suffix to be at least as long as the prefix.  This catches
+        // real franchises like "Strike the Blood" (15) +
+        // "Strike the Blood Kieta Seisou Hen" (30, extra 15 ≥ 15) while
+        // keeping "Kakegurui" (9) + "Kakegurui Twin" (extra 4 < 9) and
+        // "House" (5) + "House of Cards" (shared < 10) separate.
+        if (shared < 10 || extra < shared) continue;
 
         // Merge long into short (short is the canonical group).
         shortGroup.folders.addAll(longGroup.folders);

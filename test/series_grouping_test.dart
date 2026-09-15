@@ -106,12 +106,12 @@ void main() {
         _folder('Strike the Blood Kieta Seisou Hen'),
       ];
       final groups = service.group(folders);
-      // bare + II + III + IV + Final all collapse → 1 group
-      // "Kieta Seisou Hen" strips to "strike the blood kieta seizou hen" → separate
-      expect(groups, hasLength(2));
-      // The main group should have 5 folders (bare + II + III + IV + Final)
-      final mainGroup = groups.firstWhere((g) => g.folders.length == 5);
-      expect(mainGroup.displayName, 'Strike the Blood');
+      // All six collapse into one group: roman numerals + "Final" are
+      // stripped by baseNameOf, and "Kieta Seisou Hen" merges via the
+      // prefix fallback (shared 15 ≥ extra 15).
+      expect(groups, hasLength(1));
+      expect(groups.first.folders, hasLength(6));
+      expect(groups.first.displayName, 'Strike the Blood');
     });
 
     test('different series stay in separate groups', () {
