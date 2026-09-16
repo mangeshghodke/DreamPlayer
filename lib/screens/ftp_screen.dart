@@ -3,6 +3,7 @@ import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
+import '../services/folder_scanner.dart';
 import '../services/ftp_client.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
@@ -33,6 +34,16 @@ class _FtpScreenState extends State<FtpScreen> {
   static final _epPattern = RegExp(
       r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
       caseSensitive: false);
+
+  /// Whether [old] is a child of [root] in the FTP path hierarchy.
+  static bool _isChildOfRoot(LibraryFolder old, LibraryFolder root) {
+    if (old.source != LibraryFolderSource.ftp) return false;
+    if (old.networkServerId != root.networkServerId) return false;
+    final rootNp = root.networkPath ?? '';
+    final oldNp = old.networkPath ?? '';
+    if (rootNp.isEmpty || rootNp == '/') return oldNp.isNotEmpty && oldNp != '/';
+    return oldNp.startsWith('$rootNp/') && oldNp.length > rootNp.length + 1;
+  }
 
   List<FtpServer> _servers = const [];
   FtpServer? _browsing;
@@ -334,41 +345,30 @@ class _FtpScreenState extends State<FtpScreen> {
 
     final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
     if (autoExpand && _entries.isNotEmpty) {
-      final parentId = id;
-      final expanded = <LibraryFolder>[];
-      for (final entry in _entries) {
-        final childId = '${parentId}_${entry.name.hashCode}';
-        final childPath = '$cleanPath/${entry.name}';
-        if (entry.isDirectory) {
-          expanded.add(LibraryFolder(
-            id: childId,
-            name: entry.name,
-            path: 'ftp:${server.id}$childPath',
-            addedAt: DateTime.now(),
-            source: LibraryFolderSource.ftp,
-            networkServerId: server.id,
-            networkPath: childPath,
-            networkLabel: server.name,
-            parentId: parentId,
-            yearHint: ParsedFileName.yearFromNames([entry.name]),
-          ));
-        } else if (_isVideoFile(entry.name)) {
-          expanded.add(LibraryFolder(
-            id: childId,
-            name: entry.name,
-            path: 'ftp:${server.id}$childPath',
-            addedAt: DateTime.now(),
-            source: LibraryFolderSource.ftp,
-            networkServerId: server.id,
-            networkPath: childPath,
-            networkLabel: server.name,
-            parentId: parentId,
-            isFile: true,
-            videoSizeBytes: entry.size > 0 ? entry.size : null,
-          ));
-        }
-      }
+      // Deep scan: recursively traverse subdirectories (up to 5 levels).
+      final rootFolder = LibraryFolder(
+        id: id,
+        name: folderName,
+        path: 'ftp:${server.id}$cleanPath',
+        addedAt: DateTime.now(),
+        source: LibraryFolderSource.ftp,
+        networkServerId: server.id,
+        networkPath: cleanPath,
+        networkLabel: server.name,
+      );
+      final scanDepth = await FolderScanner.savedScanDepth();
+      final scanner = FolderScanner(maxDepth: scanDepth);
+      final expanded = await scanner.scan(rootFolder);
       if (expanded.isNotEmpty) {
+        final expandedNames = expanded.map((e) => e.name).toSet();
+        final existing = await LibraryFoldersStore.load();
+        for (final old in existing) {
+          if (old.parentId == id ||
+              expandedNames.contains(old.name) ||
+              _isChildOfRoot(old, rootFolder)) {
+            await LibraryFoldersStore.remove(old.id);
+          }
+        }
         await LibraryFoldersStore.bulkAdd(expanded);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -409,25 +409,6 @@ class _FtpScreenState extends State<FtpScreen> {
         ),
       );
     }
-  }
-
-  static bool _isVideoFile(String name) {
-    final lower = name.toLowerCase();
-    return lower.endsWith('.mkv') ||
-        lower.endsWith('.mp4') ||
-        lower.endsWith('.avi') ||
-        lower.endsWith('.webm') ||
-        lower.endsWith('.mov') ||
-        lower.endsWith('.ts') ||
-        lower.endsWith('.m2ts') ||
-        lower.endsWith('.wmv') ||
-        lower.endsWith('.flv') ||
-        lower.endsWith('.ogv') ||
-        lower.endsWith('.rmvb') ||
-        lower.endsWith('.mpg') ||
-        lower.endsWith('.mpeg') ||
-        lower.endsWith('.vob') ||
-        lower.endsWith('.3gp');
   }
 
   Future<void> _goUp() async {

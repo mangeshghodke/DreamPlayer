@@ -3,6 +3,52 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.4.7
+
+Bug-fix and parity release. Network folder bookmarks now expand recursively (up
+to 5 levels deep) with correct leaf-vs-container logic, the TMDB details
+screen can browse and play files from WebDAV/FTP/UPnP bookmarked folders, and
+the stale SMB container dedup is fixed.
+
+### Fixed
+
+- **Deep recursive folder scanner** (`lib/services/folder_scanner.dart`, new)
+  — all six sources (local, SMB, WebDAV, FTP, UPnP, Jellyfin) now scan up to
+  5 levels deep when a folder is bookmarked to Home. Leaf folders (videos, no
+  subdirs) become single library entries; mixed containers (subdirs + loose
+  files) expand into individual cards so files like `lanterns s01e05.mkv`
+  aren't hidden behind a parent `TV Shows` card.
+- **Stale SMB container dedup fixed** — old `_isChildOfRoot` used
+  `networkPrefix` which failed when the root folder was at the share root
+  (empty `networkPath`). Refactored to a static `_isChildOfRoot` helper that
+  checks `networkShare` equality + hierarchy for SMB, and `networkServerId` +
+  `networkPath` hierarchy for WebDAV/FTP/UPnP. The stale `TV Shows` card
+  (relative path, wrong share prefix) no longer survives a re-bookmark.
+- **`bulkAdd` path dedup** — `LibraryFoldersStore.bulkAdd` now deduplicates
+  by `(source, networkPath)` in addition to `id`, so manually-bookmarked
+  entries for the same location are replaced by the new scanner entries.
+- **`baseNameOf` noise list expanded** — added `10bit`, `8bit`, `aac`, `dts`,
+  `flac`, `english`, `multi`, `dual`, `japanese`, `hindi`, `korean`, `bdrip`,
+  `panda`, `subs`, `raw`, `internal`, `uncensored`; audio channel regex
+  `(?<!\w)\d+\.\d+(?!\w)` strips `5.1`/`7.1` suffixes so "Strike the Blood
+  Final" no longer leaves trailing noise.
+- **`_nameOf` trailing-slash strip** — SMB directory entries return names
+  with trailing `/`; `series_seasons_screen.dart` and `folder_scanner.dart`
+  both strip it via `replaceAll(RegExp(r'/+$'), '')`.
+- **`Miscellaneous` folder no longer hides file list** — `_isMovieFolder` in
+  `TmdDetailsScreen` now returns `false` when `videoCount > 1`, so multi-file
+  folders show their entries instead of a single Play button.
+- **`TmdDetailsScreen` folder browsing for all network sources** —
+  `_loadFolderEntries` now lists WebDAV (`WebDavClient`), FTP (`FtpClient`),
+  and UPnP (`UpnpClient`) folders (was SMB + local only). Tapping a
+  bookmarked network folder from Home now shows its file list with TMDB posters.
+- **`_openFolderEntry` / `_toVideoItem` parity** — subfolder navigation and
+  video-item construction now handle all five source types (SMB, WebDAV, FTP,
+  UPnP, local) with correct `path`, `resumeKey`, and `id` prefixes.
+- **Lint fixes** — `_nameOf` in `series_seasons_screen.dart` and
+  `folder_scanner.dart` converted from `if/else if` chains to `switch`
+  expressions; `seasonNameMapFor_debug` renamed to `seasonNameMapForDebug`.
+
 ## 0.4.6
 
 Bug-fix release. Season artwork now consistently displays across all views:

@@ -7,8 +7,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/hdr_format.dart';
 import '../models/video_item.dart';
 import '../services/file_browser.dart';
+import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
+import '../services/upnp_client.dart';
+import '../services/webdav_client.dart';
 import '../services/media_probe.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/resume_store.dart';
@@ -407,8 +410,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// movie; when it matched a TV show it is always false. With no match, a
   /// flat folder of standalone videos (and no episodes/subfolders) is treated
   /// as a movie so a keyless/offline build still plays it.
+  /// Exception: folders with multiple video files (e.g. Miscellaneous with
+  /// random test files) are never movie folders — they must show the file list.
   bool get _isMovieFolder {
     if (widget.folder == null || widget.folder!.isJellyfin) return false;
+    final videoCount = _entries.where((e) => !e.isDirectory).length;
+    if (videoCount > 1) return false;
     final kind = _meta?.movie.kind;
     if (kind == TmdKind.movie) return true;
     if (kind == TmdKind.tv) return false;
@@ -583,6 +590,105 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         if (!mounted) return;
         setState(() {
           _folderError = e.message ?? 'Could not list SMB folder';
+        });
+      }
+      return;
+    }
+    // WebDAV folder listing
+    if (folder.source == LibraryFolderSource.webdav) {
+      try {
+        final rawEntries = await WebDavClient.instance.listDirectory(
+          folder.networkServerId ?? '',
+          folder.networkPath ?? '',
+        );
+        if (!mounted) return;
+        final entries = rawEntries.map((e) {
+          return FileEntry(
+            name: e.name,
+            path: e.path,
+            isDirectory: e.isDirectory,
+            size: e.size,
+          );
+        }).toList();
+        setState(() {
+          _entries = entries;
+          _folderError = null;
+        });
+        _refreshWatched();
+        for (final entry in entries) {
+          if (entry.isDirectory) continue;
+          _service.resolve(_toVideoItem(entry)).catchError((_) => null);
+        }
+      } on PlatformException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _folderError = e.message ?? 'Could not list WebDAV folder';
+        });
+      }
+      return;
+    }
+    // FTP folder listing
+    if (folder.source == LibraryFolderSource.ftp) {
+      try {
+        final rawEntries = await FtpClient.instance.listDirectory(
+          folder.networkServerId ?? '',
+          folder.networkPath ?? '',
+        );
+        if (!mounted) return;
+        final entries = rawEntries.map((e) {
+          return FileEntry(
+            name: e.name,
+            path: e.path,
+            isDirectory: e.isDirectory,
+            size: e.size,
+          );
+        }).toList();
+        setState(() {
+          _entries = entries;
+          _folderError = null;
+        });
+        _refreshWatched();
+        for (final entry in entries) {
+          if (entry.isDirectory) continue;
+          _service.resolve(_toVideoItem(entry)).catchError((_) => null);
+        }
+      } on PlatformException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _folderError = e.message ?? 'Could not list FTP folder';
+        });
+      }
+      return;
+    }
+    // UPnP/DLNA folder listing
+    if (folder.source == LibraryFolderSource.upnp) {
+      try {
+        final rawEntries = await UpnpClient.instance.browse(
+          folder.networkServerId ?? '',
+          folder.networkPath ?? '',
+        );
+        if (!mounted) return;
+        final entries = rawEntries.map((e) {
+          return FileEntry(
+            name: e.name,
+            path: e.id,
+            isDirectory: e.isDirectory,
+            size: 0,
+          );
+        }).toList();
+        setState(() {
+          _entries = entries;
+          _folderError = null;
+        });
+        _refreshWatched();
+        for (final entry in entries) {
+          if (entry.isDirectory) continue;
+          _service.resolve(_toVideoItem(entry)).catchError((_) => null);
+        }
+      } on PlatformException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _folderError = e.message ?? 'Could not list DLNA folder';
         });
       }
       return;
@@ -1167,19 +1273,15 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// standalone movies must resolve their own title.
   Future<void> _openFolderEntry(FileEntry entry) async {
     if (entry.isDirectory) {
-      final isSmb = widget.folder?.source == LibraryFolderSource.smb;
-      String subNetworkPath = entry.path;
-      if (!subNetworkPath.startsWith('/')) {
-        final parentPath = widget.folder?.networkPath ?? '';
-        subNetworkPath = '$parentPath/${entry.path}'.replaceAll('//', '/');
-      }
-      String subLocalPath = entry.path;
-      if (!subLocalPath.startsWith('/')) {
-        final parentPath = widget.folder?.path ?? '';
-        subLocalPath = '$parentPath/${entry.path}'.replaceAll('//', '/');
-      }
-      final subFolder = isSmb
-          ? LibraryFolder(
+      final src = widget.folder?.source ?? LibraryFolderSource.files;
+      final subFolder = switch (src) {
+        LibraryFolderSource.smb => () {
+            String subNetworkPath = entry.path;
+            if (!subNetworkPath.startsWith('/')) {
+              final parentPath = widget.folder?.networkPath ?? '';
+              subNetworkPath = '$parentPath/${entry.path}'.replaceAll('//', '/');
+            }
+            return LibraryFolder(
               id: '${widget.folder!.id}_${entry.name.hashCode}',
               name: entry.name,
               path: 'smb://${widget.folder!.networkShare}/$subNetworkPath',
@@ -1188,14 +1290,71 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
               networkServerId: widget.folder!.networkServerId,
               networkShare: widget.folder!.networkShare,
               networkPath: subNetworkPath,
-            )
-          : LibraryFolder(
+            );
+          }(),
+        LibraryFolderSource.webdav => () {
+            final parentPath = widget.folder?.networkPath ?? '';
+            final subPath = entry.path.startsWith('/')
+                ? entry.path
+                : '$parentPath/${entry.path}'.replaceAll('//', '/');
+            return LibraryFolder(
+              id: '${widget.folder!.id}_${entry.name.hashCode}',
+              name: entry.name,
+              path: 'webdav:${widget.folder!.networkServerId}$subPath',
+              addedAt: widget.folder!.addedAt,
+              source: LibraryFolderSource.webdav,
+              networkServerId: widget.folder!.networkServerId,
+              networkPath: subPath,
+              networkLabel: widget.folder!.networkLabel,
+            );
+          }(),
+        LibraryFolderSource.ftp => () {
+            final parentPath = widget.folder?.networkPath ?? '';
+            final subPath = entry.path.startsWith('/')
+                ? entry.path
+                : '$parentPath/${entry.path}'.replaceAll('//', '/');
+            return LibraryFolder(
+              id: '${widget.folder!.id}_${entry.name.hashCode}',
+              name: entry.name,
+              path: 'ftp:${widget.folder!.networkServerId}$subPath',
+              addedAt: widget.folder!.addedAt,
+              source: LibraryFolderSource.ftp,
+              networkServerId: widget.folder!.networkServerId,
+              networkPath: subPath,
+              networkLabel: widget.folder!.networkLabel,
+            );
+          }(),
+        LibraryFolderSource.upnp => () {
+            final parentPath = widget.folder?.networkPath ?? '';
+            final subId = entry.path;
+            final subPath = subId.startsWith('0')
+                ? subId
+                : '$parentPath/$subId'.replaceAll('//', '/');
+            return LibraryFolder(
+              id: '${widget.folder!.id}_${entry.name.hashCode}',
+              name: entry.name,
+              path: 'upnp:${widget.folder!.networkServerId}$subPath',
+              addedAt: widget.folder!.addedAt,
+              source: LibraryFolderSource.upnp,
+              networkServerId: widget.folder!.networkServerId,
+              networkPath: subPath,
+            );
+          }(),
+        _ => () {
+            String subLocalPath = entry.path;
+            if (!subLocalPath.startsWith('/')) {
+              final parentPath = widget.folder?.path ?? '';
+              subLocalPath = '$parentPath/${entry.path}'.replaceAll('//', '/');
+            }
+            return LibraryFolder(
               id: '${widget.folder!.id}_${entry.name.hashCode}',
               name: entry.name,
               path: subLocalPath,
               addedAt: widget.folder!.addedAt,
-              source: widget.folder?.source ?? LibraryFolderSource.files,
+              source: src,
             );
+          }(),
+      };
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => TmdDetailsScreen(folder: subFolder),
@@ -1254,6 +1413,65 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         // native server id whose saved credentials SmbStore resolves. Omitting
         // it (as `smb://<share>/<path>`) makes both engines fail to open.
         path: 'smb://$serverId/$share/$relPath',
+        resumeKey: resumeKey,
+        duration: Duration.zero,
+        sizeBytes: entry.size,
+        videoCodec: info.videoCodec,
+        audioCodec: info.audioCodec,
+        audioChannels: info.audioChannels,
+        audioLanguage: info.audioLanguage,
+        resolution: info.resolution,
+        fps: info.fps,
+        hdrHint: info.hdrHint,
+      );
+    }
+    if (widget.folder?.source == LibraryFolderSource.webdav) {
+      final serverId = widget.folder!.networkServerId ?? '';
+      final relPath = entry.path.replaceAll('//', '/');
+      final resumeKey = 'webdav:$serverId$relPath';
+      return VideoItem(
+        id: 'webdav_${widget.folder!.id}_${entry.path.hashCode}',
+        title: entry.name,
+        path: 'webdav://$serverId$relPath',
+        resumeKey: resumeKey,
+        duration: Duration.zero,
+        sizeBytes: entry.size,
+        videoCodec: info.videoCodec,
+        audioCodec: info.audioCodec,
+        audioChannels: info.audioChannels,
+        audioLanguage: info.audioLanguage,
+        resolution: info.resolution,
+        fps: info.fps,
+        hdrHint: info.hdrHint,
+      );
+    }
+    if (widget.folder?.source == LibraryFolderSource.ftp) {
+      final serverId = widget.folder!.networkServerId ?? '';
+      final relPath = entry.path.replaceAll('//', '/');
+      final resumeKey = 'ftp:$serverId$relPath';
+      return VideoItem(
+        id: 'ftp_${widget.folder!.id}_${entry.path.hashCode}',
+        title: entry.name,
+        path: 'ftp://$serverId$relPath',
+        resumeKey: resumeKey,
+        duration: Duration.zero,
+        sizeBytes: entry.size,
+        videoCodec: info.videoCodec,
+        audioCodec: info.audioCodec,
+        audioChannels: info.audioChannels,
+        audioLanguage: info.audioLanguage,
+        resolution: info.resolution,
+        fps: info.fps,
+        hdrHint: info.hdrHint,
+      );
+    }
+    if (widget.folder?.source == LibraryFolderSource.upnp) {
+      final serverId = widget.folder!.networkServerId ?? '';
+      final resumeKey = 'upnp:$serverId/${entry.path}';
+      return VideoItem(
+        id: 'upnp_${widget.folder!.id}_${entry.path.hashCode}',
+        title: entry.name,
+        path: 'upnp://$serverId/${entry.path}',
         resumeKey: resumeKey,
         duration: Duration.zero,
         sizeBytes: entry.size,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/cached_image.dart';
 
 import '../models/video_item.dart';
+import '../services/folder_scanner.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
@@ -351,49 +352,42 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     final server = _browsing;
     if (server == null) return;
 
-    // Check auto-expand: list children and create individual cards.
+    // Check auto-expand: deep scan subdirectories (up to 5 levels).
     final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
     if (autoExpand && item.isFolder && server.isAuthenticated) {
       try {
-        final children = await _client.getItems(server, item.id);
-        if (children.isNotEmpty) {
-          final parentId = 'jellyfin_folder_${server.urlHost}_${item.id}';
-          final expanded = <LibraryFolder>[];
-          for (final child in children) {
-            final childId = '${parentId}_${child.id}';
-            if (child.isFolder) {
-              expanded.add(LibraryFolder(
-                id: childId,
-                name: child.name,
-                path: 'jellyfin:${child.id}',
-                addedAt: DateTime.now(),
-                source: LibraryFolderSource.jellyfin,
-                jellyfinServerUrl: server.url,
-                jellyfinItemId: child.id,
-                parentId: parentId,
-              ));
-            } else if (child.isPlayable && child.mediaType == 'Video') {
-              expanded.add(LibraryFolder(
-                id: childId,
-                name: child.name,
-                path: 'jellyfin:${child.id}',
-                addedAt: DateTime.now(),
-                source: LibraryFolderSource.jellyfin,
-                jellyfinServerUrl: server.url,
-                jellyfinItemId: child.id,
-                parentId: parentId,
-                isFile: true,
-              ));
+        final rootFolder = LibraryFolder(
+          id: 'jellyfin_folder_${server.urlHost}_${item.id}',
+          name: item.name,
+          path: 'jellyfin:${item.id}',
+          addedAt: DateTime.now(),
+          source: LibraryFolderSource.jellyfin,
+          jellyfinServerUrl: server.url,
+          jellyfinItemId: item.id,
+        );
+        final scanDepth = await FolderScanner.savedScanDepth();
+        final scanner = FolderScanner(maxDepth: scanDepth);
+        final expanded = await scanner.scan(rootFolder);
+        if (expanded.isNotEmpty) {
+          final expandedNames = expanded.map((e) => e.name).toSet();
+          final parentId = rootFolder.id;
+          final existing = await LibraryFoldersStore.load();
+          for (final old in existing) {
+            if (old.parentId == parentId ||
+                expandedNames.contains(old.name) ||
+                (old.jellyfinServerUrl == rootFolder.jellyfinServerUrl &&
+                 old.jellyfinItemId != null &&
+                 rootFolder.jellyfinItemId != null &&
+                 old.jellyfinItemId!.startsWith(rootFolder.jellyfinItemId!))) {
+              await LibraryFoldersStore.remove(old.id);
             }
           }
-          if (expanded.isNotEmpty) {
-            await LibraryFoldersStore.bulkAdd(expanded);
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('"${item.name}" expanded into ${expanded.length} items')),
-            );
-            return;
-          }
+          await LibraryFoldersStore.bulkAdd(expanded);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"${item.name}" expanded into ${expanded.length} items')),
+          );
+          return;
         }
       } catch (_) {
         // Fallback to single card on listing failure.

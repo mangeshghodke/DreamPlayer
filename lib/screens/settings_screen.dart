@@ -60,6 +60,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _subEncoding = 0;
   bool _autoFetchSubs = false;
   bool _autoExpandFolders = true;
+  int _scanDepth = 5;
   bool _badgeEnabled = true;
   bool _badgeHdr = true;
   bool _badgeAudio = true;
@@ -136,7 +137,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadAutoExpandFolders() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      if (mounted) setState(() => _autoExpandFolders = prefs.getBool('dreamplayer.autoExpandFolders') ?? true);
+      if (mounted) {
+        setState(() {
+          _autoExpandFolders = prefs.getBool('dreamplayer.autoExpandFolders') ?? true;
+          _scanDepth = prefs.getInt('dreamplayer.scanDepth') ?? 5;
+        });
+      }
     } catch (_) {}
   }
 
@@ -658,6 +664,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (mounted) setState(() => _autoExpandFolders = v);
                   },
                 ),
+                if (_autoExpandFolders)
+                  ListTile(
+                    leading: const Icon(Icons.height),
+                    title: const Text('Scan depth'),
+                    subtitle: Text('$_scanDepth levels deep'),
+                    trailing: DropdownButton<int>(
+                      value: _scanDepth,
+                      items: const [
+                        DropdownMenuItem(value: 1, child: Text('1')),
+                        DropdownMenuItem(value: 2, child: Text('2')),
+                        DropdownMenuItem(value: 3, child: Text('3')),
+                        DropdownMenuItem(value: 4, child: Text('4')),
+                        DropdownMenuItem(value: 5, child: Text('5')),
+                      ],
+                      onChanged: (v) async {
+                        if (v == null) return;
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setInt('dreamplayer.scanDepth', v);
+                        if (mounted) setState(() => _scanDepth = v);
+                      },
+                    ),
+                  ),
                 SwitchListTile(
                   secondary: const Icon(Icons.offline_pin),
                   title: const Text('Offline image cache'),

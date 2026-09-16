@@ -12,6 +12,7 @@ import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/download_manager.dart';
 import '../services/file_browser.dart';
+import '../services/folder_scanner.dart';
 import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
@@ -458,50 +459,37 @@ class _HomeScreenState extends State<HomeScreen>
 
     final hasSubdirs = children.any((c) => c.isDirectory);
     if (autoExpand && children.isNotEmpty && hasSubdirs) {
-      // Expand: create one LibraryFolder per child (directories + video files).
+      // Deep scan: recursively traverse subdirectories (up to 5 levels)
+      // and create one LibraryFolder per video file and subfolder.
       final parentId = picked.bookmarkId ?? 'folder_${DateTime.now().millisecondsSinceEpoch}';
-      final expanded = <LibraryFolder>[];
-      for (final child in children) {
-        final childId = '${parentId}_${child.name.hashCode}';
-        if (child.isDirectory) {
-          int? childYearHint;
-          try {
-            final grandChildren = await FileBrowserService.instance
-                .listDirectory(child.path)
-                .timeout(const Duration(seconds: 10));
-            childYearHint = ParsedFileName.yearFromNames(
-              grandChildren.where((e) => !e.isDirectory).map((e) => e.name),
-            );
-          } catch (_) {}
-          expanded.add(LibraryFolder(
-            id: childId,
-            name: child.name,
-            path: child.path,
-            addedAt: DateTime.now(),
-            parentId: parentId,
-            yearHint: childYearHint,
-          ));
-        } else if (_isVideoFile(child.name)) {
-          expanded.add(LibraryFolder(
-            id: childId,
-            name: child.name,
-            path: child.path,
-            addedAt: DateTime.now(),
-            source: LibraryFolderSource.files,
-            parentId: parentId,
-            isFile: true,
-            videoPath: child.path,
-            videoSizeBytes: child.size > 0 ? child.size : null,
-          ));
-        }
-      }
+      final rootFolder = LibraryFolder(
+        id: parentId,
+        name: picked.name,
+        path: picked.path,
+        addedAt: DateTime.now(),
+      );
+      final scanDepth = await FolderScanner.savedScanDepth();
+      final scanner = FolderScanner(maxDepth: scanDepth);
+      final expanded = await scanner.scan(rootFolder);
       if (expanded.isNotEmpty) {
+        // Remove old entries from a previous scan of the same root (by
+        // parentId or path prefix) and any manually-added entries whose
+        // names match an expanded entry.
+        final expandedNames = expanded.map((e) => e.name).toSet();
+        final rootPathPrefix = '${rootFolder.path.replaceAll(RegExp(r'/+$'), '')}/';
+        final existing = await LibraryFoldersStore.load();
+        for (final old in existing) {
+          if (old.parentId == parentId ||
+              expandedNames.contains(old.name) ||
+              old.path.startsWith(rootPathPrefix)) {
+            await LibraryFoldersStore.remove(old.id);
+          }
+        }
         await LibraryFoldersStore.bulkAdd(expanded);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('"${picked.name}" expanded into ${expanded.length} items')),
         );
-        _resolveFolderMetadata(expanded);
         return;
       }
     }
@@ -528,26 +516,6 @@ class _HomeScreenState extends State<HomeScreen>
     _resolveFolderMetadata([folder]);
   }
 
-  /// Quick check: does the filename look like a video file?
-  static bool _isVideoFile(String name) {
-    final lower = name.toLowerCase();
-    return lower.endsWith('.mkv') ||
-        lower.endsWith('.mp4') ||
-        lower.endsWith('.avi') ||
-        lower.endsWith('.webm') ||
-        lower.endsWith('.mov') ||
-        lower.endsWith('.ts') ||
-        lower.endsWith('.m2ts') ||
-        lower.endsWith('.wmv') ||
-        lower.endsWith('.flv') ||
-        lower.endsWith('.ogv') ||
-        lower.endsWith('.rmvb') ||
-        lower.endsWith('.mpg') ||
-        lower.endsWith('.mpeg') ||
-        lower.endsWith('.vob') ||
-        lower.endsWith('.3gp');
-  }
-
   /// Opens a grouped folder (`Strike the Blood`, `Strike the Blood II`, etc
   /// collapsed into one card). A single-**file** card (an individual video
   /// bookmarked to Home) opens in video mode directly. A folder whose TMDB
@@ -556,6 +524,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// way to play it. Everything else opens [SeriesSeasonsScreen] for the
   /// Nova-style season poster grid UI.
   void _openGroup(SeriesGroup group) {
+    final meta = TmdService.instance.metaFor(group.metadataKey);
     if (group.primary.isFile) {
       final folder = group.primary;
       final path = folder.videoPath ?? folder.path;
@@ -587,7 +556,6 @@ class _HomeScreenState extends State<HomeScreen>
       );
       return;
     }
-    final meta = TmdService.instance.metaFor(group.metadataKey);
     final isMovie = meta?.movie.kind == TmdKind.movie;
     Navigator.of(context).push(
       MaterialPageRoute<void>(

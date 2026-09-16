@@ -215,13 +215,20 @@ class LibraryFoldersStore {
   }
 
   /// Adds multiple folders in a single prefs write. Deduplicates by [id]
-  /// (existing entries with the same id are replaced). Most-recently-added
+  /// (existing entries with the same id are replaced) AND by
+  /// `(source, networkPath)` (old manually-bookmarked entries for the same
+  /// location are replaced by the new scanner entries). Most-recently-added
   /// first — the list is reversed so the oldest of the batch ends up on top.
   static Future<void> bulkAdd(List<LibraryFolder> folders) async {
     if (folders.isEmpty) return;
     final all = await load();
+    // Remove old entries that match new entries by id OR by (source, networkPath).
     for (final folder in folders) {
-      all.removeWhere((f) => f.id == folder.id);
+      all.removeWhere((f) =>
+          f.id == folder.id ||
+          (f.source == folder.source &&
+              f.networkPath != null &&
+              f.networkPath == folder.networkPath));
     }
     all.insertAll(0, folders);
     final prefs = await SharedPreferences.getInstance();

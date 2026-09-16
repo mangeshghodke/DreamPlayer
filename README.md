@@ -64,7 +64,7 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 
 ### Smart Library
 - **Continue watching** — resume any partially-watched video with progress bars
-- **User-added folders** — add a TV show or movie folder, get a TMDB poster and episode list
+- **User-added folders** — add a TV show or movie folder, get a TMDB poster and episode list; **deep recursive scan** (up to 5 levels) expands mixed containers so loose files aren't hidden behind parent cards
 - **Bookmark any network folder to Home** — pin SMB, WebDAV, FTP, or DLNA folders straight from their browsers, with a colored source badge
 - **Jellyfin folders in the home library** — server shows sit alongside local folders
 - **Download to device** — download network videos for offline playback (SMB, WebDAV, HTTP, Jellyfin, UPnP)

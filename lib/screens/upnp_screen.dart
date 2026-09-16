@@ -3,6 +3,7 @@ import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
+import '../services/folder_scanner.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
@@ -27,6 +28,16 @@ class _UpnpScreenState extends State<UpnpScreen> {
   static final _epPattern = RegExp(
       r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
       caseSensitive: false);
+
+  /// Whether [old] is a child of [root] in the UPnP path hierarchy.
+  static bool _isChildOfRoot(LibraryFolder old, LibraryFolder root) {
+    if (old.source != LibraryFolderSource.upnp) return false;
+    if (old.networkServerId != root.networkServerId) return false;
+    final rootNp = root.networkPath ?? '';
+    final oldNp = old.networkPath ?? '';
+    if (rootNp.isEmpty) return oldNp.isNotEmpty;
+    return oldNp.startsWith('$rootNp/') && oldNp.length > rootNp.length + 1;
+  }
 
   List<UpnpServer> _servers = const [];
   bool _discovering = false;
@@ -160,41 +171,30 @@ class _UpnpScreenState extends State<UpnpScreen> {
 
     final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
     if (autoExpand && _entries.isNotEmpty) {
-      final parentId = id;
-      final expanded = <LibraryFolder>[];
-      for (final entry in _entries) {
-        final childId = '${parentId}_${entry.id.hashCode}';
-        if (entry.isDirectory) {
-          expanded.add(LibraryFolder(
-            id: childId,
-            name: entry.name,
-            path: 'upnp:${server.id}/${entry.id}',
-            addedAt: DateTime.now(),
-            source: LibraryFolderSource.upnp,
-            networkServerId: server.id,
-            networkPath: entry.id,
-            networkLabel: server.name,
-            parentId: parentId,
-            yearHint: ParsedFileName.yearFromNames([entry.name]),
-          ));
-        } else if (entry.url != null && entry.url!.isNotEmpty) {
-          expanded.add(LibraryFolder(
-            id: childId,
-            name: entry.name,
-            path: 'upnp:${server.id}/${entry.id}',
-            addedAt: DateTime.now(),
-            source: LibraryFolderSource.upnp,
-            networkServerId: server.id,
-            networkPath: entry.id,
-            networkLabel: server.name,
-            parentId: parentId,
-            isFile: true,
-            videoUri: entry.url,
-            videoSizeBytes: entry.size > 0 ? entry.size : null,
-          ));
-        }
-      }
+      // Deep scan: recursively traverse subdirectories (up to 5 levels).
+      final rootFolder = LibraryFolder(
+        id: id,
+        name: folderName,
+        path: 'upnp:${server.id}/${crumb.id}',
+        addedAt: DateTime.now(),
+        source: LibraryFolderSource.upnp,
+        networkServerId: server.id,
+        networkPath: crumb.id,
+        networkLabel: server.name,
+      );
+      final scanDepth = await FolderScanner.savedScanDepth();
+      final scanner = FolderScanner(maxDepth: scanDepth);
+      final expanded = await scanner.scan(rootFolder);
       if (expanded.isNotEmpty) {
+        final expandedNames = expanded.map((e) => e.name).toSet();
+        final existing = await LibraryFoldersStore.load();
+        for (final old in existing) {
+          if (old.parentId == id ||
+              expandedNames.contains(old.name) ||
+              _isChildOfRoot(old, rootFolder)) {
+            await LibraryFoldersStore.remove(old.id);
+          }
+        }
         await LibraryFoldersStore.bulkAdd(expanded);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

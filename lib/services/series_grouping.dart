@@ -221,6 +221,10 @@ class SeriesGroupingService {
   ///   "My Show Season 2"           -> "my show"
   static String baseNameOf(String folderName) {
     var name = folderName.trim();
+    // Strip trailing slash (SMB/network directory entries include it).
+    name = name.replaceAll(RegExp(r'/+$'), ' ');
+    // Drop fansub group tags in square brackets ([VCB-Studio], [SubGroup], etc).
+    name = name.replaceAll(RegExp(r'\[.*?\]'), ' ');
     // Drop a trailing year in parens/brackets ("(2021)" or "[2021]").
     name = name.replaceAll(RegExp(r'\s*[\(\[]\s*\d{4}\s*[\)\]]'), ' ');
     // Drop a bare year at the end of the string.
@@ -264,7 +268,14 @@ class SeriesGroupingService {
       'hdtv', 'dvdrip', 'remux',
       'x264', 'x265', 'h264', 'h265', 'h 264', 'h 265',
       'hevc', 'avc',
+      '10bit', '8bit', '10 bit', '8 bit',
+      'aac', 'dts', 'flac', 'ac3', 'eac3', 'truehd', 'dca',
+      'english', 'multi', 'dual', 'japanese', 'hindi', 'korean',
+      'bdrip', 'hdrip',
+      'panda', 'subs', 'raw', 'internal', 'uncensored',
     ];
+    // Strip audio channel counts (5.1, 7.1, 2.0, etc.) — always noise.
+    name = name.replaceAll(RegExp(r'(?<!\w)\d+\.\d+(?!\w)'), ' ');
     for (final n in noise) {
       name = name.replaceAll(RegExp('(?<![\\w])${RegExp.escape(n)}(?![\\w])', caseSensitive: false), ' ');
     }

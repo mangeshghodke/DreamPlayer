@@ -1595,6 +1595,7 @@ class TmdService extends ChangeNotifier {
     _suppressed
       ..clear()
       ..addAll(await TmdStore.loadSuppressed());
+    await _loadPersistedSeasonNames();
     _loaded = true;
     notifyListeners();
   }
@@ -1785,13 +1786,16 @@ class TmdService extends ChangeNotifier {
     final searchTitle = parsed.isEpisode && parsed.seriesName != null
         ? parsed.seriesName!
         : parsed.title;
-    if (searchTitle.isNotEmpty) {
-      candidates.add((q: searchTitle, y: parsed.year ?? yearHint));
-    }
     final fileEvidence = _queriesFromFileNames(fileNames ?? const []);
+    // Use the year from file names as a disambiguation hint when the folder
+    // name has no year (e.g. folder "Kakegurui Twin" → file "Kakegurui Twin(2021) s01e01.mkv" → year=2021).
+    final effectiveYear = year ?? fileEvidence.yearHint;
+    if (searchTitle.isNotEmpty) {
+      candidates.add((q: searchTitle, y: effectiveYear));
+    }
     for (final fq in fileEvidence.queries) {
       if (candidates.every((c) => c.q.toLowerCase() != fq.toLowerCase())) {
-        candidates.add((q: fq, y: year));
+        candidates.add((q: fq, y: effectiveYear));
       }
     }
     final preferMovie = !parsed.isEpisode && !fileEvidence.hasEpisodes;
@@ -1842,12 +1846,14 @@ class TmdService extends ChangeNotifier {
   /// Pure helper: derives candidate TMDB queries from the names of the files
   /// inside a folder. Episode files contribute their show name; standalone
   /// files contribute their title. Returns up to [maxQueries] unique queries
-  /// (most common first) plus whether any file looked like an episode.
-  static ({List<String> queries, bool hasEpisodes, bool hasMovieSequelPattern}) _queriesFromFileNames(
+  /// (most common first) plus whether any file looked like an episode, and
+  /// the most common year found in file names (for year disambiguation).
+  static ({List<String> queries, bool hasEpisodes, bool hasMovieSequelPattern, int? yearHint}) _queriesFromFileNames(
       Iterable<String> names, {int maxQueries = 4}) {
     final counts = <String, int>{};
     var hasEpisodes = false;
     var hasMovieSequelPattern = false;
+    final yearCounts = <int, int>{};
     for (final name in names) {
       final p = ParsedFileName.parse(name);
       // Season-only folder names (e.g. "s02", "Season 3") are a strong TV
@@ -1862,6 +1868,7 @@ class TmdService extends ChangeNotifier {
       if (RegExp(r'\b(?:part|vol(?:ume)?|movie|chapter|film)\s+\d+\b', caseSensitive: false).hasMatch(name)) {
         hasMovieSequelPattern = true;
       }
+      if (p.year != null) yearCounts[p.year!] = (yearCounts[p.year!] ?? 0) + 1;
       counts[q] = (counts[q] ?? 0) + 1;
     }
     final ranked = counts.entries.toList()
@@ -1871,7 +1878,14 @@ class TmdService extends ChangeNotifier {
       if (queries.length >= maxQueries) break;
       queries.add(e.key);
     }
-    return (queries: queries, hasEpisodes: hasEpisodes, hasMovieSequelPattern: hasMovieSequelPattern);
+    // Pick the most common year from file names as a hint for disambiguation.
+    int? fileYearHint;
+    if (yearCounts.isNotEmpty) {
+      final sorted = yearCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      fileYearHint = sorted.first.key;
+    }
+    return (queries: queries, hasEpisodes: hasEpisodes, hasMovieSequelPattern: hasMovieSequelPattern, yearHint: fileYearHint);
   }
 
   /// Runs [_resolveFolderNow] across [candidates] in order, returning the
@@ -1912,6 +1926,23 @@ class TmdService extends ChangeNotifier {
   bool hasSeasonNames(int showId) =>
       _seasonNamesCache[showId]?.isNotEmpty ?? false;
 
+  /// Debug: print cached season names.
+  Map<int, String> seasonNameMapForDebug(int showId) =>
+      _seasonNamesCache[showId] ?? {};
+
+  /// Fetch season names from the API for [movie] and cache them.
+  /// Always calls the API — use this when you need the FULL season list
+  /// (e.g. for season matching in SeriesSeasonsScreen). If the API call
+  /// fails (offline), the existing in-memory cache is kept.
+  Future<void> fetchSeasonNames(TmdMovie? movie) async {
+    if (movie == null || movie.kind != TmdKind.tv || movie.id <= 0) return;
+    final names = await _api.seasonNames(movie);
+    if (names.isNotEmpty) {
+      _seasonNamesCache[movie.id] = names;
+      _savePersistedSeasonNames();
+    }
+  }
+
   /// Season-name map (number → name) for the show matched under
   /// [identityKey], fetched once per show and cached in memory. Empty when
   /// there is no key, the match is not a TV show, or the request fails. Used
@@ -1925,12 +1956,50 @@ class TmdService extends ChangeNotifier {
     final cached = _seasonNamesCache[meta.movie.id];
     if (cached != null) return cached;
     final names = await _api.seasonNames(meta.movie);
-    if (names.isNotEmpty) _seasonNamesCache[meta.movie.id] = names;
+    if (names.isNotEmpty) {
+      _seasonNamesCache[meta.movie.id] = names;
+      _savePersistedSeasonNames();
+    }
     return names;
   }
 
   /// Cached season names per show ID, populated by [seasonNames] calls.
   final Map<int, Map<int, String>> _seasonNamesCache = {};
+
+  /// SharedPreferences key for persisted season names.
+  static const _seasonNamesPrefsKey = 'dreamplayer.seasonNames';
+
+  /// Load persisted season names into the in-memory cache.
+  Future<void> _loadPersistedSeasonNames() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_seasonNamesPrefsKey);
+      if (raw == null) return;
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      for (final entry in decoded.entries) {
+        final showId = int.tryParse(entry.key);
+        if (showId == null) continue;
+        final names = (entry.value as Map<String, dynamic>).map(
+          (k, v) => MapEntry(int.tryParse(k) ?? 0, v as String? ?? ''),
+        );
+        if (names.isNotEmpty) _seasonNamesCache[showId] = names;
+      }
+    } catch (_) {}
+  }
+
+  /// Persist the full season names map to SharedPreferences.
+  Future<void> _savePersistedSeasonNames() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = _seasonNamesCache.map(
+        (showId, names) => MapEntry(
+          showId.toString(),
+          names.map((k, v) => MapEntry(k.toString(), v)),
+        ),
+      );
+      await prefs.setString(_seasonNamesPrefsKey, jsonEncode(encoded));
+    } catch (_) {}
+  }
 
   /// Seed the in-memory season-names cache from persisted [TmdMeta.seasons]
   /// so that [matchFolderToSeason] works offline (after a restart where
@@ -1967,6 +2036,7 @@ class TmdService extends ChangeNotifier {
     if (match.movie.kind == TmdKind.tv) {
       final names = await _api.seasonNames(match.movie);
       _seasonNamesCache[match.movie.id] = names;
+      _savePersistedSeasonNames();
       folderSeason = _matchSeasonFromFolder(query, names);
       debugPrint('TMDB _resolveFolderNow $metadataKey matchId=${match.movie.id} seasons=$names folderSeason=$folderSeason');
     }

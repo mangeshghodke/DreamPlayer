@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/video_item.dart';
+import '../services/folder_scanner.dart';
 import '../services/library_folders.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/simkl_client.dart';
@@ -30,6 +32,21 @@ class SmbScreen extends StatefulWidget {
 }
 
 class _SmbScreenState extends State<SmbScreen> {
+  /// Whether [old] is a child (or deeper descendant) of [root] in the SMB
+  /// path hierarchy. For SMB, `networkPath` is relative to the share, so we
+  /// compare the full share-relative path: `share/networkPath`.
+  static bool _isChildOfRoot(LibraryFolder old, LibraryFolder root) {
+    if (old.source != LibraryFolderSource.smb) return false;
+    if (old.networkShare != root.networkShare) return false;
+    final rootNp = root.networkPath ?? '';
+    final oldNp = old.networkPath ?? '';
+    // When root is at share root (networkPath empty), any non-empty old
+    // networkPath is a child.
+    if (rootNp.isEmpty) return oldNp.isNotEmpty;
+    // Otherwise old must be deeper inside root.
+    return oldNp.startsWith('$rootNp/') && oldNp.length > rootNp.length + 1;
+  }
+
   static final _epPattern = RegExp(
       r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
       caseSensitive: false);
@@ -242,48 +259,38 @@ class _SmbScreenState extends State<SmbScreen> {
     final repoPath = cleanPath.isEmpty ? _share : '$_share/$cleanPath';
     final id = 'smb_${server.id}_${repoPath.hashCode}';
 
-    // Check if the folder has subdirectories — expand into individual cards
-    // (same pattern as local folder auto-expand in home_screen.dart).
+    // Check auto-expand pref.
+    final prefs = await SharedPreferences.getInstance();
+    final autoExpand = prefs.getBool('dreamplayer.autoExpandFolders') ?? true;
+
+    // Check if the folder has subdirectories — deep scan into individual cards.
     final hasSubdirs = _entries.any((e) => e.isDirectory);
-    if (hasSubdirs && _entries.isNotEmpty) {
-      final expanded = <LibraryFolder>[];
-      for (final child in _entries) {
-        final childId = '${id}_${child.name.hashCode}';
-        // Build the child's share-relative path.
-        final childRepoPath =
-            cleanPath.isEmpty ? child.name : '$cleanPath/${child.name}';
-        if (child.isDirectory) {
-          expanded.add(LibraryFolder(
-            id: childId,
-            name: child.name,
-            path: 'smb:${server.id}/$childRepoPath',
-            addedAt: DateTime.now(),
-            source: LibraryFolderSource.smb,
-            networkServerId: server.id,
-            networkShare: _share,
-            networkPath: childRepoPath,
-            networkLabel: server.name,
-            parentId: id,
-          ));
-        } else if (_isVideoFile(child.name)) {
-          expanded.add(LibraryFolder(
-            id: childId,
-            name: child.name,
-            path: 'smb:${server.id}/$childRepoPath',
-            addedAt: DateTime.now(),
-            source: LibraryFolderSource.smb,
-            networkServerId: server.id,
-            networkShare: _share,
-            networkPath: childRepoPath,
-            networkLabel: server.name,
-            parentId: id,
-            isFile: true,
-            videoUri: 'smb://${server.id}/$_share/$childRepoPath',
-            videoSizeBytes: child.size > 0 ? child.size : null,
-          ));
-        }
-      }
+    if (autoExpand && hasSubdirs && _entries.isNotEmpty) {
+      // Deep scan: recursively traverse subdirectories (up to 5 levels).
+      final rootFolder = LibraryFolder(
+        id: id,
+        name: folderName,
+        path: 'smb:${server.id}/$repoPath',
+        addedAt: DateTime.now(),
+        source: LibraryFolderSource.smb,
+        networkServerId: server.id,
+        networkShare: _share,
+        networkPath: cleanPath,
+        networkLabel: server.name,
+      );
+      final scanDepth = await FolderScanner.savedScanDepth();
+      final scanner = FolderScanner(maxDepth: scanDepth);
+      final expanded = await scanner.scan(rootFolder);
       if (expanded.isNotEmpty) {
+        final expandedNames = expanded.map((e) => e.name).toSet();
+        final existing = await LibraryFoldersStore.load();
+        for (final old in existing) {
+          if (old.parentId == id ||
+              expandedNames.contains(old.name) ||
+              _isChildOfRoot(old, rootFolder)) {
+            await LibraryFoldersStore.remove(old.id);
+          }
+        }
         await LibraryFoldersStore.bulkAdd(expanded);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -317,25 +324,6 @@ class _SmbScreenState extends State<SmbScreen> {
         SnackBar(content: Text('Bookmarked $folderName to Home (SMB · ${server.name})')),
       );
     }
-  }
-
-  static bool _isVideoFile(String name) {
-    final lower = name.toLowerCase();
-    return lower.endsWith('.mkv') ||
-        lower.endsWith('.mp4') ||
-        lower.endsWith('.avi') ||
-        lower.endsWith('.webm') ||
-        lower.endsWith('.mov') ||
-        lower.endsWith('.ts') ||
-        lower.endsWith('.m2ts') ||
-        lower.endsWith('.wmv') ||
-        lower.endsWith('.flv') ||
-        lower.endsWith('.ogv') ||
-        lower.endsWith('.rmvb') ||
-        lower.endsWith('.mpg') ||
-        lower.endsWith('.mpeg') ||
-        lower.endsWith('.vob') ||
-        lower.endsWith('.3gp');
   }
 
 

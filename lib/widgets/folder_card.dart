@@ -293,17 +293,7 @@ class _FolderCardState extends State<FolderCard> {
                                 background: kindColor,
                               ),
                             ),
-                          if (widget.groupCount != null &&
-                              widget.groupCount! > 1)
-                            Positioned(
-                              top: 8,
-                              left: 8,
-                              child: _FolderBadge(
-                                label: '${widget.groupCount} folders',
-                                background: const Color(0xFF455A64),
-                              ),
-                            )
-                          else if (folder.isNetwork)
+                          if (folder.isNetwork)
                             Positioned(
                               top: 8,
                               left: 8,

@@ -156,12 +156,16 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         LibraryFolder folder,
       })>[];
 
+      // Set of group folder names to avoid listing a subdirectory that is
+      // itself already a group member (scanner-expanded children that also
+      // appear in widget.group.folders would otherwise be doubled).
+      final groupFolderNames = widget.group.folders.map((f) => f.name).toSet();
+
       for (final folder in widget.group.folders) {
         List<Object> entries;
         try {
           entries = await _listFolder(folder);
-        } catch (_) {
-          // Network source unreachable — skip this folder, don't kill the whole load.
+        } catch (e) {
           continue;
         }
 
@@ -170,6 +174,9 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         for (final e in entries) {
           if (!_isFolder(e)) continue;
           final subName = _nameOf(e);
+          // Skip subdirectories that are already group members — they will
+          // be processed in their own iteration below.
+          if (groupFolderNames.contains(subName)) continue;
           final subFolderId = '${folder.id}_${subName.hashCode}';
           // Skip seasons the user removed from this series view.
           if (_hiddenSeasonFolderIds.contains(subFolderId)) continue;
@@ -237,13 +244,20 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             ));
           }
         } else {
+          // Flat folder — single entry. Filter out subdirectories that are
+          // already group members (they appear as their own entries).
+          final flatEntries = entries.where((e) {
+            if (!_isFolder(e)) return true;
+            return !groupFolderNames.contains(_nameOf(e));
+          }).toList();
+          if (flatEntries.isEmpty) continue;
           // Guess season from folder/filename parsing.
           int? folderSeason;
           final parsed = ParsedFileName.parse(folder.name);
           if (parsed.season > 0) {
             folderSeason = parsed.season;
           } else {
-            for (final e in entries) {
+            for (final e in flatEntries) {
               final epSeason = _seasonOf(e);
               if (epSeason > 0) {
                 folderSeason = epSeason;
@@ -254,7 +268,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           folderEntries.add((
             folderLabel: folder.name,
             metadataKey: folder.metadataKey,
-            entries: entries,
+            entries: flatEntries,
             folderSeason: folderSeason,
             folder: folder,
           ));
@@ -295,9 +309,12 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         // folderSeason (e.g. "Strike the Blood" → Season 1,
         // "Strike the Blood Final" → Season 5).
 
-        // Seed the in-memory season-names cache from persisted TmdMeta.seasons
-        // so that matchFolderToSeason works offline after a restart.
+        // Ensure season names are loaded from the API for the refine pass
+        // below. We seed first (for offline fallback), then hit the API to
+        // get the FULL season list — the API result overwrites the partial
+        // seed data. If offline, the seed data stays.
         service.seedSeasonNamesFromCache();
+        await service.fetchSeasonNames(meta?.movie);
 
         for (int i = 0; i < _folders.length; i++) {
           final f = _folders[i];
@@ -584,13 +601,17 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   }
 
   String _nameOf(Object e) {
-    if (e is SmbEntry) return e.name;
-    if (e is WebDavEntry) return e.name;
-    if (e is FtpEntry) return e.name;
-    if (e is UpnpEntry) return e.name;
-    if (e is JellyfinItem) return e.name;
-    if (e is FileEntry) return e.name;
-    return '';
+    final raw = switch (e) {
+      SmbEntry e => e.name,
+      WebDavEntry e => e.name,
+      FtpEntry e => e.name,
+      UpnpEntry e => e.name,
+      JellyfinItem e => e.name,
+      FileEntry e => e.name,
+      _ => null,
+    };
+    if (raw == null) return '';
+    return raw.replaceAll(RegExp(r'/+$'), '');
   }
 
   TmdEpisode? _episodeFor(Object e) {
