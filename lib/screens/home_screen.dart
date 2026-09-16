@@ -16,8 +16,10 @@ import '../services/folder_scanner.dart';
 import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
+import '../services/manual_groups.dart';
 import '../services/series_grouping.dart';
 import '../services/smb_client.dart';
+
 import '../services/tmdb_client.dart';
 import '../services/upnp_client.dart';
 import '../services/webdav_client.dart';
@@ -36,6 +38,7 @@ import '../utils/file_info_extractor.dart';
 import '../utils/startup_permissions.dart';
 import 'smb_screen.dart';
 import 'tmd_details_screen.dart';
+import 'movie_group_screen.dart';
 import 'upnp_screen.dart';
 import 'webdav_screen.dart';
 
@@ -66,6 +69,11 @@ class _HomeScreenState extends State<HomeScreen>
   /// `Strike the Blood IV`) collapse into one entry so they appear as a
   /// single card on the library grid.
   List<SeriesGroup> _seriesGroups = const [];
+
+  /// User-made manual groups (select N cards → Group).
+  List<ManualGroup> _manualGroups = const [];
+  final Set<String> _selectedIds = {};
+  bool get _inSelectionMode => _selectedIds.isNotEmpty;
 
   /// Cached server-side metadata for the [JellyfinItemInfo] folders, keyed by
   /// `LibraryFolder.id` (fetch-on-bookmark, refreshed on open).
@@ -234,16 +242,185 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _loadLibraryFolders() async {
     final folders = await LibraryFoldersStore.load();
     final metas = await _client.loadAllFolderMeta();
-    final groups = const SeriesGroupingService().group(folders);
+    final manual = await ManualGroupsStore.instance.load();
+    // Prune stale manual groups (folder removed / id missing). Empty/single
+    // groups are dropped — they were already a single card before.
+    final aliveIds = folders.map((f) => f.id).toSet();
+    final pruned = manual.where((g) {
+      final alive = g.folderIds.where(aliveIds.contains).toList();
+      return alive.length > 1;
+    }).toList();
+    // Persist pruning if anything was dropped.
+    if (pruned.length != manual.length) {
+      await ManualGroupsStore.instance.save(pruned);
+    }
+    final displayGroups = _buildDisplayGroups(folders, pruned);
     if (mounted) {
       setState(() {
         _folders = folders;
-        _seriesGroups = groups;
+        _manualGroups = pruned;
+        _seriesGroups = displayGroups;
         _jellyfinMeta = metas;
       });
     }
     _resolveFolderMetadata(folders);
     _refreshJellyfinMeta(folders);
+  }
+
+  List<SeriesGroup> _buildDisplayGroups(
+      List<LibraryFolder> folders, List<ManualGroup> manual) {
+    final byId = {for (final f in folders) f.id: f};
+    final groupedIds = <String>{};
+    final manualGroups = <SeriesGroup>[];
+    for (final mg in manual) {
+      final members = mg.folderIds.map((id) => byId[id]).whereType<LibraryFolder>().toList();
+      if (members.length <= 1) continue;
+      for (final m in members) {
+        groupedIds.add(m.id);
+      }
+      final display = mg.name.isNotEmpty ? mg.name : members.first.name;
+      manualGroups.add(SeriesGroup(
+        baseName: display.toLowerCase(),
+        displayName: display,
+        folders: members,
+      ));
+    }
+    final remaining = folders.where((f) => !groupedIds.contains(f.id)).toList();
+    final autoGroups = const SeriesGroupingService().group(remaining);
+    // Manual groups first (most recent first), then auto.
+    manualGroups.sort((a, b) => b.primary.addedAt.compareTo(a.primary.addedAt));
+    return [...manualGroups, ...autoGroups];
+  }
+
+  bool _isManualGroup(SeriesGroup g) =>
+      _manualGroups.any((mg) => mg.folderIds.length == g.folders.length && mg.folderIds.every((id) => g.folders.any((f) => f.id == id)));
+
+  ManualGroup? _manualForGroup(SeriesGroup g) {
+    for (final mg in _manualGroups) {
+      if (mg.folderIds.length == g.folders.length && mg.folderIds.every((id) => g.folders.any((f) => f.id == id))) {
+        return mg;
+      }
+    }
+    return null;
+  }
+
+  /// TMDB meta shown on a group card: the primary folder's key first, then
+  /// any member's cached meta (a manual group of random cards should show
+  /// TMDB info from whichever member has it).
+  TmdMeta? _metaForGroupDisplay(SeriesGroup g) {
+    final primary = TmdService.instance.metaFor(g.metadataKey);
+    if (primary != null) return primary;
+    for (final f in g.folders) {
+      final m = TmdService.instance.metaFor(f.metadataKey);
+      if (m != null) return m;
+    }
+    return null;
+  }
+
+  // ---- Manual-group selection helpers ----
+  bool _isGroupSelected(SeriesGroup g) =>
+      g.folders.every((f) => _selectedIds.contains(f.id));
+
+  void _toggleGroupSelection(SeriesGroup g) {
+    final ids = g.folders.map((f) => f.id).toList();
+    final allSelected = ids.every((id) => _selectedIds.contains(id));
+    setState(() {
+      if (allSelected) {
+        _selectedIds.removeAll(ids);
+      } else {
+        _selectedIds.addAll(ids);
+      }
+    });
+  }
+
+  void _exitSelection() => setState(() => _selectedIds.clear());
+
+  Future<void> _groupSelected() async {
+    if (_selectedIds.length < 2) return;
+    final selectedFolders = _folders.where((f) => _selectedIds.contains(f.id)).toList();
+    if (selectedFolders.length < 2) return;
+    final defaultName = _deriveGroupName(selectedFolders);
+    final name = await _promptGroupName(defaultName);
+    if (name == null || name.trim().isEmpty) return;
+    final mg = ManualGroup(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name.trim(),
+      folderIds: selectedFolders.map((f) => f.id).toList(),
+    );
+    final next = [..._manualGroups, mg];
+    await ManualGroupsStore.instance.save(next);
+    _selectedIds.clear();
+    await _loadLibraryFolders();
+  }
+
+  String _deriveGroupName(List<LibraryFolder> folders) {
+    // Strip bracket tags and trailing part numbers from the first name.
+    var raw = folders.first.name.replaceAll(RegExp(r'\[.*?\]'), ' ');
+    raw = raw.replaceAll(RegExp(r'\(\d{4}\)'), ' ');
+    raw = raw.replaceAll(RegExp(r'\s+\d{1,3}\s*$'), ' ');
+    raw = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (raw.isEmpty) raw = folders.first.name;
+    // Title-case-ish: keep original casing but trim to ~32 chars.
+    if (raw.length > 40) raw = raw.substring(0, 40).trim();
+    return raw;
+  }
+
+  Future<String?> _promptGroupNameDialog(String initial) {
+    final ctrl = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Group name'),
+        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: 'e.g. Girls und Panzer das Finale')),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()), child: const Text('Group')),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _promptGroupName(String initial) => _promptGroupNameDialog(initial);
+
+  Future<void> _ungroup(SeriesGroup g) async {
+    final mg = _manualForGroup(g);
+    if (mg == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Ungroup "${mg.name}"?'),
+        content: const Text('The folders will appear as separate cards again.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Ungroup')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final next = _manualGroups.where((m) => m.id != mg.id).toList();
+    await ManualGroupsStore.instance.save(next);
+    await _loadLibraryFolders();
+  }
+
+  void _onGroupTap(SeriesGroup g) {
+    if (_inSelectionMode) {
+      _toggleGroupSelection(g);
+      return;
+    }
+    _openGroup(g);
+  }
+
+  void _onGroupLongPress(SeriesGroup g) {
+    if (_isManualGroup(g)) {
+      // Manual group: long-press offers Ungroup without entering selection.
+      _ungroup(g);
+      return;
+    }
+    if (_inSelectionMode) {
+      _toggleGroupSelection(g);
+    } else {
+      setState(() => _selectedIds.addAll(g.folders.map((f) => f.id)));
+    }
   }
 
   /// Pull-to-refresh handler: reloads the whole home surface from scratch —
@@ -256,10 +433,12 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
     setState(() => _entries = entries);
     final folders = await LibraryFoldersStore.load();
+    final manual = await ManualGroupsStore.instance.load();
     if (!mounted) return;
-    final groups = const SeriesGroupingService().group(folders);
+    final groups = _buildDisplayGroups(folders, manual);
     setState(() {
       _folders = folders;
+      _manualGroups = manual;
       _seriesGroups = groups;
     });
     await _resolveFolderMetadata(folders);
@@ -308,9 +487,37 @@ class _HomeScreenState extends State<HomeScreen>
       final hasSeasonTag = seasonTagRegex.hasMatch(folder.name);
       // Only require folderSeason for folders that look like season subfolders.
       // Top-level show folders (e.g. "House") have no folderSeason and that's OK.
-      final needsResolve = existing == null ||
+      var needsResolve = existing == null ||
           (hasSeasonTag && existing.folderSeason == null &&
               existing.movie.kind != TmdKind.movie);
+      // Movie-part staleness: folder "FINALE 02" cached as "Part I" — force
+      // re-resolve so the correct numbered query (02 → Part II) can win.
+      // Delegate the actual comparison to the service's helpers via a local
+      // check to avoid importing parsing logic here.
+      if (!needsResolve && existing.movie.kind == TmdKind.movie) {
+        final stripped = folder.name.replaceAll(RegExp(r'\[[^\]]*\]'), ' ');
+        final folderPart = int.tryParse(
+            RegExp(r'\b(\d{1,3})\s*$').firstMatch(stripped.trim())?.group(1) ?? '');
+        if (folderPart != null) {
+          final titleLower = existing.movie.title.toLowerCase();
+          final partMatch = RegExp(r'\bpart\s+(\d+|[ivxlcdm]+)\b', caseSensitive: false)
+              .firstMatch(titleLower);
+          int? cachedPart;
+          if (partMatch != null) {
+            final raw = partMatch.group(1)!.toUpperCase();
+            cachedPart = int.tryParse(raw) ?? _romanToInt(raw);
+          }
+          if (cachedPart != null && folderPart != cachedPart) {
+            needsResolve = true;
+          } else if (cachedPart == null) {
+            final hasAnyPartMarker = RegExp(
+                    r'\b(?:part|vol(?:ume)?|movie|chapter|film)\s+\d+',
+                    caseSensitive: false)
+                .hasMatch(titleLower);
+            if (!hasAnyPartMarker) needsResolve = true;
+          }
+        }
+      }
       debugPrint('TMDB _resolveFolderMeta: folder="${folder.name}" key="$key" existing=${existing != null ? 'meta(${existing.movie.title}, fs=${existing.folderSeason})' : 'null'} needsResolve=$needsResolve');
       if (needsResolve) {
         // List the folder's children so resolveFolder can detect episode/season
@@ -414,6 +621,23 @@ class _HomeScreenState extends State<HomeScreen>
         await service.detailsFor(key);
       } catch (_) {}
     }
+  }
+
+  int? _romanToInt(String roman) {
+    const values = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000};
+    var total = 0;
+    var prev = 0;
+    for (var i = roman.length - 1; i >= 0; i--) {
+      final v = values[roman[i]];
+      if (v == null) return null;
+      if (v < prev) {
+        total -= v;
+      } else {
+        total += v;
+      }
+      prev = v;
+    }
+    return total > 0 ? total : null;
   }
 
   /// Presents the system folder picker and adds the picked folder to the
@@ -524,6 +748,16 @@ class _HomeScreenState extends State<HomeScreen>
   /// way to play it. Everything else opens [SeriesSeasonsScreen] for the
   /// Nova-style season poster grid UI.
   void _openGroup(SeriesGroup group) {
+    // Manual groups (user-selected cards) always open MovieGroupScreen —
+    // the grid-of-cards pattern, header only when a member has TMDB info.
+    if (_isManualGroup(group)) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => MovieGroupScreen(group: group),
+        ),
+      );
+      return;
+    }
     final meta = TmdService.instance.metaFor(group.metadataKey);
     if (group.primary.isFile) {
       final folder = group.primary;
@@ -559,9 +793,11 @@ class _HomeScreenState extends State<HomeScreen>
     final isMovie = meta?.movie.kind == TmdKind.movie;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => isMovie
-            ? TmdDetailsScreen(folder: group.primary)
-            : SeriesSeasonsScreen(group: group),
+        builder: (_) => isMovie && group.folders.length > 1
+            ? MovieGroupScreen(group: group)
+            : isMovie && group.folders.length == 1
+                ? TmdDetailsScreen(folder: group.primary)
+                : SeriesSeasonsScreen(group: group),
       ),
     );
   }
@@ -609,6 +845,11 @@ class _HomeScreenState extends State<HomeScreen>
 
     for (final f in foldersToRemove) {
       await LibraryFoldersStore.remove(f.id);
+      // Drop the folder from any manual group (group pruned automatically
+      // when it falls below 2 members).
+      try {
+        await ManualGroupsStore.instance.removeFolderId(f.id);
+      } catch (_) {}
       if (f.source == LibraryFolderSource.files) {
         try {
           await FileBrowserService.instance.removeLibraryBookmark(f.id);
@@ -954,7 +1195,12 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tv = isTvMode(context);
-    return Scaffold(
+    return PopScope(
+      canPop: !_inSelectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _inSelectionMode) _exitSelection();
+      },
+      child: Scaffold(
       key: _scaffoldKey,
       drawer: _buildDrawer(theme),
       body: TvOverscan(
@@ -972,16 +1218,55 @@ class _HomeScreenState extends State<HomeScreen>
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
             SliverAppBar(
-              leading: Builder(
-                builder: (ctx) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(ctx).openDrawer(),
-                ),
-              ),
-              title: Text(AppLocalizations.of(context).homeTitle),
+              leading: _inSelectionMode
+                  ? IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: _exitSelection,
+                    )
+                  : Builder(
+                      builder: (ctx) => IconButton(
+                        icon: const Icon(Icons.menu),
+                        onPressed: () => Scaffold.of(ctx).openDrawer(),
+                      ),
+                    ),
+              title: Text(_inSelectionMode ? '${_selectedIds.length} selected' : AppLocalizations.of(context).homeTitle),
               pinned: true,
               actions: [
-                if (_seriesGroups.isNotEmpty || _entries.isNotEmpty)
+                if (_inSelectionMode) ...[
+                  if (_selectedIds.length >= 2)
+                    IconButton(
+                      icon: const Icon(Icons.library_add_check),
+                      tooltip: 'Group',
+                      onPressed: _groupSelected,
+                    ),
+                  PopupMenuButton<String>(
+                    onSelected: (v) {
+                      if (v == 'group' && _selectedIds.length >= 2) _groupSelected();
+                      if (v == 'clear') _exitSelection();
+                      if (v == 'remove' && _selectedIds.length == 1) {
+                        final id = _selectedIds.first;
+                        LibraryFolder? folder;
+                        for (final f in _folders) {
+                          if (f.id == id) { folder = f; break; }
+                        }
+                        if (folder != null) {
+                          _exitSelection();
+                          _removeFolder(folder);
+                        }
+                      }
+                    },
+                    itemBuilder: (ctx) => [
+                      PopupMenuItem(
+                        value: 'group',
+                        enabled: _selectedIds.length >= 2,
+                        child: const Text('Group'),
+                      ),
+                      if (_selectedIds.length == 1)
+                        const PopupMenuItem(value: 'remove', child: Text('Remove from library')),
+                      const PopupMenuItem(value: 'clear', child: Text('Clear selection')),
+                    ],
+                  ),
+                ] else if (_seriesGroups.isNotEmpty || _entries.isNotEmpty)
                   IconButton(
                     icon: const Icon(Icons.delete_sweep_outlined),
                     tooltip: AppLocalizations.of(context).homeClearAll,
@@ -1023,11 +1308,13 @@ class _HomeScreenState extends State<HomeScreen>
                   return FolderCard(
                     key: ValueKey(group.metadataKey),
                     folder: group.primary,
-                    tmdbMeta: TmdService.instance.metaFor(group.metadataKey),
+                    tmdbMeta: _metaForGroupDisplay(group),
                     jellyfinInfo: _jellyfinMeta[group.primary.id],
                     groupCount: group.folders.length,
-                    onTap: () => _openGroup(group),
-                    onLongPress: () => _removeFolder(group.primary),
+                    selected: _isGroupSelected(group),
+                    displayNameOverride: _manualForGroup(group)?.name,
+                    onTap: () => _onGroupTap(group),
+                    onLongPress: () => _onGroupLongPress(group),
                   );
                 },
               ),
@@ -1070,10 +1357,13 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddMenu,
-        tooltip: 'Add a source',
-        child: const Icon(Icons.add),
+      floatingActionButton: _inSelectionMode
+          ? null
+          : FloatingActionButton(
+              onPressed: _showAddMenu,
+              tooltip: 'Add a source',
+              child: const Icon(Icons.add),
+            ),
       ),
     );
   }

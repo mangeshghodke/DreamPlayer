@@ -65,6 +65,8 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 ### Smart Library
 - **Continue watching** — resume any partially-watched video with progress bars
 - **User-added folders** — add a TV show or movie folder, get a TMDB poster and episode list; **deep recursive scan** (up to 5 levels) expands mixed containers so loose files aren't hidden behind parent cards
+- **Movie-part folders stay separate** — `Das Finale 01`–`04` each get their own card with the correct per-part TMDB match
+- **Manual grouping** — select cards (long-press) → Group → one grouped card with the name you choose; TV series still auto-group by name
 - **Bookmark any network folder to Home** — pin SMB, WebDAV, FTP, or DLNA folders straight from their browsers, with a colored source badge
 - **Jellyfin folders in the home library** — server shows sit alongside local folders
 - **Download to device** — download network videos for offline playback (SMB, WebDAV, HTTP, Jellyfin, UPnP)
@@ -82,6 +84,8 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 - Metadata auto-fetches in the background — rows show poster thumbnails before you tap
 - TV episodes labeled with Season/Episode info
 - "Fix match" to correct a wrong auto-match
+- **Grouped screens get the full header** — backdrop hero, overview, rating, genres, cast, trailers, then the poster cards
+- **Player top bar** shows the TMDB title (falls back to the file name)
 
 ### Player Controls
 - Play/pause, seek, ±10s, fullscreen, auto-hiding UI

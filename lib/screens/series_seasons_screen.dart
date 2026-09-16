@@ -118,7 +118,15 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     // multiple auto-expanded folders share the same metadataKey.
     final current = _meta;
     if (current != null && meta != null && meta.movie.id == current.movie.id) {
-      if (meta.seasons.length <= current.seasons.length) return;
+      if (meta.seasons.length <= current.seasons.length) {
+        // Group unchanged — but a standalone movie card may have just
+        // resolved (it reuses the same notify channel). Force a rebuild
+        // so its poster appears.
+        if (_folders.any((f) => f.metadataKey != _groupKey && TmdService.instance.metaFor(f.metadataKey) != null)) {
+          setState(() {});
+        }
+        return;
+      }
     }
     // detailsFor is async — fire and forget; if it returns, refresh again.
     TmdService.instance.detailsFor(_groupKey).then((d) {
@@ -182,20 +190,57 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           if (_hiddenSeasonFolderIds.contains(subFolderId)) continue;
           final p = ParsedFileName.parse(subName);
           int? subSeason = p.season > 0 ? p.season : null;
-          final subFolderSynthetic = LibraryFolder(
-            id: '${folder.id}_${subName.hashCode}',
-            name: subName,
-            path: folder.source == LibraryFolderSource.smb
-                ? 'smb:${folder.networkServerId}/${folder.networkShare}/${folder.networkPath!.isNotEmpty ? "${folder.networkPath}/" : ""}$subName'
-                : (e is FileEntry ? e.path : folder.path),
-            addedAt: folder.addedAt,
-            source: folder.source,
-            networkServerId: folder.networkServerId,
-            networkShare: folder.networkShare,
-            networkPath: folder.source == LibraryFolderSource.smb
-                 ? '${folder.networkPath!.isNotEmpty ? "${folder.networkPath}/" : ""}$subName'
-                : (e is FileEntry ? e.path : folder.networkPath),
-          );
+          final childNetworkPath = (folder.networkPath?.isNotEmpty == true)
+              ? '${folder.networkPath}/$subName'
+              : subName;
+          var subFolderSynthetic = switch (folder.source) {
+            LibraryFolderSource.smb => LibraryFolder(
+                id: '${folder.id}_${subName.hashCode}',
+                name: subName,
+                path: 'smb:${folder.networkServerId}/${folder.networkShare}/$childNetworkPath',
+                addedAt: folder.addedAt,
+                source: folder.source,
+                networkServerId: folder.networkServerId,
+                networkShare: folder.networkShare,
+                networkPath: childNetworkPath,
+              ),
+            LibraryFolderSource.webdav => LibraryFolder(
+                id: '${folder.id}_${subName.hashCode}',
+                name: subName,
+                path: 'webdav:${folder.networkServerId}$childNetworkPath',
+                addedAt: folder.addedAt,
+                source: folder.source,
+                networkServerId: folder.networkServerId,
+                networkPath: childNetworkPath,
+                networkLabel: folder.networkLabel,
+              ),
+            LibraryFolderSource.ftp => LibraryFolder(
+                id: '${folder.id}_${subName.hashCode}',
+                name: subName,
+                path: 'ftp:${folder.networkServerId}$childNetworkPath',
+                addedAt: folder.addedAt,
+                source: folder.source,
+                networkServerId: folder.networkServerId,
+                networkPath: childNetworkPath,
+                networkLabel: folder.networkLabel,
+              ),
+            LibraryFolderSource.upnp => LibraryFolder(
+                id: '${folder.id}_${subName.hashCode}',
+                name: subName,
+                path: 'upnp:${folder.networkServerId}$childNetworkPath',
+                addedAt: folder.addedAt,
+                source: folder.source,
+                networkServerId: folder.networkServerId,
+                networkPath: childNetworkPath,
+              ),
+            _ => LibraryFolder(
+                id: '${folder.id}_${subName.hashCode}',
+                name: subName,
+                path: e is FileEntry ? e.path : folder.path,
+                addedAt: folder.addedAt,
+                source: folder.source,
+              ),
+          };
           final subEntries = await _listFolder(subFolderSynthetic).catchError((_) => <Object>[]);
           if (subSeason == null) {
             for (final f in subEntries) {
@@ -208,9 +253,29 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
               }
             }
           }
+          // Derive yearHint from the files inside this subfolder so
+          // standalone movies (e.g. Girls und Panzer das Finale) carry
+          // the file-embedded year for TMDB disambiguation.
+          final subYearHint = ParsedFileName.yearFromNames(
+            subEntries.where((f) => !_isFolder(f)).map(_nameOf),
+          );
+          if (subYearHint != null) {
+            subFolderSynthetic = LibraryFolder(
+              id: subFolderSynthetic.id,
+              name: subFolderSynthetic.name,
+              path: subFolderSynthetic.path,
+              addedAt: subFolderSynthetic.addedAt,
+              source: subFolderSynthetic.source,
+              networkServerId: subFolderSynthetic.networkServerId,
+              networkShare: subFolderSynthetic.networkShare,
+              networkPath: subFolderSynthetic.networkPath,
+              networkLabel: subFolderSynthetic.networkLabel,
+              yearHint: subYearHint,
+            );
+          }
           subfolderEntries.add((
             folderLabel: subName,
-            metadataKey: '${folder.metadataKey}_sub_$subName',
+            metadataKey: subFolderSynthetic.metadataKey,
             entries: subEntries,
             folderSeason: subSeason,
             folder: subFolderSynthetic,
@@ -329,42 +394,66 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             // from its own stale meta or the old scan default (issue #6: Kieta
             // used to be lumped into "Season 5 · Strike the Blood Final").
             var fMeta = service.metaFor(f.metadataKey);
-            fMeta ??= await service.resolveFolder(
-              f.metadataKey,
-              f.folder.name,
-              yearHint: f.folder.yearHint,
-            );
+            if (fMeta == null) {
+              final fileNames = f.entries.where((e) => !_isFolder(e)).map(_nameOf).toList();
+              final effectiveYearHint = f.folder.yearHint ?? ParsedFileName.yearFromNames(fileNames);
+              fMeta = await service.resolveFolder(
+                f.metadataKey,
+                f.folder.name,
+                yearHint: effectiveYearHint,
+                fileNames: fileNames,
+              );
+            }
           } catch (_) {}
         }
+        // Standalone posters share the same cache keys as the detail
+        // screens now (unified metadataKey). Force a rebuild so cards
+        // that just resolved show their poster without waiting for the
+        // group-only _onMetadataChanged gate.
+        if (mounted) setState(() {});
 
         // Refine folderSeason using TMDB season names (if available).
+        // Skip when a mapping was applied — the mapping already set correct
+        // folderSeason values and per-folder metadata.
         if (meta?.movie.id != null) {
-          bool changed = false;
-          // When season names are NOT cached (offline restart before any
-          // season fetch), matchFolderToSeason returns null for everything —
-          // in that case keep the scan/file-evidence season rather than
-          // ungrouping every folder blindly.
-          final namesAvailable = service.hasSeasonNames(meta!.movie.id);
-          for (int i = 0; i < _folders.length; i++) {
-            final f = _folders[i];
-            final s = service.matchFolderToSeason(f.folder.name, meta.movie.id);
-            int? eff;
-            if (s != null) {
-              eff = s;
-            } else if (!namesAvailable) {
-              eff = f.folderSeason;
-            } else {
-              // Names ARE available and the folder name matches NO season —
-              // it is a standalone title ("Strike the Blood Kieta Seisou
-              // Hen" is the 2021 movie), NOT a season. Ungroup it.
-              eff = null;
+          // Movie collections (e.g. Girls und Panzer das Finale Parts 1–4):
+          // all folders are standalone movies with no season evidence. Skip
+          // the refine pass entirely — matchFolderToSeason could match folder
+          // names like "FINALE 01" to a TV season, collapsing all 4 folders
+          // into one season and breaking the poster-card grid into a flat
+          // episode list. A movie collection must keep its standalone cards.
+          final allStandalone = _folders.every((f) => f.folderSeason == null || f.folderSeason! <= 0);
+          final isMovieCollection = allStandalone && _folders.length > 1 &&
+              meta?.movie.kind == TmdKind.movie;
+
+          if (!isMovieCollection) {
+            bool changed = false;
+            // When season names are NOT cached (offline restart before any
+            // season fetch), matchFolderToSeason returns null for everything —
+            // in that case keep the scan/file-evidence season rather than
+            // ungrouping every folder blindly.
+            final namesAvailable = service.hasSeasonNames(meta!.movie.id);
+            for (int i = 0; i < _folders.length; i++) {
+              final f = _folders[i];
+              final s = service.matchFolderToSeason(f.folder.name, meta.movie.id);
+              int? eff;
+              if (s != null) {
+                eff = s;
+              } else if (!namesAvailable) {
+                eff = f.folderSeason;
+              } else {
+                // Names ARE available and the folder name matches NO season —
+                // it is a standalone title ("Strike the Blood Kieta Seisou
+                // Hen" is the 2021 movie), NOT a season. Ungroup it.
+                eff = null;
+              }
+              if (eff != f.folderSeason) {
+                _folders[i] = (folderLabel: f.folderLabel, metadataKey: f.metadataKey, entries: f.entries, folderSeason: eff, folder: f.folder);
+                changed = true;
+              }
             }
-            if (eff != f.folderSeason) {
-              _folders[i] = (folderLabel: f.folderLabel, metadataKey: f.metadataKey, entries: f.entries, folderSeason: eff, folder: f.folder);
-              changed = true;
-            }
+            if (changed && mounted) setState(() {});
           }
-          if (changed && mounted) setState(() {});
 
           await _fetchSeasonData(meta);
         }
@@ -809,13 +898,19 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     // own card (e.g. the "Strike the Blood Kieta Seisou Hen" movie), never a
     // season. Single-season-only groups skip straight to episodes.
     final gridCount = sortedSeasons.length + standalone.length;
+    // When ALL folders are standalone (no seasons) and the group metadata
+    // says "movie", this is a movie collection (e.g. Girls und Panzer das
+    // Finale Parts 1–4). Label the grid "Movies" instead of "Seasons".
+    final allStandaloneMovies = sortedSeasons.isEmpty &&
+        standalone.isNotEmpty &&
+        _meta?.movie.kind == TmdKind.movie;
     if (gridCount > 1) {
       slivers.add(
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           sliver: SliverToBoxAdapter(
             child: Text(
-              'Seasons',
+              allStandaloneMovies ? 'Movies' : 'Seasons',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -836,12 +931,21 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             delegate: SliverChildBuilderDelegate(
               (context, index) {
                 if (index >= sortedSeasons.length) {
-                  // Standalone folder card — its own title + poster.
+                  // Standalone folder card — its own title + poster. The
+                  // card and its detail screen must share the same cache key
+                  // (see _load unified metadataKey). Fall back to the folder's
+                  // own key for entries cached under the legacy '_sub_' key.
                   final st = standalone[index - sortedSeasons.length];
-                  final stMeta = TmdService.instance.metaFor(st.metadataKey);
-                  final label = st.folderLabel.endsWith('/')
-                      ? st.folderLabel.substring(0, st.folderLabel.length - 1)
+                  final stMeta = TmdService.instance.metaFor(st.metadataKey) ??
+                      TmdService.instance.metaFor(st.folder.metadataKey);
+                  // For movie collections, use the TMDB title if available;
+                  // otherwise strip the fansub/quality suffix from the folder name.
+                  final rawLabel = stMeta?.movie.title.isNotEmpty == true
+                      ? stMeta!.movie.title
                       : st.folderLabel;
+                  final label = rawLabel.endsWith('/')
+                      ? rawLabel.substring(0, rawLabel.length - 1)
+                      : rawLabel;
                   return _SeasonPosterCard(
                     seasonNumber: 0,
                     posterUrl: stMeta?.movie.posterUrl(width: 300),

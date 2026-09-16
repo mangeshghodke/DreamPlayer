@@ -260,6 +260,13 @@ class SeriesGroupingService {
       ' ',
     );
 
+    // Drop trailing part numbers ONLY when a season-like tag is already
+    // present in the name (S01, Season N, roman numeral).  This keeps
+    // season-folder names like "House S02 1080p" → "house" while leaving
+    // movie-part folders like "GIRLS und PANZER das FINALE 01" intact
+    // so each part gets its own card instead of being grouped.
+    name = _conditionallyStripTrailingNumber(name);
+
     // Drop file-quality noise that sometimes leaks into folder names
     // (`1080p`, `720p`, `BluRay`, `WEB-DL`, `x265`, etc).
     const noise = [
@@ -279,12 +286,17 @@ class SeriesGroupingService {
     for (final n in noise) {
       name = name.replaceAll(RegExp('(?<![\\w])${RegExp.escape(n)}(?![\\w])', caseSensitive: false), ' ');
     }
+    // Re-strip trailing part numbers that became trailing after noise removal.
+    name = _conditionallyStripTrailingNumber(name);
 
     // Normalize: lowercase, strip all punctuation, collapse whitespace.
     name = name.toLowerCase();
     name = name.replaceAll(RegExp(r'[\.\-_/\\]'), ' ');
     name = name.replaceAll(RegExp(r'[<>(){}\[\]"`]'), ' ');
     name = name.replaceAll(RegExp(r'\s+'), ' ').trim();
+    // Final trailing number strip after normalization (catches cases like
+    // "house s02 1080p" that survived earlier passes — only when season tag).
+    name = _conditionallyStripTrailingNumber(name).trim();
     return name;
   }
 
@@ -293,6 +305,21 @@ class SeriesGroupingService {
   /// between folder names don't split an otherwise-identical series.
   static String _compact(String baseName) =>
       baseName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  /// Strips a trailing number from [name] only when a season-like tag
+  /// (S01, Season N, roman numeral) is already present.  This keeps
+  /// movie-part folders (e.g. "das FINALE 01") as separate entries
+  /// while still collapsing season folders (e.g. "House S02 1080p").
+  static String _conditionallyStripTrailingNumber(String name) {
+    final hasSeasonTag = RegExp(
+      r'\bS\d{1,2}\b|\bSeason\s+\d+|\b(?:I{1,3}|IV|V|VI{0,3}|IX|X)\b',
+      caseSensitive: false,
+    ).hasMatch(name);
+    if (hasSeasonTag) {
+      return name.replaceAll(RegExp(r'\s+\d{1,3}\s*$'), ' ');
+    }
+    return name;
+  }
 }
 
 class _MutableGroup {

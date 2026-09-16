@@ -159,6 +159,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// transcode fallback fires.
   late VideoItem _current = widget.video;
 
+  /// TMDB metadata for the current video (resolved on open) — the top bar
+  /// shows the TMDB title when available, falling back to the raw file name.
+  TmdMeta? _tmdbMeta;
+
   /// Engine chosen by the user on the details screen ("Play" = Media3,
   /// "Play with MPV" = libmpv). Media3 is the default and is also used for
   /// every non-details entry point (intents, "Open with", play-next).
@@ -387,12 +391,38 @@ class _PlayerScreenState extends State<PlayerScreen>
     // screen. Toggling immersive/edgeToEdge during the rotation transition
     // fights the system's own rotation animation and makes the video jitter.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // TMDB title for the top bar — resolve on open (cache hit when the home
+    // screen pre-fetched) and refresh live when metadata arrives.
+    TmdService.instance.addListener(_onTmdbChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncOrientationFromPlatform();
     });
     if (!_inTests) {
       _init();
     }
+  }
+
+  void _onTmdbChanged() {
+    if (!mounted) return;
+    final fresh = TmdService.instance.metaFor(_resumeKey);
+    if (fresh != _tmdbMeta) {
+      setState(() => _tmdbMeta = fresh);
+    }
+  }
+
+  /// Top-bar title: the TMDB-fetched title when a match resolved, else the
+  /// raw video title with its extension stripped ("cocktail 2.mkv" →
+  /// "cocktail 2").
+  String get _displayTitle {
+    final tmdb = _tmdbMeta?.movie.title;
+    if (tmdb != null && tmdb.isNotEmpty) return tmdb;
+    final raw = _current.title.trim();
+    final dot = raw.lastIndexOf('.');
+    if (dot > 0) {
+      final ext = raw.substring(dot + 1).toLowerCase();
+      if (ext.isNotEmpty && ext.length <= 4) return raw.substring(0, dot);
+    }
+    return raw;
   }
 
   Future<void> _init() async {
@@ -505,6 +535,19 @@ class _PlayerScreenState extends State<PlayerScreen>
     _autoPlayFired = false;
     _autoFetchFired = false;
     _readingAutoSelected = false;
+    // TMDB title for the top bar — cache hit when the home screen
+    // pre-fetched this file; a miss resolves fire-and-forget (intent-opened
+    // files never hit the home prefetch).
+    final cachedMeta = TmdService.instance.metaFor(_resumeKey);
+    _tmdbMeta = cachedMeta;
+    if (cachedMeta == null) {
+      unawaited(TmdService.instance
+          .resolve(video)
+          .then((m) {
+            if (m != null && mounted) setState(() => _tmdbMeta = m);
+          })
+          .catchError((_) {}));
+    }
     // A-B loop points are per-video.
     _abA = null;
     _abB = null;
@@ -2469,6 +2512,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    TmdService.instance.removeListener(_onTmdbChanged);
     _hideTimer?.cancel();
     _sleepTicker?.cancel();
     _swipeOverlayTimer?.cancel();
@@ -5751,18 +5795,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                               onFocusChange: (_) => _showControls(),
                             ),
                             SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                video.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
+                             Expanded(
+                               child: Text(
+                                 _displayTitle,
+                                 maxLines: 1,
+                                 overflow: TextOverflow.ellipsis,
+                                 style: const TextStyle(
+                                   color: Colors.white,
+                                   fontSize: 16,
+                                   fontWeight: FontWeight.w600,
+                                 ),
+                               ),
+                             ),
                             _TvControlButton(
                                 onPressed: _openVideoInfoSheet,
                                 icon: const Icon(Icons.info_outline),

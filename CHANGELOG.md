@@ -5,13 +5,53 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ## 0.4.7
 
-Bug-fix and parity release. Network folder bookmarks now expand recursively (up
-to 5 levels deep) with correct leaf-vs-container logic, the TMDB details
-screen can browse and play files from WebDAV/FTP/UPnP bookmarked folders, and
-the stale SMB container dedup is fixed.
+Bug-fix, parity, and library-organization release. Network folder bookmarks now
+expand recursively (up to 5 levels deep) with correct leaf-vs-container logic,
+the TMDB details screen can browse and play files from WebDAV/FTP/UPnP
+bookmarked folders, the stale SMB container dedup is fixed, movie-part folders
+stay separate with correct per-part TMDB matches, users can manually group any
+cards into one (select → Group), grouped screens get the full Nova-style
+header, and the player top bar shows the TMDB title.
+
+### Added
+
+- **Manual grouping** (`lib/services/manual_groups.dart`, new) — select two or
+  more cards on Home (long-press enters selection mode, tap toggles), then
+  Group via the app-bar button or ⋮ menu → name the group → one grouped card
+  appears. Persisted in `dreamplayer.manualGroups`; groups pruning
+  automatically when a member folder is removed (below 2 members → dissolved).
+- **Movie group screen** (`lib/screens/movie_group_screen.dart`, new) —
+  manual groups open the grid-of-cards pattern: backdrop hero app bar, header
+  card (poster + overview + rating + genres), cast row, trailers, then the
+  grouped folders as poster cards in a 2/3/4/6-column grid sized exactly like
+  the home screen cards. A random group with no TMDB info shows just the
+  cards; when any member has TMDB info the header displays it.
+- **Player top bar TMDB title** — the player screen shows the TMDB-fetched
+  title when a match resolved (resolved on open, live refresh), falling back
+  to the raw video title with the extension stripped (`cocktail 2.mkv` →
+  `cocktail 2`).
 
 ### Fixed
 
+- **Movie-part folders no longer auto-grouped** — `baseNameOf` strips
+  trailing numbers only when a season-like tag (S01, Season N, roman numeral)
+  is present; `FINALE 01`–`04` keep their numbers → each gets its own card.
+- **Per-part TMDB matches** — `resolveFolder` tries the numbered query first
+  (base as fallback) and threads the folder's trailing number as
+  `desiredPart` through `_resolveFolderCandidates` → `_resolveFolderNow` →
+  `TmdApi.bestForQuery` → `_queryScore`/`_score`; part match `+0.45`,
+  mismatch `-0.35`, so `FINALE 02 → 496891` (Part II) wins over the base
+  collection entry (474659, Part I) that every part used to match.
+- **Poster flash on return fixed** — stale movie-part detection no longer
+  clears the cache before the fresh fetch lands (log-only until the
+  replacement arrives); `CachedImage` keeps the old poster while the new one
+  loads, so offline/return never flashes to placeholder.
+- **Manual-group card name on home** — `FolderCard.displayNameOverride`
+  (the user-entered group name) wins over TMDB/folder titles.
+- **Single-file cards inside a manual group now play** — file entries open
+  video mode (`TmdDetailsScreen(video:)` built from the folder's
+  `videoPath`/`videoUri` + `extractFileInfo`); folder mode listed a
+  directory which a file entry doesn't have ("no videos here" + dead Play).
 - **Deep recursive folder scanner** (`lib/services/folder_scanner.dart`, new)
   — all six sources (local, SMB, WebDAV, FTP, UPnP, Jellyfin) now scan up to
   5 levels deep when a folder is bookmarked to Home. Leaf folders (videos, no

@@ -27,6 +27,11 @@ class FolderCard extends StatefulWidget {
     /// collapsed. A small badge ("2", "3", ...) appears on the card so the
     /// user knows the group contains more than one folder.
     this.groupCount,
+    this.selected = false,
+
+    /// User-entered manual group name — wins over TMDB/folder titles when
+    /// set (this card represents a manual group the user created).
+    this.displayNameOverride,
   });
 
   final LibraryFolder folder;
@@ -38,8 +43,14 @@ class FolderCard extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
-  /// Number of folders collapsed into this card (Flux-style series group).
+    /// Number of folders collapsed into this card (Flux-style series group).
   final int? groupCount;
+
+  /// User-entered manual group name — wins over TMDB/folder titles.
+  final String? displayNameOverride;
+
+  /// Whether this card is currently selected in multi-select mode.
+  final bool selected;
 
   @override
   State<FolderCard> createState() => _FolderCardState();
@@ -191,13 +202,16 @@ class _FolderCardState extends State<FolderCard> {
     // Title mirrors the poster rule: a single season folder shows that
     // season's exact name ("Strike the Blood II"), while a grouped card (or a
     // folder that resolves to the whole show) shows the base series title
-    // ("Strike the Blood").
+    // ("Strike the Blood").  A manual group name (displayNameOverride) wins
+    // over everything so the user-entered group name shows on the card.
     final seasonName = folderSeason != null
         ? widget.tmdbMeta?.seasons[folderSeason]?.name
         : null;
-    final title = (seasonName?.isNotEmpty ?? false)
-        ? seasonName!
-        : (hasMeta ? movie.title : (hasJellyfin ? info.name : folder.name));
+    final title = (widget.displayNameOverride?.isNotEmpty ?? false)
+        ? widget.displayNameOverride!
+        : (seasonName?.isNotEmpty ?? false)
+            ? seasonName!
+            : (hasMeta ? movie.title : (hasJellyfin ? info.name : folder.name));
 
     // TV/Movie badge: TMDB kind, else the Jellyfin type, else none.
     final kindBadge = hasMeta
@@ -302,7 +316,7 @@ class _FolderCardState extends State<FolderCard> {
                                 background: _networkColor(folder),
                               ),
                             ),
-                          if (folder.isFile &&
+                           if (folder.isFile &&
                               folder.videoSizeBytes != null &&
                               folder.videoSizeBytes! > 0)
                             Positioned(
@@ -311,6 +325,31 @@ class _FolderCardState extends State<FolderCard> {
                               child: _FolderBadge(
                                 label: _formatFileSize(folder.videoSizeBytes),
                                 background: const Color(0xFF455A64),
+                              ),
+                            ),
+                          if (widget.groupCount != null && widget.groupCount! > 1)
+                            Positioned(
+                              bottom: 8,
+                              right: 8,
+                              child: _FolderBadge(
+                                label: '×${widget.groupCount}',
+                                background: const Color(0xFF2E7D32),
+                              ),
+                            ),
+                          if (widget.selected)
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
+                                  border: Border.all(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    width: 3,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Center(
+                                  child: Icon(Icons.check_circle, size: 48, color: Colors.white),
+                                ),
                               ),
                             ),
                         ],

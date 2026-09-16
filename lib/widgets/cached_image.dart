@@ -44,27 +44,41 @@ class _CachedImageState extends State<CachedImage> {
   void didUpdateWidget(CachedImage old) {
     super.didUpdateWidget(old);
     if (old.url != widget.url) {
-      _bytes = null;
+      // Keep the old poster visible while the new one loads — don't clear
+      // _bytes to placeholder.  The new fetch will replace it on success;
+      // on failure (offline) the stale poster stays instead of going blank.
       _error = false;
       _load();
     }
   }
 
   Future<void> _load() async {
+    final url = widget.url;
     // Check memory/disk cache first (fast path — no network).
-    final cached = await ImageCacheService.instance.getCached(widget.url);
-    if (!mounted) return;
+    final cached = await ImageCacheService.instance.getCached(url);
+    if (!mounted || widget.url != url) return;
     if (cached != null) {
-      setState(() => _bytes = cached);
+      setState(() {
+        _bytes = cached;
+        _error = false;
+      });
       return;
     }
     // Not cached — download from network.
-    final bytes = await ImageCacheService.instance.fetch(widget.url);
-    if (!mounted) return;
+    final bytes = await ImageCacheService.instance.fetch(url);
+    if (!mounted || widget.url != url) return;
     if (bytes != null) {
-      setState(() => _bytes = bytes);
+      setState(() {
+        _bytes = bytes;
+        _error = false;
+      });
     } else {
-      setState(() => _error = true);
+      // Offline or fetch failed — keep the previous poster (_bytes) if any
+      // instead of flipping to error/blank.  Only show error when we never
+      // had an image for this card.
+      if (_bytes == null) {
+        setState(() => _error = true);
+      }
     }
   }
 

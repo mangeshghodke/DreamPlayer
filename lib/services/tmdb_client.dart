@@ -1273,6 +1273,23 @@ class TmdApi {
       }
     }
 
+    // Movie-part disambiguation — same logic as _queryScore: trailing
+    // "01" in "FINALE 02" should prefer "Part 2" / "Part II".
+    final qStripped = query.replaceAll(RegExp(r'\[[^\]]*\]'), ' ').trim();
+    final qPart = _trailingPartNumber(qStripped);
+    final titlePart = _partNumberFromTitle(title);
+    if (qPart != null && titlePart != null) {
+      if (qPart == titlePart) {
+        score += 0.45;
+      } else {
+        score -= 0.35;
+      }
+    } else if (qPart != null && titlePart == null) {
+      if (!RegExp(r'\b(?:part|vol|movie|chapter|film)\s+\d+', caseSensitive: false).hasMatch(title)) {
+        score -= 0.25;
+      }
+    }
+
     return score;
   }
 
@@ -1291,7 +1308,7 @@ class TmdApi {
   /// when available evidence (standalone movie files, no SxxEyy anywhere)
   /// says the folder holds movies rather than a series.
   Future<TmdMatch?> bestForQuery(String query,
-      {int? year, bool liveAction = false, bool preferMovie = false, bool hasMovieSequelPattern = false}) async {
+      {int? year, bool liveAction = false, bool preferMovie = false, bool hasMovieSequelPattern = false, int? desiredPart}) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return null;
     final clean = query.trim();
@@ -1301,7 +1318,7 @@ class TmdApi {
     debugPrint('TMDB bestForQuery("$query") year=$year liveAction=$liveAction preferMovie=$preferMovie hasMovieSequelPattern=$hasMovieSequelPattern tv=${tv.length} movie=${movie.length}');
     TmdMatch? best;
     void consider(TmdMovie candidate, double tieBoost) {
-      final score = _queryScore(candidate, clean, year: year, liveAction: liveAction) +
+      final score = _queryScore(candidate, clean, year: year, liveAction: liveAction, desiredPart: desiredPart) +
           tieBoost;
       debugPrint('TMDB   consider(${candidate.title} (${candidate.year}) kind=${candidate.kind}) score=${score.toStringAsFixed(4)} tieBoost=$tieBoost');
       if (score < 0.5) return;
@@ -1333,7 +1350,7 @@ class TmdApi {
     return best;
   }
 
-  double _queryScore(TmdMovie movie, String query, {int? year, bool liveAction = false}) {
+  double _queryScore(TmdMovie movie, String query, {int? year, bool liveAction = false, int? desiredPart}) {
     final q = query.toLowerCase();
     final title = movie.title.toLowerCase();
     final dist = _levenshteinDistance(q, title);
@@ -1367,8 +1384,70 @@ class TmdApi {
       }
     }
 
+    // Movie-part disambiguation: query "FINALE 02" should prefer
+    // "Part 2" / "Part II" over "Part 1".  Extract trailing number from
+    // query and Part number from title; boost on match, penalize on mismatch.
+    // `desiredPart` is the trailing number from the original folder name
+    // (e.g. folder "FINALE 02" → 2) which survives even when the candidate
+    // query was stripped to base "FINALE".  Fall back to it when the query
+    // itself has no trailing number.
+    final qStripped = q.replaceAll(RegExp(r'\[[^\]]*\]'), ' ').trim();
+    final qPartRaw = _trailingPartNumber(qStripped);
+    final qPart = qPartRaw ?? desiredPart;
+    final titlePart = _partNumberFromTitle(title);
+    if (qPart != null && titlePart != null) {
+      if (qPart == titlePart) {
+        score += 0.45;
+        debugPrint('TMDB _queryScore: part match boost +0.45 (qPart=$qPart titlePart=$titlePart)');
+      } else {
+        score -= 0.35;
+        debugPrint('TMDB _queryScore: part mismatch penalty -0.35 (qPart=$qPart titlePart=$titlePart)');
+      }
+    } else if (qPart != null && titlePart == null) {
+      // Query asks for a specific part but title has no Part marker (the
+      // base collection entry).  Demote base so numbered parts win.
+      if (RegExp(r'\b(?:part|vol|movie|chapter|film)\s+\d+', caseSensitive: false).hasMatch(title)) {
+        // Title has some part marker we didn't parse — ignore.
+      } else {
+        score -= 0.25;
+        debugPrint('TMDB _queryScore: q has part $qPart but title has none — penalty -0.25');
+      }
+    }
+
     debugPrint('TMDB _queryScore: final score=${score.toStringAsFixed(4)}');
     return score;
+  }
+
+  static int? _trailingPartNumber(String text) {
+    final m = RegExp(r'\b(\d{1,3})\s*$').firstMatch(text.trim());
+    if (m == null) return null;
+    return int.tryParse(m.group(1)!);
+  }
+
+  static int? _partNumberFromTitle(String title) {
+    final m = RegExp(r'\bpart\s+(\d+|[ivxlcdm]+)\b', caseSensitive: false).firstMatch(title);
+    if (m == null) return null;
+    final raw = m.group(1)!.toUpperCase();
+    final asInt = int.tryParse(raw);
+    if (asInt != null) return asInt;
+    return _romanToInt(raw);
+  }
+
+  static int? _romanToInt(String roman) {
+    const values = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000};
+    var total = 0;
+    var prev = 0;
+    for (var i = roman.length - 1; i >= 0; i--) {
+      final v = values[roman[i]];
+      if (v == null) return null;
+      if (v < prev) {
+        total -= v;
+      } else {
+        total += v;
+      }
+      prev = v;
+    }
+    return total > 0 ? total : null;
   }
 
   /// Levenshtein edit distance (for TMDB title matching).
@@ -1583,6 +1662,39 @@ class TmdService extends ChangeNotifier {
 
   bool get loaded => _loaded;
 
+  static int? _trailingPartNumber(String folderName) {
+    final stripped = folderName.replaceAll(RegExp(r'\[[^\]]*\]'), ' ');
+    final m = RegExp(r'\b(\d{1,3})\s*$').firstMatch(stripped.trim());
+    if (m == null) return null;
+    return int.tryParse(m.group(1)!);
+  }
+
+  static int? _partNumberFromTitle(String title) {
+    final m = RegExp(r'\bpart\s+(\d+|[ivxlcdm]+)\b', caseSensitive: false).firstMatch(title);
+    if (m == null) return null;
+    final raw = m.group(1)!.toUpperCase();
+    final asInt = int.tryParse(raw);
+    if (asInt != null) return asInt;
+    return _romanToInt(raw);
+  }
+
+  static int? _romanToInt(String roman) {
+    const values = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000};
+    var total = 0;
+    var prev = 0;
+    for (var i = roman.length - 1; i >= 0; i--) {
+      final v = values[roman[i]];
+      if (v == null) return null;
+      if (v < prev) {
+        total -= v;
+      } else {
+        total += v;
+      }
+      prev = v;
+    }
+    return total > 0 ? total : null;
+  }
+
   TmdMeta? metaFor(String identityKey) => _cache[identityKey];
 
   bool isResolving(String identityKey) => _pending.containsKey(identityKey);
@@ -1765,6 +1877,28 @@ class TmdService extends ChangeNotifier {
         return cached;
       }
     }
+    // Movie-part staleness: a folder like "FINALE 02" that cached as
+    // "Girls und Panzer das Finale: Part I" is stale after the fix that
+    // made movie parts preserve their trailing number.  Detect and drop
+    // so the next candidate pass (numbered query first) can pick the
+    // correct part.
+    // Stale movie-part detection — keep the old poster visible until the
+    // replacement arrives.  Just log here; don't clear _cache yet or the
+    // grid will flash to placeholder while the network fetch runs.
+    if (cached != null && cached.movie.kind == TmdKind.movie) {
+      final folderPart = _trailingPartNumber(folderName);
+      final cachedPart = _partNumberFromTitle(cached.movie.title);
+      if (folderPart != null && cachedPart != null && folderPart != cachedPart) {
+        debugPrint('TMDB resolveFolder: stale movie-part cache "$metadataKey" (folder part $folderPart vs cached "${cached.movie.title}" part $cachedPart) — will re-resolve, keeping stale poster until fresh');
+      } else if (folderPart != null && cachedPart == null) {
+        final hasAnyPartMarker = RegExp(r'\b(?:part|vol(?:ume)?|movie|chapter|film)\s+\d+', caseSensitive: false)
+            .hasMatch(cached.movie.title);
+        if (!hasAnyPartMarker) {
+          debugPrint('TMDB resolveFolder: movie-part folder "$metadataKey" cached as base title without part marker — will re-resolve, keeping stale poster until fresh');
+        }
+      }
+    }
+
     final inFlight = _pending[metadataKey];
     if (inFlight != null) return inFlight;
 
@@ -1799,29 +1933,37 @@ class TmdService extends ChangeNotifier {
       }
     }
     final preferMovie = !parsed.isEpisode && !fileEvidence.hasEpisodes;
-    // A folder of movie *parts* ("GIRLS und PANZER das FINALE 01") — also
-    // try the query without the trailing part number, which otherwise drags
-    // the Levenshtein match away from the TMDB collection entry.
+    // A folder of movie *parts* ("GIRLS und PANZER das FINALE 01") — try
+    // the exact numbered query first so each part resolves to its own
+    // movie (01→Part I, 02→Part II, etc.).  The stripped base
+    // ("GIRLS und PANZER das FINALE") is kept as a fallback for cases
+    // where the numbered query would match a wrong OVA entry.
     if (preferMovie) {
+      final baseCandidates = <({String q, int? y})>[];
       for (final c in List.of(candidates)) {
         final m = RegExp(r'^(.*?)\s+\d{1,3}$').firstMatch(c.q.trim());
         final base = m?.group(1);
         if (base != null &&
             base.isNotEmpty &&
             candidates.every((c2) => c2.q.toLowerCase() != base.toLowerCase())) {
-          candidates.add((q: base, y: c.y));
+          baseCandidates.add((q: base, y: c.y));
         }
+      }
+      if (baseCandidates.isNotEmpty) {
+        candidates.addAll(baseCandidates);
       }
     }
     // Detect movie sequel patterns: "Part 1", "Vol 2", "Movie 3", "Chapter 1".
     // These are standalone movie files, not episodes — boost movie preference.
     final hasMovieSequelPattern = fileEvidence.hasMovieSequelPattern;
 
+    final desiredPart = _trailingPartNumber(folderName);
     final future = _resolveFolderCandidates(metadataKey, candidates,
         preferMovie: preferMovie,
         liveAction: parsed.liveAction,
         folderName: folderName,
-        hasMovieSequelPattern: hasMovieSequelPattern);
+        hasMovieSequelPattern: hasMovieSequelPattern,
+        desiredPart: desiredPart);
     _pending[metadataKey] = future;
     try {
       final meta = await future;
@@ -1897,6 +2039,7 @@ class TmdService extends ChangeNotifier {
     bool liveAction = false,
     String? folderName,
     bool hasMovieSequelPattern = false,
+    int? desiredPart,
   }) async {
     TmdMeta? last;
     for (final c in candidates) {
@@ -1904,7 +2047,8 @@ class TmdService extends ChangeNotifier {
           liveAction: liveAction,
           folderName: folderName,
           preferMovie: preferMovie,
-          hasMovieSequelPattern: hasMovieSequelPattern);
+          hasMovieSequelPattern: hasMovieSequelPattern,
+          desiredPart: desiredPart);
       if (last != null) return last;
       // No match for this query — move on to the next candidate query.
     }
@@ -2021,10 +2165,10 @@ class TmdService extends ChangeNotifier {
 
   Future<TmdMeta?> _resolveFolderNow(
       String metadataKey, String query, int? year,
-      {bool liveAction = false, String? folderName, bool preferMovie = false, bool hasMovieSequelPattern = false}) async {
-    debugPrint('TMDB _resolveFolderNow key="$metadataKey" query="$query" year=$year liveAction=$liveAction folderName="$folderName" preferMovie=$preferMovie');
+      {bool liveAction = false, String? folderName, bool preferMovie = false, bool hasMovieSequelPattern = false, int? desiredPart}) async {
+    debugPrint('TMDB _resolveFolderNow key="$metadataKey" query="$query" year=$year liveAction=$liveAction folderName="$folderName" preferMovie=$preferMovie desiredPart=$desiredPart');
     final match = await _api.bestForQuery(query,
-        year: year, liveAction: liveAction, preferMovie: preferMovie, hasMovieSequelPattern: hasMovieSequelPattern);
+        year: year, liveAction: liveAction, preferMovie: preferMovie, hasMovieSequelPattern: hasMovieSequelPattern, desiredPart: desiredPart);
     if (match == null) return null;
 
     // Check if the folder name matches a season name on TMDB.
