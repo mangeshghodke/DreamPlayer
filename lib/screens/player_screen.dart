@@ -1994,13 +1994,27 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (e.videoMime != null && e.videoMime!.isNotEmpty) {
       _liveVideoMimeRaw = e.videoMime;
     }
-    _liveHdr = detectMedia3HdrFormat(
+    final newHdr = detectMedia3HdrFormat(
       colorTransfer: e.colorTransfer,
       videoCodecs: _liveVideoCodecRaw,
       videoMime: _liveVideoMimeRaw,
       isHdr10Plus: e.isHdr10Plus,
       isHdr10: e.isHdr10,
     );
+    // Don't regress a known Dolby Vision / HDR state to SDR when the
+    // native event arrives without codec/transfer (common on the first
+    // events after a resume/reopen). Keep the last non-SDR live value
+    // until we get a real codec to confirm the downgrade.
+    if (newHdr == HdrFormat.sdr &&
+        _liveHdr != HdrFormat.sdr &&
+        (isDolbyVisionCodec(_liveVideoCodecRaw) ||
+            isDolbyVisionCodec(_liveVideoMimeRaw) ||
+            isDolbyVisionCodec(_current.hdrHint) ||
+            _current.hdrFormat == HdrFormat.dolbyVision)) {
+      // keep previous _liveHdr (DV stays DV)
+    } else {
+      _liveHdr = newHdr;
+    }
     // HDR gate: only re-gate on an actual transition INTO the playing
     // state (auto-play on open, resume, etc.) — re-checking on every
     // 4×/s position event would re-open the paywall in a loop after the
@@ -5074,6 +5088,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   HdrFormat get _effectiveHdr {
     if (_current.hdrFormat != HdrFormat.sdr) return _current.hdrFormat;
     if (_liveHdr != HdrFormat.sdr) return _liveHdr;
+    // Live codec still signals DV even when the transient event hasn't
+    // delivered colorTransfer yet (first events after resume).
+    if (isDolbyVisionCodec(_liveVideoCodecRaw) ||
+        isDolbyVisionCodec(_liveVideoMimeRaw) ||
+        isDolbyVisionCodec(_current.videoCodec) ||
+        isDolbyVisionCodec(_current.hdrHint)) {
+      return HdrFormat.dolbyVision;
+    }
     return HdrFormat.sdr;
   }
 
