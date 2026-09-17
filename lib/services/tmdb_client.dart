@@ -2181,7 +2181,11 @@ class TmdService extends ChangeNotifier {
       final names = await _api.seasonNames(match.movie);
       _seasonNamesCache[match.movie.id] = names;
       _savePersistedSeasonNames();
-      folderSeason = _matchSeasonFromFolder(query, names);
+      // Use the original folder name for season matching — the cleaned
+      // query strips the season tag (e.g. House S02 → House) and would
+      // miss the fast-path ParsedFileName season check.
+      final seasonQuery = (folderName != null && folderName.isNotEmpty) ? folderName : query;
+      folderSeason = _matchSeasonFromFolder(seasonQuery, names);
       debugPrint('TMDB _resolveFolderNow $metadataKey matchId=${match.movie.id} seasons=$names folderSeason=$folderSeason');
     }
 

@@ -31,6 +31,15 @@ import Network
     }
     browser.start(queue: .main)
     lnProbeBrowser = browser
+    // Empty Home must not keep a live NWBrowser if the network never
+    // transitions to ready/failed — that keeps the NW stack hot. Cancel
+    // after 3 s when no dialog was needed (permission already decided).
+    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+      if self?.lnProbeBrowser === browser {
+        browser.cancel()
+        self?.lnProbeBrowser = nil
+      }
+    }
   }
 
   override func applicationDidBecomeActive(_ application: UIApplication) {
