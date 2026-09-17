@@ -3,9 +3,7 @@ import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
-import '../services/folder_scanner.dart';
 import '../services/ftp_client.dart';
-import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
@@ -34,16 +32,6 @@ class _FtpScreenState extends State<FtpScreen> {
   static final _epPattern = RegExp(
       r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
       caseSensitive: false);
-
-  /// Whether [old] is a child of [root] in the FTP path hierarchy.
-  static bool _isChildOfRoot(LibraryFolder old, LibraryFolder root) {
-    if (old.source != LibraryFolderSource.ftp) return false;
-    if (old.networkServerId != root.networkServerId) return false;
-    final rootNp = root.networkPath ?? '';
-    final oldNp = old.networkPath ?? '';
-    if (rootNp.isEmpty || rootNp == '/') return oldNp.isNotEmpty && oldNp != '/';
-    return oldNp.startsWith('$rootNp/') && oldNp.length > rootNp.length + 1;
-  }
 
   List<FtpServer> _servers = const [];
   FtpServer? _browsing;
@@ -335,81 +323,7 @@ class _FtpScreenState extends State<FtpScreen> {
   /// Bookmarks the current FTP/SFTP folder to the home library (with the
   /// auto-expand pattern: subfolders + video files become child cards when
   /// enabled — same as SMB/WebDAV).
-  Future<void> _bookmarkCurrentFolder() async {
-    final server = _browsing;
-    if (server == null || _atBrowseRoot) return;
-    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
-    final folderName =
-        cleanPath.split('/').where((s) => s.isNotEmpty).lastOrNull ?? server.name;
-    final id = 'ftp_${server.id}_${cleanPath.hashCode}';
-
-    final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
-    if (autoExpand && _entries.isNotEmpty) {
-      // Deep scan: recursively traverse subdirectories (up to 5 levels).
-      final rootFolder = LibraryFolder(
-        id: id,
-        name: folderName,
-        path: 'ftp:${server.id}$cleanPath',
-        addedAt: DateTime.now(),
-        source: LibraryFolderSource.ftp,
-        networkServerId: server.id,
-        networkPath: cleanPath,
-        networkLabel: server.name,
-      );
-      final scanDepth = await FolderScanner.savedScanDepth();
-      final scanner = FolderScanner(maxDepth: scanDepth);
-      final expanded = await scanner.scan(rootFolder);
-      if (expanded.isNotEmpty) {
-        final expandedNames = expanded.map((e) => e.name).toSet();
-        final existing = await LibraryFoldersStore.load();
-        for (final old in existing) {
-          if (old.parentId == id ||
-              expandedNames.contains(old.name) ||
-              _isChildOfRoot(old, rootFolder)) {
-            await LibraryFoldersStore.remove(old.id);
-          }
-        }
-        await LibraryFoldersStore.bulkAdd(expanded);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Bookmarked $folderName to Home — ${expanded.length} items '
-                '(${server.isSftp ? 'SFTP' : 'FTP'} · ${server.name})',
-              ),
-            ),
-          );
-        }
-        return;
-      }
-    }
-
-    // Fallback: single card.
-    final folder = LibraryFolder(
-      id: id,
-      name: folderName,
-      path: 'ftp:${server.id}$cleanPath',
-      addedAt: DateTime.now(),
-      source: LibraryFolderSource.ftp,
-      networkServerId: server.id,
-      networkPath: cleanPath,
-      networkLabel: server.name,
-      yearHint: ParsedFileName.yearFromNames(
-        _entries.map((e) => e.name),
-      ),
-    );
-    await LibraryFoldersStore.add(folder);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Bookmarked $folderName to Home '
-            '(${server.isSftp ? 'SFTP' : 'FTP'} · ${server.name})',
-          ),
-        ),
-      );
-    }
-  }
+  // FTP is browsed directly (no Home bookmark) — add-to-library removed per user request.
 
   Future<void> _goUp() async {
     if (_browsing == null) {
@@ -471,12 +385,6 @@ class _FtpScreenState extends State<FtpScreen> {
               )
             : null,
         actions: [
-          if (browsing != null && !_atBrowseRoot)
-            IconButton(
-              tooltip: 'Add to library',
-              icon: const Icon(Icons.bookmark_add_outlined),
-              onPressed: _bookmarkCurrentFolder,
-            ),
           if (browsing != null)
             IconButton(
               tooltip: AppLocalizations.of(context).ftpServerList,

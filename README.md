@@ -67,8 +67,8 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 - **User-added folders** — add a TV show or movie folder, get a TMDB poster and episode list; **deep recursive scan** (up to 5 levels) expands mixed containers so loose files aren't hidden behind parent cards
 - **Movie-part folders stay separate** — `Das Finale 01`–`04` each get their own card with the correct per-part TMDB match
 - **Manual grouping** — select cards (long-press) → Group → one grouped card with the name you choose; TV series still auto-group by name
-- **Bookmark any network folder to Home** — pin SMB, WebDAV, FTP, or DLNA folders straight from their browsers, with a colored source badge
-- **Jellyfin folders in the home library** — server shows sit alongside local folders
+- **Bookmark network folders to Home** — pin SMB and WebDAV folders straight from their browsers, with a colored source badge (Jellyfin/FTP/DLNA are browse-only via `+` menu)
+- **Season auto-expand** — bookmarking a show expands each season into its own card (`House Season02`, `House Season03`); group manually if you want one card
 - **Download to device** — download network videos for offline playback (SMB, WebDAV, HTTP, Jellyfin, UPnP)
 - **Downloaded files in home grid** — completed downloads appear with a checkmark badge, tap to play
 - **SIMKL watched sync** — free unlimited watch-history sync (`simkl.com`); auto-pushes finished videos and syncs watched state across devices

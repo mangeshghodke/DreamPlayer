@@ -93,8 +93,10 @@ class FolderScanner {
     // Leaf folders that directly contain videos (no subdirs) become a
     // single library entry. Pure containers and mixed folders (subdirs +
     // loose files like TV Shows/lanterns.mkv) are expanded instead.
-    final hasVideoFiles =
-        children.any((c) => !_isDirectory(c) && _isVideoFile(_nameOf(c)));
+    final isJellyfinTree = root.source == LibraryFolderSource.jellyfin;
+    final hasVideoFiles = children.any(
+      (c) => !_isDirectory(c) && (isJellyfinTree ? true : _isVideoFile(_nameOf(c))),
+    );
     final hasSubdirs = children.any(_isDirectory);
 
     // Only add this directory as a library entry if it is a leaf folder
@@ -119,8 +121,14 @@ class FolderScanner {
 
       if (isDir) {
         final childRelativePath = _relativePath(current, root);
-        final childId =
+        var childId =
             '${root.id}_${childRelativePath.isEmpty ? name : "$childRelativePath/$name".hashCode}';
+        // Jellyfin: item ids are stable server ids — use them directly so two
+        // seasons/episodes with the same name never collide.
+        if (isJellyfinTree) {
+          final jid = _jellyfinItemId(child);
+          if (jid.isNotEmpty) childId = '${root.id}_$jid';
+        }
 
         // Build the child folder entry — it will be added inside its own
         // _scanRecursive call if it is a leaf.
@@ -132,14 +140,18 @@ class FolderScanner {
           id: childId,
         );
         await _scanRecursive(root, childFolder, depth + 1, results);
-      } else if (_isVideoFile(name) &&
+      } else if ((isJellyfinTree ? !_isDirectory(child) : _isVideoFile(name)) &&
           (depth == 0 || (depth > 0 && hasSubdirs))) {
         // Expand loose video files: at root level always, and inside
         // mixed containers (e.g. TV Shows/ containing both subfolders and
         // lanterns s01e05.mkv) so the file isn't hidden.
         final childRelativePath = _relativePath(current, root);
-        final childId =
+        var childId =
             '${root.id}_${childRelativePath.isEmpty ? name : "$childRelativePath/$name".hashCode}';
+        if (isJellyfinTree) {
+          final jid = _jellyfinItemId(child);
+          if (jid.isNotEmpty) childId = '${root.id}_$jid';
+        }
         final fileEntry = _buildFileEntry(
           root: current,
           name: name,
@@ -231,12 +243,35 @@ class FolderScanner {
     required String parentId,
     required String id,
   }) {
+    // For season subfolders, prefix the show name and use a non-strippable
+    // season tag (Season02 without space) so each season stays a separate
+    // card on Home — auto-grouping strips " Season 02"/"S02" but not
+    // "Season02", so "House Season02" and "House Season03" keep distinct
+    // baseNames and the user can manually group them.
+    var effectiveName = name;
+    final seasonNum = _seasonNumberFromName(name) ??
+        (child is JellyfinItem && child.type == 'Season' ? child.indexNumber : null);
+    if (seasonNum != null && seasonNum > 0 && root.name.isNotEmpty) {
+      // Only prefix when the season name itself doesn't already contain the
+      // show name (e.g. "Season 2" under "House" → "House Season02").
+      final lower = name.toLowerCase();
+      final rootLower = root.name.toLowerCase();
+      if (!lower.contains(rootLower)) {
+        effectiveName = '${root.name} Season${seasonNum.toString().padLeft(2, '0')}';
+      } else if (name.contains(RegExp(r'Season\s+\d+', caseSensitive: false))) {
+        // Already prefixed but with a strippable space — make it non-strippable.
+        effectiveName = name.replaceAll(
+          RegExp(r'Season\s+(\d+)', caseSensitive: false),
+          'Season${seasonNum.toString().padLeft(2, '0')}',
+        );
+      }
+    }
     switch (root.source) {
       case LibraryFolderSource.files:
         final entry = child as FileEntry;
         return LibraryFolder(
           id: id,
-          name: name,
+          name: effectiveName,
           path: entry.path,
           addedAt: DateTime.now(),
           source: LibraryFolderSource.files,
@@ -246,7 +281,7 @@ class FolderScanner {
         final childPath = _networkChildPath(root, name);
         return LibraryFolder(
           id: id,
-          name: name,
+          name: effectiveName,
           path: 'smb:${root.networkServerId}/$childPath',
           addedAt: DateTime.now(),
           source: LibraryFolderSource.smb,
@@ -260,7 +295,7 @@ class FolderScanner {
         final childPath = _networkChildPath(root, name);
         return LibraryFolder(
           id: id,
-          name: name,
+          name: effectiveName,
           path: 'webdav:${root.networkServerId}$childPath',
           addedAt: DateTime.now(),
           source: LibraryFolderSource.webdav,
@@ -273,7 +308,7 @@ class FolderScanner {
         final childPath = _networkChildPath(root, name);
         return LibraryFolder(
           id: id,
-          name: name,
+          name: effectiveName,
           path: 'ftp:${root.networkServerId}$childPath',
           addedAt: DateTime.now(),
           source: LibraryFolderSource.ftp,
@@ -286,7 +321,7 @@ class FolderScanner {
         final childPath = _networkChildPath(root, name);
         return LibraryFolder(
           id: id,
-          name: name,
+          name: effectiveName,
           path: 'upnp:${root.networkServerId}$childPath',
           addedAt: DateTime.now(),
           source: LibraryFolderSource.upnp,
@@ -300,7 +335,7 @@ class FolderScanner {
         final itemId = _jellyfinItemId(child);
         return LibraryFolder(
           id: id,
-          name: name,
+          name: effectiveName,
           path: 'jellyfin:${root.jellyfinServerUrl}_$itemId',
           addedAt: DateTime.now(),
           source: LibraryFolderSource.jellyfin,
@@ -323,6 +358,16 @@ class FolderScanner {
   String _jellyfinItemId(Object child) {
     if (child is JellyfinItem) return child.id;
     return '';
+  }
+
+  /// Parses a season number from a folder name like "Season 2", "Season02",
+  /// "S02", "Season 02". Returns null when no season tag is found.
+  int? _seasonNumberFromName(String name) {
+    final m1 = RegExp(r'Season\s*0*(\d{1,2})', caseSensitive: false).firstMatch(name);
+    if (m1 != null) return int.tryParse(m1.group(1)!);
+    final m2 = RegExp(r'\bS0*(\d{1,2})\b', caseSensitive: false).firstMatch(name);
+    if (m2 != null) return int.tryParse(m2.group(1)!);
+    return null;
   }
 
   String _nameOf(Object entry) {

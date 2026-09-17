@@ -17,6 +17,7 @@ import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/manual_groups.dart';
+import '../services/network_video_resolver.dart';
 import '../services/series_grouping.dart';
 import '../services/smb_client.dart';
 
@@ -24,6 +25,7 @@ import '../services/tmdb_client.dart';
 import '../services/upnp_client.dart';
 import '../services/webdav_client.dart';
 import '../widgets/folder_card.dart';
+import '../widgets/group_poster_dialog.dart';
 import '../widgets/tv_text_field.dart';
 import 'ftp_screen.dart';
 import 'player_screen.dart';
@@ -240,7 +242,19 @@ class _HomeScreenState extends State<HomeScreen>
   /// Loads the "Your library" folder list, then kicks off best-effort TMDB
   /// lookups so each folder card can show the show's poster.
   Future<void> _loadLibraryFolders() async {
-    final folders = await LibraryFoldersStore.load();
+    var folders = await LibraryFoldersStore.load();
+    // Jellyfin/FTP/DLNA are now browsed directly — purge any legacy
+    // bookmarked entries left over from before the removal.
+    final legacy = folders.where((f) =>
+        f.source == LibraryFolderSource.jellyfin ||
+        f.source == LibraryFolderSource.ftp ||
+        f.source == LibraryFolderSource.upnp).toList();
+    if (legacy.isNotEmpty) {
+      for (final f in legacy) {
+        await LibraryFoldersStore.remove(f.id);
+      }
+      folders = folders.where((f) => !legacy.contains(f)).toList();
+    }
     final metas = await _client.loadAllFolderMeta();
     final manual = await ManualGroupsStore.instance.load();
     // Prune stale manual groups (folder removed / id missing). Empty/single
@@ -304,10 +318,13 @@ class _HomeScreenState extends State<HomeScreen>
     return null;
   }
 
-  /// TMDB meta shown on a group card: the primary folder's key first, then
-  /// any member's cached meta (a manual group of random cards should show
+  /// TMDB meta shown on a group card: the user-picked manual poster first
+  /// (chosen at group creation), then the primary folder's key, then any
+  /// member's cached meta (a manual group of random cards should show
   /// TMDB info from whichever member has it).
   TmdMeta? _metaForGroupDisplay(SeriesGroup g) {
+    final picked = _manualForGroup(g)?.posterMeta;
+    if (picked != null) return picked;
     final primary = TmdService.instance.metaFor(g.metadataKey);
     if (primary != null) return primary;
     for (final f in g.folders) {
@@ -342,15 +359,29 @@ class _HomeScreenState extends State<HomeScreen>
     final defaultName = _deriveGroupName(selectedFolders);
     final name = await _promptGroupName(defaultName);
     if (name == null || name.trim().isEmpty) return;
+    // Optional TMDB poster picker — the user can pick a poster for the group
+    // (or skip and fall back to any member's cached meta).
+    final posterMeta = await _pickGroupPoster(name.trim());
     final mg = ManualGroup(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name.trim(),
       folderIds: selectedFolders.map((f) => f.id).toList(),
+      posterMeta: posterMeta,
     );
     final next = [..._manualGroups, mg];
     await ManualGroupsStore.instance.save(next);
     _selectedIds.clear();
     await _loadLibraryFolders();
+  }
+
+  /// Optional poster picker for a manual group: a TMDB search dialog
+  /// (query prefilled with the group name, Movie/TV toggle). Returns the
+  /// picked [TmdMeta], or null when the user skips/cancels.
+  Future<TmdMeta?> _pickGroupPoster(String initialQuery) {
+    return showDialog<TmdMeta>(
+      context: context,
+      builder: (_) => GroupPosterDialog(initialQuery: initialQuery),
+    );
   }
 
   String _deriveGroupName(List<LibraryFolder> folders) {
@@ -432,7 +463,18 @@ class _HomeScreenState extends State<HomeScreen>
     final entries = await ContinueWatchingStore.load();
     if (!mounted) return;
     setState(() => _entries = entries);
-    final folders = await LibraryFoldersStore.load();
+    var folders = await LibraryFoldersStore.load();
+    // Purge legacy Jellyfin/FTP/DLNA bookmarks (now browse-only).
+    final stale = folders.where((f) =>
+        f.source == LibraryFolderSource.jellyfin ||
+        f.source == LibraryFolderSource.ftp ||
+        f.source == LibraryFolderSource.upnp).toList();
+    if (stale.isNotEmpty) {
+      for (final f in stale) {
+        await LibraryFoldersStore.remove(f.id);
+      }
+      folders = folders.where((f) => !stale.contains(f)).toList();
+    }
     final manual = await ManualGroupsStore.instance.load();
     if (!mounted) return;
     final groups = _buildDisplayGroups(folders, manual);
@@ -753,43 +795,23 @@ class _HomeScreenState extends State<HomeScreen>
     if (_isManualGroup(group)) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => MovieGroupScreen(group: group),
-        ),
-      );
-      return;
-    }
-    final meta = TmdService.instance.metaFor(group.metadataKey);
-    if (group.primary.isFile) {
-      final folder = group.primary;
-      final path = folder.videoPath ?? folder.path;
-      final uri = folder.videoUri;
-      final info = extractFileInfo(folder.name);
-      final video = VideoItem(
-        id: 'home_${folder.id}',
-        title: folder.name,
-        path: uri == null ? path : null,
-        uri: uri ?? path,
-        resumeKey: uri ?? path,
-        duration: Duration.zero,
-        sizeBytes: folder.videoSizeBytes,
-        videoCodec: info.videoCodec,
-        audioCodec: info.audioCodec,
-        audioChannels: info.audioChannels,
-        audioLanguage: info.audioLanguage,
-        resolution: info.resolution,
-        fps: info.fps,
-        hdrHint: info.hdrHint,
-      );
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => TmdDetailsScreen(
-            video: video,
-            parentMetadataKey: group.metadataKey,
+          builder: (_) => MovieGroupScreen(
+            group: group,
+            posterMeta: _manualForGroup(group)?.posterMeta,
+            manualGroupId: _manualForGroup(group)?.id,
           ),
         ),
       );
       return;
     }
+    // Single-file entries open VIDEO mode via the per-source resolver
+    // (WebDAV/Jellyfin/UPnP file entries carry synthetic paths — the real
+    // playable URL is rebuilt at tap time).
+    if (group.primary.isFile) {
+      _openFileEntry(group.primary, group.metadataKey);
+      return;
+    }
+    final meta = TmdService.instance.metaFor(group.metadataKey);
     final isMovie = meta?.movie.kind == TmdKind.movie;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -798,6 +820,30 @@ class _HomeScreenState extends State<HomeScreen>
             : isMovie && group.folders.length == 1
                 ? TmdDetailsScreen(folder: group.primary)
                 : SeriesSeasonsScreen(group: group),
+      ),
+    );
+  }
+
+  /// Opens a library file entry (VIDEO mode) via [NetworkVideoResolver] —
+  /// per-source playable URL (SMB/WebDAV/FTP/UPnP/Jellyfin/local).
+  Future<void> _openFileEntry(LibraryFolder folder, String metadataKey) async {
+    final video = await NetworkVideoResolver.resolve(folder);
+    if (!mounted) return;
+    if (video == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Can't open this file — its source is unavailable."),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TmdDetailsScreen(
+          video: video,
+          parentMetadataKey: metadataKey,
+        ),
       ),
     );
   }

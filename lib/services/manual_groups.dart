@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'tmdb_client.dart';
+
 /// A user-created grouping of library folders. Unlike auto [SeriesGroup]s
 /// which are derived from name similarity, manual groups are explicit:
 /// the user selects N cards on Home and collapses them into one.
@@ -10,18 +12,26 @@ class ManualGroup {
     required this.id,
     required this.name,
     required this.folderIds,
+    this.posterMeta,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
   final String id;
   String name;
   final List<String> folderIds;
+
+  /// User-picked TMDB metadata for the group's poster (optional — picked from
+  /// the group-creation dialog's TMDB search). When null, the group falls
+  /// back to any member folder's cached TMDB meta.
+  TmdMeta? posterMeta;
+
   final DateTime createdAt;
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'folderIds': folderIds,
+        if (posterMeta != null) 'posterMeta': posterMeta!.toJson(),
         'createdAt': createdAt.millisecondsSinceEpoch,
       };
 
@@ -29,6 +39,10 @@ class ManualGroup {
         id: json['id'] as String,
         name: json['name'] as String,
         folderIds: (json['folderIds'] as List).cast<String>(),
+        posterMeta: json['posterMeta'] != null
+            ? TmdMeta.fromJson(
+                (json['posterMeta'] as Map).cast<String, dynamic>())
+            : null,
         createdAt: json['createdAt'] != null
             ? DateTime.fromMillisecondsSinceEpoch(json['createdAt'] as int)
             : DateTime.now(),
@@ -84,5 +98,19 @@ class ManualGroupsStore {
     }
     groups.removeWhere((g) => g.folderIds.length <= 1);
     if (changed) await save(groups);
+  }
+
+  /// Sets (or clears, with null) the user-picked [TmdMeta] poster for the
+  /// group [groupId] — the Fix match / Remove-info buttons on the group
+  /// detail screen.
+  Future<void> setPosterMeta(String groupId, TmdMeta? meta) async {
+    final groups = await load();
+    for (final g in groups) {
+      if (g.id == groupId) {
+        g.posterMeta = meta;
+        break;
+      }
+    }
+    await save(groups);
   }
 }

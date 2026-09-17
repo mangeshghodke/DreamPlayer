@@ -3,9 +3,7 @@ import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
-import '../services/folder_scanner.dart';
 import '../services/jellyfin_client.dart';
-import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
 import '../services/upnp_client.dart';
 import '../services/resume_progress_helper.dart';
@@ -30,15 +28,6 @@ class _UpnpScreenState extends State<UpnpScreen> {
       caseSensitive: false);
 
   /// Whether [old] is a child of [root] in the UPnP path hierarchy.
-  static bool _isChildOfRoot(LibraryFolder old, LibraryFolder root) {
-    if (old.source != LibraryFolderSource.upnp) return false;
-    if (old.networkServerId != root.networkServerId) return false;
-    final rootNp = root.networkPath ?? '';
-    final oldNp = old.networkPath ?? '';
-    if (rootNp.isEmpty) return oldNp.isNotEmpty;
-    return oldNp.startsWith('$rootNp/') && oldNp.length > rootNp.length + 1;
-  }
-
   List<UpnpServer> _servers = const [];
   bool _discovering = false;
   String? _discoverError;
@@ -159,81 +148,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
     await _browse(server, _crumbs.last.id);
   }
 
-  /// Bookmarks the current DLNA container to the home library (auto-expand
-  /// pattern: subfolders + video children become child cards when enabled —
-  /// same as SMB/WebDAV/FTP).
-  Future<void> _bookmarkCurrentFolder() async {
-    final server = _activeServer;
-    if (server == null || _crumbs.length <= 1) return;
-    final crumb = _crumbs.last;
-    final folderName = crumb.name;
-    final id = 'upnp_${server.id}_${crumb.id.hashCode}';
-
-    final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
-    if (autoExpand && _entries.isNotEmpty) {
-      // Deep scan: recursively traverse subdirectories (up to 5 levels).
-      final rootFolder = LibraryFolder(
-        id: id,
-        name: folderName,
-        path: 'upnp:${server.id}/${crumb.id}',
-        addedAt: DateTime.now(),
-        source: LibraryFolderSource.upnp,
-        networkServerId: server.id,
-        networkPath: crumb.id,
-        networkLabel: server.name,
-      );
-      final scanDepth = await FolderScanner.savedScanDepth();
-      final scanner = FolderScanner(maxDepth: scanDepth);
-      final expanded = await scanner.scan(rootFolder);
-      if (expanded.isNotEmpty) {
-        final expandedNames = expanded.map((e) => e.name).toSet();
-        final existing = await LibraryFoldersStore.load();
-        for (final old in existing) {
-          if (old.parentId == id ||
-              expandedNames.contains(old.name) ||
-              _isChildOfRoot(old, rootFolder)) {
-            await LibraryFoldersStore.remove(old.id);
-          }
-        }
-        await LibraryFoldersStore.bulkAdd(expanded);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Bookmarked $folderName to Home — ${expanded.length} items (DLNA · ${server.name})',
-              ),
-            ),
-          );
-        }
-        return;
-      }
-    }
-
-    // Fallback: single card.
-    final folder = LibraryFolder(
-      id: id,
-      name: folderName,
-      path: 'upnp:${server.id}/${crumb.id}',
-      addedAt: DateTime.now(),
-      source: LibraryFolderSource.upnp,
-      networkServerId: server.id,
-      networkPath: crumb.id,
-      networkLabel: server.name,
-      yearHint: ParsedFileName.yearFromNames(
-        _entries.map((e) => e.name),
-      ),
-    );
-    await LibraryFoldersStore.add(folder);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Bookmarked $folderName to Home (DLNA · ${server.name})',
-          ),
-        ),
-      );
-    }
-  }
+  // DLNA is browsed directly (no Home bookmark) — add-to-library removed per user request.
 
   /// Best-effort TMDB prefetch for the current folder's video files.
   void _prefetchTmdbMeta(List<UpnpEntry> entries) {
@@ -448,13 +363,13 @@ class _UpnpScreenState extends State<UpnpScreen> {
     _refreshResumes();
   }
 
-  Future<bool> _onWillPop() async {
+  Future<void> _goUp() async {
     if (_activeServer != null) {
       if (_crumbs.length > 1) {
         final parent = _crumbs[_crumbs.length - 2];
         setState(() => _crumbs = _crumbs.sublist(0, _crumbs.length - 1));
         await _browse(_activeServer!, parent.id);
-        return false;
+        return;
       }
       setState(() {
         _activeServer = null;
@@ -462,9 +377,9 @@ class _UpnpScreenState extends State<UpnpScreen> {
         _entries = const [];
         _browseError = null;
       });
-      return false;
+      return;
     }
-    return true;
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -476,18 +391,12 @@ class _UpnpScreenState extends State<UpnpScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        await _onWillPop();
+        await _goUp();
       },
       child: Scaffold(
         appBar: AppBar(
           title: Text(isBrowsingServer ? (_activeServer!.name) : 'DLNA'),
           actions: [
-            if (isBrowsingServer && _crumbs.length > 1)
-              IconButton(
-                tooltip: 'Add to library',
-                icon: const Icon(Icons.bookmark_add_outlined),
-                onPressed: _bookmarkCurrentFolder,
-              ),
             if (!isBrowsingServer)
               IconButton(
                 icon: _discovering
@@ -591,9 +500,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () async {
-                    if (!await _onWillPop() && mounted) setState(() {});
-                  },
+                  onPressed: _goUp,
                 ),
                 Expanded(
                   child: SingleChildScrollView(

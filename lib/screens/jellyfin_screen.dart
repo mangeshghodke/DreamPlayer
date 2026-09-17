@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/cached_image.dart';
 
 import '../models/video_item.dart';
-import '../services/folder_scanner.dart';
 import '../services/jellyfin_client.dart';
-import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
@@ -346,84 +344,8 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
 
   /// Adds the currently browsed folder (a TV-show/library folder) to the home
   /// library. The server URL + item id are persisted; the token is never — the
-  /// entry is re-matched against the saved servers each time it's opened, so it
-  /// keeps working across logins.
-  Future<void> _addToLibrary(JellyfinItem item) async {
-    final server = _browsing;
-    if (server == null) return;
-
-    // Check auto-expand: deep scan subdirectories (up to 5 levels).
-    final autoExpand = await LibraryFoldersStore.isAutoExpandEnabled();
-    if (autoExpand && item.isFolder && server.isAuthenticated) {
-      try {
-        final rootFolder = LibraryFolder(
-          id: 'jellyfin_folder_${server.urlHost}_${item.id}',
-          name: item.name,
-          path: 'jellyfin:${item.id}',
-          addedAt: DateTime.now(),
-          source: LibraryFolderSource.jellyfin,
-          jellyfinServerUrl: server.url,
-          jellyfinItemId: item.id,
-        );
-        final scanDepth = await FolderScanner.savedScanDepth();
-        final scanner = FolderScanner(maxDepth: scanDepth);
-        final expanded = await scanner.scan(rootFolder);
-        if (expanded.isNotEmpty) {
-          final expandedNames = expanded.map((e) => e.name).toSet();
-          final parentId = rootFolder.id;
-          final existing = await LibraryFoldersStore.load();
-          for (final old in existing) {
-            if (old.parentId == parentId ||
-                expandedNames.contains(old.name) ||
-                (old.jellyfinServerUrl == rootFolder.jellyfinServerUrl &&
-                 old.jellyfinItemId != null &&
-                 rootFolder.jellyfinItemId != null &&
-                 old.jellyfinItemId!.startsWith(rootFolder.jellyfinItemId!))) {
-              await LibraryFoldersStore.remove(old.id);
-            }
-          }
-          await LibraryFoldersStore.bulkAdd(expanded);
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('"${item.name}" expanded into ${expanded.length} items')),
-          );
-          return;
-        }
-      } catch (_) {
-        // Fallback to single card on listing failure.
-      }
-    }
-
-    // Fallback: single card.
-    final folder = LibraryFolder(
-      id: 'jellyfin_folder_${server.urlHost}_${item.id}',
-      name: item.name,
-      path: 'jellyfin:${item.id}',
-      addedAt: DateTime.now(),
-      source: LibraryFolderSource.jellyfin,
-      jellyfinServerUrl: server.url,
-      jellyfinItemId: item.id,
-    );
-    await LibraryFoldersStore.add(folder);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('"${item.name}" added to your library')),
-    );
-    // Fetch the series' own info from the server in the background so the home
-    // card + details screen have the main poster/title/year/overview instantly.
-    // Plain folders have no poster (Jellyfin answers with a random child
-    // image), so the nearest Series ancestor's info is used instead.
-    if (server.isAuthenticated) {
-      try {
-        final info = await _client.getPrimaryPosterInfo(server, item.id);
-        if (info != null) {
-          await _client.saveFolderMeta(folder.id, info);
-        }
-      } catch (_) {
-        // Best-effort; the card falls back to the folder name / TMDB lookup.
-      }
-    }
-  }
+  // Jellyfin is browsed directly (no Home bookmark). The library stays
+  // server-driven — add-to-library removed per user request.
 
   // ---------------------------------------------------------------------------
   // Auth + server persistence
@@ -647,8 +569,6 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
             onToggleWatched:
                 item.isFolder ? null : () => _toggleWatched(item),
             onTap: () => _openItem(item),
-            onAddToLibrary:
-                item.isFolder ? () => _addToLibrary(item) : null,
             resumeProgress: item.isFolder
                 ? null
                 : ResumeProgressHelper.progressFor(
@@ -767,7 +687,6 @@ class _JellyfinTile extends StatelessWidget {
     this.episode,
     this.watched = false,
     this.onToggleWatched,
-    this.onAddToLibrary,
     this.resumeProgress,
   });
 
@@ -779,10 +698,6 @@ class _JellyfinTile extends StatelessWidget {
   final VoidCallback? onToggleWatched;
   final double? resumeProgress;
 
-  /// Shown on folders as a "add to library" shortcut (replaces the plain
-  /// chevron so both actions stay reachable).
-  final VoidCallback? onAddToLibrary;
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -790,18 +705,7 @@ class _JellyfinTile extends StatelessWidget {
       return TvTile(
         leading: Icon(Icons.folder, color: colorScheme.primary),
         title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (onAddToLibrary != null)
-              IconButton(
-                tooltip: AppLocalizations.of(context).jellyfinAddToLibrary,
-                icon: const Icon(Icons.library_add_outlined),
-                onPressed: onAddToLibrary,
-              ),
-            const Icon(Icons.chevron_right),
-          ],
-        ),
+        trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       );
     }

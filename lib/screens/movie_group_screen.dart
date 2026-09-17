@@ -2,20 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../widgets/cached_image.dart';
-import '../models/video_item.dart';
+import '../services/manual_groups.dart';
+import '../services/network_video_resolver.dart';
 import '../services/tmdb_client.dart';
 import '../services/library_folders.dart';
 import '../services/series_grouping.dart';
-import '../utils/file_info_extractor.dart';
+import '../widgets/group_poster_dialog.dart';
 import 'tmd_details_screen.dart';
 
 /// Movie-group detail screen — mirrors the [SeriesSeasonsScreen] layout:
 /// backdrop hero app bar, header card (poster + overview + rating + genres),
 /// cast row, trailers, then the grouped folders as poster cards below.
 class MovieGroupScreen extends StatefulWidget {
-  const MovieGroupScreen({super.key, required this.group});
+  const MovieGroupScreen({
+    super.key,
+    required this.group,
+
+    /// User-picked TMDB metadata for the group's poster (chosen at group
+    /// creation) — wins over any member's cached meta in the header/backdrop.
+    this.posterMeta,
+
+    /// The manual group's store id — drives the Fix match / Remove-info
+    /// buttons on the header (posterMeta persisted via
+    /// [ManualGroupsStore.setPosterMeta]).
+    this.manualGroupId,
+  });
 
   final SeriesGroup group;
+  final TmdMeta? posterMeta;
+  final String? manualGroupId;
 
   @override
   State<MovieGroupScreen> createState() => _MovieGroupScreenState();
@@ -29,10 +44,12 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
 
   String get _groupKey => widget.group.metadataKey;
 
-  /// Meta shown in the header: the group key first, then any member folder's
-  /// cached meta.  A manual group of random cards shows TMDB info from
-  /// whichever member has it; null when no member has any.
+  /// Meta shown in the header: the user-picked manual poster first, then the
+  /// group key, then any member folder's cached meta.  A manual group of
+  /// random cards shows TMDB info from whichever member has it; null when no
+  /// member has any.
   TmdMeta? _metaForDisplay() {
+    if (widget.posterMeta != null) return widget.posterMeta;
     final primary = TmdService.instance.metaFor(_groupKey);
     if (primary != null) return primary;
     for (final f in widget.group.folders) {
@@ -92,6 +109,65 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
     setState(() => _details = d);
   }
 
+  /// Fix match — TMDB search dialog (query prefilled with the group name);
+  /// the picked [TmdMeta] becomes the group's poster (persisted via
+  /// [ManualGroupsStore.setPosterMeta]) and the header/backdrop refresh.
+  Future<void> _fixMatch() async {
+    final picked = await showDialog<TmdMeta>(
+      context: context,
+      builder: (_) => GroupPosterDialog(initialQuery: _displayName),
+    );
+    if (picked == null || !mounted) return;
+    final id = widget.manualGroupId;
+    if (id != null) {
+      await ManualGroupsStore.instance.setPosterMeta(id, picked);
+    }
+    setState(() {
+      _meta = picked;
+      _details = picked.details;
+    });
+    _loadDetails();
+  }
+
+  /// Remove info — clears the user-picked poster so the group falls back to
+  /// any member's cached meta (or just the cards when no member has any).
+  Future<void> _removeInfo() async {
+    final id = widget.manualGroupId;
+    if (id != null) {
+      await ManualGroupsStore.instance.setPosterMeta(id, null);
+    }
+    setState(() {
+      _meta = null;
+      _details = null;
+    });
+  }
+
+  /// Opens a single-file entry in VIDEO mode. File entries carry synthetic
+  /// paths for network sources — [NetworkVideoResolver] rebuilds the real
+  /// playable URL per source (WebDAV server lookup + auth, Jellyfin
+  /// streamUrl, SMB/local direct, UPnP parent re-browse).
+  Future<void> _openFileEntry(LibraryFolder folder) async {
+    final video = await NetworkVideoResolver.resolve(folder);
+    if (!mounted) return;
+    if (video == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Can't open this file — its source is unavailable."),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TmdDetailsScreen(
+          video: video,
+          parentMetadataKey: folder.metadataKey,
+        ),
+      ),
+    );
+  }
+
   String get _displayName {
     // Manual group name (user-entered) wins; else strip fansub tags from
     // the TMDB title / folder display name.
@@ -138,14 +214,36 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             sliver: SliverToBoxAdapter(
               // Header card only when a member has TMDB info — random groups
-              // with no metadata show just the cards below.
+              // with no metadata show a Get Info escape hatch (small card).
               child: _meta == null
-                  ? const SizedBox.shrink()
+                  ? Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline,
+                                size: 20, color: Colors.grey),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text('No metadata loaded',
+                                  style: TextStyle(fontSize: 14)),
+                            ),
+                            TextButton(
+                              onPressed: _fixMatch,
+                              child: const Text('Get Info'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                   : _Header(
                       meta: _meta,
                       details: _details,
                       title: displayTitle,
                       groupKey: _groupKey,
+                      onFixMatch: _fixMatch,
+                      onRemoveInfo: _removeInfo,
                     ),
             ),
           ),
@@ -204,52 +302,46 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
                           TmdService.instance.metaFor(folder.metadataKey);
                       final hasMeta =
                           meta != null && meta.movie.title.isNotEmpty;
-                      final posterUrl =
-                          hasMeta ? meta.movie.posterUrl(width: 300) : null;
-                      final title = hasMeta
-                          ? meta.movie.title
-                          : folder.name
-                              .replaceAll(RegExp(r'\[.*?\]'), ' ')
-                              .replaceAll(RegExp(r'\s+'), ' ')
-                              .trim();
+                      // Season poster/name when the folder's meta carries a
+                      // folderSeason (e.g. Strike the Blood II → Season 2) —
+                      // each card inside the group represents ONE folder, so
+                      // the season art shows instead of the series' Season-1
+                      // poster. Movie parts (folderSeason null) keep the
+                      // movie poster.
+                      final fs = (meta?.folderSeason != null &&
+                              (meta!.folderSeason ?? 0) > 0)
+                          ? meta.folderSeason
+                          : null;
+                      final seasonPoster =
+                          (fs != null && meta != null)
+                              ? meta.seasons[fs]?.posterUrl()
+                              : null;
+                      final seasonName = (fs != null && meta != null)
+                          ? meta.seasons[fs]?.name
+                          : null;
+                      final posterUrl = seasonPoster ??
+                          (hasMeta ? meta.movie.posterUrl(width: 300) : null);
+                      final title = (seasonName?.isNotEmpty ?? false)
+                          ? seasonName!
+                          : hasMeta
+                              ? meta.movie.title
+                              : folder.name
+                                  .replaceAll(RegExp(r'\[.*?\]'), ' ')
+                                  .replaceAll(RegExp(r'\s+'), ' ')
+                                  .trim();
                       return _MovieGroupCard(
                         folder: folder,
                         posterUrl: posterUrl,
                         title: title,
                         kind: meta?.movie.kind,
+                        year: meta?.movie.year,
                         onTap: () {
                           // Single-file entries open VIDEO mode (like the
                           // home screen's single-file cards) — folder mode
                           // lists a directory, which a file entry doesn't
                           // have ("no videos here" + dead Play button).
                           if (folder.isFile) {
-                            final path = folder.videoPath ?? folder.path;
-                            final uri = folder.videoUri;
-                            final info = extractFileInfo(folder.name);
-                            final video = VideoItem(
-                              id: 'home_${folder.id}',
-                              title: folder.name,
-                              path: uri == null ? path : null,
-                              uri: uri ?? path,
-                              resumeKey: uri ?? path,
-                              duration: Duration.zero,
-                              sizeBytes: folder.videoSizeBytes,
-                              videoCodec: info.videoCodec,
-                              audioCodec: info.audioCodec,
-                              audioChannels: info.audioChannels,
-                              audioLanguage: info.audioLanguage,
-                              resolution: info.resolution,
-                              fps: info.fps,
-                              hdrHint: info.hdrHint,
-                            );
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => TmdDetailsScreen(
-                                  video: video,
-                                  parentMetadataKey: folder.metadataKey,
-                                ),
-                              ),
-                            );
+                            _openFileEntry(folder);
                             return;
                           }
                           Navigator.of(context).push(
@@ -273,19 +365,24 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
 }
 
 /// Header card — poster + title + year + overview (expandable) + rating +
-/// genres. Mirrors the `_SeriesHeader` layout in series_seasons_screen.dart.
+/// genres + Fix match/Remove buttons. Mirrors the `_SeriesHeader` layout in
+/// series_seasons_screen.dart.
 class _Header extends StatefulWidget {
   const _Header({
     required this.meta,
     required this.details,
     required this.title,
     required this.groupKey,
+    required this.onFixMatch,
+    this.onRemoveInfo,
   });
 
   final TmdMeta? meta;
   final TmdDetails? details;
   final String title;
   final String groupKey;
+  final VoidCallback onFixMatch;
+  final VoidCallback? onRemoveInfo;
 
   @override
   State<_Header> createState() => _HeaderState();
@@ -394,7 +491,23 @@ class _HeaderState extends State<_Header> {
                         const SizedBox(width: 2),
                         Text(rating.toStringAsFixed(1),
                             style: const TextStyle(fontSize: 12)),
+                        const SizedBox(width: 12),
                       ],
+                      Flexible(
+                        child: TextButton(
+                          onPressed: widget.onFixMatch,
+                          child: Text(widget.onRemoveInfo != null
+                              ? 'Fix match'
+                              : 'Get Info'),
+                        ),
+                      ),
+                      if (widget.onRemoveInfo != null)
+                        Flexible(
+                          child: TextButton(
+                            onPressed: widget.onRemoveInfo,
+                            child: const Text('Remove'),
+                          ),
+                        ),
                     ],
                   ),
                   if (genres.isNotEmpty) ...[
@@ -618,6 +731,7 @@ class _MovieGroupCard extends StatelessWidget {
     required this.posterUrl,
     required this.title,
     this.kind,
+    this.year,
     required this.onTap,
   });
 
@@ -625,11 +739,19 @@ class _MovieGroupCard extends StatelessWidget {
   final String? posterUrl;
   final String title;
   final TmdKind? kind;
+  final int? year;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final kindBadge = kind != null ? (kind == TmdKind.tv ? 'TV' : 'Movie') : null;
+    final kindColor =
+        kind == TmdKind.tv ? const Color(0xFF9C27B0) : const Color(0xFF1565C0);
+    final subtitle = [
+      year != null ? '$year' : null,
+      kindBadge,
+    ].whereType<String>().join(' · ');
     return GestureDetector(
       onTap: onTap,
       child: Card(
@@ -673,22 +795,20 @@ class _MovieGroupCard extends StatelessWidget {
                     ),
                   if (kind != null)
                     Positioned(
-                      top: 4,
-                      right: 4,
+                      top: 8,
+                      right: 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 1),
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: kind == TmdKind.tv
-                              ? const Color(0xFF9C27B0)
-                              : const Color(0xFF1565C0),
-                          borderRadius: BorderRadius.circular(3),
+                          color: kindColor,
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          kind == TmdKind.tv ? 'TV' : 'Movie',
+                          kindBadge ?? '',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -698,14 +818,30 @@ class _MovieGroupCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(6),
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant),
                     ),
+                  ],
+                ],
               ),
             ),
           ],
