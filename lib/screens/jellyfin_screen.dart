@@ -3,12 +3,15 @@ import '../widgets/cached_image.dart';
 
 import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
+import '../services/library_folders.dart';
+import '../services/series_grouping.dart';
 import '../services/tmdb_client.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_tile.dart';
+import 'series_seasons_screen.dart';
 import 'tmd_details_screen.dart';
 import '../l10n/app_localizations.dart';
 
@@ -291,6 +294,46 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
 
   Future<void> _openItem(JellyfinItem item) async {
     if (item.isFolder) {
+      // Season folders get the rich season view (same UI as a bookmarked
+      // season card on Home) — header, season poster, cast, episode list
+      // with stills — instead of a plain file list.
+      if (item.type == 'Season') {
+        final server = _browsing;
+        if (server != null) {
+          final parentName = _crumbs.isNotEmpty ? _crumbs.last.title : '';
+          final seasonNum = item.indexNumber ??
+              ParsedFileName.parse(item.name).season;
+          // TMDB query uses the PARENT series name — 'House Season02'
+          // doesn't parse (the parser's season tag needs a space) and
+          // returns 0 results, leaving the season view header-less with no
+          // episode stills (reads as a plain list). The season number still
+          // lands via _seasonOf → parentIndexNumber → _fetchSeasonData.
+          final displayName = parentName.isNotEmpty ? parentName : item.name;
+          final folder = LibraryFolder(
+            id: 'jellyfin_folder_${server.urlHost}_${item.id}',
+            name: (parentName.isNotEmpty && seasonNum > 0)
+                ? '$parentName Season${seasonNum.toString().padLeft(2, '0')}'
+                : item.name,
+            path: 'jellyfin:${item.id}',
+            addedAt: DateTime.now(),
+            source: LibraryFolderSource.jellyfin,
+            jellyfinServerUrl: server.url,
+            jellyfinItemId: item.id,
+          );
+          final group = SeriesGroup(
+            baseName: displayName.toLowerCase(),
+            displayName: displayName,
+            folders: [folder],
+          );
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => SeriesSeasonsScreen(group: group),
+            ),
+          );
+          _refreshResumes();
+          return;
+        }
+      }
       setState(() {
         _crumbs = [..._crumbs, _Crumb(item.name, item.id)];
         _loading = true;

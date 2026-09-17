@@ -51,10 +51,14 @@ class _GroupPosterDialogState extends State<GroupPosterDialog> {
       _error = null;
     });
     try {
-      final primary = await _api.search(query, kind: _kind);
-      final fallbackKind = _kind == TmdKind.movie ? TmdKind.tv : TmdKind.movie;
-      final fallback = await _api.search(query, kind: fallbackKind);
-      final results = <TmdMovie>[...primary, ...fallback];
+      // The Movie/TV tab is honored: only the SELECTED kind is searched.
+      // The other kind fills in only when the primary returns empty
+      // (kind-first fallback), so the tab is never just a reorder.
+      var results = await _api.search(query, kind: _kind);
+      if (results.isEmpty) {
+        final fallbackKind = _kind == TmdKind.movie ? TmdKind.tv : TmdKind.movie;
+        results = await _api.search(query, kind: fallbackKind);
+      }
       final seen = <int>{};
       results.retainWhere((m) => seen.add(m.id));
       if (!mounted) return;

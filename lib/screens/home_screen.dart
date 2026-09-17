@@ -299,11 +299,21 @@ class _HomeScreenState extends State<HomeScreen>
         folders: members,
       ));
     }
+    // No auto-grouping — every remaining folder is its own card and the
+    // user groups manually (long-press → Group). Scanner-expanded seasons
+    // (e.g. Strike the Blood Season01/02) stay separate cards.
     final remaining = folders.where((f) => !groupedIds.contains(f.id)).toList();
-    final autoGroups = const SeriesGroupingService().group(remaining);
-    // Manual groups first (most recent first), then auto.
+    final singles = [
+      for (final f in remaining)
+        SeriesGroup(
+          baseName: f.name.toLowerCase(),
+          displayName: f.name,
+          folders: [f],
+        ),
+    ];
+    // Manual groups first (most recent first), then singles in store order.
     manualGroups.sort((a, b) => b.primary.addedAt.compareTo(a.primary.addedAt));
-    return [...manualGroups, ...autoGroups];
+    return [...manualGroups, ...singles];
   }
 
   bool _isManualGroup(SeriesGroup g) =>
@@ -433,6 +443,49 @@ class _HomeScreenState extends State<HomeScreen>
     await _loadLibraryFolders();
   }
 
+  bool _ungroupableSelection() {
+    if (_selectedIds.isEmpty) return false;
+    for (final mg in _manualGroups) {
+      if (mg.folderIds.length == _selectedIds.length &&
+          mg.folderIds.every(_selectedIds.contains)) return true;
+    }
+    return false;
+  }
+
+  Future<void> _ungroupSelectionAsGroup() async {
+    SeriesGroup? target;
+    for (final mg in _manualGroups) {
+      if (mg.folderIds.length == _selectedIds.length &&
+          mg.folderIds.every(_selectedIds.contains)) {
+        for (final g in _seriesGroups) {
+          if (g.folders.length == mg.folderIds.length &&
+              mg.folderIds.every((id) => g.folders.any((f) => f.id == id))) {
+            target = g;
+            break;
+          }
+        }
+        break;
+      }
+    }
+    target ??= (() {
+      for (final g in _seriesGroups) {
+        if (g.folders.length == _selectedIds.length &&
+            g.folders.every((f) => _selectedIds.contains(f.id))) return g;
+      }
+      return null;
+    })();
+    final ids = Set<String>.from(_selectedIds);
+    _exitSelection();
+    if (target != null) {
+      await _ungroup(target);
+    } else {
+      // Fallback: at least clear the stale selection that matched a
+      // just-deleted manual group.
+      await _loadLibraryFolders();
+      if (ids.isNotEmpty) setState(() => _selectedIds.clear());
+    }
+  }
+
   void _onGroupTap(SeriesGroup g) {
     if (_inSelectionMode) {
       _toggleGroupSelection(g);
@@ -442,11 +495,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _onGroupLongPress(SeriesGroup g) {
-    if (_isManualGroup(g)) {
-      // Manual group: long-press offers Ungroup without entering selection.
-      _ungroup(g);
-      return;
-    }
+    // Long-press enters selection mode (tap toggles the whole group) — the
+    // top-right 3-dot menu then offers Group / Remove from library.
     if (_inSelectionMode) {
       _toggleGroupSelection(g);
     } else {
@@ -923,6 +973,58 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  /// Batch remove: removes every folder in [list] from the library (the
+  /// selection-mode 3-dot menu's Remove from library). Same cleanup as
+  /// [_removeFolder] — manual-group drop, library bookmark release, and TMDB
+  /// clear for each removed group.
+  Future<void> _removeFolders(List<LibraryFolder> list) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppLocalizations.of(context).homeRemoveFromLibrary),
+        content: Text(
+          '${list.length} ${list.length == 1 ? 'item' : 'items'} will no longer '
+          'appear here. The files stay on your device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(AppLocalizations.of(context).commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(AppLocalizations.of(context).commonRemove),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    for (final f in list) {
+      await LibraryFoldersStore.remove(f.id);
+      try {
+        await ManualGroupsStore.instance.removeFolderId(f.id);
+      } catch (_) {}
+      if (f.source == LibraryFolderSource.files) {
+        try {
+          await FileBrowserService.instance.removeLibraryBookmark(f.id);
+        } catch (_) {}
+      } else if (f.isJellyfin) {
+        try {
+          await _client.removeFolderMeta(f.id);
+        } catch (_) {}
+      }
+      try {
+        await TmdService.instance.clear(f.metadataKey);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _folders = _folders
+          .where((f) => !list.any((r) => r.id == f.id))
+          .toList();
+    });
+  }
+
   Future<void> _clearAll() async {
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -1289,15 +1391,16 @@ class _HomeScreenState extends State<HomeScreen>
                     onSelected: (v) {
                       if (v == 'group' && _selectedIds.length >= 2) _groupSelected();
                       if (v == 'clear') _exitSelection();
-                      if (v == 'remove' && _selectedIds.length == 1) {
-                        final id = _selectedIds.first;
-                        LibraryFolder? folder;
-                        for (final f in _folders) {
-                          if (f.id == id) { folder = f; break; }
-                        }
-                        if (folder != null) {
-                          _exitSelection();
-                          _removeFolder(folder);
+                      if (v == 'ungroup') _ungroupSelectionAsGroup();
+                      if (v == 'remove' && _selectedIds.isNotEmpty) {
+                        final foldersToRemove = _folders
+                            .where((f) => _selectedIds.contains(f.id))
+                            .toList();
+                        _exitSelection();
+                        if (foldersToRemove.length == 1) {
+                          _removeFolder(foldersToRemove.first);
+                        } else if (foldersToRemove.isNotEmpty) {
+                          _removeFolders(foldersToRemove);
                         }
                       }
                     },
@@ -1307,7 +1410,9 @@ class _HomeScreenState extends State<HomeScreen>
                         enabled: _selectedIds.length >= 2,
                         child: const Text('Group'),
                       ),
-                      if (_selectedIds.length == 1)
+                      if (_ungroupableSelection())
+                        const PopupMenuItem(value: 'ungroup', child: Text('Ungroup')),
+                      if (_selectedIds.isNotEmpty)
                         const PopupMenuItem(value: 'remove', child: Text('Remove from library')),
                       const PopupMenuItem(value: 'clear', child: Text('Clear selection')),
                     ],
