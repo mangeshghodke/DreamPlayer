@@ -196,6 +196,10 @@ String? _extractHdr(String name) {
   if (name.contains(RegExp(r'\bdvhe\b|\bdvh1\b|\bdvav\b|\bdolby\.?vision\b'))) {
     return 'Dolby Vision';
   }
+  // Bare DV token / DoVi abbreviation (common in release names: DV.HDR, DoVi.HDR)
+  if (name.contains(RegExp(r'\bdv\b|\bdovi\b'))) {
+    return 'Dolby Vision';
+  }
   // DV profile
   final dvProfile = RegExp(r'\bdv?\s*p(?:rofile)?\s*(\d)\b').firstMatch(name);
   if (dvProfile != null) {
