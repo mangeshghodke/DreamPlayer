@@ -595,6 +595,24 @@ class _PlayerScreenState extends State<PlayerScreen>
           );
     final externalSubs = await _resolveExternalSubtitles(video);
     final readingLang = await SubtitlePrefs.loadReadingLanguage();
+    // iOS: re-grant security-scoped access before the native player touches
+    // the file. Files inside a bookmarked folder (Files-app picker /
+    // external SMB drive) lose their grant between launches — without this,
+    // AVPlayer hits a provider file with no access scope and either errors
+    // ("Operation not permitted") or crashes the process. Cover the case
+    // where the video has no `path` but a file:// uri instead.
+    if (!_inTests && Platform.isIOS && !_mpvActive) {
+      try {
+        final fsPath = video.path ??
+            (video.uri != null && video.uri!.startsWith('file://')
+                ? Uri.decodeComponent(
+                    video.uri!.substring('file://'.length))
+                : null);
+        if (fsPath != null && fsPath.isNotEmpty) {
+          await FileBrowserService.instance.resolvePath(fsPath);
+        }
+      } catch (_) {}
+    }
     try {
       await _exo?.open(
         video.path ?? '',
