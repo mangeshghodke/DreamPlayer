@@ -1,12 +1,8 @@
- lamentations of a paywall developer
-
+// DreamPlayer.storekit
+// StoreKit Configuration File
 //
-//  DreamPlayer.storekit
-//  StoreKit Configuration File
-//
-//  Add this file to the Xcode project (File → Add to "Runner" → select this file).
-//  Products are defined below; Xcode auto-registers them for the local StoreKit sandbox.
-//
+// Products defined below. Xcode auto-registers them for the local StoreKit sandbox.
+// To test: Product → Scheme → Edit Scheme → Run → Options → StoreKit Configuration → DreamPlayer.storekit
 
 configurations {
     defaultConfiguration = Release
@@ -14,5 +10,42 @@ configurations {
     configurations {
         Debug {}
         Release {}
+    }
+}
+
+products {
+    // ── Subscriptions (in "Advanced" Subscription Group) ──
+
+    advanced_monthly {
+        type: autoRenewableSubscription
+        displayName: "Monthly"
+        description: "Unlock all premium features — billed monthly."
+        subscriptionGroupID: advanced_group
+        duration: 1 month
+        price: INR 199.00
+    }
+
+    advanced_yearly {
+        type: autoRenewableSubscription
+        displayName: "Yearly — Save 25%"
+        description: "Unlock all premium features — billed annually."
+        subscriptionGroupID: advanced_group
+        duration: 1 year
+        price: INR 1499.00
+    }
+
+    // ── Non-Consumable (one-time purchase) ──
+
+    advanced_lifetime {
+        type: nonConsumable
+        displayName: "Lifetime"
+        description: "Unlock all premium features forever — one-time purchase."
+        price: INR 4999.00
+    }
+}
+
+subscriptionGroups {
+    advanced_group {
+        displayName: "Advanced"
     }
 }
