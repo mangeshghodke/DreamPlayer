@@ -39,6 +39,11 @@ bool isDolbyVisionCodec(String? codec) {
   if (codec == null || codec.isEmpty) return false;
   final c = codec.toLowerCase();
   if (c.startsWith('dv')) return true;
+  // Handle display labels that older builds / the filename extractor stored
+  // (e.g. "Dolby Vision") — dolbyVisionProfile returns null for generic
+  // "dolby vision" / "dovi" (no profile number), so the caller would
+  // misclassify as non-DV.  Catch the label here directly.
+  if (c.contains('dolby vision') || c.contains('dovi')) return true;
   return dolbyVisionProfile(codec) != null;
 }
 

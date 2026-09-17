@@ -46,9 +46,13 @@ FileInfo extractFileInfo(String fileName) {
 }
 
 String? _extractVideoCodec(String name) {
-  // Dolby Vision (must check before HEVC since dvhe contains 'hevc' patterns)
-  if (name.contains(RegExp(r'\bdvhe\b|\bdvh1\b|\bdvav\b|\bdolby\.?vision\b|\bdv\b'))) {
-    return 'Dolby Vision';
+  // Dolby Vision (must check before HEVC since dvhe contains 'hevc' patterns).
+  // Return the raw codec string so isDolbyVisionCodec() can match it.
+  if (name.contains(RegExp(r'\bdvhe\b|\bdvh1\b|\bdvav\b'))) {
+    return 'dvhe';
+  }
+  if (name.contains(RegExp(r'\bdolby\.?vision\b'))) {
+    return 'dvhe';
   }
   // HEVC / H.265
   if (name.contains(RegExp(r'\bhevc\b|\bh\.?265\b|\bhvc1\b|\bhev1\b'))) {
