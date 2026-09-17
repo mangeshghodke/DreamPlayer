@@ -282,15 +282,21 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// speed (only http/https feed AVPlayerItemAccessLog).
     private var currentSourceScheme: String = ""
 
-    /// Set when the app enters background; cleared on foreground.
-    /// When play() is called while this is true, reload the session
-    /// instead of calling play() — iOS may have revoked file handles
-    /// (security-scoped bookmarks) or killed network connections during sleep.
-    private var needsReloadAfterBackground = false
-    /// Final URL the engine was bound to (file URL for local paths, otherwise
-    /// the same URL we handed to the engine). Reserved for the
-    /// source-label / chapter-probe paths; the network telemetry is gone.
-    private var currentSourceURL: URL?
+     /// Set when the app enters background; cleared on foreground.
+     /// When play() is called while this is true, reload the session
+     /// instead of calling play() — iOS may have revoked file handles
+     /// (security-scoped bookmarks) or killed network connections during sleep.
+     private var needsReloadAfterBackground = false
+     /// Final URL the engine was bound to (file URL for local paths, otherwise
+     /// the same URL we handed to the engine). Reserved for the
+     /// source-label / chapter-probe paths; the network telemetry is gone.
+     private var currentSourceURL: URL?
+     /// Identity key of the file currently opened by this view. Used so that
+     /// probe/HDR state survives a re-open of the SAME file (resume / replay):
+     /// the engine probe can drop DV info when loading with a start position,
+     /// which would regress the badge to SDR. Only cleared when a different
+     /// file is opened.
+     private var lastOpenedKey: String?
 
     /// Subtitle cue shift from the user's appearance settings (seconds).
     /// Positive = cues appear LATER than authored.
@@ -629,12 +635,16 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             result(FlutterError(code: "engine_init", message: "AetherEngine failed to initialize", details: nil))
             return
         }
-        // New file is being opened — clear the background-reload flag so we
-        // don't immediately reload a freshly-opened source.
-        needsReloadAfterBackground = false
-        let path = args?["path"] as? String
-        let uri = args?["uri"] as? String
-        let subtitleUri = args?["subtitleUri"] as? String
+         // New file is being opened — clear the background-reload flag so we
+         // don't immediately reload a freshly-opened source.
+         needsReloadAfterBackground = false
+         let path = args?["path"] as? String
+         let uri = args?["uri"] as? String
+         let subtitleUri = args?["subtitleUri"] as? String
+         // Identity of the source being opened — used to detect
+         // same-file re-opens (resume/replay) where the engine probe
+         // may drop DV info when loading with a start position.
+         let newKey = (path ?? uri ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         // Lock-screen title (same payload Android reads natively).
         if let t = args?["title"] as? String, !t.isEmpty { mediaTitle = t }
         let startMs = (args?["startPositionMs"] as? NSNumber)?.int64Value ?? 0
@@ -687,22 +697,30 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         try? AVAudioSession.sharedInstance().setActive(true)
         UIApplication.shared.isIdleTimerDisabled = true
 
-        // Reset per-open state.
-        lastError = nil
-        pendingAutoSubtitleIndex = nil
-        videoCodecName = nil
-        videoWidth = 0
-        videoHeight = 0
-        isDolbyVision = false
-        dvProfile = nil
-        lastWebDAVInfo = nil
-        lastFtpUri = nil
-        chapters = []
-        isHdr10PlusContent = false
-        isHdr10Content = false
-        subtitleOverlay.clear()
-        invalidatePipController()
-        emit()
+         // Reset per-open state.
+         // Probe/HDR state survives a re-open of the SAME file (resume/replay):
+         // the engine probe can drop DV info when loading with a start position,
+         // which would regress the badge to SDR. Only cleared when a different
+         // file is opened.
+         lastError = nil
+         pendingAutoSubtitleIndex = nil
+         let sameFile = !newKey.isEmpty && newKey == lastOpenedKey
+         lastOpenedKey = newKey
+         if !sameFile {
+             videoCodecName = nil
+             videoWidth = 0
+             videoHeight = 0
+             isDolbyVision = false
+             dvProfile = nil
+             isHdr10PlusContent = false
+             isHdr10Content = false
+         }
+         lastWebDAVInfo = nil
+         lastFtpUri = nil
+         chapters = []
+         subtitleOverlay.clear()
+         invalidatePipController()
+         emit()
 
         // Sidecar subtitles: an explicit `subtitleUri` wins; then external
         // subtitles from the server (e.g. Jellyfin); then auto-pair sibling
@@ -811,14 +829,17 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     scheme = ""
                 }
                 self.currentSourceScheme = scheme
-                let probe = try await engine.load(source: finalSource, startPosition: startPosition, options: options)
-                if let probe {
-                    self.videoCodecName = probe.videoCodecName
-                    self.videoWidth = Int(probe.videoWidth)
-                    self.videoHeight = Int(probe.videoHeight)
-                    self.isDolbyVision = probe.isDolbyVision
-                    self.dvProfile = probe.dvProfile
-                }
+                 let probe = try await engine.load(source: finalSource, startPosition: startPosition, options: options)
+                 if let probe {
+                     // The probe can drop DV info when loading with a start
+                     // position (resume/replay). Keep the earlier detection
+                     // instead of regressing the badge to SDR.
+                     self.videoCodecName = probe.videoCodecName ?? self.videoCodecName
+                     self.videoWidth = probe.videoWidth > 0 ? Int(probe.videoWidth) : self.videoWidth
+                     self.videoHeight = probe.videoHeight > 0 ? Int(probe.videoHeight) : self.videoHeight
+                     self.isDolbyVision = probe.isDolbyVision || self.isDolbyVision
+                     self.dvProfile = probe.dvProfile ?? self.dvProfile
+                 }
                 if let pending = self.pendingAutoSubtitleIndex,
                    engine.subtitleTracks.contains(where: { $0.id == pending }) {
                     engine.selectSubtitleTrack(index: pending)
@@ -931,14 +952,16 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             let freshSource = try await buildFreshSource()
             guard let freshSource else { return }
             lastSource = freshSource
-            let probe = try await engine.load(source: freshSource, startPosition: position, options: lastLoadOptions)
-            if let probe {
-                videoCodecName = probe.videoCodecName
-                videoWidth = Int(probe.videoWidth)
-                videoHeight = Int(probe.videoHeight)
-                isDolbyVision = probe.isDolbyVision
-                dvProfile = probe.dvProfile
-            }
+             let probe = try await engine.load(source: freshSource, startPosition: position, options: lastLoadOptions)
+             if let probe {
+                 // Same-file reload can drop DV info (startPosition load).
+                 // Keep the earlier detection instead of regressing to SDR.
+                 videoCodecName = probe.videoCodecName ?? self.videoCodecName
+                 videoWidth = probe.videoWidth > 0 ? Int(probe.videoWidth) : self.videoWidth
+                 videoHeight = probe.videoHeight > 0 ? Int(probe.videoHeight) : self.videoHeight
+                 isDolbyVision = probe.isDolbyVision || self.isDolbyVision
+                 dvProfile = probe.dvProfile ?? self.dvProfile
+             }
             if let activeSub, engine.subtitleTracks.contains(where: { $0.id == activeSub }) {
                 engine.selectSubtitleTrack(index: activeSub)
             }
