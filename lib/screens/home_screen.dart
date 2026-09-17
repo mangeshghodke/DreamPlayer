@@ -447,7 +447,9 @@ class _HomeScreenState extends State<HomeScreen>
     if (_selectedIds.isEmpty) return false;
     for (final mg in _manualGroups) {
       if (mg.folderIds.length == _selectedIds.length &&
-          mg.folderIds.every(_selectedIds.contains)) return true;
+          mg.folderIds.every(_selectedIds.contains)) {
+        return true;
+      }
     }
     return false;
   }
@@ -470,7 +472,9 @@ class _HomeScreenState extends State<HomeScreen>
     target ??= (() {
       for (final g in _seriesGroups) {
         if (g.folders.length == _selectedIds.length &&
-            g.folders.every((f) => _selectedIds.contains(f.id))) return g;
+            g.folders.every((f) => _selectedIds.contains(f.id))) {
+          return g;
+        }
       }
       return null;
     })();
