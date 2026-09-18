@@ -1229,19 +1229,30 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         }()
 
         let engineVideoFormat = engine.videoFormat
-        let isDVFromEngine = engineVideoFormat == .dolbyVision || engineVideoFormat == .hdr10Plus || engineVideoFormat == .hdr10
+        // DV: the engine's own .dolbyVision report is authoritative — the load
+        // probe can be nil on resume/reload, which used to regress the badge
+        // to SDR. (.hdr10/.hdr10Plus are NOT DV — including them here would
+        // mislabel plain HDR10 files as Dolby Vision via the dvhe codec.)
+        let isDVFromEngine = engineVideoFormat == .dolbyVision
         let effectiveIsDV = isDolbyVision || isDVFromEngine
-        // Fallback dimensions from the engine's asset when the probe
-        // returned nil (resume/reload). Uses the first video track's size.
-        let effectiveWidth = videoWidth > 0 ? videoWidth : Self.assetVideoWidth(asset: findPlayerLayer()?.player?.currentItem?.asset)
-        let effectiveHeight = videoHeight > 0 ? videoHeight : Self.assetVideoHeight(asset: findPlayerLayer()?.player?.currentItem?.asset)
+        // Fallback dimensions from the played item — `presentationSize` is a
+        // synchronous non-blocking AVPlayerItem property; asset.tracks() can
+        // block on network sources and must not run on the platform main
+        // thread. Memoized back into videoWidth/videoHeight so the subtitle
+        // overlay also gets real dimensions after a probe-less resume.
+        let itemSize = findPlayerLayer()?.player?.currentItem?.presentationSize ?? .zero
+        let effectiveWidth = videoWidth > 0 ? videoWidth : (itemSize.width > 0 ? Int(itemSize.width) : 0)
+        let effectiveHeight = videoHeight > 0 ? videoHeight : (itemSize.height > 0 ? Int(itemSize.height) : 0)
+        if videoWidth == 0 && effectiveWidth > 0 { videoWidth = effectiveWidth }
+        if videoHeight == 0 && effectiveHeight > 0 { videoHeight = effectiveHeight }
         let videoCodec = Self.displayVideoCodec(base: videoCodecName, isDV: effectiveIsDV, profile: dvProfile)
         let hevcForHdr: Bool = {
             let c = (videoCodecName ?? "").lowercased()
             return c.contains("hevc") || c.contains("hev1") || c.contains("hvc1") || c.hasPrefix("dv") || isDVFromEngine
         }()
-        // Use engineVideoFormat for colorTransfer — it's always available
-        // from the engine even when the load probe returns nil.
+        // engineVideoFormat is always available from the engine even when the
+        // load probe returns nil; the mapping itself returns nil for .sdr so
+        // an SDR H.264 file never badges HDR10.
         let effectiveColorTransfer = hevcForHdr ? Self.colorTransfer(for: engineVideoFormat) : nil
         let hdrPlus = isHdr10PlusContent || (hevcForHdr && engineVideoFormat == .hdr10Plus)
         let hdr10 = isHdr10Content || (hevcForHdr && (engineVideoFormat == .hdr10 || engineVideoFormat == .hdr10Plus))
@@ -1488,19 +1499,6 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         } else {
             try? line.data(using: .utf8)!.write(to: url)
         }
-    }
-
-    /// Extract the first video track's width from an AVAsset (fallback when
-    /// the load probe returns nil, e.g. on resume/reload).
-    private static func assetVideoWidth(asset: AVAsset?) -> Int {
-        guard let asset, !asset.tracks(withMediaType: .video).isEmpty else { return 0 }
-        return Int(asset.tracks(withMediaType: .video).first!.naturalSize.width)
-    }
-
-    /// Extract the first video track's height from an AVAsset (fallback).
-    private static func assetVideoHeight(asset: AVAsset?) -> Int {
-        guard let asset, !asset.tracks(withMediaType: .video).isEmpty else { return 0 }
-        return Int(asset.tracks(withMediaType: .video).first!.naturalSize.height)
     }
 
     /// Maps a libavcodec subtitle codec to the MIME the Dart `formatSubtitle` map knows.
