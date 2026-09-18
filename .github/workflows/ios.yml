@@ -41,9 +41,6 @@ jobs:
         run: flutter test
 
       # --- Unsigned build (always produced so you can inspect the app) ---
-      # TEST build — always bundles TMDB_API_KEY (also OPENSUBTITLES/SIMKL)
-      # so the sideloaded/TestFlight app works without first opening Settings.
-      # Release builds (release.yml) intentionally OMIT the TMDB key.
       - name: Build unsigned iOS app
         run: flutter build ios --release --no-codesign --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
 
@@ -57,10 +54,10 @@ jobs:
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: DreamPlayer.ipa
+          name: DreamPlayer-unsigned.ipa
           path: DreamPlayer-*.ipa
 
-      # --- Code signing (only runs once secrets are configured) ---
+      # --- Code signing (only runs when secrets are configured) ---
       - name: Import signing certificate
         if: ${{ env.CERT_BASE64 != '' }}
         env:
@@ -69,12 +66,12 @@ jobs:
         run: |
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           echo "$CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "$CERT_PASSWORD" "$KEYCHAIN"
+          security create-keychain -p "actions" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$CERT_PASSWORD" "$KEYCHAIN"
+          security unlock-keychain -p "actions" "$KEYCHAIN"
           security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$CERT_PASSWORD" "$KEYCHAIN"
-          security list-keychains -d user -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "actions" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
 
       - name: Install provisioning profile
         if: ${{ env.PROFILE_BASE64 != '' }}
@@ -83,8 +80,38 @@ jobs:
         run: |
           echo "$PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/DreamPlayer.mobileprovision"
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp "$RUNNER_TEMP/DreamPlayer.mobileprovision" \
-             "$HOME/Library/MobileDevice/Provisioning Profiles/"
+          # Copy with UUID filename (required by Xcode)
+          UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(security cms -D -i "$RUNNER_TEMP/DreamPlayer.mobileprovision") 2>/dev/null || plutil -extract UUID raw -o - "$RUNNER_TEMP/DreamPlayer.mobileprovision")
+          cp "$RUNNER_TEMP/DreamPlayer.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/${UUID}.mobileprovision"
+          echo "Installed profile UUID: $UUID"
+
+      - name: Configure signing
+        if: ${{ env.HAVE_CERT != '' && env.HAVE_PROFILE != '' }}
+        env:
+          HAVE_CERT: ${{ secrets.IOS_CERT_BASE64 }}
+          HAVE_PROFILE: ${{ secrets.IOS_PROFILE_BASE64 }}
+          TEAM_ID: ${{ secrets.APPSTORE_TEAM_ID }}
+        run: |
+          # Set manual signing in Xcode project
+          cd ios
+          # Extract the certificate common name
+          CERT_NAME=$(security find-identity -v -p codesigning "$RUNNER_TEMP/signing.keychain-db" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "Certificate: $CERT_NAME"
+          echo "Team ID: $TEAM_ID"
+
+          # Update pbxproj to use manual signing
+          sed -i '' "s/DEVELOPMENT_TEAM = .*;/DEVELOPMENT_TEAM = $TEAM_ID;/g" Runner.xcodeproj/project.pbxproj
+          sed -i '' "s/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g" Runner.xcodeproj/project.pbxproj
+          sed -i '' "s/CODE_SIGN_IDENTITY = .*;/CODE_SIGN_IDENTITY = \"Apple Distribution\";/g" Runner.xcodeproj/project.pbxproj
+          sed -i '' "s/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = \"DreamPlayer AppStore\";/g" Runner.xcodeproj/project.pbxproj
+
+          # If DEVELOPMENT_TEAM was not found, add it
+          if ! grep -q "DEVELOPMENT_TEAM" Runner.xcodeproj/project.pbxproj; then
+            echo "WARNING: DEVELOPMENT_TEAM not found in pbxproj"
+          fi
+
+          echo "Signing configured for $CERT_NAME with team $TEAM_ID"
+          cd ..
 
       - name: Build signed IPA
         if: ${{ env.HAVE_CERT != '' && env.HAVE_PROFILE != '' }}
@@ -92,32 +119,22 @@ jobs:
           HAVE_CERT: ${{ secrets.IOS_CERT_BASE64 }}
           HAVE_PROFILE: ${{ secrets.IOS_PROFILE_BASE64 }}
         run: |
-          cat > "$RUNNER_TEMP/ExportOptions.plist" << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>${{ secrets.APPSTORE_TEAM_ID }}</string>
-            <key>uploadBitcode</key>
-            <false/>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
-          flutter build ipa --release --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
+          # Clean previous build
+          flutter clean
+          flutter pub get
+
+          # Build the IPA with code signing
+          flutter build ipa --release \
+            --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
+            --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} \
+            --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} \
+            --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
 
       - name: Upload signed IPA
         if: ${{ env.HAVE_CERT != '' && env.HAVE_PROFILE != '' }}
-        env:
-          HAVE_CERT: ${{ secrets.IOS_CERT_BASE64 }}
-          HAVE_PROFILE: ${{ secrets.IOS_PROFILE_BASE64 }}
         uses: actions/upload-artifact@v4
         with:
-          name: DreamPlayer.ipa
+          name: DreamPlayer-signed.ipa
           path: build/ios/ipa/*.ipa
 
       - name: Upload to TestFlight
