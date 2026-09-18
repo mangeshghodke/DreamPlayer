@@ -113,7 +113,7 @@ jobs:
             -configuration Release \
             -archivePath "$RUNNER_TEMP/DreamPlayer.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_STYLE=Automatic \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             -allowProvisioningUpdates
           cd ..
