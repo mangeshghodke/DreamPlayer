@@ -8,6 +8,11 @@ on:
         type: boolean
         required: false
         default: false
+      paywall:
+        description: 'Enable paywall (PAYWALL_ENABLED=true) for screenshots'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   build-ios:
@@ -40,7 +45,7 @@ jobs:
       # so the sideloaded/TestFlight app works without first opening Settings.
       # Release builds (release.yml) intentionally OMIT the TMDB key.
       - name: Build unsigned iOS app
-        run: flutter build ios --release --no-codesign --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
+        run: flutter build ios --release --no-codesign --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
 
       - name: Package unsigned IPA
         run: |
@@ -86,7 +91,7 @@ jobs:
         env:
           HAVE_CERT: ${{ secrets.IOS_CERT_BASE64 }}
           HAVE_PROFILE: ${{ secrets.IOS_PROFILE_BASE64 }}
-        run: flutter build ipa --release --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
+        run: flutter build ipa --release --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
 
       - name: Upload signed IPA
         if: ${{ env.HAVE_CERT != '' && env.HAVE_PROFILE != '' }}
