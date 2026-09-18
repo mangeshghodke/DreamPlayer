@@ -109,6 +109,8 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db
           security find-identity -v -p codesigning
           flutter build ipa --release \
+            --xcode-arguments='-allowProvisioningUpdates' \
+            --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" \
             --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" \
             --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
             --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} \
