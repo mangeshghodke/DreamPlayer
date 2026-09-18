@@ -48,6 +48,7 @@ jobs:
           P12_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPSTORE_TEAM_ID }}
         run: |
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
@@ -73,35 +74,25 @@ jobs:
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/"
           security find-identity -v -p codesigning $KEYCHAIN_PATH
 
-      - name: Build signed IPA
-        if: ${{ inputs.upload_testflight == true }}
-        env:
-          TEAM_ID: ${{ secrets.APPSTORE_TEAM_ID }}
-        run: |
-          PROFILE_NAME=$(plutil -extract Name raw -o - "$RUNNER_TEMP/decoded_pp.plist" 2>/dev/null || true)
-          echo "Profile: $PROFILE_NAME | Team: $TEAM_ID"
-
           # Patch Runner.xcodeproj to Manual signing for archive
           python3 << 'PBPATCH'
+          import re
           with open('ios/Runner.xcodeproj/project.pbxproj', 'r') as f:
               content = f.read()
-          # Patch all CODE_SIGN_STYLE in Runner project (3 configs: Debug/Release/Profile)
-          import re
           content = content.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
-          # Set team ID
-          team_id = """$TEAM_ID"""
-          profile = """$PROFILE_NAME"""
+          team_id = "$TEAM_ID"
+          profile_name = "DreamPlayer AppStore"
           content = re.sub(r'DEVELOPMENT_TEAM = "[^"]*";', f'DEVELOPMENT_TEAM = {team_id};', content)
           if 'DEVELOPMENT_TEAM' not in content:
               content = content.replace('CODE_SIGN_STYLE = Manual;', f'CODE_SIGN_STYLE = Manual;\n\t\t\t\tDEVELOPMENT_TEAM = {team_id};', 1)
-          # Add provisioning profile specifier to Release config (contains CODE_SIGN_STYLE = Manual + DEVELOPMENT_TEAM)
           if 'PROVISIONING_PROFILE_SPECIFIER' not in content:
-              content = content.replace(f'DEVELOPMENT_TEAM = {team_id};', f'DEVELOPMENT_TEAM = {team_id};\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile}";', 1)
+              content = content.replace(f'DEVELOPMENT_TEAM = {team_id};', f'DEVELOPMENT_TEAM = {team_id};\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_name}";', 1)
           with open('ios/Runner.xcodeproj/project.pbxproj', 'w') as f:
               f.write(content)
-          print(f"Patched: team={team_id} profile={profile}")
+          print(f"Patched: team={team_id}")
           PBPATCH
 
+          # Build ExportOptions.plist
           python3 << PYEOF
           import plistlib
           plist = {
@@ -109,14 +100,14 @@ jobs:
               'teamID': '$TEAM_ID',
               'signingStyle': 'manual',
               'provisioningProfiles': {
-                  'com.dreamplayer.app': '$PROFILE_NAME',
+                  'com.dreamplayer.app': 'DreamPlayer AppStore',
               },
           }
           with open('$RUNNER_TEMP/ExportOptions.plist', 'wb') as f:
               plistlib.dump(plist, f)
           PYEOF
-          cat "$RUNNER_TEMP/ExportOptions.plist"
 
+          # Build the signed IPA
           flutter build ipa --release \
             --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" \
             --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
