@@ -80,22 +80,22 @@ class _PaywallSheetState extends State<PaywallSheet> {
         return;
       }
       const ids = {
-        'com.dreamplayer.app.advanced_monthly',
-        'com.dreamplayer.app.advanced_yearly',
-        'com.dreamplayer.app.advanced_lifetime',
+        'dp_premium_monthly_2026',
+        'dp_premium_yearly_2026',
+        'dp_premium_lifetime_2026',
       };
       final response =
           await InAppPurchase.instance.queryProductDetails(ids);
       final found = response.productDetails.toList();
       const order = {
-        'com.dreamplayer.app.advanced_lifetime': 0,
-        'com.dreamplayer.app.advanced_yearly': 1,
-        'com.dreamplayer.app.advanced_monthly': 2,
+        'dp_premium_lifetime_2026': 0,
+        'dp_premium_yearly_2026': 1,
+        'dp_premium_monthly_2026': 2,
       };
       const placeholderPrices = {
-        'com.dreamplayer.app.advanced_lifetime': r'$49.99',
-        'com.dreamplayer.app.advanced_yearly': r'$14.99',
-        'com.dreamplayer.app.advanced_monthly': r'$1.99',
+        'dp_premium_lifetime_2026': r'$49.99',
+        'dp_premium_yearly_2026': r'$14.99',
+        'dp_premium_monthly_2026': r'$1.99',
       };
       final products = <ProductDetails>[];
       for (final id in order.keys) {
@@ -586,11 +586,11 @@ class _ProductTile extends StatelessWidget {
 
   String get _label {
     switch (product.id) {
-      case 'com.dreamplayer.app.advanced_monthly':
+      case 'dp_premium_monthly_2026':
         return 'Monthly';
-      case 'com.dreamplayer.app.advanced_yearly':
+      case 'dp_premium_yearly_2026':
         return 'Yearly — Best Value';
-      case 'com.dreamplayer.app.advanced_lifetime':
+      case 'dp_premium_lifetime_2026':
         return 'Lifetime — One-time purchase';
       default:
         return product.id;
@@ -599,8 +599,8 @@ class _ProductTile extends StatelessWidget {
 
   String get _priceDisplay {
     final base = product.price;
-    if (product.id == 'com.dreamplayer.app.advanced_yearly') return '$base/yr';
-    if (product.id == 'com.dreamplayer.app.advanced_lifetime') return base;
+    if (product.id == 'dp_premium_yearly_2026') return '$base/yr';
+    if (product.id == 'dp_premium_lifetime_2026') return base;
     return '$base/mo';
   }
 
