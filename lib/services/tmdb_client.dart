@@ -701,6 +701,8 @@ class ParsedFileName {
     'hfr', 'multisubs', 'subforced', 'subforces',
     'truefrench', 'sbs', 'hsbs', '3d',
     'anaglyph', 'anaglyphe',
+    // OTT / release-group tags stripped before TMDB search
+    'dovi', 'dsnp', 'aptv', 'gplay', 'sic', 'zee5', 'apex', 'wrtb', 'notag', 'vff', 'qxr', 'tigor', 'fgt',
   ];
 
   static ParsedFileName parse(String fileName, {String? parentFolderName}) {
