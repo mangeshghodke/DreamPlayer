@@ -101,19 +101,33 @@ jobs:
           print(f"Patched: team={team_id}")
           PBPATCH
 
-          # Build ExportOptions.plist
+          # Build ExportOptions.plist - get actual profile name from provisioning profile
           python3 << PYEOF
           import plistlib
+          import subprocess
+          
+          # Decode provisioning profile to get its name
+          result = subprocess.run(['security', 'cms', '-D', '-i', '$PP_PATH'], capture_output=True, text=True)
+          if result.returncode == 0:
+              import plistlib
+              pp_data = plistlib.loads(result.stdout.encode())
+              profile_name = pp_data.get('Name', 'DreamPlayer AppStore')
+              print(f"Provisioning profile name: {profile_name}")
+          else:
+              profile_name = 'DreamPlayer AppStore'
+              print(f"Using default profile name: {profile_name}")
+
           plist = {
               'method': 'app-store',
               'teamID': '$TEAM_ID',
               'signingStyle': 'manual',
               'provisioningProfiles': {
-                  'com.dreamplayer.app': 'DreamPlayer AppStore',
+                  'com.dreamplayer.app': profile_name,
               },
           }
           with open('$RUNNER_TEMP/ExportOptions.plist', 'wb') as f:
               plistlib.dump(plist, f)
+          print(f"ExportOptions.plist created with profile: {profile_name}")
           PYEOF
 
           # Build signed IPA
