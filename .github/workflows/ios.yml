@@ -64,12 +64,13 @@ jobs:
           security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcodebuild
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH || true
 
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           DECODED_PP=$RUNNER_TEMP/decoded_pp.plist
           security cms -D -i $PP_PATH > "$DECODED_PP" 2>/dev/null || true
           UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" "$DECODED_PP" 2>/dev/null || plutil -extract UUID raw -o - "$DECODED_PP" 2>/dev/null || true)
           echo "Profile UUID: $UUID"
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
+          cp "$PP_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/"
           security find-identity -v -p codesigning $KEYCHAIN_PATH
 
       - name: Build signed IPA
