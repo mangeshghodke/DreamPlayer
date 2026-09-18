@@ -40,110 +40,102 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      # --- Unsigned build (always produced so you can inspect the app) ---
       - name: Build unsigned iOS app
-        run: flutter build ios --release --no-codesign --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
-
-      - name: Package unsigned IPA
         run: |
-          VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)"
-          mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -ryq "DreamPlayer-${VERSION}.ipa" Payload
+          flutter build ios --release --no-codesign \
+            --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
+            --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} \
+            --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} \
+            --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
 
-      - name: Upload unsigned IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: DreamPlayer-unsigned.ipa
-          path: DreamPlayer-*.ipa
-
-      # --- Code signing (only runs when secrets are configured) ---
+      # --- Code signing via xcodebuild export ---
       - name: Import signing certificate
-        if: ${{ env.CERT_BASE64 != '' }}
+        if: ${{ inputs.upload_testflight == true }}
         env:
           CERT_BASE64: ${{ secrets.IOS_CERT_BASE64 }}
           CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
         run: |
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           echo "$CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "actions" "$KEYCHAIN"
+          security create-keychain -p "password123" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "actions" "$KEYCHAIN"
+          security unlock-keychain -p "password123" "$KEYCHAIN"
           security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "actions" "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "password123" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          # Verify cert is accessible
+          security find-identity -v -p codesigning "$KEYCHAIN"
 
       - name: Install provisioning profile
-        if: ${{ env.PROFILE_BASE64 != '' }}
+        if: ${{ inputs.upload_testflight == true }}
         env:
           PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
         run: |
           echo "$PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/DreamPlayer.mobileprovision"
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          # Copy with UUID filename (required by Xcode)
-          UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(security cms -D -i "$RUNNER_TEMP/DreamPlayer.mobileprovision") 2>/dev/null || plutil -extract UUID raw -o - "$RUNNER_TEMP/DreamPlayer.mobileprovision")
+          UUID=$(security cms -D -i "$RUNNER_TEMP/DreamPlayer.mobileprovision" | plutil -extract UUID raw -o - -)
           cp "$RUNNER_TEMP/DreamPlayer.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/${UUID}.mobileprovision"
           echo "Installed profile UUID: $UUID"
+          # List installed profiles
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/"
 
-      - name: Configure signing
-        if: ${{ env.HAVE_CERT != '' && env.HAVE_PROFILE != '' }}
+      - name: Archive and export signed IPA
+        if: ${{ inputs.upload_testflight == true }}
         env:
-          HAVE_CERT: ${{ secrets.IOS_CERT_BASE64 }}
-          HAVE_PROFILE: ${{ secrets.IOS_PROFILE_BASE64 }}
           TEAM_ID: ${{ secrets.APPSTORE_TEAM_ID }}
         run: |
-          # Set manual signing in Xcode project
-          cd ios
-          # Extract the certificate common name
-          CERT_NAME=$(security find-identity -v -p codesigning "$RUNNER_TEMP/signing.keychain-db" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          echo "Certificate: $CERT_NAME"
+          # Find the provisioning profile name
+          PROFILE_NAME=$(plutil -extract Name raw -o - "$RUNNER_TEMP/DreamPlayer.mobileprovision")
+          echo "Profile name: $PROFILE_NAME"
           echo "Team ID: $TEAM_ID"
 
-          # Update pbxproj to use manual signing
-          sed -i '' "s/DEVELOPMENT_TEAM = .*;/DEVELOPMENT_TEAM = $TEAM_ID;/g" Runner.xcodeproj/project.pbxproj
-          sed -i '' "s/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g" Runner.xcodeproj/project.pbxproj
-          sed -i '' "s/CODE_SIGN_IDENTITY = .*;/CODE_SIGN_IDENTITY = \"Apple Distribution\";/g" Runner.xcodeproj/project.pbxproj
-          sed -i '' "s/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = \"DreamPlayer AppStore\";/g" Runner.xcodeproj/project.pbxproj
+          # Write ExportOptions.plist
+          python3 -c "
+          import plistlib
+          plist = {
+              'method': 'app-store',
+              'teamID': '${TEAM_ID}',
+              'uploadBitcode': False,
+              'uploadSymbols': True,
+              'signingStyle': 'manual',
+          }
+          with open('$RUNNER_TEMP/ExportOptions.plist', 'wb') as f:
+              plistlib.dump(plist, f)
+          "
+          cat "$RUNNER_TEMP/ExportOptions.plist"
 
-          # If DEVELOPMENT_TEAM was not found, add it
-          if ! grep -q "DEVELOPMENT_TEAM" Runner.xcodeproj/project.pbxproj; then
-            echo "WARNING: DEVELOPMENT_TEAM not found in pbxproj"
-          fi
-
-          echo "Signing configured for $CERT_NAME with team $TEAM_ID"
+          # Archive using xcodebuild directly
+          cd ios
+          xcodebuild archive \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/DreamPlayer.xcarchive" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            -allowProvisioningUpdates
           cd ..
 
-      - name: Build signed IPA
-        if: ${{ env.HAVE_CERT != '' && env.HAVE_PROFILE != '' }}
-        env:
-          HAVE_CERT: ${{ secrets.IOS_CERT_BASE64 }}
-          HAVE_PROFILE: ${{ secrets.IOS_PROFILE_BASE64 }}
-        run: |
-          # Clean previous build
-          flutter clean
-          flutter pub get
-
-          # Build the IPA with code signing
-          flutter build ipa --release \
-            --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
-            --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} \
-            --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} \
-            --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
+          # Export the archive
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/DreamPlayer.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export"
 
       - name: Upload signed IPA
-        if: ${{ env.HAVE_CERT != '' && env.HAVE_PROFILE != '' }}
+        if: ${{ inputs.upload_testflight == true }}
         uses: actions/upload-artifact@v4
         with:
           name: DreamPlayer-signed.ipa
-          path: build/ios/ipa/*.ipa
+          path: ${{ runner.temp }}/export/*.ipa
 
       - name: Upload to TestFlight
-        if: ${{ inputs.upload_testflight == true && env.APPSTORE_KEY != '' }}
-        env:
-          APPSTORE_KEY: ${{ secrets.APPSTORE_API_KEY }}
+        if: ${{ inputs.upload_testflight == true }}
         uses: apple-actions/upload-testflight-build@v1
         with:
-          app-path: build/ios/ipa/*.ipa
+          app-path: ${{ runner.temp }}/export/*.ipa
           issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_API_KEY }}
