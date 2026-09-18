@@ -112,9 +112,12 @@ jobs:
               import plistlib
               pp_data = plistlib.loads(result.stdout.encode())
               profile_name = pp_data.get('Name', 'DreamPlayer AppStore')
+              profile_uuid = pp_data.get('UUID', '')
               print(f"Provisioning profile name: {profile_name}")
+              print(f"Provisioning profile UUID: {profile_uuid}")
           else:
               profile_name = 'DreamPlayer AppStore'
+              profile_uuid = ''
               print(f"Using default profile name: {profile_name}")
 
           plist = {
@@ -130,13 +133,23 @@ jobs:
           print(f"ExportOptions.plist created with profile: {profile_name}")
           PYEOF
 
-          # Build signed IPA
-          flutter build ipa --release \
-            --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" \
-            --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
-            --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} \
-            --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} \
-            --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
+          # Build signed IPA using xcodebuild directly for better control
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
+            -archivePath $RUNNER_TEMP/Runner.xcarchive \
+            -destination "generic/platform=iOS" \
+            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=$TEAM_ID \
+            PROVISIONING_PROFILE_SPECIFIER="$profile_name" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
+            archive
+
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/Runner.xcarchive \
+            -exportPath $RUNNER_TEMP/ipa \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist
 
       - name: Build unsigned iOS app
         if: ${{ inputs.upload_testflight != true }}
