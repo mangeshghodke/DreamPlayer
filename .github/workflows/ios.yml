@@ -91,7 +91,24 @@ jobs:
         env:
           HAVE_CERT: ${{ secrets.IOS_CERT_BASE64 }}
           HAVE_PROFILE: ${{ secrets.IOS_PROFILE_BASE64 }}
-        run: flutter build ipa --release --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${{ secrets.APPSTORE_TEAM_ID }}</string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+          flutter build ipa --release --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
 
       - name: Upload signed IPA
         if: ${{ env.HAVE_CERT != '' && env.HAVE_PROFILE != '' }}
