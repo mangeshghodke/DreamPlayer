@@ -81,6 +81,37 @@ jobs:
           PROFILE_NAME=$(plutil -extract Name raw -o - "$RUNNER_TEMP/decoded_pp.plist" 2>/dev/null || true)
           echo "Profile: $PROFILE_NAME | Team: $TEAM_ID"
 
+          # Patch only the Runner target's Release config to Manual signing
+          python3 << 'PBPATCH'
+          import re
+          with open('ios/Runner.xcodeproj/project.pbxproj', 'r') as f:
+              content = f.read()
+          # Find blocks: /* Release */ = { ... isa = XCBuildConfiguration; ... CODE_SIGN_STYLE = Automatic; ... }
+          # Only patch blocks that belong to Runner (contain PRODUCT_NAME = Runner nearby or INFOPLIST_FILE = Runner)
+          # Simpler: patch all Release blocks that have CODE_SIGN_STYLE
+          def patch_release(m):
+              block = m.group(0)
+              # Only patch if this block is for Runner (has INFOPLIST_FILE or PRODUCT_NAME)
+              if 'Runner/Info.plist' in block or 'PRODUCT_NAME = Runner' in block:
+                  block = block.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
+                  # Add DEVELOPMENT_TEAM and PROVISIONING_PROFILE_SPECIFIER if not present
+                  team_id = """$TEAM_ID"""
+                  profile = """$PROFILE_NAME"""
+                  if 'DEVELOPMENT_TEAM' not in block:
+                      block = block.replace('CODE_SIGN_STYLE = Manual;', f'CODE_SIGN_STYLE = Manual;\n\t\t\t\tDEVELOPMENT_TEAM = {team_id};')
+                  else:
+                      block = re.sub(r'DEVELOPMENT_TEAM = "[^"]*";', f'DEVELOPMENT_TEAM = {team_id};', block)
+                  if 'PROVISIONING_PROFILE_SPECIFIER' not in block:
+                      block = block.replace(f'DEVELOPMENT_TEAM = {team_id};', f'DEVELOPMENT_TEAM = {team_id};\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile}";')
+                  else:
+                      block = re.sub(r'PROVISIONING_PROFILE_SPECIFIER = "[^"]*";', f'PROVISIONING_PROFILE_SPECIFIER = "{profile}";', block)
+              return block
+          content = re.sub(r'/\* Release \*/ = \{[^}]*?CODE_SIGN_STYLE = Automatic;[^}]*?\};', patch_release, content, flags=re.DOTALL)
+          with open('ios/Runner.xcodeproj/project.pbxproj', 'w') as f:
+              f.write(content)
+          print("Patched Runner Release to Manual")
+          PBPATCH
+
           python3 << PYEOF
           import plistlib
           plist = {
