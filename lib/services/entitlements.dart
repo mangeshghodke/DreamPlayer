@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,9 +56,19 @@ class Entitlements extends ChangeNotifier {
   Duration get trialRemaining {
     final start = _trialStartedAtMs;
     if (start == null || !trialActive) return Duration.zero;
-    final rem = trialDuration.inMilliseconds - (DateTime.now().millisecondsSinceEpoch - start);
+    final rem = trialDuration.inMilliseconds -
+        (DateTime.now().millisecondsSinceEpoch - start);
     return Duration(milliseconds: rem < 0 ? 0 : rem);
   }
+
+  /// When the trial was started (null if never started).
+  DateTime? get trialStarted {
+    final ms = _trialStartedAtMs;
+    return ms != null ? DateTime.fromMillisecondsSinceEpoch(ms) : null;
+  }
+
+  /// Whether the trial was ever started (active or expired).
+  bool get trialStartedEver => _trialStartedAtMs != null;
 
   /// Effective "advanced" that respects the debug override.
   bool get isAdvanced => _debugFreeUser ? false : advanced;
@@ -72,6 +83,8 @@ class Entitlements extends ChangeNotifier {
   bool get effectivePaywallEnabled =>
       paywallEnabled || (_debugFreeUser && defaultTargetPlatform == TargetPlatform.android);
 
+  static const _trialChannel = MethodChannel('dreamplayer/trial');
+
   bool _initialised = false;
   bool get initialised => _initialised;
 
@@ -84,16 +97,23 @@ class Entitlements extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       _debugFreeUser = prefs.getBool(_kDebugFreeUser) ?? false;
       _debugTrialExpired = prefs.getBool(_kDebugTrialExpired) ?? false;
-      _trialStartedAtMs = prefs.getInt(_kTrialStartedAt);
     } catch (_) {}
 
-    // Start the 7-day trial on the first launch where the paywall is relevant.
+    // Load trial start time: Keychain on iOS (survives reinstall), SharedPreferences on Android.
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final ms = await _trialChannel.invokeMethod<int>('getTrialStartedAt');
+        _trialStartedAtMs = ms;
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        _trialStartedAtMs = prefs.getInt(_kTrialStartedAt);
+      }
+    } catch (_) {}
+
+    // Auto-start the 7-day trial on the first launch where the paywall is relevant.
     if (_trialStartedAtMs == null && effectivePaywallEnabled) {
       _trialStartedAtMs = DateTime.now().millisecondsSinceEpoch;
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt(_kTrialStartedAt, _trialStartedAtMs!);
-      } catch (_) {}
+      await _persistTrialStart(_trialStartedAtMs!);
     }
 
     // Listen for StoreKit transactions (iOS only, when paywall is active).
@@ -101,6 +121,17 @@ class Entitlements extends ChangeNotifier {
         (paywallEnabled || _debugFreeUser)) {
       InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
     }
+  }
+
+  Future<void> _persistTrialStart(int ms) async {
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await _trialChannel.invokeMethod('setTrialStartedAt', ms);
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(_kTrialStartedAt, ms);
+      }
+    } catch (_) {}
   }
 
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
@@ -141,6 +172,14 @@ class Entitlements extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_kDebugTrialExpired, value);
     } catch (_) {}
+    notifyListeners();
+  }
+
+  /// Start the 7-day free trial (called from the paywall "Start free trial" button).
+  Future<void> startTrial() async {
+    if (_trialStartedAtMs != null) return; // already started
+    _trialStartedAtMs = DateTime.now().millisecondsSinceEpoch;
+    await _persistTrialStart(_trialStartedAtMs!);
     notifyListeners();
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -12,7 +13,8 @@ Future<bool> showPaywall(BuildContext context) async {
   if (defaultTargetPlatform == TargetPlatform.android && !e.debugFreeUser) {
     return false;
   }
-  if (defaultTargetPlatform != TargetPlatform.android && !e.effectivePaywallEnabled) {
+  if (defaultTargetPlatform != TargetPlatform.android &&
+      !e.effectivePaywallEnabled) {
     return false;
   }
   final result = await showModalBottomSheet<bool>(
@@ -49,11 +51,22 @@ class _PaywallSheetState extends State<PaywallSheet> {
   bool _purchasing = false;
   List<ProductDetails> _products = [];
   String? _error;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _loadProducts();
+    // Tick every second to update the trial countdown live.
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadProducts() async {
@@ -74,8 +87,11 @@ class _PaywallSheetState extends State<PaywallSheet> {
       final response =
           await InAppPurchase.instance.queryProductDetails(ids);
       final found = response.productDetails.toList();
-      // Always show all 3 tiers; fill missing ones with placeholder tiles.
-      const order = {'advanced_lifetime': 0, 'advanced_yearly': 1, 'advanced_monthly': 2};
+      const order = {
+        'advanced_lifetime': 0,
+        'advanced_yearly': 1,
+        'advanced_monthly': 2,
+      };
       const placeholderPrices = {
         'advanced_lifetime': r'$49.99',
         'advanced_yearly': r'$14.99',
@@ -87,7 +103,6 @@ class _PaywallSheetState extends State<PaywallSheet> {
         if (match.isNotEmpty) {
           products.add(match.first);
         } else {
-          // Placeholder — will appear greyed-out / non-purchasable.
           products.add(ProductDetails(
             id: id,
             title: id,
@@ -120,8 +135,6 @@ class _PaywallSheetState extends State<PaywallSheet> {
     });
     try {
       final param = PurchaseParam(productDetails: product);
-      // Both subscriptions and non-consumable go through buyNonConsumable
-      // on the purchaseStream; subscriptions auto-renew on Apple's side.
       await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
       await for (final update in InAppPurchase.instance.purchaseStream) {
         for (final purchase in update) {
@@ -153,29 +166,10 @@ class _PaywallSheetState extends State<PaywallSheet> {
     }
   }
 
-  Future<void> _restore() async {
-    setState(() {
-      _purchasing = true;
-      _error = null;
-    });
-    try {
-      await InAppPurchase.instance.restorePurchases();
-      // Brief delay so StoreKit can process; Entitlements listener flips _advanced.
-      await Future<void>.delayed(const Duration(seconds: 2));
-      if (mounted) {
-        setState(() {
-          _purchasing = false;
-        });
-        if (Entitlements.instance.isAdvanced) {
-          Navigator.of(context).pop(true);
-        }
-      }
-    } catch (_) {
-      setState(() {
-        _purchasing = false;
-        _error = 'Restore failed';
-      });
-    }
+  Future<void> _startTrial() async {
+    final navigator = Navigator.of(context);
+    await Entitlements.instance.startTrial();
+    if (mounted) navigator.pop(true);
   }
 
   void _showFeatures() {
@@ -183,13 +177,17 @@ class _PaywallSheetState extends State<PaywallSheet> {
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
       isScrollControlled: true,
-      builder: (_) => _FeaturesSheet(products: _products),
+      builder: (_) => const _FeaturesSheet(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final entitled = Entitlements.instance.isAdvanced;
+    final e = Entitlements.instance;
+    final entitled = e.isAdvanced;
+    final trialActive = e.trialActive;
+    final trialRemaining = e.trialRemaining;
+    final trialStarted = e.trialStarted;
 
     return SafeArea(
       child: Padding(
@@ -198,7 +196,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title row — "Unlock" button or "Active" badge at top-right.
+            // Title row.
             Row(
               children: [
                 const Expanded(
@@ -213,8 +211,8 @@ class _PaywallSheetState extends State<PaywallSheet> {
                 ),
                 if (entitled)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.greenAccent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
@@ -246,12 +244,22 @@ class _PaywallSheetState extends State<PaywallSheet> {
             ),
             const SizedBox(height: 16),
 
+            // ── Free Trial Block ──────────────────────────────────
+            // Only show when trial is active OR not yet started.
+            // Once expired → block disappears, only products remain.
+            if (!entitled && (trialActive || !e.trialStartedEver))
+              _buildTrialBlock(trialActive, trialStarted, trialRemaining),
+
+            const SizedBox(height: 12),
+
+            // ── Product Tiles ─────────────────────────────────────
             if (_loading)
               const Center(
                   child: CircularProgressIndicator(color: Colors.white))
             else if (_error != null)
               Text(_error!,
-                  style: const TextStyle(color: Colors.redAccent, fontSize: 13))
+                  style:
+                      const TextStyle(color: Colors.redAccent, fontSize: 13))
             else
               ..._products.map((p) => _ProductTile(
                     product: p,
@@ -264,13 +272,14 @@ class _PaywallSheetState extends State<PaywallSheet> {
             const SizedBox(height: 12),
 
             // Debug-only: simulate purchase on Android.
-            if (kDebugMode && defaultTargetPlatform == TargetPlatform.android) ...[
+            if (kDebugMode &&
+                defaultTargetPlatform == TargetPlatform.android) ...[
               const Divider(color: Colors.white12, height: 1),
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: TextButton.icon(
-                  style:
-                      TextButton.styleFrom(foregroundColor: Colors.greenAccent),
+                  style: TextButton.styleFrom(
+                      foregroundColor: Colors.greenAccent),
                   onPressed: () async {
                     final navigator = Navigator.of(context);
                     await Entitlements.instance.setDebugFreeUser(false);
@@ -285,7 +294,17 @@ class _PaywallSheetState extends State<PaywallSheet> {
 
             Center(
               child: TextButton(
-                onPressed: _purchasing ? null : _restore,
+                onPressed: _purchasing ? null : () async {
+                  final navigator = Navigator.of(context);
+                  await InAppPurchase.instance.restorePurchases();
+                  await Future<void>.delayed(const Duration(seconds: 2));
+                  if (mounted) {
+                    setState(() {});
+                    if (Entitlements.instance.isAdvanced) {
+                      navigator.pop(true);
+                    }
+                  }
+                },
                 child: const Text('Restore Purchases',
                     style: TextStyle(color: Colors.white54)),
               ),
@@ -303,12 +322,178 @@ class _PaywallSheetState extends State<PaywallSheet> {
       ),
     );
   }
+
+  Widget _buildTrialBlock(
+      bool trialActive, DateTime? trialStarted, Duration trialRemaining) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: trialActive
+            ? Colors.greenAccent.withValues(alpha: 0.08)
+            : Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: trialActive
+              ? Colors.greenAccent.withValues(alpha: 0.3)
+              : Colors.white.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: trialActive
+          ? _buildTrialActive(trialRemaining)
+          : _buildTrialNotStarted(),
+    );
+  }
+
+  Widget _buildTrialNotStarted() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.free_breakfast,
+                color: Colors.greenAccent.withValues(alpha: 0.8), size: 20),
+            const SizedBox(width: 8),
+            const Text(
+              '7-Day Free Trial',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Try all premium features free for 7 days.\nNo charge until the trial ends.',
+          style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: TextButton(
+            onPressed: _purchasing ? null : _startTrial,
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.greenAccent,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text(
+              'Start Free Trial',
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrialActive(Duration remaining) {
+    final days = remaining.inDays;
+    final hours = remaining.inHours % 24;
+    final minutes = remaining.inMinutes % 60;
+    final seconds = remaining.inSeconds % 60;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.check_circle,
+                color: Colors.greenAccent.withValues(alpha: 0.9), size: 20),
+            const SizedBox(width: 8),
+            const Text(
+              'Free Trial Active',
+              style: TextStyle(
+                color: Colors.greenAccent,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // Countdown timer
+        Row(
+          children: [
+            _countdownUnit(days, 'DAYS'),
+            const SizedBox(width: 6),
+            _countdownSeparator(),
+            const SizedBox(width: 6),
+            _countdownUnit(hours, 'HRS'),
+            const SizedBox(width: 6),
+            _countdownSeparator(),
+            const SizedBox(width: 6),
+            _countdownUnit(minutes, 'MIN'),
+            const SizedBox(width: 6),
+            _countdownSeparator(),
+            const SizedBox(width: 6),
+            _countdownUnit(seconds, 'SEC'),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'All premium features are unlocked. Subscribe to keep access after the trial.',
+          style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
+        ),
+      ],
+    );
+  }
+
+  Widget _countdownUnit(int value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.greenAccent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value.toString().padLeft(2, '0'),
+            style: const TextStyle(
+              color: Colors.greenAccent,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.greenAccent.withValues(alpha: 0.6),
+              fontSize: 8,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _countdownSeparator() {
+    return Text(':',
+        style: TextStyle(
+            color: Colors.greenAccent.withValues(alpha: 0.4),
+            fontSize: 16,
+            fontWeight: FontWeight.w700));
+  }
 }
 
-/// Bottom sheet showing the feature list before purchase.
+/// Bottom sheet showing the feature list.
 class _FeaturesSheet extends StatelessWidget {
-  final List<ProductDetails> products;
-  const _FeaturesSheet({required this.products});
+  const _FeaturesSheet();
 
   @override
   Widget build(BuildContext context) {
@@ -333,7 +518,8 @@ class _FeaturesSheet extends StatelessWidget {
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                  icon:
+                      const Icon(Icons.close, color: Colors.white54, size: 20),
                 ),
               ],
             ),
@@ -411,9 +597,15 @@ class _ProductTile extends StatelessWidget {
     }
   }
 
+  String get _priceDisplay {
+    final base = product.price;
+    if (product.id == 'advanced_yearly') return '$base/yr';
+    if (product.id == 'advanced_lifetime') return base;
+    return '$base/mo';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final priceSuffix = product.id == 'advanced_lifetime' ? '' : '/mo';
     final disabled = purchasing || entitled || isPlaceholder;
 
     return Padding(
@@ -434,11 +626,13 @@ class _ProductTile extends StatelessWidget {
                     children: [
                       Text(_label,
                           style: TextStyle(
-                              color: isPlaceholder ? Colors.white38 : Colors.white,
+                              color: isPlaceholder
+                                  ? Colors.white38
+                                  : Colors.white,
                               fontWeight: FontWeight.w500)),
                       const SizedBox(height: 2),
                       Text(
-                        '${product.price}$priceSuffix',
+                        _priceDisplay,
                         style: TextStyle(
                             color: isPlaceholder
                                 ? Colors.white38
@@ -456,9 +650,7 @@ class _ProductTile extends StatelessWidget {
                           fontWeight: FontWeight.w600))
                 else if (isPlaceholder)
                   const Text('Soon',
-                      style: TextStyle(
-                          color: Colors.white24,
-                          fontSize: 13))
+                      style: TextStyle(color: Colors.white24, fontSize: 13))
                 else if (purchasing)
                   const SizedBox(
                     width: 20,
