@@ -75,9 +75,18 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH || true
 
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          UUID=$(strings $PP_PATH | grep -A1 UUID | grep string | sed -E 's/<\/?string>//g' | tr -d '[:space:]')
+          # Extract UUID from mobileprovision (XML plist)
+          UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin < <(security cms -D -i $PP_PATH 2>/dev/null) 2>/dev/null || true)
+          if [ -z "$UUID" ]; then
+            UUID=$(strings $PP_PATH | grep -A1 UUID | grep string | sed -E 's/<\/?string>//g' | tr -d '[:space:]' || true)
+          fi
+          if [ -z "$UUID" ]; then
+            # Fallback: use filename hash
+            UUID=$(echo "$BUILD_PROVISION_PROFILE_BASE64" | shasum -a 1 | cut -d' ' -f1)
+          fi
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
           echo "Installed profile UUID: $UUID"
+          file $PP_PATH
           security find-identity -v -p codesigning $KEYCHAIN_PATH
 
       - name: Build signed IPA
