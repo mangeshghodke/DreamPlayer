@@ -706,8 +706,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          // file is opened.
          lastError = nil
          pendingAutoSubtitleIndex = nil
-         let sameFile = !newKey.isEmpty && newKey == lastOpenedKey
-         lastOpenedKey = newKey
+         let sameFile = !newKey.isEmpty && newKey == Self.lastOpenedKey
+         Self.lastOpenedKey = newKey
          if !sameFile {
              videoCodecName = nil
              videoWidth = 0
