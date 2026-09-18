@@ -104,9 +104,10 @@ jobs:
               plistlib.dump(plist, f)
           PYEOF
 
-          # Build the signed IPA
-          security default-keychain -s $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          # Build the signed IPA - set default keychain to login.keychain where cert now lives
+          security default-keychain -s ~/Library/Keychains/login.keychain-db
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db
+          security find-identity -v -p codesigning
           flutter build ipa --release \
             --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" \
             --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
