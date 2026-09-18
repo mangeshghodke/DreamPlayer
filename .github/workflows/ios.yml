@@ -82,34 +82,13 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Patch Runner.xcodeproj to Manual signing for archive
-          TEAM_ID_VAL="$TEAM_ID"
-          python3 << PBPATCH
-          import re
-          with open('ios/Runner.xcodeproj/project.pbxproj', 'r') as f:
-              content = f.read()
-          content = content.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
-          team_id = "$TEAM_ID_VAL"
-          profile_name = "DreamPlayer AppStore"
-          content = re.sub(r'DEVELOPMENT_TEAM = "[^"]*";', f'DEVELOPMENT_TEAM = {team_id};', content)
-          if 'DEVELOPMENT_TEAM' not in content:
-              content = content.replace('CODE_SIGN_STYLE = Manual;', f'CODE_SIGN_STYLE = Manual;\n\t\t\t\tDEVELOPMENT_TEAM = {team_id};', 1)
-          if 'PROVISIONING_PROFILE_SPECIFIER' not in content:
-              content = content.replace(f'DEVELOPMENT_TEAM = {team_id};', f'DEVELOPMENT_TEAM = {team_id};\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_name}";', 1)
-          with open('ios/Runner.xcodeproj/project.pbxproj', 'w') as f:
-              f.write(content)
-          print(f"Patched: team={team_id}")
-          PBPATCH
-
-          # Build ExportOptions.plist - get actual profile name from provisioning profile
+          # Decode provisioning profile to get name and UUID for project patching
           python3 << PYEOF
           import plistlib
           import subprocess
           
-          # Decode provisioning profile to get its name
           result = subprocess.run(['security', 'cms', '-D', '-i', '$PP_PATH'], capture_output=True, text=True)
           if result.returncode == 0:
-              import plistlib
               pp_data = plistlib.loads(result.stdout.encode())
               profile_name = pp_data.get('Name', 'DreamPlayer AppStore')
               profile_uuid = pp_data.get('UUID', '')
@@ -118,6 +97,47 @@ jobs:
           else:
               profile_name = 'DreamPlayer AppStore'
               profile_uuid = ''
+              print(f"Using default profile name: {profile_name}")
+
+          # Write profile info to env file for later steps
+          with open('$RUNNER_TEMP/profile_info.sh', 'w') as f:
+              f.write(f'PROFILE_NAME="{profile_name}"\n')
+              f.write(f'PROFILE_UUID="{profile_uuid}"\n')
+          PYEOF
+
+          # Patch Runner.xcodeproj to Manual signing with profile UUID
+          source $RUNNER_TEMP/profile_info.sh
+          TEAM_ID_VAL="$TEAM_ID"
+          python3 << PBPATCH
+          import re
+          with open('ios/Runner.xcodeproj/project.pbxproj', 'r') as f:
+              content = f.read()
+          content = content.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
+          team_id = "$TEAM_ID_VAL"
+          profile_uuid = "$PROFILE_UUID"
+          content = re.sub(r'DEVELOPMENT_TEAM = "[^"]*";', f'DEVELOPMENT_TEAM = {team_id};', content)
+          if 'DEVELOPMENT_TEAM' not in content:
+              content = content.replace('CODE_SIGN_STYLE = Manual;', f'CODE_SIGN_STYLE = Manual;\n\t\t\t\tDEVELOPMENT_TEAM = {team_id};', 1)
+          if profile_uuid and 'PROVISIONING_PROFILE_SPECIFIER' not in content:
+              content = content.replace(f'DEVELOPMENT_TEAM = {team_id};', f'DEVELOPMENT_TEAM = {team_id};\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_uuid}";', 1)
+          with open('ios/Runner.xcodeproj/project.pbxproj', 'w') as f:
+              f.write(content)
+          print(f"Patched: team={team_id}, profile_uuid={profile_uuid}")
+          PBPATCH
+
+          # Build ExportOptions.plist - use profile name
+          python3 << PYEOF
+          import plistlib
+          import subprocess
+          
+          result = subprocess.run(['security', 'cms', '-D', '-i', '$PP_PATH'], capture_output=True, text=True)
+          if result.returncode == 0:
+              import plistlib
+              pp_data = plistlib.loads(result.stdout.encode())
+              profile_name = pp_data.get('Name', 'DreamPlayer AppStore')
+              print(f"Provisioning profile name: {profile_name}")
+          else:
+              profile_name = 'DreamPlayer AppStore'
               print(f"Using default profile name: {profile_name}")
 
           plist = {
@@ -134,6 +154,7 @@ jobs:
           PYEOF
 
           # Build signed IPA using xcodebuild directly for better control
+          source $RUNNER_TEMP/profile_info.sh
           cd ios
           xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
             -archivePath $RUNNER_TEMP/Runner.xcarchive \
@@ -141,7 +162,7 @@ jobs:
             -allowProvisioningUpdates \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=$TEAM_ID \
-            PROVISIONING_PROFILE_SPECIFIER="$profile_name" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             archive
