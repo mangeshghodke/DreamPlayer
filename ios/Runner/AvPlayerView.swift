@@ -1466,9 +1466,11 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         }
     }
 
-    /// Append a line to `Documents/avplayer_debug.log` (shared via Files app).
+    /// Append a line to `Documents/DreamPlayer/avplayer_debug.log` (shared via Files app).
     private static func debugLog(_ msg: String) {
-        guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let dir = docs.appendingPathComponent("DreamPlayer")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("avplayer_debug.log")
         let ts = ISO8601DateFormatter().string(from: Date())
         let line = "[\(ts)] \(msg)\n"
