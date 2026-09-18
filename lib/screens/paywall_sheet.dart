@@ -77,9 +77,9 @@ class _PaywallSheetState extends State<PaywallSheet> {
       // Always show all 3 tiers; fill missing ones with placeholder tiles.
       const order = {'advanced_lifetime': 0, 'advanced_yearly': 1, 'advanced_monthly': 2};
       const placeholderPrices = {
-        'advanced_lifetime': '₹4,999',
-        'advanced_yearly': '₹1,499',
-        'advanced_monthly': '₹199',
+        'advanced_lifetime': r'$49.99',
+        'advanced_yearly': r'$14.99',
+        'advanced_monthly': r'$1.99',
       };
       final products = <ProductDetails>[];
       for (final id in order.keys) {
@@ -229,24 +229,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
                     ),
                   )
                 else
-                  TextButton(
+                  IconButton(
                     onPressed: _showFeatures,
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.white10,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Unlock',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    icon: const Icon(Icons.info_outline,
+                        color: Colors.white54, size: 22),
+                    tooltip: "What's included",
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
               ],
             ),
@@ -449,12 +438,10 @@ class _ProductTile extends StatelessWidget {
                               fontWeight: FontWeight.w500)),
                       const SizedBox(height: 2),
                       Text(
-                        isPlaceholder
-                            ? 'Coming soon'
-                            : '${product.price}$priceSuffix',
+                        '${product.price}$priceSuffix',
                         style: TextStyle(
                             color: isPlaceholder
-                                ? Colors.white24
+                                ? Colors.white38
                                 : Colors.white54,
                             fontSize: 13),
                       ),
