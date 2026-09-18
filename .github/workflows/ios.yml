@@ -62,6 +62,10 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
+          # Import Apple WWDR intermediate certificate (required for Xcode trust chain)
+          curl -sSL -o /tmp/AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          security import /tmp/AppleWWDRCAG3.cer -k $KEYCHAIN_PATH -T /usr/bin/codesign
+
           # Import certificate and private key
           security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcodebuild
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
@@ -73,15 +77,10 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
 
-          # Also import to login keychain (xcodebuild default) - no password on GH Actions
-          security unlock-keychain ~/Library/Keychains/login.keychain-db 2>/dev/null || true
-          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k ~/Library/Keychains/login.keychain-db 2>&1
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db 2>&1 || true
-          security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db 2>&1
-
-          # Set both keychains in search list
-          security list-keychains -d user -s $KEYCHAIN_PATH ~/Library/Keychains/login.keychain-db
+          # Set custom keychain as default for xcodebuild (this process and subprocesses)
+          security list-keychains -d user -s $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
           # Patch Runner.xcodeproj to Manual signing for archive
           TEAM_ID_VAL="$TEAM_ID"
