@@ -48,63 +48,53 @@ jobs:
             --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} \
             --dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}
 
-      # --- Code signing via xcodebuild export ---
-      - name: Import signing certificate
+      # --- Code signing ---
+      - name: Install Apple Certificate and Provisioning Profile
         if: ${{ inputs.upload_testflight == true }}
         env:
-          CERT_BASE64: ${{ secrets.IOS_CERT_BASE64 }}
-          CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_CERT_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
-          echo "$CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "password123" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "password123" "$KEYCHAIN"
-          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "password123" "$KEYCHAIN"
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-          # Verify cert is accessible
-          security find-identity -v -p codesigning "$KEYCHAIN"
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-      - name: Install provisioning profile
-        if: ${{ inputs.upload_testflight == true }}
-        env:
-          PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
-        run: |
-          echo "$PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/DreamPlayer.mobileprovision"
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          UUID=$(security cms -D -i "$RUNNER_TEMP/DreamPlayer.mobileprovision" | plutil -extract UUID raw -o - -)
-          cp "$RUNNER_TEMP/DreamPlayer.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/${UUID}.mobileprovision"
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          security default-keychain -s $KEYCHAIN_PATH
+          security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | tr -d '"')
+
+          security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcodebuild
+          security set-keypartition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          UUID=$(strings $PP_PATH | grep -A1 UUID | grep string | sed -E 's/<\/?string>//g' | tr -d '[:space:]')
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
           echo "Installed profile UUID: $UUID"
-          # List installed profiles
-          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/"
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
 
-      - name: Archive and export signed IPA
+      - name: Build signed IPA
         if: ${{ inputs.upload_testflight == true }}
         env:
           TEAM_ID: ${{ secrets.APPSTORE_TEAM_ID }}
         run: |
-          # Find the provisioning profile name
-          PROFILE_NAME=$(plutil -extract Name raw -o - "$RUNNER_TEMP/DreamPlayer.mobileprovision")
-          echo "Profile name: $PROFILE_NAME"
-          echo "Team ID: $TEAM_ID"
+          PROFILE_NAME=$(plutil -extract Name raw -o - $RUNNER_TEMP/build_pp.mobileprovision)
+          echo "Profile: $PROFILE_NAME | Team: $TEAM_ID"
 
-          # Write ExportOptions.plist
           python3 -c "
           import plistlib
-          plist = {
-              'method': 'app-store',
-              'teamID': '${TEAM_ID}',
-              'uploadBitcode': False,
-              'uploadSymbols': True,
-              'signingStyle': 'manual',
-          }
+          plist = {'method': 'app-store', 'teamID': '$TEAM_ID', 'uploadBitcode': False, 'uploadSymbols': True, 'signingStyle': 'manual'}
           with open('$RUNNER_TEMP/ExportOptions.plist', 'wb') as f:
               plistlib.dump(plist, f)
           "
-          cat "$RUNNER_TEMP/ExportOptions.plist"
 
-          # Archive using xcodebuild directly
           cd ios
           xcodebuild archive \
             -workspace Runner.xcworkspace \
@@ -114,11 +104,9 @@ jobs:
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            -allowProvisioningUpdates
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME"
           cd ..
 
-          # Export the archive
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/DreamPlayer.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
