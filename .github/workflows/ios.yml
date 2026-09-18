@@ -58,10 +58,10 @@ jobs:
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r\n ' | base64 --decode -o $PP_PATH
 
           # Use the login.keychain that xcodebuild uses by default
-          # Unlock it first, then import directly
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db 2>/dev/null || true
+          # Unlock it first, then import directly (login keychain has no password on GitHub Actions)
+          security unlock-keychain ~/Library/Keychains/login.keychain-db 2>/dev/null || true
           security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k ~/Library/Keychains/login.keychain-db 2>&1 || true
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db 2>&1 || true
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db 2>&1 || true
           # Verify it's there
           security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db 2>&1 || true
           # Also keep custom keychain as backup
@@ -105,12 +105,10 @@ jobs:
           PYEOF
 
           # Build the signed IPA - set default keychain to login.keychain where cert now lives
+          # Note: login keychain on GitHub Actions has no password, don't try to unlock with KEYCHAIN_PASSWORD
           security default-keychain -s ~/Library/Keychains/login.keychain-db
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db
           security find-identity -v -p codesigning
           flutter build ipa --release \
-            --xcode-arguments='-allowProvisioningUpdates' \
-            --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" \
             --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" \
             --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
             --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} \
