@@ -1228,19 +1228,6 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             return Int64(CMTimeGetSeconds(last.end) * 1000)
         }()
 
-        let isDVFromEngine = engine.videoFormat == .dolbyVision || engine.videoFormat == .hdr10Plus || engine.videoFormat == .hdr10
-        let effectiveIsDV = isDolbyVision || isDVFromEngine
-        let videoCodec = Self.displayVideoCodec(base: videoCodecName, isDV: effectiveIsDV, profile: dvProfile)
-        let hevcForHdr: Bool = {
-            let c = (videoCodecName ?? "").lowercased()
-            return c.contains("hevc") || c.contains("hev1") || c.contains("hvc1") || c.hasPrefix("dv") || isDVFromEngine
-        }()
-        // Engine HDR (and its PQ transfer) is only trusted for HEVC-family
-        // codecs — H.264 never carries ST 2086/PQ mastering. Gating both the
-        // SEI scan and the engine report kills the SDR H.264 → HDR10 alias
-        // (and the 8-MiB raw scan already requires hevcFamily + luma sanity).
-        // Fall back to the engine's own videoFormat for DV detection when
-        // the load probe returned nil (e.g. on resume/reload of the same file).
         let engineVideoFormat = engine.videoFormat
         let isDVFromEngine = engineVideoFormat == .dolbyVision || engineVideoFormat == .hdr10Plus || engineVideoFormat == .hdr10
         let effectiveIsDV = isDolbyVision || isDVFromEngine
