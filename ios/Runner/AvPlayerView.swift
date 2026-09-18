@@ -296,7 +296,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
      /// the engine probe can drop DV info when loading with a start position,
      /// which would regress the badge to SDR. Only cleared when a different
      /// file is opened.
-     private var lastOpenedKey: String?
+     /// **Static** — survives across AvPlayerView recreations (navigating back
+     /// and tapping the same card again creates a fresh instance).
+     private static var lastOpenedKey: String?
 
     /// Subtitle cue shift from the user's appearance settings (seconds).
     /// Positive = cues appear LATER than authored.
