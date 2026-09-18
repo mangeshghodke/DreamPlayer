@@ -73,9 +73,15 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
 
-          # Set custom keychain as default for xcodebuild
+          # Also import to login keychain (xcodebuild default) - no password on GH Actions
+          security unlock-keychain ~/Library/Keychains/login.keychain-db 2>/dev/null || true
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k ~/Library/Keychains/login.keychain-db 2>&1
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db 2>&1 || true
+          security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db 2>&1
+
+          # Set both keychains in search list
+          security list-keychains -d user -s $KEYCHAIN_PATH ~/Library/Keychains/login.keychain-db
           security default-keychain -s $KEYCHAIN_PATH
-          security list-keychains -d user -s $KEYCHAIN_PATH
 
           # Patch Runner.xcodeproj to Manual signing for archive
           TEAM_ID_VAL="$TEAM_ID"
