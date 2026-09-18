@@ -62,8 +62,12 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | tr -d '"')
+          # Import to custom keychain for keychain access control
           security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcodebuild
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH || true
+          # ALSO import to default login.keychain so xcodebuild sub-processes can find it
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" ~/.apple/SystemKeyChain/login.keychain-db || true
 
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           DECODED_PP=$RUNNER_TEMP/decoded_pp.plist
