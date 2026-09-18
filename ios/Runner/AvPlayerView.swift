@@ -1228,21 +1228,39 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             return Int64(CMTimeGetSeconds(last.end) * 1000)
         }()
 
-        let videoCodec = Self.displayVideoCodec(base: videoCodecName, isDV: isDolbyVision, profile: dvProfile)
+        let isDVFromEngine = engine.videoFormat == .dolbyVision || engine.videoFormat == .hdr10Plus || engine.videoFormat == .hdr10
+        let effectiveIsDV = isDolbyVision || isDVFromEngine
+        let videoCodec = Self.displayVideoCodec(base: videoCodecName, isDV: effectiveIsDV, profile: dvProfile)
         let hevcForHdr: Bool = {
             let c = (videoCodecName ?? "").lowercased()
-            return c.contains("hevc") || c.contains("hev1") || c.contains("hvc1") || c.hasPrefix("dv")
+            return c.contains("hevc") || c.contains("hev1") || c.contains("hvc1") || c.hasPrefix("dv") || isDVFromEngine
         }()
         // Engine HDR (and its PQ transfer) is only trusted for HEVC-family
         // codecs — H.264 never carries ST 2086/PQ mastering. Gating both the
         // SEI scan and the engine report kills the SDR H.264 → HDR10 alias
         // (and the 8-MiB raw scan already requires hevcFamily + luma sanity).
-        let colorTransfer = hevcForHdr ? Self.colorTransfer(for: engine.videoFormat) : nil
-        let hdrPlus = isHdr10PlusContent || (hevcForHdr && engine.videoFormat == .hdr10Plus)
-        let hdr10 = isHdr10Content || (hevcForHdr && (engine.videoFormat == .hdr10 || engine.videoFormat == .hdr10Plus))
+        // Fall back to the engine's own videoFormat for DV detection when
+        // the load probe returned nil (e.g. on resume/reload of the same file).
+        let engineVideoFormat = engine.videoFormat
+        let isDVFromEngine = engineVideoFormat == .dolbyVision || engineVideoFormat == .hdr10Plus || engineVideoFormat == .hdr10
+        let effectiveIsDV = isDolbyVision || isDVFromEngine
+        // Fallback dimensions from the engine's asset when the probe
+        // returned nil (resume/reload). Uses the first video track's size.
+        let effectiveWidth = videoWidth > 0 ? videoWidth : Self.assetVideoWidth(asset: findPlayerLayer()?.player?.currentItem?.asset)
+        let effectiveHeight = videoHeight > 0 ? videoHeight : Self.assetVideoHeight(asset: findPlayerLayer()?.player?.currentItem?.asset)
+        let videoCodec = Self.displayVideoCodec(base: videoCodecName, isDV: effectiveIsDV, profile: dvProfile)
+        let hevcForHdr: Bool = {
+            let c = (videoCodecName ?? "").lowercased()
+            return c.contains("hevc") || c.contains("hev1") || c.contains("hvc1") || c.hasPrefix("dv") || isDVFromEngine
+        }()
+        // Use engineVideoFormat for colorTransfer — it's always available
+        // from the engine even when the load probe returns nil.
+        let effectiveColorTransfer = hevcForHdr ? Self.colorTransfer(for: engineVideoFormat) : nil
+        let hdrPlus = isHdr10PlusContent || (hevcForHdr && engineVideoFormat == .hdr10Plus)
+        let hdr10 = isHdr10Content || (hevcForHdr && (engineVideoFormat == .hdr10 || engineVideoFormat == .hdr10Plus))
 
         // Debug: log HDR/codec/resolution state to Documents/avplayer_debug.log
-        Self.debugLog("[stateMap] st=\(st) playing=\(playing) codecName=\(videoCodecName ?? "nil") isDV=\(isDolbyVision) dvProfile=\(dvProfile.map { String($0) } ?? "nil") videoCodec=\(videoCodec) hevcForHdr=\(hevcForHdr) videoFormat=\(engine.videoFormat) colorTransfer=\(colorTransfer.map { String($0) } ?? "nil") hdrPlus=\(hdrPlus) hdr10=\(hdr10) isHdr10PlusContent=\(isHdr10PlusContent) isHdr10Content=\(isHdr10Content) w=\(videoWidth) h=\(videoHeight)")
+        Self.debugLog("[stateMap] st=\(st) playing=\(playing) codecName=\(videoCodecName ?? "nil") isDV=\(isDolbyVision) dvProfile=\(dvProfile.map { String($0) } ?? "nil") videoCodec=\(videoCodec) hevcForHdr=\(hevcForHdr) videoFormat=\(engineVideoFormat) colorTransfer=\(effectiveColorTransfer.map { String($0) } ?? "nil") hdrPlus=\(hdrPlus) hdr10=\(hdr10) isHdr10PlusContent=\(isHdr10PlusContent) isHdr10Content=\(isHdr10Content) w=\(effectiveWidth) h=\(effectiveHeight)")
 
         let audioTracks = audioTrackMaps()
         let activeAudio = engine.audioTracks.first(where: { $0.id == engine.activeAudioTrackIndex })
@@ -1268,9 +1286,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             "bufferedMs": bufferedMs,
             "videoCodecs": videoCodec,
             "videoMime": "",
-            "videoWidth": videoWidth,
-            "videoHeight": videoHeight,
-            "colorTransfer": colorTransfer as Any,
+             "videoWidth": effectiveWidth,
+             "videoHeight": effectiveHeight,
+             "colorTransfer": effectiveColorTransfer as Any,
             "isHdr10Plus": hdrPlus,
             "isHdr10": hdr10,
             "audioCodecs": activeAudio?.codec ?? "",
@@ -1483,6 +1501,19 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         } else {
             try? line.data(using: .utf8)!.write(to: url)
         }
+    }
+
+    /// Extract the first video track's width from an AVAsset (fallback when
+    /// the load probe returns nil, e.g. on resume/reload).
+    private static func assetVideoWidth(asset: AVAsset?) -> Int {
+        guard let asset, !asset.tracks(withMediaType: .video).isEmpty else { return 0 }
+        return Int(asset.tracks(withMediaType: .video).first!.naturalSize.width)
+    }
+
+    /// Extract the first video track's height from an AVAsset (fallback).
+    private static func assetVideoHeight(asset: AVAsset?) -> Int {
+        guard let asset, !asset.tracks(withMediaType: .video).isEmpty else { return 0 }
+        return Int(asset.tracks(withMediaType: .video).first!.naturalSize.height)
     }
 
     /// Maps a libavcodec subtitle codec to the MIME the Dart `formatSubtitle` map knows.
