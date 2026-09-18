@@ -480,3 +480,16 @@ String formatLiveAudioLabel({
   }
   return label;
 }
+
+/// Maps raw pixel dimensions to a friendly resolution label (4K, 2K, 1080p,
+/// etc.) for the player chip and info sheet. Uses the larger dimension so
+/// ultrawide or non-standard aspect ratios still get the right bucket.
+String friendlyResolution(int width, int height) {
+  final maxDim = width > height ? width : height;
+  if (maxDim >= 3840) return '4K';
+  if (maxDim >= 2560) return '2K';
+  if (maxDim >= 1920) return '1080p';
+  if (maxDim >= 1280) return '720p';
+  if (maxDim >= 720) return '480p';
+  return '${maxDim}p';
+}

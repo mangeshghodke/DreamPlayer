@@ -1605,7 +1605,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final w = p?.state.width;
     final h = p?.state.height;
     if (w != null && w > 0 && h != null && h > 0) {
-      _mpvResolution = '$w×$h';
+      _mpvResolution = friendlyResolution(w, h);
     }
     // The pip window's aspect ratio comes from the real video size.
     _syncMpvPipState();
@@ -2041,7 +2041,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       unawaited(_checkHdrGate());
     }
     if (e.videoWidth > 0 && e.videoHeight > 0) {
-      _liveResolution = '${e.videoWidth}x${e.videoHeight}';
+      _liveResolution = friendlyResolution(e.videoWidth, e.videoHeight);
     }
     if (e.videoWidth > 0 ||
         e.durationMs > 0 ||
