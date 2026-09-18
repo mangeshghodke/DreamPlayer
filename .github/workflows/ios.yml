@@ -57,18 +57,25 @@ jobs:
           echo -n "$BUILD_CERTIFICATE_BASE64" | tr -d '\r\n ' | base64 --decode -o $CERTIFICATE_PATH
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r\n ' | base64 --decode -o $PP_PATH
 
-          # Use the login.keychain that xcodebuild uses by default
-          # Unlock it first, then import directly (login keychain has no password on GitHub Actions)
-          security unlock-keychain ~/Library/Keychains/login.keychain-db 2>/dev/null || true
-          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k ~/Library/Keychains/login.keychain-db 2>&1 || true
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db 2>&1 || true
-          # Verify it's there
-          security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db 2>&1 || true
-          # Also keep custom keychain as backup
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH 2>/dev/null || true
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH 2>/dev/null || true
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH 2>/dev/null || true
-          security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcodebuild 2>&1 || true
+          # Create a custom keychain for signing
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import certificate and private key
+          security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcodebuild
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Verify certificate is available
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
+
+          # Install provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
+
+          # Set custom keychain as default for xcodebuild
+          security default-keychain -s $KEYCHAIN_PATH
+          security list-keychains -d user -s $KEYCHAIN_PATH
 
           # Patch Runner.xcodeproj to Manual signing for archive
           TEAM_ID_VAL="$TEAM_ID"
@@ -104,10 +111,7 @@ jobs:
               plistlib.dump(plist, f)
           PYEOF
 
-          # Build the signed IPA - set default keychain to login.keychain where cert now lives
-          # Note: login keychain on GitHub Actions has no password, don't try to unlock with KEYCHAIN_PASSWORD
-          security default-keychain -s ~/Library/Keychains/login.keychain-db
-          security find-identity -v -p codesigning
+          # Build signed IPA
           flutter build ipa --release \
             --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" \
             --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
