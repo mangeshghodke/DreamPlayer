@@ -75,12 +75,13 @@ jobs:
           security find-identity -v -p codesigning $KEYCHAIN_PATH
 
           # Patch Runner.xcodeproj to Manual signing for archive
-          python3 << 'PBPATCH'
+          TEAM_ID_VAL="$TEAM_ID"
+          python3 << PBPATCH
           import re
           with open('ios/Runner.xcodeproj/project.pbxproj', 'r') as f:
               content = f.read()
           content = content.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
-          team_id = "$TEAM_ID"
+          team_id = "$TEAM_ID_VAL"
           profile_name = "DreamPlayer AppStore"
           content = re.sub(r'DEVELOPMENT_TEAM = "[^"]*";', f'DEVELOPMENT_TEAM = {team_id};', content)
           if 'DEVELOPMENT_TEAM' not in content:
@@ -108,6 +109,8 @@ jobs:
           PYEOF
 
           # Build the signed IPA
+          security default-keychain -s $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           flutter build ipa --release \
             --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" \
             --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
