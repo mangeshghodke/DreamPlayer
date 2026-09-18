@@ -570,33 +570,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            // Buy — DreamPlayer Advanced (the IAP paywall). Shown at the top
-            // of iOS PAYWALL_ENABLED builds, or on Android debug builds with
-            // the "simulate free user" override active. Android real builds
-            // are always advanced, so `effectivePaywallEnabled` is false and
-            // this section never appears (monetization is iOS-only).
+            // Premium section — shown when paywall is effective (iOS builds
+            // with PAYWALL_ENABLED, or Android debug with simulate-free-user).
             if (Entitlements.instance.effectivePaywallEnabled) ...[
               ListenableBuilder(
                 listenable: Entitlements.instance,
                 builder: (context, _) {
                   final e = Entitlements.instance;
                   final entitled = e.isEntitled;
-                  return TvTile(
+                  // Lifetime users: button vanishes entirely.
+                  final showButton = !entitled || e.trialActive;
+                  return ListTile(
                     leading: Icon(
                       Icons.workspace_premium,
                       color: entitled ? theme.colorScheme.primary : null,
                     ),
-                    title: Text(
-                      entitled
-                          ? 'DreamPlayer Advanced — Active'
-                          : 'DreamPlayer Advanced',
-                    ),
+                    title: const Text('DreamPlayer Premium'),
                     subtitle: Text(
                       entitled
                           ? 'Thank you for supporting DreamPlayer'
-                          : 'Monthly subscription · Yearly · Lifetime',
+                          : 'Unlock all premium features',
                     ),
-                    onTap: () => showPaywall(context),
+                    trailing: showButton
+                        ? TextButton(
+                            onPressed: () => showPaywall(context),
+                            style: TextButton.styleFrom(
+                              backgroundColor: theme.colorScheme.primary,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Unlock',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          )
+                        : const Text(
+                            'Active',
+                            style: TextStyle(
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   );
                 },
               ),
@@ -1312,7 +1331,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'details screen, tap "Fix match", and search TMDB '
                       'yourself.',
             ),
-            const Divider(),
+            // Restore Purchases — always visible when paywall is effective.
+            if (Entitlements.instance.effectivePaywallEnabled) ...[
+              ListTile(
+                leading: const Icon(Icons.restore),
+                title: const Text('Restore Purchases'),
+                subtitle: const Text('Re-enable your subscription or lifetime purchase'),
+                onTap: () => showPaywall(context),
+              ),
+              const Divider(),
+            ],
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               child: Column(

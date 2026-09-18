@@ -71,8 +71,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // The "Buy" section header was removed — the tile sits at the top.
-    expect(find.text('DreamPlayer Advanced'), findsOneWidget);
-    expect(find.text('Monthly subscription · Yearly · Lifetime'), findsOneWidget);
+    expect(find.text('DreamPlayer Premium'), findsOneWidget);
+    expect(find.text('Unlock all premium features'), findsOneWidget);
   });
 
   testWidgets('About lists open-source licenses', (tester) async {

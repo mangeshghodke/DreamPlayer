@@ -73,15 +73,31 @@ class _PaywallSheetState extends State<PaywallSheet> {
       };
       final response =
           await InAppPurchase.instance.queryProductDetails(ids);
-      final products = response.productDetails.toList()
-        ..sort((a, b) {
-          const order = {
-            'advanced_lifetime': 0,
-            'advanced_yearly': 1,
-            'advanced_monthly': 2,
-          };
-          return (order[a.id] ?? 9).compareTo(order[b.id] ?? 9);
-        });
+      final found = response.productDetails.toList();
+      // Always show all 3 tiers; fill missing ones with placeholder tiles.
+      const order = {'advanced_lifetime': 0, 'advanced_yearly': 1, 'advanced_monthly': 2};
+      const placeholderPrices = {
+        'advanced_lifetime': '₹4,999',
+        'advanced_yearly': '₹1,499',
+        'advanced_monthly': '₹199',
+      };
+      final products = <ProductDetails>[];
+      for (final id in order.keys) {
+        final match = found.where((p) => p.id == id);
+        if (match.isNotEmpty) {
+          products.add(match.first);
+        } else {
+          // Placeholder — will appear greyed-out / non-purchasable.
+          products.add(ProductDetails(
+            id: id,
+            title: id,
+            description: '',
+            price: placeholderPrices[id] ?? '',
+            rawPrice: 0,
+            currencyCode: 'INR',
+          ));
+        }
+      }
       setState(() {
         _products = products;
         _loading = false;
@@ -94,8 +110,10 @@ class _PaywallSheetState extends State<PaywallSheet> {
     }
   }
 
+  bool _isPlaceholder(ProductDetails p) => p.rawPrice == 0;
+
   Future<void> _buy(ProductDetails product) async {
-    if (_purchasing) return;
+    if (_purchasing || _isPlaceholder(product)) return;
     setState(() {
       _purchasing = true;
       _error = null;
@@ -250,6 +268,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
                     product: p,
                     purchasing: _purchasing,
                     entitled: entitled,
+                    isPlaceholder: _isPlaceholder(p),
                     onTap: () => _buy(p),
                   )),
 
@@ -379,12 +398,14 @@ class _ProductTile extends StatelessWidget {
   final ProductDetails product;
   final bool purchasing;
   final bool entitled;
+  final bool isPlaceholder;
   final VoidCallback onTap;
 
   const _ProductTile({
     required this.product,
     required this.purchasing,
     required this.entitled,
+    required this.isPlaceholder,
     required this.onTap,
   });
 
@@ -404,15 +425,16 @@ class _ProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final priceSuffix = product.id == 'advanced_lifetime' ? '' : '/mo';
+    final disabled = purchasing || entitled || isPlaceholder;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: Colors.white10,
+        color: isPlaceholder ? Colors.white12 : Colors.white10,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: (purchasing || entitled) ? null : onTap,
+          onTap: disabled ? null : onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
@@ -422,14 +444,19 @@ class _ProductTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(_label,
-                          style: const TextStyle(
-                              color: Colors.white,
+                          style: TextStyle(
+                              color: isPlaceholder ? Colors.white38 : Colors.white,
                               fontWeight: FontWeight.w500)),
                       const SizedBox(height: 2),
                       Text(
-                        '${product.price}$priceSuffix',
-                        style: const TextStyle(
-                            color: Colors.white54, fontSize: 13),
+                        isPlaceholder
+                            ? 'Coming soon'
+                            : '${product.price}$priceSuffix',
+                        style: TextStyle(
+                            color: isPlaceholder
+                                ? Colors.white24
+                                : Colors.white54,
+                            fontSize: 13),
                       ),
                     ],
                   ),
@@ -440,6 +467,11 @@ class _ProductTile extends StatelessWidget {
                           color: Colors.greenAccent,
                           fontSize: 13,
                           fontWeight: FontWeight.w600))
+                else if (isPlaceholder)
+                  const Text('Soon',
+                      style: TextStyle(
+                          color: Colors.white24,
+                          fontSize: 13))
                 else if (purchasing)
                   const SizedBox(
                     width: 20,
