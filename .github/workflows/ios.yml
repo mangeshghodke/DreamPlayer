@@ -35,6 +35,7 @@ jobs:
       - name: Fetch dependencies
         run: |
           flutter config --enable-ios
+          flutter clean
           flutter pub get
 
       - name: Run tests
