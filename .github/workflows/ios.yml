@@ -154,16 +154,17 @@ jobs:
           PYEOF
 
           # Build signed IPA using xcodebuild directly for better control
+          # Only pass OTHER_CODE_SIGN_FLAGS for keychain; all signing settings
+          # (CODE_SIGN_STYLE, DEVELOPMENT_TEAM, PROVISIONING_PROFILE_SPECIFIER,
+          # CODE_SIGN_IDENTITY) are in project.pbxproj — passing them on the
+          # command line makes them global build settings that leak into SPM
+          # package targets which reject provisioning profiles.
           source $RUNNER_TEMP/profile_info.sh
           cd ios
           xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
             -archivePath $RUNNER_TEMP/Runner.xcarchive \
             -destination "generic/platform=iOS" \
             -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=$TEAM_ID \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             archive
 
