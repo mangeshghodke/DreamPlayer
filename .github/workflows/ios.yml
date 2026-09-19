@@ -123,9 +123,24 @@ jobs:
 
       - name: Upload to TestFlight
         if: ${{ inputs.upload_testflight == true }}
-        uses: apple-actions/upload-testflight-build@v1
-        with:
-          app-path: build/ios/ipa/*.ipa
-          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
-          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
-          api-private-key: ${{ secrets.APPSTORE_API_KEY }}
+        env:
+          APPSTORE_API_KEY: ${{ secrets.APPSTORE_API_KEY }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          # altool needs the .p8 key on disk at ~/private_keys/AuthKey_<key-id>.p8
+          mkdir -p ~/private_keys
+          echo "$APPSTORE_API_KEY" > ~/private_keys/AuthKey_${APPSTORE_API_KEY_ID}.p8
+
+          # altool doesn't expand globs — find the actual IPA
+          IPA_FILE=$(ls build/ios/ipa/*.ipa 2>/dev/null | head -1)
+          if [ -z "$IPA_FILE" ]; then
+            echo "ERROR: No IPA found in build/ios/ipa/"
+            exit 1
+          fi
+          echo "Uploading: $IPA_FILE"
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_FILE" \
+            --apiKey "$APPSTORE_API_KEY_ID" \
+            --apiIssuer "$APPSTORE_ISSUER_ID"
