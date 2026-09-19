@@ -72,6 +72,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
   Future<void> _loadProducts() async {
     try {
       final available = await InAppPurchase.instance.isAvailable();
+      if (!mounted) return;
       if (!available) {
         setState(() {
           _error = 'Store unavailable';
@@ -86,6 +87,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
       };
       final response =
           await InAppPurchase.instance.queryProductDetails(ids);
+      if (!mounted) return;
       final found = response.productDetails.toList();
       const order = {
         'dp_premium_lifetime_2026': 0,
@@ -113,11 +115,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
           ));
         }
       }
+      if (!mounted) return;
       setState(() {
         _products = products;
         _loading = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() {
         _error = 'Failed to load products';
         _loading = false;
@@ -149,6 +153,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
             }
             if (purchase.status == PurchaseStatus.error ||
                 purchase.status == PurchaseStatus.canceled) {
+              if (!mounted) return;
               setState(() {
                 _purchasing = false;
                 _error = 'Purchase failed';
@@ -159,6 +164,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
         }
       }
     } catch (_) {
+      if (!mounted) return;
       setState(() {
         _purchasing = false;
         _error = 'Purchase failed';
