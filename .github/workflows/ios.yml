@@ -8,6 +8,11 @@ on:
         type: boolean
         required: false
         default: false
+      signed_build:
+        description: 'Build signed IPA (for local device install, no upload)'
+        type: boolean
+        required: false
+        default: false
       paywall:
         description: 'Enable paywall (PAYWALL_ENABLED=true) for screenshots'
         type: boolean
@@ -42,7 +47,7 @@ jobs:
         run: flutter test
 
       - name: Install Apple Certificate and Provisioning Profile
-        if: ${{ inputs.upload_testflight == true }}
+        if: ${{ inputs.upload_testflight == true || inputs.signed_build == true }}
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_CERT_BASE64 }}
           P12_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
@@ -82,13 +87,8 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Export env vars for the Python script
-          echo "TEAM_ID=$TEAM_ID" > $RUNNER_TEMP/build_env.sh
-          echo "PP_PATH=$PP_PATH" >> $RUNNER_TEMP/build_env.sh
-          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $RUNNER_TEMP/build_env.sh
-
       - name: Build signed IPA
-        if: ${{ inputs.upload_testflight == true }}
+        if: ${{ inputs.upload_testflight == true || inputs.signed_build == true }}
         env:
           TEAM_ID: ${{ secrets.APPSTORE_TEAM_ID }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
@@ -100,7 +100,7 @@ jobs:
           python3 ios/signing_setup.py
 
       - name: Build unsigned iOS app
-        if: ${{ inputs.upload_testflight != true }}
+        if: ${{ inputs.upload_testflight != true && inputs.signed_build != true }}
         run: |
           flutter build ios --release --no-codesign \
             --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
@@ -112,7 +112,7 @@ jobs:
           cp -r build/ios/iphoneos/Runner.app Payload/
           zip -ryq "DreamPlayer-${VERSION}.ipa" Payload
 
-      - name: Upload IPA
+      - name: Upload IPA artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
