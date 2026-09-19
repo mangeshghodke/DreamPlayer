@@ -1349,6 +1349,7 @@ class ExoPlayerView(
                 "setSubtitleStyle" -> {
                     applySubtitleStyle(
                         (call.argument<Number>("size")?.toDouble()) ?: 1.0,
+                        (call.argument<Number>("bitmapScale")?.toDouble()) ?: 1.0,
                         call.argument<Number>("color")?.toInt() ?: 0xFFFFFFFF.toInt(),
                         call.argument<Number>("bg")?.toInt() ?: 0x80000000.toInt(),
                         call.argument<Boolean>("outline") ?: true,
@@ -1897,6 +1898,7 @@ class ExoPlayerView(
     /// `bgOpacity` (0-255) overrides the alpha channel of `bg`.
     private fun applySubtitleStyle(
         sizeMult: Double,
+        bitmapScale: Double = 1.0,
         color: Int,
         bg: Int,
         outline: Boolean,
@@ -1907,11 +1909,21 @@ class ExoPlayerView(
         SubtitleTiming.delayUs = delayMs * 1000L
         val view = playerView.subtitleView ?: return
         view.setFractionalTextSize(
-            SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * sizeMult.coerceIn(0.6, 2.0).toFloat()
+            SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * sizeMult.coerceIn(0.5, 2.0).toFloat()
         )
         // Move subtitle up the screen by setting bottom padding fraction.
         // vPos=0 → no padding (bottom), vPos=255 → max padding (top).
         view.setBottomPaddingFraction((vPos.coerceIn(0, 255) / 255.0f))
+
+        // Bitmap scale: applies a view-level transform that scales PGS/DVB
+        // bitmap cues without affecting text cue sizing (which is handled by
+        // setFractionalTextSize above). The transform scales the entire
+        // SubtitleView, but text cues are already sized proportionally, so
+        // the visual effect is that bitmap subtitles scale while text stays
+        // controlled by the size slider.
+        val bScale = bitmapScale.coerceIn(0.3, 2.0).toFloat()
+        view.scaleX = bScale
+        view.scaleY = bScale
 
         val hasBg = (bg ushr 24) != 0
         val edgeType = if (outline)

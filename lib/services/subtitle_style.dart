@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SubtitleStyle {
   const SubtitleStyle({
     this.sizeMultiplier = 1.0,
+    this.bitmapScale = 1.0,
     this.colorValue = 0xFFFFFFFF,
     this.backgroundColorValue = 0x80000000,
     this.backgroundOpacity = 128,
@@ -20,6 +21,11 @@ class SubtitleStyle {
 
   /// Multiplier around Media3's default fractional text size (1.0 = default).
   final double sizeMultiplier;
+
+  /// Scale multiplier for bitmap subtitles (PGS/DVB). 1.0 = native size.
+  /// Applied as a view-level transform so it scales the rendered bitmap
+  /// without changing its internal pixel data.
+  final double bitmapScale;
 
   /// Text color (ARGB).
   final int colorValue;
@@ -58,6 +64,7 @@ class SubtitleStyle {
 
   SubtitleStyle copyWith({
     double? sizeMultiplier,
+    double? bitmapScale,
     int? colorValue,
     int? backgroundColorValue,
     int? backgroundOpacity,
@@ -67,6 +74,7 @@ class SubtitleStyle {
   }) =>
       SubtitleStyle(
         sizeMultiplier: sizeMultiplier ?? this.sizeMultiplier,
+        bitmapScale: bitmapScale ?? this.bitmapScale,
         colorValue: colorValue ?? this.colorValue,
         backgroundColorValue:
             backgroundColorValue ?? this.backgroundColorValue,
@@ -78,6 +86,7 @@ class SubtitleStyle {
 
   Map<String, dynamic> toJson() => {
         'size': sizeMultiplier,
+        'bitmapScale': bitmapScale,
         'color': colorValue,
         'bg': backgroundColorValue,
         'bgOpacity': backgroundOpacity,
@@ -89,6 +98,11 @@ class SubtitleStyle {
   factory SubtitleStyle.fromJson(Map<dynamic, dynamic> json) => SubtitleStyle(
         sizeMultiplier:
             (json['size'] is num ? (json['size'] as num).toDouble() : null) ??
+                1.0,
+        bitmapScale:
+            (json['bitmapScale'] is num
+                    ? (json['bitmapScale'] as num).toDouble()
+                    : null) ??
                 1.0,
         colorValue: json['color'] is int ? json['color'] as int : 0xFFFFFFFF,
         backgroundColorValue:
@@ -120,6 +134,7 @@ class SubtitleStyle {
   /// The channel payload both native handlers accept.
   Map<String, dynamic> toChannelArgs() => {
         'size': sizeMultiplier,
+        'bitmapScale': bitmapScale,
         'color': colorValue,
         'bg': backgroundColorValue,
         'bgOpacity': backgroundOpacity,
