@@ -35,21 +35,41 @@ def main():
     with open(pbxproj_path, 'r') as f:
         content = f.read()
 
-    # Replace Automatic with Manual
+    # Replace Automatic with Manual everywhere
     content = content.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
 
     # Remove any existing DEVELOPMENT_TEAM or PROVISIONING_PROFILE_SPECIFIER
     content = re.sub(r'\t+DEVELOPMENT_TEAM = "[^"]*";\n?', '', content)
+    content = re.sub(r'\t+DEVELOPMENT_TEAM = [A-Z0-9]+;\n?', '', content)
     content = re.sub(r'\t+PROVISIONING_PROFILE_SPECIFIER = "[^"]*";\n?', '', content)
 
-    # Find all build config sections with CODE_SIGN_STYLE = Manual
-    # and inject DEVELOPMENT_TEAM + PROVISIONING_PROFILE_SPECIFIER after each
-    marker = 'CODE_SIGN_STYLE = Manual;'
-    insert_block = f'\n\t\t\t\tDEVELOPMENT_TEAM = {team_id};\n'
-    if profile_uuid:
-        insert_block += f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_uuid}";\n'
+    # Add signing settings to Runner target's Debug config (97C14706)
+    # The Runner target configs have PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;
+    # but no CODE_SIGN_STYLE — we must add signing settings there directly.
+    runner_debug_marker = 'PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;\n\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";\n\t\t\t\tSWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";\n\t\t\t\tSWIFT_OPTIMIZATION_LEVEL = "-Onone";'
+    runner_debug_insert = (
+        f'CODE_SIGN_STYLE = Manual;\n'
+        f'\t\t\t\tDEVELOPMENT_TEAM = {team_id};\n'
+        f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_uuid}";\n'
+        f'\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;\n'
+        f'\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";\n'
+        f'\t\t\t\tSWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";\n'
+        f'\t\t\t\tSWIFT_OPTIMIZATION_LEVEL = "-Onone";'
+    )
+    content = content.replace(runner_debug_marker, runner_debug_insert, 1)
 
-    content = content.replace(marker, marker + insert_block)
+    # Add signing settings to Runner target's Release config (97C14707)
+    runner_release_marker = 'PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;\n\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";\n\t\t\t\tSWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";\n\t\t\t\tSWIFT_VERSION = 5.0;'
+    runner_release_insert = (
+        f'CODE_SIGN_STYLE = Manual;\n'
+        f'\t\t\t\tDEVELOPMENT_TEAM = {team_id};\n'
+        f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_uuid}";\n'
+        f'\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;\n'
+        f'\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";\n'
+        f'\t\t\t\tSWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";\n'
+        f'\t\t\t\tSWIFT_VERSION = 5.0;'
+    )
+    content = content.replace(runner_release_marker, runner_release_insert, 1)
 
     with open(pbxproj_path, 'w') as f:
         f.write(content)
@@ -66,6 +86,11 @@ def main():
         print("ERROR: DEVELOPMENT_TEAM not found after patch!")
         sys.exit(1)
 
+    # Verify Runner target specifically has signing settings
+    if f'PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;' not in patched:
+        print("ERROR: Runner target not found in pbxproj!")
+        sys.exit(1)
+
     # Build ExportOptions.plist
     export_opts = {
         'method': 'app-store',
@@ -80,6 +105,10 @@ def main():
         plistlib.dump(export_opts, f)
     print(f"ExportOptions.plist created with profile: {profile_name}")
 
+    # Clean DerivedData to avoid stale project settings
+    derived_data = os.path.join(runner_temp, 'DerivedData')
+    subprocess.run(['rm', '-rf', derived_data], check=False)
+
     # Archive
     archive_path = os.path.join(runner_temp, 'Runner.xcarchive')
     ipa_path = os.path.join(runner_temp, 'ipa')
@@ -88,6 +117,7 @@ def main():
         'xcodebuild', '-workspace', 'ios/Runner.xcworkspace',
         '-scheme', 'Runner', '-configuration', 'Release',
         '-archivePath', archive_path,
+        '-derivedDataPath', derived_data,
         '-destination', 'generic/platform=iOS',
         '-allowProvisioningUpdates',
         f'OTHER_CODE_SIGN_FLAGS=--keychain {keychain_path}',
