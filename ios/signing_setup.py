@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Sign iOS project: patch PROVISIONING_PROFILE_SPECIFIER in pbxproj only,
-archive with command-line signing flags, export."""
+"""Sign and build iOS IPA: patch Runner target signing in pbxproj, then flutter build ipa."""
 import os
 import plistlib
 import re
@@ -11,7 +10,6 @@ def main():
     runner_temp = os.environ['RUNNER_TEMP']
     team_id = os.environ.get('TEAM_ID', '').strip()
     pp_path = os.environ['PP_PATH']
-    keychain_path = os.environ['KEYCHAIN_PATH']
 
     if not team_id:
         print("ERROR: TEAM_ID is empty! Set APPSTORE_TEAM_ID secret.")
@@ -28,28 +26,34 @@ def main():
 
     pp_data = plistlib.loads(result.stdout)
     profile_name = pp_data.get('Name', 'DreamPlayer AppStore')
-    profile_uuid = pp_data.get('UUID', '')
     print(f"Profile name: {profile_name}")
-    print(f"Profile UUID: {profile_uuid}")
     print(f"Team ID: {team_id}")
 
-    # Patch PROVISIONING_PROFILE_SPECIFIER into Runner target only in pbxproj
-    # This avoids leaking it to SPM targets via command line
+    # Patch Runner target build settings in pbxproj
+    # flutter build ipa reads signing from the project, so we must set it there.
+    # We do NOT set PROVISIONING_PROFILE_SPECIFIER via cmdline (leaks to SPM).
     pbxproj_path = 'ios/Runner.xcodeproj/project.pbxproj'
     with open(pbxproj_path, 'r') as f:
         content = f.read()
 
-    # Remove any existing PROVISIONING_PROFILE_SPECIFIER lines
+    # Strip any existing signing settings
+    content = re.sub(r'\t+CODE_SIGN_STYLE = [^;]+;\n?', '', content)
+    content = re.sub(r'\t+DEVELOPMENT_TEAM = "[^"]*";\n?', '', content)
+    content = re.sub(r'\t+DEVELOPMENT_TEAM = [A-Z0-9]+;\n?', '', content)
     content = re.sub(r'\t+PROVISIONING_PROFILE_SPECIFIER = "[^"]*";\n?', '', content)
+    content = re.sub(r'\t+CODE_SIGN_IDENTITY = "[^"]*";\n?', '', content)
 
-    # Add PROVISIONING_PROFILE_SPECIFIER after CODE_SIGN_STYLE in Runner target configs
-    # Runner target has PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;
-    # We add it right before PRODUCT_BUNDLE_IDENTIFIER in those configs
-    marker = 'PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;'
-    insert = f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_name}";\n{marker}'
-    # Only replace in Runner target configs (not RunnerTests which has .RunnerTests suffix)
-    # Runner configs have PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app; (no .RunnerTests)
-    content = content.replace(marker, insert)
+    # Add signing settings to every Runner target config.
+    # Runner target configs have PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;
+    # (RunnerTests has com.dreamplayer.app.RunnerTests — won't match the semicolon)
+    signing_block = (
+        f'\t\t\t\tCODE_SIGN_STYLE = Manual;\n'
+        f'\t\t\t\tCODE_SIGN_IDENTITY = "Apple Distribution";\n'
+        f'\t\t\t\tDEVELOPMENT_TEAM = "{team_id}";\n'
+        f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_name}";\n'
+    )
+    marker = '\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;'
+    content = content.replace(marker, signing_block + marker)
 
     with open(pbxproj_path, 'w') as f:
         f.write(content)
@@ -58,7 +62,8 @@ def main():
     with open(pbxproj_path, 'r') as f:
         patched = f.read()
     spec_count = patched.count('PROVISIONING_PROFILE_SPECIFIER')
-    print(f"Patched: {spec_count} PROVISIONING_PROFILE_SPECIFIER in Runner target")
+    dev_count = patched.count(f'DEVELOPMENT_TEAM = "{team_id}"')
+    print(f"Patched: {dev_count} DEVELOPMENT_TEAM, {spec_count} PROVISIONING_PROFILE_SPECIFIER")
 
     # Build ExportOptions.plist
     export_opts = {
@@ -73,45 +78,23 @@ def main():
     with open(export_opts_path, 'wb') as f:
         plistlib.dump(export_opts, f)
 
-    # Clean DerivedData
-    derived_data = os.path.join(runner_temp, 'DerivedData')
-    subprocess.run(['rm', '-rf', derived_data], check=False)
-
-    # Archive — PROVISIONING_PROFILE_SPECIFIER is NOT on the command line
-    # (it's in pbxproj for Runner only, avoiding SPM target leakage)
-    archive_path = os.path.join(runner_temp, 'Runner.xcarchive')
-    ipa_path = os.path.join(runner_temp, 'ipa')
-
-    archive_cmd = [
-        'xcodebuild', '-workspace', 'ios/Runner.xcworkspace',
-        '-scheme', 'Runner', '-configuration', 'Release',
-        '-archivePath', archive_path,
-        '-derivedDataPath', derived_data,
-        '-destination', 'generic/platform=iOS',
-        '-allowProvisioningUpdates',
-        f'OTHER_CODE_SIGN_FLAGS=--keychain {keychain_path}',
-        'CODE_SIGN_STYLE=Manual',
-        f'DEVELOPMENT_TEAM={team_id}',
-        'CODE_SIGN_IDENTITY=Apple Distribution',
-        'archive',
+    # flutter build ipa handles plugin resolution, registrant generation,
+    # and passes signing settings to xcodebuild correctly.
+    cmd = [
+        'flutter', 'build', 'ipa', '--release',
+        '--export-options-plist', export_opts_path,
+        '--dart-define=PAYWALL_ENABLED=true',
     ]
-    print(f"Running: {' '.join(archive_cmd)}")
-    ret = subprocess.run(archive_cmd)
-    if ret.returncode != 0:
-        print(f"ERROR: xcodebuild archive failed with code {ret.returncode}")
-        sys.exit(ret.returncode)
 
-    # Export
-    export_cmd = [
-        'xcodebuild', '-exportArchive',
-        '-archivePath', archive_path,
-        '-exportPath', ipa_path,
-        '-exportOptionsPlist', export_opts_path,
-    ]
-    print(f"Running: {' '.join(export_cmd)}")
-    ret = subprocess.run(export_cmd)
+    # Pass dart-defines from env (TMDB_API_KEY etc.)
+    for key in ('TMDB_API_KEY', 'OPENSUBTITLES_API_KEY', 'SIMKL_CLIENT_ID'):
+        val = os.environ.get(key, '').strip()
+        if val:
+            cmd.append(f'--dart-define={key}={val}')
+    print(f"Running: {' '.join(cmd)}")
+    ret = subprocess.run(cmd)
     if ret.returncode != 0:
-        print(f"ERROR: xcodebuild export failed with code {ret.returncode}")
+        print(f"ERROR: flutter build ipa failed with code {ret.returncode}")
         sys.exit(ret.returncode)
 
     print("Build complete!")
