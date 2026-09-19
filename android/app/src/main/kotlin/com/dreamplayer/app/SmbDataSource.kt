@@ -68,16 +68,21 @@ internal object BufferTuning {
                     }
                     heapMb < 256 -> {
                         ringCapacityBytes = 48 * 1024 * 1024
+                        chunkBytes = 4 * 1024 * 1024
+                        prefetchThreads = 4
                         media3TargetBytes = 48 * 1024 * 1024
                     }
                     else -> {
-                        // Large-RAM devices: was 96 MiB, which filled a big
-                        // chunk of the Java heap and OOM-aborted the MediaCodec
-                        // callback thread mid-playback on a 256 MB-growth-limit
-                        // device (`could not create MediaCodec.BufferInfo`).
-                        // 64 MiB still buffers ~50 s of 10 Mb/s content.
-                        ringCapacityBytes = 64 * 1024 * 1024
-                        media3TargetBytes = 64 * 1024 * 1024
+                        // Large-RAM devices: 96 MiB ring gives ~8s of read-ahead
+                        // at 100 Mbps (12.5 MB/s) — enough for Wi-Fi NAS to
+                        // sustain 4K streaming without stalling the consumer.
+                        // 64 MiB was only ~5s which caused frequent ring-empty
+                        // stalls on large SMB files. 96 MiB fits comfortably
+                        // in the Java heap on 256+ MB devices.
+                        ringCapacityBytes = 96 * 1024 * 1024
+                        chunkBytes = 4 * 1024 * 1024
+                        prefetchThreads = 6
+                        media3TargetBytes = 96 * 1024 * 1024
                     }
                 }
                 Log.i(
@@ -296,10 +301,27 @@ class SmbDataSource(private val context: Context) : BaseDataSource(true) {
             if (fatalError != null) throw fatalError!!
             if (position >= bufStart + valid && !bufEof) {
                 val waitStart = System.currentTimeMillis()
-                Log.w(TAG, "read: RING EMPTY at pos=$position, waiting for prefetch...")
+                Log.w(TAG, "read: RING EMPTY at pos=$position, waiting for prefetch... ringState: bufStart=$bufStart valid=$valid ringSize=$ringSize eof=$bufEof")
                 while (position >= bufStart + valid && !bufEof) {
-                    ringLock.wait()
+                    ringLock.wait(5000) // 5-second timeout instead of indefinite block
                     if (fatalError != null) throw fatalError!!
+                    // Health check after timeout: if still empty, check if prefetch threads are alive
+                    if (position >= bufStart + valid && !bufEof) {
+                        val elapsed = System.currentTimeMillis() - waitStart
+                        val aliveCount = prefetchers.count { it.isAlive }
+                        Log.w(TAG, "read: still empty after 5s (${elapsed}ms total), alivePrefetch=$aliveCount/${prefetchers.size}")
+                        if (aliveCount == 0 && !bufEof) {
+                            // All prefetch threads died — surface fatal error instead of hanging
+                            fatalError = IOException("SMB: all prefetch threads died, no data available")
+                            throw fatalError!!
+                        }
+                        if (elapsed > 15_000) {
+                            // 15s stall — NAS is unreachable or throughput is below decode bitrate
+                            fatalError = IOException("SMB: no data for ${elapsed}ms — NAS may be unreachable or too slow")
+                            Log.e(TAG, "fatalError: stall ${elapsed}ms at pos=$position, alivePrefetch=$aliveCount")
+                            throw fatalError!!
+                        }
+                    }
                 }
                 Log.w(TAG, "read: resumed after ${System.currentTimeMillis() - waitStart}ms")
             }
@@ -623,16 +645,37 @@ class SmbDataSource(private val context: Context) : BaseDataSource(true) {
                 // If the connection keeps failing after reconnect, give up and
                 // let the player surface the error (Dart retries with a fresh open).
                 consecutiveFails++
-                if (consecutiveFails >= 12) {
-                    fatalError = IOException("SMB read failed repeatedly at $readAt after reconnect")
+                if (consecutiveFails >= 6) {
+                    fatalError = IOException("SMB read failed repeatedly at $readAt after $consecutiveFails failures")
                     Log.e(TAG, "fatalError set after $consecutiveFails failures at $readAt")
                     return
                 }
                 try { Thread.sleep(300) } catch (_: InterruptedException) { return }
             } else {
                 // No handle available for this secondary thread (open failed at
-                // start) — just idle; the primary thread still does the work.
-                try { Thread.sleep(500) } catch (_: InterruptedException) { return }
+                // start). Instead of idling forever, try to reconnect, and if
+                // that fails too, signal fatalError after a short grace period
+                // so the player surfaces an error instead of hanging.
+                var handleAttempts = 0
+                while (true) {
+                    try { Thread.sleep(1000) } catch (_: InterruptedException) { return }
+                    if (prefetchKilled || gen != prefetchGen) return
+                    handleAttempts++
+                    val c = savedCreds
+                    val sh = savedShare
+                    val p = savedPath
+                    if (c != null && sh != null && p != null) {
+                        try {
+                            handle = SmbRandomAccessFile(SmbFile(smbUrl(c, sh, p), c.context()), "r")
+                            Log.i(TAG, "t$threadIdx recovered handle after ${handleAttempts}s")
+                            break // got a handle, rejoin the read loop
+                        } catch (_: Exception) { /* retry next iteration */ }
+                    }
+                    if (handleAttempts >= 10) {
+                        Log.e(TAG, "t$threadIdx could not recover handle after ${handleAttempts}s")
+                        return // thread exits; read() health check will detect all-dead
+                    }
+                }
             }
         }
     }
