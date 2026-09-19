@@ -40,7 +40,6 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      # --- Code signing setup (only when TestFlight upload requested) ---
       - name: Install Apple Certificate and Provisioning Profile
         if: ${{ inputs.upload_testflight == true }}
         env:
@@ -57,12 +56,12 @@ jobs:
           echo -n "$BUILD_CERTIFICATE_BASE64" | tr -d '\r\n ' | base64 --decode -o $CERTIFICATE_PATH
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r\n ' | base64 --decode -o $PP_PATH
 
-          # Create a custom keychain for signing
+          # Create a custom keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Import Apple WWDR intermediate certificate (required for Xcode trust chain)
+          # Import WWDR intermediate certificate
           curl -sSL -o /tmp/AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
           security import /tmp/AppleWWDRCAG3.cer -k $KEYCHAIN_PATH -T /usr/bin/codesign
 
@@ -70,108 +69,31 @@ jobs:
           security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcodebuild
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Verify certificate is available
+          # Verify
           security find-identity -v -p codesigning $KEYCHAIN_PATH
 
           # Install provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
 
-          # Set custom keychain as default for xcodebuild (this process and subprocesses)
+          # Append custom keychain to search list (keep login keychain)
           security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | tr -d '"')
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Decode provisioning profile to get name and UUID for project patching
-          python3 << PYEOF
-          import plistlib
-          import subprocess
-          
-          result = subprocess.run(['security', 'cms', '-D', '-i', '$PP_PATH'], capture_output=True, text=True)
-          if result.returncode == 0:
-              pp_data = plistlib.loads(result.stdout.encode())
-              profile_name = pp_data.get('Name', 'DreamPlayer AppStore')
-              profile_uuid = pp_data.get('UUID', '')
-              print(f"Provisioning profile name: {profile_name}")
-              print(f"Provisioning profile UUID: {profile_uuid}")
-          else:
-              profile_name = 'DreamPlayer AppStore'
-              profile_uuid = ''
-              print(f"Using default profile name: {profile_name}")
+          # Export env vars for the Python script
+          echo "TEAM_ID=$TEAM_ID" > $RUNNER_TEMP/build_env.sh
+          echo "PP_PATH=$PP_PATH" >> $RUNNER_TEMP/build_env.sh
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $RUNNER_TEMP/build_env.sh
 
-          # Write profile info to env file for later steps
-          with open('$RUNNER_TEMP/profile_info.sh', 'w') as f:
-              f.write(f'PROFILE_NAME="{profile_name}"\n')
-              f.write(f'PROFILE_UUID="{profile_uuid}"\n')
-          PYEOF
-
-          # Patch Runner.xcodeproj to Manual signing with profile UUID
-          source $RUNNER_TEMP/profile_info.sh
-          TEAM_ID_VAL="$TEAM_ID"
-          python3 << PBPATCH
-          import re
-          with open('ios/Runner.xcodeproj/project.pbxproj', 'r') as f:
-              content = f.read()
-          content = content.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
-          team_id = "$TEAM_ID_VAL"
-          profile_uuid = "$PROFILE_UUID"
-          content = re.sub(r'DEVELOPMENT_TEAM = "[^"]*";', f'DEVELOPMENT_TEAM = {team_id};', content)
-          if 'DEVELOPMENT_TEAM' not in content:
-              content = content.replace('CODE_SIGN_STYLE = Manual;', f'CODE_SIGN_STYLE = Manual;\n\t\t\t\tDEVELOPMENT_TEAM = {team_id};', 1)
-          if profile_uuid and 'PROVISIONING_PROFILE_SPECIFIER' not in content:
-              content = content.replace(f'DEVELOPMENT_TEAM = {team_id};', f'DEVELOPMENT_TEAM = {team_id};\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_uuid}";', 1)
-          with open('ios/Runner.xcodeproj/project.pbxproj', 'w') as f:
-              f.write(content)
-          print(f"Patched: team={team_id}, profile_uuid={profile_uuid}")
-          PBPATCH
-
-          # Build ExportOptions.plist - use profile name
-          python3 << PYEOF
-          import plistlib
-          import subprocess
-          
-          result = subprocess.run(['security', 'cms', '-D', '-i', '$PP_PATH'], capture_output=True, text=True)
-          if result.returncode == 0:
-              import plistlib
-              pp_data = plistlib.loads(result.stdout.encode())
-              profile_name = pp_data.get('Name', 'DreamPlayer AppStore')
-              print(f"Provisioning profile name: {profile_name}")
-          else:
-              profile_name = 'DreamPlayer AppStore'
-              print(f"Using default profile name: {profile_name}")
-
-          plist = {
-              'method': 'app-store',
-              'teamID': '$TEAM_ID',
-              'signingStyle': 'manual',
-              'provisioningProfiles': {
-                  'com.dreamplayer.app': profile_name,
-              },
-          }
-          with open('$RUNNER_TEMP/ExportOptions.plist', 'wb') as f:
-              plistlib.dump(plist, f)
-          print(f"ExportOptions.plist created with profile: {profile_name}")
-          PYEOF
-
-          # Build signed IPA using xcodebuild directly for better control
-          # Only pass OTHER_CODE_SIGN_FLAGS for keychain; all signing settings
-          # (CODE_SIGN_STYLE, DEVELOPMENT_TEAM, PROVISIONING_PROFILE_SPECIFIER,
-          # CODE_SIGN_IDENTITY) are in project.pbxproj — passing them on the
-          # command line makes them global build settings that leak into SPM
-          # package targets which reject provisioning profiles.
-          source $RUNNER_TEMP/profile_info.sh
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
-            -archivePath $RUNNER_TEMP/Runner.xcarchive \
-            -destination "generic/platform=iOS" \
-            -allowProvisioningUpdates \
-            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
-            archive
-
-          xcodebuild -exportArchive \
-            -archivePath $RUNNER_TEMP/Runner.xcarchive \
-            -exportPath $RUNNER_TEMP/ipa \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist
+      - name: Build signed IPA
+        if: ${{ inputs.upload_testflight == true }}
+        env:
+          TEAM_ID: ${{ secrets.APPSTORE_TEAM_ID }}
+        run: |
+          export PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          export KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          python3 ios/signing_setup.py
 
       - name: Build unsigned iOS app
         if: ${{ inputs.upload_testflight != true }}
