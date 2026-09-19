@@ -260,17 +260,9 @@ Center → AirPlay / Head-tracking, not from inside any third-party app.
 
 ## Download
 
-Prebuilt binaries are on the [Releases](https://github.com/mangeshghodke/DreamPlayer/releases) page.
+Prebuilt Android binaries are on the [Releases](https://github.com/mangeshghodke/DreamPlayer/releases) page.
 
 - **Android** — universal APK + per-architecture APKs (arm64, armv7, x86_64)
-- **iOS / iPadOS** — unsigned IPA; sideload with [SideStore](https://sidestore.io) or [AltStore](https://altstore.io)
-
-### Installing on iPhone / iPad
-
-1. Install [SideStore](https://sidestore.io) or [AltStore](https://altstore.io) on your device
-2. Download `DreamPlayer-*.ipa` from the [latest release](https://github.com/mangeshghodke/DreamPlayer/releases)
-3. Open SideStore/AltStore → **+** → select the IPA
-4. The 7-day signature auto-refreshes over Wi-Fi
 
 ## Getting Started
 
