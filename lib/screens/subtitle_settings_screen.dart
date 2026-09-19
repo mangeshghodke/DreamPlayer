@@ -15,6 +15,13 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
   SubtitleStyle _style = const SubtitleStyle();
   bool _loaded = false;
 
+  static const _sizeOptions = <(double, String)>[
+    (0.8, 'S'),
+    (1.0, 'M'),
+    (1.25, 'L'),
+    (1.5, 'XL'),
+  ];
+
   static const _colorOptions = <int, String>{
     0xFFFFFFFF: 'White',
     0xFFFFEB3B: 'Yellow',
@@ -147,92 +154,14 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
                 ),
                 _section(theme, 'Text size'),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${(_style.sizeMultiplier * 100).round()}%',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: _style.sizeMultiplier == 1.0
-                                ? null
-                                : () => _update(_style.copyWith(sizeMultiplier: 1.0)),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              minimumSize: const Size(0, 36),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text('Reset'),
-                          ),
-                        ],
-                      ),
-                      Slider(
-                        min: 0.5,
-                        max: 2.0,
-                        divisions: 30,
-                        label: '${(_style.sizeMultiplier * 100).round()}%',
-                        value: _style.sizeMultiplier.clamp(0.5, 2.0),
-                        onChanged: (v) => _update(
-                          _style.copyWith(sizeMultiplier: double.parse(v.toStringAsFixed(2))),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _section(theme, 'Bitmap subtitle scale'),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${(_style.bitmapScale * 100).round()}%',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: _style.bitmapScale == 1.0
-                                ? null
-                                : () => _update(_style.copyWith(bitmapScale: 1.0)),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              minimumSize: const Size(0, 36),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text('Reset'),
-                          ),
-                        ],
-                      ),
-                      Slider(
-                        min: 0.3,
-                        max: 2.0,
-                        divisions: 34,
-                        label: '${(_style.bitmapScale * 100).round()}%',
-                        value: _style.bitmapScale.clamp(0.3, 2.0),
-                        onChanged: (v) => _update(
-                          _style.copyWith(bitmapScale: double.parse(v.toStringAsFixed(2))),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'Scales PGS/DVB bitmap subtitles without changing pixel quality. '
-                          'Text subtitles are controlled by the slider above.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SegmentedButton<double>(
+                    segments: _sizeOptions
+                        .map((e) => ButtonSegment(value: e.$1, label: Text(e.$2)))
+                        .toList(),
+                    selected: {_nearestSize()},
+                    onSelectionChanged: (selection) =>
+                        _update(_style.copyWith(sizeMultiplier: selection.first)),
                   ),
                 ),
                 _section(theme, 'Color'),
@@ -435,6 +364,19 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
            ),
      );
    }
+
+  double _nearestSize() {
+    double best = 1.0;
+    double bestDist = double.infinity;
+    for (final (value, _) in _sizeOptions) {
+      final d = (value - _style.sizeMultiplier).abs();
+      if (d < bestDist) {
+        bestDist = d;
+        best = value;
+      }
+    }
+    return best;
+  }
 
   Widget _section(ThemeData theme, String title) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 10),

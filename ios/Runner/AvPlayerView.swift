@@ -41,8 +41,6 @@ private final class SubtitleOverlayView: UIView {
     private let imageView = UIImageView()
     /// Coded video size (points-independent) used to compute the aspect-fit rect.
     fileprivate var videoSize: CGSize = .zero
-    /// Vertical position (0–255). 0 = bottom, 255 = top. Default 20.
-    fileprivate var verticalPosition: Int = 20
     private var activeText: String?
     private var activeImage: SubtitleImage?
 
@@ -73,16 +71,12 @@ private final class SubtitleOverlayView: UIView {
 
     /// Applies the user's subtitle appearance from Dart (`setSubtitleStyle`).
     /// - `size` multiplies the base glyph size.
-    /// - `bitmapScale` scales bitmap (PGS/DVB) subtitle images.
     /// - `color` is the text ARGB; `bg` an ARGB cue-box (alpha 0 = none).
     /// - `outline` toggles the black shadow behind glyphs.
-    func applyStyle(size: Double, bitmapScale: Double = 1.0, color: Int, bg: Int, outline: Bool) {
-        let base = CGFloat(17 * size.clamped(0.5...2.0))
+    func applyStyle(size: Double, color: Int, bg: Int, outline: Bool) {
+        let base = CGFloat(17 * size.clamped(0.6...2.0))
         label.font = .systemFont(ofSize: base, weight: .semibold)
         label.textColor = UIColor(argb: color)
-        // Apply bitmap scale transform to the image view
-        let bs = CGFloat(bitmapScale.clamped(0.3...2.0))
-        imageView.transform = CGAffineTransform(scaleX: bs, y: bs)
         if (bg >> 24) != 0 {
             label.backgroundColor = UIColor(argb: bg)
             // UIKit auto-sets UILabel.opaque = true when backgroundColor is
@@ -157,12 +151,9 @@ private final class SubtitleOverlayView: UIView {
         let maxWidth = max(rect.width - 32, 40)
         let size = label.sizeThatFits(CGSize(width: maxWidth, height: .greatestFiniteMagnitude))
         let width = min(size.width, maxWidth)
-        // Map verticalPosition (0=bottom, 255=top) to the video rect
-        let fraction = CGFloat(verticalPosition).clamped(0...255) / 255.0
-        let minY = rect.minY + fraction * (rect.height - size.height)
         label.frame = CGRect(
             x: rect.midX - width / 2,
-            y: minY,
+            y: rect.maxY - size.height - 12,
             width: width,
             height: size.height
         )
@@ -521,16 +512,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     result(nil)
                 case "setSubtitleStyle":
                     let size = (args?["size"] as? NSNumber)?.doubleValue ?? 1.0
-                    let bitmapScale = (args?["bitmapScale"] as? NSNumber)?.doubleValue ?? 1.0
                     let color = (args?["color"] as? NSNumber)?.intValue ?? 0xFFFFFFFF
                     let bg = (args?["bg"] as? NSNumber)?.intValue ?? 0x80000000
                     let outline = (args?["outline"] as? Bool) ?? true
-                    let vPos = (args?["vPos"] as? NSNumber)?.intValue ?? 20
                     self.subtitleDelaySeconds =
                         ((args?["delayMs"] as? NSNumber)?.doubleValue ?? 0) / 1000.0
-                    self.subtitleOverlay.verticalPosition = vPos
                     self.subtitleOverlay.applyStyle(
-                        size: size, bitmapScale: bitmapScale, color: color, bg: bg, outline: outline)
+                        size: size, color: color, bg: bg, outline: outline)
                     result(nil)
                 case "setResizeMode":
                     let mode = (args?["mode"] as? NSNumber)?.intValue ?? 0

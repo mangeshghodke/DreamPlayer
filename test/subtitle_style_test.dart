@@ -11,7 +11,6 @@ void main() {
     test('defaults', () {
       const style = SubtitleStyle();
       expect(style.sizeMultiplier, 1.0);
-      expect(style.bitmapScale, 1.0);
       expect(style.colorValue, 0xFFFFFFFF);
       expect(style.backgroundColorValue, 0x80000000);
       expect(style.outline, isTrue);
@@ -28,7 +27,6 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       const original = SubtitleStyle(
         sizeMultiplier: 1.25,
-        bitmapScale: 0.7,
         colorValue: 0xFFFFEB3B,
         backgroundColorValue: 0xF0000000,
         outline: false,
@@ -37,7 +35,6 @@ void main() {
       await original.save();
       final loaded = await SubtitleStyle.load();
       expect(loaded.sizeMultiplier, original.sizeMultiplier);
-      expect(loaded.bitmapScale, original.bitmapScale);
       expect(loaded.colorValue, original.colorValue);
       expect(loaded.backgroundColorValue, original.backgroundColorValue);
       expect(loaded.outline, original.outline);
@@ -56,7 +53,6 @@ void main() {
     test('channel args carry every field natively typed', () {
       const style = SubtitleStyle(
         sizeMultiplier: 1.5,
-        bitmapScale: 0.8,
         colorValue: 0xFF80DEEA,
         backgroundColorValue: 0x00000000,
         outline: false,
@@ -64,7 +60,6 @@ void main() {
       );
       final args = style.toChannelArgs();
       expect(args['size'], 1.5);
-      expect(args['bitmapScale'], 0.8);
       expect(args['color'], 0xFF80DEEA);
       expect(args['bg'], 0x00000000);
       expect(args['outline'], isFalse);
