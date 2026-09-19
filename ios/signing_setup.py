@@ -8,9 +8,13 @@ import sys
 
 def main():
     runner_temp = os.environ['RUNNER_TEMP']
-    team_id = os.environ['TEAM_ID']
+    team_id = os.environ.get('TEAM_ID', '').strip()
     pp_path = os.environ['PP_PATH']
     keychain_path = os.environ['KEYCHAIN_PATH']
+
+    if not team_id:
+        print("ERROR: TEAM_ID is empty! Set APPSTORE_TEAM_ID secret in GitHub repo settings.")
+        sys.exit(1)
 
     # Decode provisioning profile
     result = subprocess.run(
@@ -44,12 +48,10 @@ def main():
     content = re.sub(r'\t+PROVISIONING_PROFILE_SPECIFIER = "[^"]*";\n?', '', content)
 
     # Add signing settings to Runner target's Debug config (97C14706)
-    # The Runner target configs have PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;
-    # but no CODE_SIGN_STYLE — we must add signing settings there directly.
     runner_debug_marker = 'PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;\n\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";\n\t\t\t\tSWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";\n\t\t\t\tSWIFT_OPTIMIZATION_LEVEL = "-Onone";'
     runner_debug_insert = (
         f'CODE_SIGN_STYLE = Manual;\n'
-        f'\t\t\t\tDEVELOPMENT_TEAM = {team_id};\n'
+        f'\t\t\t\tDEVELOPMENT_TEAM = "{team_id}";\n'
         f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_uuid}";\n'
         f'\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;\n'
         f'\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";\n'
@@ -62,7 +64,7 @@ def main():
     runner_release_marker = 'PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;\n\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";\n\t\t\t\tSWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";\n\t\t\t\tSWIFT_VERSION = 5.0;'
     runner_release_insert = (
         f'CODE_SIGN_STYLE = Manual;\n'
-        f'\t\t\t\tDEVELOPMENT_TEAM = {team_id};\n'
+        f'\t\t\t\tDEVELOPMENT_TEAM = "{team_id}";\n'
         f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile_uuid}";\n'
         f'\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;\n'
         f'\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";\n'
@@ -77,7 +79,7 @@ def main():
     # Verify the patch worked
     with open(pbxproj_path, 'r') as f:
         patched = f.read()
-    team_count = patched.count(f'DEVELOPMENT_TEAM = {team_id};')
+    team_count = patched.count(f'DEVELOPMENT_TEAM = "{team_id}";')
     spec_count = patched.count('PROVISIONING_PROFILE_SPECIFIER')
     manual_count = patched.count('CODE_SIGN_STYLE = Manual;')
     print(f"Patched: {manual_count} Manual, {team_count} DEVELOPMENT_TEAM, {spec_count} PROVISIONING_PROFILE_SPECIFIER")
