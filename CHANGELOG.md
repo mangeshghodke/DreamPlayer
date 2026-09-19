@@ -81,13 +81,29 @@ header, and the player top bar shows the TMDB title.
 - **`TmdDetailsScreen` folder browsing for all network sources** —
   `_loadFolderEntries` now lists WebDAV (`WebDavClient`), FTP (`FtpClient`),
   and UPnP (`UpnpClient`) folders (was SMB + local only). Tapping a
-  bookmarked network folder from Home now shows its file list with TMDB posters.
+  bookmarked network   folder from Home now shows its file list with TMDB posters.
 - **`_openFolderEntry` / `_toVideoItem` parity** — subfolder navigation and
   video-item construction now handle all five source types (SMB, WebDAV, FTP,
   UPnP, local) with correct `path`, `resumeKey`, and `id` prefixes.
 - **Lint fixes** — `_nameOf` in `series_seasons_screen.dart` and
   `folder_scanner.dart` converted from `if/else if` chains to `switch`
   expressions; `seasonNameMapFor_debug` renamed to `seasonNameMapForDebug`.
+
+### iOS / CI
+
+- **iOS signed builds + TestFlight upload** — `ios.yml` workflow builds, signs,
+  and uploads to App Store Connect via `flutter build ipa` +
+  `ios/signing_setup.py`. Bundle ID: `com.dreamplayer.app`.
+- **iOS signing architecture** — standalone `ios/signing_setup.py` patches
+  `project.pbxproj` for `CODE_SIGN_STYLE=Manual`, `DEVELOPMENT_TEAM`,
+  `PROVISIONING_PROFILE_SPECIFIER` on the Runner target, builds
+  `ExportOptions.plist`, and calls `flutter build ipa`. Keychain setup,
+  WWDR G3 cert, and `set-key-partition-list` handled in the workflow.
+- **Signed build option** — workflow `signed_build` input builds a signed IPA
+  as artifact without uploading to TestFlight (for local device testing).
+- **Paywall crash fix** — `PaywallSheet` async methods (`_loadProducts`,
+  `_buy`) now check `mounted` before every `setState`, preventing crash when
+  the sheet is dismissed during app backgrounding.
 
 ## 0.4.6
 
