@@ -496,6 +496,16 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             guard let self, let engine = self.engine else { return }
                             // Let the engine settle its in-place attempt first.
                             try? await Task.sleep(nanoseconds: 300_000_000)
+                            // If the engine already hit an error, try to recover.
+                            if case .error = engine.state {
+                                let curPos = engine.currentTime
+                                await self.reloadSession(at: curPos)
+                                await self.waitForEngineReady(timeout: 3.0)
+                                let trackId2 = self.engineAudioId(forFlatPosition: index)
+                                self.engine?.selectAudioTrack(index: trackId2)
+                                self.emit()
+                                return
+                            }
                             let curPos = engine.currentTime
                             await self.reloadSession(at: curPos)
                             // Wait for the freshly loaded engine to reach
@@ -504,6 +514,22 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             let trackId2 = self.engineAudioId(forFlatPosition: index)
                             self.engine?.selectAudioTrack(index: trackId2)
                             self.emit()
+                        }
+                    } else {
+                        // Local file — the in-place switch may fail during
+                        // screen recording (ReplayKit conflicts with the DV
+                        // hardware pipeline).  Recover by reloading the session.
+                        Task { @MainActor [weak self] in
+                            guard let self, let engine = self.engine else { return }
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            if case .error = engine.state {
+                                let curPos = engine.currentTime
+                                await self.reloadSession(at: curPos)
+                                await self.waitForEngineReady(timeout: 3.0)
+                                let trackId2 = self.engineAudioId(forFlatPosition: index)
+                                self.engine?.selectAudioTrack(index: trackId2)
+                                self.emit()
+                            }
                         }
                     }
                     result(nil)
