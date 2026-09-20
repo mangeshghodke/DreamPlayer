@@ -894,6 +894,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     for (final m in DecoderMode.values)
+                                      if (m != DecoderMode.ffmpegVideo)
                                       RadioListTile<DecoderMode>(
                                         value: m,
                                         title: Text(m.label),

@@ -97,6 +97,9 @@ object PlayerCodecs {
             fun filterByMode(list: List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo>): List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> = when (modeLive) {
                 "hw" -> list.filterNot { isSoftwareVideoDecoder(it.name) }
                 "sw" -> list.filter { isSoftwareVideoDecoder(it.name) }
+                // FFmpeg video: empty for video so Media3 uses the FfmpegVideoRenderer
+                // extension; audio decoders stay normal (MediaCodec for best quality).
+                "ffmpeg_video" -> if (isVideo) emptyList() else list
                 else -> list
             }
             when {

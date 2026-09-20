@@ -3,7 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum DecoderMode {
   auto(0, 'Auto'),
   hw(1, 'Hardware'),
-  sw(2, 'Software');
+  sw(2, 'Software'),
+  ffmpegVideo(3, 'FFmpeg Video');
 
   const DecoderMode(this.value, this.label);
   final int value;
@@ -17,6 +18,7 @@ enum DecoderMode {
   static DecoderMode fromString(String? s) => switch (s) {
         'hw' => DecoderMode.hw,
         'sw' => DecoderMode.sw,
+        'ffmpeg_video' => DecoderMode.ffmpegVideo,
         _ => DecoderMode.auto,
       };
 
@@ -24,6 +26,7 @@ enum DecoderMode {
         DecoderMode.auto => 'auto',
         DecoderMode.hw => 'hw',
         DecoderMode.sw => 'sw',
+        DecoderMode.ffmpegVideo => 'ffmpeg_video',
       };
 }
 

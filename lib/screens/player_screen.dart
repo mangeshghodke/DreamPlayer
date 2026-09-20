@@ -241,6 +241,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// When that happens we transparently reopen in software and restore the
   /// user's decoder mode after the file closes.
   bool _swRetried = false;
+  /// Whether we already tried forcing FFmpeg video decode for this file
+  /// (DecoderMode.ffmpegVideo) — before escalating to mpv.
+  bool _ffmpegVideoRetried = false;
   DecoderMode? _decoderOverride;
 
   String? _liveVideoCodec;
@@ -710,20 +713,45 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  /// If the user picked a non-software decoder and the hardware path just
-  /// failed, switch to software once, reopen at the current position, and
-  /// remember the original mode so we can restore it on the next open or
-  /// when the screen is disposed.
+  /// When the hardware video decoder fails (e.g. HEVC Main10 that MediaCodec
+  /// claims to support but can't actually decode), try three fallback steps:
   ///
-  /// If software has already been tried (or was the active mode), the file is
-  /// genuinely undecodable on any MediaCodec path — auto-fallback to mpv if
-  /// available, otherwise surface the terminal error so the user can switch
-  /// engines manually.
+  ///  1. **FFmpeg video**: force empty video decoder list so Media3 uses its
+  ///     bundled FfmpegVideoRenderer extension (NextLib). Fast, stays in the
+  ///     Media3 pipeline.
+  ///  2. **libmpv**: if FFmpeg video also fails, hand off to mpv's own
+  ///     bundled FFmpeg decode path.
+  ///  3. **Terminal error**: neither engine can play the file.
+  ///
+  /// The original decoder mode is saved and restored on the next open.
   Future<void> _trySoftwareDecodeFallback(String fallbackError) async {
-    debugPrint('sw-fallback: called, swRetried=$_swRetried, decoderMode=$_decoderMode, error=$fallbackError');
-    // Skip the SW Media3 retry — it's slow, blocks the UI with an error
-    // overlay, and often fails anyway on unsupported codecs. Go straight
-    // to mpv which handles everything via its bundled FFmpeg.
+    debugPrint('sw-fallback: called, swRetried=$_swRetried, ffmpegVideoRetried=$_ffmpegVideoRetried, decoderMode=$_decoderMode, error=$fallbackError');
+    // Step 1: If we haven't tried FFmpeg video yet, force empty video decoder
+    // list so Media3 uses the FfmpegVideoRenderer extension (NextLib FFmpeg).
+    // This is faster than mpv and stays in the Media3 pipeline.
+    if (!_ffmpegVideoRetried && !_mpvActive && Platform.isAndroid) {
+      _ffmpegVideoRetried = true;
+      _decoderOverride = _decoderMode;
+      _decoderMode = DecoderMode.ffmpegVideo;
+      final pos = _position;
+      final dur = _duration;
+      debugPrint('sw-fallback: forcing FFmpeg video decode at ${pos.inMilliseconds}ms');
+      _error = 'Hardware decoder failed — retrying with FFmpeg…';
+      setState(() {});
+      try {
+        await _reopenAt(pos, dur);
+        _decoderMode = _decoderOverride!;
+        _decoderOverride = null;
+        debugPrint('sw-fallback: FFmpeg video decode succeeded');
+        return;
+      } catch (_) {
+        // FFmpeg video also failed — restore mode and fall through to mpv.
+        _decoderMode = _decoderOverride ?? _decoderMode;
+        _decoderOverride = null;
+        debugPrint('sw-fallback: FFmpeg video decode also failed, trying mpv');
+      }
+    }
+    // Step 2: Try mpv as the final fallback.
     if (!_autoFallbackTried && !_mpvActive && Platform.isAndroid && _mpvSourceFor(_current).isNotEmpty) {
       _autoFallbackTried = true;
       _error = 'Media3 cannot play this file — trying libmpv…';
@@ -1808,6 +1836,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final orig = _decoderOverride;
     _decoderOverride = null;
     _swRetried = false;
+    _ffmpegVideoRetried = false;
     _autoFallbackTried = false;
     if (orig != null && _decoderMode != orig) {
       _decoderMode = orig;
@@ -4591,6 +4620,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         child: Column(
                           children: [
                             for (final m in DecoderMode.values)
+                              if (m != DecoderMode.ffmpegVideo)
                               _tvListTile(
                                 leading: Icon(
                                   _decoderMode == m ? Icons.radio_button_checked : Icons.radio_button_off,
