@@ -148,7 +148,10 @@ class _PaywallSheetState extends State<PaywallSheet> {
         setState(() { _purchasingId = null; _error = 'Could not start purchase'; });
         return;
       }
-      // Wait for Entitlements singleton to flip (max 120 s, then timeout).
+      // Wait for Entitlements singleton to flip (max 10 s, then assume cancelled).
+      // iOS sometimes silently drops PurchaseStatus.canceled when the user
+      // cancels the SheetKit double-click verification, so a short timeout
+      // is the only reliable fallback.
       final completer = Completer<void>();
       void listener() {
         if (Entitlements.instance.isAdvanced && !completer.isCompleted) {
@@ -159,10 +162,11 @@ class _PaywallSheetState extends State<PaywallSheet> {
       }
       Entitlements.instance.addListener(listener);
       try {
-        await completer.future.timeout(const Duration(seconds: 120));
+        await completer.future.timeout(const Duration(seconds: 10));
       } on TimeoutException {
         if (!mounted) return;
-        setState(() { _purchasingId = null; _error = 'Purchase timed out'; });
+        Entitlements.instance.resetPurchaseFailed();
+        setState(() { _purchasingId = null; _error = 'Purchase cancelled'; });
         return;
       } finally {
         Entitlements.instance.removeListener(listener);
