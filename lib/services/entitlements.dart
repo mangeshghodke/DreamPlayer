@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -88,8 +87,6 @@ class Entitlements extends ChangeNotifier {
   bool get effectivePaywallEnabled =>
       paywallEnabled || (_debugFreeUser && defaultTargetPlatform == TargetPlatform.android);
 
-  static const _trialChannel = MethodChannel('dreamplayer/trial');
-
   bool _initialised = false;
   bool get initialised => _initialised;
 
@@ -104,15 +101,10 @@ class Entitlements extends ChangeNotifier {
       _debugTrialExpired = prefs.getBool(_kDebugTrialExpired) ?? false;
     } catch (_) {}
 
-    // Load trial start time: Keychain on iOS (survives reinstall), SharedPreferences on Android.
+    // Load trial start time from SharedPreferences (clears on app delete).
     try {
-      if (defaultTargetPlatform == TargetPlatform.iOS) {
-        final ms = await _trialChannel.invokeMethod<int>('getTrialStartedAt');
-        _trialStartedAtMs = ms;
-      } else {
-        final prefs = await SharedPreferences.getInstance();
-        _trialStartedAtMs = prefs.getInt(_kTrialStartedAt);
-      }
+      final prefs = await SharedPreferences.getInstance();
+      _trialStartedAtMs = prefs.getInt(_kTrialStartedAt);
     } catch (_) {}
   }
 
@@ -135,12 +127,8 @@ class Entitlements extends ChangeNotifier {
 
   Future<void> _persistTrialStart(int ms) async {
     try {
-      if (defaultTargetPlatform == TargetPlatform.iOS) {
-        await _trialChannel.invokeMethod('setTrialStartedAt', ms);
-      } else {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt(_kTrialStartedAt, ms);
-      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_kTrialStartedAt, ms);
     } catch (_) {}
   }
 
