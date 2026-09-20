@@ -21,7 +21,9 @@ import '../services/network_video_resolver.dart';
 import '../services/series_grouping.dart';
 import '../services/smb_client.dart';
 
+import '../services/entitlements.dart';
 import '../services/tmdb_client.dart';
+import 'trial_intro_screen.dart';
 import '../services/upnp_client.dart';
 import '../services/webdav_client.dart';
 import '../widgets/folder_card.dart';
@@ -107,11 +109,26 @@ class _HomeScreenState extends State<HomeScreen>
       if (!mounted) return;
       unawaited(requestStartupPermissions(context));
       _showTmdbHintOnce();
+      _showTrialIntroIfNeeded();
     });
   }
 
   void _onMetadataChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _showTrialIntroIfNeeded() async {
+    final e = Entitlements.instance;
+    if (!e.effectivePaywallEnabled) return;
+    if (e.isEntitled) return;
+    if (e.trialStartedEver) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('dreamplayer.trialIntroShown') == true) return;
+    await prefs.setBool('dreamplayer.trialIntroShown', true);
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const TrialIntroScreen()),
+    );
   }
 
   Future<void> _showTmdbHintOnce() async {
