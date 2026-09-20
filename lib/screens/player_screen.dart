@@ -1058,6 +1058,16 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: color-space hints unavailable: $e');
     }
+    // HDR→SDR tone mapping: bt2390 (ITU-R BT.2390 EETF) provides smooth
+    // roll-off for HDR→SDR conversion. Perceptual gamut mapping preserves
+    // color vibrancy better than the default clip mode.
+    try {
+      await platform.setProperty('tone-mapping', 'bt2390');
+      await platform.setProperty('gamut-mapping-mode', 'perceptual');
+      debugPrint('mpv: tone-mapping=bt2390, gamut-mapping=perceptual');
+    } catch (e) {
+      debugPrint('mpv: tone mapping config unavailable: $e');
+    }
     // audio-spdif is intentionally omitted — see original comment below.
   }
 
