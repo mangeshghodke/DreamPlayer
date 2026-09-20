@@ -69,11 +69,15 @@ private final class SubtitleOverlayView: UIView {
 
     // MARK: - User subtitle appearance
 
+    private var verticalPosition: Int = 20
+
     /// Applies the user's subtitle appearance from Dart (`setSubtitleStyle`).
     /// - `size` multiplies the base glyph size.
     /// - `color` is the text ARGB; `bg` an ARGB cue-box (alpha 0 = none).
     /// - `outline` toggles the black shadow behind glyphs.
-    func applyStyle(size: Double, color: Int, bg: Int, outline: Bool) {
+    /// - `verticalPosition` 0–255 (0 = top, 255 = bottom, default 20 = near bottom).
+    func applyStyle(size: Double, color: Int, bg: Int, outline: Bool, verticalPosition: Int = 20) {
+        self.verticalPosition = verticalPosition
         let base = CGFloat(17 * size.clamped(0.6...2.0))
         label.font = .systemFont(ofSize: base, weight: .semibold)
         label.textColor = UIColor(argb: color)
@@ -151,9 +155,12 @@ private final class SubtitleOverlayView: UIView {
         let maxWidth = max(rect.width - 32, 40)
         let size = label.sizeThatFits(CGSize(width: maxWidth, height: .greatestFiniteMagnitude))
         let width = min(size.width, maxWidth)
+        // vPos 0=bottom, 255=top (matches Android).
+        let normalizedVPos = CGFloat(max(0, min(255, verticalPosition))) / 255.0
+        let y = rect.maxY - size.height - (rect.height - size.height) * normalizedVPos
         label.frame = CGRect(
             x: rect.midX - width / 2,
-            y: rect.maxY - size.height - 12,
+            y: y,
             width: width,
             height: size.height
         )
@@ -515,10 +522,11 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     let color = (args?["color"] as? NSNumber)?.intValue ?? 0xFFFFFFFF
                     let bg = (args?["bg"] as? NSNumber)?.intValue ?? 0x80000000
                     let outline = (args?["outline"] as? Bool) ?? true
+                    let vPos = (args?["vPos"] as? NSNumber)?.intValue ?? 20
                     self.subtitleDelaySeconds =
                         ((args?["delayMs"] as? NSNumber)?.doubleValue ?? 0) / 1000.0
                     self.subtitleOverlay.applyStyle(
-                        size: size, color: color, bg: bg, outline: outline)
+                        size: size, color: color, bg: bg, outline: outline, verticalPosition: vPos)
                     result(nil)
                 case "setResizeMode":
                     let mode = (args?["mode"] as? NSNumber)?.intValue ?? 0
