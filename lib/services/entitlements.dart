@@ -31,6 +31,9 @@ class Entitlements extends ChangeNotifier {
   bool _debugTrialExpired = false;
   bool _purchaseFailed = false;
 
+  /// The product ID of the active purchase (null = not purchased, only trial).
+  String? _activeProductId;
+
   /// Milliseconds since epoch when the 7-day free trial started (null = not started).
   int? _trialStartedAtMs;
 
@@ -134,6 +137,7 @@ class Entitlements extends ChangeNotifier {
       if (p.status == PurchaseStatus.purchased ||
           p.status == PurchaseStatus.restored) {
         _advanced = true;
+        _activeProductId = p.productID;
         _debugFreeUser = false;
         _purchaseFailed = false;
         if (p.pendingCompletePurchase) {
@@ -189,6 +193,7 @@ class Entitlements extends ChangeNotifier {
   }
 
   bool get purchaseFailed => _purchaseFailed;
+  String? get activeProductId => _activeProductId;
 
   void resetPurchaseFailed() {
     _purchaseFailed = false;

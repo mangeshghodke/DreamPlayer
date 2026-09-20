@@ -220,32 +220,14 @@ class _PaywallSheetState extends State<PaywallSheet> {
                     ),
                   ),
                 ),
-                if (entitled)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.greenAccent.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Active',
-                      style: TextStyle(
-                        color: Colors.greenAccent,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  )
-                else
-                  IconButton(
-                    onPressed: _showFeatures,
-                    icon: const Icon(Icons.info_outline,
-                        color: Colors.white54, size: 22),
-                    tooltip: "What's included",
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
+                IconButton(
+                  onPressed: _showFeatures,
+                  icon: const Icon(Icons.info_outline,
+                      color: Colors.white54, size: 22),
+                  tooltip: "What's included",
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ],
             ),
             const SizedBox(height: 4),
@@ -256,10 +238,22 @@ class _PaywallSheetState extends State<PaywallSheet> {
             const SizedBox(height: 16),
 
             // ── Free Trial Block ──────────────────────────────────
-            // Only show when trial is active OR not yet started.
-            // Once expired → block disappears, only products remain.
+            // Show when: not entitled AND trial is active OR trial hasn't started.
+            // If trial expired: block disappears, only products remain.
             if (!entitled && (trialActive || !e.trialStartedEver))
               _buildTrialBlock(trialActive, trialStarted, trialRemaining),
+            // If trial was started but expired, show a hint.
+            if (!entitled && !trialActive && e.trialStartedEver)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Free trial expired. Subscribe to unlock premium features.',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
 
             const SizedBox(height: 12),
 
@@ -275,7 +269,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
               ..._products.map((p) => _ProductTile(
                     product: p,
                     purchasing: _purchasingId == p.id,
-                    entitled: entitled,
+                    activeProduct: entitled ? e.activeProductId : null,
                     isPlaceholder: _isPlaceholder(p),
                     onTap: () => _buy(p),
                   )),
@@ -583,14 +577,14 @@ class _FeaturesSheet extends StatelessWidget {
 class _ProductTile extends StatelessWidget {
   final ProductDetails product;
   final bool purchasing;
-  final bool entitled;
+  final String? activeProduct;
   final bool isPlaceholder;
   final VoidCallback onTap;
 
   const _ProductTile({
     required this.product,
     required this.purchasing,
-    required this.entitled,
+    required this.activeProduct,
     required this.isPlaceholder,
     required this.onTap,
   });
@@ -617,7 +611,8 @@ class _ProductTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final disabled = purchasing || entitled || isPlaceholder;
+    final isActive = activeProduct == product.id;
+    final disabled = purchasing || isActive || isPlaceholder;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -653,7 +648,7 @@ class _ProductTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (entitled)
+                if (isActive)
                   const Text('Active',
                       style: TextStyle(
                           color: Colors.greenAccent,
