@@ -114,23 +114,23 @@ class Entitlements extends ChangeNotifier {
         _trialStartedAtMs = prefs.getInt(_kTrialStartedAt);
       }
     } catch (_) {}
+  }
 
-  StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
+  StreamSubscription<List<PurchaseDetails>>? purchaseSub;
 
   /// Start listening to StoreKit purchase stream (call when paywall opens).
   void startPurchaseListener() {
-    if (_purchaseSub != null) return;
+    if (purchaseSub != null) return;
     if (defaultTargetPlatform == TargetPlatform.android) return;
     if (!paywallEnabled && !_debugFreeUser) return;
-    _purchaseSub =
+    purchaseSub =
         InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
   }
 
   /// Stop listening (call when paywall closes).
   void stopPurchaseListener() {
-    _purchaseSub?.cancel();
-    _purchaseSub = null;
-  }
+    purchaseSub?.cancel();
+    purchaseSub = null;
   }
 
   Future<void> _persistTrialStart(int ms) async {
