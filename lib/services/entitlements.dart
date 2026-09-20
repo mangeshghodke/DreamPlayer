@@ -34,6 +34,9 @@ class Entitlements extends ChangeNotifier {
   /// The product ID of the active purchase (null = not purchased, only trial).
   String? _activeProductId;
 
+  /// The product ID expected from an in-flight purchase (null when idle).
+  String? _expectedProductId;
+
   /// Milliseconds since epoch when the 7-day free trial started (null = not started).
   int? _trialStartedAtMs;
 
@@ -134,8 +137,27 @@ class Entitlements extends ChangeNotifier {
 
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
     for (final p in purchases) {
-      if (p.status == PurchaseStatus.purchased ||
-          p.status == PurchaseStatus.restored) {
+      if (p.status == PurchaseStatus.purchased) {
+        // New purchase — only accept if it matches the product we're buying.
+        if (_expectedProductId != null && p.productID != _expectedProductId) {
+          if (p.pendingCompletePurchase) {
+            InAppPurchase.instance.completePurchase(p);
+          }
+          continue;
+        }
+        _advanced = true;
+        _activeProductId = p.productID;
+        _expectedProductId = null;
+        _debugFreeUser = false;
+        _purchaseFailed = false;
+        if (p.pendingCompletePurchase) {
+          InAppPurchase.instance.completePurchase(p);
+        }
+        notifyListeners();
+        return;
+      }
+      if (p.status == PurchaseStatus.restored) {
+        // Restore — accept any product.
         _advanced = true;
         _activeProductId = p.productID;
         _debugFreeUser = false;
@@ -148,6 +170,7 @@ class Entitlements extends ChangeNotifier {
       }
       if (p.status == PurchaseStatus.error ||
           p.status == PurchaseStatus.canceled) {
+        _expectedProductId = null;
         _purchaseFailed = true;
         notifyListeners();
         return;
@@ -197,6 +220,12 @@ class Entitlements extends ChangeNotifier {
 
   void resetPurchaseFailed() {
     _purchaseFailed = false;
+    notifyListeners();
+  }
+
+  /// Set the expected product ID before launching a purchase.
+  void setExpectedProduct(String productId) {
+    _expectedProductId = productId;
   }
 
   /// Buy a product. Returns true if the transaction initiated successfully.

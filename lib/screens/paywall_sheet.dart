@@ -138,6 +138,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
       _error = null;
     });
     Entitlements.instance.resetPurchaseFailed();
+    Entitlements.instance.setExpectedProduct(product.id);
     Entitlements.instance.startPurchaseListener();
     try {
       final param = PurchaseParam(productDetails: product);
