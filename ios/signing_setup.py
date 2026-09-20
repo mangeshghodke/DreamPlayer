@@ -86,8 +86,9 @@ def main():
         '--dart-define=PAYWALL_ENABLED=true',
     ]
 
-    # Pass dart-defines from env (TMDB_API_KEY etc.)
-    for key in ('TMDB_API_KEY', 'OPENSUBTITLES_API_KEY', 'SIMKL_CLIENT_ID'):
+    # Pass dart-defines from env — OPENSUBTITLES_API_KEY + SIMKL_CLIENT_ID only.
+    # TMDB_API_KEY is NOT baked into production builds — users enter it via Settings.
+    for key in ('OPENSUBTITLES_API_KEY', 'SIMKL_CLIENT_ID'):
         val = os.environ.get(key, '').strip()
         if val:
             cmd.append(f'--dart-define={key}={val}')

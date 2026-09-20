@@ -56,7 +56,6 @@ class _PaywallSheetState extends State<PaywallSheet> {
   @override
   void initState() {
     super.initState();
-    Entitlements.instance.startPurchaseListener();
     _loadProducts();
     // Tick every second to update the trial countdown live.
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -67,7 +66,6 @@ class _PaywallSheetState extends State<PaywallSheet> {
   @override
   void dispose() {
     _timer?.cancel();
-    Entitlements.instance.stopPurchaseListener();
     super.dispose();
   }
 
@@ -140,6 +138,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
       _error = null;
     });
     Entitlements.instance.resetPurchaseFailed();
+    Entitlements.instance.startPurchaseListener();
     try {
       final param = PurchaseParam(productDetails: product);
       final launched = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
@@ -310,6 +309,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
               child: TextButton(
                 onPressed: _purchasingId != null ? null : () async {
                   final navigator = Navigator.of(context);
+                  Entitlements.instance.startPurchaseListener();
                   await InAppPurchase.instance.restorePurchases();
                   await Future<void>.delayed(const Duration(seconds: 2));
                   if (mounted) {
