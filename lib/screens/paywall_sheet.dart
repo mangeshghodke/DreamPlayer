@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:dream_player/services/entitlements.dart';
 
@@ -334,6 +335,43 @@ class _PaywallSheetState extends State<PaywallSheet> {
                 'Subscriptions auto-renew. Cancel anytime in your Apple ID settings.',
                 style: TextStyle(color: Colors.white38, fontSize: 11),
                 textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  GestureDetector(
+                    onTap: () => launchUrl(
+                      Uri.parse('https://mangeshghodke.github.io/DreamPlayer/terms'),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: const Text(
+                      'Terms of Use',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 11,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  const Text('·', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  GestureDetector(
+                    onTap: () => launchUrl(
+                      Uri.parse('https://mangeshghodke.github.io/DreamPlayer/privacy'),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: const Text(
+                      'Privacy Policy',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 11,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
