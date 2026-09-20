@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -114,11 +115,22 @@ class Entitlements extends ChangeNotifier {
       }
     } catch (_) {}
 
-    // Listen for StoreKit transactions (iOS only, when paywall is active).
-    if (defaultTargetPlatform != TargetPlatform.android &&
-        (paywallEnabled || _debugFreeUser)) {
-      InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
-    }
+  StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
+
+  /// Start listening to StoreKit purchase stream (call when paywall opens).
+  void startPurchaseListener() {
+    if (_purchaseSub != null) return;
+    if (defaultTargetPlatform == TargetPlatform.android) return;
+    if (!paywallEnabled && !_debugFreeUser) return;
+    _purchaseSub =
+        InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
+  }
+
+  /// Stop listening (call when paywall closes).
+  void stopPurchaseListener() {
+    _purchaseSub?.cancel();
+    _purchaseSub = null;
+  }
   }
 
   Future<void> _persistTrialStart(int ms) async {

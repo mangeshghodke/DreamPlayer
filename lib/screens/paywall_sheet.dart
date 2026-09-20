@@ -56,6 +56,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
   @override
   void initState() {
     super.initState();
+    Entitlements.instance.startPurchaseListener();
     _loadProducts();
     // Tick every second to update the trial countdown live.
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -66,6 +67,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
   @override
   void dispose() {
     _timer?.cancel();
+    Entitlements.instance.stopPurchaseListener();
     super.dispose();
   }
 
