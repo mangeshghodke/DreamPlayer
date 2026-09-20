@@ -268,13 +268,20 @@ class _PaywallSheetState extends State<PaywallSheet> {
                   style:
                       const TextStyle(color: Colors.redAccent, fontSize: 13))
             else
-              ..._products.map((p) => _ProductTile(
-                    product: p,
-                    purchasing: _purchasingId == p.id,
-                    activeProduct: entitled ? e.activeProductId : null,
-                    isPlaceholder: _isPlaceholder(p),
-                    onTap: () => _buy(p),
-                  )),
+              ..._products
+                  .where((p) =>
+                      // Hide subscriptions when lifetime is active.
+                      !(entitled &&
+                          e.activeProductId ==
+                              'dp_premium_lifetime_2026' &&
+                          p.id != 'dp_premium_lifetime_2026'))
+                  .map((p) => _ProductTile(
+                        product: p,
+                        purchasing: _purchasingId == p.id,
+                        activeProduct: entitled ? e.activeProductId : null,
+                        isPlaceholder: _isPlaceholder(p),
+                        onTap: () => _buy(p),
+                      )),
 
             const SizedBox(height: 12),
 
