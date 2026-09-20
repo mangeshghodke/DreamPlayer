@@ -1372,7 +1372,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final info = await PackageInfo.fromPlatform();
       return info.version;
     } on Exception {
-      return '0.0.7';
+      return 'unknown';
     }
   }
 
