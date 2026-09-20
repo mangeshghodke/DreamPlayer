@@ -29,6 +29,7 @@ class Entitlements extends ChangeNotifier {
   bool _advanced = false;
   bool _debugFreeUser = false;
   bool _debugTrialExpired = false;
+  bool _purchaseFailed = false;
 
   /// Milliseconds since epoch when the 7-day free trial started (null = not started).
   int? _trialStartedAtMs;
@@ -110,12 +111,6 @@ class Entitlements extends ChangeNotifier {
       }
     } catch (_) {}
 
-    // Auto-start the 7-day trial on the first launch where the paywall is relevant.
-    if (_trialStartedAtMs == null && effectivePaywallEnabled) {
-      _trialStartedAtMs = DateTime.now().millisecondsSinceEpoch;
-      await _persistTrialStart(_trialStartedAtMs!);
-    }
-
     // Listen for StoreKit transactions (iOS only, when paywall is active).
     if (defaultTargetPlatform != TargetPlatform.android &&
         (paywallEnabled || _debugFreeUser)) {
@@ -139,7 +134,17 @@ class Entitlements extends ChangeNotifier {
       if (p.status == PurchaseStatus.purchased ||
           p.status == PurchaseStatus.restored) {
         _advanced = true;
-        _debugFreeUser = false; // real purchase overrides debug
+        _debugFreeUser = false;
+        _purchaseFailed = false;
+        if (p.pendingCompletePurchase) {
+          InAppPurchase.instance.completePurchase(p);
+        }
+        notifyListeners();
+        return;
+      }
+      if (p.status == PurchaseStatus.error ||
+          p.status == PurchaseStatus.canceled) {
+        _purchaseFailed = true;
         notifyListeners();
         return;
       }
@@ -181,6 +186,12 @@ class Entitlements extends ChangeNotifier {
     _trialStartedAtMs = DateTime.now().millisecondsSinceEpoch;
     await _persistTrialStart(_trialStartedAtMs!);
     notifyListeners();
+  }
+
+  bool get purchaseFailed => _purchaseFailed;
+
+  void resetPurchaseFailed() {
+    _purchaseFailed = false;
   }
 
   /// Buy a product. Returns true if the transaction initiated successfully.

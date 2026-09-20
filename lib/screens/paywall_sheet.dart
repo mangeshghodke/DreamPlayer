@@ -48,7 +48,7 @@ class PaywallSheet extends StatefulWidget {
 
 class _PaywallSheetState extends State<PaywallSheet> {
   bool _loading = true;
-  bool _purchasing = false;
+  String? _purchasingId;
   List<ProductDetails> _products = [];
   String? _error;
   Timer? _timer;
@@ -132,43 +132,48 @@ class _PaywallSheetState extends State<PaywallSheet> {
   bool _isPlaceholder(ProductDetails p) => p.rawPrice == 0;
 
   Future<void> _buy(ProductDetails product) async {
-    if (_purchasing || _isPlaceholder(product)) return;
+    if (_purchasingId != null || _isPlaceholder(product)) return;
     setState(() {
-      _purchasing = true;
+      _purchasingId = product.id;
       _error = null;
     });
+    Entitlements.instance.resetPurchaseFailed();
     try {
       final param = PurchaseParam(productDetails: product);
-      await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
-      await for (final update in InAppPurchase.instance.purchaseStream) {
-        for (final purchase in update) {
-          if (purchase.productID == product.id) {
-            if (purchase.status == PurchaseStatus.purchased ||
-                purchase.status == PurchaseStatus.restored) {
-              if (purchase.pendingCompletePurchase) {
-                await InAppPurchase.instance.completePurchase(purchase);
-              }
-              if (mounted) Navigator.of(context).pop(true);
-              return;
-            }
-            if (purchase.status == PurchaseStatus.error ||
-                purchase.status == PurchaseStatus.canceled) {
-              if (!mounted) return;
-              setState(() {
-                _purchasing = false;
-                _error = 'Purchase failed';
-              });
-              return;
-            }
-          }
+      final launched = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
+      if (!launched) {
+        if (!mounted) return;
+        setState(() { _purchasingId = null; _error = 'Could not start purchase'; });
+        return;
+      }
+      // Wait for Entitlements singleton to flip (max 120 s, then timeout).
+      final completer = Completer<void>();
+      void listener() {
+        if (Entitlements.instance.isAdvanced && !completer.isCompleted) {
+          completer.complete();
+        } else if (Entitlements.instance.purchaseFailed && !completer.isCompleted) {
+          completer.complete();
         }
+      }
+      Entitlements.instance.addListener(listener);
+      try {
+        await completer.future.timeout(const Duration(seconds: 120));
+      } on TimeoutException {
+        if (!mounted) return;
+        setState(() { _purchasingId = null; _error = 'Purchase timed out'; });
+        return;
+      } finally {
+        Entitlements.instance.removeListener(listener);
+      }
+      if (Entitlements.instance.isAdvanced) {
+        if (mounted) Navigator.of(context).pop(true);
+      } else {
+        if (!mounted) return;
+        setState(() { _purchasingId = null; _error = 'Purchase cancelled'; });
       }
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _purchasing = false;
-        _error = 'Purchase failed';
-      });
+      setState(() { _purchasingId = null; _error = 'Purchase failed'; });
     }
   }
 
@@ -269,7 +274,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
             else
               ..._products.map((p) => _ProductTile(
                     product: p,
-                    purchasing: _purchasing,
+                    purchasing: _purchasingId == p.id,
                     entitled: entitled,
                     isPlaceholder: _isPlaceholder(p),
                     onTap: () => _buy(p),
@@ -300,7 +305,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
 
             Center(
               child: TextButton(
-                onPressed: _purchasing ? null : () async {
+                onPressed: _purchasingId != null ? null : () async {
                   final navigator = Navigator.of(context);
                   await InAppPurchase.instance.restorePurchases();
                   await Future<void>.delayed(const Duration(seconds: 2));
@@ -380,7 +385,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
         SizedBox(
           width: double.infinity,
           child: TextButton(
-            onPressed: _purchasing ? null : _startTrial,
+            onPressed: _purchasingId != null ? null : _startTrial,
             style: TextButton.styleFrom(
               backgroundColor: Colors.greenAccent,
               padding: const EdgeInsets.symmetric(vertical: 12),
