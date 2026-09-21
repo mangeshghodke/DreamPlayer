@@ -171,10 +171,15 @@ class _PaywallSheetState extends State<PaywallSheet> {
       IapLog.instance.log('BUY', 'buyNonConsumable returned: $launched');
       if (!launched) {
         IapLog.instance.log('BUY', 'buyNonConsumable returned false — could not start purchase');
+        Entitlements.instance.clearBuyInitiated();
         if (!mounted) return;
         setState(() { _purchasingId = null; _error = 'Could not start purchase'; });
         return;
       }
+      // Mark buy initiated — only NOW will _onPurchaseUpdate accept `purchased`
+      // status. This prevents orphaned pending transactions (from previous
+      // sessions) from being accepted before buyNonConsumable returns.
+      Entitlements.instance.markBuyInitiated();
       // Wait for Entitlements singleton to flip (max 15 s, then assume cancelled).
       IapLog.instance.log('BUY', 'waiting for Entitlements to flip (max 15s)...');
       final completer = Completer<void>();
@@ -215,18 +220,26 @@ class _PaywallSheetState extends State<PaywallSheet> {
       }
       if (Entitlements.instance.isAdvanced) {
         IapLog.instance.log('BUY', 'SUCCESS → popping with true');
+        Entitlements.instance.clearBuyInitiated();
         if (mounted) Navigator.of(context).pop(true);
       } else if (!mounted) {
         IapLog.instance.log('BUY', 'not mounted, returning');
+        Entitlements.instance.clearBuyInitiated();
         return;
       } else {
         IapLog.instance.log('BUY', 'FAILED → showing Purchase cancelled');
+        Entitlements.instance.clearBuyInitiated();
         setState(() { _purchasingId = null; _error = 'Purchase cancelled'; });
       }
     } catch (e, st) {
       IapLog.instance.log('BUY', 'EXCEPTION: $e\n$st');
+      Entitlements.instance.clearBuyInitiated();
       if (!mounted) return;
-      setState(() { _purchasingId = null; _error = 'Purchase failed'; });
+      if (e.toString().contains('storekit_duplicate_product_object')) {
+        setState(() { _purchasingId = null; _error = 'You already own this product. Please wait a moment and try again.'; });
+      } else {
+        setState(() { _purchasingId = null; _error = 'Purchase failed'; });
+      }
     }
   }
 

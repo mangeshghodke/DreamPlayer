@@ -34,6 +34,11 @@ class Entitlements extends ChangeNotifier {
   bool _purchaseFailed = false;
   bool _purchaseCanceled = false;
 
+  /// True only after buyNonConsumable() has actually been called and returned.
+  /// Prevents orphaned pending transactions from being accepted before the
+  /// user taps a product (they arrive through purchaseStream instantly).
+  bool _buyInitiated = false;
+
   /// The product ID of the active purchase (null = not purchased, only trial).
   String? _activeProductId;
 
@@ -162,11 +167,18 @@ class Entitlements extends ChangeNotifier {
     for (final p in purchases) {
       IapLog.instance.log('PURCHASE_UPDATE', 'status=${p.status}, productID=${p.productID}, pendingComplete=${p.pendingCompletePurchase}, verification=${p.verificationData}');
       if (p.status == PurchaseStatus.purchased) {
-        // New purchase — accept when user explicitly tapped a product
-        // (expectedProductId set by _buy) and the transaction is fresh,
-        // OR when a Restore is in flight (StoreKit may emit purchased
-        // for an active subscription on restore).
+        // New purchase — accept ONLY when buyNonConsumable() has actually been
+        // called and returned (buyInitiated=true), AND the product matches.
+        // This prevents orphaned pending transactions (from previous sessions)
+        // from being accepted before the user taps a product.
         final isRestorePurchase = _restorePending;
+        if (!isRestorePurchase && !_buyInitiated) {
+          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED purchased: _buyInitiated=false (orphaned stale transaction), completing it');
+          if (p.pendingCompletePurchase) {
+            InAppPurchase.instance.completePurchase(p);
+          }
+          continue;
+        }
         if (!isRestorePurchase &&
             (_expectedProductId == null || p.productID != _expectedProductId)) {
           IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED purchased: isRestore=$isRestorePurchase, expected=$_expectedProductId, got=${p.productID}');
@@ -286,6 +298,20 @@ class Entitlements extends ChangeNotifier {
   /// Set the expected product ID before launching a purchase.
   void setExpectedProduct(String productId) {
     _expectedProductId = productId;
+  }
+
+  /// Mark that buyNonConsumable() has actually been called and returned.
+  /// Only after this flag is true will _onPurchaseUpdate accept `purchased`
+  /// status — preventing orphaned pending transactions from being accepted
+  /// before the user taps a product.
+  void markBuyInitiated() {
+    _buyInitiated = true;
+    IapLog.instance.log('BUY', 'markBuyInitiated: _buyInitiated=true');
+  }
+
+  /// Clear the buy-initiated flag (call when purchase completes, errors, or cleans up).
+  void clearBuyInitiated() {
+    _buyInitiated = false;
   }
 
   /// Buy a product. Returns true if the transaction initiated successfully.
