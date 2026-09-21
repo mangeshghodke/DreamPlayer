@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/auto_play_store.dart';
 import '../services/badge_prefs.dart';
@@ -1289,6 +1290,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     );
                   },
+                ),
+                TvTile(
+                  leading: const Icon(Icons.description),
+                  title: const Text('Terms of Use'),
+                  subtitle: const Text('End User License Agreement'),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://mangeshghodke.github.io/DreamPlayer/terms.html'),
+                  ),
+                ),
+                TvTile(
+                  leading: const Icon(Icons.privacy_tip),
+                  title: const Text('Privacy Policy'),
+                  subtitle: const Text('How your data is handled'),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://mangeshghodke.github.io/DreamPlayer/privacy.html'),
+                  ),
                 ),
               ],
             ),
