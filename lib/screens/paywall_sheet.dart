@@ -136,6 +136,61 @@ class _PaywallSheetState extends State<PaywallSheet> {
 
   bool _isPlaceholder(ProductDetails p) => p.rawPrice == 0;
 
+  Future<void> _confirmAndBuy(ProductDetails product) async {
+    if (_purchasingId != null) return;
+    if (_isPlaceholder(product)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Product not available yet — try again later')),
+      );
+      return;
+    }
+    final label = _labelFor(product.id);
+    final price = product.price;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: Text('Purchase $label',
+            style: const TextStyle(color: Colors.white)),
+        content: Text(
+          'Purchase $label for $price?\n\nThis will charge your Apple ID. You can cancel anytime in your Apple ID Settings. Subscriptions auto-renew.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.greenAccent,
+              foregroundColor: Colors.black87,
+            ),
+            child: const Text('Buy'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _buy(product);
+  }
+
+  String _labelFor(String id) {
+    switch (id) {
+      case 'dp_premium_monthly_2026':
+        return 'Monthly';
+      case 'dp_premium_yearly_2026':
+        return 'Yearly';
+      case 'dp_premium_lifetime_2026':
+        return 'Lifetime';
+      default:
+        return id;
+    }
+  }
+
   Future<void> _buy(ProductDetails product) async {
     if (_purchasingId != null || _isPlaceholder(product)) return;
     setState(() {
@@ -317,7 +372,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
                         purchasing: _purchasingId == p.id,
                         activeProduct: entitled ? e.activeProductId : null,
                         isPlaceholder: _isPlaceholder(p),
-                        onTap: () => _buy(p),
+                        onTap: () => _confirmAndBuy(p),
                       )),
 
             const SizedBox(height: 12),
