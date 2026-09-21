@@ -214,6 +214,14 @@ class Entitlements extends ChangeNotifier {
           }
           continue;
         }
+        // Reject orphaned pending transactions during restore — they are
+        // not real purchases. A genuine restored transaction has
+        // pendingComplete=false (already finished by a previous app session).
+        if (p.pendingCompletePurchase) {
+          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED restored: pendingComplete=true (orphaned), completing it');
+          await InAppPurchase.instance.completePurchase(p);
+          continue;
+        }
         IapLog.instance.log('PURCHASE_UPDATE', 'ACCEPTED restored: productID=${p.productID}');
         _advanced = true;
         _activeProductId = p.productID;
@@ -222,9 +230,6 @@ class Entitlements extends ChangeNotifier {
         _debugFreeUser = false;
         _purchaseFailed = false;
         _purchaseCanceled = false;
-        if (p.pendingCompletePurchase) {
-          await InAppPurchase.instance.completePurchase(p);
-        }
         notifyListeners();
         return;
       }
