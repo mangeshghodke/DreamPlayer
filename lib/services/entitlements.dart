@@ -37,6 +37,10 @@ class Entitlements extends ChangeNotifier {
   /// The product ID expected from an in-flight purchase (null when idle).
   String? _expectedProductId;
 
+  /// When _expectedProductId was set (ms since epoch) — used to reject stale
+  /// pending transactions that were already in StoreKit before the tap.
+  int? _expectedSetAtMs;
+
   /// True while an explicit restorePurchases() is in flight.
   bool _restorePending = false;
 
@@ -145,9 +149,22 @@ class Entitlements extends ChangeNotifier {
     for (final p in purchases) {
       if (p.status == PurchaseStatus.purchased) {
         // New purchase — only accept when user explicitly tapped a product
-        // (expectedProductId set by _buy). Prevents auto-activating on
-        // paywall open from a stale pending transaction.
+        // (expectedProductId set by _buy) and the transaction is fresh
+        // (prevents stale pending transaction from auto-activating Lifetime
+        // without the double-click sheet, as seen in 35595929051).
         if (_expectedProductId == null || p.productID != _expectedProductId) {
+          if (p.pendingCompletePurchase) {
+            InAppPurchase.instance.completePurchase(p);
+          }
+          continue;
+        }
+        // Reject stale transactions that were created before the tap.
+        final txMs = p.transactionDate != null
+            ? int.tryParse(p.transactionDate!)
+            : null;
+        if (_expectedSetAtMs != null &&
+            txMs != null &&
+            txMs < _expectedSetAtMs! - 2000) {
           if (p.pendingCompletePurchase) {
             InAppPurchase.instance.completePurchase(p);
           }
@@ -156,6 +173,7 @@ class Entitlements extends ChangeNotifier {
         _advanced = true;
         _activeProductId = p.productID;
         _expectedProductId = null;
+        _expectedSetAtMs = null;
         _restorePending = false;
         _debugFreeUser = false;
         _purchaseFailed = false;
@@ -176,6 +194,7 @@ class Entitlements extends ChangeNotifier {
         _advanced = true;
         _activeProductId = p.productID;
         _expectedProductId = null;
+        _expectedSetAtMs = null;
         _restorePending = false;
         _debugFreeUser = false;
         _purchaseFailed = false;
@@ -195,6 +214,7 @@ class Entitlements extends ChangeNotifier {
       }
       if (p.status == PurchaseStatus.error) {
         _expectedProductId = null;
+        _expectedSetAtMs = null;
         _purchaseFailed = true;
         notifyListeners();
         return;
@@ -242,6 +262,7 @@ class Entitlements extends ChangeNotifier {
   /// Set the expected product ID before launching a purchase.
   void setExpectedProduct(String productId) {
     _expectedProductId = productId;
+    _expectedSetAtMs = DateTime.now().millisecondsSinceEpoch;
   }
 
   /// Buy a product. Returns true if the transaction initiated successfully.
@@ -282,6 +303,7 @@ class Entitlements extends ChangeNotifier {
     _trialStartedAtMs = null;
     _activeProductId = null;
     _expectedProductId = null;
+    _expectedSetAtMs = null;
     _restorePending = false;
     _purchaseFailed = false;
     _initialised = false;
