@@ -1067,6 +1067,18 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: hwdec-software-fallback unavailable: $e');
     }
+    // Force FFmpeg software decode for ALL audio codecs. This ensures
+    // TrueHD, DTS-HD, and other lossless codecs decode via the bundled
+    // FFmpeg decoder (ff_truehd_decoder etc.) regardless of hwdec settings.
+    // Without this, mpv may try hardware audio decode paths that don't
+    // exist on most Android devices, causing "Failed to initialize decoder"
+    // errors for codecs like TrueHD.
+    try {
+      await platform.setProperty('ad', 'ffmpeg');
+      debugPrint('mpv: ad = ffmpeg (force software audio decode)');
+    } catch (e) {
+      debugPrint('mpv: ad=ffmpeg unavailable: $e');
+    }
     // `ao` is an init-time option; media_kit set `opensles`. A runtime
     // override is best-effort — if mpv rejects it the OpenSL output stays and
     // passthrough simply degrades to PCM.
@@ -1095,6 +1107,18 @@ class _PlayerScreenState extends State<PlayerScreen>
       debugPrint('mpv: tone-mapping=bt2390, gamut-mapping=perceptual');
     } catch (e) {
       debugPrint('mpv: tone mapping config unavailable: $e');
+    }
+    // Subtitle rendering: auto-select embedded subtitle tracks and ensure
+    // bitmap subtitles (PGS, DVB) are visible. Without these, mpv may not
+    // render embedded PGS subtitles even though they're correctly detected
+    // in the track list.
+    try {
+      await platform.setProperty('sub-auto', 'fuzzy');
+      await platform.setProperty('sub-visibility', 'yes');
+      await platform.setProperty('demuxer-mkv-subtitle-preroll', 'yes');
+      debugPrint('mpv: subtitles configured (sub-auto=fuzzy, visibility=yes, mkv-preroll=yes)');
+    } catch (e) {
+      debugPrint('mpv: subtitle config unavailable: $e');
     }
     // audio-spdif is intentionally omitted — see original comment below.
   }
