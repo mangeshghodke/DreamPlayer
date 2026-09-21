@@ -5,6 +5,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:dream_player/services/entitlements.dart';
+import 'package:dream_player/services/iap_logger.dart';
 
 /// Shows the paywall sheet. Returns true if the user purchased successfully.
 ///
@@ -12,18 +13,22 @@ import 'package:dream_player/services/entitlements.dart';
 Future<bool> showPaywall(BuildContext context) async {
   final e = Entitlements.instance;
   if (defaultTargetPlatform == TargetPlatform.android && !e.debugFreeUser) {
+    IapLog.instance.log('PAYWALL', 'showPaywall: android non-debug, returning false');
     return false;
   }
   if (defaultTargetPlatform != TargetPlatform.android &&
       !e.effectivePaywallEnabled) {
+    IapLog.instance.log('PAYWALL', 'showPaywall: iOS but paywall not enabled, returning false');
     return false;
   }
+  IapLog.instance.log('PAYWALL', 'showPaywall: opening sheet, isAdvanced=${e.isAdvanced}, trialActive=${e.trialActive}');
   final result = await showModalBottomSheet<bool>(
     context: context,
     backgroundColor: const Color(0xFF1C1C1E),
     isScrollControlled: true,
     builder: (_) => const PaywallSheet(),
   );
+  IapLog.instance.log('PAYWALL', 'showPaywall: sheet closed, result=$result');
   return result ?? false;
 }
 
@@ -57,6 +62,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
   @override
   void initState() {
     super.initState();
+    IapLog.instance.log('PAYWALL', 'initState: starting purchase listener + loading products');
     // Start listening to the purchase stream so pending purchases and
     // restores are picked up even if they complete before _buy fires.
     Entitlements.instance.startPurchaseListener();
@@ -76,9 +82,12 @@ class _PaywallSheetState extends State<PaywallSheet> {
 
   Future<void> _loadProducts() async {
     try {
+      IapLog.instance.log('PAYWALL', '_loadProducts: checking store availability');
       final available = await InAppPurchase.instance.isAvailable();
+      IapLog.instance.log('PAYWALL', 'store available=$available');
       if (!mounted) return;
       if (!available) {
+        IapLog.instance.log('PAYWALL', 'store NOT available, showing error');
         setState(() {
           _error = 'Store unavailable';
           _loading = false;
@@ -90,8 +99,10 @@ class _PaywallSheetState extends State<PaywallSheet> {
         'dp_premium_yearly_2026',
         'dp_premium_lifetime_2026',
       };
+      IapLog.instance.log('PAYWALL', 'querying products: $ids');
       final response =
           await InAppPurchase.instance.queryProductDetails(ids);
+      IapLog.instance.log('PAYWALL', 'query returned ${response.productDetails.length} products: ${response.productDetails.map((p) => '${p.id}(rawPrice=${p.rawPrice}, price=${p.price})').join(', ')}');
       if (!mounted) return;
       final found = response.productDetails.toList();
       const order = {
@@ -110,6 +121,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
         if (match.isNotEmpty) {
           products.add(match.first);
         } else {
+          IapLog.instance.log('PAYWALL', 'MISSING product: $id — using placeholder');
           products.add(ProductDetails(
             id: id,
             title: id,
@@ -125,7 +137,9 @@ class _PaywallSheetState extends State<PaywallSheet> {
         _products = products;
         _loading = false;
       });
-    } catch (_) {
+      IapLog.instance.log('PAYWALL', '_loadProducts done: ${products.map((p) => '${p.id}(rawPrice=${p.rawPrice})').join(', ')}');
+    } catch (e, st) {
+      IapLog.instance.log('PAYWALL', '_loadProducts ERROR: $e\n$st');
       if (!mounted) return;
       setState(() {
         _error = 'Failed to load products';
@@ -137,56 +151,75 @@ class _PaywallSheetState extends State<PaywallSheet> {
   bool _isPlaceholder(ProductDetails p) => p.rawPrice == 0;
 
   Future<void> _buy(ProductDetails product) async {
-    if (_purchasingId != null || _isPlaceholder(product)) return;
+    IapLog.instance.log('BUY', 'TAPPED product: id=${product.id}, rawPrice=${product.rawPrice}, price=${product.price}, isPlaceholder=${_isPlaceholder(product)}, purchasingId=$_purchasingId');
+    if (_purchasingId != null || _isPlaceholder(product)) {
+      IapLog.instance.log('BUY', 'BLOCKED: purchasingId=$_purchasingId, isPlaceholder=${_isPlaceholder(product)}');
+      return;
+    }
     setState(() {
       _purchasingId = product.id;
       _error = null;
     });
     Entitlements.instance.resetPurchaseFailed();
     Entitlements.instance.setExpectedProduct(product.id);
+    IapLog.instance.log('BUY', 'setExpectedProduct(${product.id}), starting purchase listener');
     Entitlements.instance.startPurchaseListener();
     try {
       final param = PurchaseParam(productDetails: product);
+      IapLog.instance.log('BUY', 'calling buyNonConsumable...');
       final launched = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
+      IapLog.instance.log('BUY', 'buyNonConsumable returned: $launched');
       if (!launched) {
+        IapLog.instance.log('BUY', 'buyNonConsumable returned false — could not start purchase');
         if (!mounted) return;
         setState(() { _purchasingId = null; _error = 'Could not start purchase'; });
         return;
       }
       // Wait for Entitlements singleton to flip (max 15 s, then assume cancelled).
+      IapLog.instance.log('BUY', 'waiting for Entitlements to flip (max 15s)...');
       final completer = Completer<void>();
       void listener() {
         if (Entitlements.instance.isAdvanced && !completer.isCompleted) {
+          IapLog.instance.log('BUY', 'listener: isAdvanced=true → completing');
           completer.complete();
         } else if (Entitlements.instance.purchaseFailed && !completer.isCompleted) {
+          IapLog.instance.log('BUY', 'listener: purchaseFailed=true → completing');
           completer.complete();
         } else if (Entitlements.instance.purchaseCanceled && !completer.isCompleted) {
+          IapLog.instance.log('BUY', 'listener: purchaseCanceled=true → completing');
           completer.complete();
         }
       }
       Entitlements.instance.addListener(listener);
       try {
         await completer.future.timeout(const Duration(seconds: 15));
+        IapLog.instance.log('BUY', 'completer resolved, isAdvanced=${Entitlements.instance.isAdvanced}');
       } on TimeoutException {
-        // Timeout — but check one more time if purchase actually succeeded.
+        IapLog.instance.log('BUY', 'TIMEOUT after 15s, isAdvanced=${Entitlements.instance.isAdvanced}, purchaseCanceled=${Entitlements.instance.purchaseCanceled}');
       } finally {
         Entitlements.instance.removeListener(listener);
       }
       if (Entitlements.instance.isAdvanced) {
+        IapLog.instance.log('BUY', 'SUCCESS → popping with true');
         if (mounted) Navigator.of(context).pop(true);
       } else if (!mounted) {
+        IapLog.instance.log('BUY', 'not mounted, returning');
         return;
       } else {
+        IapLog.instance.log('BUY', 'FAILED → showing Purchase cancelled');
         setState(() { _purchasingId = null; _error = 'Purchase cancelled'; });
       }
-    } catch (_) {
+    } catch (e, st) {
+      IapLog.instance.log('BUY', 'EXCEPTION: $e\n$st');
       if (!mounted) return;
       setState(() { _purchasingId = null; _error = 'Purchase failed'; });
     }
   }
 
   Future<void> _startTrial() async {
+    IapLog.instance.log('TRIAL', '_startTrial called');
     await Entitlements.instance.startTrial();
+    IapLog.instance.log('TRIAL', 'trial started, trialActive=${Entitlements.instance.trialActive}');
     if (mounted) setState(() {});
   }
 
@@ -235,20 +268,25 @@ class _PaywallSheetState extends State<PaywallSheet> {
   }
 
   Future<void> _restorePurchases() async {
+    IapLog.instance.log('RESTORE', '_restorePurchases called from paywall');
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     Entitlements.instance.startPurchaseListener();
     await Entitlements.instance.restorePurchases();
+    IapLog.instance.log('RESTORE', 'waiting 3s for StoreKit...');
     // Give StoreKit up to 3s to deliver the restored transaction.
     await Future<void>.delayed(const Duration(seconds: 3));
+    IapLog.instance.log('RESTORE', 'after 3s wait: isAdvanced=${Entitlements.instance.isAdvanced}');
     if (!mounted) return;
     setState(() {});
     if (Entitlements.instance.isAdvanced) {
+      IapLog.instance.log('RESTORE', 'SUCCESS → Purchase restored!');
       messenger.showSnackBar(
         const SnackBar(content: Text('Purchase restored!')),
       );
       navigator.pop(true);
     } else {
+      IapLog.instance.log('RESTORE', 'NOT restored → No previous purchase found');
       messenger.showSnackBar(
         const SnackBar(content: Text('No previous purchase found')),
       );

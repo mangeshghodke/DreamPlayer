@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:dream_player/services/iap_logger.dart';
+
 /// Whether `PAYWALL_ENABLED` was passed at build time.
 const bool paywallEnabled = bool.fromEnvironment('PAYWALL_ENABLED', defaultValue: false);
 
@@ -116,23 +118,36 @@ class Entitlements extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       _trialStartedAtMs = prefs.getInt(_kTrialStartedAt);
     } catch (_) {}
+
+    IapLog.instance.log('INIT', 'debugFreeUser=$_debugFreeUser, debugTrialExpired=$_debugTrialExpired, trialStartedAt=$_trialStartedAtMs, isAdvanced=$isAdvanced, isEntitled=$isEntitled');
   }
 
   StreamSubscription<List<PurchaseDetails>>? purchaseSub;
 
   /// Start listening to StoreKit purchase stream (call when paywall opens).
   void startPurchaseListener() {
-    if (purchaseSub != null) return;
-    if (defaultTargetPlatform == TargetPlatform.android) return;
-    if (!paywallEnabled && !_debugFreeUser) return;
+    if (purchaseSub != null) {
+      IapLog.instance.log('LISTENER', 'already listening, skip');
+      return;
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      IapLog.instance.log('LISTENER', 'android, skip');
+      return;
+    }
+    if (!paywallEnabled && !_debugFreeUser) {
+      IapLog.instance.log('LISTENER', 'paywall not enabled and not debug, skip');
+      return;
+    }
     purchaseSub =
         InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
+    IapLog.instance.log('LISTENER', 'started listening to purchaseStream');
   }
 
   /// Stop listening (call when paywall closes).
   void stopPurchaseListener() {
     purchaseSub?.cancel();
     purchaseSub = null;
+    IapLog.instance.log('LISTENER', 'stopped listening');
   }
 
   Future<void> _persistTrialStart(int ms) async {
@@ -143,7 +158,9 @@ class Entitlements extends ChangeNotifier {
   }
 
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
+    IapLog.instance.log('PURCHASE_STREAM', 'received ${purchases.length} purchase(s)');
     for (final p in purchases) {
+      IapLog.instance.log('PURCHASE_UPDATE', 'status=${p.status}, productID=${p.productID}, pendingComplete=${p.pendingCompletePurchase}, verification=${p.verificationData}');
       if (p.status == PurchaseStatus.purchased) {
         // New purchase — accept when user explicitly tapped a product
         // (expectedProductId set by _buy) and the transaction is fresh,
@@ -152,6 +169,7 @@ class Entitlements extends ChangeNotifier {
         final isRestorePurchase = _restorePending;
         if (!isRestorePurchase &&
             (_expectedProductId == null || p.productID != _expectedProductId)) {
+          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED purchased: isRestore=$isRestorePurchase, expected=$_expectedProductId, got=${p.productID}');
           if (p.pendingCompletePurchase) {
             InAppPurchase.instance.completePurchase(p);
           }
@@ -161,6 +179,7 @@ class Entitlements extends ChangeNotifier {
         // fresh Lifetime purchases as stale in sandbox, causing
         // ring → Purchase cancelled without sheet. The
         // expectedProductId gate already prevents auto-activation.)
+        IapLog.instance.log('PURCHASE_UPDATE', 'ACCEPTED purchased: productID=${p.productID}, isRestore=$isRestorePurchase');
         _advanced = true;
         _activeProductId = p.productID;
         _expectedProductId = null;
@@ -177,11 +196,13 @@ class Entitlements extends ChangeNotifier {
       if (p.status == PurchaseStatus.restored) {
         // Restore — only accept when user explicitly tapped Restore.
         if (!_restorePending) {
+          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED restored: _restorePending=false');
           if (p.pendingCompletePurchase) {
             InAppPurchase.instance.completePurchase(p);
           }
           continue;
         }
+        IapLog.instance.log('PURCHASE_UPDATE', 'ACCEPTED restored: productID=${p.productID}');
         _advanced = true;
         _activeProductId = p.productID;
         _expectedProductId = null;
@@ -196,6 +217,7 @@ class Entitlements extends ChangeNotifier {
         return;
       }
       if (p.status == PurchaseStatus.canceled) {
+        IapLog.instance.log('PURCHASE_UPDATE', 'CANCELED: productID=${p.productID}');
         _purchaseCanceled = true;
         // Sandbox: StoreKit can fire canceled before purchased — don't
         // treat as terminal immediately; give purchased a short window.
@@ -212,6 +234,7 @@ class Entitlements extends ChangeNotifier {
         return;
       }
       if (p.status == PurchaseStatus.error) {
+        IapLog.instance.log('PURCHASE_UPDATE', 'ERROR: productID=${p.productID}, error=${p.error}');
         _expectedProductId = null;
         _purchaseFailed = true;
         _purchaseCanceled = false;
@@ -267,29 +290,44 @@ class Entitlements extends ChangeNotifier {
 
   /// Buy a product. Returns true if the transaction initiated successfully.
   Future<bool> buy(String productId) async {
-    if (defaultTargetPlatform == TargetPlatform.android && !_debugFreeUser) return false;
+    IapLog.instance.log('BUY', 'called for productId=$productId, platform=$defaultTargetPlatform, debugFreeUser=$_debugFreeUser');
+    if (defaultTargetPlatform == TargetPlatform.android && !_debugFreeUser) {
+      IapLog.instance.log('BUY', 'REJECTED: android non-debug');
+      return false;
+    }
     final available = await InAppPurchase.instance.isAvailable();
+    IapLog.instance.log('BUY', 'isAvailable=$available');
     if (!available) return false;
     final details = await InAppPurchase.instance.queryProductDetails({productId});
+    IapLog.instance.log('BUY', 'queryProductDetails: found=${details.productDetails.length}, ids=${details.productDetails.map((p) => p.id).toList()}');
     if (details.productDetails.isEmpty) return false;
     final param = PurchaseParam(productDetails: details.productDetails.first);
     final success = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
+    IapLog.instance.log('BUY', 'buyNonConsumable returned: $success');
     return success;
   }
 
   /// Restore purchases — explicit user action only.
   Future<void> restorePurchases() async {
-    if (defaultTargetPlatform == TargetPlatform.android && !_debugFreeUser) return;
+    IapLog.instance.log('RESTORE', 'called, platform=$defaultTargetPlatform');
+    if (defaultTargetPlatform == TargetPlatform.android && !_debugFreeUser) {
+      IapLog.instance.log('RESTORE', 'REJECTED: android non-debug');
+      return;
+    }
     _restorePending = true;
     _expectedProductId = null;
+    IapLog.instance.log('RESTORE', 'calling InAppPurchase.instance.restorePurchases()');
     try {
       await InAppPurchase.instance.restorePurchases();
-    } catch (_) {
+      IapLog.instance.log('RESTORE', 'restorePurchases() completed');
+    } catch (e) {
+      IapLog.instance.log('RESTORE', 'restorePurchases() ERROR: $e');
       _restorePending = false;
       rethrow;
     }
     // Clear pending flag after a short window if nothing was restored.
     Future<void>.delayed(const Duration(seconds: 5), () {
+      IapLog.instance.log('RESTORE', 'clearing _restorePending after 5s');
       _restorePending = false;
     });
   }
