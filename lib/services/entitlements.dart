@@ -120,43 +120,6 @@ class Entitlements extends ChangeNotifier {
     } catch (_) {}
 
     IapLog.instance.log('INIT', 'debugFreeUser=$_debugFreeUser, debugTrialExpired=$_debugTrialExpired, trialStartedAt=$_trialStartedAtMs, isAdvanced=$isAdvanced, isEntitled=$isEntitled');
-
-    // Drain any orphaned pending transactions left from previous installs/tests.
-    // StoreKit re-delivers them on the next buyNonConsumable call, which causes
-    // "instantly Active" (no Apple sheet) and storekit_duplicate_product_object.
-    if (defaultTargetPlatform == TargetPlatform.iOS && (paywallEnabled || _debugFreeUser)) {
-      _drainPendingTransactions();
-    }
-  }
-
-  /// Restore purchases then complete every pending transaction to clear the queue.
-  Future<void> _drainPendingTransactions() async {
-    try {
-      IapLog.instance.log('DRAIN', 'starting — restoring purchases to find orphans');
-      final completer = Completer<void>();
-      late StreamSubscription<List<PurchaseDetails>> sub;
-      sub = InAppPurchase.instance.purchaseStream.listen((purchases) {
-        for (final p in purchases) {
-          IapLog.instance.log('DRAIN', 'got: status=${p.status}, productID=${p.productID}, pendingComplete=${p.pendingCompletePurchase}');
-          // Only complete transactions that StoreKit considers "pending"
-          // (pendingComplete=true). Completed/restored transactions with
-          // pendingComplete=false should NOT be touched — completing them
-          // again causes StoreKit to re-deliver them as 'purchased' on the
-          // next buyNonConsumable call (the "instantly Active" bug).
-          if (p.pendingCompletePurchase) {
-            IapLog.instance.log('DRAIN', 'completing pending: ${p.productID} (${p.status})');
-            InAppPurchase.instance.completePurchase(p);
-          }
-        }
-        if (!completer.isCompleted) completer.complete();
-      });
-      await InAppPurchase.instance.restorePurchases();
-      await completer.future.timeout(const Duration(seconds: 5));
-      await sub.cancel();
-      IapLog.instance.log('DRAIN', 'done');
-    } catch (e) {
-      IapLog.instance.log('DRAIN', 'error: $e');
-    }
   }
 
   StreamSubscription<List<PurchaseDetails>>? purchaseSub;
