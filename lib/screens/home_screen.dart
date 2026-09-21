@@ -4,7 +4,6 @@ import 'dart:io' show File, Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../app.dart' show appRouteObserver;
 import '../l10n/app_localizations.dart';
@@ -32,7 +31,6 @@ import '../widgets/tv_text_field.dart';
 import 'ftp_screen.dart';
 import 'player_screen.dart';
 import 'series_seasons_screen.dart';
-import 'settings_screen.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/video_card.dart';
 import '../utils/tv_helper.dart';
@@ -108,7 +106,6 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(requestStartupPermissions(context));
-      _showTmdbHintOnce();
       _showTrialIntroIfNeeded();
     });
   }
@@ -128,83 +125,6 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const TrialIntroScreen()),
-    );
-  }
-
-  Future<void> _showTmdbHintOnce() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool('dreamplayer.tmdbHintShown') == true) return;
-    await prefs.setBool('dreamplayer.tmdbHintShown', true);
-    if (!mounted) return;
-    final theme = Theme.of(context);
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.movie_filter, size: 40),
-        title: Text(AppLocalizations.of(context).tmdbHintEnable),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'DreamPlayer can fetch movie posters, ratings, cast, and other '
-              'details from The Movie Database (TMDB).\n\n'
-              'Enter your free TMDB API key in Settings → Metadata to enable '
-              'this feature.',
-              style: theme.textTheme.bodySmall,
-            ),
-            SizedBox(height: 4),
-            TextButton.icon(
-              onPressed: () async {
-                // Call launchUrl directly (no canLaunchUrl gate) — matches
-                // openSupportUrl. canLaunchUrl returns false on Android 11+
-                // for https VIEW intents and would silently swallow the tap.
-                // Points at the login page: the API settings page requires
-                // login first, so an logged-out user would land there anyway.
-                final uri = Uri.parse('https://www.themoviedb.org/login');
-                try {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                } catch (_) {}
-              },
-              icon: const Icon(Icons.open_in_new, size: 16),
-              label: Text(AppLocalizations.of(context).tmdbGetKey),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(AppLocalizations.of(context).commonClose),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              // Defer the push until the dialog pop completes, and wrap in
-              // a Scaffold with AppBar — SettingsScreen is built for the
-              // tab IndexedStack (no Scaffold/AppBar of its own), so a
-              // bare push leaves the page with no back button.
-              Future.microtask(() {
-                if (!mounted) return;
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => Scaffold(
-                      appBar: AppBar(title: Text(AppLocalizations.of(context).navSettings)),
-                      body: const SettingsScreen(),
-                    ),
-                  ),
-                );
-              });
-            },
-            child: Text(AppLocalizations.of(context).tmdbOpenSettings),
-          ),
-        ],
-      ),
     );
   }
 

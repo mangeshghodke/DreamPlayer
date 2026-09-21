@@ -1202,6 +1202,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: Text(AppLocalizations.of(context).settingsMetadata),
               childrenPadding: const EdgeInsets.only(bottom: 8),
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'Enter your own TMDB API key to enable movie posters, '
+                    'ratings, cast, and episode details. Get a free key at '
+                    'themoviedb.org → Settings → API → Create.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.white54,
+                    ),
+                  ),
+                ),
                 TvTile(
                   leading: const Icon(Icons.movie),
                   title: Text(AppLocalizations.of(context).settingsTmdbApiKey),
