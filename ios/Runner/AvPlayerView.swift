@@ -275,10 +275,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private var pendingAutoSubtitleIndex: Int?
     private var savedVolume: Float = 1
     private var isMuted = false
-    /// When > 0, suppress error emission to Dart — the audio-switch recovery
-    /// Task is running and will reload the session if the engine errored.
-    /// Prevents the "playback failed" screen from flashing before recovery.
-    private var audioSwitchRecoveryDeadline: Date = .distantPast
+    /// Deadline until which error emission to Dart is suppressed after an
+    /// audio-track switch.  Prevents "playback failed" from flashing when
+    /// the in-place switch transiently errors (e.g. during screen recording
+    /// or a brief codec re-init).  If the engine recovers within the window,
+    /// the error is never shown.  Cleared on the next non-audio event.
+    private var audioSwitchSuppressUntil: Date = .distantPast
 
     // ---- Last-opened source (needed to reload when the engine parks in .ended). ----
     private var lastSource: MediaSource?
@@ -482,11 +484,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // The engine's `selectAudioTrack(index:)` expects the
                     // native track `id`, so convert flat → id.
                     let trackId = self.engineAudioId(forFlatPosition: index)
-                    // Suppress error emission to Dart for 5 s while the
-                    // recovery Task runs — prevents the "playback failed"
-                    // screen from flashing when the in-place switch fails
-                    // during screen recording (ReplayKit + DV pipeline conflict).
-                    self.audioSwitchRecoveryDeadline = Date().addingTimeInterval(5.0)
+                    // Suppress error emission for 2 s — the in-place switch
+                    // can transiently error during screen recording or a brief
+                    // codec re-init, but AVPlayer recovers on its own.
+                    self.audioSwitchSuppressUntil = Date().addingTimeInterval(2.0)
                     self.engine?.selectAudioTrack(index: trackId)
                     // Network / custom-IO sources (WebDAV, FTP/SFTP, Jellyfin
                     // direct-play over HTTP) cannot switch the audio track in
@@ -496,6 +497,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // error (it can silently no-op the switch), so proactively
                     // reload the session from the current position and re-apply
                     // the chosen track to guarantee the selection takes effect.
+                    // Local files are left alone — AVPlayer handles in-place
+                    // track selection natively without a reload, which avoids
+                    // conflicting with ReplayKit during screen recording.
                     let scheme = self.currentSourceURL?.scheme?.lowercased()
                     let isNetworkSource = scheme == "http" || scheme == "https"
                         || scheme == "ftp" || scheme == "sftp"
@@ -512,7 +516,6 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                                 await self.waitForEngineReady(timeout: 3.0)
                                 let trackId2 = self.engineAudioId(forFlatPosition: index)
                                 self.engine?.selectAudioTrack(index: trackId2)
-                                self.audioSwitchRecoveryDeadline = .distantPast
                                 self.emit()
                                 return
                             }
@@ -523,24 +526,6 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             await self.waitForEngineReady(timeout: 3.0)
                             let trackId2 = self.engineAudioId(forFlatPosition: index)
                             self.engine?.selectAudioTrack(index: trackId2)
-                            self.audioSwitchRecoveryDeadline = .distantPast
-                            self.emit()
-                        }
-                    } else {
-                        // Local file — the in-place switch may fail during
-                        // screen recording (ReplayKit conflicts with the DV
-                        // hardware pipeline).  Recover by reloading the session.
-                        Task { @MainActor [weak self] in
-                            guard let self, let engine = self.engine else { return }
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                            if case .error = engine.state {
-                                let curPos = engine.currentTime
-                                await self.reloadSession(at: curPos)
-                                await self.waitForEngineReady(timeout: 3.0)
-                                let trackId2 = self.engineAudioId(forFlatPosition: index)
-                                self.engine?.selectAudioTrack(index: trackId2)
-                            }
-                            self.audioSwitchRecoveryDeadline = .distantPast
                             self.emit()
                         }
                     }
@@ -1254,10 +1239,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         case .playing, .paused: st = 3
         case .ended: st = 4
         case .error(let message):
-            // During audio-switch recovery, hide the error from Dart — the
-            // recovery Task will reload the session and re-apply the track.
-            if Date() < audioSwitchRecoveryDeadline {
-                st = 2  // report as "loading" so Dart shows a spinner, not error
+            if Date() < audioSwitchSuppressUntil {
+                // Hide transient error during audio-switch window.
+                // If the engine recovers, this error is never shown.
+                st = 2
             } else {
                 st = 1
                 lastError = message
