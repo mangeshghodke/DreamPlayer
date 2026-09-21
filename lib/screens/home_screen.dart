@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show File, Platform;
+import 'dart:io' show File, InternetAddress, Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -508,6 +508,16 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _resolveFolderMetadata(List<LibraryFolder> folders) async {
     final service = TmdService.instance;
     await service.ensureLoaded();
+    // Quick connectivity check — skip TMDB resolution when offline to avoid
+    // blocking the UI with sequential 15 s connection timeouts per folder.
+    try {
+      final result = await InternetAddress.lookup('api.themoviedb.org')
+          .timeout(const Duration(seconds: 3));
+      if (result.isEmpty || result.first.rawAddress.isEmpty) return;
+    } catch (_) {
+      debugPrint('TMDB _resolveFolderMeta: offline — skipping metadata resolution');
+      return;
+    }
     // Regex to detect season-like folder names (S01, Season N, roman numerals).
     // Matches the logic in tmdb_client.dart for staleness check.
     final seasonTagRegex = RegExp(
@@ -714,8 +724,7 @@ class _HomeScreenState extends State<HomeScreen>
     final prefs = await SharedPreferences.getInstance();
     final autoExpand = prefs.getBool('dreamplayer.autoExpandFolders') ?? true;
 
-    final hasSubdirs = children.any((c) => c.isDirectory);
-    if (autoExpand && children.isNotEmpty && hasSubdirs) {
+    if (autoExpand && children.isNotEmpty) {
       // Deep scan: recursively traverse subdirectories (up to 5 levels)
       // and create one LibraryFolder per video file and subfolder.
       final parentId = picked.bookmarkId ?? 'folder_${DateTime.now().millisecondsSinceEpoch}';
