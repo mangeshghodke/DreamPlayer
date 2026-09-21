@@ -39,6 +39,11 @@ class Entitlements extends ChangeNotifier {
   /// user taps a product (they arrive through purchaseStream instantly).
   bool _buyInitiated = false;
 
+  /// When true, all incoming purchases are completed (orphan drain) without
+  /// activating entitlements. Set true when the listener starts, cleared
+  /// after a short delay so real purchases can be accepted.
+  bool _drainMode = false;
+
   /// The product ID of the active purchase (null = not purchased, only trial).
   String? _activeProductId;
 
@@ -143,6 +148,15 @@ class Entitlements extends ChangeNotifier {
       IapLog.instance.log('LISTENER', 'paywall not enabled and not debug, skip');
       return;
     }
+    // Enter drain mode: all incoming purchases are completed without activating.
+    // Orphans arrive instantly when the payment queue is first observed.
+    // After 2s (products are still loading), drain ends and real purchases can be accepted.
+    _drainMode = true;
+    IapLog.instance.log('LISTENER', 'drain mode ON for 2s');
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      _drainMode = false;
+      IapLog.instance.log('LISTENER', 'drain mode OFF');
+    });
     purchaseSub =
         InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
     IapLog.instance.log('LISTENER', 'started listening to purchaseStream');
@@ -163,9 +177,22 @@ class Entitlements extends ChangeNotifier {
   }
 
   Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchases) async {
-    IapLog.instance.log('PURCHASE_STREAM', 'received ${purchases.length} purchase(s)');
+    IapLog.instance.log('PURCHASE_STREAM', 'received ${purchases.length} purchase(s), drainMode=$_drainMode');
     for (final p in purchases) {
       IapLog.instance.log('PURCHASE_UPDATE', 'status=${p.status}, productID=${p.productID}, pendingComplete=${p.pendingCompletePurchase}, verification=${p.verificationData}');
+
+      // Drain mode: complete all orphaned pending transactions without
+      // activating. This runs for 2s after the listener starts — long
+      // enough for all orphans to arrive, short enough that the user
+      // can't have tapped a product yet (products are still loading).
+      if (_drainMode) {
+        IapLog.instance.log('PURCHASE_UPDATE', 'DRAIN: completing ${p.productID} (${p.status}, pending=${p.pendingCompletePurchase})');
+        if (p.pendingCompletePurchase) {
+          await InAppPurchase.instance.completePurchase(p);
+          IapLog.instance.log('PURCHASE_UPDATE', 'DRAIN: completePurchase done for ${p.productID}');
+        }
+        continue;
+      }
       if (p.status == PurchaseStatus.purchased) {
         // New purchase — accept ONLY when buyNonConsumable() has actually been
         // called and returned (buyInitiated=true), AND the product matches.
@@ -373,6 +400,8 @@ class Entitlements extends ChangeNotifier {
     _activeProductId = null;
     _expectedProductId = null;
     _restorePending = false;
+    _buyInitiated = false;
+    _drainMode = false;
     _purchaseFailed = false;
     _purchaseCanceled = false;
     _initialised = false;
