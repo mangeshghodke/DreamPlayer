@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
-// Implementation import: SK2Transaction.unfinishedTransactions() / finish()
-// are not in the plugin's public exports but are exactly what Apple's docs
-// prescribe for clearing unfinished transactions (Transaction.unfinished /
-// Transaction.finish).
+// Implementation imports: Apple's unfinished-transaction APIs are exposed by
+// the StoreKit plugin wrappers rather than its public package exports.
 // ignore: implementation_imports
 import 'package:in_app_purchase_storekit/src/store_kit_2_wrappers/sk2_transaction_wrapper.dart' show SK2Transaction;
+// ignore: implementation_imports
+import 'package:in_app_purchase_storekit/src/store_kit_wrappers/sk_payment_queue_wrapper.dart' show SKPaymentQueueWrapper;
+// ignore: implementation_imports
+import 'package:in_app_purchase_storekit/src/store_kit_wrappers/sk_payment_transaction_wrappers.dart' show SKPaymentTransactionStateWrapper;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dream_player/services/iap_logger.dart';
@@ -190,39 +192,104 @@ class Entitlements extends ChangeNotifier {
   /// appears for every buy tap. This is a direct LIST query (not the
   /// purchaseStream), so it has no stream-timing race.
   ///
+  /// StoreKit 2 and StoreKit 1 can each retain a queue entry. The plugin uses
+  /// StoreKit 2 for purchases, but its native StoreKit 1 handler still owns a
+  /// separate SKPaymentQueue; query and drain both queues before every buy.
+  ///
   /// Returns the number of transactions finished.
   Future<int> sweepUnfinishedTransactions() async {
     if (defaultTargetPlatform != TargetPlatform.iOS) return 0;
     // Drain mode during the sweep: any event the finish() calls might
     // trigger is completed without activating (no purchase is in flight).
     _drainMode = true;
+    var finished = 0;
     try {
-      final unfinished = await SK2Transaction.unfinishedTransactions();
-      if (unfinished.isEmpty) {
-        IapLog.instance.log('SWEEP', 'no unfinished transactions');
-        return 0;
+      try {
+        final unfinished = await SK2Transaction.unfinishedTransactions();
+        finished += await _finishSk2Transactions(unfinished);
+      } catch (e) {
+        IapLog.instance.log('SWEEP', 'SK2 unfinishedTransactions() ERROR: $e');
       }
-      IapLog.instance.log('SWEEP', 'finishing ${unfinished.length} unfinished transaction(s): ${unfinished.map((t) => t.productId).join(', ')}');
-      for (final t in unfinished) {
-        final id = int.tryParse(t.id);
-        if (id == null) {
-          IapLog.instance.log('SWEEP', 'SKIP transaction with unparseable id: ${t.id} (${t.productId})');
-          continue;
+
+      try {
+        final queue = SKPaymentQueueWrapper();
+        final queued = await queue.transactions();
+        final unfinished = queued
+            .where((transaction) =>
+                transaction.transactionState !=
+                SKPaymentTransactionStateWrapper.purchasing)
+            .toList();
+        if (unfinished.isEmpty) {
+          IapLog.instance.log('SWEEP', 'SK1 queue: no finishable transactions');
+        } else {
+          IapLog.instance.log(
+            'SWEEP',
+            'SK1 queue: finishing ${unfinished.length} transaction(s): '
+            '${unfinished.map((transaction) => transaction.payment.productIdentifier).join(', ')}',
+          );
+          for (final transaction in unfinished) {
+            try {
+              await queue.finishTransaction(transaction);
+              finished++;
+              IapLog.instance.log(
+                'SWEEP',
+                'SK1 finished product=${transaction.payment.productIdentifier} '
+                'state=${transaction.transactionState} '
+                'id=${transaction.transactionIdentifier ?? 'unknown'}',
+              );
+            } catch (e) {
+              IapLog.instance.log(
+                'SWEEP',
+                'SK1 finish product=${transaction.payment.productIdentifier} ERROR: $e',
+              );
+            }
+          }
         }
-        try {
-          await SK2Transaction.finish(id);
-          IapLog.instance.log('SWEEP', 'finished id=$id product=${t.productId}');
-        } catch (e) {
-          IapLog.instance.log('SWEEP', 'finish id=$id ERROR: $e');
-        }
+      } catch (e) {
+        IapLog.instance.log('SWEEP', 'SK1 transactions() ERROR: $e');
       }
-      return unfinished.length;
-    } catch (e) {
-      IapLog.instance.log('SWEEP', 'unfinishedTransactions() ERROR: $e');
-      return 0;
+      return finished;
     } finally {
       _drainMode = false;
+      if (finished == 0) {
+        IapLog.instance.log('SWEEP', 'no unfinished transactions finished');
+      }
     }
+  }
+
+  Future<int> _finishSk2Transactions(List<SK2Transaction> unfinished) async {
+    if (unfinished.isEmpty) {
+      IapLog.instance.log('SWEEP', 'SK2: no unfinished transactions');
+      return 0;
+    }
+    IapLog.instance.log(
+      'SWEEP',
+      'SK2: finishing ${unfinished.length} unfinished transaction(s): '
+      '${unfinished.map((transaction) => transaction.productId).join(', ')}',
+    );
+    var finished = 0;
+    for (final transaction in unfinished) {
+      final id = int.tryParse(transaction.id);
+      if (id == null) {
+        IapLog.instance.log(
+          'SWEEP',
+          'SK2 SKIP transaction with unparseable id: '
+          '${transaction.id} (${transaction.productId})',
+        );
+        continue;
+      }
+      try {
+        await SK2Transaction.finish(id);
+        finished++;
+        IapLog.instance.log(
+          'SWEEP',
+          'SK2 finished id=$id product=${transaction.productId}',
+        );
+      } catch (e) {
+        IapLog.instance.log('SWEEP', 'SK2 finish id=$id ERROR: $e');
+      }
+    }
+    return finished;
   }
 
   Future<void> _persistTrialStart(int ms) async {
