@@ -37,6 +37,9 @@ class Entitlements extends ChangeNotifier {
   /// The product ID expected from an in-flight purchase (null when idle).
   String? _expectedProductId;
 
+  /// True while an explicit restorePurchases() is in flight.
+  bool _restorePending = false;
+
   /// Milliseconds since epoch when the 7-day free trial started (null = not started).
   int? _trialStartedAtMs;
 
@@ -151,6 +154,7 @@ class Entitlements extends ChangeNotifier {
         _advanced = true;
         _activeProductId = p.productID;
         _expectedProductId = null;
+        _restorePending = false;
         _debugFreeUser = false;
         _purchaseFailed = false;
         if (p.pendingCompletePurchase) {
@@ -160,9 +164,17 @@ class Entitlements extends ChangeNotifier {
         return;
       }
       if (p.status == PurchaseStatus.restored) {
-        // Restore — accept any product.
+        // Restore — only accept when user explicitly tapped Restore.
+        if (!_restorePending) {
+          if (p.pendingCompletePurchase) {
+            InAppPurchase.instance.completePurchase(p);
+          }
+          continue;
+        }
         _advanced = true;
         _activeProductId = p.productID;
+        _expectedProductId = null;
+        _restorePending = false;
         _debugFreeUser = false;
         _purchaseFailed = false;
         if (p.pendingCompletePurchase) {
@@ -242,10 +254,21 @@ class Entitlements extends ChangeNotifier {
     return success;
   }
 
-  /// Restore purchases.
+  /// Restore purchases — explicit user action only.
   Future<void> restorePurchases() async {
     if (defaultTargetPlatform == TargetPlatform.android && !_debugFreeUser) return;
-    await InAppPurchase.instance.restorePurchases();
+    _restorePending = true;
+    _expectedProductId = null;
+    try {
+      await InAppPurchase.instance.restorePurchases();
+    } catch (_) {
+      _restorePending = false;
+      rethrow;
+    }
+    // Clear pending flag after a short window if nothing was restored.
+    Future<void>.delayed(const Duration(seconds: 5), () {
+      _restorePending = false;
+    });
   }
 
   /// Test-only: reset the singleton state.
@@ -255,6 +278,10 @@ class Entitlements extends ChangeNotifier {
     _debugFreeUser = false;
     _debugTrialExpired = false;
     _trialStartedAtMs = null;
+    _activeProductId = null;
+    _expectedProductId = null;
+    _restorePending = false;
+    _purchaseFailed = false;
     _initialised = false;
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:dream_player/services/entitlements.dart';
 import 'paywall_sheet.dart';
 
 /// Full-screen trial intro shown on first launch (iOS only).
@@ -85,8 +86,10 @@ class TrialIntroScreen extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () async {
                     final navigator = Navigator.of(context);
-                    showPaywall(context);
-                    if (navigator.canPop()) {
+                    await showPaywall(context);
+                    if (!context.mounted) return;
+                    // Pop intro if user is now entitled (trial started or purchased).
+                    if (Entitlements.instance.isEntitled && navigator.canPop()) {
                       navigator.pop();
                     }
                   },
