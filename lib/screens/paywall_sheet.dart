@@ -165,6 +165,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
     IapLog.instance.log('BUY', 'setExpectedProduct(${product.id}), starting purchase listener');
     Entitlements.instance.startPurchaseListener();
     try {
+      // Sweep unfinished transactions BEFORE the purchase — per Apple's
+      // docs, unfinished transactions short-circuit Product.purchase()
+      // (StoreKit returns the existing unfinished transaction instead of
+      // displaying the confirmation sheet). Finishing them first
+      // guarantees the Apple sheet appears for every buy tap.
+      final swept = await Entitlements.instance.sweepUnfinishedTransactions();
+      IapLog.instance.log('BUY', 'pre-purchase sweep finished $swept unfinished transaction(s)');
       final param = PurchaseParam(productDetails: product);
       IapLog.instance.log('BUY', 'calling buyNonConsumable...');
       final launched = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);

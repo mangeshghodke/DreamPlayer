@@ -1,6 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+// Implementation import: SK2Transaction.unfinishedTransactions() / finish()
+// are not in the plugin's public exports but are exactly what Apple's docs
+// prescribe for clearing unfinished transactions (Transaction.unfinished /
+// Transaction.finish).
+// ignore: implementation_imports
+import 'package:in_app_purchase_storekit/src/store_kit_2_wrappers/sk2_transaction_wrapper.dart' show SK2Transaction;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dream_player/services/iap_logger.dart';
@@ -130,6 +136,14 @@ class Entitlements extends ChangeNotifier {
     } catch (_) {}
 
     IapLog.instance.log('INIT', 'debugFreeUser=$_debugFreeUser, debugTrialExpired=$_debugTrialExpired, trialStartedAt=$_trialStartedAtMs, isAdvanced=$isAdvanced, isEntitled=$isEntitled');
+
+    // Clear unfinished transactions at app launch — per Apple's docs, the
+    // updates listener receives them once at launch; finishing them here
+    // keeps the queue clean so no later purchase can short-circuit the
+    // Apple confirmation sheet.
+    if (paywallEnabled) {
+      unawaited(sweepUnfinishedTransactions());
+    }
   }
 
   StreamSubscription<List<PurchaseDetails>>? purchaseSub;
@@ -148,15 +162,12 @@ class Entitlements extends ChangeNotifier {
       IapLog.instance.log('LISTENER', 'paywall not enabled and not debug, skip');
       return;
     }
-    // Enter drain mode: all incoming purchases are completed without activating.
-    // Orphans arrive instantly when the payment queue is first observed.
-    // After 2s (products are still loading), drain ends and real purchases can be accepted.
-    _drainMode = true;
-    IapLog.instance.log('LISTENER', 'drain mode ON for 2s');
-    Future<void>.delayed(const Duration(seconds: 2), () {
-      _drainMode = false;
-      IapLog.instance.log('LISTENER', 'drain mode OFF');
-    });
+    // Sweep unfinished transactions right away (fire-and-forget — the
+    // paywall's product loading covers the wait). Orphans delivered at
+    // listener attach are also rejected+completed by _onPurchaseUpdate.
+    // The RELIABLE sweep (direct SK2 unfinished list) runs again before
+    // every buyNonConsumable — see sweepUnfinishedTransactions().
+    unawaited(sweepUnfinishedTransactions());
     purchaseSub =
         InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
     IapLog.instance.log('LISTENER', 'started listening to purchaseStream');
@@ -167,6 +178,51 @@ class Entitlements extends ChangeNotifier {
     purchaseSub?.cancel();
     purchaseSub = null;
     IapLog.instance.log('LISTENER', 'stopped listening');
+  }
+
+  /// Finish ALL unfinished StoreKit transactions directly, before a purchase
+  /// attempt.
+  ///
+  /// Per Apple's docs (Transaction.unfinished / Transaction.finish):
+  /// unfinished transactions short-circuit Product.purchase() — StoreKit
+  /// returns the existing unfinished transaction instead of displaying the
+  /// confirmation sheet. Finishing them first guarantees the Apple sheet
+  /// appears for every buy tap. This is a direct LIST query (not the
+  /// purchaseStream), so it has no stream-timing race.
+  ///
+  /// Returns the number of transactions finished.
+  Future<int> sweepUnfinishedTransactions() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return 0;
+    // Drain mode during the sweep: any event the finish() calls might
+    // trigger is completed without activating (no purchase is in flight).
+    _drainMode = true;
+    try {
+      final unfinished = await SK2Transaction.unfinishedTransactions();
+      if (unfinished.isEmpty) {
+        IapLog.instance.log('SWEEP', 'no unfinished transactions');
+        return 0;
+      }
+      IapLog.instance.log('SWEEP', 'finishing ${unfinished.length} unfinished transaction(s): ${unfinished.map((t) => t.productId).join(', ')}');
+      for (final t in unfinished) {
+        final id = int.tryParse(t.id);
+        if (id == null) {
+          IapLog.instance.log('SWEEP', 'SKIP transaction with unparseable id: ${t.id} (${t.productId})');
+          continue;
+        }
+        try {
+          await SK2Transaction.finish(id);
+          IapLog.instance.log('SWEEP', 'finished id=$id product=${t.productId}');
+        } catch (e) {
+          IapLog.instance.log('SWEEP', 'finish id=$id ERROR: $e');
+        }
+      }
+      return unfinished.length;
+    } catch (e) {
+      IapLog.instance.log('SWEEP', 'unfinishedTransactions() ERROR: $e');
+      return 0;
+    } finally {
+      _drainMode = false;
+    }
   }
 
   Future<void> _persistTrialStart(int ms) async {
