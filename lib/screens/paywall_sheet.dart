@@ -519,10 +519,10 @@ class _PaywallSheetState extends State<PaywallSheet> {
                 color: Colors.greenAccent.withValues(alpha: 0.9), size: 20),
             const SizedBox(width: 8),
             const Text(
-              'Free Trial Active',
+              'Free Trial Active — All Features Unlocked',
               style: TextStyle(
                 color: Colors.greenAccent,
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -549,7 +549,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
         ),
         const SizedBox(height: 10),
         Text(
-          'All premium features are unlocked. Subscribe to keep access after the trial.',
+          'Subscribe before the trial ends to keep premium access. All subscription and Lifetime options are still available below.',
           style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
         ),
       ],

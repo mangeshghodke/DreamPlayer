@@ -144,8 +144,10 @@ class Entitlements extends ChangeNotifier {
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
     for (final p in purchases) {
       if (p.status == PurchaseStatus.purchased) {
-        // New purchase — only accept if it matches the product we're buying.
-        if (_expectedProductId != null && p.productID != _expectedProductId) {
+        // New purchase — only accept when user explicitly tapped a product
+        // (expectedProductId set by _buy). Prevents auto-activating on
+        // paywall open from a stale pending transaction.
+        if (_expectedProductId == null || p.productID != _expectedProductId) {
           if (p.pendingCompletePurchase) {
             InAppPurchase.instance.completePurchase(p);
           }
