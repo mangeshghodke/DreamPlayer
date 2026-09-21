@@ -452,6 +452,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       try {
         _fitMode = await FitModeStore.load();
         _playbackSpeed = await PlaybackSpeedStore.load();
+        _subtitleStyle = await SubtitleStyle.load();
         _swipeEnabled = await areSwipeGesturesEnabled();
         _autoPlayNext = await isAutoPlayNextEnabled();
         _repeat = await PlaybackModesStore.loadRepeat();
@@ -1155,6 +1156,53 @@ class _PlayerScreenState extends State<PlayerScreen>
     // audio-spdif is intentionally omitted — see original comment below.
   }
 
+  /// Applies the user's [SubtitleStyle] to mpv via properties, mirroring
+  /// what [setSubtitleStyle] does for Media3. Called after mpv opens and
+  /// whenever the user changes subtitle settings while mpv is active.
+  Future<void> _applyMpvSubtitleStyle(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer || _inTests) return;
+    final s = _subtitleStyle;
+    try {
+      // Size: our multiplier maps to mpv's sub-scale (1.0 = default).
+      await platform.setProperty('sub-scale', '${s.sizeMultiplier}');
+      // Color: convert ARGB int to mpv's ASS format &HAABBGGRR.
+      final c = s.colorValue;
+      final a = ((c >> 24) & 0xFF).toRadixString(16).padLeft(2, '0');
+      final r = ((c >> 16) & 0xFF).toRadixString(16).padLeft(2, '0');
+      final g = ((c >> 8) & 0xFF).toRadixString(16).padLeft(2, '0');
+      final b = (c & 0xFF).toRadixString(16).padLeft(2, '0');
+      await platform.setProperty('sub-color', '&H$b$g$r$a');
+      // Background box behind subtitles.
+      if (s.hasBackground) {
+        final bg = s.backgroundColorValue;
+        final bgA = (s.backgroundOpacity & 0xFF).toRadixString(16).padLeft(2, '0');
+        final bgR = ((bg >> 16) & 0xFF).toRadixString(16).padLeft(2, '0');
+        final bgG = ((bg >> 8) & 0xFF).toRadixString(16).padLeft(2, '0');
+        final bgB = (bg & 0xFF).toRadixString(16).padLeft(2, '0');
+        await platform.setProperty('sub-back-color', '&H$bgB$bgG$bgR$bgA');
+        await platform.setProperty('sub-back-alpha', '1');
+      } else {
+        await platform.setProperty('sub-back-color', '&H00000000');
+        await platform.setProperty('sub-back-alpha', '0');
+      }
+      // Outline/shadow for readability.
+      await platform.setProperty('sub-outline-size', s.outline ? '1.15' : '0');
+      await platform.setProperty('sub-outline-color', '&H80000000');
+      await platform.setProperty('sub-shadow-color', '&H80000000');
+      await platform.setProperty('sub-shadow-offset', '0');
+      // Delay: positive = subtitle appears later.
+      await platform.setProperty('sub-delay', '${s.delayMs / 1000.0}');
+      // Vertical position: our 0-255 maps to mpv's sub-pos (0=top, 100=default bottom, 150=below screen).
+      // Map linearly: 0→100 (bottom), 127→50 (center), 255→0 (top).
+      final mpvPos = (100 - (s.verticalPosition / 255.0 * 100)).round().clamp(0, 150);
+      await platform.setProperty('sub-pos', '$mpvPos');
+      debugPrint('mpv: subtitle style applied (scale=${s.sizeMultiplier}, pos=$mpvPos, outline=${s.outline}, delay=${s.delayMs}ms)');
+    } catch (e) {
+      debugPrint('mpv: subtitle style apply failed: $e');
+    }
+  }
+
   /// Maps the user's [DecoderMode] onto libmpv's `hwdec` property.
   ///
   /// libmpv runs hardware-first by default (`mediacodec-copy` = use the
@@ -1393,6 +1441,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       //    pipeline (e.g. hardware decode for a software-only container like
       //    .m2ts, which hangs on the first frame).
       await _configureMpvAudio(player);
+      // Apply the user's subtitle styling (size, color, background, outline,
+      // vertical position) so settings carry over from Media3 to mpv.
+      await _applyMpvSubtitleStyle(player);
       // 4. Now play — the Surface is attached and the decoder pipeline is
       //    correctly configured for this file.
       await player.play();
@@ -3359,10 +3410,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     final target = choice - 100;
     if (target >= 0 && target < tracks.length) {
+      _mpvSubtitleOn = true;
       await player.setSubtitleTrack(tracks[target]);
     } else if (choice == -1) {
+      _mpvSubtitleOn = false;
       await player.setSubtitleTrack(SubtitleTrack.no());
     }
+    setState(() {});
   }
 
   /// Read-only "Video info" sheet behind the top-bar ⓘ button. Surfaces
@@ -4647,6 +4701,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                       final style = await SubtitleStyle.load();
                       await _exo?.setSubtitleStyle(style);
                       _subtitleStyle = style;
+                      if (_mpvReady && _mpvPlayer != null) {
+                        await _applyMpvSubtitleStyle(_mpvPlayer!);
+                      }
                       final delayChanged = style.delayMs != _subtitleDelayMs;
                       _subtitleDelayMs = style.delayMs;
                       if (delayChanged &&
@@ -5025,6 +5082,13 @@ class _PlayerScreenState extends State<PlayerScreen>
       await updated.save();
       await _exo?.setSubtitleStyle(updated);
       _subtitleStyle = updated;
+      if (_mpvReady && _mpvPlayer != null) {
+        final player = _mpvPlayer!;
+        final platform = player.platform;
+        if (platform is! NativePlayer || _inTests) return;
+        // mpv sub-delay is in seconds; positive = subtitle appears later.
+        await platform.setProperty('sub-delay', '${ms / 1000.0}');
+      }
       if (Platform.isAndroid && !_mpvReady && (_subtitleTracks.isNotEmpty || _subtitleOn)) {
         await _reopenAt(_position, _duration);
       }
