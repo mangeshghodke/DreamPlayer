@@ -2,28 +2,6 @@ import AVFoundation
 import Flutter
 import Foundation
 
-/// Debug log file exposed via UIFileSharingEnabled (Files app → On My iPad → DreamPlayer)
-private let logURL: URL? = {
-    guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
-    return docs.appendingPathComponent("probe_debug.log")
-}()
-
-private func probeDebugLog(_ msg: String) {
-    guard let url = logURL else { return }
-    let line = "\(msg)\n"
-    if let data = line.data(using: .utf8) {
-        if FileManager.default.fileExists(atPath: url.path) {
-            if let fh = FileHandle(forWritingAtPath: url.path) {
-                fh.seekToEndOfFile()
-                fh.write(data)
-                fh.closeFile()
-            }
-        } else {
-            try? data.write(to: url)
-        }
-    }
-}
-
 // MARK: - MKV (Matroska/EBML) probe
 //
 // AVFoundation cannot read MKV containers at all (-11828 "Cannot Open"), so
@@ -157,7 +135,6 @@ private struct MkvReader {
 private func mkvProbe(path: String) -> MkvInfo {
     var info = MkvInfo()
     guard var reader = MkvReader(path: path), reader.fileSize > 8 else {
-        probeDebugLog("  mkv: cannot open or too small")
         return info
     }
 
@@ -176,7 +153,6 @@ private func mkvProbe(path: String) -> MkvInfo {
             } else {
                 segEnd = reader.fileSize
             }
-            probeDebugLog("  mkv: found Segment at pos=\(reader.pos) end=\(segEnd)")
             mkvWalkSegment(&reader, &info, segEnd: segEnd)
             return info
         }
@@ -184,7 +160,6 @@ private func mkvProbe(path: String) -> MkvInfo {
         guard reader.pos + size <= reader.fileSize else { break }
         reader.seek(reader.pos + size) // skip the element's content
     }
-    probeDebugLog("  mkv: no Segment found (pos=\(reader.pos) limit=\(scanLimit))")
     return info
 }
 
@@ -222,7 +197,6 @@ private func mkvWalkSegment(_ reader: inout MkvReader, _ info: inout MkvInfo, se
         }
     }
     if info.durationNs == nil && info.videoCodecId == nil && info.audioCodecId == nil {
-        probeDebugLog("  mkv: walked \(parsedChildren) children, captured nothing")
     }
 }
 
@@ -384,8 +358,6 @@ final class MediaProbe: NSObject {
         channel.setMethodCallHandler { [weak shared] call, result in
             shared?.handle(call, result: result)
         }
-        if let url = logURL { try? FileManager.default.removeItem(at: url) }
-        probeDebugLog("=== MediaProbe session started ===")
     }
 
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -414,21 +386,16 @@ final class MediaProbe: NSObject {
     // MARK: - Probe dispatch
 
     private func probe(path: String?, uri: String?, headers: [String: String]) async -> [String: Any] {
-        probeDebugLog("PROBE path=\(path ?? "nil") uri=\(uri ?? "nil")")
         if let u = uri ?? path, u.hasPrefix("http://") || u.hasPrefix("https://") {
-            probeDebugLog("→ probeHttp")
             return await probeHttp(url: u, headers: headers)
         }
         if let p = path, !p.hasPrefix("smb://") && !p.hasPrefix("ftp://") &&
             !p.hasPrefix("sftp://") && !p.hasPrefix("content://") {
-            probeDebugLog("→ probeLocal")
             return await probeLocal(filePath: p)
         }
         if let u = uri ?? path, u.hasPrefix("content://") {
-            probeDebugLog("→ probeContentUri")
             return await probeContentUri(u)
         }
-        probeDebugLog("→ no matching dispatch")
         return [:]
     }
 
@@ -445,12 +412,10 @@ final class MediaProbe: NSObject {
 
     private func probeLocal(filePath: String) async -> [String: Any] {
         let exists = FileManager.default.fileExists(atPath: filePath)
-        probeDebugLog("PROBE_LOCAL path=\(filePath) exists=\(exists)")
         guard exists else { return [:] }
 
         let lower = filePath.lowercased()
         if lower.hasSuffix(".mkv") || lower.hasSuffix(".mka") || lower.hasSuffix(".webm") {
-            probeDebugLog("→ MKV container, using EBML parser")
             return await mkvProbeFile(path: filePath)
         }
 
@@ -474,7 +439,6 @@ final class MediaProbe: NSObject {
         if let c = info.audioChannels { out["audioChannels"] = Int(c) }
         if let l = info.audioLanguage { out["audioLanguage"] = l }
         if let f = info.fps { out["fps"] = Int(round(f)) }
-        probeDebugLog("  MKV parse result: \(out)")
         return out
     }
 
@@ -489,21 +453,17 @@ final class MediaProbe: NSObject {
 
     private func probeAsset(_ asset: AVAsset) async -> [String: Any] {
         var out: [String: Any] = [:]
-        probeDebugLog("PROBE_ASSET \(asset.description)")
 
         do {
             let dur = try await asset.load(.duration)
             if dur.isNumeric {
                 out["durationMs"] = Int(CMTimeGetSeconds(dur) * 1000)
-                probeDebugLog("  duration=\(out["durationMs"]!)ms")
             }
         } catch {
-            probeDebugLog("  duration error: \(error)")
         }
 
         do {
             let tracks = try await asset.load(.tracks)
-            probeDebugLog("  tracks count=\(tracks.count)")
             for track in tracks {
                 let mediaType = track.mediaType
                 if mediaType == .video {
@@ -526,10 +486,8 @@ final class MediaProbe: NSObject {
                 }
             }
         } catch {
-            probeDebugLog("  tracks error: \(error)")
         }
 
-        probeDebugLog("PROBE_RESULT \(out)")
         return out
     }
 

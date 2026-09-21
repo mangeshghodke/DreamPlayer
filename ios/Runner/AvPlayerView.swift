@@ -747,9 +747,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
              dvProfile = nil
              isHdr10PlusContent = false
              isHdr10Content = false
-             Self.debugLog("[open] NEW file: key=\(newKey) — cleared all HDR/codec state")
          } else {
-             Self.debugLog("[open] SAME file: key=\(newKey) — kept isDV=\(isDolbyVision) dvProfile=\(dvProfile.map { String($0) } ?? "nil") w=\(videoWidth) h=\(videoHeight)")
          }
          lastWebDAVInfo = nil
          lastFtpUri = nil
@@ -875,7 +873,6 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                      self.videoHeight = probe.videoHeight > 0 ? Int(probe.videoHeight) : self.videoHeight
                      self.isDolbyVision = probe.isDolbyVision || self.isDolbyVision
                      self.dvProfile = probe.dvProfile ?? self.dvProfile
-                     Self.debugLog("[load] probe codecName=\(probe.videoCodecName ?? "nil") isDV=\(probe.isDolbyVision) dvProfile=\(probe.dvProfile.map { String($0) } ?? "nil") w=\(probe.videoWidth) h=\(probe.videoHeight) videoFormat=\(engine.videoFormat) | merged: isDV=\(self.isDolbyVision) dvProfile=\(self.dvProfile.map { String($0) } ?? "nil") w=\(self.videoWidth) h=\(self.videoHeight)")
                  }
                 if let pending = self.pendingAutoSubtitleIndex,
                    engine.subtitleTracks.contains(where: { $0.id == pending }) {
@@ -1294,9 +1291,6 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         let hdrPlus = isHdr10PlusContent || (hevcForHdr && engineVideoFormat == .hdr10Plus)
         let hdr10 = isHdr10Content || (hevcForHdr && (engineVideoFormat == .hdr10 || engineVideoFormat == .hdr10Plus))
 
-        // Debug: log HDR/codec/resolution state to Documents/avplayer_debug.log
-        Self.debugLog("[stateMap] st=\(st) playing=\(playing) codecName=\(videoCodecName ?? "nil") isDV=\(isDolbyVision) dvProfile=\(dvProfile.map { String($0) } ?? "nil") videoCodec=\(videoCodec) hevcForHdr=\(hevcForHdr) videoFormat=\(engineVideoFormat) colorTransfer=\(effectiveColorTransfer.map { String($0) } ?? "nil") hdrPlus=\(hdrPlus) hdr10=\(hdr10) isHdr10PlusContent=\(isHdr10PlusContent) isHdr10Content=\(isHdr10Content) w=\(effectiveWidth) h=\(effectiveHeight)")
-
         let audioTracks = audioTrackMaps()
         let activeAudio = engine.audioTracks.first(where: { $0.id == engine.activeAudioTrackIndex })
         // Flat position of the active track, matching Android's convention.
@@ -1518,23 +1512,6 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         case .hdr10, .hdr10Plus, .dolbyVision: return 6
         case .hlg: return 7
         case .sdr: return nil
-        }
-    }
-
-    /// Append a line to `Documents/DreamPlayer/avplayer_debug.log` (shared via Files app).
-    private static func debugLog(_ msg: String) {
-        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-        let dir = docs.appendingPathComponent("DreamPlayer")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appendingPathComponent("avplayer_debug.log")
-        let ts = ISO8601DateFormatter().string(from: Date())
-        let line = "[\(ts)] \(msg)\n"
-        if let fh = try? FileHandle(forWritingTo: url) {
-            fh.seekToEndOfFile()
-            fh.write(line.data(using: .utf8)!)
-            fh.closeFile()
-        } else {
-            try? line.data(using: .utf8)!.write(to: url)
         }
     }
 

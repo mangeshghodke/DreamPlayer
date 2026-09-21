@@ -171,8 +171,15 @@ class Entitlements extends ChangeNotifier {
         notifyListeners();
         return;
       }
-      if (p.status == PurchaseStatus.error ||
-          p.status == PurchaseStatus.canceled) {
+      if (p.status == PurchaseStatus.canceled) {
+        // Sandbox: StoreKit can fire canceled before purchased.
+        // Don't treat as terminal — wait for purchased or error.
+        if (p.pendingCompletePurchase) {
+          InAppPurchase.instance.completePurchase(p);
+        }
+        return;
+      }
+      if (p.status == PurchaseStatus.error) {
         _expectedProductId = null;
         _purchaseFailed = true;
         notifyListeners();

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1368,7 +1369,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 leading: const Icon(Icons.restore),
                 title: const Text('Restore Purchases'),
                 subtitle: const Text('Re-enable your subscription or lifetime purchase'),
-                onTap: () => showPaywall(context),
+                onTap: () async {
+                  final e = Entitlements.instance;
+                  // If already entitled, nothing to restore.
+                  if (e.isAdvanced) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Already activated')),
+                    );
+                    return;
+                  }
+                  final messenger = ScaffoldMessenger.of(context);
+                  e.startPurchaseListener();
+                  await InAppPurchase.instance.restorePurchases();
+                  // Wait briefly for the purchase stream to deliver results.
+                  await Future<void>.delayed(const Duration(seconds: 2));
+                  if (!mounted) return;
+                  if (Entitlements.instance.isAdvanced) {
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Purchase restored!')),
+                    );
+                  } else {
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('No previous purchase found')),
+                    );
+                  }
+                },
               ),
               const Divider(),
             ],

@@ -57,6 +57,9 @@ class _PaywallSheetState extends State<PaywallSheet> {
   @override
   void initState() {
     super.initState();
+    // Start listening to the purchase stream so pending purchases and
+    // restores are picked up even if they complete before _buy fires.
+    Entitlements.instance.startPurchaseListener();
     _loadProducts();
     // Tick every second to update the trial countdown live.
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -67,6 +70,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
   @override
   void dispose() {
     _timer?.cancel();
+    Entitlements.instance.stopPurchaseListener();
     super.dispose();
   }
 
@@ -149,10 +153,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
         setState(() { _purchasingId = null; _error = 'Could not start purchase'; });
         return;
       }
-      // Wait for Entitlements singleton to flip (max 10 s, then assume cancelled).
-      // iOS sometimes silently drops PurchaseStatus.canceled when the user
-      // cancels the SheetKit double-click verification, so a short timeout
-      // is the only reliable fallback.
+      // Wait for Entitlements singleton to flip (max 15 s, then assume cancelled).
       final completer = Completer<void>();
       void listener() {
         if (Entitlements.instance.isAdvanced && !completer.isCompleted) {
@@ -163,19 +164,17 @@ class _PaywallSheetState extends State<PaywallSheet> {
       }
       Entitlements.instance.addListener(listener);
       try {
-        await completer.future.timeout(const Duration(seconds: 10));
+        await completer.future.timeout(const Duration(seconds: 15));
       } on TimeoutException {
-        if (!mounted) return;
-        Entitlements.instance.resetPurchaseFailed();
-        setState(() { _purchasingId = null; _error = 'Purchase cancelled'; });
-        return;
+        // Timeout — but check one more time if purchase actually succeeded.
       } finally {
         Entitlements.instance.removeListener(listener);
       }
       if (Entitlements.instance.isAdvanced) {
         if (mounted) Navigator.of(context).pop(true);
+      } else if (!mounted) {
+        return;
       } else {
-        if (!mounted) return;
         setState(() { _purchasingId = null; _error = 'Purchase cancelled'; });
       }
     } catch (_) {

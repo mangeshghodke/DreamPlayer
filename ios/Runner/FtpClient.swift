@@ -44,19 +44,6 @@ final class FtpClient: NSObject {
     /// Shared file+console logger (usable from static methods too).
     static func logStatic(_ msg: String) {
         NSLog("[FTP] %@", msg)
-        // Also append to a file in Documents (exposed via UIFileSharingEnabled)
-        // so the user can read the trace from the Files app without a Mac.
-        let line = "\(Date()) \(msg)\n"
-        if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let url = dir.appendingPathComponent("ftp_debug.log")
-            if let handle = try? FileHandle(forWritingTo: url) {
-                handle.seekToEndOfFile()
-                handle.write(Data(line.utf8))
-                try? handle.close()
-            } else {
-                try? Data(line.utf8).write(to: url)
-            }
-        }
     }
 
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
