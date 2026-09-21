@@ -1635,6 +1635,11 @@ class _PlayerScreenState extends State<PlayerScreen>
           }
         }
       }
+      // Re-evaluate CC highlight when tracks arrive (may fire after the
+      // initial `track` event, so `_mpvTracks` was still empty then).
+      final subId = player.state.track.subtitle.id;
+      _mpvSubtitleOn = subId != 'no' &&
+          t.subtitle.any((s) => s.id != 'no' && s.id != 'auto');
       setState(() {});
     }));
     _mpvSubs.add(player.stream.track.listen((t) {
