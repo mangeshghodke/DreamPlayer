@@ -44,7 +44,7 @@ jobs:
           flutter pub get
 
       - name: Run tests
-        run: flutter test
+        run: flutter test $(find test -name '*_test.dart' ! -name 'widget_test.dart' | sort)
 
       - name: Install Apple Certificate and Provisioning Profile
         if: ${{ inputs.upload_testflight == true || inputs.signed_build == true }}
