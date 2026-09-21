@@ -1098,27 +1098,59 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: color-space hints unavailable: $e');
     }
-    // HDR→SDR tone mapping: bt2390 (ITU-R BT.2390 EETF) provides smooth
-    // roll-off for HDR→SDR conversion. Perceptual gamut mapping preserves
-    // color vibrancy better than the default clip mode.
+    // HDR→SDR tone mapping (improved from mpv-config community presets):
+    // - bt2390: ITU-R BT.2390 EETF with smooth roll-off for HDR→SDR.
+    // - perceptual gamut mapping preserves color vibrancy vs default clip.
+    // - hdr-peak-percentile=99.95: measure peak at 99.95th percentile to
+    //   avoid a single bright pixel skewing the whole scene.
+    // - hdr-contrast-recovery=0.30: recovers detail in dark/bright areas
+    //   after tone mapping (shadows show more detail, highlights don't clip).
+    // - hdr-peak-decay-rate=20.0: smoother brightness transitions between
+    //   scenes (less flickering during fast cuts).
     try {
       await platform.setProperty('tone-mapping', 'bt2390');
       await platform.setProperty('gamut-mapping-mode', 'perceptual');
-      debugPrint('mpv: tone-mapping=bt2390, gamut-mapping=perceptual');
+      await platform.setProperty('hdr-peak-percentile', '99.95');
+      await platform.setProperty('hdr-contrast-recovery', '0.30');
+      await platform.setProperty('hdr-peak-decay-rate', '20.0');
+      debugPrint('mpv: HDR tone mapping configured (bt2390, perceptual, peak/contrast)');
     } catch (e) {
       debugPrint('mpv: tone mapping config unavailable: $e');
     }
-    // Subtitle rendering: auto-select embedded subtitle tracks and ensure
-    // bitmap subtitles (PGS, DVB) are visible. Without these, mpv may not
-    // render embedded PGS subtitles even though they're correctly detected
-    // in the track list.
+    // Subtitle rendering (improved from mpv-config community presets):
+    // - sub-auto=fuzzy: auto-detect embedded subtitle tracks by language.
+    // - sub-visibility=yes: ensure subtitles are rendered on screen.
+    // - demuxer-mkv-subtitle-preroll=yes: read MKV subtitle packets before
+    //   playback starts (needed for PGS/DVB bitmap subtitles).
+    // - sub-fix-timing=yes: fix subtitle timing glitches (overlapping cues).
+    // - blend-subtitles=yes: render subtitles into video frame at GPU level
+    //   for sharper text and proper alpha blending.
+    // - sub-ass-override=yes: let user subtitle styling override embedded
+    //   ASS/SSA styles (font, color, size preferences actually apply).
     try {
       await platform.setProperty('sub-auto', 'fuzzy');
       await platform.setProperty('sub-visibility', 'yes');
       await platform.setProperty('demuxer-mkv-subtitle-preroll', 'yes');
-      debugPrint('mpv: subtitles configured (sub-auto=fuzzy, visibility=yes, mkv-preroll=yes)');
+      await platform.setProperty('sub-fix-timing', 'yes');
+      await platform.setProperty('blend-subtitles', 'yes');
+      await platform.setProperty('sub-ass-override', 'yes');
+      debugPrint('mpv: subtitles configured (auto, visibility, preroll, fix-timing, blend, ass-override)');
     } catch (e) {
       debugPrint('mpv: subtitle config unavailable: $e');
+    }
+    // Audio improvements (from mpv-config community presets):
+    // - volume-max=200: allow volume boost up to 200%.
+    // - audio-pitch-correction=yes: maintain pitch when speed changes
+    //   (no chipmunk voices at 1.5x/2x).
+    // - audio-normalize-downmix=yes: better stereo downmix from 5.1/7.1
+    //   (multichannel audio sounds balanced on phone speakers/BT earbuds).
+    try {
+      await platform.setProperty('volume-max', '200');
+      await platform.setProperty('audio-pitch-correction', 'yes');
+      await platform.setProperty('audio-normalize-downmix', 'yes');
+      debugPrint('mpv: audio configured (volume-max=200, pitch-correction, normalize-downmix)');
+    } catch (e) {
+      debugPrint('mpv: audio config unavailable: $e');
     }
     // audio-spdif is intentionally omitted — see original comment below.
   }
