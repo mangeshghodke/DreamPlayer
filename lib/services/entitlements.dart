@@ -162,7 +162,7 @@ class Entitlements extends ChangeNotifier {
     } catch (_) {}
   }
 
-  void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
+  Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchases) async {
     IapLog.instance.log('PURCHASE_STREAM', 'received ${purchases.length} purchase(s)');
     for (final p in purchases) {
       IapLog.instance.log('PURCHASE_UPDATE', 'status=${p.status}, productID=${p.productID}, pendingComplete=${p.pendingCompletePurchase}, verification=${p.verificationData}');
@@ -173,9 +173,10 @@ class Entitlements extends ChangeNotifier {
         // from being accepted before the user taps a product.
         final isRestorePurchase = _restorePending;
         if (!isRestorePurchase && !_buyInitiated) {
-          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED purchased: _buyInitiated=false (orphaned stale transaction), completing it');
+          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED purchased: _buyInitiated=false (orphaned stale transaction), awaiting completePurchase');
           if (p.pendingCompletePurchase) {
-            InAppPurchase.instance.completePurchase(p);
+            await InAppPurchase.instance.completePurchase(p);
+            IapLog.instance.log('PURCHASE_UPDATE', 'completePurchase done for orphan: ${p.productID}');
           }
           continue;
         }
@@ -183,24 +184,23 @@ class Entitlements extends ChangeNotifier {
             (_expectedProductId == null || p.productID != _expectedProductId)) {
           IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED purchased: isRestore=$isRestorePurchase, expected=$_expectedProductId, got=${p.productID}');
           if (p.pendingCompletePurchase) {
-            InAppPurchase.instance.completePurchase(p);
+            await InAppPurchase.instance.completePurchase(p);
+            IapLog.instance.log('PURCHASE_UPDATE', 'completePurchase done for wrong product: ${p.productID}');
           }
           continue;
         }
-        // (Removed stale transactionDate check — it was rejecting
-        // fresh Lifetime purchases as stale in sandbox, causing
-        // ring → Purchase cancelled without sheet. The
-        // expectedProductId gate already prevents auto-activation.)
         IapLog.instance.log('PURCHASE_UPDATE', 'ACCEPTED purchased: productID=${p.productID}, isRestore=$isRestorePurchase');
         _advanced = true;
         _activeProductId = p.productID;
         _expectedProductId = null;
         _restorePending = false;
+        _buyInitiated = false;
         _debugFreeUser = false;
         _purchaseFailed = false;
         _purchaseCanceled = false;
         if (p.pendingCompletePurchase) {
-          InAppPurchase.instance.completePurchase(p);
+          await InAppPurchase.instance.completePurchase(p);
+          IapLog.instance.log('PURCHASE_UPDATE', 'completePurchase done for accepted: ${p.productID}');
         }
         notifyListeners();
         return;
@@ -210,7 +210,7 @@ class Entitlements extends ChangeNotifier {
         if (!_restorePending) {
           IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED restored: _restorePending=false');
           if (p.pendingCompletePurchase) {
-            InAppPurchase.instance.completePurchase(p);
+            await InAppPurchase.instance.completePurchase(p);
           }
           continue;
         }
@@ -223,7 +223,7 @@ class Entitlements extends ChangeNotifier {
         _purchaseFailed = false;
         _purchaseCanceled = false;
         if (p.pendingCompletePurchase) {
-          InAppPurchase.instance.completePurchase(p);
+          await InAppPurchase.instance.completePurchase(p);
         }
         notifyListeners();
         return;
@@ -235,7 +235,7 @@ class Entitlements extends ChangeNotifier {
         // treat as terminal immediately; give purchased a short window.
         // Complete so StoreKit clears the transaction.
         if (p.pendingCompletePurchase) {
-          InAppPurchase.instance.completePurchase(p);
+          await InAppPurchase.instance.completePurchase(p);
         }
         notifyListeners();
         // Clear the flag shortly after so next purchase isn't polluted,
