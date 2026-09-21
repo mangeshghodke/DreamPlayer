@@ -30,16 +30,13 @@ class Entitlements extends ChangeNotifier {
   bool _debugFreeUser = false;
   bool _debugTrialExpired = false;
   bool _purchaseFailed = false;
+  bool _purchaseCanceled = false;
 
   /// The product ID of the active purchase (null = not purchased, only trial).
   String? _activeProductId;
 
   /// The product ID expected from an in-flight purchase (null when idle).
   String? _expectedProductId;
-
-  /// When _expectedProductId was set (ms since epoch) — used to reject stale
-  /// pending transactions that were already in StoreKit before the tap.
-  int? _expectedSetAtMs;
 
   /// True while an explicit restorePurchases() is in flight.
   bool _restorePending = false;
@@ -148,35 +145,29 @@ class Entitlements extends ChangeNotifier {
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
     for (final p in purchases) {
       if (p.status == PurchaseStatus.purchased) {
-        // New purchase — only accept when user explicitly tapped a product
-        // (expectedProductId set by _buy) and the transaction is fresh
-        // (prevents stale pending transaction from auto-activating Lifetime
-        // without the double-click sheet, as seen in 35595929051).
-        if (_expectedProductId == null || p.productID != _expectedProductId) {
+        // New purchase — accept when user explicitly tapped a product
+        // (expectedProductId set by _buy) and the transaction is fresh,
+        // OR when a Restore is in flight (StoreKit may emit purchased
+        // for an active subscription on restore).
+        final isRestorePurchase = _restorePending;
+        if (!isRestorePurchase &&
+            (_expectedProductId == null || p.productID != _expectedProductId)) {
           if (p.pendingCompletePurchase) {
             InAppPurchase.instance.completePurchase(p);
           }
           continue;
         }
-        // Reject stale transactions that were created before the tap.
-        final txMs = p.transactionDate != null
-            ? int.tryParse(p.transactionDate!)
-            : null;
-        if (_expectedSetAtMs != null &&
-            txMs != null &&
-            txMs < _expectedSetAtMs! - 2000) {
-          if (p.pendingCompletePurchase) {
-            InAppPurchase.instance.completePurchase(p);
-          }
-          continue;
-        }
+        // (Removed stale transactionDate check — it was rejecting
+        // fresh Lifetime purchases as stale in sandbox, causing
+        // ring → Purchase cancelled without sheet. The
+        // expectedProductId gate already prevents auto-activation.)
         _advanced = true;
         _activeProductId = p.productID;
         _expectedProductId = null;
-        _expectedSetAtMs = null;
         _restorePending = false;
         _debugFreeUser = false;
         _purchaseFailed = false;
+        _purchaseCanceled = false;
         if (p.pendingCompletePurchase) {
           InAppPurchase.instance.completePurchase(p);
         }
@@ -194,10 +185,10 @@ class Entitlements extends ChangeNotifier {
         _advanced = true;
         _activeProductId = p.productID;
         _expectedProductId = null;
-        _expectedSetAtMs = null;
         _restorePending = false;
         _debugFreeUser = false;
         _purchaseFailed = false;
+        _purchaseCanceled = false;
         if (p.pendingCompletePurchase) {
           InAppPurchase.instance.completePurchase(p);
         }
@@ -205,17 +196,25 @@ class Entitlements extends ChangeNotifier {
         return;
       }
       if (p.status == PurchaseStatus.canceled) {
-        // Sandbox: StoreKit can fire canceled before purchased.
-        // Don't treat as terminal — wait for purchased or error.
+        _purchaseCanceled = true;
+        // Sandbox: StoreKit can fire canceled before purchased — don't
+        // treat as terminal immediately; give purchased a short window.
+        // Complete so StoreKit clears the transaction.
         if (p.pendingCompletePurchase) {
           InAppPurchase.instance.completePurchase(p);
         }
+        notifyListeners();
+        // Clear the flag shortly after so next purchase isn't polluted,
+        // but keep it long enough for the paywall's completer to see it.
+        Future<void>.delayed(const Duration(milliseconds: 800), () {
+          _purchaseCanceled = false;
+        });
         return;
       }
       if (p.status == PurchaseStatus.error) {
         _expectedProductId = null;
-        _expectedSetAtMs = null;
         _purchaseFailed = true;
+        _purchaseCanceled = false;
         notifyListeners();
         return;
       }
@@ -252,17 +251,18 @@ class Entitlements extends ChangeNotifier {
   }
 
   bool get purchaseFailed => _purchaseFailed;
+  bool get purchaseCanceled => _purchaseCanceled;
   String? get activeProductId => _activeProductId;
 
   void resetPurchaseFailed() {
     _purchaseFailed = false;
+    _purchaseCanceled = false;
     notifyListeners();
   }
 
   /// Set the expected product ID before launching a purchase.
   void setExpectedProduct(String productId) {
     _expectedProductId = productId;
-    _expectedSetAtMs = DateTime.now().millisecondsSinceEpoch;
   }
 
   /// Buy a product. Returns true if the transaction initiated successfully.
@@ -303,9 +303,9 @@ class Entitlements extends ChangeNotifier {
     _trialStartedAtMs = null;
     _activeProductId = null;
     _expectedProductId = null;
-    _expectedSetAtMs = null;
     _restorePending = false;
     _purchaseFailed = false;
+    _purchaseCanceled = false;
     _initialised = false;
   }
 

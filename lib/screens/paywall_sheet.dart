@@ -160,6 +160,8 @@ class _PaywallSheetState extends State<PaywallSheet> {
           completer.complete();
         } else if (Entitlements.instance.purchaseFailed && !completer.isCompleted) {
           completer.complete();
+        } else if (Entitlements.instance.purchaseCanceled && !completer.isCompleted) {
+          completer.complete();
         }
       }
       Entitlements.instance.addListener(listener);
@@ -234,13 +236,22 @@ class _PaywallSheetState extends State<PaywallSheet> {
 
   Future<void> _restorePurchases() async {
     final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     Entitlements.instance.startPurchaseListener();
-    await InAppPurchase.instance.restorePurchases();
-    await Future<void>.delayed(const Duration(seconds: 2));
+    await Entitlements.instance.restorePurchases();
+    // Give StoreKit up to 3s to deliver the restored transaction.
+    await Future<void>.delayed(const Duration(seconds: 3));
     if (!mounted) return;
     setState(() {});
     if (Entitlements.instance.isAdvanced) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Purchase restored!')),
+      );
       navigator.pop(true);
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No previous purchase found')),
+      );
     }
   }
 
