@@ -167,7 +167,30 @@ class _PaywallSheetState extends State<PaywallSheet> {
     try {
       final param = PurchaseParam(productDetails: product);
       IapLog.instance.log('BUY', 'calling buyNonConsumable...');
-      final launched = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
+      bool launched;
+      try {
+        launched = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
+      } catch (e) {
+        // StoreKit throws storekit_duplicate_product_object when a previous
+        // transaction for the same product was never completed. Complete it
+        // and retry once.
+        final msg = e.toString();
+        IapLog.instance.log('BUY', 'buyNonConsumable EXCEPTION: $msg');
+        if (msg.contains('storekit_duplicate_product_object')) {
+          IapLog.instance.log('BUY', 'duplicate product — draining pending tx then retrying');
+          await _drainPendingTxForProduct(product.id);
+          try {
+            launched = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
+          } catch (e2) {
+            IapLog.instance.log('BUY', 'retry also failed: $e2');
+            if (!mounted) return;
+            setState(() { _purchasingId = null; _error = 'Purchase failed — please try again'; });
+            return;
+          }
+        } else {
+          rethrow;
+        }
+      }
       IapLog.instance.log('BUY', 'buyNonConsumable returned: $launched');
       if (!launched) {
         IapLog.instance.log('BUY', 'buyNonConsumable returned false — could not start purchase');
@@ -191,6 +214,12 @@ class _PaywallSheetState extends State<PaywallSheet> {
         }
       }
       Entitlements.instance.addListener(listener);
+      // Race check: the purchaseStream listener (active from initState) may have
+      // already delivered the update and flipped _advanced BEFORE we got here.
+      if (Entitlements.instance.isAdvanced && !completer.isCompleted) {
+        IapLog.instance.log('BUY', 'RACE: isAdvanced already true before timeout — completing immediately');
+        completer.complete();
+      }
       try {
         await completer.future.timeout(const Duration(seconds: 15));
         IapLog.instance.log('BUY', 'completer resolved, isAdvanced=${Entitlements.instance.isAdvanced}');
@@ -213,6 +242,29 @@ class _PaywallSheetState extends State<PaywallSheet> {
       IapLog.instance.log('BUY', 'EXCEPTION: $e\n$st');
       if (!mounted) return;
       setState(() { _purchasingId = null; _error = 'Purchase failed'; });
+    }
+  }
+
+  /// Complete any orphaned pending transaction for a specific product, so
+  /// StoreKit stops blocking new purchases with storekit_duplicate_product_object.
+  Future<void> _drainPendingTxForProduct(String productId) async {
+    try {
+      final completer = Completer<void>();
+      late StreamSubscription<List<PurchaseDetails>> sub;
+      sub = InAppPurchase.instance.purchaseStream.listen((purchases) {
+        for (final p in purchases) {
+          if (p.productID == productId && p.pendingCompletePurchase) {
+            IapLog.instance.log('BUY', 'draining orphan tx: ${p.productID} (${p.status})');
+            InAppPurchase.instance.completePurchase(p);
+          }
+        }
+        if (!completer.isCompleted) completer.complete();
+      });
+      await InAppPurchase.instance.restorePurchases();
+      await completer.future.timeout(const Duration(seconds: 3));
+      await sub.cancel();
+    } catch (e) {
+      IapLog.instance.log('BUY', '_drainPendingTxForProduct error: $e');
     }
   }
 
