@@ -184,9 +184,8 @@ class _PaywallSheetState extends State<PaywallSheet> {
   }
 
   Future<void> _startTrial() async {
-    final navigator = Navigator.of(context);
     await Entitlements.instance.startTrial();
-    if (mounted) navigator.pop(true);
+    if (mounted) setState(() {});
   }
 
   void _showFeatures() {
@@ -196,6 +195,53 @@ class _PaywallSheetState extends State<PaywallSheet> {
       isScrollControlled: true,
       builder: (_) => const _FeaturesSheet(),
     );
+  }
+
+  void _showRestoreDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: const Text('Restore Purchases',
+            style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'This will restore any previously purchased '
+          'subscriptions or lifetime purchases from your '
+          'Apple ID. No charge will be made.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _restorePurchases();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.greenAccent,
+              foregroundColor: Colors.black87,
+            ),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _restorePurchases() async {
+    final navigator = Navigator.of(context);
+    Entitlements.instance.startPurchaseListener();
+    await InAppPurchase.instance.restorePurchases();
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() {});
+    if (Entitlements.instance.isAdvanced) {
+      navigator.pop(true);
+    }
   }
 
   @override
@@ -244,22 +290,9 @@ class _PaywallSheetState extends State<PaywallSheet> {
             const SizedBox(height: 16),
 
             // ── Free Trial Block ──────────────────────────────────
-            // Show when: not entitled AND trial is active OR trial hasn't started.
-            // If trial expired: block disappears, only products remain.
-            if (!entitled && (trialActive || !e.trialStartedEver))
+            // Always visible when the user is not entitled.
+            if (!entitled)
               _buildTrialBlock(trialActive, trialStarted, trialRemaining),
-            // If trial was started but expired, show a hint.
-            if (!entitled && !trialActive && e.trialStartedEver)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  'Free trial expired. Subscribe to unlock premium features.',
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
 
             const SizedBox(height: 12),
 
@@ -312,18 +345,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
 
             Center(
               child: TextButton(
-                onPressed: _purchasingId != null ? null : () async {
-                  final navigator = Navigator.of(context);
-                  Entitlements.instance.startPurchaseListener();
-                  await InAppPurchase.instance.restorePurchases();
-                  await Future<void>.delayed(const Duration(seconds: 2));
-                  if (mounted) {
-                    setState(() {});
-                    if (Entitlements.instance.isAdvanced) {
-                      navigator.pop(true);
-                    }
-                  }
-                },
+                onPressed: _purchasingId != null ? null : () => _showRestoreDialog(),
                 child: const Text('Restore Purchases',
                     style: TextStyle(color: Colors.white54)),
               ),
@@ -398,7 +420,37 @@ class _PaywallSheetState extends State<PaywallSheet> {
       ),
       child: trialActive
           ? _buildTrialActive(trialRemaining)
-          : _buildTrialNotStarted(),
+          : (trialStarted != null && !trialActive
+              ? _buildTrialExpired()
+              : _buildTrialNotStarted()),
+    );
+  }
+
+  Widget _buildTrialExpired() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.timer_off,
+                color: Colors.white.withValues(alpha: 0.5), size: 20),
+            const SizedBox(width: 8),
+            const Text(
+              '7-Day Free Trial Ended',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Your free trial has ended.\nYou can subscribe to unlock all premium features, or continue using the app with the basic experience.',
+          style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
+        ),
+      ],
     );
   }
 

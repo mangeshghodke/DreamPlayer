@@ -85,9 +85,9 @@ class TrialIntroScreen extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () async {
                     final navigator = Navigator.of(context);
-                    final purchased = await showPaywall(context);
-                    if (purchased && navigator.canPop()) {
-                      navigator.pop(true);
+                    showPaywall(context);
+                    if (navigator.canPop()) {
+                      navigator.pop();
                     }
                   },
                   style: ElevatedButton.styleFrom(

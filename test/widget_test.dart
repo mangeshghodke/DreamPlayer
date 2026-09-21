@@ -55,11 +55,9 @@ void main() {
     // store so getInstance() resolves without a platform channel. Also mark
     // the TMDB hint as shown so its dialog doesn't swallow the Settings tap.
     SharedPreferences.setMockInitialValues({'dreamplayer.tmdbHintShown': true});
-    // Android test runner + no date define: paywall is off by default. The
-    // debug "simulate free user" override flips it on so the Buy tile surfaces.
+    // The debug "simulate free user" override makes isAdvanced false
+    // so the Buy tile surfaces (not "Active").
     await Entitlements.instance.setDebugFreeUser(true);
-    // The debug override lazily starts the 7-day trial; expire it so the tile
-    // shows the "not yet entitled" buy state (not "Active").
     await Entitlements.instance.setDebugTrialExpired(true);
     addTearDown(() => Entitlements.instance.resetForTest());
 

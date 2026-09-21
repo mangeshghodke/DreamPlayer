@@ -85,14 +85,28 @@ void main() {
       expect(e.trialActive, isTrue);
     });
 
-    test('debugFreeUser toggle starts the trial lazily', () async {
+    test('debugFreeUser toggle does NOT auto-start the trial', () async {
       final e = Entitlements.instance;
       expect(e.trialActive, isFalse);
       await e.setDebugFreeUser(true);
-      expect(e.trialActive, isTrue); // flipping the override starts the trial
-      await e.setDebugFreeUser(false);
-      // Android real mode: trial never matters (always advanced).
+      // The override flips free-user mode but does NOT start the trial;
+      // the trial only begins when the user explicitly taps Start Free Trial.
       expect(e.trialActive, isFalse);
+      await e.setDebugFreeUser(false);
+      expect(e.debugFreeUser, isFalse);
+    });
+
+    test('startTrial sets the trial start time', () async {
+      final e = Entitlements.instance;
+      e.setTrialStartedAtForTest(null);
+      // On Android trialActive is false unless debugFreeUser is set;
+      // simulate iOS context by enabling the override so the timer matters.
+      await e.setDebugFreeUser(true);
+      expect(e.trialActive, isFalse);
+      await e.startTrial();
+      expect(e.trialActive, isTrue);
+      expect(e.trialStartedEver, isTrue);
+      await e.setDebugFreeUser(false);
     });
 
     test('debugFreeUser toggle sets free-user then restores', () async {

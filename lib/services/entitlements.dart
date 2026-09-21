@@ -192,17 +192,9 @@ class Entitlements extends ChangeNotifier {
   Future<void> setDebugFreeUser(bool value) async {
     _debugFreeUser = value;
     if (!value) _advanced = false; // reset to platform default (Android stays gated-true)
-    // Flipping the override on later also starts the trial (if never started),
-    // so the "free user on Android" simulation behaves like a real iOS user.
-    if (value && _trialStartedAtMs == null) {
-      _trialStartedAtMs = DateTime.now().millisecondsSinceEpoch;
-    }
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_kDebugFreeUser, value);
-      if (_trialStartedAtMs != null) {
-        await prefs.setInt(_kTrialStartedAt, _trialStartedAtMs!);
-      }
     } catch (_) {}
     notifyListeners();
   }
