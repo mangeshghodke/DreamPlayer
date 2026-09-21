@@ -133,30 +133,24 @@ class Entitlements extends ChangeNotifier {
   Future<void> _drainPendingTransactions() async {
     try {
       IapLog.instance.log('DRAIN', 'starting — restoring purchases to find orphans');
-      // Listen once, collect everything, complete all.
       final completer = Completer<void>();
       late StreamSubscription<List<PurchaseDetails>> sub;
       sub = InAppPurchase.instance.purchaseStream.listen((purchases) {
         for (final p in purchases) {
           IapLog.instance.log('DRAIN', 'got: status=${p.status}, productID=${p.productID}, pendingComplete=${p.pendingCompletePurchase}');
           if (p.status == PurchaseStatus.purchased || p.status == PurchaseStatus.restored) {
-            // Accept if it matches an active entitlement (sandbox re-delivers buys).
-            if (p.productID == _activeProductId || p.productID == 'dp_premium_lifetime_2026' ||
-                p.productID == 'dp_premium_monthly_2026' || p.productID == 'dp_premium_yearly_2026') {
-              if (p.status == PurchaseStatus.purchased && p.pendingCompletePurchase) {
-                IapLog.instance.log('DRAIN', 'completing orphan: ${p.productID}');
-                InAppPurchase.instance.completePurchase(p);
-              }
-            } else if (p.pendingCompletePurchase) {
-              IapLog.instance.log('DRAIN', 'completing unknown orphan: ${p.productID}');
-              InAppPurchase.instance.completePurchase(p);
-            }
+            // Complete EVERY restored/purchased transaction to clear StoreKit's
+            // pending queue — even pendingComplete=false ones, because StoreKit
+            // can still block new buys with storekit_duplicate_product_object
+            // for transactions it considers "pending" even after restore.
+            IapLog.instance.log('DRAIN', 'completing: ${p.productID} (${p.status}, pendingComplete=${p.pendingCompletePurchase})');
+            InAppPurchase.instance.completePurchase(p);
           }
         }
         if (!completer.isCompleted) completer.complete();
       });
       await InAppPurchase.instance.restorePurchases();
-      await completer.future.timeout(const Duration(seconds: 3));
+      await completer.future.timeout(const Duration(seconds: 5));
       await sub.cancel();
       IapLog.instance.log('DRAIN', 'done');
     } catch (e) {

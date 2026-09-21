@@ -215,10 +215,18 @@ class _PaywallSheetState extends State<PaywallSheet> {
       }
       Entitlements.instance.addListener(listener);
       // Race check: the purchaseStream listener (active from initState) may have
-      // already delivered the update and flipped _advanced BEFORE we got here.
-      if (Entitlements.instance.isAdvanced && !completer.isCompleted) {
-        IapLog.instance.log('BUY', 'RACE: isAdvanced already true before timeout — completing immediately');
-        completer.complete();
+      // already delivered the update and set a flag BEFORE we got here.
+      if (!completer.isCompleted) {
+        if (Entitlements.instance.isAdvanced) {
+          IapLog.instance.log('BUY', 'RACE: isAdvanced already true — completing immediately');
+          completer.complete();
+        } else if (Entitlements.instance.purchaseCanceled) {
+          IapLog.instance.log('BUY', 'RACE: purchaseCanceled already true — completing immediately');
+          completer.complete();
+        } else if (Entitlements.instance.purchaseFailed) {
+          IapLog.instance.log('BUY', 'RACE: purchaseFailed already true — completing immediately');
+          completer.complete();
+        }
       }
       try {
         await completer.future.timeout(const Duration(seconds: 15));
@@ -253,15 +261,15 @@ class _PaywallSheetState extends State<PaywallSheet> {
       late StreamSubscription<List<PurchaseDetails>> sub;
       sub = InAppPurchase.instance.purchaseStream.listen((purchases) {
         for (final p in purchases) {
-          if (p.productID == productId && p.pendingCompletePurchase) {
-            IapLog.instance.log('BUY', 'draining orphan tx: ${p.productID} (${p.status})');
+          if (p.productID == productId) {
+            IapLog.instance.log('BUY', 'draining orphan tx: ${p.productID} (${p.status}, pendingComplete=${p.pendingCompletePurchase})');
             InAppPurchase.instance.completePurchase(p);
           }
         }
         if (!completer.isCompleted) completer.complete();
       });
       await InAppPurchase.instance.restorePurchases();
-      await completer.future.timeout(const Duration(seconds: 3));
+      await completer.future.timeout(const Duration(seconds: 5));
       await sub.cancel();
     } catch (e) {
       IapLog.instance.log('BUY', '_drainPendingTxForProduct error: $e');
