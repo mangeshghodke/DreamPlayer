@@ -261,7 +261,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
       late StreamSubscription<List<PurchaseDetails>> sub;
       sub = InAppPurchase.instance.purchaseStream.listen((purchases) {
         for (final p in purchases) {
-          if (p.productID == productId) {
+          if (p.productID == productId && p.pendingCompletePurchase) {
             IapLog.instance.log('BUY', 'draining orphan tx: ${p.productID} (${p.status}, pendingComplete=${p.pendingCompletePurchase})');
             InAppPurchase.instance.completePurchase(p);
           }

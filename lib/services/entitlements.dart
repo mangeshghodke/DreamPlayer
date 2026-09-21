@@ -138,12 +138,13 @@ class Entitlements extends ChangeNotifier {
       sub = InAppPurchase.instance.purchaseStream.listen((purchases) {
         for (final p in purchases) {
           IapLog.instance.log('DRAIN', 'got: status=${p.status}, productID=${p.productID}, pendingComplete=${p.pendingCompletePurchase}');
-          if (p.status == PurchaseStatus.purchased || p.status == PurchaseStatus.restored) {
-            // Complete EVERY restored/purchased transaction to clear StoreKit's
-            // pending queue — even pendingComplete=false ones, because StoreKit
-            // can still block new buys with storekit_duplicate_product_object
-            // for transactions it considers "pending" even after restore.
-            IapLog.instance.log('DRAIN', 'completing: ${p.productID} (${p.status}, pendingComplete=${p.pendingCompletePurchase})');
+          // Only complete transactions that StoreKit considers "pending"
+          // (pendingComplete=true). Completed/restored transactions with
+          // pendingComplete=false should NOT be touched — completing them
+          // again causes StoreKit to re-deliver them as 'purchased' on the
+          // next buyNonConsumable call (the "instantly Active" bug).
+          if (p.pendingCompletePurchase) {
+            IapLog.instance.log('DRAIN', 'completing pending: ${p.productID} (${p.status})');
             InAppPurchase.instance.completePurchase(p);
           }
         }
