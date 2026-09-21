@@ -87,8 +87,11 @@ class Entitlements extends ChangeNotifier {
   /// Effective "paywall enabled" that respects the debug override.
   /// On Android paywallEnabled is false by default, but when debugFreeUser
   /// is true we override it to true so gates actually fire for testing.
+  /// kDebugMode gate: the debug override only takes effect in debug builds,
+  /// so a persisted _debugFreeUser flag can never leak the paywall into a
+  /// release APK.
   bool get effectivePaywallEnabled =>
-      paywallEnabled || (_debugFreeUser && defaultTargetPlatform == TargetPlatform.android);
+      paywallEnabled || (_debugFreeUser && kDebugMode && defaultTargetPlatform == TargetPlatform.android);
 
   bool _initialised = false;
   bool get initialised => _initialised;

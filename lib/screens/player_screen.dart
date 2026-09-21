@@ -1166,30 +1166,29 @@ class _PlayerScreenState extends State<PlayerScreen>
     try {
       // Size: our multiplier maps to mpv's sub-scale (1.0 = default).
       await platform.setProperty('sub-scale', '${s.sizeMultiplier}');
-      // Color: convert ARGB int to mpv's ASS format &HAABBGGRR.
-      final c = s.colorValue;
-      final a = ((c >> 24) & 0xFF).toRadixString(16).padLeft(2, '0');
-      final r = ((c >> 16) & 0xFF).toRadixString(16).padLeft(2, '0');
-      final g = ((c >> 8) & 0xFF).toRadixString(16).padLeft(2, '0');
-      final b = (c & 0xFF).toRadixString(16).padLeft(2, '0');
-      await platform.setProperty('sub-color', '&H$b$g$r$a');
+      // mpv uses #AARRGGBB hex colors (not ASS &HBBGGRR).
+      String colorToHex(int argb) {
+        final r = ((argb >> 16) & 0xFF).toRadixString(16).padLeft(2, '0');
+        final g = ((argb >> 8) & 0xFF).toRadixString(16).padLeft(2, '0');
+        final b = (argb & 0xFF).toRadixString(16).padLeft(2, '0');
+        final a = ((argb >> 24) & 0xFF).toRadixString(16).padLeft(2, '0');
+        return '#$a$r$g$b';
+      }
+      // Subtitle text color.
+      await platform.setProperty('sub-color', colorToHex(s.colorValue));
       // Background box behind subtitles.
       if (s.hasBackground) {
-        final bg = s.backgroundColorValue;
-        final bgA = (s.backgroundOpacity & 0xFF).toRadixString(16).padLeft(2, '0');
-        final bgR = ((bg >> 16) & 0xFF).toRadixString(16).padLeft(2, '0');
-        final bgG = ((bg >> 8) & 0xFF).toRadixString(16).padLeft(2, '0');
-        final bgB = (bg & 0xFF).toRadixString(16).padLeft(2, '0');
-        await platform.setProperty('sub-back-color', '&H$bgB$bgG$bgR$bgA');
-        await platform.setProperty('sub-back-alpha', '1');
+        // Combine the background color's RGB with the user's opacity slider.
+        final bgArgb = (s.backgroundOpacity << 24) |
+            (s.backgroundColorValue & 0x00FFFFFF);
+        await platform.setProperty('sub-back-color', colorToHex(bgArgb));
       } else {
-        await platform.setProperty('sub-back-color', '&H00000000');
-        await platform.setProperty('sub-back-alpha', '0');
+        await platform.setProperty('sub-back-color', '#00000000');
       }
       // Outline/shadow for readability.
       await platform.setProperty('sub-outline-size', s.outline ? '1.15' : '0');
-      await platform.setProperty('sub-outline-color', '&H80000000');
-      await platform.setProperty('sub-shadow-color', '&H80000000');
+      await platform.setProperty('sub-outline-color', '#80000000');
+      await platform.setProperty('sub-shadow-color', '#80000000');
       await platform.setProperty('sub-shadow-offset', '0');
       // Delay: positive = subtitle appears later.
       await platform.setProperty('sub-delay', '${s.delayMs / 1000.0}');
