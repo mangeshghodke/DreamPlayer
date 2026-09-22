@@ -217,10 +217,10 @@ class _PaywallSheetState extends State<PaywallSheet> {
         }
       }
       try {
-        await completer.future.timeout(const Duration(seconds: 15));
+        await completer.future.timeout(const Duration(seconds: 30));
         IapLog.instance.log('BUY', 'completer resolved, isAdvanced=${Entitlements.instance.isAdvanced}');
       } on TimeoutException {
-        IapLog.instance.log('BUY', 'TIMEOUT after 15s, isAdvanced=${Entitlements.instance.isAdvanced}, purchaseCanceled=${Entitlements.instance.purchaseCanceled}');
+        IapLog.instance.log('BUY', 'TIMEOUT after 30s, isAdvanced=${Entitlements.instance.isAdvanced}, purchaseCanceled=${Entitlements.instance.purchaseCanceled}');
       } finally {
         Entitlements.instance.removeListener(listener);
       }
