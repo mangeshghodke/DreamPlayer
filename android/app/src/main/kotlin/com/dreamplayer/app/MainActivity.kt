@@ -56,6 +56,23 @@ class MainActivity : FlutterActivity() {
         if (isTvBox(this)) {
             window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
         }
+
+        // Select the display's highest refresh rate so Flutter scrolls at the
+        // panel's native Hz (e.g. 120 Hz). Must run after super.onCreate()
+        // when the window is ready.
+        selectHighestRefreshRate()
+    }
+
+    /** Pick the highest refresh-rate mode the display supports. */
+    private fun selectHighestRefreshRate() {
+        val display = display ?: return
+        val modes = display.supportedModes
+        if (modes.isEmpty()) return
+        val best = modes.maxByOrNull { it.refreshRate } ?: return
+        if (best.modeId == display.mode.modeId) return // already at the best
+        val params = window.attributes
+        params.preferredDisplayModeId = best.modeId
+        window.attributes = params
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

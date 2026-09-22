@@ -252,11 +252,19 @@ class FolderScanner {
     final seasonNum = _seasonNumberFromName(name) ??
         (child is JellyfinItem && child.type == 'Season' ? child.indexNumber : null);
     if (seasonNum != null && seasonNum > 0 && root.name.isNotEmpty) {
-      // Only prefix when the season name itself doesn't already contain the
-      // show name (e.g. "Season 2" under "House" → "House Season02").
-      final lower = name.toLowerCase();
+      // Strip the season number from the child name to see if there's a
+      // meaningful show name left (e.g. "komi-san season01" → "komi-san").
+      // If so, keep the child's own show name and make the season tag
+      // non-strippable — don't override with the parent folder name.
+      // Only prefix when the child is a bare season tag ("Season 01", "S02")
+      // or its text content is the root name itself.
+      final stripped = name
+          .replaceAll(RegExp(r'\bseason\s*0*\d{1,2}\b', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\bS0*\d{1,2}\b'), '')
+          .trim();
       final rootLower = root.name.toLowerCase();
-      if (!lower.contains(rootLower)) {
+      if (stripped.isEmpty || stripped.toLowerCase() == rootLower) {
+        // Bare season tag or same as root → prefix with root name.
         effectiveName = '${root.name} Season${seasonNum.toString().padLeft(2, '0')}';
       } else if (name.contains(RegExp(r'Season\s+\d+', caseSensitive: false))) {
         // Already prefixed but with a strippable space — make it non-strippable.
@@ -264,6 +272,10 @@ class FolderScanner {
           RegExp(r'Season\s+(\d+)', caseSensitive: false),
           'Season${seasonNum.toString().padLeft(2, '0')}',
         );
+      } else {
+        // Child has its own show name (e.g. "komi-san season01") — keep it
+        // and make the season tag non-strippable so it stays a distinct card.
+        effectiveName = '$stripped Season${seasonNum.toString().padLeft(2, '0')}';
       }
     }
     switch (root.source) {

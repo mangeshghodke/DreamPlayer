@@ -28,6 +28,7 @@ const List<_LicenseEntry> _entries = [
       'https://pub.dev/packages/permission_handler'),
   _LicenseEntry('flutter_displaymode', 'MIT',
       'https://pub.dev/packages/flutter_displaymode'),
+
   _LicenseEntry('shared_preferences', 'BSD 3-Clause',
       'https://pub.dev/packages/shared_preferences'),
   _LicenseEntry('cupertino_icons', 'MIT',
