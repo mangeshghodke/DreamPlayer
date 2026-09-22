@@ -173,7 +173,10 @@ class _PaywallSheetState extends State<PaywallSheet> {
       final swept = await Entitlements.instance.sweepUnfinishedTransactions();
       IapLog.instance.log('BUY', 'pre-purchase sweep finished $swept unfinished transaction(s)');
       final param = PurchaseParam(productDetails: product);
-      IapLog.instance.log('BUY', 'calling buyNonConsumable...');
+      IapLog.instance.log('BUY', 'calling buyNonConsumable... (Apple confirmation sheet should appear)');
+      // Mark buy initiated BEFORE the call — StoreKit can deliver the purchase
+      // update synchronously during the call, before buyNonConsumable returns.
+      Entitlements.instance.markBuyInitiated();
       final launched = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
       IapLog.instance.log('BUY', 'buyNonConsumable returned: $launched');
       if (!launched) {
@@ -183,10 +186,6 @@ class _PaywallSheetState extends State<PaywallSheet> {
         setState(() { _purchasingId = null; _error = 'Could not start purchase'; });
         return;
       }
-      // Mark buy initiated — only NOW will _onPurchaseUpdate accept `purchased`
-      // status. This prevents orphaned pending transactions (from previous
-      // sessions) from being accepted before buyNonConsumable returns.
-      Entitlements.instance.markBuyInitiated();
       // Wait for Entitlements singleton to flip (max 15 s, then assume cancelled).
       IapLog.instance.log('BUY', 'waiting for Entitlements to flip (max 15s)...');
       final completer = Completer<void>();
