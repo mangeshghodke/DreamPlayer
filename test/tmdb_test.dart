@@ -756,6 +756,38 @@ void main() {
       expect(match('Strike the Blood Kieta Seisou Hen II', names), isNull);
       expect(match('Strike the Blood - The Movie 2021', names), isNull);
     });
+
+    test('suffix-style folder matches season name (issue #22 Railgun)', () {
+      // TMDB show 30977 — one show, seasons named with the full title.
+      const railgun = {
+        0: 'Specials',
+        1: 'A Certain Scientific Railgun',
+        2: 'A Certain Scientific Railgun S',
+        3: 'A Certain Scientific Railgun T',
+        4: 'Season 4',
+      };
+      expect(match('Railgun', railgun), 1);
+      expect(match('Railgun S', railgun), 2);
+      expect(match('Railgun T', railgun), 3);
+      expect(match('[SubsPlease] Railgun S - 1080p', railgun), 2);
+      // Exact season title still wins over suffix.
+      expect(match('A Certain Scientific Railgun S', railgun), 2);
+      // Folder that is not a suffix of any season title.
+      expect(match('Toaru Kagaku Railgun S', railgun), isNull);
+      expect(match('A Certain Scientific Railgun', railgun), 1);
+    });
+
+    test('suffix does not steal an unrelated season (issue #22)', () {
+      const railgun = {
+        1: 'A Certain Scientific Railgun',
+        2: 'A Certain Scientific Railgun S',
+        3: 'A Certain Scientific Railgun T',
+      };
+      // "Railgun" is a suffix of season 1 only ("… Railgun S" ends with S).
+      expect(match('Scientific Railgun', railgun), 1);
+      expect(match('Railgun S', railgun), 2);
+      expect(match('completely different', railgun), isNull);
+    });
   });
 
   group('Remove-info suppression (issue #11)', () {

@@ -1115,6 +1115,24 @@ class TmdApi {
     return details;
   }
 
+  /// Fetches a title by its TMDB id (issue #22 — "Search by TMDB ID" when
+  /// title search only returns the main show). Movie and TV ids live in
+  /// separate namespaces, so callers should try both kinds. Returns null on
+  /// a missing id, no API key, or any HTTP failure.
+  Future<TmdMovie?> byId(int id, TmdKind kind) async {
+    if (id <= 0) return null;
+    final key = await effectiveApiKey();
+    if (key.isEmpty) return null;
+    final endpoint = kind == TmdKind.movie ? '/movie/$id' : '/tv/$id';
+    try {
+      final json = await _get('$endpoint?api_key=$key&language=en-US');
+      final movie = TmdMovie.fromJson(json, kind: kind);
+      return movie.id != 0 ? movie : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Fetches season names for a TV show from `/tv/{id}`.
   /// Returns a map of seasonNumber → seasonName (e.g. {5: "Strike the Blood Final"}).
   Future<Map<int, String>> seasonNames(TmdMovie movie) async {
@@ -2250,7 +2268,9 @@ class TmdService extends ChangeNotifier {
   ///    Blood". There is no `sName.length > q.length` gate here: a folder
   ///    "Strike the Blood 1080p" used to fall through to word-overlap and be
   ///    mis-matched to Season 2 (see below).
-  /// 4. Word overlap (fallback when neither name contains the other): all
+  /// 4. Suffix (issue #22): the folder name is a word-boundary suffix of a
+  ///    season name — "Railgun S" → "A Certain Scientific Railgun S".
+  /// 5. Word overlap (fallback when neither name contains the other): all
   ///    words of the shorter name appear in the longer.
   ///
   /// 2026-09 regression fixed here: the old matcher dropped ≤2-char tokens
@@ -2341,6 +2361,26 @@ class TmdService extends ChangeNotifier {
     }
     if (bestSeason != null) return bestSeason;
 
+    // Suffix — the folder name is a word-boundary suffix of the season name
+    // (issue #22: "Railgun S" → "A Certain Scientific Railgun S",
+    // "Railgun T" → "… Railgun T"). Heavy release noise (`1080p`, `BluRay`)
+    // is stripped from the folder end first; short tokens (`S`, `T`, `II`)
+    // are never stripped because they ARE the season letter. Longest season
+    // name wins when several seasons share the same ending.
+    final qBase = _stripTrailingHeavyNoise(q);
+    int? suffixSeason;
+    var bestSuffixLen = 0;
+    for (final entry in entries) {
+      final sName = entry.value.toLowerCase().trim();
+      if (sName.isEmpty) continue;
+      if (sName != qBase && !sName.endsWith(' $qBase')) continue;
+      if (sName.length > bestSuffixLen) {
+        bestSuffixLen = sName.length;
+        suffixSeason = entry.key;
+      }
+    }
+    if (suffixSeason != null) return suffixSeason;
+
     // Word overlap — every word of the shorter name must appear in the longer,
     // AND any extra words in the longer name must all be release noise. This
     // preserves the old behavior for pure-name folders while disqualifying
@@ -2399,6 +2439,24 @@ class TmdService extends ChangeNotifier {
       'raws', 'disc', 'blu', 'ray',
     };
     return noise.contains(w);
+  }
+
+  /// Drops trailing heavy release noise from an already-lowercased query so
+  /// "railgun s - 1080p" can still suffix-match a season name. Never strips
+  /// short tokens (`s`, `t`, `ii`) or pure punctuation glued mid-name — only
+  /// trailing noise longer than 2 chars, or trailing punctuation/numbers that
+  /// cannot be part of a season letter suffix.
+  static String _stripTrailingHeavyNoise(String input) {
+    final words =
+        input.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    while (words.length > 1) {
+      final last = words.last;
+      final punct = RegExp(r'^[^\p{L}\p{N}]+$', unicode: true).hasMatch(last);
+      final heavyNoise = last.length > 2 && _isSeasonNoiseToken(last);
+      if (!punct && !heavyNoise) break;
+      words.removeLast();
+    }
+    return words.join(' ');
   }
 
   /// Nova-style: background-resolve TMDB metadata for every video in a folder.
@@ -2591,10 +2649,26 @@ class TmdService extends ChangeNotifier {
   }
 
   /// Manual fix: pins an explicitly chosen title for the video.
-  Future<void> setManual(VideoItem video, TmdMovie movie) async {
+  ///
+  /// [folderSeason] is the season the user (or Fix match dialog) picked.
+  /// When it is null and [folderName] is a TV folder name, the season is
+  /// resolved against the show's TMDB season names (issue #22 — a bare
+  /// [TmdMeta] with no [TmdMeta.folderSeason] left Railgun S/T folders
+  /// looking like Season 1 of the main show).
+  Future<void> setManual(VideoItem video, TmdMovie movie,
+      {int? folderSeason, String? folderName}) async {
     final identityKey = TmdStore.identityKeyFor(video);
     if (identityKey.isEmpty) return;
-    _cache[identityKey] = TmdMeta(movie: movie, manual: true);
+    await ensureLoaded();
+    final season = await _resolveManualSeason(movie, folderSeason, folderName);
+    final existing = _cache[identityKey];
+    _cache[identityKey] = TmdMeta(
+      movie: movie,
+      details: existing?.movie.id == movie.id ? existing?.details : null,
+      seasons: existing?.movie.id == movie.id ? existing!.seasons : const {},
+      folderSeason: season,
+      manual: true,
+    );
     await TmdStore.save(identityKey, _cache[identityKey]!);
     // Lift any "Remove info" suppression so the manual entry is returned
     // by resolve()/resolveFolder() on subsequent calls.
@@ -2605,13 +2679,44 @@ class TmdService extends ChangeNotifier {
 
   /// Manual fix for a library folder (identity = `folder:<id>`), so the folder
   /// details screen can be pinned to a TV series without a video.
-  Future<void> setManualFolder(String metadataKey, TmdMovie movie) async {
+  /// Same [folderSeason]/[folderName] resolution as [setManual].
+  Future<void> setManualFolder(String metadataKey, TmdMovie movie,
+      {int? folderSeason, String? folderName}) async {
     await ensureLoaded();
-    _cache[metadataKey] = TmdMeta(movie: movie, manual: true);
+    final season = await _resolveManualSeason(movie, folderSeason, folderName);
+    final existing = _cache[metadataKey];
+    _cache[metadataKey] = TmdMeta(
+      movie: movie,
+      details: existing?.movie.id == movie.id ? existing?.details : null,
+      seasons: existing?.movie.id == movie.id ? existing!.seasons : const {},
+      folderSeason: season,
+      manual: true,
+    );
     await TmdStore.save(metadataKey, _cache[metadataKey]!);
     _suppressed.remove(metadataKey);
     await TmdStore.unsuppress(metadataKey);
     notifyListeners();
+  }
+
+  /// Resolves the season for a manual pin: explicit [folderSeason] wins;
+  /// otherwise match [folderName] against the show's TMDB season names
+  /// (fetched once and cached). Returns null for movies / no folder name.
+  Future<int?> _resolveManualSeason(
+      TmdMovie movie, int? folderSeason, String? folderName) async {
+    if (folderSeason != null) return folderSeason;
+    if (movie.kind != TmdKind.tv) return null;
+    final name = folderName?.trim();
+    if (name == null || name.isEmpty) return null;
+    var names = _seasonNamesCache[movie.id];
+    if (names == null || names.isEmpty) {
+      names = await _api.seasonNames(movie);
+      if (names.isNotEmpty) {
+        _seasonNamesCache[movie.id] = names;
+        await _savePersistedSeasonNames();
+      }
+    }
+    if (names.isEmpty) return null;
+    return matchFolderToSeasonName(name, names);
   }
 
   /// Carries the full cached metadata (details + seasons) from [fromKey] to

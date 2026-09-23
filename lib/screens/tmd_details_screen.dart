@@ -26,6 +26,7 @@ import '../utils/codec_info.dart';
 import '../utils/file_info_extractor.dart';
 import '../utils/season_group.dart' as sg;
 import '../widgets/season_progress_ring.dart';
+import '../widgets/tmdb_fix_match_dialog.dart';
 import '../widgets/tv_tile.dart';
 import 'paywall_sheet.dart';
 import 'folder_screen.dart';
@@ -1041,25 +1042,46 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       widget.folder?.name ?? widget.video!.title,
       parentFolderName: _parentFolderNameFromPath,
     );
-    final picked = await showDialog<TmdMovie>(
-      context: context,
-      builder: (context) => _SearchDialog(
-        initialQuery: parsed.seriesName ?? parsed.title,
-        initialYear: parsed.year,
-        initialKind: parsed.isEpisode ? TmdKind.tv : TmdKind.movie,
-      ),
+    // Folder / parent-folder name drives season auto-match for shows like
+    // "Railgun S" (issue #22) when the dialog has to pin a season.
+    final seasonHintFolder = widget.folder?.name.isNotEmpty == true
+        ? widget.folder!.name
+        : (_parentFolderNameFromPath.isNotEmpty
+            ? _parentFolderNameFromPath
+            : null);
+    final picked = await showTmdbFixMatchDialog(
+      context,
+      initialQuery: parsed.seriesName ?? parsed.title,
+      initialYear: parsed.year,
+      initialKind: parsed.isEpisode ? TmdKind.tv : TmdKind.movie,
+      folderName: seasonHintFolder,
     );
     if (picked == null || !mounted) return;
     if (widget.folder != null) {
-      await _service.setManualFolder(widget.folder!.metadataKey, picked);
+      await _service.setManualFolder(
+        widget.folder!.metadataKey,
+        picked.movie,
+        folderSeason: picked.season,
+        folderName: seasonHintFolder,
+      );
     } else {
-      await _service.setManual(widget.video!, picked);
+      await _service.setManual(
+        widget.video!,
+        picked.movie,
+        folderSeason: picked.season,
+        folderName: seasonHintFolder,
+      );
     }
     // When the file card was opened from the home grid, the home card reads
     // metaFor(parentMetadataKey), not metaFor(video.resumeKey). Update the
     // folder key too so the poster refreshes on return.
     if (widget.parentMetadataKey != null && widget.folder == null) {
-      await _service.setManualFolder(widget.parentMetadataKey!, picked);
+      await _service.setManualFolder(
+        widget.parentMetadataKey!,
+        picked.movie,
+        folderSeason: picked.season,
+        folderName: seasonHintFolder,
+      );
     }
     if (!mounted) return;
     final meta = _service.metaFor(_identityKey);
@@ -3742,197 +3764,6 @@ class _Poster extends StatelessWidget {
   }
 }
 
-/// Manual search dialog for picking the right TMDB entry.
-class _SearchDialog extends StatefulWidget {
-  const _SearchDialog({this.initialQuery, this.initialYear, this.initialKind});
-
-  final String? initialQuery;
-  final int? initialYear;
-  final TmdKind? initialKind;
-
-  @override
-  State<_SearchDialog> createState() => _SearchDialogState();
-}
-
-class _SearchDialogState extends State<_SearchDialog> {
-  final _controller = TextEditingController();
-  final _api = TmdApi();
-
-  List<TmdMovie>? _results;
-  bool _searching = false;
-  bool _noKey = false;
-  String? _error;
-  late TmdKind _kind;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.text = widget.initialQuery ?? '';
-    _kind = widget.initialKind ?? TmdKind.movie;
-    // Auto-search on open when there's an initial query (Nova-style: the
-    // dialog immediately shows matching results without requiring Enter).
-    if (_controller.text.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _search();
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _search() async {
-    final query = _controller.text.trim();
-    if (query.isEmpty) return;
-    final key = await _api.effectiveApiKey();
-    if (!mounted) return;
-    if (key.isEmpty) {
-      setState(() {
-        _searching = false;
-        _results = null;
-        _noKey = true;
-      });
-      return;
-    }
-    setState(() {
-      _searching = true;
-      _results = null;
-      _error = null;
-      _noKey = false;
-    });
-    try {
-      // Search the selected kind first, then the other as fallback.
-      final primary = await _api.search(
-        query,
-        year: widget.initialYear,
-        kind: _kind,
-      );
-      final fallbackKind = _kind == TmdKind.tv ? TmdKind.movie : TmdKind.tv;
-      final fallback = await _api.search(query, kind: fallbackKind);
-      final results = <TmdMovie>[...primary, ...fallback];
-      final seen = <int>{};
-      results.removeWhere((m) => !seen.add(m.id));
-      if (!mounted) return;
-      setState(() => _results = results);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = 'Search failed: $e');
-    } finally {
-      if (mounted) setState(() => _searching = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return AlertDialog(
-      title: const Text('Get Info'),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              onSubmitted: (_) => _search(),
-              decoration: InputDecoration(
-                hintText: AppLocalizations.of(context).detailsSearchTitle,
-                prefixIcon: Icon(Icons.search),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SegmentedButton<TmdKind>(
-              segments: const [
-                ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
-                ButtonSegment(value: TmdKind.movie, label: Text('Movie')),
-              ],
-              selected: {_kind},
-              onSelectionChanged: (sel) => setState(() => _kind = sel.first),
-            ),
-            const SizedBox(height: 8),
-            if (_searching)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_noKey)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Search is unavailable right now. Try again in a moment.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colorScheme.onSurfaceVariant),
-                ),
-              )
-            else if (_error != null)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Search failed. Try again in a moment.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colorScheme.error),
-                ),
-              )
-            else if (_results != null)
-              if (_results!.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('No results. Try a different title.'),
-                )
-              else
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.4,
-                  ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _results!.length,
-                    itemBuilder: (context, index) {
-                      final movie = _results![index];
-                      return ListTile(
-                        leading: movie.posterUrl(width: 92) != null
-                            ? CachedImage(
-                                movie.posterUrl(width: 92)!,
-                                width: 36,
-                                height: 54,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    const Icon(Icons.movie),
-                              )
-                            : const Icon(Icons.movie),
-                        title: Text(movie.title),
-                        subtitle: Text(
-                          [
-                            if (movie.kind == TmdKind.tv) 'TV Series',
-                            if (movie.year != null) '${movie.year}',
-                            if (movie.voteAverage > 0)
-                              movie.voteAverage.toStringAsFixed(1),
-                          ].join('  ·  '),
-                        ),
-                        onTap: () => Navigator.of(context).pop(movie),
-                      );
-                    },
-                  ),
-                ),
-          ],
-        ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(AppLocalizations.of(context).commonCancel),
-        ),
-      ],
-    );
-  }
-}
 
 /// Poster card for a season subfolder inside a TV series details screen.
 /// Shows the TMDB season poster (or a gradient placeholder) + season name.

@@ -19,6 +19,7 @@ import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
 import '../utils/season_group.dart' as sg;
 import '../utils/tv_helper.dart';
+import '../widgets/tmdb_fix_match_dialog.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
 
@@ -1240,19 +1241,27 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     // like `[VCB-Studio]`, `[Hi10p_1080p]`) so the user isn't confronted with
     // the raw folder name in the search box (issue #11).
     final displayParsed = ParsedFileName.parse(widget.group.displayName);
-    final picked = await showDialog<TmdMovie>(
-      context: context,
-      builder: (context) => _FixMatchDialog(
-        initialQuery: displayParsed.seriesName?.isNotEmpty == true
-            ? displayParsed.seriesName!
-            : displayParsed.title.isNotEmpty
-                ? displayParsed.title
-                : widget.group.displayName,
-        initialYear: displayParsed.year,
-      ),
+    final query = displayParsed.seriesName?.isNotEmpty == true
+        ? displayParsed.seriesName!
+        : displayParsed.title.isNotEmpty
+            ? displayParsed.title
+            : widget.group.displayName;
+    final picked = await showTmdbFixMatchDialog(
+      context,
+      initialQuery: query,
+      initialYear: displayParsed.year,
+      initialKind: TmdKind.tv,
+      folderName: widget.group.displayName,
     );
     if (picked == null || !mounted) return;
-    await TmdService.instance.setManualFolder(_groupKey, picked);
+    // Group key is show-level: only pin folderSeason when the user (or the
+    // dialog's auto-match) picked one — the group spans multiple folders.
+    await TmdService.instance.setManualFolder(
+      _groupKey,
+      picked.movie,
+      folderSeason: picked.season,
+      folderName: picked.season != null ? null : widget.group.displayName,
+    );
     if (mounted) setState(() {});
   }
 
@@ -1800,188 +1809,6 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
   }
 }
 
-class _FixMatchDialog extends StatefulWidget {
-  const _FixMatchDialog({
-    required this.initialQuery,
-    required this.initialYear,
-  });
-
-  final String initialQuery;
-  final int? initialYear;
-
-  @override
-  State<_FixMatchDialog> createState() => _FixMatchDialogState();
-}
-
-class _FixMatchDialogState extends State<_FixMatchDialog> {
-  final _controller = TextEditingController();
-  final _api = TmdApi();
-  List<TmdMovie>? _results;
-  bool _searching = false;
-  bool _noKey = false;
-  String? _error;
-  late TmdKind _kind;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.text = widget.initialQuery;
-    _kind = TmdKind.tv;
-    if (_controller.text.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _search();
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _search() async {
-    final query = _controller.text.trim();
-    if (query.isEmpty) return;
-    final key = await _api.effectiveApiKey();
-    if (!mounted) return;
-    if (key.isEmpty) {
-      setState(() {
-        _searching = false;
-        _results = null;
-        _noKey = true;
-      });
-      return;
-    }
-    setState(() {
-      _searching = true;
-      _results = null;
-      _error = null;
-      _noKey = false;
-    });
-    try {
-      final primary = await _api.search(
-        query,
-        year: widget.initialYear,
-        kind: _kind,
-      );
-      final fallbackKind = _kind == TmdKind.tv ? TmdKind.movie : TmdKind.tv;
-      final fallback = await _api.search(query, kind: fallbackKind);
-      final results = <TmdMovie>[...primary, ...fallback];
-      final seen = <int>{};
-      results.removeWhere((m) => !seen.add(m.id));
-      if (!mounted) return;
-      setState(() => _results = results);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = 'Search failed: $e');
-    } finally {
-      if (mounted) setState(() => _searching = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return AlertDialog(
-      title: const Text('Get Info'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              onSubmitted: (_) => _search(),
-              decoration: const InputDecoration(
-                hintText: 'Search TMDB...',
-                prefixIcon: Icon(Icons.search),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SegmentedButton<TmdKind>(
-              segments: const [
-                ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
-                ButtonSegment(value: TmdKind.movie, label: Text('Movie')),
-              ],
-              selected: {_kind},
-              onSelectionChanged: (sel) => setState(() => _kind = sel.first),
-            ),
-            const SizedBox(height: 8),
-            if (_searching)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_noKey)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Search is unavailable right now. Try again in a moment.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colorScheme.onSurfaceVariant),
-                ),
-              )
-            else if (_error != null)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Search failed. Try again in a moment.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colorScheme.error),
-                ),
-              )
-            else if (_results != null)
-              if (_results!.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('No results. Try a different title.'),
-                )
-              else
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _results!.length,
-                    itemBuilder: (context, index) {
-                      final movie = _results![index];
-                      return ListTile(
-                        leading: movie.posterUrl(width: 92) != null
-                            ? CachedImage(
-                                movie.posterUrl(width: 92)!,
-                                width: 36,
-                                height: 54,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    const Icon(Icons.movie),
-                              )
-                            : const Icon(Icons.movie),
-                        title: Text(movie.title),
-                        subtitle: Text(
-                          [
-                            if (movie.kind == TmdKind.tv) 'TV Series',
-                            if (movie.year != null) '${movie.year}',
-                            if (movie.voteAverage > 0)
-                              movie.voteAverage.toStringAsFixed(1),
-                          ].join('  ·  '),
-                        ),
-                        onTap: () => Navigator.of(context).pop(movie),
-                      );
-                    },
-                  ),
-                ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-      ],
-    );
-  }
-}
 
 /// Poster card for a season in [SeriesSeasonsScreen].
 class _SeasonPosterCard extends StatelessWidget {
