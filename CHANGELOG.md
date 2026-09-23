@@ -3,6 +3,22 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.4.9
+
+### Fixed
+
+- **Media3 seeking always jumped to 00:00 (issue #25)** — double-tap +10 s and
+  the seekbar both restarted the video from the beginning on Media3 (MPV was
+  unaffected). Root cause: `ExoPlayerView.kt` set
+  `MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES` globally (added in 0.4.8 to
+  stop large MKVs from seeking to EOF for `Cues` during cold-start on SMB).
+  Without `Cues` the extractor has no timestamp→byte-offset index, so
+  `player.seekTo(ms)` clamps to window start (0) for every MKV on every source.
+  Fix: remove the global flag. SMB cold-start no longer needs it — it is now
+  covered by `MultiplexDataSource` reuse for the same URI + synchronous
+  head/tail prefill in `SmbDataSource.open` (verified: all files now seek
+  correctly on OnePlus 12R / Pad 2; local and SMB MKV/MP4).
+
 ## 0.4.8
 
 ### Added

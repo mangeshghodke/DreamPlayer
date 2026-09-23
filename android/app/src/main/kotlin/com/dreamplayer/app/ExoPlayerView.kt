@@ -40,7 +40,6 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
-import androidx.media3.extractor.mkv.MatroskaExtractor
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
@@ -414,15 +413,8 @@ class ExoPlayerView(
 
     private val mediaSourceFactory = DefaultMediaSourceFactory(
         dataSourceFactory,
-        // FLAG_DISABLE_SEEK_FOR_CUES: large MKVs put Cues at EOF, so the
-        // default MatroskaExtractor seeks to the end of the file during init
-        // (observed: open pos=0 → open pos≈31GB 1.5s later). On SMB that
-        // forced a full ring reset + new session mid-startup. Cue-based
-        // seeking is only needed for accurate scrub; SeekHead at the segment
-        // start still yields a usable map for coarse seeks.
         DefaultExtractorsFactory()
-            .setSubtitleParserFactory(subtitleParserFactory)
-            .setMatroskaExtractorFlags(MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES),
+            .setSubtitleParserFactory(subtitleParserFactory),
         subtitleParserFactory,
     )
 

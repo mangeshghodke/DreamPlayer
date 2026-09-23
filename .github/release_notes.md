@@ -15,7 +15,7 @@ Not sure which to pick? Grab the **Universal** APK.
 
 ## Versioning
 
-App version follows **semver**, bumped per release (current release: **0.4.8**).
+App version follows **semver**, bumped per release (current release: **0.4.9**).
 
 ## Playing videos from your NAS / SMB share
 

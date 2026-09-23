@@ -25,8 +25,15 @@ A video player app supporting:
   `test/audio_track_store_test.dart`.
 - **SMB cold-start fix (2026-09-23, user-verified)**: secondary handles open
   outside `ringLock`, synchronous head/tail prefill in `SmbDataSource.open`,
-  `FLAG_DISABLE_SEEK_FOR_CUES` on Matroska, `MultiplexDataSource` reuses the
-  same-URI SMB/FTP delegate. Large MKV over NAS no longer stalls at open.
+  `MultiplexDataSource` reuses the same-URI SMB/FTP delegate. Large MKV over
+  NAS no longer stalls at open. `FLAG_DISABLE_SEEK_FOR_CUES` was trialed in
+  0.4.8 and **removed in 0.4.9** — it broke seeking for every MKV (issue #25).
+- **Media3 seek regression fix (2026-09-24, 0.4.9, issue #25)**: double-tap
+  +10 s and seekbar both jumped to 00:00 on Media3 (MPV ok) on OnePlus 12R /
+  Pad 2 for all files. Global `MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES`
+  was the cause — it strips the `Cues` timestamp→byte index. Fix: remove the
+  flag (`ExoPlayerView.kt:415`); cold-start is now covered by
+  `MultiplexDataSource` + sync prefill.
 - **MPV SurfaceView path Phase 1+2 in tree (2026-09-23)**: `media_kit_video`
   removed; video → `MpvSurfaceView` (hybrid composition). Custom `libmpv.so`
   may live in `android/app/src/main/jniLibs/` (Gradle `pickFirsts`). See
