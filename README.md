@@ -273,9 +273,11 @@ Center → AirPlay / Head-tracking, not from inside any third-party app.
 
 ## Download
 
-Prebuilt Android binaries are on the [Releases](https://github.com/mangeshghodke/DreamPlayer/releases) page.
+Prebuilt **Android** binaries are on the [Releases](https://github.com/mangeshghodke/DreamPlayer/releases) page.
 
 - **Android** — universal APK + per-architecture APKs (arm64, armv7, x86_64)
+
+**iOS / iPadOS** — no `.ipa` is published here. Apple only allows distribution via the **App Store**, **TestFlight**, or **Ad Hoc** (DPLA 7.6 / 3.2(g)), so GitHub Releases are Android-only. Signed iOS builds are produced by the separate [`ios.yml`](https://github.com/mangeshghodke/DreamPlayer/actions/workflows/ios.yml) workflow and uploaded to **TestFlight**.
 
 ## Getting Started
 
