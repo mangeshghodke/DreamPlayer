@@ -47,7 +47,9 @@ dependencies:
   package_info_plus: ^10.2.1
   multicast_dns: ^0.3.3+1
   media_kit: ^1.2.6
-  media_kit_video: ^2.0.1
+  # media_kit_video intentionally omitted — its Flutter Texture + VideoController
+  # stutter on MPV playback. The SurfaceView path (mpv_surface_view.dart +
+  # MpvSurfaceView.kt) owns video output; media_kit provides Player control only.
   # Android-only: ships libmpv.so for the libmpv fallback engine. The
   # facade `media_kit_libs_video` would also pull in `Mpv.framework` +
   # `media_kit_libs_ios_video.framework` for iOS, which we don't use

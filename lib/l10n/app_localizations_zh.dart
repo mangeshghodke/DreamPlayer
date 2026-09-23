@@ -472,6 +472,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsEngineAskDesc => 'Show both options on every video';
 
   @override
+  String get settingsToneMapMode => 'HDR 色调映射 (MPV)';
+
+  @override
+  String get settingsToneMapSdrDesc => '在引擎内将 HDR/DV 转换为 SDR (libplacebo)';
+
+  @override
+  String get settingsToneMapNativeDesc => '将 HDR 色彩空间直通到显示器';
+
+  @override
   String get settingsAutoPlayNext => '自动播放下一集';
 
   @override

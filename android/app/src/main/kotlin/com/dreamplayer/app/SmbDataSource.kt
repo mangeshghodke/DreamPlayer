@@ -189,10 +189,42 @@ class SmbDataSource(private val context: Context) : BaseDataSource(true) {
                 }
             }
 
+            // Open secondary SMB handles BEFORE taking ringLock — each open is
+            // a tree-connect + create round-trip. Doing this under ringLock
+            // (old startPrefetchers path) blocked the first Media3 read for
+            // seconds on a cold NAS and made SMB start look "stuck".
+            //
+            // Skip entirely when:
+            //  - the seek lands inside the live ring (reuse path — threads
+            //    are still running), or
+            //  - short/tail probes (dataSpec.length small, remaining < 2
+            //    chunks): a cue/duration read of ~1MB never needs 5 parallel
+            //    readers, and each secondary open costs a full SMB
+            //    tree-connect before open() can return.
+            var withinWindow = false
+            synchronized(ringLock) {
+                withinWindow = fileKey == key && valid > 0 &&
+                    dataSpec.position >= bufStart && dataSpec.position < bufStart + valid
+            }
+            val remaining0 = size - dataSpec.position
+            val needPrefetch = !withinWindow &&
+                remaining0 > BufferTuning.chunkBytes.toLong() * 2 &&
+                (dataSpec.length == C.LENGTH_UNSET.toLong() ||
+                    dataSpec.length > BufferTuning.chunkBytes.toLong())
+            val secondaries = ArrayList<SmbRandomAccessFile?>(BufferTuning.prefetchThreads)
+            if (needPrefetch) {
+                try {
+                    for (i in 1 until BufferTuning.prefetchThreads) {
+                        secondaries.add(openSecondaryHandle())
+                    }
+                } catch (e: Exception) {
+                    secondaries.forEach { h -> try { h?.close() } catch (_: Exception) {} }
+                    throw IOException("SMB secondary open failed: ${e.message}", e)
+                }
+            }
+
             synchronized(ringLock) {
                 fileSize = size
-                val withinWindow = fileKey == key && valid > 0 &&
-                    dataSpec.position >= bufStart && dataSpec.position < bufStart + valid
                 if (!withinWindow) {
                     ringEpoch++
                     ensureRingCapacity()
@@ -205,40 +237,49 @@ class SmbDataSource(private val context: Context) : BaseDataSource(true) {
                     fatalError = null
                     eofAt = -1
                     Log.i(TAG, "open: ring reset, pos=$position, file=$fileSize")
+                    // Outside the window: existing prefetchers write the old
+                    // region — kill them before the sync fill.
+                    killPrefetchersLocked()
                 } else {
                     position = dataSpec.position
                     Log.i(TAG, "open: seek within buffer, keeping $valid bytes at $bufStart")
+                    // In-window: leave prefetchers running; they continue from
+                    // nextWritePos. Only wake them in case they were idle.
                 }
-                killPrefetchersLocked()
-
-                val remaining = size - dataSpec.position
-                if (remaining in 1 until BufferTuning.chunkBytes) {
-                    // Near-EOF: pre-fill synchronously so the extractor can probe
-                    // the tail without waiting for prefetch threads...
-                    ensureRingCapacity()
-                    ringLock.notifyAll()
-                }
-                // ...but always start prefetchers too, so any tail gap left by a
-                // partial sync fill gets topped up (and bufEof stays correct).
-                startPrefetchers()
                 ringLock.notifyAll()
             }
 
-            // Near-EOF synchronous fill (outside ringLock for SMB I/O)
+            // Synchronous head (or tail) fill so the FIRST Media3 read does not
+            // block on an empty ring. Without this, open() returned with
+            // valid=0, the extractor hit RING EMPTY, and startup waited for
+            // a whole prefetch round-trip — while HDR/chapter probes already
+            // held other SMB sessions and starved the ring even longer.
+            // Runs BEFORE prefetchers start so they continue from nextWritePos
+            // after the filled head instead of racing the same region.
+            // Short probes (explicit small dataSpec.length) only fill what the
+            // caller asked for — not a full 4 MiB chunk.
             val remaining = size - dataSpec.position
-            if (remaining in 1 until BufferTuning.chunkBytes) {
-                val tmp = ByteArray(remaining.toInt())
+            val fillWant: Long = when {
+                remaining <= 0L -> 0L
+                dataSpec.length != C.LENGTH_UNSET.toLong() &&
+                    dataSpec.length in 1 until remaining -> dataSpec.length // bounded read
+                remaining < BufferTuning.chunkBytes -> remaining // near-EOF: whole tail
+                else -> minOf(BufferTuning.chunkBytes.toLong(), remaining) // head prefill
+            }
+            if (fillWant > 0L) {
+                val tmp = ByteArray(fillWant.toInt())
                 var off = 0
-                var left = remaining
+                var left = fillWant
+                val fillAt = dataSpec.position
                 while (left > 0) {
                     val got: Int
                     synchronized(smbLock) {
                         val r = raf ?: break
                         try {
-                            r.seek(size - remaining + off)
+                            r.seek(fillAt + off)
                             got = r.read(tmp, off, left.toInt())
                         } catch (e: Exception) {
-                            Log.w(TAG, "near-EOF read error: ${e.message}")
+                            Log.w(TAG, "open sync-fill read error: ${e.message}")
                             break
                         }
                     }
@@ -248,29 +289,57 @@ class SmbDataSource(private val context: Context) : BaseDataSource(true) {
                 }
                 if (off > 0) {
                     synchronized(ringLock) {
-                        ensureRingCapacity()
-                        val r = ring!!
-                        var wOff = 0
-                        var wLeft = off
-                        var wIdx = idx(bufStart)
-                        while (wLeft > 0) {
-                            val chunk = minOf(wLeft, ringSize - wIdx)
-                            System.arraycopy(tmp, wOff, r, wIdx, chunk)
-                            wIdx = (wIdx + chunk) % ringSize
-                            wOff += chunk
-                            wLeft -= chunk
+                        // Only apply if the ring was not re-targeted mid-fill.
+                        if (bufStart == fillAt) {
+                            ensureRingCapacity()
+                            val r = ring!!
+                            var wOff = 0
+                            var wLeft = off
+                            var wIdx = idx(bufStart)
+                            while (wLeft > 0) {
+                                val chunk = minOf(wLeft, ringSize - wIdx)
+                                System.arraycopy(tmp, wOff, r, wIdx, chunk)
+                                wIdx = (wIdx + chunk) % ringSize
+                                wOff += chunk
+                                wLeft -= chunk
+                            }
+                            if (off > valid) {
+                                valid = off.toLong()
+                                nextWritePos = bufStart + valid
+                            }
+                            // Only flag EOF for a full-tail fill; a head prefill
+                            // must leave room for prefetchers to continue.
+                            if (remaining < BufferTuning.chunkBytes && off >= remaining) {
+                                bufEof = true
+                                eofAt = bufStart + valid
+                            }
+                            ringLock.notifyAll()
+                            Log.i(TAG, "open: sync-filled $off bytes at $bufStart eof=$bufEof")
                         }
-                        valid = off.toLong()
-                        nextWritePos = bufStart + valid
-                        // Only flag EOF if the whole tail was read; a partial read
-                        // means bytes are still missing and the prefetchers must
-                        // top them up (otherwise the consumer gets a premature
-                        // END_OF_INPUT -> extractor EOFException).
-                        bufEof = off >= remaining
-                        if (bufEof) eofAt = bufStart + valid
-                        ringLock.notifyAll()
-                        Log.i(TAG, "open: near-EOF filled $off/$remaining bytes at $bufStart")
                     }
+                }
+            }
+
+            // Tail-only / fully-filled short probes / in-window seeks: no new
+            // prefetch threads — they would just wait on bufEof (or duplicate
+            // the already-running set) while holding secondary handles.
+            if (!withinWindow && !bufEofAfterFill()) {
+                synchronized(ringLock) {
+                    // Only start if this open killed the previous set (or none
+                    // were running). In-window reuses the live threads.
+                    if (prefetchers.isEmpty()) {
+                        startPrefetchers(secondaries)
+                    } else {
+                        secondaries.forEach { h -> try { h?.close() } catch (_: Exception) {} }
+                    }
+                    ringLock.notifyAll()
+                }
+            } else {
+                secondaries.forEach { h -> try { h?.close() } catch (_: Exception) {} }
+                if (withinWindow) {
+                    Log.i(TAG, "open: kept live prefetch threads after in-window seek")
+                } else {
+                    Log.i(TAG, "open: eof-after-fill, skipped prefetch threads")
                 }
             }
 
@@ -386,6 +455,9 @@ class SmbDataSource(private val context: Context) : BaseDataSource(true) {
         openedUri = null
     }
 
+    /// True when the ring already covers through EOF (no more read-ahead to do).
+    private fun bufEofAfterFill(): Boolean = synchronized(ringLock) { bufEof }
+
     private fun connectLocked(
         key: String,
         creds: SmbCredentials,
@@ -446,9 +518,11 @@ class SmbDataSource(private val context: Context) : BaseDataSource(true) {
         prefetchKilled = false
     }
 
-    private fun startPrefetchers() {
+    /// Starts prefetch threads with secondary handles that were already opened
+    /// OUTSIDE ringLock (see [open]). Caller holds ringLock.
+    private fun startPrefetchers(secondaries: List<SmbRandomAccessFile?>) {
         for (i in 0 until BufferTuning.prefetchThreads) {
-            val handle = if (i == 0) null else openSecondaryHandle()
+            val handle = if (i == 0) null else secondaries.getOrNull(i - 1)
             val t = Thread { prefetchLoop(prefetchGen, i, handle) }
             t.isDaemon = true
             t.name = "smb-prefetch-$i"

@@ -16,6 +16,7 @@ import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/manual_groups.dart';
+import '../services/default_engine_store.dart';
 import '../services/network_video_resolver.dart';
 import '../services/series_grouping.dart';
 import '../services/smb_client.dart';
@@ -43,6 +44,13 @@ import 'tmd_details_screen.dart';
 import 'movie_group_screen.dart';
 import 'upnp_screen.dart';
 import 'webdav_screen.dart';
+
+/// True under `flutter test` — skips network probes that leave pending Timers.
+///
+/// `bool.fromEnvironment('FLUTTER_TEST')` is false for app code compiled into
+/// widget tests on this Flutter version, so detect the test binding instead.
+bool get _inTests =>
+    WidgetsBinding.instance.runtimeType.toString().contains('Test');
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.refreshTick});
@@ -506,6 +514,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _resolveFolderMetadata(List<LibraryFolder> folders) async {
+    // Widget tests pump this fire-and-forget path; the connectivity probe's
+    // 3s timeout Timer outlives the test binding and trips !timersPending.
+    if (_inTests) return;
     final service = TmdService.instance;
     await service.ensureLoaded();
     // Quick connectivity check — skip TMDB resolution when offline to avoid
@@ -1073,20 +1084,95 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   /// Best-effort TMDB lookups so cards can show poster art and real titles
-  /// without waiting for a tap.
+  /// without waiting for a tap. Same tools as the poster-card path: a
+  /// file-level resolve (parent-folder name + base-query fallback in
+  /// `bestMatch`), then inherit the library folder's `resolveFolder` meta
+  /// when the file search still misses (e.g. raw title scores 0).
   Future<void> _resolveMetadata(List<ContinueWatchingEntry> entries) async {
     final service = TmdService.instance;
     await service.ensureLoaded();
+    // Folder list may not be loaded yet (fire-and-forget from _loadLibrary).
+    final folders = _folders.isNotEmpty ? _folders : await LibraryFoldersStore.load();
     for (final e in entries) {
       final video = e.video;
       final key = TmdStore.identityKeyFor(video);
       if (service.metaFor(key) != null) continue;
       try {
-        await service.resolve(video);
+        await service.resolve(
+          video,
+          parentFolderName:
+              _parentFolderNameOf(video.path ?? video.uri ?? ''),
+        );
+        if (service.metaFor(key) != null) continue;
+        // File search missed — inherit the folder poster-card match.
+        final folder =
+            _matchingLibraryFolder(folders, video.path ?? video.uri);
+        if (folder == null) continue;
+        var folderMeta = service.metaFor(folder.metadataKey);
+        if (folderMeta == null) {
+          await service.resolveFolder(
+            folder.metadataKey,
+            folder.name,
+            yearHint: folder.yearHint,
+            fileNames: [video.title],
+          );
+          folderMeta = service.metaFor(folder.metadataKey);
+        }
+        if (folderMeta != null) {
+          await service.carryMeta(folder.metadataKey, key);
+        }
       } catch (_) {
         // Network failures are non-fatal; the card just stays a placeholder.
       }
     }
+  }
+
+  /// Longest library-folder path that is a prefix of [path] (a video under a
+  /// bookmarked folder). Null when the file is outside the library.
+  LibraryFolder? _matchingLibraryFolder(
+      List<LibraryFolder> folders, String? path) {
+    if (path == null || path.isEmpty) return null;
+    LibraryFolder? best;
+    for (final f in folders) {
+      if (f.isFile) continue;
+      final fp = f.path;
+      if (fp.isEmpty) continue;
+      final prefix = fp.endsWith('/') ? fp : '$fp/';
+      if (path == fp || path.startsWith(prefix)) {
+        if (best == null || fp.length > best.path.length) best = f;
+      }
+    }
+    return best;
+  }
+
+  /// Parent directory name of a filesystem path (empty for top-level files).
+  static String _parentFolderNameOf(String path) {
+    if (path.isEmpty) return '';
+    var clean = path.split('?').first.split('#').first;
+    if (clean.endsWith('/')) clean = clean.substring(0, clean.length - 1);
+    final lastSlash = clean.lastIndexOf('/');
+    if (lastSlash <= 0) return '';
+    final parent = clean.substring(0, lastSlash);
+    final parentSlash = parent.lastIndexOf('/');
+    final segment =
+        parentSlash >= 0 ? parent.substring(parentSlash + 1) : parent;
+    try {
+      return Uri.decodeComponent(segment);
+    } catch (_) {
+      return segment;
+    }
+  }
+
+  /// Meta for a continue-watching card: the file's own key first, then the
+  /// parent library folder's key (poster-card result) so the grid can paint
+  /// before/without a per-file resolve.
+  TmdMeta? _metaForContinueVideo(VideoItem video) {
+    final direct = TmdService.instance.metaFor(TmdStore.identityKeyFor(video));
+    if (direct != null) return direct;
+    final folder =
+        _matchingLibraryFolder(_folders, video.path ?? video.uri);
+    if (folder == null) return null;
+    return TmdService.instance.metaFor(folder.metadataKey);
   }
 
   Future<void> _removeVideo(ContinueWatchingEntry entry) async {
@@ -1683,9 +1769,11 @@ class _HomeScreenState extends State<HomeScreen>
       );
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
+    unawaited(() async {
+      final def = await DefaultEngineStore.load();
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        PlayerScreen.route(
           video: VideoItem(
             id: job.id,
             title: job.title,
@@ -1693,9 +1781,12 @@ class _HomeScreenState extends State<HomeScreen>
             duration: Duration.zero,
             sizeBytes: job.totalBytes > 0 ? job.totalBytes : null,
           ),
+          initialEngine: def == DefaultEngine.mpv
+              ? PlayEngine.mpv
+              : PlayEngine.media3,
         ),
-      ),
-    );
+      );
+    }());
   }
 
   void _confirmDeleteDownload(DownloadJob job) {
@@ -1759,9 +1850,11 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _playDownloaded(DownloadJob job) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
+    unawaited(() async {
+      final def = await DefaultEngineStore.load();
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        PlayerScreen.route(
           video: VideoItem(
             id: job.id,
             title: job.title,
@@ -1769,9 +1862,12 @@ class _HomeScreenState extends State<HomeScreen>
             duration: Duration.zero,
             sizeBytes: job.totalBytes > 0 ? job.totalBytes : null,
           ),
+          initialEngine: def == DefaultEngine.mpv
+              ? PlayEngine.mpv
+              : PlayEngine.media3,
         ),
-      ),
-    );
+      );
+    }());
   }
 
   /// A responsive grid of video cards (columns from the screen width), shared
@@ -1823,40 +1919,38 @@ class _HomeScreenState extends State<HomeScreen>
                         video.duration.inMilliseconds)
                     .clamp(0.0, 1.0)
               : null;
-          return VideoCard(
-            key: ValueKey(video.resumeKey ?? video.uri ?? video.title),
-            video: video,
-            tmdbMeta: group.showMeta,
-            progress: progress,
-            subtitle: group.cardSubtitle(_positionLabel),
-            onTap: () => _openVideo(entry),
-            onLongPress: () => _removeVideo(entry),
-          );
-        }
-        // Single entry (movie or unmatched episode).
-        final entry = group.entries.first;
-        final video = entry.video;
-        final progress = video.duration > Duration.zero
-            ? (entry.position.inMilliseconds /
-                      video.duration.inMilliseconds)
-                  .clamp(0.0, 1.0)
-            : null;
-        final parsed = ParsedFileName.parse(video.title);
-        final continueLabel =
-            'Continue from ${_positionLabel(entry.position)}';
         return VideoCard(
           key: ValueKey(video.resumeKey ?? video.uri ?? video.title),
           video: video,
-          tmdbMeta: TmdService.instance.metaFor(
-            TmdStore.identityKeyFor(video),
-          ),
+          tmdbMeta: _metaForContinueVideo(video),
           progress: progress,
-          subtitle: parsed.isEpisode
-              ? '${parsed.episodeLabel} · $continueLabel'
-              : continueLabel,
+          subtitle: group.cardSubtitle(_positionLabel),
           onTap: () => _openVideo(entry),
           onLongPress: () => _removeVideo(entry),
         );
+      }
+      // Single entry (movie or unmatched episode).
+      final entry = group.entries.first;
+      final video = entry.video;
+      final progress = video.duration > Duration.zero
+          ? (entry.position.inMilliseconds /
+                    video.duration.inMilliseconds)
+                .clamp(0.0, 1.0)
+          : null;
+      final parsed = ParsedFileName.parse(video.title);
+      final continueLabel =
+          'Continue from ${_positionLabel(entry.position)}';
+      return VideoCard(
+        key: ValueKey(video.resumeKey ?? video.uri ?? video.title),
+        video: video,
+        tmdbMeta: _metaForContinueVideo(video),
+        progress: progress,
+        subtitle: parsed.isEpisode
+            ? '${parsed.episodeLabel} · $continueLabel'
+            : continueLabel,
+        onTap: () => _openVideo(entry),
+        onLongPress: () => _removeVideo(entry),
+      );
       },
     );
   }
@@ -2072,25 +2166,28 @@ class _HomeScreenState extends State<HomeScreen>
     }
     final last = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
     final title = Uri.decodeComponent(last.isNotEmpty ? last : uri.host);
+    final def = await DefaultEngineStore.load();
+    if (!mounted) return;
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PlayerScreen(
-          video: () {
-            final fi = extractFileInfo(title);
-            return VideoItem(
-              id: 'url_${url.hashCode}',
-              title: title,
-              uri: url,
-              resumeKey: 'url:$url',
-              duration: Duration.zero,
-              videoCodec: fi.videoCodec,
-              audioCodec: fi.audioCodec,
-              audioChannels: fi.audioChannels,
-              resolution: fi.resolution,
-              hdrHint: fi.hdrHint,
-            );
-          }(),
-        ),
+      PlayerScreen.route(
+        initialEngine: def == DefaultEngine.mpv
+            ? PlayEngine.mpv
+            : PlayEngine.media3,
+        video: () {
+          final fi = extractFileInfo(title);
+          return VideoItem(
+            id: 'url_${url.hashCode}',
+            title: title,
+            uri: url,
+            resumeKey: 'url:$url',
+            duration: Duration.zero,
+            videoCodec: fi.videoCodec,
+            audioCodec: fi.audioCodec,
+            audioChannels: fi.audioChannels,
+            resolution: fi.resolution,
+            hdrHint: fi.hdrHint,
+          );
+        }(),
       ),
     );
   }

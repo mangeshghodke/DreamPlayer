@@ -1240,15 +1240,26 @@ class TmdApi {
     final hasSeries = parsed.isEpisode || (parsed.seriesName?.isNotEmpty ?? false);
     final kind = hasSeries ? TmdKind.tv : TmdKind.movie;
     final query = hasSeries ? (parsed.seriesName ?? parsed.title) : parsed.title;
+    final year = kind == TmdKind.movie ? parsed.year : null;
 
-    var results = await search(
-      query,
-      year: kind == TmdKind.movie ? parsed.year : null,
-      kind: kind,
-    );
+    var results = await search(query, year: year, kind: kind);
 
-    if (results.isEmpty && parsed.year != null && kind == TmdKind.movie) {
+    if (results.isEmpty && year != null) {
       results = await search(query, kind: kind);
+    }
+
+    // Base-query fallback — same rule resolveFolder already uses for movie
+    // parts. TMDB returns 0 hits for "GIRLS und PANZER das FINALE 01" but 8
+    // for the unnumbered base; _score then ranks Part N by the trailing
+    // number still carried on parsed.title.
+    if (results.isEmpty) {
+      final base = RegExp(r'^(.*?)\s+\d{1,3}$').firstMatch(query.trim())?.group(1)?.trim();
+      if (base != null && base.isNotEmpty && base.toLowerCase() != query.toLowerCase()) {
+        results = await search(base, year: year, kind: kind);
+        if (results.isEmpty) {
+          results = await search(base, kind: kind);
+        }
+      }
     }
 
     if (results.isEmpty) return null;

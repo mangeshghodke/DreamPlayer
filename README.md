@@ -25,6 +25,9 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 ### Lossless Audio
 - All major codecs: **DTS, DTS-HD, TrueHD, E-AC3, AC3, AAC, FLAC** and more
 - Mid-playback **audio track switching** with full track names and channel info
+- **Default track on open** — the player picks the file's DEFAULT-flagged audio
+  track (not merely the first entry in the list); **resume keeps your last pick**
+  per video, per engine (Watch from beginning returns to the default)
 - Optional **audio passthrough** over HDMI for Dolby Atmos / DTS:X on compatible soundbars
 - **Spatial audio** (Android 13+) — teal chip shows when the system Spatializer virtualizes multichannel surround for your headphones/speakers; works with wired, USB, and Bluetooth output
 - **Bass Boost** — Off/Low/Medium/High session-level DSP that restores the low-end HRTF virtualization thins out (appears while Spatial audio is engaged)
@@ -54,7 +57,7 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 - **OpenSubtitles** — search/download from CC (5/day anon, 20/day free login); Nova-based language catalog (full names, 3-letter `eng/fre/pob/zho`, `zh-CN/zh-TW`) for reading + download prefs + text encoding (CP1250…CP949)
 
 ### Network Playback
-- **SMB / NAS** — in-app SMB browser on Android; CX Explorer "Open with" handoff
+- **SMB / NAS** — in-app SMB browser on Android; CX Explorer "Open with" handoff; cold starts fill the ring buffer before the first read and skip Matroska end-of-file cue seeks so large MKVs open fast
 - **WebDAV** — browse and stream from WebDAV servers on both platforms
 - **Jellyfin / Emby** — browse libraries, direct-play with auto-discovery
 - **FTP / SFTP** — browse and stream from FTP servers and SSH/SFTP file hosts
@@ -98,13 +101,13 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 - **Watched marks** — videos auto-mark as watched at the end; toggle manually per row
 - **Auto-play next episode** within the same folder — local/SMB + **Jellyfin via ParentId sibling walk** (togglable)
 - Resumes playback from where you left off, even after app close or screen lock
-- **Picture-in-Picture** — system-drawn transport controls (rewind, play-pause, forward) work for BOTH engines, including the libmpv engine (where the video is a Flutter texture that receives no touches in pip)
-- **Two play engines — your choice** — every video's details screen shows **Play** (Media3) and **Play with MPV** (libmpv, Android). mpv runs hardware-first (`hwdec=auto-safe`) with its own FFmpeg software fallback, plus Dolby Atmos / DTS-HD / TrueHD audio passthrough. SDR-only by design (Flutter textures have no HDR path) — Media3 keeps the DV/HDR goal.
+- **Picture-in-Picture** — system-drawn transport controls (rewind, play-pause, forward) work for BOTH engines, including the libmpv engine
+- **Two play engines — your choice** — every video's details screen shows **Play** (Media3) and **Play with MPV** (libmpv, Android). mpv runs hardware-first (`hwdec=auto-safe`) with its own FFmpeg software fallback, plus Dolby Atmos / DTS-HD / TrueHD audio passthrough. Video renders into a **native SurfaceView** (not a Flutter texture). Media3 remains the DV/HDR engine; the MPV path can optionally **tone-map HDR → SDR** (Settings → Player → HDR tone-map) when a libplacebo-enabled libmpv is present.
 
 ### Second engine (Android): libmpv
 
 The TMDb details screen offers **Play with MPV** alongside the primary Play
-(Music to Media3). The libmpv engine (`media_kit` + bundled libmpv) starts
+(Media3). The libmpv engine (`media_kit` + bundled libmpv) starts
 up front — no Media3 platform view — runs **hardware-first**
 (`hwdec=auto-safe` over MediaCodec) and falls back to its bundled FFmpeg
 software decode when the hardware can't handle a stream, so anything the
@@ -115,15 +118,27 @@ Media3, and its `_configureMpvAudio` hands the OS compressed passthrough
 (`audio-spdif=ac3,eac3,dts,dts-hd,truehd`; AudioTrack output) for Dolby Atmos
 / DTS-HD / DTS / AC3 / TrueHD — PCM-decoding automatically when the output
 can't take a bitstream. Sidecar subtitles are added explicitly
-(external > embedded priority, same rule as the main path).
+(external > embedded priority, same rule as the main path). Audio follows the
+same rules as Media3: the container's default track on open, your last pick on
+resume.
+
+**Video output is a real SurfaceView** (`MpvSurfaceView`), not media_kit's
+Flutter `Texture` — textures stutter and have no HDR path. media_kit is kept
+for `Player` control only; `media_kit_video` is not a dependency. A
+libplacebo/`gpu-next`-enabled `libmpv.so` can be dropped under
+`android/app/src/main/jniLibs/` (Gradle `pickFirsts` overrides media_kit's
+stock binary) so **HDR tone-map → SDR** works for files you do not want in
+native HDR.
 
 On a terminal Media3 error, the error surface offers **Try with MPV** instead
 of a dead end. Media3 never auto-switches — the engine choice is always the
 user's (up front, or on the error surface).
 
-It **cannot** do DV/HDR by design: a Flutter texture has no HDR path on any
-platform, so the Media3 engine keeps the project goal. iOS does not run mpv;
-AetherEngine covers its own failures.
+It is **not** the DV/HDR primary engine by design: Media3 still owns hardware
+Dolby Vision / HDR10+ passthrough to the panel. On a stock (no-libplacebo)
+libmpv build the MPV path stays SDR (tone-map setting no-ops safely); with the
+custom libmpv the HDR tone-map mode can convert to SDR intentionally. iOS does
+not run mpv; AetherEngine covers its own failures.
 
 For SMB sources the mpv engine gets the file over a tiny loopback HTTP/1.1
 server (`SmbHttpProxy.kt`, bound to `127.0.0.1`, byte-range aware) — jcifs-ng
@@ -152,24 +167,22 @@ decoding, and a stable 4K 60 fps picture on a phone.**
 | **jcifs-ng** | Android SMB | The Java SMB 2/3 client used by the in-app SMB browser + `SmbDataSource` (custom ExoPlayer `DataSource` that streams from the share). | Nova's and CX Explorer's SMB library; measured ~75 MB/s vs ~4–6 MB/s for smbj on the NAS. |
 | **Media3 / DefaultHttpDataSource + OkHttp** | Android HTTP(S) | Standard Media3 HTTP source (with a custom trust-all OkHttp client for self-signed WebDAV). | Reuses Media3's mature HTTP implementation; the self-signed client is opt-in per server. |
 | **WebDAVByteRangeSource** (in `AetherEngineSMB`) | iOS / iPad WebDAV | A `ByteRangeSource` that serves every engine read as an independent HTTP `Range` request with the `Authorization` header, on a permissive or default-trust session. Wrapped in `BufferedSMBReader` for read-ahead. | AetherEngine's own HTTP stack can't carry auth headers or bypass TLS validation; this is the cleanest bridge between the WebDAV client and the engine. |
-| **media_kit + libmpv** (hardware-first `hwdec=auto-safe`, FFmpeg software fallback) | Android, user-chosen | **Second engine**: `Play with MPV` on the details screen (or `Try with MPV` on the Media3 error surface) starts a bundled libmpv that runs hardware decoders by default and drops to its own FFmpeg software decode when the hardware can't handle a stream — so files the native engine's hardware/software path can't open (12-bit HEVC 4:4:4, corrupt containers, unknown codecs) play through FFmpeg. Renders into a Flutter `Texture` via media_kit's `VideoController` and drives the same player UI as the main engine. Configures AudioTrack + `audio-spdif` passthrough for Atmos / DTS-HD / DTS / AC3 / TrueHD (PCM fallback when the sink can't). Ships `libmpv.so` via `media_kit_libs_android_video` — Android-only, so iOS doesn't pull in `Mpv.framework` (which breaks SideStore's `ldid` signer). | The user gets a second full player for anything Media3 can't decode, without giving up hardware decode or multichannel audio. Cannot do DV/HDR (Flutter textures have no HDR path), so the Media3 engine keeps the project goal. iOS does not run mpv. |
+| **media_kit + libmpv** (hardware-first `hwdec=auto-safe`, FFmpeg software fallback; video → **native SurfaceView**) | Android, user-chosen | **Second engine**: `Play with MPV` on the details screen (or `Try with MPV` on the Media3 error surface) starts a bundled libmpv that runs hardware decoders by default and drops to its own FFmpeg software decode when the hardware can't handle a stream — so files the native engine's hardware/software path can't open (12-bit HEVC 4:4:4, corrupt containers, unknown codecs) play through FFmpeg. Video renders into `MpvSurfaceView` (hybrid-composition platform view — same pattern as Media3; **no Flutter `Texture`**, which stuttered). media_kit `Player` is control-only (`media_kit_video` removed). Configures AudioTrack + `audio-spdif` passthrough for Atmos / DTS-HD / DTS / AC3 / TrueHD (PCM fallback when the sink can't). Pins the container-default audio track on open and restores the user's pick on resume. Ships `libmpv.so` via `media_kit_libs_android_video` — optionally overridden by a libplacebo/`gpu-next` build under `jniLibs/` (Gradle `pickFirsts`) for HDR tone-map. Android-only, so iOS doesn't pull in `Mpv.framework` (which breaks SideStore's `ldid` signer). | The user gets a second full player for anything Media3 can't decode, without giving up hardware decode or multichannel audio. Media3 remains the DV/HDR engine; MPV can tone-map to SDR when asked. iOS does not run mpv. |
 | **SmbHttpProxy** (in-app) | Android fallback over SMB | A tiny HTTP/1.1 server (ServerSocket accept loop, one daemon thread per connection, GET/HEAD + single `Range`) bound to `127.0.0.1` that hands out a jcifs-ng `SmbRandomAccessFile` per token. Idle handles are parked in an `ArrayDeque` per file. | jcifs-ng only talks to Media3-native `DataSource`s, and libmpv can't read `smb://` directly — the loopback bridge is the cleanest way to let the fallback engine stream SMB sources without re-plumbing the network stack. |
 
 ### Why is Media3 the primary engine — and how does mpv fit?
 
-We tried mpv earlier. It is not the right choice for the **primary** DV/HDR
-path on Android, and we deliberately do not pretend otherwise. The two
-blockers:
+We tried mpv earlier as the **primary** path. It is not the right choice for
+the primary DV/HDR path on Android, and we deliberately do not pretend
+otherwise. The two blockers for *mpv-as-primary*:
 
-1. **Dolby Vision RPU parsing fails.** mpv v0.36 + FFmpeg 6.0 cannot read the
-   DOVI configuration record in DV P8 MKVs. Result: pink/green output. (mpv
-   PR #16818 was the upstream fix attempt; it never landed for our FFmpeg
-   version.)
-2. **No HDR to the panel.** `media_kit` renders into a Flutter texture.
-   Flutter textures have **no HDR path on any platform** (media-kit issue
-   #615). The decoded HDR10 buffer is tone-mapped to SDR before the panel
-   ever sees it — so even when mpv *decodes* HDR10 correctly, the user
-   sees washed-out colors.
+1. **Dolby Vision RPU parsing fails** on the stock mpv/FFmpeg pairing we first
+   tested. Result: pink/green output. (mpv PR #16818 was the upstream fix
+   attempt; it never landed for our original FFmpeg version.)
+2. **Flutter textures have no HDR path** (media-kit issue #615) — so the old
+   texture-based mpv path tone-mapped to SDR before the panel ever saw the
+   frame. We fixed the *renderer* (mpv now uses a native SurfaceView) but
+   Media3 remains the engine that does hardware DV/HDR passthrough.
 
 So mpv is **not** the primary engine. The exit interview was: keep Media3 +
 native SurfaceView for the DV/HDR fast path; ship native FFmpeg audio for the
@@ -182,8 +195,8 @@ lossless codecs; that's the same engine stack Nova Video Player uses
 - The main Media3 engine + hardware decoders remain the default play path.
 - **Play with MPV** (details screen) starts libmpv up front — hardware-first
   (`hwdec=auto-safe`) with its own FFmpeg software fallback — for anything
-  you want routed through mpv's decoder coverage. The ⓘ info sheet shows
-  `Engine · libmpv` while it's active.
+  you want routed through mpv's decoder coverage. Video goes to a real
+  SurfaceView; the ⓘ info sheet shows `Engine · libmpv` while it's active.
 - On a terminal Media3 error the error surface offers **Try with MPV** instead
   of auto-switching — the engine choice is always explicit.
 

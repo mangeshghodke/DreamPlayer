@@ -81,6 +81,11 @@ class MainActivity : FlutterActivity() {
             "dreamplayer/exo_player",
             ExoPlayerViewFactory(this, flutterEngine.dartExecutor.binaryMessenger),
         )
+        // libmpv second engine — distinct viewType; never mounted with exo_player.
+        flutterEngine.platformViewsController.registry.registerViewFactory(
+            "dreamplayer/mpv_player",
+            MpvSurfaceViewFactory(this, flutterEngine.dartExecutor.binaryMessenger),
+        )
         fileBrowser = FileBrowser(this)
         fileBrowser!!.configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FileBrowser.CHANNEL),
@@ -162,10 +167,8 @@ class MainActivity : FlutterActivity() {
             }
         }
         // Engine-agnostic OS controls — brightness (per-app window brightness)
-        // and system media volume. Used by the MPV fallback engine because
-        // ExoPlayerView (the only other owner of these handlers) is not
-        // created when mpv is active — the player is just a Flutter texture,
-        // not a platform view.
+        // and system media volume. Used by the MPV engine when ExoPlayerView
+        // is not the active surface (mpv owns its own MpvSurfaceView).
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "dreamplayer/system",
@@ -221,9 +224,9 @@ class MainActivity : FlutterActivity() {
     /// drops into picture-in-picture instead of plain background audio.
     ///
     /// Two engines can own playback: the native Media3 platform view
-    /// ([ExoPlayerView]) or the libmpv fallback (a Flutter texture, so pip is
-    /// driven by [PipManager]). The fallback gets first refusal — when it is
-    /// active the ExoPlayer instance is idle and its own pip path would bail.
+    /// ([ExoPlayerView]) or the libmpv SurfaceView (pip via [PipManager]).
+    /// The fallback gets first refusal — when it is active the ExoPlayer
+    /// instance is idle and its own pip path would bail.
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (PipManager.instance?.enterPipIfPlaying() == true) return

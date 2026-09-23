@@ -12,6 +12,11 @@
 .swiftpm/
 migrate_working_dir/
 
+# Session scratch (logcat captures, surfaceflinger dumps, one-off probes)
+.tmp_dart/
+sf_*.txt
+*.pid
+
 # IntelliJ related
 *.iml
 *.ipr

@@ -22,6 +22,7 @@ import '../services/subtitle_encodings.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
 import '../services/support_links.dart';
+import '../services/tone_map_store.dart';
 import '../config/simkl_keys.dart';
 import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
@@ -49,6 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoPlayNext = false;
   DecoderMode _decoderMode = DecoderMode.auto;
   DefaultEngine _defaultEngine = DefaultEngine.ask;
+  ToneMapMode _toneMapMode = ToneMapMode.sdr;
   double _audioBoost = 1.0;
   bool _nightMode = false;
   bool _simklConnected = false;
@@ -82,6 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadAutoPlayNext();
     _loadDecoderMode();
     _loadDefaultEngine();
+    _loadToneMapMode();
     _loadAudioFilters();
     _loadSimkl();
     _loadOpensubtitles();
@@ -169,6 +172,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final engine = await DefaultEngineStore.load();
       if (mounted) setState(() => _defaultEngine = engine);
+    } catch (_) {}
+  }
+
+  Future<void> _loadToneMapMode() async {
+    try {
+      final mode = await ToneMapStore.load();
+      if (mounted) setState(() => _toneMapMode = mode);
     } catch (_) {}
   }
 
@@ -859,6 +869,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         if (picked != null && mounted) {
                           await DefaultEngineStore.save(picked);
                           setState(() => _defaultEngine = picked);
+                        }
+                      },
+                    ),
+                  if (defaultTargetPlatform == TargetPlatform.android)
+                    ListTile(
+                      leading: const Icon(Icons.palette_outlined),
+                      title: Text(AppLocalizations.of(context).settingsToneMapMode),
+                      subtitle: Text(_toneMapMode.label),
+                      onTap: () async {
+                        final picked = await showDialog<ToneMapMode>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text(AppLocalizations.of(context).settingsToneMapMode),
+                            content: RadioGroup<ToneMapMode>(
+                              groupValue: _toneMapMode,
+                              onChanged: (v) => Navigator.pop(ctx, v),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: ToneMapMode.values.map((m) {
+                                  final subtitle = switch (m) {
+                                    ToneMapMode.sdr =>
+                                      AppLocalizations.of(context).settingsToneMapSdrDesc,
+                                    ToneMapMode.native =>
+                                      AppLocalizations.of(context).settingsToneMapNativeDesc,
+                                  };
+                                  return RadioListTile<ToneMapMode>(
+                                    value: m,
+                                    title: Text(m.label),
+                                    subtitle: Text(subtitle,
+                                        style: const TextStyle(fontSize: 12)),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(AppLocalizations.of(context).commonCancel),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (picked != null && mounted) {
+                          await ToneMapStore.save(picked);
+                          setState(() => _toneMapMode = picked);
                         }
                       },
                     ),

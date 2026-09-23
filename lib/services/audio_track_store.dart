@@ -37,10 +37,10 @@ class AudioTrackStore {
     if (resumeKey.isEmpty) return null;
     final p = await SharedPreferences.getInstance();
     final key = '$_kPrefix${engine}_$resumeKey';
-    // Try int first (Media3), then String (MPV).
-    if (p.containsKey(key)) {
-      return p.getInt(key) ?? p.getString(key);
-    }
+    if (!p.containsKey(key)) return null;
+    // Typed getters throw on the wrong primitive — probe with the raw map.
+    final raw = p.get(key);
+    if (raw is int || raw is String) return raw;
     return null;
   }
 

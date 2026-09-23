@@ -3,6 +3,81 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.4.8
+
+### Added
+
+- **HDR/DV → SDR tone-map via libplacebo (issue #21)** — Settings → Player →
+  "HDR tone-map (MPV)" and the player ⋮ sheet (when MPV is active) choose
+  **SDR tone-map** (`vo=gpu-next` + spline tone-map + perceptual gamut +
+  BT.709 / BT.1886 — the libplacebo path you asked for) vs **Native HDR/DV**
+  (`target-colorspace-hint`). Ships a custom arm64 `libmpv.so` with libplacebo
+  linked (Gradle `pickFirsts` overrides media_kit's stock binary). A
+  `libplacebo-version` probe detects the build; stock libmpv falls back to
+  `vo=gpu` + bt.2390 safely. Android-only — the tile never appears on iOS
+  (libmpv does not run there); covered by
+  `test/settings_tone_map_platform_test.dart`. Note: Media3 (the default Play
+  button) still does native HDR/DV passthrough — libplacebo cannot intercept
+  Media3's Surface — so use **Play with MPV** for this mode.
+- **MPV plays the file's default audio track on open** — libmpv was landing on
+  the first track in the list (often a commentary or non-default language)
+  instead of the container's DEFAULT-flagged track. On tracks ready, the player
+  now pins that track once per open: prefer `AudioTrack.isDefault` from the
+  Dart model (`pickMpvDefaultAudioId`), and when the flag was never parsed
+  probe libmpv's raw `track-list/<n>/default` properties. The one-shot latch
+  only fires after a real selection (or a confirmed no-default), so an early
+  tracks event with empty flags no longer sticks forever on the wrong track.
+- **MPV restores the selected audio track on resume** — every audio pick is
+  saved per video + engine (`AudioTrackStore`, `audio_track_{engine}_{resumeKey}`)
+  and re-applied when the same file reopens; "Watch from beginning" clears it
+  so you get the default again. Engines are isolated (Media3 flat index vs
+  MPV track id string) so switching engines never cross-contaminates the pick.
+
+### Fixed
+
+- **SMB / NAS starts much faster** — three fixes stack for cold opens of large
+  MKVs over SMB: (1) secondary SMB handles open *before* taking the ring lock
+  (each open is a tree-connect round-trip that used to block the first Media3
+  read); (2) a **synchronous head (or tail) fill** so `open()` never returns
+  with an empty ring — short/cue probes only fill what was asked for; (3)
+  `FLAG_DISABLE_SEEK_FOR_CUES` on the Matroska extractor so Media3 no longer
+  seeks to EOF during init (Cues live at the end of large files — that seek
+  used to reset the ring mid-startup). Network `DataSource` delegates are also
+  reused across `open()` for the same URI so head→EOF→head cue maps don't tear
+  down and rebuild the SMB session three times. User-verified: SMB playback
+  now starts fast again.
+- **Continue-watching cards now show TMDB posters/titles like the poster cards** —
+  entries whose file title scores 0 on TMDB (e.g. `GIRLS und PANZER das FINALE 01`)
+  stayed on the gradient forever while the matching library folder already had the
+  right match. CW now resolves with the same tools as the home poster path:
+  parent-folder name on the file query, a base-query fallback in `bestMatch`
+  (strip trailing `01` → Part N ranking), then inherit the parent library
+  folder's `resolveFolder` meta via `carryMeta` when the file search still
+  misses. Display falls back to the folder key so the grid paints immediately;
+  the details screen does the same path-prefix inheritance when opening from CW.
+  `_computeParentFolderName` also returns the parent *directory* (it used to
+  return the file basename, so episode-only titles never got the folder hint).
+- **MPV brightness no longer sticks after the player closes** — dispose restores
+  system brightness (`setBrightness(-1)` on Android) and resets the gesture base
+  so the next open starts from the real system value.
+- **MPV subtitle text size now applies in portrait** — the Flutter subtitle
+  overlay only rebuilt on an unrelated `setState` (rotation, position tick), so
+  a size change from Subtitle settings looked dead until you rotated; and a
+  12px font-size floor sat on the top of the letterboxed portrait video height
+  (base ≈ 12px), freezing every shrink. Settings return and delay now force a
+  rebuild, and the floor is 1px.
+
+### Changed
+
+- **MPV renders into a real SurfaceView (no Flutter texture)** —
+  `media_kit_video` (Texture + `VideoController`) is dropped; video output is
+  `MpvSurfaceView.kt` / `mpv_surface_view.dart` (hybrid composition, same
+  pattern as Media3's platform view). media_kit `Player` remains for control
+  only. Removes the texture-path stutter that made MPV unusable as a second
+  engine. Custom `libmpv.so` (libplacebo / gpu-next) ships under
+  `android/app/src/main/jniLibs/arm64-v8a/` (Gradle `pickFirsts` overrides
+  media_kit's stock binary) so the issue #21 tone-map path is live.
+
 ## 0.4.7
 
 Bug-fix, parity, and library-organization release. Network folder bookmarks now

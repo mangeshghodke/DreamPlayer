@@ -19,6 +19,16 @@ val hasUploadKeystore =
         file(keystoreProps.getProperty("storeFile")).isFile
 
 android {
+    packaging {
+        jniLibs {
+            // Custom libmpv (libplacebo/gpu-next, Phase 3) overrides media_kit's
+            // stock .so from the AAR. Keep media_kit's libmediakitandroidhelper.so.
+            // FFmpeg is statically linked into this libmpv — do NOT ship shared
+            // libav*.so (nextlib Media3 also NEEDs those; pickFirst would break it).
+            pickFirsts +=("**/libmpv.so")
+            pickFirsts +=("**/libc++_shared.so")
+        }
+    }
     signingConfigs {
         if (hasUploadKeystore) {
             create("release") {

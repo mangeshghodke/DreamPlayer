@@ -53,8 +53,11 @@ void main() {
   ) async {
     // The debug setters persist through SharedPreferences; provide a mock
     // store so getInstance() resolves without a platform channel. Also mark
-    // the TMDB hint as shown so its dialog doesn't swallow the Settings tap.
-    SharedPreferences.setMockInitialValues({'dreamplayer.tmdbHintShown': true});
+    // the TMDB hint + trial intro as shown so neither dialog covers Settings.
+    SharedPreferences.setMockInitialValues({
+      'dreamplayer.tmdbHintShown': true,
+      'dreamplayer.trialIntroShown': true,
+    });
     // The debug "simulate free user" override makes isAdvanced false
     // so the Buy tile surfaces (not "Active").
     await Entitlements.instance.setDebugFreeUser(true);
@@ -62,6 +65,7 @@ void main() {
     addTearDown(() => Entitlements.instance.resetForTest());
 
     await tester.pumpWidget(const DreamPlayerApp());
+    await tester.pumpAndSettle();
 
     // Tap on the first frame before the TMDB hint dialog mounts — it would
     // swallow the tap on the nav button (mirrors the sibling shell tests).

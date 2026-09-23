@@ -82,8 +82,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       : '';
   /// When the video came from a plain file path (no library folder), the
   /// parent folder's name is our only hint for episodes named just
-  /// `Episode01.mkv` / `01.mkv`. Pulls the last path segment and decodes
-  /// percent-escapes (URL-style SMB paths sometimes carry them).
+  /// `Episode01.mkv` / `01.mkv`. Returns the directory ABOVE the file
+  /// (not the file name) and decodes percent-escapes.
   String get _parentFolderNameFromPath => _computeParentFolderName();
   late final ParsedFileName _parsed =
       ParsedFileName.parse(widget.folder?.name ?? widget.video!.title);
@@ -104,7 +104,13 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     if (clean.endsWith('/')) clean = clean.substring(0, clean.length - 1);
     final lastSlash = clean.lastIndexOf('/');
     if (lastSlash < 0) return '';
-    final segment = clean.substring(lastSlash + 1);
+    // Parent directory name — not the file basename (the old code returned
+    // `file.mkv`, so parentFolderName never helped episode-only titles).
+    final parent = clean.substring(0, lastSlash);
+    final parentSlash = parent.lastIndexOf('/');
+    final segment =
+        parentSlash >= 0 ? parent.substring(parentSlash + 1) : parent;
+    if (segment.isEmpty) return '';
     try {
       return Uri.decodeComponent(segment);
     } catch (_) {
@@ -195,6 +201,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   MediaProbeResult? _probe;
   bool _probing = false;
   DefaultEngine _defaultEngine = DefaultEngine.ask;
+  bool _defaultEngineLoaded = false;
   final ScrollController _scrollController = ScrollController();
   bool _heroCollapsed = false;
 
@@ -248,8 +255,15 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   Future<void> _loadDefaultEngine() async {
     try {
       final engine = await DefaultEngineStore.load();
-      if (mounted) setState(() => _defaultEngine = engine);
-    } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _defaultEngine = engine;
+          _defaultEngineLoaded = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) _defaultEngineLoaded = true;
+    }
   }
 
   Future<void> _refreshPositions() async {
@@ -536,6 +550,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         // Network failure is non-fatal; the "Get Info" button remains.
       }
       if (!mounted) return;
+      // File-level search can miss (e.g. "FINALE 01" → 0 TMDB hits).
+      // Fall back to the same library-folder meta the home poster cards use.
+      if (_service.metaFor(_identityKey) == null) {
+        await _inheritLibraryFolderMeta();
+      }
+      if (!mounted) return;
       final resolved = _service.metaFor(_identityKey);
       if (resolved != null) {
         setState(() {
@@ -547,6 +567,38 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       }
     }
     await _loadDetailsAndSeasons();
+  }
+
+  /// Carry the parent library folder's TMDB match onto this video's identity
+  /// key (same path-prefix rule as the home Continue-watching cards).
+  Future<void> _inheritLibraryFolderMeta() async {
+    final video = widget.video;
+    if (video == null) return;
+    final path = video.path ?? video.uri ?? '';
+    if (path.isEmpty) return;
+    try {
+      final folders = await LibraryFoldersStore.load();
+      LibraryFolder? best;
+      for (final f in folders) {
+        if (f.isFile || f.path.isEmpty) continue;
+        final prefix = f.path.endsWith('/') ? f.path : '${f.path}/';
+        if (path == f.path || path.startsWith(prefix)) {
+          if (best == null || f.path.length > best.path.length) best = f;
+        }
+      }
+      if (best == null) return;
+      if (_service.metaFor(best.metadataKey) == null) {
+        await _service.resolveFolder(
+          best.metadataKey,
+          best.name,
+          yearHint: best.yearHint,
+          fileNames: [video.title],
+        );
+      }
+      await _service.carryMeta(best.metadataKey, _identityKey);
+    } catch (_) {
+      // Non-fatal — details falls back to "No metadata loaded".
+    }
   }
 
   /// Folder mode: load the folder's direct entries so the file list renders.
@@ -1089,30 +1141,46 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     await _loadDetailsAndSeasons();
   }
 
+  /// Picks the engine for a play/resume. An explicit [engine] button always
+  /// wins. Otherwise a pinned Settings default (Media3 / libmpv) wins over
+  /// the sticky "last engine used for this file" — otherwise switching the
+  /// default back to Media3 still resumes with MPV. Sticky last-engine only
+  /// applies in Auto / Ask every time, so the per-engine playhead stays
+  /// continuous.
+  PlayEngine _resolveEngine({PlayEngine? engine, bool fromBeginning = false}) {
+    if (engine != null) return engine;
+    if (_defaultEngine == DefaultEngine.mpv) return PlayEngine.mpv;
+    if (_defaultEngine == DefaultEngine.media3) return PlayEngine.media3;
+    if (!fromBeginning && _lastEngine == 'mpv') return PlayEngine.mpv;
+    return PlayEngine.media3;
+  }
+
+  /// Same as [_resolveEngine] for the folder-mode standalone movie.
+  PlayEngine _resolveFolderEngine({bool fromBeginning = false}) {
+    if (_defaultEngine == DefaultEngine.mpv) return PlayEngine.mpv;
+    if (_defaultEngine == DefaultEngine.media3) return PlayEngine.media3;
+    if (!fromBeginning && _folderMovieLastEngine == 'mpv') {
+      return PlayEngine.mpv;
+    }
+    return PlayEngine.media3;
+  }
+
   Future<void> _play({
     bool fromBeginning = false,
     PlayEngine? engine,
   }) async {
-    // When resuming (not from beginning), use the same engine that last
-    // played this file — otherwise the resume position (per-engine key)
-    // won't be found and playback restarts from the beginning.
-    PlayEngine resolved;
-    if (engine != null) {
-      resolved = engine;
-    } else if (!fromBeginning && _lastEngine == 'mpv') {
-      resolved = PlayEngine.mpv;
-    } else {
-      resolved = _defaultEngine == DefaultEngine.mpv
-          ? PlayEngine.mpv
-          : PlayEngine.media3;
+    // Pref load is async — if Resume is tapped before it lands, a stale
+    // `ask` + sticky last-engine would reopen MPV after the user picked Media3.
+    if (!_defaultEngineLoaded) {
+      await _loadDefaultEngine();
+      if (!mounted) return;
     }
+    final resolved = _resolveEngine(engine: engine, fromBeginning: fromBeginning);
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PlayerScreen(
-          video: widget.video!,
-          startFromBeginning: fromBeginning,
-          initialEngine: resolved,
-        ),
+      PlayerScreen.route(
+        video: widget.video!,
+        startFromBeginning: fromBeginning,
+        initialEngine: resolved,
       ),
     );
     // Wait for the player's orientation restore (landscape → portrait) to
@@ -1133,22 +1201,17 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   Future<void> _playFolderMovie({bool fromBeginning = false}) async {
     final entry = _folderMovieEntry;
     if (entry == null) return;
-    final video = _toVideoItem(entry);
-    PlayEngine resolved;
-    if (!fromBeginning && _folderMovieLastEngine == 'mpv') {
-      resolved = PlayEngine.mpv;
-    } else {
-      resolved = _defaultEngine == DefaultEngine.mpv
-          ? PlayEngine.mpv
-          : PlayEngine.media3;
+    if (!_defaultEngineLoaded) {
+      await _loadDefaultEngine();
+      if (!mounted) return;
     }
+    final video = _toVideoItem(entry);
+    final resolved = _resolveFolderEngine(fromBeginning: fromBeginning);
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PlayerScreen(
-          video: video,
-          startFromBeginning: fromBeginning,
-          initialEngine: resolved,
-        ),
+      PlayerScreen.route(
+        video: video,
+        startFromBeginning: fromBeginning,
+        initialEngine: resolved,
       ),
     );
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -1597,11 +1660,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         : (widget.folder?.name ?? widget.video!.title);
     final resume = _resumePosition;       // Media3 playhead
     final resumeMpv = _resumePositionMpv; // MPV playhead
-    // Use the resume position from the engine that was last used for this
-    // video. When a file was played via mpv fallback, the resume is in mpv
-    // but the main button was only checking Media3 — so it showed "Play"
-    // instead of "Resume from m:ss".
-    final bestResume = _lastEngine == 'mpv' ? (resumeMpv ?? resume) : (resume ?? resumeMpv);
+    // Label must match the engine [_play] will actually open — otherwise a
+    // Media3 default still shows the MPV playhead (or the reverse) after the
+    // user switches engines in Settings.
+    final playEngine = _resolveEngine();
+    final bestResume =
+        playEngine == PlayEngine.mpv ? resumeMpv : resume;
     final hasAnyResume = resume != null || resumeMpv != null;
     // A matched movie folder / single video renders its own pinned
     // SliverAppBar hero (the SeriesSeasonsScreen-style backdrop + title), so
@@ -1746,9 +1810,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   Widget _buildFolderMovieBar() {
     final resume = _folderMovieResumeM3;
     final resumeMpv = _folderMovieResumeMpv;
-    final bestResume = _folderMovieLastEngine == 'mpv'
-        ? (resumeMpv ?? resume)
-        : (resume ?? resumeMpv);
+    final playEngine = _resolveFolderEngine();
+    final bestResume =
+        playEngine == PlayEngine.mpv ? resumeMpv : resume;
     final hasAnyResume = resume != null || resumeMpv != null;
     return SafeArea(
       child: Padding(

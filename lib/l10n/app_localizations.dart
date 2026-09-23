@@ -996,6 +996,24 @@ abstract class AppLocalizations {
   /// **'Show both options on every video'**
   String get settingsEngineAskDesc;
 
+  /// libmpv HDR presentation mode picker label
+  ///
+  /// In en, this message translates to:
+  /// **'HDR tone-map (MPV)'**
+  String get settingsToneMapMode;
+
+  /// SDR tone-map mode subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Convert HDR/DV to SDR in-engine (libplacebo)'**
+  String get settingsToneMapSdrDesc;
+
+  /// Native HDR mode subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Pass HDR colorspace through to the display'**
+  String get settingsToneMapNativeDesc;
+
   /// Auto-play toggle label
   ///
   /// In en, this message translates to:

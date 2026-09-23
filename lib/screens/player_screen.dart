@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/foundation.dart';
@@ -15,6 +14,7 @@ import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/badge_prefs.dart';
 import '../services/audio_track_store.dart';
+import '../services/default_engine_store.dart';
 import '../services/exo_player.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
@@ -30,11 +30,14 @@ import '../services/simkl_client.dart';
 import '../services/watched_store.dart';
 import '../services/sidecar_subtitle_service.dart';
 import '../services/mpv_pip.dart';
+import '../services/mpv_surface_view.dart';
+import '../services/tone_map_store.dart';
 import '../services/subtitle_style.dart';
 import '../services/downloaded_subtitles_store.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/open_intent.dart';
 import '../services/download_manager.dart';
+import '../utils/mpv_audio_select.dart';
 import 'download_screen.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
@@ -89,9 +92,36 @@ class PlayerScreen extends StatefulWidget {
 
   /// Which playback engine to start with: the native ExoPlayer/Media3
   /// platform view (hardware-first, software fallback, DV/HDR) or the bundled
-  /// libmpv (media_kit) engine (hardware-first via `hwdec=mediacodec-copy`, its
-  /// own internal software fallback, SDR-only Flutter texture).
+  /// libmpv engine (hardware-first via `hwdec=mediacodec`, its own
+  /// internal software fallback, hybrid-composition SurfaceView — SDR by
+  /// design until a libplacebo build lands).
   final PlayEngine initialEngine;
+
+  /// Push route for the player. Fades in over solid black instead of the
+  /// default Material slide — the slide left the details/folder route fully
+  /// visible in the uncovered half (and through any platform-view gap), which
+  /// read as "opacity none" behind the player.
+  static Route<void> route({
+    required VideoItem video,
+    bool startFromBeginning = false,
+    PlayEngine initialEngine = PlayEngine.media3,
+  }) {
+    return PageRouteBuilder<void>(
+      pageBuilder: (_, _, _) => PlayerScreen(
+        video: video,
+        startFromBeginning: startFromBeginning,
+        initialEngine: initialEngine,
+      ),
+      transitionDuration: const Duration(milliseconds: 200),
+      reverseTransitionDuration: const Duration(milliseconds: 160),
+      transitionsBuilder: (_, animation, _, child) {
+        return FadeTransition(
+          opacity: animation,
+          child: ColoredBox(color: Colors.black, child: child),
+        );
+      },
+    );
+  }
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -110,23 +140,30 @@ class _PlayerScreenState extends State<PlayerScreen>
   PlaybackController? _exo;
   StreamSubscription<ExoPlayerEvent>? _exoSub;
 
-  /// libmpv (media_kit) second engine, engaged only by explicit user choice —
+  /// libmpv second engine, engaged only by explicit user choice —
   /// `PlayEngine.mpv` from the details screen or "Try with MPV" on the Media3
   /// error surface. It replaces the [ExoPlayerView] in the video slot and
-  /// drives the SAME player UI (transport, seekbar, gestures, auto-hide,
-  /// ended-routing, resume) — the user keeps their normal player. Renders into
-  /// a Flutter texture, so no DV/HDR by design; runs hardware-first
-  /// (`hwdec=mediacodec-copy`) with its own FFmpeg software fallback.
+  /// drives the SAME player UI. Video renders on a hybrid-composition
+  /// [MpvSurfaceView] (real SurfaceFlinger layer — NO Flutter texture, so no
+  /// dual-layer stack with Media3). Control stays on media_kit's [Player].
+  /// Hardware-first (`hwdec=mediacodec`) with FFmpeg software fallback.
   Player? _mpvPlayer;
-  VideoController? _mpvController;
+  MpvSurfaceViewController? _mpvSurface;
   bool _mpvActive = false;
   bool _mpvFailed = false;
   String? _mpvError;
   bool _autoFallbackTried = false;
+  /// Pinned Settings default. Explicit Media3 / libmpv disables silent
+  /// auto-fallback to the other engine ([DefaultEngine.allowFallback]).
+  DefaultEngine _defaultEngine = DefaultEngine.auto;
+  ToneMapMode _toneMapMode = ToneMapMode.sdr;
+  /// Cached from the first successful [_mpvGpuNextAvailable] probe on this
+  /// player — drives the HDR badge (Native can show real DV/HDR only when
+  /// libplacebo/gpu-next is present).
+  bool? _mpvGpuNext;
   final List<StreamSubscription<Object?>> _mpvSubs = [];
-  BoxFit _mpvFit = BoxFit.contain;
   /// Forced aspect ratio applied in mpv mode for the 16:9 / 4:3 aspect modes
-  /// (a `Center`-box wraps the video; `cover` fills the inside of that box).
+  /// (a `Center`-box wraps the SurfaceView; panscan fills inside that box).
   double? _mpvAspect;
   // mpv-track state for the chips / info sheet / audio+subtitle pickers —
   // mirrors the Media3 `_audioTracks`/`_subtitleTracks` fields so the mpv mode
@@ -142,10 +179,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   SubtitleStyle _subtitleStyle = const SubtitleStyle();
   double _mpvBrightness = 1.0;
   double _mpvZoomScale = 1.0;
-  /// Last hwdec value applied to the mpv instance ('mediacodec-copy',
-  /// 'mediacodec', 'no'). Displayed in the ⓘ info sheet so the user can see
+  /// Last hwdec value applied to the mpv instance ('mediacodec',
+  /// 'no'). Displayed in the ⓘ info sheet so the user can see
   /// whether mpv is using hardware or software decoding.
-  String _mpvHwdecMode = 'mediacodec-copy';
+  String _mpvHwdecMode = 'mediacodec';
   /// Resume key of the file currently forced into software decode after a
   /// mid-stream hardware-decoder failure (see [_maybeMpvSoftwareRetry]).
   /// Non-null only for that file — a later file opens with hardware first.
@@ -153,6 +190,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Active SMB loopback-bridge token (see [SmbHttpProxy] / `startLoopback`);
   /// null when the fallback's current source isn't served through the bridge.
   String? _mpvProxyToken;
+  /// Serializes wid attaches — surfaceReady/surfaceChanged can fire back-to-back
+  /// and each vo=null→wid→vo=gpu swap reconfigures MediaCodec. Overlapping
+  /// attaches leave the decoder bound to a NULL surface (black video).
+  Future<void>? _mpvAttachChain;
+  int _mpvAttachGen = 0;
+  int _mpvLastWid = 0;
+  int _mpvLastW = 0;
+  int _mpvLastH = 0;
 
   /// The video currently on screen; follows [PlayerScreen.video] on first
   /// load, and is replaced by the server-transcoded variant when the Jellyfin
@@ -170,6 +215,11 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   bool _controlsVisible = true;
   bool _fullscreen = false;
+
+  /// Controls shown when the SurfaceView went away (rotation). Restored on
+  /// [surfaceReady] so the center play button does not flash over the black
+  /// shutter gap.
+  bool _controlsBeforeSurfaceLoss = false;
 
   /// Focus node for the screen-level [Focus] wrapper. On TV the wrapper owns
   /// focus by default (autofocus); the key handler compares
@@ -210,8 +260,18 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// Saved audio track to restore after the next open (index for Media3,
   /// track id string for MPV). Set from [AudioTrackStore] in [_openCurrent]
+  /// (Media3) or [_startMpvPrimary]/[_startMpvFallback]/[_reloadMpv] (MPV)
   /// and consumed when the first track event arrives.
   dynamic _pendingAudioTrackRestore;
+
+  /// One-shot latch so we pin the container-default audio track once per
+  /// MPV open (tracks can re-fire after sub-add / reload).
+  bool _mpvAudioDefaultApplied = false;
+
+  /// True while [_pinMpvDefaultAudio] is running so overlapping tracks
+  /// events (libmpv can emit several back-to-back during demux) don't race
+  /// two concurrent probes/sets.
+  bool _mpvAudioPinInFlight = false;
 
   /// True once a media has loaded on this screen (video size/codecs/duration
   /// seen). Survives a native state reset (IDLE event after the platform view
@@ -382,9 +442,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// decide whether they are enabled or greyed out.
   bool get _backendReady => _exo != null || _mpvReady;
 
-  /// True while the mpv fallback owns the video slot and its output is alive.
+  /// True while the mpv engine owns the video slot (player alive, not failed).
+  /// Surface readiness is separate ([MpvSurfaceViewController.isReady]) —
+  /// transport works as soon as the [Player] exists.
   bool get _mpvReady =>
-      _mpvActive && _mpvPlayer != null && _mpvController != null && !_mpvFailed;
+      _mpvActive && _mpvPlayer != null && !_mpvFailed;
 
   @override
   void initState() {
@@ -457,6 +519,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         _autoPlayNext = await isAutoPlayNextEnabled();
         _repeat = await PlaybackModesStore.loadRepeat();
         _shuffle = await PlaybackModesStore.loadShuffle();
+        _defaultEngine = await DefaultEngineStore.load();
+        _toneMapMode = await ToneMapStore.load();
       } catch (_) {
         // Persistence unavailable; keep the defaults.
       }
@@ -464,7 +528,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       // The user chose the libmpv engine on the details screen ("Play with
       // MPV"): start it directly — no ExoPlayer platform view, and no auto
       // jump to mpv later. libmpv itself runs hardware-first
-      // (`hwdec=mediacodec-copy`, MediaCodec) and falls back to its bundled
+      // (`hwdec=mediacodec`, MediaCodec) and falls back to its bundled
       // FFmpeg software decode when the hardware can't decode a stream.
       if (_engine == PlayEngine.mpv) {
         await _startMpvPrimary();
@@ -597,7 +661,16 @@ class _PlayerScreenState extends State<PlayerScreen>
             _resumeKey,
             engine: (_engine == PlayEngine.mpv || _mpvActive) ? 'mpv' : 'media3',
           );
-    final externalSubs = await _resolveExternalSubtitles(video);
+    // Sidecar discovery is best-effort and MUST NOT gate open(): a full SMB
+    // listDirectory of a Movies folder can take hundreds of ms, and Media3
+    // needs every millisecond for the first frame. Cap the wait at 250ms —
+    // a warm LAN listing usually lands inside that; a cold/slow one falls
+    // through to embedded subs (native open() still pairs local siblings).
+    final externalSubsFuture = _resolveExternalSubtitles(video);
+    final externalSubs = await externalSubsFuture.timeout(
+      const Duration(milliseconds: 250),
+      onTimeout: () => video.externalSubtitles,
+    );
     final readingLang = await SubtitlePrefs.loadReadingLanguage();
     // iOS: re-grant security-scoped access before the native player touches
     // the file. Files inside a bookmarked folder (Files-app picker /
@@ -752,8 +825,13 @@ class _PlayerScreenState extends State<PlayerScreen>
         debugPrint('sw-fallback: FFmpeg video decode also failed, trying mpv');
       }
     }
-    // Step 2: Try mpv as the final fallback.
-    if (!_autoFallbackTried && !_mpvActive && Platform.isAndroid && _mpvSourceFor(_current).isNotEmpty) {
+    // Step 2: Try mpv as the final fallback — only when the user hasn't
+    // pinned Media3 (explicit default = no silent engine switch).
+    if (!_autoFallbackTried &&
+        !_mpvActive &&
+        Platform.isAndroid &&
+        _defaultEngine.allowFallback &&
+        _mpvSourceFor(_current).isNotEmpty) {
       _autoFallbackTried = true;
       _error = 'Media3 cannot play this file — trying libmpv…';
       setState(() {});
@@ -762,7 +840,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       await _startMpvFallback(automatic: true);
       return;
     }
-    debugPrint('sw-fallback: auto-fallback NOT triggered (tried=$_autoFallbackTried, mpvActive=$_mpvActive, source=${_mpvSourceFor(_current)})');
+    debugPrint('sw-fallback: auto-fallback NOT tried (tried=$_autoFallbackTried, mpvActive=$_mpvActive, allowFallback=${_defaultEngine.allowFallback}, source=${_mpvSourceFor(_current)})');
     _setTerminalError(fallbackError);
   }
 
@@ -892,8 +970,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         duration: Duration.zero,
       );
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PlayerScreen(video: video, startFromBeginning: true),
+        PlayerScreen.route(
+          video: video,
+          startFromBeginning: true,
+          initialEngine: _defaultEngine == DefaultEngine.mpv
+              ? PlayEngine.mpv
+              : PlayEngine.media3,
         ),
       );
     }
@@ -930,7 +1012,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// screen "Play with MPV"): no ExoPlayer backend is created at all. Mirrors
   /// the Media3 open-flow — resolve external subtitles (sidecar auto-pairing)
   /// and the resume position — then hand the file to mpv, which decodes
-  /// hardware-first (`hwdec=mediacodec-copy`) with its own internal FFmpeg
+  /// hardware-first (`hwdec=mediacodec`) with its own internal FFmpeg
   /// software fallback.
   Future<void> _startMpvPrimary() async {
     if (_inTests) return;
@@ -956,6 +1038,18 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (resume != null) _position = resume;
         debugPrint('mpv-primary: _position after resume logic = $_position');
       }
+      // Restore the same audio track the user was listening to last time.
+      // This path never runs _openCurrent, so without this the saved MPV
+      // track id was never loaded and every resume fell back to auto/first.
+      if (widget.startFromBeginning) {
+        await AudioTrackStore.clear(_resumeKey, engine: 'mpv');
+        _pendingAudioTrackRestore = null;
+      } else {
+        _pendingAudioTrackRestore =
+            await AudioTrackStore.load(_resumeKey, engine: 'mpv');
+      }
+      _mpvAudioDefaultApplied = false;
+      _mpvAudioPinInFlight = false;
       await _startMpvFallback(automatic: false);
     } catch (e) {
       if (mounted) {
@@ -969,24 +1063,48 @@ class _PlayerScreenState extends State<PlayerScreen>
     // codec/error paths. Belt-and-braces: never instantiate libmpv on iOS.
     if (_mpvActive || _inTests) return;
     if (!Platform.isAndroid) return;
+    // Always re-read the MPV-engine audio pick here: auto/manual fallback
+    // after a Media3 open leaves `_pendingAudioTrackRestore` as a Media3
+    // int, which the MPV tracks listener ignores.
+    if (widget.startFromBeginning) {
+      await AudioTrackStore.clear(_resumeKey, engine: 'mpv');
+      _pendingAudioTrackRestore = null;
+    } else {
+      _pendingAudioTrackRestore =
+          await AudioTrackStore.load(_resumeKey, engine: 'mpv');
+    }
+    _mpvAudioDefaultApplied = false;
+    _mpvAudioPinInFlight = false;
+    // Reset VO attach cache — new session gets fresh wid; otherwise a reused
+    // global ref pointer value (MediaKitAndroidHelper) would be treated as
+    // "wid unchanged" and we'd skip the critical vo=null/wid/vo=gpu attach,
+    // leaving mpv with no surface and discardFps=100%.
+    _mpvLastWid = 0;
+    _mpvLastW = 0;
+    _mpvLastH = 0;
     try {
       // Idempotent: loads the bundled libmpv native library.
       MediaKit.ensureInitialized();
+      // NEVER two video surfaces: tear Media3 down before mpv's SurfaceView
+      // mounts (hard constraint — prior attempt left both layers stacked).
+      await _teardownExoForMpv();
       final player = Player();
-      final controller = VideoController(player);
       if (!mounted) {
-        player.dispose();
+        unawaited(player.dispose());
         return;
       }
+      final surface = MpvSurfaceViewController()
+        ..onSurfaceReady = _onMpvSurfaceReady
+        ..onSurfaceLost = _onMpvSurfaceLost;
       _mpvPlayer = player;
-      _mpvController = controller;
+      _mpvSurface = surface;
       _mpvActive = true;
       _mpvFailed = false;
       _mpvError = null;
       _buffering = true;
       // Picture-in-picture: the native Media3 pip path can't serve the
-      // fallback (no platform view, idle ExoPlayer), so the Activity-level
-      // bridge takes over while mpv owns playback.
+      // fallback (idle ExoPlayer), so the Activity-level bridge takes over
+      // while mpv owns playback.
       MpvPipService.instance
         ..onPipChanged = _onMpvPipChanged
         ..onPipDismissed = _onMpvPipDismissed
@@ -995,18 +1113,28 @@ class _PlayerScreenState extends State<PlayerScreen>
         ..onForward = _onPipForward;
       _syncMpvPipState();
       setState(() => _error = null);
+      // Mirror AndroidVideoController.create video-output defaults without
+      // creating a Flutter texture (vo stays null until --wid attaches).
+      await _initMpvVideoOutput(player);
       _listenMpv(player);
       unawaited(player.setRate(_playbackSpeed));
-      // media_kit attaches its Android texture output inside an async closure
-      // in the VideoController constructor; a failure there would otherwise
-      // throw into the void and leave a black screen with no error.
-      unawaited(controller.platform.future.then<void>(
-        (_) => debugPrint('mpv: video output attached'),
-        onError: (Object e, StackTrace st) {
-          debugPrint('mpv: video output attach failed: $e\n$st');
-          _markMpvFailed('The fallback video output couldn\'t start: $e');
-        },
-      ));
+      // 1. Wait for SurfaceView to exist and report valid size.
+      // 2. Attach VO to that wid (vo=null → size → wid → force-window=yes →
+      //    vo=gpu → vid=auto) — BaseMPVView.surfaceCreated order.
+      // 3. NOW set hwdec — decoder inits with a live ANativeWindow.
+      // 4. open() / play().
+      // This avoids "Both surface and native_window are NULL" on mediacodec.
+      try {
+        await surface.waitUntilReady(timeout: const Duration(seconds: 8));
+        if (surface.isReady) {
+          await _attachMpvWid(surface.wid!, surface.width, surface.height);
+          await _applyMpvHwdec(player); // decoder sees live surface now
+        } else {
+          debugPrint('mpv: surface not ready before open — open will wait');
+        }
+      } catch (e) {
+        debugPrint('mpv: surface not ready before open: $e (will wait in open)');
+      }
       if (automatic && mounted) {
         // Brief, honest signal that playback continued in a different engine.
         final messenger = ScaffoldMessenger.of(context);
@@ -1023,6 +1151,244 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  /// Disposes the Media3 controller so its platform view unmounts before the
+  /// mpv SurfaceView mounts — one video surface only.
+  Future<void> _teardownExoForMpv() async {
+    _exoSub?.cancel();
+    _exoSub = null;
+    final exo = _exo;
+    _exo = null;
+    if (exo != null) {
+      try {
+        await exo.dispose();
+      } catch (e) {
+        debugPrint('mpv: exo dispose during switch: $e');
+      }
+      if (!mounted) return;
+      // Rebuild without ExoPlayerView, then wait for a post-frame callback
+      // to guarantee the native view is detached from the hierarchy.
+      setState(() {});
+      final completer = Completer<void>();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!completer.isCompleted) completer.complete();
+      });
+      await completer.future;
+      // Extra margin for BLAST buffer return.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    } else if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// Video-output properties media_kit's VideoController used to set — without
+  /// registering a Flutter texture. `vo=null` until --wid is attached.
+  Future<void> _initMpvVideoOutput(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer || _inTests) return;
+    // ctx starts as nullptr until async _create() finishes — setProperty with
+    // waitForInitialization:false skips that wait and SIGSEGVs in
+    // mpv_set_property_string. media_kit's AndroidVideoController always
+    // awaits player.handle first for the same reason.
+    try {
+      await player.handle;
+    } catch (e) {
+      debugPrint('mpv: wait for player init failed: $e');
+      return;
+    }
+    // force-window starts NO (BaseMPVView.initialize) — set YES only after
+    // wid attaches in _attachMpvWidInner, so mpv never tries to render into
+    // a not-yet-created surface.
+    const props = <String, String>{
+      'vo': 'null',
+      'vid': 'auto',
+      'opengl-es': 'yes',
+      'force-window': 'no',
+      'gpu-context': 'android',
+      'sub-use-margins': 'no',
+      'sub-font-provider': 'none',
+      'sub-scale-with-window': 'yes',
+      'hwdec-codecs': 'h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1',
+    };
+    for (final e in props.entries) {
+      try {
+        await platform.setProperty(e.key, e.value);
+      } catch (err) {
+        debugPrint('mpv: init prop ${e.key} failed: $err');
+      }
+    }
+  }
+
+  /// Native SurfaceView created / resized — attach `--wid` (media_kit order).
+  void _onMpvSurfaceReady(int wid, int width, int height) {
+    final player = _mpvPlayer;
+    if (player == null || _mpvFailed) return;
+    unawaited(_attachMpvWid(wid, width, height));
+    if (mounted) {
+      setState(() {
+        if (_controlsBeforeSurfaceLoss) {
+          _controlsBeforeSurfaceLoss = false;
+          _controlsVisible = true;
+        }
+      });
+      if (_controlsVisible) _restartHideTimer();
+    }
+  }
+
+  /// Surface destroyed (rotation / activity recreate) — clear `--wid` so mpv
+  /// does not write into a dead Surface. Re-attaches on the next ready event.
+  void _onMpvSurfaceLost() {
+    // Drop chrome for the shutter gap — otherwise the center play button
+    // paints on black and reads as a flash / stacked surface.
+    _controlsBeforeSurfaceLoss = _controlsVisible;
+    if (_controlsVisible) {
+      _hideTimer?.cancel();
+      if (mounted) setState(() => _controlsVisible = false);
+    }
+    final platform = _mpvPlayer?.platform;
+    if (platform is! NativePlayer) return;
+    // Bump the attach generation so any in-flight attach aborts before it
+    // re-sets wid against a surface that no longer exists.
+    _mpvAttachGen++;
+    _mpvLastWid = 0;
+    _mpvLastW = 0;
+    _mpvLastH = 0;
+    unawaited(() async {
+      try {
+      // BaseMPVView.surfaceDestroyed order: vo=null → force-window=no → wid=0.
+      await platform.setProperty('vo', 'null');
+      await platform.setProperty('force-window', 'no');
+      await platform.setProperty('wid', '0');
+      await platform.setProperty('vid', 'no');
+      } catch (e) {
+        debugPrint('mpv: surface clear failed: $e');
+      }
+    }());
+    if (mounted) setState(() {});
+  }
+
+  /// Sets mpv `--wid` to the SurfaceView's JNI global ref. Property order
+  /// matches media_kit `AndroidVideoController.widListener` (critical:
+  /// `vo=null` first, size before wid, re-init `vo` after size).
+  /// Serialized: overlapping surfaceReady/surfaceChanged must not interleave
+  /// vo/wid swaps (that is what leaves MediaCodec with a NULL surface).
+  Future<void> _attachMpvWid(int wid, int width, int height) {
+    final prev = _mpvAttachChain ?? Future<void>.value();
+    final next = prev.then((_) => _attachMpvWidInner(wid, width, height));
+    _mpvAttachChain = next.catchError((_) {});
+    return next;
+  }
+
+  Future<void> _attachMpvWidInner(int wid, int width, int height) async {
+    final player = _mpvPlayer;
+    if (player == null || wid <= 0 || width <= 0 || height <= 0) return;
+    // Debounce: surfaceChanged fires continuously (even without rotation).
+    // Full vo=null/wid/vo=gpu re-init mid-playback leaves mediacodec with
+    // NULL surface -> "Both surface and native_window are NULL" + black video
+    // but subtitles (OSD) still show. Only re-init when wid actually changed;
+    // size-only changes just update android-surface-size.
+    if (wid == _mpvLastWid && width == _mpvLastW && height == _mpvLastH) {
+      return;
+    }
+    final isSizeOnlyChange = wid == _mpvLastWid && wid != 0;
+    final platform = player.platform;
+    if (platform is! NativePlayer) return;
+    final gen = ++_mpvAttachGen;
+    // ctx is nullptr until _create() completes — never skip the init wait.
+    try {
+      await player.handle;
+      if (gen != _mpvAttachGen || _mpvPlayer != player) return;
+      if (isSizeOnlyChange) {
+        // Size-only (rotation layout): no VO reset, just tell mpv new size.
+        // Full VO reset here would pause audio and produce black frames.
+        debugPrint('mpv: surface size update ${width}x$height (wid unchanged)');
+        await platform.setProperty('android-surface-size', '${width}x$height');
+        _mpvLastW = width;
+        _mpvLastH = height;
+        await _applyMpvFitProps();
+        // REX-Player surfaceChanged: while paused mpv's render loop is idle
+        // and never draws at the new geometry — the compositor stretches the
+        // old buffer and leaves black/uninitialized regions. A zero-distance
+        // exact seek forces one frame at the new size without advancing.
+        try {
+          final paused = !player.state.playing;
+          if (paused) {
+            await platform.command(['seek', '0', 'relative+exact']);
+            debugPrint('mpv: paused size-change repaint seek 0 relative+exact');
+          }
+        } catch (e) {
+          debugPrint('mpv: paused repaint seek failed: $e');
+        }
+        if (mounted) setState(() {});
+        return;
+      }
+      // Full VO re-init for new wid (BaseMPVView.surfaceCreated order):
+      // wid (attachSurface) → force-window=yes → vo=gpu.
+      // size is set before wid so the first frame has correct geometry.
+      await platform.setProperty('vo', 'null');
+      await platform.setProperty('android-surface-size', '${width}x$height');
+      await platform.setProperty('wid', '$wid');
+      // Forces mpv to render video/subs/OSD into OUR surface (BaseMPVView
+      // comment: even if it would ordinarily not). Must be YES after wid
+      // attaches — init leaves it NO so VO never opens a phantom window.
+      await platform.setProperty('force-window', 'yes');
+      // Prefer gpu-next when the custom libmpv (libplacebo) is present;
+      // stock rejects it silently (media_kit ignores return) — probe once.
+      if (await _mpvGpuNextAvailable(player)) {
+        await platform.setProperty('vo', 'gpu-next');
+        if (_toneMapMode == ToneMapMode.native) {
+          await platform.setProperty('target-colorspace-hint', 'yes');
+        }
+      } else {
+        await platform.setProperty('vo', 'gpu');
+      }
+      await platform.setProperty('vid', 'auto');
+      if (gen != _mpvAttachGen || _mpvPlayer != player) return;
+      _mpvLastWid = wid;
+      _mpvLastW = width;
+      _mpvLastH = height;
+      // Keep current frame visible after surface recreate (rotation).
+      final pos = player.state.position;
+      if (pos > Duration.zero) {
+        await player.seek(pos);
+      }
+      if (gen != _mpvAttachGen || _mpvPlayer != player) return;
+      debugPrint('mpv: surface attached wid=$wid ${width}x$height');
+      await _applyMpvFitProps();
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('mpv: surface attach failed: $e');
+    }
+  }
+
+  /// Maps the current fit mode onto mpv `keepaspect` / `panscan` (the Flutter
+  /// [Video] widget is gone — the SurfaceView fills its parent).
+  Future<void> _applyMpvFitProps() async {
+    final player = _mpvPlayer;
+    final platform = player?.platform;
+    if (player == null || platform is! NativePlayer) return;
+    try {
+      await player.handle;
+      switch (_fitMode) {
+        case VideoFitMode.fit:
+          await platform.setProperty('keepaspect', 'yes');
+          await platform.setProperty('panscan', '0.0');
+        case VideoFitMode.fullscreen:
+        case VideoFitMode.stretch:
+          await platform.setProperty('keepaspect', 'no');
+          await platform.setProperty('panscan', '0.0');
+        case VideoFitMode.crop:
+        case VideoFitMode.ratio4x3:
+        case VideoFitMode.ratio16x9:
+        case VideoFitMode.ratio185:
+        case VideoFitMode.ratio239:
+          await platform.setProperty('keepaspect', 'yes');
+          await platform.setProperty('panscan', '1.0');
+      }
+    } catch (e) {
+      debugPrint('mpv: fit props failed: $e');
+    }
+  }
+
   /// Configures the libmpv engine for wide multichannel + bitstream
   /// passthrough on Android.
   ///
@@ -1034,16 +1400,15 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// to it and enable SpDIF passthrough for those codecs. When the active
   /// output device can't accept the raw bitstream (phone speakers, BT earbuds)
   /// libmpv falls back to PCM decode, so audio always plays.
-  Future<void> _configureMpvAudio(Player player) async {
+  Future<void> _configureMpvAudio(Player player, {bool skipHwdec = false}) async {
     final platform = player.platform;
     if (platform is! NativePlayer || _inTests) return;
-    // Apply the user's decoder choice (Auto/Hardware/Software) as hwdec.
-    await _applyMpvHwdec(player);
+    if (!skipHwdec) await _applyMpvHwdec(player);
     // Explicit OpenGL ES context + fast profile — required on some low-powered
     // MediaTek SoCs (G81 etc.) where mpv's auto-detection fails and the video
-    // layer never attaches to the Flutter texture, resulting in audio-only
-    // playback with the purple background gradient showing through.
-    // `profile=fast` reduces decode overhead on budget chips.
+    // layer never attaches to the SurfaceView, resulting in audio-only
+    // playback with a black screen. `profile=fast` reduces decode overhead on
+    // budget chips.
     try {
       await platform.setProperty('gpu-context', 'android');
       await platform.setProperty('opengl-es', 'yes');
@@ -1059,15 +1424,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: hwdec-codecs=all unavailable: $e');
     }
-    // Auto-fallback to software decode after 3 failed HW frames — prevents
-    // infinite black/purple screen when the hardware decoder can't handle a
-    // stream (broken Mali drivers, unsupported 10-bit profiles, etc.).
-    try {
-      await platform.setProperty('hwdec-software-fallback', '3');
-      debugPrint('mpv: hwdec-software-fallback = 3');
-    } catch (e) {
-      debugPrint('mpv: hwdec-software-fallback unavailable: $e');
-    }
+    // hwdec-software-fallback MISS on this build — skip.
     // Force FFmpeg software decode for ALL audio codecs. This ensures
     // TrueHD, DTS-HD, and other lossless codecs decode via the bundled
     // FFmpeg decoder (ff_truehd_decoder etc.) regardless of hwdec settings.
@@ -1089,34 +1446,24 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: ao=audiotrack unavailable, keeping opensles: $e');
     }
-    // Color-space hints: without these, mediacodec-copy on 10-bit HEVC
-    // (P010 buffers) produces a purple tint because mpv's gpu VO uses the
-    // wrong transfer function during YUV→RGB conversion.
-    try {
-      await platform.setProperty('target-colorspace-hint', 'yes');
-      await platform.setProperty('force-rgb-colorspace', 'yes');
-      debugPrint('mpv: color-space hints enabled');
-    } catch (e) {
-      debugPrint('mpv: color-space hints unavailable: $e');
-    }
-    // HDR→SDR tone mapping (improved from mpv-config community presets):
-    // - bt2390: ITU-R BT.2390 EETF with smooth roll-off for HDR→SDR.
-    // - perceptual gamut mapping preserves color vibrancy vs default clip.
-    // - hdr-peak-percentile=99.95: measure peak at 99.95th percentile to
-    //   avoid a single bright pixel skewing the whole scene.
-    // - hdr-contrast-recovery=0.30: recovers detail in dark/bright areas
-    //   after tone mapping (shadows show more detail, highlights don't clip).
-    // - hdr-peak-decay-rate=20.0: smoother brightness transitions between
-    //   scenes (less flickering during fast cuts).
-    try {
-      await platform.setProperty('tone-mapping', 'bt2390');
-      await platform.setProperty('gamut-mapping-mode', 'perceptual');
-      await platform.setProperty('hdr-peak-percentile', '99.95');
-      await platform.setProperty('hdr-contrast-recovery', '0.30');
-      await platform.setProperty('hdr-peak-decay-rate', '20.0');
-      debugPrint('mpv: HDR tone mapping configured (bt2390, perceptual, peak/contrast)');
-    } catch (e) {
-      debugPrint('mpv: tone mapping config unavailable: $e');
+    // Color-space / tone-map (issue #21). Probed once: media_kit's
+    // setProperty ignores mpv's return code, so try/catch alone cannot
+    // detect a stock libmpv without libplacebo — set then get.
+    await _applyMpvToneMap(player);
+
+    // Stock HDR→SDR extras (bt.2390 family) only when gpu-next is absent
+    // — gpu-next path is fully configured in _applyMpvToneMap.
+    if (!await _mpvGpuNextAvailable(player)) {
+      try {
+        await platform.setProperty('tone-mapping', 'bt.2390');
+        await platform.setProperty('gamut-mapping-mode', 'perceptual');
+        await platform.setProperty('hdr-peak-percentile', '99.95');
+        await platform.setProperty('hdr-contrast-recovery', '0.30');
+        await platform.setProperty('hdr-peak-decay-rate', '20.0');
+        debugPrint('mpv: stock HDR tone mapping configured (bt.2390, perceptual, peak/contrast)');
+      } catch (e) {
+        debugPrint('mpv: tone mapping config unavailable: $e');
+      }
     }
     // Subtitle rendering (improved from mpv-config community presets):
     // - sub-auto=fuzzy: auto-detect embedded subtitle tracks by language.
@@ -1202,15 +1549,76 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  /// Whether this libmpv actually has `vo=gpu-next` (libplacebo / issue #21).
+  ///
+  /// Prefer `libplacebo-version` — present iff libplacebo is linked (our
+  /// Phase 3 build). `vo-list` is not a stable string property on every mpv
+  /// build (returns empty on both stock and custom). Set+get on `vo` is
+  /// invalid (mpv accepts any string even when the VO is missing).
+  Future<bool> _mpvGpuNextAvailable(Player player) async {
+    if (_mpvGpuNext != null) return _mpvGpuNext!;
+    final platform = player.platform;
+    if (platform is! NativePlayer || _inTests) return false;
+    try {
+      final pl = await platform.getProperty('libplacebo-version');
+      if (pl.isNotEmpty && pl != '0' && !pl.startsWith('-')) {
+        _mpvGpuNext = true;
+        debugPrint('mpv: gpu-next/libplacebo available ($pl)');
+        return true;
+      }
+      // Fallback: some builds expose vo-list as a JSON array string.
+      final raw = await platform.getProperty('vo-list');
+      final has = raw.contains('gpu-next');
+      _mpvGpuNext = has;
+      if (!has) {
+        debugPrint(
+          'mpv: no gpu-next (libplacebo-version="${pl.isEmpty ? "<empty>" : pl}" '
+          'vo-list=${raw.isEmpty ? "<empty>" : raw})',
+        );
+      }
+      return has;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Applies the user's HDR presentation mode ([ToneMapMode]) to a live mpv.
+  ///
+  /// SDR: `vo=gpu-next` + libplacebo spline/bt.709/bt.1886 (needs a custom
+  /// libmpv with libplacebo — stock falls back to `gpu` + bt.2390 handled
+  /// by the caller). Native: `target-colorspace-hint` so the surface can
+  /// pass PQ/BT.2020 toward the display (also requires gpu-next).
+  Future<void> _applyMpvToneMap(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer || _inTests) return;
+    final hasGpuNext = await _mpvGpuNextAvailable(player);
+    if (!hasGpuNext) {
+      await platform.setProperty('vo', 'gpu');
+      debugPrint('mpv: stock libmpv — vo=gpu, tone-map mode ignored until Phase 3');
+      return;
+    }
+    if (_toneMapMode == ToneMapMode.sdr) {
+      await platform.setProperty('vo', 'gpu-next');
+      await platform.setProperty('tone-mapping', 'spline');
+      await platform.setProperty('gamut-mapping-mode', 'perceptual');
+      await platform.setProperty('target-prim', 'bt.709');
+      await platform.setProperty('target-trc', 'bt.1886');
+      await platform.setProperty('target-colorspace-hint', 'no');
+      debugPrint('mpv: tone-map applied (SDR gpu-next/spline/bt.709/bt.1886)');
+    } else {
+      await platform.setProperty('vo', 'gpu-next');
+      await platform.setProperty('target-colorspace-hint', 'yes');
+      debugPrint('mpv: tone-map applied (native colorspace-hint)');
+    }
+  }
+
   /// Maps the user's [DecoderMode] onto libmpv's `hwdec` property.
   ///
-  /// libmpv runs hardware-first by default (`mediacodec-copy` = use the
-  /// hardware decoder for the bitstream but copy frames to CPU for mpv's
-  /// software rendering pipeline — the same default SVPlayer uses, which
-  /// handles unusual formats like 12-bit 4:4:4 HEVC Rext that `auto-safe`
-  /// can reject). Falls back to bundled FFmpeg software decode when the
-  /// hardware can't handle a stream at all. The ⋮ sheet lets the user force
-  /// hardware (`mediacodec`) or software (`no`) for both engines.
+  /// Hardware-first via direct **`mediacodec`** (zero-copy into the
+  /// SurfaceView — mpv-android / REX path). `mediacodec-copy` round-trips
+  /// through CPU + vo/gpu and can leave black frames on this dual-surface
+  /// Flutter window; software (`no`) is the explicit override / mid-stream
+  /// codec-death retry. The ⋮ sheet lets the user force hardware or software.
   Future<void> _applyMpvHwdec(Player player) async {
     final platform = player.platform;
     if (platform is! NativePlayer || _inTests) return;
@@ -1233,15 +1641,20 @@ class _PlayerScreenState extends State<PlayerScreen>
     final value = swForced
         ? 'no'
         : switch (_decoderMode) {
+            // Direct mediacodec (zero-copy): decoder writes YUV straight into
+            // our SurfaceView — same path as mpv-android HWDECS / REX
+            // ("mediacodec,mediacodec-copy"). Preferred over -copy for a real
+            // hole-punch Surface (REX: "mediacodec-copy omitted — often causes
+            // Surface-related crashes"; copy round-trips through vo/gpu and
+            // can leave black frames). The old VO-init race is gone: attach
+            // fully sets force-window+vo=gpu BEFORE hwdec is applied.
             DecoderMode.hw => 'mediacodec',
             DecoderMode.sw => 'no',
-            // Auto mode: try mediacodec (zero-copy, lowest latency) first, then
-            // fall back to mediacodec-copy (copy to CPU). This matches mpv-android
-            // and SVPlayer defaults — zero-copy works on most modern SoCs and is
-            // significantly faster for 4K/10-bit content. The hwdec-software-fallback
-            // property (set in _configureMpvAudio) handles the case where both HW
-            // paths fail (broken drivers, unsupported profiles).
-            _ => swOnly ? 'no' : 'mediacodec,mediacodec-copy',
+            // Auto: direct mediacodec on a live surface (attach order above);
+            // fall back to copy only for sw-only containers' edge cases —
+            // those use software anyway. mediacodec-copy kept as explicit
+            // hw choice only via decoder override if ever needed.
+            _ => swOnly ? 'no' : 'mediacodec',
           };
     try {
       await platform.setProperty('hwdec', value);
@@ -1270,6 +1683,16 @@ class _PlayerScreenState extends State<PlayerScreen>
     _buffered = Duration.zero;
     _buffering = true;
     if (mounted) setState(() {});
+    // Play-next / repeat-all: load this file's saved audio pick before open.
+    if (widget.startFromBeginning) {
+      await AudioTrackStore.clear(_resumeKey, engine: 'mpv');
+      _pendingAudioTrackRestore = null;
+    } else {
+      _pendingAudioTrackRestore =
+          await AudioTrackStore.load(_resumeKey, engine: 'mpv');
+    }
+    _mpvAudioDefaultApplied = false;
+    _mpvAudioPinInFlight = false;
     await _mpvOpen(p, video, startMs);
   }
 
@@ -1328,118 +1751,43 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: demuxer override unavailable: $e');
     }
-    // Set hwdec BEFORE opening the file.  media_kit defaults to
-    // mediacodec-copy, which creates a hardware decoder during open() — before
-    // the surface exists — causing "h264_mediacodec: Both surface and
-    // native_window are NULL".  Setting hwdec first means mpv uses the correct
-    // decoder pipeline from the very first frame (no wasted HW init + teardown
-    // on open).
-    try {
-      await _applyMpvHwdec(player);
-    } catch (e) {
-      debugPrint('mpv: hwdec pre-open unavailable: $e');
-    }
+    // Surface is bound by _startMpvFallback (first open) or already live on
+    // reload. Apply hwdec AFTER the surface wait below so the decoder always
+    // inits with a live ANativeWindow, and so the issue-7 software-retry
+    // latch (_mpvSwRetriedKey → hwdec=no) and play-next mode changes actually
+    // reach libmpv on _reloadMpv — _mpvOpen used to skip hwdec entirely
+    // (`skipHwdec: true`), so a mid-stream codec death reloaded with the same
+    // `mediacodec` setting and died again with "Could not open codec."
     try {
       final start = Duration(milliseconds: startMs);
-      // 1. Open PAUSED: the native mpv context is created here, but the
-      //    Android texture surface (`wid`) is not yet attached — it attaches
-      //    asynchronously after the Video widget mounts and the platform
-      //    layer calls setSurfaceSize. Decoding before the surface exists
-      //    causes "h264_mediacodec: Both surface and native_window are NULL"
-      //    (the same race mpv-android avoids by attaching the surface before
-      //    loadfile). Opening paused lets us wait for the surface below.
+      // Ensure surface is still valid — rotation can destroy it between
+      // _startMpvFallback's attach and this open.
+      final surface = _mpvSurface;
+      if (surface == null) {
+        _markMpvFailed('MPV surface lost before attach.');
+        return;
+      }
+      if (!surface.isReady) {
+        try {
+          await surface.waitUntilReady(timeout: const Duration(seconds: 10));
+          debugPrint('mpv: surface ready pre-open (${surface.width}x${surface.height})');
+          await _attachMpvWid(surface.wid!, surface.width, surface.height);
+        } catch (e) {
+          debugPrint('mpv: surface not ready after 10s: $e (proceeding)');
+        }
+      }
+      await _applyMpvHwdec(player);
       await player.open(
         Media(playable, start: startMs > 0 ? start : null),
         play: false,
       );
-      // 2. Wait for the native surface to actually attach.
-      //
-      //    controller.platform.future resolves at VideoOutputManager.create —
-      //    that only means the Android texture ID was registered with Flutter,
-      //    NOT that the rendering Surface exists. The actual Surface is created
-      //    asynchronously by Flutter's GPU backend when the Texture widget
-      //    renders, firing onSurfaceTextureAvailable → setSurfaceSize.
-      //    Between those two events can be several seconds (observed 3.2s on
-      //    OnePlus CPH2573). Decoding into a NULL surface hangs immediately.
-      //
-      //    We solve this by waiting for BOTH signals:
-      //    a) controller.platform.future (texture ID registered)
-      //    b) controller.platform.rect becoming non-null/non-zero
-      //       (Surface created and sized — the ValueNotifier set by
-      //       onSurfaceTextureAvailable in VideoOutput.java)
-      final controller = _mpvController;
-      if (controller == null) {
-        _markMpvFailed('Video controller lost before surface attach.');
-        return;
+      // Re-attach if surface changed during open (activity recreate race).
+      final postSurface = _mpvSurface;
+      if (postSurface != null && postSurface.isReady) {
+        await _attachMpvWid(postSurface.wid!, postSurface.width, postSurface.height);
       }
-      // a) Wait for the texture ID.
-      try {
-        await controller.platform.future.timeout(
-          const Duration(seconds: 5),
-        );
-      } catch (e) {
-        debugPrint('mpv: texture attach: $e (proceeding anyway)');
-      }
-      if (!mounted) return;
-      // b) Wait for the Surface (rect set by onSurfaceTextureAvailable).
-      //
-      //    VideoController exposes a top-level `rect` ValueNotifier<Rect?>
-      //    that mirrors the platform controller's rect. It becomes non-null
-      //    when onSurfaceTextureAvailable fires and setSurfaceSize is called
-      //    — that's when the Android Surface actually exists.
-      //
-      //    On some devices the surface can take 5+ seconds to be created
-      //    (observed 5.3s on OnePlus CPH2573 during repeated re-opens).
-      //    Use a generous timeout and a post-timeout safety net: if the
-      //    rect arrived during the timeout's final milliseconds, the
-      //    completer may have just missed it — check once more.
-      final rect = controller.rect;
-      if (rect.value == null || rect.value == Rect.zero) {
-        final surfaceReady = Completer<void>();
-        late VoidCallback listener;
-        listener = () {
-          if (rect.value != null &&
-              rect.value != Rect.zero &&
-              !surfaceReady.isCompleted) {
-            rect.removeListener(listener);
-            surfaceReady.complete();
-          }
-        };
-        rect.addListener(listener);
-        try {
-          await surfaceReady.future.timeout(const Duration(seconds: 10));
-          debugPrint(
-            'mpv: surface ready '
-            '(${rect.value?.width.toInt()}x${rect.value?.height.toInt()})',
-          );
-        } catch (e) {
-          // The timeout fired, but the surface may have arrived in the last
-          // few milliseconds — give it one more frame to settle.
-          await Future<void>.delayed(const Duration(milliseconds: 200));
-          if (rect.value != null && rect.value != Rect.zero) {
-            debugPrint(
-              'mpv: surface ready (late) '
-              '(${rect.value?.width.toInt()}x${rect.value?.height.toInt()})',
-            );
-          } else {
-            debugPrint('mpv: surface not ready after 10s: $e (proceeding)');
-          }
-          rect.removeListener(listener);
-        }
-      } else {
-        debugPrint(
-          'mpv: surface already attached '
-          '(${rect.value?.width.toInt()}x${rect.value?.height.toInt()})',
-        );
-      }
-      if (!mounted) return;
-      // 3. Configure hwdec + audio output BEFORE playing. The native mpv
-      //    context is alive (created by open), so setProperty calls succeed.
-      //    hwdec must be set before the first frame is decoded — setting it
-      //    after play() starts means the first frames decode with the wrong
-      //    pipeline (e.g. hardware decode for a software-only container like
-      //    .m2ts, which hangs on the first frame).
-      await _configureMpvAudio(player);
+      // Audio/subs — hwdec already applied above; skip the duplicate.
+      await _configureMpvAudio(player, skipHwdec: true);
       // Apply the user's subtitle styling (size, color, background, outline,
       // vertical position) so settings carry over from Media3 to mpv.
       await _applyMpvSubtitleStyle(player);
@@ -1624,15 +1972,32 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (!mounted) return;
       _mpvTracks = t;
       _syncMpvTrackMeta();
-      // Restore the user's chosen audio track on first tracks event after open.
-      if (_pendingAudioTrackRestore is String && t.audio.isNotEmpty) {
-        final restoreId = _pendingAudioTrackRestore as String;
-        _pendingAudioTrackRestore = null;
-        for (final tr in t.audio) {
-          if (tr.id == restoreId) {
-            player.setAudioTrack(tr);
-            break;
+      final real = t.audio
+          .where((tr) => tr.id != 'auto' && tr.id != 'no')
+          .toList();
+      if (real.isNotEmpty) {
+        // 1) Restore the user's saved pick (MPV track id string).
+        // 2) Otherwise pin the container DEFAULT-flagged track once per open —
+        //    `aid=auto` alone was landing on the first list entry, not the
+        //    file's default audio. Only latch after a real selection: an
+        //    early tracks event can arrive before the `default` flag is
+        //    populated, and latching then would pin forever on the wrong
+        //    (first) track.
+        final restore = _pendingAudioTrackRestore;
+        if (restore is String) {
+          _pendingAudioTrackRestore = null;
+          final saved = real.where((tr) => tr.id == restore).firstOrNull;
+          if (saved != null) {
+            _mpvAudioDefaultApplied = true;
+            debugPrint('mpv: restoring saved audio id=$restore');
+            unawaited(player.setAudioTrack(saved));
+          } else {
+            // Saved id is gone (track list changed) — fall through to default pin.
+            debugPrint('mpv: saved audio id=$restore not in track list');
+            unawaited(_pinMpvDefaultAudio(player, real));
           }
+        } else if (!_mpvAudioDefaultApplied) {
+          unawaited(_pinMpvDefaultAudio(player, real));
         }
       }
       // Re-evaluate CC highlight when tracks arrive (may fire after the
@@ -1715,7 +2080,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     return null;
   }
 
-  /// Audio label (codec · channels) as reported by mpv state.
+  /// Audio label (codec · channels · language) as reported by mpv state.
+  /// Language matches the Media3 chip (`formatLiveAudioLabel` → `liveLanguage`).
   String? get _mpvAudioLabel {
     final audio = _mpvTracks.audio;
     final selId = _mpvPlayer?.state.track.audio.id;
@@ -1728,15 +2094,21 @@ class _PlayerScreenState extends State<PlayerScreen>
     for (final tr in audio) {
       if (tr.id == 'auto' || tr.id == 'no') continue;
       if (concreteSel != null && tr.id != concreteSel) continue;
-      final codec = tr.codec ?? tr.title;
+      // Prefer the codec field; title is often the language display name and
+      // would duplicate the language suffix below.
+      final codec = tr.codec;
       final channels = tr.channelscount;
       if (channels != null && channels > 0) _mpvAudioChannels = channels;
+      final lang = languageName(tr.language);
       final parts = [
         if (codec != null && codec.isNotEmpty)
           formatAudioCodec(codec),
         if (channels != null && channels > 0) channelsLabel(channels),
+        if (lang.isNotEmpty) lang,
       ];
       if (parts.isNotEmpty) return parts.join(' · ');
+      // No codec/channels — still surface language alone if present.
+      if (lang.isNotEmpty) return lang;
     }
     return null;
   }
@@ -1746,6 +2118,88 @@ class _PlayerScreenState extends State<PlayerScreen>
     for (final tr in audio) {
       final c = tr.channelscount;
       if (c != null && c > 0) _mpvAudioChannels = c;
+    }
+  }
+
+  /// Pins the container-default audio track once per open.
+  ///
+  /// [real] excludes media_kit's `auto`/`no` sentinels. Prefers
+  /// [pickMpvDefaultAudioId] (`isDefault` on the Dart model). When every
+  /// flag is null/missing (media_kit only reads `default` as MPV_FORMAT_FLAG;
+  /// some builds hand it back as INT64), probes libmpv's raw
+  /// `track-list/<n>/default` properties and matches by track id.
+  ///
+  /// Latches [_mpvAudioDefaultApplied] only after a concrete track is chosen
+  /// (or after both probes find no default), so an early tracks event with
+  /// unpopulated flags can be retried on the next event.
+  Future<void> _pinMpvDefaultAudio(
+    Player player,
+    List<AudioTrack> real,
+  ) async {
+    if (_mpvAudioDefaultApplied || _mpvAudioPinInFlight) return;
+    _mpvAudioPinInFlight = true;
+    try {
+      final defId = pickMpvDefaultAudioId(real);
+      if (defId != null) {
+        _mpvAudioDefaultApplied = true;
+        final cur = player.state.track.audio.id;
+        if (cur != defId) {
+          final def = real.firstWhere((tr) => tr.id == defId);
+          debugPrint('mpv: pinning container-default audio id=$defId '
+              '(cur=$cur, flags=${real.map((t) => '${t.id}:${t.isDefault}').join(',')})');
+          try {
+            await player.setAudioTrack(def);
+          } catch (e) {
+            debugPrint('mpv: setAudioTrack($defId) failed: $e');
+          }
+        }
+        return;
+      }
+      // Dart model has no default flag — ask libmpv directly.
+      final platform = player.platform;
+      if (platform is! NativePlayer || _inTests) {
+        // Nothing better to try; stop retrying so we don't spin every event.
+        _mpvAudioDefaultApplied = true;
+        return;
+      }
+      try {
+        String? rawDefId;
+        for (var n = 1; n <= real.length + 2; n++) {
+          final idRaw = await platform.getProperty('track-list/$n/id');
+          if (idRaw.isEmpty) continue;
+          final flagRaw = await platform.getProperty('track-list/$n/default');
+          final isDef = parseMpvDefaultFlag(flagRaw);
+          debugPrint('mpv: raw track-list/$n id=$idRaw default="$flagRaw"');
+          if (isDef == true) {
+            rawDefId = idRaw;
+            break;
+          }
+        }
+        if (rawDefId != null && real.any((tr) => tr.id == rawDefId)) {
+          _mpvAudioDefaultApplied = true;
+          final cur = player.state.track.audio.id;
+          if (cur != rawDefId) {
+            final def = real.firstWhere((tr) => tr.id == rawDefId);
+            debugPrint('mpv: pinning container-default audio id=$rawDefId (raw track-list)');
+            try {
+              await player.setAudioTrack(def);
+            } catch (e) {
+              debugPrint('mpv: setAudioTrack($rawDefId) failed: $e');
+            }
+          }
+          return;
+        }
+        // Probed the list and found no default flag — mpv's own auto pick
+        // (first entry when nothing is flagged) is correct. Latch so we don't
+        // re-probe every tracks event (sub-add re-fires them).
+        _mpvAudioDefaultApplied = true;
+        debugPrint('mpv: no default audio flag among ${real.length} tracks — leaving aid=auto');
+      } catch (e) {
+        debugPrint('mpv: raw default-flag probe failed: $e');
+        // Leave the latch clear so the next tracks event retries.
+      }
+    } finally {
+      _mpvAudioPinInFlight = false;
     }
   }
 
@@ -1838,9 +2292,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   /// Applies a picker-chosen [VideoFitMode] to whichever engine is live; mpv
-  /// mode maps the box modes onto the Flutter-side `Video` fit + a forced
-  /// aspect box. Matches Nova Video Player's "Format" options: Original,
-  /// Fullscreen, Stretched, Crop, 4:3, 16:9, 1.85:1, 2.39:1.
+  /// maps box modes onto mpv `keepaspect`/`panscan` + a forced aspect box
+  /// around the SurfaceView. Matches Nova Video Player's "Format" options:
+  /// Original, Fullscreen, Stretched, Crop, 4:3, 16:9, 1.85:1, 2.39:1.
   void _applyFitMode(VideoFitMode mode) {
     if (!mounted) return;
     setState(() {
@@ -1848,32 +2302,24 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (_mpvReady) {
         switch (mode) {
           case VideoFitMode.fit:
-            _mpvFit = BoxFit.contain;
             _mpvAspect = null;
           case VideoFitMode.fullscreen:
-            // Keep display dims, ignore AR — same visual as stretch.
-            _mpvFit = BoxFit.fill;
             _mpvAspect = null;
           case VideoFitMode.crop:
-            _mpvFit = BoxFit.cover;
             _mpvAspect = null;
           case VideoFitMode.stretch:
-            _mpvFit = BoxFit.fill;
             _mpvAspect = null;
           case VideoFitMode.ratio4x3:
-            _mpvFit = BoxFit.cover;
             _mpvAspect = 4 / 3;
           case VideoFitMode.ratio16x9:
-            _mpvFit = BoxFit.cover;
             _mpvAspect = 16 / 9;
           case VideoFitMode.ratio185:
-            _mpvFit = BoxFit.cover;
             _mpvAspect = 1.85;
           case VideoFitMode.ratio239:
-            _mpvFit = BoxFit.cover;
             _mpvAspect = 2.39;
         }
         _mpvZoomScale = 1.0;
+        unawaited(_applyMpvFitProps());
       }
     });
     if (!_mpvReady) _exo?.setFitMode(mode);
@@ -2136,11 +2582,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         return;
       }
       // Non-decode errors (container unsupported, IO, codec init, etc.).
-      // Always try mpv — if Media3 can't play this file, mpv's bundled
-      // FFmpeg is the safety net.
+      // Auto-fallback to mpv only when the default engine allows it —
+      // a pinned Media3 default must not silently switch engines.
       if (!_autoFallbackTried &&
           !_mpvActive &&
           Platform.isAndroid &&
+          _defaultEngine.allowFallback &&
           _mpvSourceFor(_current).isNotEmpty) {
         _autoFallbackTried = true;
         debugPrint('auto-fallback: non-decode error "$friendly", falling back to mpv');
@@ -2678,13 +3125,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       return;
     }
     // --- MPV path ---
-    // If MPV is active but the player / controller is gone, the OS killed the
-    // texture while backgrounded. Reopen from the saved resume position.
+    // If MPV is active but the player / surface is gone, reopen from the
+    // saved resume position (surface recreate on unlock).
     if (_mpvActive && _hadMedia && !_completed && !_inTests) {
       await Future<void>.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
-      // If the controller is null or the player has no media, reopen.
-      final mpvReady = _mpvController != null && _mpvPlayer != null;
+      final mpvReady = _mpvSurface != null && _mpvPlayer != null;
       if (!mpvReady) {
         await _openCurrent();
       }
@@ -2706,11 +3152,20 @@ class _PlayerScreenState extends State<PlayerScreen>
     _saveResume(_position);
     _stopTranscodeJob();
     // Restore system brightness so it doesn't stick after the player closes.
+    // Media3 writes window brightness via the ExoPlayer channel; MPV writes the
+    // SAME window attribute via SystemControls (dreamplayer/system). On the MPV
+    // path `_exo` is null, so without the SystemControls restore the override
+    // sticks on the details screen and for the rest of the activity lifetime.
     if (Platform.isIOS && _iosOriginalBrightness >= 0) {
       _exo?.setBrightness(_iosOriginalBrightness);
     } else {
       _exo?.setBrightness(-1);
+      // dreamplayer/system is Android-only (MainActivity); iOS has no channel.
+      if (Platform.isAndroid) {
+        unawaited(SystemControls.instance.setBrightness(-1));
+      }
     }
+    _mpvBrightness = 1.0;
     _exoSub?.cancel();
     _exo?.dispose();
     for (final s in _mpvSubs) {
@@ -2725,8 +3180,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       unawaited(MpvPipService.instance.setState(active: false, playing: false));
     }
     MpvPipService.instance.clear();
+    _mpvSurface?.dispose();
+    _mpvSurface = null;
     _mpvPlayer = null;
-    _mpvController = null;
     // Restore orientation + system UI. These are async platform calls that
     // cannot be awaited in dispose(). Using addPostFrameCallback ensures the
     // restore completes BEFORE the calling screen rebuilds — without this,
@@ -3234,20 +3690,26 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
       ),
     );
-    if (choice != null && choice.id != selected) {
-      await player.setAudioTrack(choice);
-      AudioTrackStore.save(_resumeKey, engine: 'mpv', trackIndex: choice.id);
-    }
+      if (choice != null && choice.id != selected) {
+        await player.setAudioTrack(choice);
+        await AudioTrackStore.save(_resumeKey, engine: 'mpv', trackIndex: choice.id);
+        // Rebuild the audio chip immediately — don't wait for the next
+        // `stream.track` event (the language badge reads the selected track).
+        if (mounted) setState(() {});
+      }
   }
 
   /// The audio-track id the mpv sheet should tick. mpv reports the current
-  /// audio id as `auto` until the user picks a track explicitly, so a plain
+  /// audio id as `auto` until a concrete track is selected, so a plain
   /// `state.track.audio.id` comparison ticks nothing even though a track IS
-  /// playing. In that case the played track is the first real one, which is
-  /// what mpv's own auto-selection resolves to.
+  /// playing. Prefer the container-default (what we pin at open), then the
+  /// first real entry as last resort.
   String? _mpvSelectedAudioId(List<AudioTrack> tracks) {
     final id = _mpvPlayer?.state.track.audio.id;
     if (id != null && id != 'auto' && id != 'no') return id;
+    for (final t in tracks) {
+      if (t.isDefault == true) return t.id;
+    }
     return tracks.isNotEmpty ? tracks.first.id : null;
   }
 
@@ -3447,7 +3909,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (sourceUrl.isNotEmpty && sourceUrl != video.title)
         (label: AppLocalizations.of(context).playerUrl, value: sourceUrl),
       if (fileSize != null) (label: AppLocalizations.of(context).playerFileSize, value: fileSize),
-      (label: 'HDR', value: _mpvReady ? 'SDR (MPV)' : _hdrLabel),
+      (label: 'HDR', value: _mpvReady ? _mpvHdrChipLabel : _hdrLabel),
       if (_videoCodecInfoLabel != null)
         (label: 'Video', value: _videoCodecInfoLabel!),
       if (_resolutionInfoLabel != null)
@@ -4334,6 +4796,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     bool expandChapters = false;
     bool expandSubtitleDelay = false;
     bool expandDecoder = false;
+    bool expandToneMap = false;
     bool expandBoost = false;
     bool expandBass = false;
     await showModalBottomSheet<void>(
@@ -4717,6 +5180,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                         await _reopenAt(_position, _duration);
                       }
                     } catch (_) {}
+                    // Rebuild the MPV Flutter subtitle overlay — without this
+                    // the new fontSize/sizeMultiplier only lands on the next
+                    // unrelated setState (rotation, position tick while
+                    // playing), so portrait size changes looked dead.
+                    if (mounted) setState(() {});
                   },
                   ),
                   const Divider(color: Colors.white12, height: 1),
@@ -4782,6 +5250,53 @@ class _PlayerScreenState extends State<PlayerScreen>
                               padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
                               child: Text(AppLocalizations.of(context).playerDecoderReopen, style: TextStyle(color: Colors.white38, fontSize: 11)),
                             ),
+                          ],
+                        ),
+                      ),
+                    const Divider(color: Colors.white12, height: 1),
+                  ],
+                  // HDR/DV presentation for the libmpv engine only — Media3
+                  // already does native HDR/DV via SurfaceView passthrough.
+                  if (defaultTargetPlatform == TargetPlatform.android &&
+                      _mpvReady) ...[
+                    _tvListTile(
+                      leading: const Icon(Icons.palette_outlined, color: Colors.white70),
+                      title: Text(AppLocalizations.of(context).settingsToneMapMode, style: TextStyle(color: Colors.white)),
+                      subtitle: Text(_toneMapMode.label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      trailing: Icon(expandToneMap ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
+                      onTap: () => setSheet(() => expandToneMap = !expandToneMap),
+                    ),
+                    if (expandToneMap)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: Column(
+                          children: [
+                            for (final m in ToneMapMode.values)
+                              _tvListTile(
+                                leading: Icon(
+                                  _toneMapMode == m ? Icons.radio_button_checked : Icons.radio_button_off,
+                                  color: _toneMapMode == m ? Colors.white : Colors.white54,
+                                ),
+                                title: Text(m.label, style: const TextStyle(color: Colors.white)),
+                                subtitle: Text(
+                                  switch (m) {
+                                    ToneMapMode.sdr => AppLocalizations.of(context).settingsToneMapSdrDesc,
+                                    ToneMapMode.native => AppLocalizations.of(context).settingsToneMapNativeDesc,
+                                  },
+                                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                                ),
+                                onTap: () async {
+                                  if (m == _toneMapMode) return;
+                                  setState(() => _toneMapMode = m);
+                                  setSheet(() {});
+                                  await ToneMapStore.save(m);
+                                  final player = _mpvPlayer;
+                                  if (player != null) {
+                                    await _applyMpvToneMap(player);
+                                  }
+                                  if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                                },
+                              ),
                           ],
                         ),
                       ),
@@ -5096,6 +5611,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (Platform.isAndroid && !_mpvReady && (_subtitleTracks.isNotEmpty || _subtitleOn)) {
         await _reopenAt(_position, _duration);
       }
+      if (mounted) setState(() {});
     } catch (_) {}
   }
 
@@ -5310,6 +5826,29 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  /// HDR chip text for the libmpv engine (top-bar badge + ⓘ info sheet).
+  ///
+  /// - Native HDR/DV mode (+ gpu-next) → the detected source format
+  ///   (Dolby Vision / HDR10 / …).
+  /// - SDR tone-map mode (+ gpu-next, HDR source) → "Tone-mapped SDR".
+  /// - SDR source → plain "SDR".
+  /// - Stock libmpv (no gpu-next) → "SDR" (no real HDR path; honest).
+  String get _mpvHdrChipLabel {
+    final hdr = _effectiveHdr;
+    if (hdr == HdrFormat.sdr || _mpvGpuNext != true) return 'SDR';
+    if (_toneMapMode == ToneMapMode.native) return _hdrLabel;
+    return 'Tone-mapped SDR';
+  }
+
+  Color get _mpvHdrChipColor {
+    final hdr = _effectiveHdr;
+    if (hdr == HdrFormat.sdr || _mpvGpuNext != true) {
+      return const Color(0xFF9E9E9E);
+    }
+    if (_toneMapMode == ToneMapMode.native) return _hdrColor;
+    return const Color(0xFF9E9E9E);
+  }
+
   Color get _audioColor => const Color(0xFF81C784);
 
   Color get _passthroughColor => const Color(0xFFFFB74D);
@@ -5377,13 +5916,19 @@ class _PlayerScreenState extends State<PlayerScreen>
     // a glance while playing. The user can toggle each category in Settings →
     // Player → On-screen badges. Everything else lives in the ⓘ info sheet.
     // Both engines show the same set of badges when data is available — the
-    // only difference is that MPV is always SDR so its HDR chip says "SDR".
+    // HDR chip on MPV follows the tone-map toggle (Native = detected format;
+    // SDR tone-map = "Tone-mapped SDR").
     final chips = <Widget>[];
     if (_badgeEnabled) {
-      // HDR — Media3 shows the real format (DV/HDR10/etc.); MPV always SDR.
+      // HDR — Media3 shows the real format. MPV follows tone-map mode:
+      // Native = detected source (DV/HDR10); SDR tone-map = "Tone-mapped SDR";
+      // SDR content or stock libmpv = plain "SDR".
       if (_badgeHdr) {
         if (_mpvReady) {
-          chips.add(FormatChip(label: 'SDR', color: Color(0xFF9E9E9E)));
+          chips.add(FormatChip(
+            label: _mpvHdrChipLabel,
+            color: _mpvHdrChipColor,
+          ));
         } else {
           chips.add(hdrChip);
         }
@@ -5459,36 +6004,28 @@ class _PlayerScreenState extends State<PlayerScreen>
     final videoLayer = Stack(
       fit: StackFit.expand,
       children: [
-        _mpvReady
+        // Black underlay: during rotation the SurfaceView is destroyed and
+        // recreated; a transparent gap would show the details route underneath.
+        // (Root Stack also has a black base — belt and braces with this layer.)
+        const ColoredBox(color: Colors.black),
+        // Mutually exclusive: mpv SurfaceView XOR Media3 ExoPlayerView.
+        // `_mpvActive` mounts the mpv surface even before --wid attaches
+        // (black frame while the surface comes up) so ExoPlayerView is never
+        // in the tree at the same time as the mpv SurfaceView.
+        _mpvActive
             ? (_mpvAspect != null
                 ? Center(
                     child: AspectRatio(
                       aspectRatio: _mpvAspect!,
                       child: Transform.scale(
                         scale: _mpvZoomScale,
-                        child: Video(
-                          controller: _mpvController!,
-                          fit: _mpvFit,
-                          controls: NoVideoControls,
-                          subtitleViewConfiguration:
-                              const SubtitleViewConfiguration(
-                            visible: false,
-                          ),
-                        ),
+                        child: MpvSurfaceView(controller: _mpvSurface!),
                       ),
                     ),
                   )
                 : Transform.scale(
                     scale: _mpvZoomScale,
-                    child: Video(
-                      controller: _mpvController!,
-                      fit: _mpvFit,
-                      controls: NoVideoControls,
-                      subtitleViewConfiguration:
-                          const SubtitleViewConfiguration(
-                        visible: false,
-                      ),
-                    ),
+                    child: MpvSurfaceView(controller: _mpvSurface!),
                   ))
             : _exo != null && _error == null
                 ? ExoPlayerView(controller: _exo! as ExoPlayerController)
@@ -5501,9 +6038,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ),
                     ),
                   ),
-        // Fallback-engine brightness dims the Flutter video texture (the app
-        // window-brightness path lives on the native platform view). Only
-        // engaged by the left-half swipe gesture in mpv mode.
+        // Fallback-engine brightness dims the Flutter overlay above the
+        // surface (the app window-brightness path lives on the native
+        // platform view). Only engaged by the left-half swipe gesture in mpv mode.
         if (_mpvReady && _mpvBrightness < 0.999)
           Positioned.fill(
             child: IgnorePointer(
@@ -5513,11 +6050,9 @@ class _PlayerScreenState extends State<PlayerScreen>
               ),
             ),
           ),
-        // Custom subtitle overlay for MPV — replaces media_kit's built-in
-        // SubtitleView which fills the entire Video widget (including letterbox
-        // bars). This overlay computes the actual video content area and pins
-        // the subtitle text at its bottom edge, matching Media3's placement.
-        //
+        // Custom subtitle overlay for MPV — mpv draws text cues into the
+        // SurfaceView letterbox; our overlay computes the actual video content
+        // area and pins subtitle text at its bottom edge (matches Media3).
         // Media3 puts the SubtitleView inside AspectRatioFrameLayout (which
         // is constrained to the video content area in FIT mode) and uses
         // `setBottomPaddingFraction(vPos / 255.0f)` to push the text up from
@@ -5553,8 +6088,11 @@ class _PlayerScreenState extends State<PlayerScreen>
               // Verified via javap on media3-ui-1.10.1: defaultTextSize=0.0533f,
               // bottomPaddingFraction=0.08f. ExoPlayerView.kt applies
               // 0.0533 * sizeMult to the SubtitleView inside AspectRatioFrameLayout.
+              // Floor is 1px, not 12 — in portrait the letterboxed video is
+              // short (h*0.0533 ≈ 12), so a 12px clamp froze every shrink
+              // and made size changes look broken until rotation rebuilt.
               final fontSize =
-                  (h * 0.0533 * _subtitleStyle.sizeMultiplier).clamp(12.0, 300.0);
+                  (h * 0.0533 * _subtitleStyle.sizeMultiplier).clamp(1.0, 300.0);
               // Vertical position (0-255): 0 = bottom, 255 = top.
               // Match Media3's setBottomPaddingFraction(vPos/255.0f) — the
               // fraction is of the SubtitleView (= video content area) height.
@@ -5742,6 +6280,13 @@ class _PlayerScreenState extends State<PlayerScreen>
         },
         child: Stack(
           children: [
+            // Opaque black base for the whole player body. During rotation
+            // the hybrid-composition SurfaceView is destroyed/recreated and
+            // its hole can briefly punch through to the previous route
+            // (details page) — a root-level black layer sits under every
+            // other child (videoLayer, gestures, controls) so nothing below
+            // this route is ever visible.
+            const Positioned.fill(child: ColoredBox(color: Colors.black)),
             Positioned.fill(child: videoLayer),
             // Full-screen tap + swipe catcher on top of the (Android platform)
             // video layer. Hybrid-composition platform views can swallow

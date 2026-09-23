@@ -473,6 +473,17 @@ class AppLocalizationsRu extends AppLocalizations {
   String get settingsEngineAskDesc => 'Show both options on every video';
 
   @override
+  String get settingsToneMapMode => 'HDR tone-map (MPV)';
+
+  @override
+  String get settingsToneMapSdrDesc =>
+      'Конвертировать HDR/DV в SDR в движке (libplacebo)';
+
+  @override
+  String get settingsToneMapNativeDesc =>
+      'Передавать HDR-цветовое пространство на дисплей';
+
+  @override
   String get settingsAutoPlayNext => 'Авто-воспроизведение следующего';
 
   @override

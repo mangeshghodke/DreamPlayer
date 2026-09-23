@@ -40,6 +40,7 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.mkv.MatroskaExtractor
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
@@ -351,14 +352,45 @@ class ExoPlayerView(
     /// A [DataSource] that inspects the URI scheme on [open] and delegates to
     /// [SmbDataSource] for `smb://`, [FtpDataSource] for `ftp://`/`sftp://`,
     /// or to [local] for everything else.
+    ///
+    /// Network delegates are **reused across open()** for the same URI so a
+    /// Matroska cue-seek (head → EOF → head) does not tear down SMB handles /
+    /// ring / prefetch threads and rebuild them three times — that thrash was
+    /// the dominant SMB start cost after the first chunk fill. Local/http
+    /// still get a fresh [DefaultDataSource] per open (its contract).
     private class MultiplexDataSource(
         private val local: DefaultDataSource.Factory,
         private val context: Context,
     ) : BaseDataSource(/* isNetwork= */ true) {
         private var delegate: DataSource? = null
+        private var delegateUri: Uri? = null
 
         override fun open(dataSpec: DataSpec): Long {
-            delegate = when (dataSpec.uri.scheme?.lowercase()) {
+            val scheme = dataSpec.uri.scheme?.lowercase()
+            val reuse = when (scheme) {
+                "smb", "ftp", "sftp" -> {
+                    val existing = delegate
+                    if (existing is SmbDataSource || existing is FtpDataSource) {
+                        existing
+                    } else {
+                        null
+                    }
+                }
+                else -> null
+            }
+            if (reuse != null && delegateUri == dataSpec.uri) {
+                // Same remote file: SmbDataSource.open handles seek-within-window
+                // vs ring-reset; keep the live SMB session + secondary handles.
+                return reuse.open(dataSpec)
+            }
+            // Different URI (or first open): retire the previous delegate so we
+            // never leak a still-prefetching SmbDataSource.
+            try {
+                delegate?.close()
+            } catch (_: Exception) {
+            }
+            delegateUri = dataSpec.uri
+            delegate = when (scheme) {
                 "smb" -> SmbDataSource(context)
                 "ftp", "sftp" -> FtpDataSource(context)
                 else -> local.createDataSource()
@@ -374,6 +406,7 @@ class ExoPlayerView(
         override fun close() {
             delegate?.close()
             delegate = null
+            delegateUri = null
         }
     }
 
@@ -381,7 +414,15 @@ class ExoPlayerView(
 
     private val mediaSourceFactory = DefaultMediaSourceFactory(
         dataSourceFactory,
-        DefaultExtractorsFactory().setSubtitleParserFactory(subtitleParserFactory),
+        // FLAG_DISABLE_SEEK_FOR_CUES: large MKVs put Cues at EOF, so the
+        // default MatroskaExtractor seeks to the end of the file during init
+        // (observed: open pos=0 → open pos≈31GB 1.5s later). On SMB that
+        // forced a full ring reset + new session mid-startup. Cue-based
+        // seeking is only needed for accurate scrub; SeekHead at the segment
+        // start still yields a usable map for coarse seeks.
+        DefaultExtractorsFactory()
+            .setSubtitleParserFactory(subtitleParserFactory)
+            .setMatroskaExtractorFlags(MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES),
         subtitleParserFactory,
     )
 
@@ -501,7 +542,10 @@ class ExoPlayerView(
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             emit()
-            if (playbackState == Player.STATE_READY) matchRefreshRate()
+            if (playbackState == Player.STATE_READY) {
+                matchRefreshRate()
+                fireDeferredProbes()
+            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -527,6 +571,8 @@ class ExoPlayerView(
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            // Don't leave probes parked forever if we never reach READY.
+            fireDeferredProbes()
             emit(
                 errorCodeName = error.errorCodeName,
                 errorMessage = error.message,
@@ -898,6 +944,28 @@ class ExoPlayerView(
         }
     }
 
+    /// Remote probes are parked here until the first STATE_READY so they do
+    /// not steal NAS bandwidth from the ring fill (see open() handler).
+    private var pendingProbes: Triple<String?, String?, Map<String, String>>? = null
+    private var pendingProbesSelfSigned = false
+    @Volatile private var probesFired = true
+
+    private fun fireDeferredProbes() {
+        if (probesFired) return
+        val p = pendingProbes ?: return
+        probesFired = true
+        pendingProbes = null
+        val (path, uri, headers) = p
+        val selfSigned = pendingProbesSelfSigned
+        // Small delay after READY so the ring has a head start even if the
+        // first frame arrived from a partial buffer.
+        handler.postDelayed({
+            probeHdr10Plus(path, uri, headers)
+            probeHdr10(path, uri, headers)
+            probeChapters(path, uri, headers, selfSigned)
+        }, 400)
+    }
+
     private fun probeHdr10(path: String?, uri: String?, headers: Map<String, String>) {
         Thread {
             try {
@@ -1096,6 +1164,8 @@ class ExoPlayerView(
                     hdr10Content = false
                     chapters = emptyList()
                     currentVideoDecoderName = null
+                    probesFired = true
+                    pendingProbes = null
                     // Capture the source URI scheme so the ⓘ info sheet can
                     // label the source ("Local" / "SMB" / "WebDAV" / etc.).
                     val resolvedUri = when {
@@ -1285,9 +1355,29 @@ class ExoPlayerView(
                             ?: path?.substringAfterLast('/'),
                     )
                     subtitleOn = currentSubtitle != null
-                    probeHdr10Plus(path, uri, headers)
-                    probeHdr10(path, uri, headers)
-                    probeChapters(path, uri, headers, allowSelfSigned)
+                    // Remote sources: DEFER HDR/chapter probes until STATE_READY.
+                    // Firing them at prepare() opened 2–3 extra SMB sessions
+                    // (MediaExtractor + chapter walk) that raced the ring fill
+                    // and made SMB startup take far longer than MPV's single
+                    // SmbHttpProxy stream. Local files still probe immediately.
+                    val remoteProbe = !uri.isNullOrEmpty() && (
+                        uri!!.startsWith("smb://", ignoreCase = true) ||
+                            uri!!.startsWith("http://", ignoreCase = true) ||
+                            uri!!.startsWith("https://", ignoreCase = true) ||
+                            uri!!.startsWith("ftp://", ignoreCase = true) ||
+                            uri!!.startsWith("sftp://", ignoreCase = true)
+                    )
+                    if (remoteProbe) {
+                        pendingProbes = Triple(path, uri, headers)
+                        pendingProbesSelfSigned = allowSelfSigned
+                        probesFired = false
+                    } else {
+                        pendingProbes = null
+                        probesFired = true
+                        probeHdr10Plus(path, uri, headers)
+                        probeHdr10(path, uri, headers)
+                        probeChapters(path, uri, headers, allowSelfSigned)
+                    }
                     result.success(null)
                     } catch (e: Exception) {
                         Log.e("ExoPlayerView", "open failed", e)

@@ -21,8 +21,8 @@ class SystemControls {
   Future<void> setBrightness(double value) async {
     try {
       await _channel.invokeMethod<void>('setBrightness', {'brightness': value});
-    } on PlatformException {
-      // Activity isn't ready yet — the gesture will retry on next frame.
+    } on Exception {
+      // Activity not ready, or channel absent (iOS) — nothing to restore.
     }
   }
 
@@ -30,7 +30,7 @@ class SystemControls {
     try {
       final raw = await _channel.invokeMethod<double>('getBrightness');
       return (raw ?? 0.5).clamp(0.0, 1.0);
-    } on PlatformException {
+    } on Exception {
       return 0.5;
     }
   }
@@ -40,7 +40,7 @@ class SystemControls {
   Future<void> setSystemVolume(double value) async {
     try {
       await _channel.invokeMethod<void>('setSystemVolume', {'volume': value});
-    } on PlatformException {
+    } on Exception {
       // Activity gone (player closed mid-gesture) — ignore.
     }
   }
@@ -49,7 +49,7 @@ class SystemControls {
     try {
       final raw = await _channel.invokeMethod<double>('getSystemVolume');
       return (raw ?? 1.0).clamp(0.0, 1.0);
-    } on PlatformException {
+    } on Exception {
       return 1.0;
     }
   }

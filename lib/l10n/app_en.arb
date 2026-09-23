@@ -611,6 +611,18 @@
   "@settingsEngineAskDesc": {
     "description": "Ask-every-time engine subtitle"
   },
+  "settingsToneMapMode": "HDR tone-map (MPV)",
+  "@settingsToneMapMode": {
+    "description": "libmpv HDR presentation mode picker label"
+  },
+  "settingsToneMapSdrDesc": "Convert HDR/DV to SDR in-engine (libplacebo)",
+  "@settingsToneMapSdrDesc": {
+    "description": "SDR tone-map mode subtitle"
+  },
+  "settingsToneMapNativeDesc": "Pass HDR colorspace through to the display",
+  "@settingsToneMapNativeDesc": {
+    "description": "Native HDR mode subtitle"
+  },
   "settingsAutoPlayNext": "Auto-play next episode",
   "@settingsAutoPlayNext": {
     "description": "Auto-play toggle label"

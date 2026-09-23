@@ -6,6 +6,7 @@ import 'screens/home_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/settings_screen.dart';
 import 'models/video_item.dart';
+import 'services/default_engine_store.dart';
 import 'services/jellyfin_client.dart';
 import 'services/language_service.dart';
 import 'services/open_intent.dart';
@@ -45,9 +46,14 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> {
       // falls back to the raw URL on any failure.
       final video = await _enrichIntentVideo(base);
       if (!mounted) return;
+      final def = await DefaultEngineStore.load();
+      if (!mounted) return;
       navigator.push(
-        MaterialPageRoute<void>(
-          builder: (_) => PlayerScreen(video: video ?? base),
+        PlayerScreen.route(
+          video: video ?? base,
+          initialEngine: def == DefaultEngine.mpv
+              ? PlayEngine.mpv
+              : PlayEngine.media3,
         ),
       );
     });

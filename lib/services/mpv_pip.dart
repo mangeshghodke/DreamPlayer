@@ -6,13 +6,12 @@ import 'package:flutter/services.dart';
 ///
 /// The main Media3 engine handles pip inside its own platform view: it owns the
 /// `SurfaceView` and the live `ExoPlayer`, so the native side can decide alone.
-/// In fallback mode there is no platform view — the video is a Flutter texture
-/// rendered by media_kit — and the native pip path gates on `player.isPlaying`
-/// of an ExoPlayer that is idle, so it would silently refuse.
+/// In mpv mode the native pip path still gates on ExoPlayer (idle), so it would
+/// silently refuse — this bridge takes over.
 ///
-/// Entering pip is an Activity-level operation, so it works for a
-/// Flutter-texture video too: the whole Flutter window shrinks into the pip
-/// window, and the player screen already hides all chrome while `_inPip` is set.
+/// Entering pip is an Activity-level operation: the whole Flutter window
+/// shrinks into the pip window, and the player screen already hides all chrome
+/// while `_inPip` is set.
 ///
 /// Automatic entry is decided in `onUserLeaveHint`, which cannot await a
 /// round-trip to Dart — so playback state is PUSHED down via [setState]
@@ -31,9 +30,9 @@ class MpvPipService {
   /// Called when the user swipes the pip window away — the screen should pause.
   void Function()? onPipDismissed;
 
-  /// The pip window's transport buttons. A Flutter texture receives no touches
-  /// while in pip, so these system-drawn `RemoteAction`s are the only way to
-  /// control playback there.
+  /// The pip window's transport buttons. The floating window shows only the
+  /// video (no Flutter chrome), so these system-drawn `RemoteAction`s are the
+  /// only way to control playback there.
   void Function()? onPlayPause;
   void Function()? onRewind;
   void Function()? onForward;
