@@ -196,7 +196,8 @@ class ExoPlayerView(
             val fmt = player.audioFormat
             val channels = fmt?.channelCount ?: 0
             when {
-                !sp.isAvailable || !sp.isEnabled || channels <= 2 -> "available"
+                !sp.isAvailable -> "unavailable"
+                !sp.isEnabled || channels <= 2 -> "available"
                 wouldBeSpatialized(channels, fmt?.sampleRate ?: 0) -> "on"
                 else -> "available"
             }

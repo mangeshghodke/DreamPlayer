@@ -5,6 +5,29 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ## Unreleased
 
+### Added
+
+- **MPV spatial audio parity with Media3 (Android 13+)** — MPV now configures
+  `audiotrack` and FFmpeg PCM audio before opening the file, observes MPV's
+  actual `audio-out-params`, and queries Android's `Spatializer` through the
+  shared system channel. The existing teal `Spatial` chip and info-sheet row
+  now work in MPV mode and follow the same phone Spatial-audio setting as
+  Media3. This supports decoded multichannel PCM from DTS/DTS-HD, TrueHD,
+  E-AC3, AC3, FLAC, AAC, and similar tracks when the active route remains
+  5.1/7.1; stereo/downmixed routes and encoded bitstreams are not spatialized.
+  MPV's `audio-spdif` remains intentionally unset, so this does not claim
+  spatial processing for bitstream passthrough.
+- **Anime4K presets for MPV (Android)** — the MPV picture panel now has an
+  opt-in Anime4K toggle and preset selector for Mode A, B, C, A+A, B+B, and
+  C+A. Enable the toggle first (Mode A applies by default), then selecting a
+  preset replaces the active shader chain immediately; an `Upscaled` chip is
+  shown while it is active. Only SDR MPV video is eligible: HDR/Dolby Vision
+  and PiP reject or disable Anime4K. The bundled Anime4K v4.0.1 fast presets
+  use legacy `vo=gpu` because the current shaders do not compile with
+  `vo=gpu-next`/libplacebo; while enabled, libplacebo tone mapping is therefore
+  unavailable and hardware decode may switch to `mediacodec-copy`. The panel
+  warns about increased GPU load, heat, battery use, and possible stutter.
+
 ### Fixed
 
 - **Explicit filename seasons now drive library grouping and episode metadata

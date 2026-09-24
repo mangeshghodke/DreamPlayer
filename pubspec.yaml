@@ -76,6 +76,8 @@ dev_dependencies:
 flutter:
   generate: true
   uses-material-design: true
+  assets:
+    - assets/anime4k/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

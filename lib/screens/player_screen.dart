@@ -14,6 +14,7 @@ import '../models/video_item.dart';
 import '../services/continue_watching.dart';
 import '../services/badge_prefs.dart';
 import '../services/audio_track_store.dart';
+import '../services/anime4k_shader_store.dart';
 import '../services/default_engine_store.dart';
 import '../services/exo_player.dart';
 import '../services/file_browser.dart';
@@ -168,6 +169,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// libplacebo/gpu-next is present).
   bool? _mpvGpuNext;
   final List<StreamSubscription<Object?>> _mpvSubs = [];
+  StreamSubscription<String>? _mpvSpatialSub;
+  Future<void>? _mpvSpatialSyncChain;
+  bool _mpvAudioOutputObserved = false;
   /// Forced aspect ratio applied in mpv mode for the 16:9 / 4:3 aspect modes
   /// (a `Center`-box wraps the SurfaceView; panscan fills inside that box).
   double? _mpvAspect;
@@ -188,6 +192,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   double _mpvPictureContrast = 0;
   double _mpvPictureSaturation = 0;
   double _mpvPictureGamma = 0;
+  Anime4kMode _mpvAnime4kMode = Anime4kMode.a;
+  bool _mpvAnime4kEnabled = false;
+  bool _mpvAnime4kApplied = false;
+  bool _mpvAnime4kApplying = false;
+  String? _mpvAnime4kError;
+  bool _mpvAnime4kHwdecCopy = false;
+  VideoParams? _mpvVideoParams;
+  Future<void>? _mpvAnime4kApplyChain;
   bool _mpvPictureControlsOpen = false;
   Future<void>? _mpvPictureApplyChain;
   double _mpvZoomScale = 1.0;
@@ -555,6 +567,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         _decoderMode = await DecoderModeStore.load();
       } catch (_) {}
 
+      _liveSpatial = '';
+      unawaited(SystemControls.instance.clearSpatialAudioStatus());
       final exo = ExoPlayerController();
       _exo = exo;
       _exoSub = exo.events.listen(_onExoEvent);
@@ -1113,6 +1127,18 @@ class _PlayerScreenState extends State<PlayerScreen>
       _mpvActive = true;
       _mpvFailed = false;
       _mpvError = null;
+      _liveSpatial = '';
+      _mpvVideoParams = null;
+      _mpvAnime4kApplied = false;
+      _mpvAnime4kError = null;
+      _mpvAnime4kHwdecCopy = false;
+      _mpvSpatialSub ??= SystemControls.instance.spatialAudioChanges.listen((status) {
+        if (!mounted || !_mpvActive || _liveSpatial == status) return;
+        setState(() {
+          _liveSpatial = status;
+        });
+      });
+      unawaited(SystemControls.instance.clearSpatialAudioStatus());
       _buffering = true;
       // Picture-in-picture: the native Media3 pip path can't serve the
       // fallback (idle ExoPlayer), so the Activity-level bridge takes over
@@ -1216,11 +1242,15 @@ class _PlayerScreenState extends State<PlayerScreen>
       'opengl-es': 'yes',
       'force-window': 'no',
       'gpu-context': 'android',
+      'ad': 'ffmpeg',
+      'ao': 'audiotrack',
+      'audio-channels': 'auto',
       'sub-use-margins': 'no',
       'sub-font-provider': 'none',
       'sub-scale-with-window': 'yes',
       'hwdec-codecs': 'h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1',
     };
+
     for (final e in props.entries) {
       try {
         await platform.setProperty(e.key, e.value);
@@ -1349,7 +1379,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       await platform.setProperty('force-window', 'yes');
       // Prefer gpu-next when the custom libmpv (libplacebo) is present;
       // stock rejects it silently (media_kit ignores return) — probe once.
-      if (await _mpvGpuNextAvailable(player)) {
+      if (_mpvAnime4kEnabled && _mpvAnime4kEligible) {
+        await platform.setProperty('vo', 'gpu');
+        await platform.setProperty('gpu-api', 'opengl');
+        await platform.setProperty('profile', 'gpu-hq');
+      } else if (await _mpvGpuNextAvailable(player)) {
         await platform.setProperty('vo', 'gpu-next');
         if (_toneMapMode == ToneMapMode.native) {
           await platform.setProperty('target-colorspace-hint', 'yes');
@@ -1370,11 +1404,19 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (gen != _mpvAttachGen || _mpvPlayer != player) return;
       debugPrint('mpv: surface attached wid=$wid ${width}x$height');
       await _applyMpvFitProps();
-      await _applyMpvPictureAdjustments(
-        player: player,
-        waitForAttach: false,
-      );
-      if (mounted) setState(() {});
+       await _applyMpvPictureAdjustments(
+         player: player,
+         waitForAttach: false,
+       );
+       if (_mpvAnime4kEnabled && _mpvAnime4kEligible) {
+         await _applyMpvAnime4kProperties(
+           player,
+           enabled: true,
+           manageHwdec: false,
+         );
+       }
+       if (mounted) setState(() {});
+
     } catch (e) {
       debugPrint('mpv: surface attach failed: $e');
     }
@@ -1409,17 +1451,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  /// Configures the libmpv engine for wide multichannel + bitstream
-  /// passthrough on Android.
-  ///
-  /// media_kit's default `ao=opensles` downmixes to stereo on many SoCs and
-  /// cannot carry a compressed bitstream. The bundled libmpv (verified in the
-  /// `media_kit_libs_android_video` `.so`) also ships the Android **AudioTrack**
-  /// output — the AO used by mpv-android for passthrough — and the **spdif**
-  /// decoder for AC3 / E-AC3(Dolby Atmos) / DTS / DTS-HD / TrueHD. We switch
-  /// to it and enable SpDIF passthrough for those codecs. When the active
-  /// output device can't accept the raw bitstream (phone speakers, BT earbuds)
-  /// libmpv falls back to PCM decode, so audio always plays.
   Future<void> _configureMpvAudio(Player player, {bool skipHwdec = false}) async {
     final platform = player.platform;
     if (platform is! NativePlayer || _inTests) return;
@@ -1445,27 +1476,6 @@ class _PlayerScreenState extends State<PlayerScreen>
       debugPrint('mpv: hwdec-codecs=all unavailable: $e');
     }
     // hwdec-software-fallback MISS on this build — skip.
-    // Force FFmpeg software decode for ALL audio codecs. This ensures
-    // TrueHD, DTS-HD, and other lossless codecs decode via the bundled
-    // FFmpeg decoder (ff_truehd_decoder etc.) regardless of hwdec settings.
-    // Without this, mpv may try hardware audio decode paths that don't
-    // exist on most Android devices, causing "Failed to initialize decoder"
-    // errors for codecs like TrueHD.
-    try {
-      await platform.setProperty('ad', 'ffmpeg');
-      debugPrint('mpv: ad = ffmpeg (force software audio decode)');
-    } catch (e) {
-      debugPrint('mpv: ad=ffmpeg unavailable: $e');
-    }
-    // `ao` is an init-time option; media_kit set `opensles`. A runtime
-    // override is best-effort — if mpv rejects it the OpenSL output stays and
-    // passthrough simply degrades to PCM.
-    try {
-      await platform.setProperty('ao', 'audiotrack');
-      debugPrint('mpv: audio output = audiotrack');
-    } catch (e) {
-      debugPrint('mpv: ao=audiotrack unavailable, keeping opensles: $e');
-    }
     // Color-space / tone-map (issue #21). Probed once: media_kit's
     // setProperty ignores mpv's return code, so try/catch alone cannot
     // detect a stock libmpv without libplacebo — set then get.
@@ -1521,7 +1531,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: audio config unavailable: $e');
     }
-    // audio-spdif is intentionally omitted — see original comment below.
   }
 
   /// Applies the user's [SubtitleStyle] to mpv via properties, mirroring
@@ -1609,9 +1618,22 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// libmpv with libplacebo — stock falls back to `gpu` + bt.2390 handled
   /// by the caller). Native: `target-colorspace-hint` so the surface can
   /// pass PQ/BT.2020 toward the display (also requires gpu-next).
-  Future<void> _applyMpvToneMap(Player player) async {
+  Future<void> _applyMpvToneMap(
+    Player player, {
+    bool ignoreAnime4k = false,
+  }) async {
     final platform = player.platform;
     if (platform is! NativePlayer || _inTests) return;
+    if (!ignoreAnime4k && _mpvAnime4kEnabled && _mpvAnime4kEligible) {
+      try {
+        await platform.setProperty('vo', 'gpu');
+        await platform.setProperty('gpu-api', 'opengl');
+        await platform.setProperty('profile', 'gpu-hq');
+      } catch (e) {
+        debugPrint('mpv: Anime4K presentation setup failed: $e');
+      }
+      return;
+    }
     final hasGpuNext = await _mpvGpuNextAvailable(player);
     if (!hasGpuNext) {
       await platform.setProperty('vo', 'gpu');
@@ -1630,6 +1652,219 @@ class _PlayerScreenState extends State<PlayerScreen>
       await platform.setProperty('vo', 'gpu-next');
       await platform.setProperty('target-colorspace-hint', 'yes');
       debugPrint('mpv: tone-map applied (native colorspace-hint)');
+    }
+  }
+
+  bool get _mpvAnime4kEligible {
+    if (!Platform.isAndroid || !_mpvReady || _inPip) return false;
+    final params = _mpvVideoParams;
+    if (params == null || _effectiveHdr != HdrFormat.sdr) return false;
+    return isAnime4kSdrVideo(
+      colorMatrix: params.colormatrix,
+      gamma: params.gamma,
+      sigPeak: params.sigPeak,
+    );
+  }
+
+  String get _mpvAnime4kStatus {
+    if (_mpvAnime4kApplying) return 'Preparing...';
+    if (_mpvAnime4kError != null) return _mpvAnime4kError!;
+    if (_mpvAnime4kEnabled) {
+      return '${_mpvAnime4kMode.label} · ${_mpvAnime4kMode.description}';
+    }
+    if (_mpvVideoParams == null) return 'Waiting for video info';
+    if (!_mpvAnime4kEligible) return 'SDR video only';
+    return 'Enable to choose a preset';
+  }
+
+  bool _mpvParamsAreHdr(VideoParams params) {
+    return !isAnime4kSdrVideo(
+      colorMatrix: params.colormatrix,
+      gamma: params.gamma,
+      sigPeak: params.sigPeak,
+    );
+  }
+
+  Future<void> _setMpvAnime4kMode(Anime4kMode mode) async {
+    if (_inTests || !_mpvReady || mode == _mpvAnime4kMode) return;
+    if (mounted) {
+      setState(() {
+        _mpvAnime4kMode = mode;
+        if (_mpvAnime4kEnabled) _mpvAnime4kApplied = false;
+      });
+    }
+    if (_mpvAnime4kEnabled) {
+      await _setMpvAnime4kEnabled(true);
+    }
+  }
+
+  Future<void> _setMpvAnime4kEnabled(bool enabled) async {
+    if (_inTests || !_mpvReady) return;
+    if (_inPip && enabled) return;
+    if (enabled && !_mpvAnime4kEligible) {
+      if (_mpvAnime4kEnabled) {
+        await _setMpvAnime4kEnabled(false);
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _mpvAnime4kError = _mpvVideoParams == null
+              ? 'Waiting for video info'
+              : 'Available for SDR video only';
+        });
+      }
+      return;
+    }
+    final player = _mpvPlayer;
+    if (player == null) return;
+    if (mounted) {
+      setState(() {
+        _mpvAnime4kApplying = true;
+        _mpvAnime4kError = null;
+      });
+    }
+    final requestedMode = _mpvAnime4kMode;
+    final previous = _mpvAnime4kApplyChain ?? Future<void>.value();
+    final next = previous.then<void>(
+      (_) => _applyMpvAnime4kProperties(
+        player,
+        enabled: enabled,
+        mode: requestedMode,
+      ),
+    );
+    _mpvAnime4kApplyChain = next.catchError((_) {});
+    try {
+      await next;
+      if (!mounted) return;
+      setState(() {
+        _mpvAnime4kEnabled = enabled;
+        _mpvAnime4kApplied = enabled;
+        _mpvAnime4kError = null;
+      });
+    } catch (_) {
+      try {
+        await _applyMpvAnime4kProperties(player, enabled: false);
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _mpvAnime4kEnabled = false;
+          _mpvAnime4kApplied = false;
+          _mpvAnime4kError = 'Could not load Anime4K shaders';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _mpvAnime4kApplying = false);
+    }
+  }
+
+  Future<void> _applyMpvAnime4kProperties(
+    Player player, {
+    required bool enabled,
+    Anime4kMode? mode,
+    bool manageHwdec = true,
+  }) async {
+    if (_inTests) return;
+    final attach = _mpvAttachChain;
+    if (attach != null) await attach;
+    if (!identical(_mpvPlayer, player)) return;
+    final platform = player.platform;
+    if (platform is! NativePlayer) return;
+    await player.handle;
+    if (enabled) {
+      if (!_mpvAnime4kEligible) throw StateError('Anime4K requires SDR video');
+      final selectedMode = mode ?? _mpvAnime4kMode;
+      final paths = await Anime4kShaderStore.pathsFor(selectedMode);
+      final shaderList = paths.join(':');
+      if (manageHwdec && _mpvHwdecMode == 'mediacodec') {
+        await platform.setProperty('hwdec', 'mediacodec-copy');
+        _mpvAnime4kHwdecCopy = true;
+      }
+      await platform.setProperty('vo', 'gpu');
+      await platform.setProperty('gpu-api', 'opengl');
+      await platform.setProperty('profile', 'gpu-hq');
+      await platform.command([
+        'change-list',
+        'glsl-shaders',
+        'clr',
+        '',
+      ]);
+      await platform.command([
+        'change-list',
+        'glsl-shaders',
+        'set',
+        shaderList,
+      ]);
+      var applied = await platform.getProperty('glsl-shaders');
+      if (!applied.contains(paths.last)) {
+        await platform.setProperty('glsl-shaders', shaderList);
+        applied = await platform.getProperty('glsl-shaders');
+      }
+      if (!applied.contains(paths.last)) {
+        throw StateError('Anime4K shader list was rejected');
+      }
+      debugPrint(
+        'mpv: Anime4K applied mode=${selectedMode.name} '
+        'shader=${paths.last}',
+      );
+    } else {
+      try {
+        await platform.command([
+          'change-list',
+          'glsl-shaders',
+          'clr',
+          '',
+        ]);
+      } catch (_) {}
+      try {
+        await platform.setProperty('gpu-api', 'auto');
+      } catch (_) {}
+      if (manageHwdec && _mpvAnime4kHwdecCopy) {
+        _mpvAnime4kHwdecCopy = false;
+        await _applyMpvHwdec(player);
+      }
+      try {
+        await platform.setProperty('profile', 'fast');
+      } catch (_) {}
+      try {
+        await _applyMpvToneMap(player, ignoreAnime4k: true);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _clearMpvAnime4kForOpen(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer) return;
+    try {
+      await platform.command([
+        'change-list',
+        'glsl-shaders',
+        'clr',
+        '',
+      ]);
+    } catch (_) {}
+    try {
+      await platform.setProperty('gpu-api', 'auto');
+    } catch (_) {}
+    try {
+      await platform.setProperty('profile', 'fast');
+    } catch (_) {}
+    _mpvAnime4kHwdecCopy = false;
+  }
+
+  void _onMpvVideoParams(Player player, VideoParams params) {
+    if (!mounted) return;
+    setState(() {
+      _mpvVideoParams = params;
+    });
+    if (_mpvParamsAreHdr(params)) {
+      if (_mpvAnime4kEnabled) unawaited(_setMpvAnime4kEnabled(false));
+      return;
+    }
+    if (_mpvAnime4kEnabled &&
+        _mpvAnime4kEligible &&
+        !_mpvAnime4kApplied &&
+        !_mpvAnime4kApplying) {
+      unawaited(_setMpvAnime4kEnabled(true));
     }
   }
 
@@ -1781,6 +2016,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (p == null || _inTests) return;
     _mpvFailed = false;
     _mpvError = null;
+    _liveSpatial = '';
+    unawaited(SystemControls.instance.clearSpatialAudioStatus());
     _current = video;
     _markedWatched = false;
     _autoPlayFired = false;
@@ -1819,6 +2056,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     // A previous SMB-backed mpv session left a loopback bridge running — tear
     // it down before pointing mpv at the next source.
     await _stopMpvProxy();
+    _mpvVideoParams = null;
+    _mpvAnime4kApplied = false;
+    await _clearMpvAnime4kForOpen(player);
     final src = _mpvSourceFor(video);
     debugPrint('mpv: opening source: $src, startMs=$startMs');
     if (src.isEmpty) {
@@ -2050,6 +2290,85 @@ class _PlayerScreenState extends State<PlayerScreen>
     debugPrint('mpv: failed: $message');
   }
 
+  Future<void> _observeMpvAudioOutput(Player player) async {
+    if (_inTests || _mpvAudioOutputObserved) return;
+    final platform = player.platform;
+    if (platform is! NativePlayer) return;
+    try {
+      await platform.observeProperty('audio-out-params', (_) async {
+        await _syncMpvSpatialStatus(
+          player,
+          fallbackChannels: _mpvAudioChannels,
+          fallbackSampleRate: player.state.audioParams.sampleRate,
+        );
+      });
+      _mpvAudioOutputObserved = true;
+    } catch (_) {
+      return;
+    }
+  }
+
+  void _unobserveMpvAudioOutput() {
+    final platform = _mpvPlayer?.platform;
+    if (platform is NativePlayer && _mpvAudioOutputObserved) {
+      _mpvAudioOutputObserved = false;
+      unawaited(platform.unobserveProperty('audio-out-params').catchError((_) {}));
+    }
+  }
+
+  Future<void> _syncMpvSpatialStatus(
+    Player player, {
+    int? fallbackChannels,
+    int? fallbackSampleRate,
+  }) {
+    final previous = _mpvSpatialSyncChain ?? Future<void>.value();
+    final next = previous.then<void>((_) async {
+      if (_inTests || !_mpvActive || !identical(_mpvPlayer, player)) return;
+      final platform = player.platform;
+      if (platform is! NativePlayer) return;
+      var channels = 0;
+      var sampleRate = 0;
+      try {
+        channels = int.tryParse(
+              (await platform.getProperty('audio-out-params/channel-count')).trim(),
+            ) ??
+            0;
+        sampleRate = int.tryParse(
+              (await platform.getProperty('audio-out-params/samplerate')).trim(),
+            ) ??
+            0;
+      } catch (_) {}
+      if (channels <= 0) channels = fallbackChannels ?? _mpvAudioChannels ?? 0;
+      if (sampleRate <= 0) sampleRate = fallbackSampleRate ?? 0;
+      var pcm = true;
+      try {
+        final output = (await platform.getProperty('ao')).trim().toLowerCase();
+        pcm = output.isEmpty || output == 'audiotrack';
+      } catch (_) {}
+      if (!pcm) {
+        await SystemControls.instance.clearSpatialAudioStatus();
+        if (mounted && _liveSpatial.isNotEmpty) {
+          setState(() {
+            _liveSpatial = '';
+          });
+        }
+        return;
+      }
+      final status = await SystemControls.instance.getSpatialAudioStatus(
+        channels: channels,
+        sampleRate: sampleRate,
+        pcm: pcm,
+      );
+      if (!mounted || !_mpvActive || !identical(_mpvPlayer, player)) return;
+      if (_liveSpatial == status) return;
+      setState(() {
+        _liveSpatial = status;
+      });
+    });
+    _mpvSpatialSyncChain = next.catchError((_) {});
+    return next;
+  }
+
   void _listenMpv(Player player) {
     _mpvSubs.add(player.stream.playing.listen((v) {
       if (!mounted) return;
@@ -2120,6 +2439,17 @@ class _PlayerScreenState extends State<PlayerScreen>
           t.subtitle.any((s) => s.id != 'no' && s.id != 'auto');
       setState(() {});
     }));
+    _mpvSubs.add(player.stream.audioParams.listen((params) {
+      unawaited(_syncMpvSpatialStatus(
+        player,
+        fallbackChannels: params.channelCount,
+        fallbackSampleRate: params.sampleRate,
+      ));
+    }));
+    _mpvSubs.add(player.stream.videoParams.listen((params) {
+      _onMpvVideoParams(player, params);
+    }));
+    unawaited(_observeMpvAudioOutput(player));
     _mpvSubs.add(player.stream.track.listen((t) {
       if (!mounted) return;
       // 'no' = subtitles explicitly off; 'auto' = mpv auto-selected a track
@@ -2347,6 +2677,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// so flipping this flag is what makes the pip window show only the video.
   void _onMpvPipChanged(bool inPip) {
     if (!mounted) return;
+    if (inPip && _mpvAnime4kEnabled) {
+      unawaited(_setMpvAnime4kEnabled(false));
+    }
     setState(() {
       _inPip = inPip;
       if (inPip) {
@@ -3287,6 +3620,14 @@ class _PlayerScreenState extends State<PlayerScreen>
     for (final s in _mpvSubs) {
       s.cancel();
     }
+    _mpvSpatialSub?.cancel();
+    _mpvSpatialSub = null;
+    _mpvSpatialSyncChain = null;
+    _mpvAnime4kApplyChain = null;
+    _mpvAnime4kEnabled = false;
+    _mpvAnime4kApplied = false;
+    _unobserveMpvAudioOutput();
+    unawaited(SystemControls.instance.clearSpatialAudioStatus());
     unawaited(_mpvPlayer?.dispose());
     unawaited(_stopMpvProxy());
     // Tell the native pip bridge the fallback engine is gone (clears its
@@ -6049,6 +6390,15 @@ class _PlayerScreenState extends State<PlayerScreen>
           chips.add(hdrChip);
         }
       }
+      if (_mpvReady &&
+          _mpvAnime4kEnabled &&
+          _mpvAnime4kApplied &&
+          _mpvAnime4kError == null) {
+        chips.add(const FormatChip(
+          label: 'Upscaled',
+          color: Color(0xFFB388FF),
+        ));
+      }
       // Audio codec — both engines.
       if (_badgeAudio && audioChip != null) chips.add(audioChip);
       // Video codec — both engines.
@@ -6920,15 +7270,23 @@ class _PlayerScreenState extends State<PlayerScreen>
                          16,
                          MediaQuery.paddingOf(context).bottom + 92,
                        ),
-                       child: _MpvPictureControls(
-                         brightness: _mpvPictureBrightness,
-                         contrast: _mpvPictureContrast,
-                         saturation: _mpvPictureSaturation,
-                         gamma: _mpvPictureGamma,
-                         onChanged: _updateMpvPicture,
-                         onReset: _resetMpvPictureControls,
-                         onClose: _closeMpvPictureControls,
-                       ),
+                        child: _MpvPictureControls(
+                          brightness: _mpvPictureBrightness,
+                          contrast: _mpvPictureContrast,
+                          saturation: _mpvPictureSaturation,
+                          gamma: _mpvPictureGamma,
+                          anime4kEnabled: _mpvAnime4kEnabled,
+                          anime4kMode: _mpvAnime4kMode,
+                          anime4kAvailable: _mpvAnime4kEligible,
+                          anime4kApplying: _mpvAnime4kApplying,
+                          anime4kStatus: _mpvAnime4kStatus,
+                          onChanged: _updateMpvPicture,
+                          onAnime4kChanged: _setMpvAnime4kEnabled,
+                          onAnime4kModeChanged: _setMpvAnime4kMode,
+                          onReset: _resetMpvPictureControls,
+                          onClose: _closeMpvPictureControls,
+                        ),
+
                      ),
                    ),
                  ),
@@ -6948,7 +7306,14 @@ class _MpvPictureControls extends StatelessWidget {
     required this.contrast,
     required this.saturation,
     required this.gamma,
+    required this.anime4kEnabled,
+    required this.anime4kMode,
+    required this.anime4kAvailable,
+    required this.anime4kApplying,
+    required this.anime4kStatus,
     required this.onChanged,
+    required this.onAnime4kChanged,
+    required this.onAnime4kModeChanged,
     required this.onReset,
     required this.onClose,
   });
@@ -6957,7 +7322,14 @@ class _MpvPictureControls extends StatelessWidget {
   final double contrast;
   final double saturation;
   final double gamma;
+  final bool anime4kEnabled;
+  final Anime4kMode anime4kMode;
+  final bool anime4kAvailable;
+  final bool anime4kApplying;
+  final String anime4kStatus;
   final void Function(String property, double value) onChanged;
+  final Future<void> Function(bool enabled) onAnime4kChanged;
+  final Future<void> Function(Anime4kMode mode) onAnime4kModeChanged;
   final Future<void> Function() onReset;
   final VoidCallback onClose;
 
@@ -7001,8 +7373,84 @@ class _MpvPictureControls extends StatelessWidget {
               _buildSlider('brightness', 'Brightness', brightness),
               _buildSlider('contrast', 'Contrast', contrast),
               _buildSlider('saturation', 'Saturation', saturation),
-              _buildSlider('gamma', 'Gamma', gamma),
-              const SizedBox(height: 4),
+               _buildSlider('gamma', 'Gamma', gamma),
+               SwitchListTile.adaptive(
+                 contentPadding: EdgeInsets.zero,
+                 dense: true,
+                 title: const Text(
+                   'Anime4K',
+                   style: TextStyle(color: Colors.white, fontSize: 14),
+                 ),
+                 subtitle: Text(
+                   anime4kStatus,
+                   style: TextStyle(
+                     color: anime4kEnabled ? Colors.tealAccent : Colors.white54,
+                     fontSize: 12,
+                   ),
+                 ),
+                 value: anime4kEnabled,
+                 onChanged: anime4kApplying || !anime4kAvailable
+                     ? null
+                     : (value) => unawaited(onAnime4kChanged(value)),
+                 ),
+                 const SizedBox(height: 4),
+                 Row(
+                   crossAxisAlignment: CrossAxisAlignment.center,
+                   children: [
+                     const Expanded(
+                       child: Text(
+                         'Preset',
+                         style: TextStyle(color: Colors.white70, fontSize: 13),
+                       ),
+                     ),
+                     Expanded(
+                       flex: 2,
+                       child: DropdownButton<Anime4kMode>(
+                         value: anime4kMode,
+                         isExpanded: true,
+                         underline: const SizedBox.shrink(),
+                         items: [
+                           for (final mode in Anime4kMode.values)
+                             DropdownMenuItem(
+                               value: mode,
+                               child: Text(
+                                 '${mode.label} · ${mode.description}',
+                                 overflow: TextOverflow.ellipsis,
+                               ),
+                             ),
+                         ],
+                         onChanged: anime4kApplying ||
+                                 !anime4kAvailable ||
+                                 !anime4kEnabled
+                             ? null
+                             : (mode) {
+                                 if (mode != null) {
+                                   unawaited(onAnime4kModeChanged(mode));
+                                 }
+                               },
+                       ),
+                     ),
+                   ],
+                 ),
+                 const SizedBox(height: 4),
+                 const Row(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                     Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 16),
+                     SizedBox(width: 6),
+                     Expanded(
+                       child: Text(
+                         'Anime4K runs per frame and increases GPU load, heat, and battery use. Heavier modes may cause stutter on mobile.',
+                         style: TextStyle(color: Colors.white54, fontSize: 11),
+                       ),
+                     ),
+                   ],
+                 ),
+                 if (anime4kApplying)
+                   const LinearProgressIndicator(minHeight: 2),
+                 const SizedBox(height: 4),
+
+
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(

@@ -18,6 +18,8 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
 
     private var intentChannel: MethodChannel? = null
+    private var systemChannel: MethodChannel? = null
+    private var spatialMonitor: SpatialAudioMonitor? = null
     private var fileBrowser: FileBrowser? = null
 
     companion object {
@@ -169,42 +171,68 @@ class MainActivity : FlutterActivity() {
         // Engine-agnostic OS controls — brightness (per-app window brightness)
         // and system media volume. Used by the MPV engine when ExoPlayerView
         // is not the active surface (mpv owns its own MpvSurfaceView).
-        MethodChannel(
+        systemChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "dreamplayer/system",
-        ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "setBrightness" -> {
-                    val brightness = call.argument<Number>("brightness")?.toFloat() ?: 0.5f
-                    val params = window.attributes
-                    params.screenBrightness = if (brightness < 0f)
-                        WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-                    else
-                        brightness.coerceIn(0f, 1f)
-                    window.attributes = params
-                    result.success(null)
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "setBrightness" -> {
+                        val brightness = call.argument<Number>("brightness")?.toFloat() ?: 0.5f
+                        val params = window.attributes
+                        params.screenBrightness = if (brightness < 0f)
+                            WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                        else
+                            brightness.coerceIn(0f, 1f)
+                        window.attributes = params
+                        result.success(null)
+                    }
+                    "getBrightness" -> {
+                        val b = window.attributes.screenBrightness
+                        result.success(if (b < 0f) 0.5f else b)
+                    }
+                    "setSystemVolume" -> {
+                        val volume = call.argument<Number>("volume")?.toFloat() ?: 1f
+                        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                        val target = (volume.coerceIn(0f, 1f) * maxVol).toInt()
+                        am.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+                        result.success(null)
+                    }
+                    "getSystemVolume" -> {
+                        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()
+                        val curVol = am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
+                        result.success(if (maxVol > 0f) curVol / maxVol else 1f)
+                    }
+                    "getSpatialAudioStatus" -> {
+                        val channels = call.argument<Number>("channels")?.toInt() ?: 0
+                        val sampleRate = call.argument<Number>("sampleRate")?.toInt() ?: 0
+                        val pcm = call.argument<Boolean>("pcm") ?: true
+                        result.success(
+                            spatialMonitor?.update(channels, sampleRate, pcm)
+                                ?: "unavailable",
+                        )
+                    }
+                    "clearSpatialAudioStatus" -> {
+                        spatialMonitor?.clear()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
                 }
-                "getBrightness" -> {
-                    val b = window.attributes.screenBrightness
-                    result.success(if (b < 0f) 0.5f else b)
-                }
-                "setSystemVolume" -> {
-                    val volume = call.argument<Number>("volume")?.toFloat() ?: 1f
-                    val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                    val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                    val target = (volume.coerceIn(0f, 1f) * maxVol).toInt()
-                    am.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
-                    result.success(null)
-                }
-                "getSystemVolume" -> {
-                    val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                    val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()
-                    val curVol = am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
-                    result.success(if (maxVol > 0f) curVol / maxVol else 1f)
-                }
-                else -> result.notImplemented()
             }
         }
+        spatialMonitor = SpatialAudioMonitor(this) { status ->
+            systemChannel?.invokeMethod("spatialAudioChanged", status)
+        }
+    }
+
+    override fun onDestroy() {
+        spatialMonitor?.close()
+        spatialMonitor = null
+        systemChannel?.setMethodCallHandler(null)
+        systemChannel = null
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {

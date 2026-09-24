@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 
 /// Engine-agnostic OS controls.
@@ -15,6 +17,25 @@ class SystemControls {
   static final SystemControls instance = SystemControls._();
 
   static const MethodChannel _channel = MethodChannel('dreamplayer/system');
+  static final StreamController<String> _spatialAudioChanges =
+      StreamController<String>.broadcast();
+  static bool _spatialAudioHandlerInstalled = false;
+
+  Stream<String> get spatialAudioChanges {
+    _installSpatialAudioHandler();
+    return _spatialAudioChanges.stream;
+  }
+
+  static void _installSpatialAudioHandler() {
+    if (_spatialAudioHandlerInstalled) return;
+    _spatialAudioHandlerInstalled = true;
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'spatialAudioChanged') {
+        final value = call.arguments;
+        if (value is String) _spatialAudioChanges.add(value);
+      }
+    });
+  }
 
   /// 0.0 (dim) → 1.0 (max). Pass `-1.0` to restore the system default
   /// (`BRIGHTNESS_OVERRIDE_NONE`).
@@ -51,6 +72,31 @@ class SystemControls {
       return (raw ?? 1.0).clamp(0.0, 1.0);
     } on Exception {
       return 1.0;
+    }
+  }
+
+  Future<String> getSpatialAudioStatus({
+    required int channels,
+    required int sampleRate,
+    required bool pcm,
+  }) async {
+    try {
+      final raw = await _channel.invokeMethod<String>('getSpatialAudioStatus', {
+        'channels': channels,
+        'sampleRate': sampleRate,
+        'pcm': pcm,
+      });
+      return raw ?? 'unavailable';
+    } on Exception {
+      return 'unavailable';
+    }
+  }
+
+  Future<void> clearSpatialAudioStatus() async {
+    try {
+      await _channel.invokeMethod<void>('clearSpatialAudioStatus');
+    } on Exception {
+      return;
     }
   }
 }

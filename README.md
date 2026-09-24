@@ -28,8 +28,8 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 - **Default track on open** — the player picks the file's DEFAULT-flagged audio
   track (not merely the first entry in the list); **resume keeps your last pick**
   per video, per engine (Watch from beginning returns to the default)
-- Optional **audio passthrough** over HDMI for Dolby Atmos / DTS:X on compatible soundbars
-- **Spatial audio** (Android 13+) — teal chip shows when the system Spatializer virtualizes multichannel surround for your headphones/speakers; works with wired, USB, and Bluetooth output
+- Optional **Media3 audio passthrough** over HDMI for Dolby Atmos / DTS:X on compatible soundbars
+- **Spatial audio** (Android 13+) — the same phone Spatial-audio setting drives both Media3 and MPV; the teal chip shows when the system Spatializer can virtualize the current multichannel PCM output on wired, USB, and Bluetooth routes
 - **Bass Boost** — Off/Low/Medium/High session-level DSP that restores the low-end HRTF virtualization thins out (appears while Spatial audio is engaged)
 - **Volume Boost + Night Mode** — up to 3× loudness lift and dynamic-range compression (Android)
 
@@ -102,7 +102,8 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 - **Auto-play next episode** within the same folder — local/SMB + **Jellyfin via ParentId sibling walk** (togglable)
 - Resumes playback from where you left off, even after app close or screen lock
 - **Picture-in-Picture** — system-drawn transport controls (rewind, play-pause, forward) work for BOTH engines, including the libmpv engine
-- **Two play engines — your choice** — every video's details screen shows **Play** (Media3) and **Play with MPV** (libmpv, Android). mpv runs hardware-first (`hwdec=auto-safe`) with its own FFmpeg software fallback, plus Dolby Atmos / DTS-HD / TrueHD audio passthrough. Video renders into a **native SurfaceView** (not a Flutter texture). Media3 remains the DV/HDR engine; the MPV path can optionally **tone-map HDR → SDR** (Settings → Player → HDR tone-map) when a libplacebo-enabled libmpv is present.
+- **Two play engines — your choice** — every video's details screen shows **Play** (Media3) and **Play with MPV** (libmpv, Android). mpv runs hardware-first (`hwdec=auto-safe`) with its own FFmpeg software fallback and decodes lossless codecs to PCM through Android `AudioTrack`; Media3 retains optional HDMI bitstream passthrough. Video renders into a **native SurfaceView** (not a Flutter texture). Media3 remains the DV/HDR engine; the MPV path can optionally **tone-map HDR → SDR** (Settings → Player → HDR tone-map) when a libplacebo-enabled libmpv is present.
+- **Anime4K for MPV (Android, opt-in)** — enable the Anime4K toggle in the MPV picture panel, then choose Mode A, B, C, A+A, B+B, or C+A. The selected preset takes effect immediately and an `Upscaled` chip is shown while active. It is limited to SDR MPV playback; HDR/DV and PiP are disabled. The bundled Anime4K v4.0.1 fast presets use legacy `vo=gpu` because they do not compile with `vo=gpu-next`/libplacebo, so libplacebo tone mapping is unavailable while enabled. The panel warns about extra GPU load, heat, battery use, and stutter.
 
 ### Second engine (Android): libmpv
 
@@ -114,10 +115,14 @@ software decode when the hardware can't handle a stream, so anything the
 native engine's hardware/software path can't open (12-bit HEVC 4:4:4, a
 corrupt container, an unknown codec) plays through FFmpeg. It drives the same
 transport, seekbar, gestures, PiP, resume, chapter list, and CC sheet as
-Media3, and its `_configureMpvAudio` hands the OS compressed passthrough
-(`audio-spdif=ac3,eac3,dts,dts-hd,truehd`; AudioTrack output) for Dolby Atmos
-/ DTS-HD / DTS / AC3 / TrueHD — PCM-decoding automatically when the output
-can't take a bitstream. Sidecar subtitles are added explicitly
+Media3, and it decodes audio through the bundled FFmpeg path before playback.
+It configures Android `AudioTrack` output and keeps the source channels when
+possible, so the same phone Spatial-audio setting used by Media3 can virtualize
+5.1/7.1 PCM from DTS/DTS-HD, TrueHD, E-AC3, AC3, FLAC, AAC, and similar
+tracks. The player observes MPV's actual output format and updates the Spatial
+chip when the system setting or audio route changes. MPV's `audio-spdif` is
+intentionally not enabled, so encoded bitstream passthrough is not presented
+as platform spatial audio. Sidecar subtitles are added explicitly
 (external > embedded priority, same rule as the main path). Audio follows the
 same rules as Media3: the container's default track on open, your last pick on
 resume.
@@ -129,6 +134,19 @@ libplacebo/`gpu-next`-enabled `libmpv.so` can be dropped under
 `android/app/src/main/jniLibs/` (Gradle `pickFirsts` overrides media_kit's
 stock binary) so **HDR tone-map → SDR** works for files you do not want in
 native HDR.
+
+**Anime4K (Android MPV only)** is exposed in the same in-player tune panel as
+Picture. Enable **Anime4K** first; the default Mode A chain is applied, then
+select Mode A, B, C, A+A, B+B, or C+A to replace the chain immediately. An
+`Upscaled` chip appears while the chain is active. The bundled fast presets are
+pinned to Anime4K v4.0.1; `Clamp_Highlights` and the heavier HQ variants are
+not included. Only SDR MPV video is eligible, and the feature is unavailable
+for HDR/Dolby Vision and PiP. The current Anime4K shaders do not compile
+against the `vo=gpu-next`/libplacebo hook interface, so Anime4K temporarily
+uses legacy `vo=gpu` with OpenGL. That means libplacebo tone mapping is not
+available while the feature is enabled, and zero-copy hardware decode may
+switch to `mediacodec-copy`. The setting is session-only; the panel warns that
+per-frame GPU work increases heat, battery use, and stutter risk.
 
 On a terminal Media3 error, the error surface offers **Try with MPV** instead
 of a dead end. Media3 never auto-switches — the engine choice is always the
@@ -167,7 +185,7 @@ decoding, and a stable 4K 60 fps picture on a phone.**
 | **jcifs-ng** | Android SMB | The Java SMB 2/3 client used by the in-app SMB browser + `SmbDataSource` (custom ExoPlayer `DataSource` that streams from the share). | Nova's and CX Explorer's SMB library; measured ~75 MB/s vs ~4–6 MB/s for smbj on the NAS. |
 | **Media3 / DefaultHttpDataSource + OkHttp** | Android HTTP(S) | Standard Media3 HTTP source (with a custom trust-all OkHttp client for self-signed WebDAV). | Reuses Media3's mature HTTP implementation; the self-signed client is opt-in per server. |
 | **WebDAVByteRangeSource** (in `AetherEngineSMB`) | iOS / iPad WebDAV | A `ByteRangeSource` that serves every engine read as an independent HTTP `Range` request with the `Authorization` header, on a permissive or default-trust session. Wrapped in `BufferedSMBReader` for read-ahead. | AetherEngine's own HTTP stack can't carry auth headers or bypass TLS validation; this is the cleanest bridge between the WebDAV client and the engine. |
-| **media_kit + libmpv** (hardware-first `hwdec=auto-safe`, FFmpeg software fallback; video → **native SurfaceView**) | Android, user-chosen | **Second engine**: `Play with MPV` on the details screen (or `Try with MPV` on the Media3 error surface) starts a bundled libmpv that runs hardware decoders by default and drops to its own FFmpeg software decode when the hardware can't handle a stream — so files the native engine's hardware/software path can't open (12-bit HEVC 4:4:4, corrupt containers, unknown codecs) play through FFmpeg. Video renders into `MpvSurfaceView` (hybrid-composition platform view — same pattern as Media3; **no Flutter `Texture`**, which stuttered). media_kit `Player` is control-only (`media_kit_video` removed). Configures AudioTrack + `audio-spdif` passthrough for Atmos / DTS-HD / DTS / AC3 / TrueHD (PCM fallback when the sink can't). Pins the container-default audio track on open and restores the user's pick on resume. Ships `libmpv.so` via `media_kit_libs_android_video` — optionally overridden by a libplacebo/`gpu-next` build under `jniLibs/` (Gradle `pickFirsts`) for HDR tone-map. Android-only, so iOS doesn't pull in `Mpv.framework` (which breaks SideStore's `ldid` signer). | The user gets a second full player for anything Media3 can't decode, without giving up hardware decode or multichannel audio. Media3 remains the DV/HDR engine; MPV can tone-map to SDR when asked. iOS does not run mpv. |
+| **media_kit + libmpv** (hardware-first `hwdec=auto-safe`, FFmpeg software fallback; video → **native SurfaceView**) | Android, user-chosen | **Second engine**: `Play with MPV` on the details screen (or `Try with MPV` on the Media3 error surface) starts a bundled libmpv that runs hardware decoders by default and drops to its own FFmpeg software decode when the hardware can't handle a stream — so files the native engine's hardware/software path can't open (12-bit HEVC 4:4:4, corrupt containers, unknown codecs) play through FFmpeg. Video renders into `MpvSurfaceView` (hybrid-composition platform view — same pattern as Media3; **no Flutter `Texture`**, which stuttered). media_kit `Player` is control-only (`media_kit_video` removed). Configures Android AudioTrack + FFmpeg PCM output; DTS / DTS-HD / TrueHD / E-AC3 / AC3 / FLAC / AAC sources can feed the platform Spatializer when the route stays 5.1/7.1. It observes `audio-out-params` and does not enable `audio-spdif`, so encoded passthrough is not reported as spatial. Pins the container-default audio track on open and restores the user's pick on resume. Ships `libmpv.so` via `media_kit_libs_android_video` — optionally overridden by a libplacebo/`gpu-next` build under `jniLibs/` (Gradle `pickFirsts`) for HDR tone-map. Android-only, so iOS doesn't pull in `Mpv.framework` (which breaks SideStore's `ldid` signer). | The user gets a second full player for anything Media3 can't decode, without giving up hardware decode or multichannel audio. Media3 remains the DV/HDR engine; MPV can tone-map to SDR when asked. iOS does not run mpv. |
 | **SmbHttpProxy** (in-app) | Android fallback over SMB | A tiny HTTP/1.1 server (ServerSocket accept loop, one daemon thread per connection, GET/HEAD + single `Range`) bound to `127.0.0.1` that hands out a jcifs-ng `SmbRandomAccessFile` per token. Idle handles are parked in an `ArrayDeque` per file. | jcifs-ng only talks to Media3-native `DataSource`s, and libmpv can't read `smb://` directly — the loopback bridge is the cleanest way to let the fallback engine stream SMB sources without re-plumbing the network stack. |
 
 ### Why is Media3 the primary engine — and how does mpv fit?
@@ -227,8 +245,14 @@ the system reports:
 
 1. The Spatializer is available on this device.
 2. The current routing (headphones, USB, etc.) supports spatialization.
-3. The currently-playing audio track is multichannel (≥ 6 channels for
-   surround, ≥ 8 for Atmos).
+3. The current output is decoded multichannel PCM (typically 5.1/7.1); the
+   source codec itself is not the deciding factor.
+
+Both Media3 and MPV use the same Android phone setting. MPV decodes DTS/DTS-HD,
+TrueHD, E-AC3, AC3, FLAC, AAC, and similar tracks to PCM through
+`AudioTrack`; the Spatial chip is shown only when that output remains eligible
+for the active route. Stereo/downmixed output and encoded bitstream passthrough
+are not platform-spatialized.
 
 To enable spatial audio in DreamPlayer:
 
