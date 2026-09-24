@@ -19,6 +19,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 - **Komi-san TMDB matching** — the romanized `Komi-san` / `Komi-san wa,
   Komyushou Desu` queries canonicalize to TMDB's `Komi Can't Communicate`, so
   the grouped card receives its poster and Season 1 episode titles/stills.
+- **MPV picture controls (issue #24)** — MPV playback now has a `tune` button
+  beside the player info button. It opens a translucent in-player panel with
+  session-only Brightness, Contrast, Saturation, Gamma, and Reset controls.
+  Values are sent through MPV's native `brightness` / `contrast` / `saturation`
+  / `gamma` video properties, not Flutter overlays. The button and panel are
+  hidden for Media3 and PiP; raw MPV neutral values are `0`.
 
 ## 0.4.9
 

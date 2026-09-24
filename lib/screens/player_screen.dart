@@ -60,6 +60,12 @@ enum _SwipeType { brightness, volume }
 
 enum _PanAxis { horizontal, vertical }
 
+const double mpvPictureAdjustmentMin = -100;
+const double mpvPictureAdjustmentMax = 100;
+
+double normalizeMpvPictureAdjustment(double value) =>
+    value.clamp(mpvPictureAdjustmentMin, mpvPictureAdjustmentMax).toDouble();
+
 /// Heuristic for deciding whether an mpv playback-error string is really a
 /// video-decode failure (vs. an IO/network error that a software retry would
 /// never fix). mpv's mid-stream codec deaths typically surface as
@@ -178,6 +184,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Cached subtitle style (size/color/background/outline) shared with Media3.
   SubtitleStyle _subtitleStyle = const SubtitleStyle();
   double _mpvBrightness = 1.0;
+  double _mpvPictureBrightness = 0;
+  double _mpvPictureContrast = 0;
+  double _mpvPictureSaturation = 0;
+  double _mpvPictureGamma = 0;
+  bool _mpvPictureControlsOpen = false;
+  Future<void>? _mpvPictureApplyChain;
   double _mpvZoomScale = 1.0;
   /// Last hwdec value applied to the mpv instance ('mediacodec',
   /// 'no'). Displayed in the ⓘ info sheet so the user can see
@@ -1263,7 +1275,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         debugPrint('mpv: surface clear failed: $e');
       }
     }());
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {
+        if (_mpvPictureControlsOpen) _mpvPictureControlsOpen = false;
+      });
+    }
   }
 
   /// Sets mpv `--wid` to the SurfaceView's JNI global ref. Property order
@@ -1354,6 +1370,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (gen != _mpvAttachGen || _mpvPlayer != player) return;
       debugPrint('mpv: surface attached wid=$wid ${width}x$height');
       await _applyMpvFitProps();
+      await _applyMpvPictureAdjustments(
+        player: player,
+        waitForAttach: false,
+      );
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint('mpv: surface attach failed: $e');
@@ -1465,6 +1485,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         debugPrint('mpv: tone mapping config unavailable: $e');
       }
     }
+    await _applyMpvPictureAdjustments(player: player);
     // Subtitle rendering (improved from mpv-config community presets):
     // - sub-auto=fuzzy: auto-detect embedded subtitle tracks by language.
     // - sub-visibility=yes: ensure subtitles are rendered on screen.
@@ -1610,6 +1631,94 @@ class _PlayerScreenState extends State<PlayerScreen>
       await platform.setProperty('target-colorspace-hint', 'yes');
       debugPrint('mpv: tone-map applied (native colorspace-hint)');
     }
+  }
+
+  void _openMpvPictureControls() {
+    if (!_mpvReady || _inPip || _touchLocked) return;
+    _showControls();
+    _hideTimer?.cancel();
+    if (mounted) setState(() => _mpvPictureControlsOpen = true);
+  }
+
+  void _closeMpvPictureControls() {
+    if (!mounted || !_mpvPictureControlsOpen) return;
+    setState(() => _mpvPictureControlsOpen = false);
+    _restartHideTimer();
+  }
+
+  void _updateMpvPicture(String property, double value) {
+    final normalized = normalizeMpvPictureAdjustment(value);
+    if (property == 'brightness') {
+      _mpvPictureBrightness = normalized;
+    } else if (property == 'contrast') {
+      _mpvPictureContrast = normalized;
+    } else if (property == 'saturation') {
+      _mpvPictureSaturation = normalized;
+    } else if (property == 'gamma') {
+      _mpvPictureGamma = normalized;
+    }
+    if (mounted) setState(() {});
+    final player = _mpvPlayer;
+    if (player != null) {
+      unawaited(_applyMpvPictureProperty(player, property, normalized));
+    }
+  }
+
+  Future<void> _resetMpvPictureControls() async {
+    _mpvPictureBrightness = 0;
+    _mpvPictureContrast = 0;
+    _mpvPictureSaturation = 0;
+    _mpvPictureGamma = 0;
+    if (mounted) setState(() {});
+    await _applyMpvPictureAdjustments();
+  }
+
+  Future<void> _applyMpvPictureAdjustments({
+    Player? player,
+    bool waitForAttach = true,
+  }) async {
+    final target = player ?? _mpvPlayer;
+    if (target == null) return;
+    final values = <String, double>{
+      'brightness': _mpvPictureBrightness,
+      'contrast': _mpvPictureContrast,
+      'saturation': _mpvPictureSaturation,
+      'gamma': _mpvPictureGamma,
+    };
+    for (final entry in values.entries) {
+      await _applyMpvPictureProperty(
+        target,
+        entry.key,
+        entry.value,
+        waitForAttach: waitForAttach,
+      );
+    }
+  }
+
+  Future<void> _applyMpvPictureProperty(
+    Player player,
+    String property,
+    double value, {
+    bool waitForAttach = true,
+  }) {
+    final previous = _mpvPictureApplyChain ?? Future<void>.value();
+    final next = previous.then<void>((_) async {
+      if (waitForAttach) {
+        final attach = _mpvAttachChain;
+        if (attach != null) await attach;
+      }
+      if (_inTests || _mpvFailed || !identical(_mpvPlayer, player)) return;
+      try {
+        await player.handle;
+        final platform = player.platform;
+        if (platform is! NativePlayer) return;
+        await platform.setProperty(property, value.round().toString());
+      } catch (e) {
+        debugPrint('mpv: picture property $property failed: $e');
+      }
+    });
+    _mpvPictureApplyChain = next.catchError((_) {});
+    return next;
   }
 
   /// Maps the user's [DecoderMode] onto libmpv's `hwdec` property.
@@ -1933,8 +2042,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     _mpvFailed = true;
     _mpvError = message;
     _buffering = false;
+    if (mounted) {
+      setState(() {
+        _mpvPictureControlsOpen = false;
+      });
+    }
     debugPrint('mpv: failed: $message');
-    if (mounted) setState(() {});
   }
 
   void _listenMpv(Player player) {
@@ -2236,7 +2349,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (!mounted) return;
     setState(() {
       _inPip = inPip;
-      if (inPip) _controlsVisible = false;
+      if (inPip) {
+        _controlsVisible = false;
+        _mpvPictureControlsOpen = false;
+      }
     });
   }
 
@@ -6178,6 +6294,13 @@ class _PlayerScreenState extends State<PlayerScreen>
               key == LogicalKeyboardKey.mediaPause ||
               key == LogicalKeyboardKey.mediaPlayPause;
 
+          if (_mpvPictureControlsOpen &&
+              (key == LogicalKeyboardKey.goBack ||
+                  key == LogicalKeyboardKey.escape)) {
+            _closeMpvPictureControls();
+            return KeyEventResult.handled;
+          }
+
           if (_isTv && _controlsVisible) {
             // Just Player style: when controls are visible on TV, let the
             // normal Android focus system handle arrow keys for button
@@ -6556,13 +6679,24 @@ class _PlayerScreenState extends State<PlayerScreen>
                                  ),
                                ),
                              ),
-                            _TvControlButton(
-                                onPressed: _openVideoInfoSheet,
-                                icon: const Icon(Icons.info_outline),
-                                color: Colors.white,
-                                onFocusChange: (_) => _showControls(),
-                              ),
-                            SizedBox(width: 4),
+                             _TvControlButton(
+                                 onPressed: _openVideoInfoSheet,
+                                 icon: const Icon(Icons.info_outline),
+                                 color: Colors.white,
+                                 onFocusChange: (_) => _showControls(),
+                               ),
+                             if (_mpvReady) ...[
+                               SizedBox(width: 4),
+                               _TvControlButton(
+                                 onPressed: _touchLocked
+                                     ? null
+                                     : _openMpvPictureControls,
+                                 icon: const Icon(Icons.tune),
+                                 color: Colors.white,
+                                 onFocusChange: (_) => _showControls(),
+                               ),
+                             ],
+                             SizedBox(width: 4),
                           ],
                         ),
                         // Defense-in-depth pip gate: the top bar already slides
@@ -6771,11 +6905,152 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ),
                 ),
               ),
+             ),
+             if (_mpvPictureControlsOpen && _mpvReady && !_inPip)
+               Positioned.fill(
+                 child: GestureDetector(
+                   behavior: HitTestBehavior.translucent,
+                   onTap: _closeMpvPictureControls,
+                   child: Align(
+                     alignment: Alignment.bottomCenter,
+                     child: Padding(
+                       padding: EdgeInsets.fromLTRB(
+                         16,
+                         16,
+                         16,
+                         MediaQuery.paddingOf(context).bottom + 92,
+                       ),
+                       child: _MpvPictureControls(
+                         brightness: _mpvPictureBrightness,
+                         contrast: _mpvPictureContrast,
+                         saturation: _mpvPictureSaturation,
+                         gamma: _mpvPictureGamma,
+                         onChanged: _updateMpvPicture,
+                         onReset: _resetMpvPictureControls,
+                         onClose: _closeMpvPictureControls,
+                       ),
+                     ),
+                   ),
+                 ),
+               ),
+           ],
+         ),
+       ),
+     ),
+     );
+   }
+ }
+
+
+class _MpvPictureControls extends StatelessWidget {
+  const _MpvPictureControls({
+    required this.brightness,
+    required this.contrast,
+    required this.saturation,
+    required this.gamma,
+    required this.onChanged,
+    required this.onReset,
+    required this.onClose,
+  });
+
+  final double brightness;
+  final double contrast;
+  final double saturation;
+  final double gamma;
+  final void Function(String property, double value) onChanged;
+  final Future<void> Function() onReset;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.76),
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 420,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Picture',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close),
+                    color: Colors.white70,
+                    tooltip: 'Close',
+                  ),
+                ],
+              ),
+              _buildSlider('brightness', 'Brightness', brightness),
+              _buildSlider('contrast', 'Contrast', contrast),
+              _buildSlider('saturation', 'Saturation', saturation),
+              _buildSlider('gamma', 'Gamma', gamma),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () {
+                    onReset();
+                  },
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Reset'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSlider(String property, String label, double value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ),
+            Text(
+              value.round().toString(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
             ),
           ],
         ),
-      ),
-    ),
+        Slider(
+          value: value,
+          min: mpvPictureAdjustmentMin,
+          max: mpvPictureAdjustmentMax,
+          divisions: 200,
+          label: value.round().toString(),
+          onChanged: (next) => onChanged(property, next),
+        ),
+      ],
     );
   }
 }

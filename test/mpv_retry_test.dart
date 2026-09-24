@@ -28,4 +28,12 @@ void main() {
       expect(mpvErrorLooksLikeCodec('COULD NOT OPEN CODEC.'), isTrue);
     });
   });
+
+  group('mpv picture adjustment range', () {
+    test('clamps values to the raw MPV range', () {
+      expect(normalizeMpvPictureAdjustment(-120), -100);
+      expect(normalizeMpvPictureAdjustment(0), 0);
+      expect(normalizeMpvPictureAdjustment(120), 100);
+    });
+  });
 }
