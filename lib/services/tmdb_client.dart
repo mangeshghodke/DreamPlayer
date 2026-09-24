@@ -605,6 +605,7 @@ class ParsedFileName {
     this.seriesName,
     this.season = 0,
     this.episode = 0,
+    this.hasExplicitSeason = false,
 
     /// When the folder/file name carries an explicit "Live Action", "Drama",
     /// or "J-Drama" keyword, this flag is set so the TMDB search can prefer
@@ -623,6 +624,17 @@ class ParsedFileName {
 
   /// Episode number parsed from `SxxEyy` / `x.yy` (0 for movies).
   final int episode;
+
+  final bool hasExplicitSeason;
+
+  int seasonWithFallback(int? folderSeason, {int? firstAvailableSeason}) {
+    if (hasExplicitSeason) return season;
+    if (folderSeason != null && folderSeason > 0) return folderSeason;
+    if (firstAvailableSeason != null && firstAvailableSeason > 0) {
+      return firstAvailableSeason;
+    }
+    return 1;
+  }
 
   /// True when the parsed name contained an explicit "Live Action" / "Drama"
   /// keyword. Used by the TMDB match scorer to disambiguate
@@ -678,7 +690,7 @@ class ParsedFileName {
   /// Word-style season tag (`Season 2`, `Season 03`) — used by SMB/browser
   /// season folders like "Season 2". Parsed for season detection.
   static final RegExp _seasonWordPattern =
-      RegExp(r'\bSeason\s+(\d{1,2})\b', caseSensitive: false);
+      RegExp(r'\bSeason\s*(\d{1,2})\b', caseSensitive: false);
 
   static const List<String> _noise = [
     '1080p', '720p', '2160p', '480p', '4k', 'uhd', 'hd', 'sdr',
@@ -833,14 +845,17 @@ final yearMatch = _yearPattern.firstMatch(name);
     String? seriesName;
     var season = 0;
     var episode = 0;
+    var hasExplicitSeason = false;
     if (episodeMatch != null) {
       isEpisode = true;
+      hasExplicitSeason = true;
       season = int.parse(episodeMatch.group(1)!);
       episode = int.parse(episodeMatch.group(2)!);
       seriesName = name.substring(0, episodeMatch.start).trim();
       name = name.replaceAll(episodeMatch.group(0)!, ' ');
     } else if (shortEpisodeMatch != null) {
       isEpisode = true;
+      hasExplicitSeason = true;
       season = int.parse(shortEpisodeMatch.group(1)!);
       episode = int.parse(shortEpisodeMatch.group(2)!);
       seriesName = name.substring(0, shortEpisodeMatch.start).trim();
@@ -919,6 +934,7 @@ final yearMatch = _yearPattern.firstMatch(name);
           effectiveSeriesName == null ? null : _cleanName(effectiveSeriesName),
       season: season,
       episode: episode,
+      hasExplicitSeason: hasExplicitSeason,
       liveAction: liveAction,
     );
   }
@@ -1058,6 +1074,21 @@ class TmdApi {
 
   static const String prefsKey = 'dreamplayer.tmdbApiKey';
 
+  static const Map<String, String> _seriesQueryAliases = {
+    'komi san': "Komi Can't Communicate",
+    'komi san wa komyushou desu': "Komi Can't Communicate",
+  };
+
+  static String canonicalSeriesQuery(String query) {
+    final trimmed = query.trim();
+    final normalized = trimmed
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return _seriesQueryAliases[normalized] ?? trimmed;
+  }
+
   /// One shared, keep-alive client for the whole app lifetime. A fresh
   /// `HttpClient` per request re-arms DNS + TLS each time and churns sockets,
   /// which on a flaky Wi-Fi/mobile link is slow and surfaces as intermittent
@@ -1088,10 +1119,11 @@ class TmdApi {
   Future<List<TmdMovie>> search(String query, {int? year, TmdKind kind = TmdKind.movie}) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return const [];
+    final searchQuery = canonicalSeriesQuery(query);
     final endpoint = kind == TmdKind.movie ? '/search/movie' : '/search/tv';
     final params = <String, String>{
       'api_key': key,
-      'query': query,
+      'query': searchQuery,
       'language': 'en-US',
       'include_adult': 'false',
       if (year != null) (kind == TmdKind.movie ? 'year' : 'first_air_date_year'): '$year',
@@ -1103,7 +1135,7 @@ class TmdApi {
         .map((r) => TmdMovie.fromJson(r, kind: kind))
         .where((m) => m.id != 0)
         .toList();
-    debugPrint('TMDB search("$query") kind=$kind year=$year → ${movies.length} results: ${movies.map((m) => '${m.title}(${m.year})').join(', ')}');
+    debugPrint('TMDB search("$searchQuery") kind=$kind year=$year → ${movies.length} results: ${movies.map((m) => '${m.title}(${m.year})').join(', ')}');
     return movies;
   }
 
@@ -1239,7 +1271,9 @@ class TmdApi {
     if (key.isEmpty) return null;
     final hasSeries = parsed.isEpisode || (parsed.seriesName?.isNotEmpty ?? false);
     final kind = hasSeries ? TmdKind.tv : TmdKind.movie;
-    final query = hasSeries ? (parsed.seriesName ?? parsed.title) : parsed.title;
+    final query = canonicalSeriesQuery(
+      hasSeries ? (parsed.seriesName ?? parsed.title) : parsed.title,
+    );
     final year = kind == TmdKind.movie ? parsed.year : null;
 
     var results = await search(query, year: year, kind: kind);
@@ -1271,8 +1305,9 @@ class TmdApi {
   }
 
   double _score(TmdMovie movie, ParsedFileName parsed) {
-    final query = (parsed.isEpisode ? (parsed.seriesName ?? parsed.title) : parsed.title)
-        .toLowerCase();
+    final query = canonicalSeriesQuery(
+      parsed.isEpisode ? (parsed.seriesName ?? parsed.title) : parsed.title,
+    ).toLowerCase();
     final title = movie.title.toLowerCase();
     // Nova-style: Levenshtein distance for robust matching.
     final dist = _levenshteinDistance(query, title);
@@ -1342,7 +1377,7 @@ class TmdApi {
       {int? year, bool liveAction = false, bool preferMovie = false, bool hasMovieSequelPattern = false, int? desiredPart}) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return null;
-    final clean = query.trim();
+    final clean = canonicalSeriesQuery(query);
     if (clean.isEmpty) return null;
     final tv = await search(clean, year: year, kind: TmdKind.tv);
     final movie = await search(clean, year: year, kind: TmdKind.movie);
@@ -1382,7 +1417,7 @@ class TmdApi {
   }
 
   double _queryScore(TmdMovie movie, String query, {int? year, bool liveAction = false, int? desiredPart}) {
-    final q = query.toLowerCase();
+    final q = canonicalSeriesQuery(query).toLowerCase();
     final title = movie.title.toLowerCase();
     final dist = _levenshteinDistance(q, title);
     final maxLen = q.length > title.length ? q.length : title.length;

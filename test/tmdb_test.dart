@@ -50,6 +50,53 @@ void main() {
       expect(parsed.episodeLabel, 'S01E03');
     });
 
+    test('marks only explicit season-episode tokens as explicit seasons', () {
+      expect(
+        ParsedFileName.parse('Komi-san S01E13.mkv').hasExplicitSeason,
+        isTrue,
+      );
+      expect(
+        ParsedFileName.parse('Komi-san 1x13.mkv').hasExplicitSeason,
+        isTrue,
+      );
+      expect(
+        ParsedFileName.parse('Komi-san S00E01.mkv').hasExplicitSeason,
+        isTrue,
+      );
+      expect(ParsedFileName.parse('Komi-san E01.mkv').hasExplicitSeason, isFalse);
+      expect(ParsedFileName.parse('Komi-san EP01.mkv').hasExplicitSeason, isFalse);
+      expect(ParsedFileName.parse('Komi-san [01].mkv').hasExplicitSeason, isFalse);
+      expect(
+        ParsedFileName.parse('Komi-san Season 2').hasExplicitSeason,
+        isFalse,
+      );
+      expect(
+        ParsedFileName.parse(
+          '[VCB-Studio] GIRLS und PANZER das FINALE 01 [Ma10p_1080p]',
+        ).hasExplicitSeason,
+        isFalse,
+      );
+    });
+
+    test('seasonWithFallback applies explicit, folder, cached, and default order', () {
+      final explicit =
+          ParsedFileName.parse('Komi-san S01E13.mkv').seasonWithFallback(2);
+      final episodeOnly =
+          ParsedFileName.parse('Komi-san E01.mkv').seasonWithFallback(2);
+      final bracket =
+          ParsedFileName.parse('Komi-san [01].mkv').seasonWithFallback(2);
+      final cached = ParsedFileName.parse('Komi-san E01.mkv')
+          .seasonWithFallback(null, firstAvailableSeason: 3);
+      final fallback = ParsedFileName.parse('Komi-san E01.mkv')
+          .seasonWithFallback(null);
+
+      expect(explicit, 1);
+      expect(episodeOnly, 2);
+      expect(bracket, 2);
+      expect(cached, 3);
+      expect(fallback, 1);
+    });
+
     test('seriesName excludes stale Sxx tag when year is inside parens', () {
       // Regression: `Kakegurui Twin (2021) S01E01.mkv` used to yield
       // `seriesName = "Kakegurui Twin S01"` because the year strip shifted
@@ -141,6 +188,10 @@ void main() {
       expect(parsed.season, 2);
       expect(parsed.seriesName, 'HOUSE');
       expect(parsed.title, 'HOUSE');
+
+      final compact = ParsedFileName.parse('HOUSE Season02');
+      expect(compact.season, 2);
+      expect(compact.seriesName, 'HOUSE');
     });
 
     test('strips audio-language and streaming-provider noise', () {
@@ -281,6 +332,7 @@ void main() {
         );
         expect(parsed.title, 'GIRLS und PANZER das FINALE 01');
         expect(parsed.isEpisode, isFalse);
+        expect(parsed.hasExplicitSeason, isFalse);
         expect(parsed.seriesName, isNull);
       });
 
@@ -690,6 +742,21 @@ void main() {
     test('plain series names do NOT set liveAction', () {
       expect(ParsedFileName.parse('Kakegurui Twin').liveAction, isFalse);
       expect(ParsedFileName.parse('Kakegurui Twin (2017)').liveAction, isFalse);
+    });
+
+    test('Komi-san canonicalizes to the TMDB series title', () {
+      expect(
+        TmdApi.canonicalSeriesQuery('Komi-san'),
+        "Komi Can't Communicate",
+      );
+      expect(
+        TmdApi.canonicalSeriesQuery('Komi-san wa, Komyushou Desu'),
+        "Komi Can't Communicate",
+      );
+      expect(
+        TmdApi.canonicalSeriesQuery('Girls und Panzer das Finale 02'),
+        'Girls und Panzer das Finale 02',
+      );
     });
   });
 

@@ -244,21 +244,11 @@ class _HomeScreenState extends State<HomeScreen>
         folders: members,
       ));
     }
-    // No auto-grouping — every remaining folder is its own card and the
-    // user groups manually (long-press → Group). Scanner-expanded seasons
-    // (e.g. Strike the Blood Season01/02) stay separate cards.
     final remaining = folders.where((f) => !groupedIds.contains(f.id)).toList();
-    final singles = [
-      for (final f in remaining)
-        SeriesGroup(
-          baseName: f.name.toLowerCase(),
-          displayName: f.name,
-          folders: [f],
-        ),
-    ];
-    // Manual groups first (most recent first), then singles in store order.
+    final autoGroups =
+        const SeriesGroupingService().groupExplicitSeasonFolders(remaining);
     manualGroups.sort((a, b) => b.primary.addedAt.compareTo(a.primary.addedAt));
-    return [...manualGroups, ...singles];
+    return [...manualGroups, ...autoGroups];
   }
 
   bool _isManualGroup(SeriesGroup g) =>
@@ -282,7 +272,11 @@ class _HomeScreenState extends State<HomeScreen>
     if (picked != null) return picked;
     final primary = TmdService.instance.metaFor(g.metadataKey);
     if (primary != null) return primary;
-    for (final f in g.folders) {
+    final ordered = [
+      g.primary,
+      ...g.folders.where((f) => f.id != g.primary.id),
+    ];
+    for (final f in ordered) {
       final m = TmdService.instance.metaFor(f.metadataKey);
       if (m != null) return m;
     }
@@ -532,7 +526,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Regex to detect season-like folder names (S01, Season N, roman numerals).
     // Matches the logic in tmdb_client.dart for staleness check.
     final seasonTagRegex = RegExp(
-      r'\bs\d{1,2}\b|\bseason\s+\d+|\b(?:I{1,3}|IV|V|VI{0,3}|IX|X)\b',
+      r'\bs\d{1,2}\b|\bseason\s*\d+|\b(?:I{1,3}|IV|V|VI{0,3}|IX|X)\b',
       caseSensitive: false,
     );
     for (final folder in folders) {
@@ -826,9 +820,9 @@ class _HomeScreenState extends State<HomeScreen>
     final isMovie = meta?.movie.kind == TmdKind.movie;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => isMovie && group.folders.length > 1
-            ? MovieGroupScreen(group: group)
-            : isMovie && group.folders.length == 1
+        builder: (_) => group.folders.length > 1
+            ? SeriesSeasonsScreen(group: group)
+            : isMovie
                 ? TmdDetailsScreen(folder: group.primary)
                 : SeriesSeasonsScreen(group: group),
       ),

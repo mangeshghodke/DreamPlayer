@@ -2,16 +2,26 @@ import 'package:dream_player/services/library_folders.dart';
 import 'package:dream_player/services/series_grouping.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-LibraryFolder _folder(String name,
-    {LibraryFolderSource source = LibraryFolderSource.files,
-    DateTime? addedAt,
-    String id = ''}) {
+LibraryFolder _folder(
+  String name, {
+  LibraryFolderSource source = LibraryFolderSource.files,
+  DateTime? addedAt,
+  String id = '',
+  String? networkServerId,
+  String? networkShare,
+  String? jellyfinServerUrl,
+  bool isFile = false,
+}) {
   return LibraryFolder(
     id: id.isEmpty ? name : id,
     name: name,
     path: '/storage/emulated/0/$name',
     addedAt: addedAt ?? DateTime(2026, 9, 5),
     source: source,
+    networkServerId: networkServerId,
+    networkShare: networkShare,
+    jellyfinServerUrl: jellyfinServerUrl,
+    isFile: isFile,
   );
 }
 
@@ -37,6 +47,8 @@ void main() {
       expect(SeriesGroupingService.baseNameOf('My.Show.S02.1080p'),
           'my show');
       expect(SeriesGroupingService.baseNameOf('My Show Season 2'),
+          'my show');
+      expect(SeriesGroupingService.baseNameOf('My Show Season02'),
           'my show');
       expect(SeriesGroupingService.baseNameOf('My Show S02E05'),
           'my show');
@@ -76,6 +88,106 @@ void main() {
       // "VI" as the whole folder name should be preserved (no preceding
       // space → regex requires `(?:^|\s)` before).
       expect(SeriesGroupingService.baseNameOf('VI'), 'vi');
+    });
+  });
+
+  group('SeriesGroupingService.groupExplicitSeasonFolders', () {
+    test('groups explicit Komi season folders without changing folders', () {
+      const service = SeriesGroupingService();
+      final season1 = _folder(
+        'Komi-san wa, Komyushou Desu. S1 [Ma10p_1080p]',
+        id: 'komi-s1',
+      );
+      final season2 = _folder(
+        'Komi-san wa, Komyushou Desu. S2 [Ma10p_1080p]',
+        id: 'komi-s2',
+      );
+
+      final groups = service.groupExplicitSeasonFolders([season2, season1]);
+
+      expect(groups, hasLength(1));
+      expect(groups.single.folders, [season2, season1]);
+      expect(groups.single.primary, same(season1));
+      expect(groups.single.displayName, season1.name);
+      expect(groups.single.metadataKey, season1.metadataKey);
+    });
+
+    test('groups scanner-style Season01 and Season02 folders', () {
+      const service = SeriesGroupingService();
+      final season1 = _folder('Komi-san Season01', id: 'komi-01');
+      final season2 = _folder('Komi-san Season02', id: 'komi-02');
+
+      final groups = service.groupExplicitSeasonFolders([season1, season2]);
+
+      expect(groups, hasLength(1));
+      expect(groups.single.folders, [season1, season2]);
+      expect(groups.single.primary, same(season1));
+    });
+
+    test('keeps same title on different SMB servers separate', () {
+      const service = SeriesGroupingService();
+      final first = _folder(
+        'Komi-san S1',
+        id: 'server-a',
+        source: LibraryFolderSource.smb,
+        networkServerId: 'server-a',
+        networkShare: 'media',
+      );
+      final second = _folder(
+        'Komi-san S2',
+        id: 'server-b',
+        source: LibraryFolderSource.smb,
+        networkServerId: 'server-b',
+        networkShare: 'media',
+      );
+
+      final groups = service.groupExplicitSeasonFolders([first, second]);
+
+      expect(groups, hasLength(2));
+      expect(groups.every((g) => g.folders.length == 1), isTrue);
+    });
+
+    test('keeps Girls und Panzer movie parts as singleton groups', () {
+      const service = SeriesGroupingService();
+      final folders = [
+        for (var i = 1; i <= 4; i++)
+          _folder(
+            '[VCB-Studio] GIRLS und PANZER das FINALE '
+            '${i.toString().padLeft(2, '0')} [Ma10p_1080p]',
+            id: 'gup-$i',
+          ),
+      ];
+
+      final groups = service.groupExplicitSeasonFolders(folders);
+
+      expect(groups, hasLength(4));
+      expect(groups.every((g) => g.folders.length == 1), isTrue);
+    });
+
+    test('does not group bare series or movie part names', () {
+      const service = SeriesGroupingService();
+      final folders = [
+        _folder('Komi-san wa, Komyushou Desu.'),
+        _folder('Komi-san wa, Komyushou Desu. II'),
+        _folder('Movie 01'),
+        _folder('Movie 02'),
+      ];
+
+      final groups = service.groupExplicitSeasonFolders(folders);
+
+      expect(groups, hasLength(4));
+      expect(groups.every((g) => g.folders.length == 1), isTrue);
+    });
+
+    test('does not group file entries even when their names look seasonal', () {
+      const service = SeriesGroupingService();
+      final first = _folder('Komi-san S01E01.mkv', id: 'file-1', isFile: true);
+      final second = _folder('Komi-san S01E02.mkv', id: 'file-2', isFile: true);
+
+      final groups = service.groupExplicitSeasonFolders([first, second]);
+
+      expect(groups, hasLength(2));
+      expect(groups.every((g) => g.folders.length == 1), isTrue);
     });
   });
 
@@ -124,6 +236,20 @@ void main() {
       ];
       final groups = service.group(folders);
       expect(groups, hasLength(3));
+    });
+
+    test('Girls und Panzer movie parts remain separate', () {
+      const service = SeriesGroupingService();
+      final folders = [
+        for (var i = 1; i <= 4; i++)
+          _folder(
+            '[VCB-Studio] GIRLS und PANZER das FINALE '
+            '${i.toString().padLeft(2, '0')} [Ma10p_1080p]',
+            id: 'gup-broad-$i',
+          ),
+      ];
+
+      expect(service.group(folders), hasLength(4));
     });
 
     test('S02/S03 folders collapse into one group', () {

@@ -402,9 +402,12 @@ class _SmbScreenState extends State<SmbScreen> {
       final cleanPath = path.replaceAll(RegExp(r'/+$'), '');
       final metadataKey = 'smb_folder:${server.id}/$_share/$cleanPath';
       final cachedSeriesMeta = service.metaFor(metadataKey);
+      final hasExplicitEpisodes = entries.any((entry) =>
+          !entry.isDirectory &&
+          ParsedFileName.parse(entry.name).hasExplicitSeason);
       final isCachedSeries = cachedSeriesMeta != null &&
-          cachedSeriesMeta.folderSeason != null &&
-          cachedSeriesMeta.details != null;
+          cachedSeriesMeta.details != null &&
+          (cachedSeriesMeta.folderSeason != null || hasExplicitEpisodes);
       final cachedSeasonsReady = isCachedSeries &&
           cachedSeriesMeta.seasons.isNotEmpty;
 
@@ -628,8 +631,12 @@ class _SmbScreenState extends State<SmbScreen> {
       seasonsNeeded.add(meta.folderSeason!);
     }
     for (final e in episodes) {
-      final s = ParsedFileName.parse(e.name).season;
-      if (s > 0) seasonsNeeded.add(s);
+      final parsed = ParsedFileName.parse(e.name);
+      if (parsed.hasExplicitSeason) {
+        seasonsNeeded.add(parsed.season);
+      } else if (parsed.season > 0) {
+        seasonsNeeded.add(parsed.season);
+      }
     }
     // For sequentially-numbered files, default to season 1.
     if (seasonsNeeded.isEmpty && hasSequentialNumbering) {
@@ -1105,6 +1112,25 @@ class _SmbScreenState extends State<SmbScreen> {
     return _flatFileList(context);
   }
 
+  int? _firstCachedSeason([TmdMeta? meta]) {
+    final seasons = (meta ?? _seriesMeta)?.seasons.keys;
+    if (seasons == null || seasons.isEmpty) return null;
+    return seasons.first;
+  }
+
+  int _seasonOf(SmbEntry entry) {
+    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+    final meta = TmdService.instance.metaFor(
+          'smb_folder:${_browsing?.id ?? ''}/$_share/$cleanPath',
+        ) ??
+        _seriesMeta;
+    final parsed = ParsedFileName.parse(entry.name);
+    return parsed.seasonWithFallback(
+      meta?.folderSeason,
+      firstAvailableSeason: _firstCachedSeason(meta),
+    );
+  }
+
   /// Nova-style series folder view: series header (poster, title, rating,
   /// overview, cast) at top, season-grouped episode list below.
   /// Falls back to flat file list when TMDB metadata couldn't be resolved.
@@ -1138,14 +1164,9 @@ class _SmbScreenState extends State<SmbScreen> {
     final service = TmdService.instance;
     final cachedMeta = service.metaFor(metadataKey);
 
-    // When the folder name matches a season name on TMDB (e.g. "Strike the
-    // Blood Final" → Season 5), override the parsed season so all episodes
-    // group under the correct season.
-    final folderSeason = cachedMeta?.folderSeason;
-
     final seasonGroups = sg.groupBySeason<SmbEntry>(
       episodes,
-      (e) => folderSeason ?? ParsedFileName.parse(e.name).season,
+      (e) => _seasonOf(e),
       (e) => ParsedFileName.parse(e.name).episode,
     );
     final sortedSeasons = seasonGroups.keys.toList()..sort();
@@ -1306,7 +1327,7 @@ class _SmbScreenState extends State<SmbScreen> {
           if (meta != null && meta.movie.kind == TmdKind.tv) {
             final parsed = ParsedFileName.parse(entry.name);
             if (parsed.isEpisode) {
-              final season = meta.seasons[parsed.season];
+              final season = meta.seasons[_seasonOf(entry)];
               final episode = season?.episode(parsed.episode);
               if (episode?.runtimeMinutes != null) {
                 fallbackDurationMs = episode!.runtimeMinutes! * 60 * 1000;
@@ -1414,8 +1435,12 @@ class _SmbScreenState extends State<SmbScreen> {
     final episodes = videoEntries.where(_isEpisodeEntry).toList();
     final seasonsNeeded = <int>{};
     for (final e in episodes) {
-      final s = ParsedFileName.parse(e.name).season;
-      if (s > 0) seasonsNeeded.add(s);
+      final parsed = ParsedFileName.parse(e.name);
+      if (parsed.hasExplicitSeason) {
+        seasonsNeeded.add(parsed.season);
+      } else if (parsed.season > 0) {
+        seasonsNeeded.add(parsed.season);
+      }
     }
     if (meta?.folderSeason != null) seasonsNeeded.add(meta!.folderSeason!);
     // Anime bracket numbering — default to season 1.

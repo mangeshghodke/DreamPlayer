@@ -189,8 +189,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           final subFolderId = '${folder.id}_${subName.hashCode}';
           // Skip seasons the user removed from this series view.
           if (_hiddenSeasonFolderIds.contains(subFolderId)) continue;
-          final p = ParsedFileName.parse(subName);
-          int? subSeason = p.season > 0 ? p.season : null;
+          int? subSeason;
           final childNetworkPath = (folder.networkPath?.isNotEmpty == true)
               ? '${folder.networkPath}/$subName'
               : subName;
@@ -243,17 +242,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
               ),
           };
           final subEntries = await _listFolder(subFolderSynthetic).catchError((_) => <Object>[]);
-          if (subSeason == null) {
-            for (final f in subEntries) {
-              if (f is FileEntry && !f.isDirectory) {
-                final epS = _seasonOfFromFileEntry(f);
-                if (epS > 0) {
-                  subSeason = epS;
-                  break;
-                }
-              }
-            }
-          }
+          subSeason = _inferFolderSeason(subName, subEntries);
           // Derive yearHint from the files inside this subfolder so
           // standalone movies (e.g. Girls und Panzer das Finale) carry
           // the file-embedded year for TMDB disambiguation.
@@ -288,19 +277,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           // that sit alongside the series subfolders).
           final rootFiles = entries.where((e) => !_isFolder(e)).toList();
           if (rootFiles.isNotEmpty) {
-            int? folderSeason;
-            final parsed = ParsedFileName.parse(folder.name);
-            if (parsed.season > 0) {
-              folderSeason = parsed.season;
-            } else {
-              for (final e in rootFiles) {
-                final epSeason = _seasonOf(e);
-                if (epSeason > 0) {
-                  folderSeason = epSeason;
-                  break;
-                }
-              }
-            }
+            final folderSeason = _inferFolderSeason(folder.name, rootFiles);
             folderEntries.add((
               folderLabel: folder.name,
               metadataKey: folder.metadataKey,
@@ -317,20 +294,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             return !groupFolderNames.contains(_nameOf(e));
           }).toList();
           if (flatEntries.isEmpty) continue;
-          // Guess season from folder/filename parsing.
-          int? folderSeason;
-          final parsed = ParsedFileName.parse(folder.name);
-          if (parsed.season > 0) {
-            folderSeason = parsed.season;
-          } else {
-            for (final e in flatEntries) {
-              final epSeason = _seasonOf(e);
-              if (epSeason > 0) {
-                folderSeason = epSeason;
-                break;
-              }
-            }
-          }
+          final folderSeason = _inferFolderSeason(folder.name, flatEntries);
           folderEntries.add((
             folderLabel: folder.name,
             metadataKey: folder.metadataKey,
@@ -625,16 +589,12 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     return null;
   }
 
-  /// Builds the season-grouped view: one row per season, each holding
-  /// every video file across the group's folders that maps to that season.
   Map<int, List<Object>> _seasonGroups() {
     final allEntries = <Object>[];
     for (final f in _folders) {
-      // Standalone folders (folderSeason == null, e.g. "Strike the Blood
-      // Kieta Seisou Hen") are rendered under their own card/section — they
-      // are NOT grouped into any season.
-      if (f.folderSeason == null || f.folderSeason! <= 0) continue;
-      allEntries.addAll(f.entries.where((e) => !_isFolder(e)));
+      final entries = f.entries.where((e) => !_isFolder(e)).toList();
+      if (!_isSeasonFolder(entries, f.folderSeason)) continue;
+      allEntries.addAll(entries);
     }
     return sg.groupBySeason<Object>(
       allEntries,
@@ -653,33 +613,62 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     return false;
   }
 
-  int _seasonOfFromFileEntry(FileEntry entry) {
-    final name = entry.name;
-    if (name.isEmpty) return 1;
-    final parsed = ParsedFileName.parse(name);
-    if (parsed.season > 0) return parsed.season;
-    return 1;
+  bool _isSeasonFolder(List<Object> entries, int? folderSeason) {
+    if (folderSeason != null && folderSeason > 0) return true;
+    return entries.any((e) {
+      if (e is JellyfinItem) {
+        return e.parentIndexNumber != null && e.indexNumber != null;
+      }
+      return ParsedFileName.parse(_nameOf(e)).isEpisode;
+    });
+  }
+
+  int? _firstCachedSeason([TmdMeta? meta]) {
+    final seasons = (meta ?? _meta)?.seasons.keys;
+    if (seasons == null || seasons.isEmpty) return null;
+    return seasons.first;
+  }
+
+  int? _inferFolderSeason(String folderName, Iterable<Object> entries) {
+    final parsedFolder = ParsedFileName.parse(folderName);
+    final folderSeason = parsedFolder.season > 0 ? parsedFolder.season : null;
+    final structuredSeasons = <int>{};
+    final explicitSeasons = <int>{};
+    for (final entry in entries) {
+      if (entry is JellyfinItem) {
+        final structured = entry.parentIndexNumber;
+        if (structured != null) structuredSeasons.add(structured);
+        continue;
+      }
+      if (_isFolder(entry)) continue;
+      final parsed = ParsedFileName.parse(_nameOf(entry));
+      if (parsed.hasExplicitSeason) explicitSeasons.add(parsed.season);
+    }
+    if (structuredSeasons.length == 1) return structuredSeasons.single;
+    if (explicitSeasons.length == 1) return explicitSeasons.single;
+    return folderSeason;
   }
 
   int _seasonOf(Object e) {
-    if (e is JellyfinItem) return e.parentIndexNumber ?? 1;
+    if (e is JellyfinItem && e.parentIndexNumber != null) {
+      return e.parentIndexNumber!;
+    }
 
-    // Find which folder this entry belongs to and use its folderSeason.
+    int? folderSeason;
     for (final f in _folders) {
       if (f.entries.contains(e)) {
-        if (f.folderSeason != null && f.folderSeason! > 0) {
-          return f.folderSeason!;
-        }
+        folderSeason = f.folderSeason;
         break;
       }
     }
 
-    // Fallback: parse the filename.
     final name = _nameOf(e);
     if (name.isEmpty) return 1;
     final parsed = ParsedFileName.parse(name);
-    if (parsed.season > 0) return parsed.season;
-    return 1;
+    return parsed.seasonWithFallback(
+      folderSeason,
+      firstAvailableSeason: _firstCachedSeason(),
+    );
   }
 
   int _episodeOf(Object e) {
@@ -773,11 +762,11 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   List<Widget> _buildBody(BuildContext context) {
     final grouped = _seasonGroups();
     final sortedSeasons = grouped.keys.toList()..sort();
-    // Folders that belong to NO season (e.g. the "Strike the Blood Kieta
-    // Seisou Hen" movie inside a Strike the Blood group) — ungrouped and
-    // rendered as their own cards + sections, never merged into a season.
     final standalone = _folders
-        .where((f) => f.folderSeason == null || f.folderSeason! <= 0)
+        .where((f) => !_isSeasonFolder(
+              f.entries.where((e) => !_isFolder(e)).toList(),
+              f.folderSeason,
+            ))
         .toList();
     final slivers = <Widget>[];
 
@@ -794,7 +783,11 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           final folder = _folders.isNotEmpty ? _folders.first : null;
           if (folder != null) {
             final fMeta = TmdService.instance.metaFor(folder.metadataKey);
-            final folderSeason = folder.folderSeason ?? fMeta?.folderSeason;
+            final folderSeason = _inferFolderSeason(
+                  folder.folder.name,
+                  folder.entries,
+                ) ??
+                fMeta?.folderSeason;
             if (folderSeason != null) {
               final seasons = fMeta?.seasons ?? meta.seasons;
               if (seasons.containsKey(folderSeason)) {

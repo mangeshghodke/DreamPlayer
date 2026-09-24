@@ -14,6 +14,7 @@ class SeriesGroup {
     required this.baseName,
     required this.displayName,
     required this.folders,
+    this.primaryFolder,
   });
 
   /// The stripped base name used for matching (lowercase, roman numerals /
@@ -30,13 +31,19 @@ class SeriesGroup {
   /// input (most-recently-added first via [LibraryFoldersStore]).
   final List<LibraryFolder> folders;
 
+  final LibraryFolder? primaryFolder;
+
   /// The "primary" folder used for the card artwork (TMDB poster, etc).
   /// Prefer the shortest-name folder (the canonical show name, e.g.
   /// "Strike the Blood" over "Strike the Blood Final") so the group's
   /// metadataKey resolves to the correct base-season poster.
-  LibraryFolder get primary => folders.reduce(
-        (a, b) => a.name.length <= b.name.length ? a : b,
-      );
+  LibraryFolder get primary {
+    final selected = primaryFolder;
+    if (selected != null && folders.contains(selected)) return selected;
+    return folders.reduce(
+      (a, b) => a.name.length <= b.name.length ? a : b,
+    );
+  }
 
   /// The TMDB metadata key shared by all folders in this group. Each folder
   /// has its own key (because it has its own [LibraryFolder.metadataKey]),
@@ -118,6 +125,101 @@ class SeriesGroupingService {
         .toList()
       ..sort((a, b) => b.primary.addedAt.compareTo(a.primary.addedAt));
     return groups;
+  }
+
+  List<SeriesGroup> groupExplicitSeasonFolders(
+      List<LibraryFolder> folders) {
+    if (folders.isEmpty) return const [];
+
+    final byKey = <String, _MutableGroup>{};
+    final keyByFolder = <LibraryFolder, String>{};
+    for (final folder in folders) {
+      if (folder.isFile || _explicitSeasonNumber(folder.name) == null) {
+        continue;
+      }
+      final baseName = baseNameOf(folder.name);
+      final key = '${_scopeKey(folder)}\u0000$baseName';
+      keyByFolder[folder] = key;
+      final group = byKey.putIfAbsent(
+        key,
+        () => _MutableGroup(
+          baseName: baseName,
+          displayName: folder.name,
+          folders: [],
+          addedAt: folder.addedAt,
+        ),
+      );
+      group.folders.add(folder);
+      if (folder.name.length < group.displayName.length) {
+        group.displayName = folder.name;
+      }
+      if (folder.addedAt.isAfter(group.addedAt)) {
+        group.addedAt = folder.addedAt;
+      }
+    }
+
+    final result = <SeriesGroup>[];
+    final emitted = <String>{};
+    for (final folder in folders) {
+      final key = keyByFolder[folder];
+      if (key == null) {
+        result.add(SeriesGroup(
+          baseName: baseNameOf(folder.name),
+          displayName: folder.name,
+          folders: [folder],
+        ));
+        continue;
+      }
+      if (!emitted.add(key)) continue;
+      final group = byKey[key]!;
+      final primary = _explicitSeasonPrimary(group.folders);
+      result.add(SeriesGroup(
+        baseName: group.baseName,
+        displayName: primary.name,
+        folders: group.folders,
+        primaryFolder: primary,
+      ));
+    }
+    return result;
+  }
+
+  static int? _explicitSeasonNumber(String name) {
+    final short = RegExp(
+      r'\bS(\d{1,2})(?=E\d{1,2}\b|\b)',
+      caseSensitive: false,
+    ).firstMatch(name);
+    if (short != null) return int.tryParse(short.group(1)!);
+    final word = RegExp(
+      r'\bSeason\s*(\d{1,2})\b',
+      caseSensitive: false,
+    ).firstMatch(name);
+    return word == null ? null : int.tryParse(word.group(1)!);
+  }
+
+  static String _scopeKey(LibraryFolder folder) {
+    return switch (folder.source) {
+      LibraryFolderSource.files => 'files',
+      LibraryFolderSource.smb =>
+        'smb|${folder.networkServerId ?? ''}|${folder.networkShare ?? ''}',
+      LibraryFolderSource.webdav =>
+        'webdav|${folder.networkServerId ?? folder.networkLabel ?? ''}',
+      LibraryFolderSource.ftp =>
+        'ftp|${folder.networkServerId ?? folder.networkLabel ?? ''}',
+      LibraryFolderSource.upnp =>
+        'upnp|${folder.networkServerId ?? folder.networkLabel ?? ''}',
+      LibraryFolderSource.jellyfin =>
+        'jellyfin|${(folder.jellyfinServerUrl ?? '').replaceAll(RegExp(r'/+$'), '').toLowerCase()}',
+    };
+  }
+
+  static LibraryFolder _explicitSeasonPrimary(List<LibraryFolder> folders) {
+    final seasonOne = folders
+        .where((folder) => _explicitSeasonNumber(folder.name) == 1)
+        .toList();
+    final candidates = seasonOne.isEmpty ? folders : seasonOne;
+    return candidates.reduce(
+      (a, b) => a.name.length <= b.name.length ? a : b,
+    );
   }
 
   /// Folds any groups whose base names share the same "compact" form
@@ -233,7 +335,7 @@ class SeriesGroupingService {
     // Drop season tags glued to the title (`My Show S02`, `My.Show.S02.1080p`,
     // `My Show Season 2`).
     name = name.replaceAll(RegExp(r'\bS\d{1,2}(E\d{1,2})?\b', caseSensitive: false), ' ');
-    name = name.replaceAll(RegExp(r'\bSeason\s+\d{1,2}\b', caseSensitive: false), ' ');
+    name = name.replaceAll(RegExp(r'\bSeason\s*\d{1,2}\b', caseSensitive: false), ' ');
 
     // Drop roman numerals that act as a suffix to the series name
     // (`Strike the Blood II` → `Strike the Blood`). Require a word character
@@ -312,7 +414,7 @@ class SeriesGroupingService {
   /// while still collapsing season folders (e.g. "House S02 1080p").
   static String _conditionallyStripTrailingNumber(String name) {
     final hasSeasonTag = RegExp(
-      r'\bS\d{1,2}\b|\bSeason\s+\d+|\b(?:I{1,3}|IV|V|VI{0,3}|IX|X)\b',
+      r'\bS\d{1,2}\b|\bSeason\s*\d+|\b(?:I{1,3}|IV|V|VI{0,3}|IX|X)\b',
       caseSensitive: false,
     ).hasMatch(name);
     if (hasSeasonTag) {

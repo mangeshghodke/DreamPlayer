@@ -183,7 +183,8 @@ class _FolderScreenState extends State<FolderScreen> {
     final cachedSeriesMeta = service.metaFor(metadataKey);
     final hasCachedSeries = !_atRoot &&
         cachedSeriesMeta != null &&
-        cachedSeriesMeta.folderSeason != null;
+        (cachedSeriesMeta.folderSeason != null ||
+            cachedSeriesMeta.seasons.isNotEmpty);
     setState(() {
       _loading = true;
       _error = null;
@@ -401,8 +402,12 @@ class _FolderScreenState extends State<FolderScreen> {
     // Fetch season data for locally-present seasons.
     final seasonsNeeded = <int>{};
     for (final n in episodeNames) {
-      final s = ParsedFileName.parse(n).season;
-      if (s > 0) seasonsNeeded.add(s);
+      final parsed = ParsedFileName.parse(n);
+      if (parsed.hasExplicitSeason) {
+        seasonsNeeded.add(parsed.season);
+      } else if (parsed.season > 0) {
+        seasonsNeeded.add(parsed.season);
+      }
     }
     // When folderSeason is set (from TMDB season-name matching), always
     // fetch that season's data even if parsed seasons are all 0 (anime [01]).
@@ -439,7 +444,7 @@ class _FolderScreenState extends State<FolderScreen> {
         RegExp(r'\bS(\d{1,2})\b', caseSensitive: false).firstMatch(name);
     if (sMatch != null) return int.tryParse(sMatch.group(1)!);
     final seasonMatch =
-        RegExp(r'\bSeason\s+(\d{1,2})\b', caseSensitive: false)
+        RegExp(r'\bSeason\s*(\d{1,2})\b', caseSensitive: false)
             .firstMatch(name);
     if (seasonMatch != null) return int.tryParse(seasonMatch.group(1)!);
     return null;
@@ -555,9 +560,12 @@ class _FolderScreenState extends State<FolderScreen> {
           ? widget.folder.metadataKey
           : '${widget.folder.metadataKey}/$folderName';
       final cachedSeriesMeta = service.metaFor(metadataKey);
+      final hasExplicitEpisodes = entries.any((entry) =>
+          !entry.isDirectory &&
+          ParsedFileName.parse(entry.name).hasExplicitSeason);
       final isCachedSeries = cachedSeriesMeta != null &&
-          cachedSeriesMeta.folderSeason != null &&
-          cachedSeriesMeta.details != null;
+          cachedSeriesMeta.details != null &&
+          (cachedSeriesMeta.folderSeason != null || hasExplicitEpisodes);
       final cachedSeasonsReady = isCachedSeries &&
           cachedSeriesMeta.seasons.isNotEmpty;
 
@@ -1802,7 +1810,7 @@ class _FolderScreenState extends State<FolderScreen> {
         watched: _watchedKeys.contains(key),
         onToggleWatched: () => _toggleWatched(smb),
         episode: smb.isDirectory ? null : _episodeFor(smb),
-        folderSeason: _seriesMeta?.folderSeason,
+        folderSeason: _seasonOf(smb),
         resumePositionMs: _resumePositionsMs[key],
         durationMs: _durationsMs[key],
         effectiveSize: _smbFileSizes[smb.path],
@@ -1824,7 +1832,7 @@ class _FolderScreenState extends State<FolderScreen> {
         watched: _watchedKeys.contains(key),
         onToggleWatched: () => _toggleWatched(wd),
         episode: wd.isDirectory ? null : _episodeFor(wd),
-        folderSeason: _seriesMeta?.folderSeason,
+        folderSeason: _seasonOf(wd),
         resumePositionMs: _resumePositionsMs[key],
         durationMs: _durationsMs[key],
         onTap: () => _openWebDavEntry(wd),
@@ -1845,7 +1853,7 @@ class _FolderScreenState extends State<FolderScreen> {
         watched: _watchedKeys.contains(key),
         onToggleWatched: () => _toggleWatched(ftp),
         episode: ftp.isDirectory ? null : _episodeFor(ftp),
-        folderSeason: _seriesMeta?.folderSeason,
+        folderSeason: _seasonOf(ftp),
         resumePositionMs: _resumePositionsMs[key],
         durationMs: _durationsMs[key],
         onTap: () => _openFtpEntry(ftp),
@@ -1866,7 +1874,7 @@ class _FolderScreenState extends State<FolderScreen> {
         watched: _watchedKeys.contains(key),
         onToggleWatched: () => _toggleWatched(upnp),
         episode: upnp.isDirectory ? null : _episodeFor(upnp),
-        folderSeason: _seriesMeta?.folderSeason,
+        folderSeason: _seasonOf(upnp),
         resumePositionMs: _resumePositionsMs[key],
         durationMs: _durationsMs[key],
         onTap: () => _openUpnpEntry(upnp),
@@ -1880,7 +1888,7 @@ class _FolderScreenState extends State<FolderScreen> {
       watched: _watchedKeys.contains(key),
       onToggleWatched: () => _toggleWatched(fileEntry),
       episode: fileEntry.isDirectory ? null : _episodeFor(fileEntry),
-      folderSeason: _seriesMeta?.folderSeason,
+      folderSeason: _seasonOf(fileEntry),
       resumePositionMs: _resumePositionsMs[key],
       durationMs: _durationsMs[key],
       onTap: () => _openEntry(fileEntry),
@@ -1974,62 +1982,35 @@ class _FolderScreenState extends State<FolderScreen> {
     return (e as FileEntry).name;
   }
 
+  int? _firstCachedSeason() {
+    final seasons = _seriesMeta?.seasons.keys;
+    if (seasons == null || seasons.isEmpty) return null;
+    return seasons.first;
+  }
+
   int _seasonOf(Object e) {
-    final folderSeason = _seriesMeta?.folderSeason;
-    if (folderSeason != null) return folderSeason;
-    int parsedSeason;
     if (_isJellyfin) {
-      parsedSeason = (e as JellyfinItem).parentIndexNumber ?? 0;
-    } else if (_isSmb) {
-      parsedSeason = ParsedFileName.parse((e as SmbEntry).name).season;
-    } else if (_isWebDav) {
-      final name = (e as WebDavEntry).name;
-      parsedSeason = ParsedFileName.parse(name).season;
-    } else if (_isFtp) {
-      parsedSeason = ParsedFileName.parse((e as FtpEntry).name).season;
-    } else if (_isUpnp) {
-      parsedSeason = ParsedFileName.parse((e as UpnpEntry).name).season;
-    } else {
-      parsedSeason = ParsedFileName.parse((e as FileEntry).name).season;
+      final item = e as JellyfinItem;
+      if (item.parentIndexNumber != null) return item.parentIndexNumber!;
     }
-    // For anime bracket numbering ([01]/[02]), parsed.season is 0 but the
-    // show is a single season — fall back to the first season with TMDB
-    // data so episodes group under the right header.
-    if (parsedSeason <= 0 && _seriesMeta != null && _seriesMeta!.seasons.isNotEmpty) {
-      return _seriesMeta!.seasons.keys.first;
-    }
-    return parsedSeason;
+    final parsed = ParsedFileName.parse(_nameOf(e));
+    return parsed.seasonWithFallback(
+      _seriesMeta?.folderSeason,
+      firstAvailableSeason: _firstCachedSeason(),
+    );
   }
 
   TmdEpisode? _episodeFor(Object e) {
-    final folderSeason = _seriesMeta?.folderSeason;
-    int parsedSeason;
-    int parsedEpisode;
-    if (_isSmb) {
-      final smb = e as SmbEntry;
-      final parsed = ParsedFileName.parse(smb.name);
-      if (!parsed.isEpisode) return null;
-      parsedSeason = parsed.season;
-      parsedEpisode = parsed.episode;
-    } else {
-      final parsed = ParsedFileName.parse(_nameOf(e));
-      if (!parsed.isEpisode) return null;
-      parsedSeason = parsed.season;
-      parsedEpisode = parsed.episode;
+    if (_isJellyfin) {
+      final item = e as JellyfinItem;
+      final season = item.parentIndexNumber;
+      final episode = item.indexNumber;
+      if (season == null || episode == null) return null;
+      return _seriesMeta?.seasons[season]?.episode(episode);
     }
-    int s;
-    if (folderSeason != null) {
-      s = folderSeason;
-    } else if (parsedSeason > 0) {
-      s = parsedSeason;
-    } else if (_seriesMeta?.seasons.isNotEmpty == true) {
-      // Anime bracket numbering ([01]/[02]) — use the first season with
-      // fetched TMDB data so episodes resolve to the right episode object.
-      s = _seriesMeta!.seasons.keys.first;
-    } else {
-      s = 1;
-    }
-    return _seriesMeta?.seasons[s]?.episode(parsedEpisode);
+    final parsed = ParsedFileName.parse(_nameOf(e));
+    if (!parsed.isEpisode) return null;
+    return _seriesMeta?.seasons[_seasonOf(e)]?.episode(parsed.episode);
   }
 
   int _episodeOf(Object e) {
@@ -2320,7 +2301,7 @@ class _FolderTile extends StatelessWidget {
     }
 
     final parsed = ParsedFileName.parse(entry.name);
-    final effectiveSeason = folderSeason ?? parsed.season;
+    final effectiveSeason = parsed.seasonWithFallback(folderSeason);
     final effectiveLabel = parsed.isEpisode
         ? 'S${effectiveSeason.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
         : '';

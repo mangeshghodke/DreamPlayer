@@ -214,6 +214,21 @@ class _WebDavScreenState extends State<WebDavScreen> {
     }
   }
 
+  int? _firstCachedSeason([TmdMeta? meta]) {
+    final seasons = (meta ?? _seriesMeta)?.seasons.keys;
+    if (seasons == null || seasons.isEmpty) return null;
+    return seasons.first;
+  }
+
+  int _seasonOf(WebDavEntry entry, [TmdMeta? meta]) {
+    final parsed = ParsedFileName.parse(entry.name);
+    final current = meta ?? _seriesMeta;
+    return parsed.seasonWithFallback(
+      current?.folderSeason,
+      firstAvailableSeason: _firstCachedSeason(current),
+    );
+  }
+
   /// Detect TV series folder + fetch TMDB header metadata (Nova-style).
   Future<void> _detectAndLoadSeriesFolder(List<WebDavEntry> entries) async {
     final server = _browsing;
@@ -251,8 +266,12 @@ class _WebDavScreenState extends State<WebDavScreen> {
     if (!mounted) return;
     final seasonsNeeded = <int>{};
     for (final e in episodes) {
-      final s = ParsedFileName.parse(e.name).season;
-      if (s > 0) seasonsNeeded.add(s);
+      final parsed = ParsedFileName.parse(e.name);
+      if (parsed.hasExplicitSeason) {
+        seasonsNeeded.add(parsed.season);
+      } else if (parsed.season > 0) {
+        seasonsNeeded.add(parsed.season);
+      }
     }
     if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
     // Anime bracket numbering — default to season 1.
@@ -280,18 +299,8 @@ class _WebDavScreenState extends State<WebDavScreen> {
     if (meta == null || entry.isDirectory) return null;
     final parsed = ParsedFileName.parse(entry.name);
     if (!parsed.isEpisode) return null;
-    int s;
-    if (meta.folderSeason != null) {
-      s = meta.folderSeason!;
-    } else if (parsed.season > 0) {
-      s = parsed.season;
-    } else if (meta.seasons.isNotEmpty) {
-      // Anime bracket numbering — use the first fetched season on TMDB.
-      s = meta.seasons.keys.first;
-    } else {
-      s = 1;
-    }
-    return meta.seasons[s]?.episode(parsed.episode);
+    final season = _seasonOf(entry, meta);
+    return meta.seasons[season]?.episode(parsed.episode);
   }
 
   Future<void> _openEntry(WebDavEntry entry) async {

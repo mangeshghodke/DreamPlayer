@@ -3,6 +3,23 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## Unreleased
+
+### Fixed
+
+- **Explicit filename seasons now drive library grouping and episode metadata
+  (issue #26)** — physical folders named `S1` / `S2` (or scanner-generated
+  `Season01` / `Season02`) with the same normalized title collapse into one
+  display-only series card on Home, scoped to the same local/network source.
+  Explicit `SxxEyy` / `1xYY` seasons take priority over conflicting folder-season
+  metadata, so `Komi-san S01E13` remains Season 1 even inside a folder named
+  `S2`. Physical folder names, metadata keys, and TMDB resolution stay separate.
+  `E01` / `[01]` files still use the folder/cached-season fallback, and
+  `Girls und Panzer das Finale 01–04` remain four independent movie cards.
+- **Komi-san TMDB matching** — the romanized `Komi-san` / `Komi-san wa,
+  Komyushou Desu` queries canonicalize to TMDB's `Komi Can't Communicate`, so
+  the grouped card receives its poster and Season 1 episode titles/stills.
+
 ## 0.4.9
 
 ### Fixed
