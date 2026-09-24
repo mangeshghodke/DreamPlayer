@@ -1793,7 +1793,38 @@ class ExoPlayerView(
         // and we have never needed it once the surface reaches the panel natively.
         // Non-DV HDR10/HDR10+/HLG still uses the full headroom path below (the
         // OPLUS EDR brightness ramp, verified on the HDR10+ lake clip).
-        if (skipWindowHdr) return
+        if (skipWindowHdr) {
+            // GitHub issue #28: the background HDR10 SEI bitstream probe
+            // (fireDeferredProbes) can win the race against
+            // `videoFormat.codecs` becoming available and call this function
+            // with skipWindowHdr=false BEFORE Dolby Vision is detected —
+            // forcing window.colorMode to COLOR_MODE_HDR and the surface
+            // dataspace to BT2020_PQ (some DV P7/P8 base layers legitimately
+            // also carry HDR10-compatible static SEI, so the probe isn't
+            // wrong to fire, just early). Once `isDolbyVision` flips true a
+            // moment later, a bare `return` here used to leave the window
+            // stuck in forced HDR mode for the rest of playback — verified
+            // on-device that Android's own DisplayPowerController reacts to a
+            // COLOR_MODE_HDR window by switching to a dual SDR/HDR brightness
+            // curve (a separate hdrBrightness/hdrNits target and an hbmMax
+            // ceiling clamping the SDR override), which is what produced
+            // reports of brightness drifting away from the requested value on
+            // Dolby Vision content specifically. Actively undo any earlier
+            // non-DV forcing here instead of a no-op return, so DV playback
+            // can never be left in that state regardless of which detection
+            // path wins the race.
+            val window = activity.window
+            if (window != null && window.colorMode != ActivityInfo.COLOR_MODE_DEFAULT) {
+                window.colorMode = ActivityInfo.COLOR_MODE_DEFAULT
+                hdrHeadroomSet = 1.0f
+                val sv = playerView.videoSurfaceView as? android.view.SurfaceView
+                val sc = sv?.surfaceControl
+                if (sc != null && sc.isValid) {
+                    SurfaceControl.Transaction().setDataSpace(sc, 0).apply()
+                }
+            }
+            return
+        }
         // SDR-only panels must NOT be pushed into COLOR_MODE_HDR or given a PQ
         // dataspace: on non-HDR displays Android's SurfaceFlinger tone-maps
         // HDR→SDR itself, and forcing the HDR window color mode / surface
