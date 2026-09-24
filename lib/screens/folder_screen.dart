@@ -739,7 +739,7 @@ class _FolderScreenState extends State<FolderScreen> {
     } else if (!isEp && folderMeta != null) {
       final videoKey = TmdStore.identityKeyFor(video);
       final existing = TmdService.instance.metaFor(videoKey);
-      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+      if (existing != null && existing.movie.providerKey == folderMeta.movie.providerKey) {
         try { await TmdService.instance.clear(videoKey); } catch (_) {}
       }
     }
@@ -782,7 +782,7 @@ class _FolderScreenState extends State<FolderScreen> {
     } else if (!isEp && folderMeta != null) {
       final videoKey = TmdStore.identityKeyFor(video);
       final existing = TmdService.instance.metaFor(videoKey);
-      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+      if (existing != null && existing.movie.providerKey == folderMeta.movie.providerKey) {
         try { await TmdService.instance.clear(videoKey); } catch (_) {}
       }
     }
@@ -823,7 +823,7 @@ class _FolderScreenState extends State<FolderScreen> {
     } else if (!isEp && folderMeta != null) {
       final videoKey = TmdStore.identityKeyFor(video);
       final existing = TmdService.instance.metaFor(videoKey);
-      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+      if (existing != null && existing.movie.providerKey == folderMeta.movie.providerKey) {
         try { await TmdService.instance.clear(videoKey); } catch (_) {}
       }
     }
@@ -888,7 +888,7 @@ class _FolderScreenState extends State<FolderScreen> {
     } else if (!isEp && folderMeta != null) {
       final videoKey = TmdStore.identityKeyFor(item);
       final existing = TmdService.instance.metaFor(videoKey);
-      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+      if (existing != null && existing.movie.providerKey == folderMeta.movie.providerKey) {
         try { await TmdService.instance.clear(videoKey); } catch (_) {}
       }
     }
@@ -932,7 +932,7 @@ class _FolderScreenState extends State<FolderScreen> {
     } else if (!isEp && folderMeta != null) {
       final videoKey = TmdStore.identityKeyFor(item);
       final existing = TmdService.instance.metaFor(videoKey);
-      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+      if (existing != null && existing.movie.providerKey == folderMeta.movie.providerKey) {
         try { await TmdService.instance.clear(videoKey); } catch (_) {}
       }
     }
@@ -1000,7 +1000,7 @@ class _FolderScreenState extends State<FolderScreen> {
     } else if (!isEp && folderMeta != null) {
       final videoKey = TmdStore.identityKeyFor(video);
       final existing = TmdService.instance.metaFor(videoKey);
-      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+      if (existing != null && existing.movie.providerKey == folderMeta.movie.providerKey) {
         try { await TmdService.instance.clear(videoKey); } catch (_) {}
       }
     }
@@ -1222,7 +1222,8 @@ class _FolderScreenState extends State<FolderScreen> {
         final meta = TmdService.instance
             .metaFor(TmdStore.identityKeyFor(_toVideoItem(e)));
         if (meta == null) continue;
-        final id = meta.movie.id;
+        final id = meta.movie.tmdbId;
+        if (id == null) continue;
         final isTv = meta.movie.kind == TmdKind.tv;
         final shouldMark = isTv
             ? watched.showSeasons.containsKey(id)

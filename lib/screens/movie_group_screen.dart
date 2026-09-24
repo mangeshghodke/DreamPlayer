@@ -87,16 +87,25 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
   void _onMetaChanged() {
     if (!mounted) return;
     final fresh = _metaForDisplay();
+    final providerChanged = fresh?.movie.providerKey != _meta?.movie.providerKey;
     if (fresh != _meta) {
-      setState(() => _meta = fresh);
+      setState(() {
+        _meta = fresh;
+        if (providerChanged) _details = fresh?.details;
+      });
     }
   }
 
   Future<void> _loadDetails() async {
+    final displayMeta = _metaForDisplay();
+    if (displayMeta?.details != null) {
+      if (mounted) setState(() => _details = displayMeta!.details);
+      return;
+    }
     // Details come from whichever member key has meta (group key first,
     // then any member).  detailsFor returns null for keys with no meta.
     String detailsKey = _groupKey;
-    if (_meta == null) {
+    if (displayMeta == null) {
       for (final f in widget.group.folders) {
         if (TmdService.instance.metaFor(f.metadataKey) != null) {
           detailsKey = f.metadataKey;
@@ -118,15 +127,18 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
       builder: (_) => GroupPosterDialog(initialQuery: _displayName),
     );
     if (picked == null || !mounted) return;
+    final details = picked.details ??
+        await TmdService.instance.detailsForMovie(picked.movie);
+    final enriched = details == null ? picked : picked.withDetails(details);
     final id = widget.manualGroupId;
     if (id != null) {
-      await ManualGroupsStore.instance.setPosterMeta(id, picked);
+      await ManualGroupsStore.instance.setPosterMeta(id, enriched);
     }
+    if (!mounted) return;
     setState(() {
-      _meta = picked;
-      _details = picked.details;
+      _meta = enriched;
+      _details = enriched.details;
     });
-    _loadDetails();
   }
 
   /// Remove info — clears the user-picked poster so the group falls back to
@@ -483,8 +495,30 @@ class _HeaderState extends State<_Header> {
                       ),
                     ),
                   ],
+                  if (movie.provider == MetadataProvider.theTvdb) ...[
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _openTheTvdb,
+                        icon: const Icon(Icons.open_in_new, size: 14),
+                        label: const Text('Metadata by TheTVDB'),
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'This product uses the TheTVDB API but is not endorsed by TheTVDB.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Row(
+
                     children: [
                       if (rating > 0) ...[
                         const Icon(Icons.star, size: 14, color: Colors.amber),
@@ -544,6 +578,13 @@ class _HeaderState extends State<_Header> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _openTheTvdb() async {
+    await launchUrl(
+      Uri.parse('https://thetvdb.com/'),
+      mode: LaunchMode.externalApplication,
     );
   }
 }

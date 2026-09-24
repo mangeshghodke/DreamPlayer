@@ -26,6 +26,7 @@ import '../services/tone_map_store.dart';
 import '../config/simkl_keys.dart';
 import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
+import '../services/the_tvdb_client.dart';
 import '../services/watched_store.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
@@ -73,6 +74,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _badgeServerTranscode = true;
   bool _badgeDecoder = false;
   String _tmdbKey = '';
+  String _theTvdbKey = '';
+  String _theTvdbPin = '';
+  bool _theTvdbFallback = true;
+  String? _theTvdbStorageError;
 
   @override
   void initState() {
@@ -91,6 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSubtitlePrefs();
     _loadBadgePrefs();
     _loadTmdbKey();
+    _loadTheTvdb();
     _loadAutoExpandFolders();
   }
 
@@ -410,6 +416,145 @@ class _SettingsScreenState extends State<SettingsScreen> {
       )),
     );
     if (ok == true) await _loadTmdbKey();
+  }
+
+  Future<void> _loadTheTvdb() async {
+    try {
+      final store = TheTvdbClient.defaultCredentialStore;
+      await store.load();
+      final fallback = await TheTvdbClient.isFallbackEnabled();
+      if (!mounted) return;
+      setState(() {
+        _theTvdbKey = store.apiKey ?? '';
+        _theTvdbPin = store.pin ?? '';
+        _theTvdbFallback = fallback;
+        _theTvdbStorageError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _theTvdbKey = '';
+        _theTvdbPin = '';
+        _theTvdbFallback = false;
+        _theTvdbStorageError = 'Secure storage unavailable';
+      });
+    }
+  }
+
+  Future<void> _editTheTvdbCredentials() async {
+    final keyController = TextEditingController(text: _theTvdbKey);
+    final pinController = TextEditingController(text: _theTvdbPin);
+    var testing = false;
+    String? testError;
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          title: const Text('TheTVDB'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Optional TheTVDB v4 API key. Add a subscriber PIN only when your key requires one.',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: keyController,
+                  decoration: const InputDecoration(labelText: 'API key'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: pinController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Subscriber PIN (optional)'),
+                ),
+                if (testing) const Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+                if (testError != null) Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    testError!,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: testing
+                  ? null
+                  : () async {
+                      setDialog(() {
+                        testing = true;
+                        testError = null;
+                      });
+                      final client = TheTvdbClient();
+                      try {
+                        await client.login(
+                          apiKey: keyController.text.trim(),
+                          pin: pinController.text.trim(),
+                          persist: false,
+                        );
+                        if (ctx.mounted) {
+                          setDialog(() {
+                            testing = false;
+                            testError = null;
+                          });
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(content: Text('TheTVDB connection succeeded.')),
+                          );
+                        }
+                      } catch (error) {
+                        if (ctx.mounted) {
+                          setDialog(() {
+                            testing = false;
+                            testError = error.toString();
+                          });
+                        }
+                      } finally {
+                        client.dispose();
+                      }
+                    },
+              child: const Text('Test connection'),
+            ),
+            TextButton(
+              onPressed: testing
+                  ? null
+                  : () async {
+                      try {
+                        await TheTvdbClient.defaultCredentialStore.save(
+                          apiKey: keyController.text,
+                          pin: pinController.text,
+                        );
+                        TmdService.instance.refreshTheTvdbCredentials();
+                        if (ctx.mounted) Navigator.pop(ctx, true);
+                      } catch (_) {
+                        if (ctx.mounted) {
+                          setDialog(() {
+                            testError =
+                                'Could not save TheTVDB credentials securely.';
+                          });
+                        }
+                      }
+                    },
+              child: Text(AppLocalizations.of(context).commonSave),
+            ),
+          ],
+        ),
+      ),
+    );
+    keyController.dispose();
+    pinController.dispose();
+    if (changed == true) await _loadTheTvdb();
+  }
+
+  Future<void> _setTheTvdbFallback(bool enabled) async {
+    await TheTvdbClient.setFallbackEnabled(enabled);
+    if (mounted) setState(() => _theTvdbFallback = enabled);
   }
 
   Future<void> _loadPassthrough() async {
@@ -1268,17 +1413,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
-                TvTile(
-                  leading: const Icon(Icons.movie),
-                  title: Text(AppLocalizations.of(context).settingsTmdbApiKey),
-                  subtitle: Text(
-                    _tmdbKey.isEmpty
-                        ? 'Not set — enter your own key'
-                        : 'Set (${_tmdbKey.substring(0, 4)}…${_tmdbKey.substring(_tmdbKey.length - 4)})',
-                  ),
-                  onTap: _editTmdbKey,
-                ),
-              ],
+                 TvTile(
+                   leading: const Icon(Icons.movie),
+                   title: Text(AppLocalizations.of(context).settingsTmdbApiKey),
+                   subtitle: Text(
+                     _tmdbKey.isEmpty
+                         ? 'Not set — enter your own key'
+                         : 'Set (${_tmdbKey.substring(0, 4)}…${_tmdbKey.substring(_tmdbKey.length - 4)})',
+                   ),
+                   onTap: _editTmdbKey,
+                 ),
+                 TvTile(
+                   leading: const Icon(Icons.travel_explore),
+                   title: const Text('TheTVDB metadata'),
+                   subtitle: Text(
+                     _theTvdbStorageError ??
+                         (_theTvdbKey.isEmpty
+                             ? 'Not configured — optional anime/TV fallback'
+                             : 'Configured${_theTvdbPin.isEmpty ? '' : ' · PIN set'}'),
+                   ),
+                   onTap: _editTheTvdbCredentials,
+                 ),
+                 SwitchListTile(
+                   secondary: const Icon(Icons.merge_type),
+                   title: const Text('Use TheTVDB as fallback'),
+                   subtitle: const Text(
+                     'Try TheTVDB when TMDB has no confident match',
+                   ),
+                   value: _theTvdbFallback && _theTvdbKey.isNotEmpty,
+                   onChanged: _theTvdbKey.isEmpty
+                       ? null
+                       : (value) => _setTheTvdbFallback(value),
+                 ),
+               ],
+
             ),
             // === SIMKL ===
             if (simklClientId.isNotEmpty)

@@ -2895,10 +2895,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     final client = SimklClient();
     if (!client.isConfigured) return;
     final meta = TmdService.instance.metaFor(key);
-    if (meta == null || meta.movie.id == 0) return;
+    final tmdbId = meta?.movie.tmdbId;
+    if (meta == null || tmdbId == null || tmdbId == 0) return;
     final parsed = ParsedFileName.parse(_current.title);
     final item = SimklWatchItem(
-      tmdbId: meta.movie.id,
+      tmdbId: tmdbId,
       isTv: meta.movie.kind == TmdKind.tv,
       season: parsed.isEpisode ? parsed.season : null,
       episode: parsed.isEpisode ? parsed.episode : null,

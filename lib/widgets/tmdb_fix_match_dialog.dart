@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../services/tmdb_client.dart';
+import '../services/the_tvdb_client.dart';
 import 'cached_image.dart';
 
 /// What a Fix match dialog returns: the pinned title plus the optional season
@@ -61,12 +62,15 @@ class TmdbFixMatchDialog extends StatefulWidget {
 class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
   final _controller = TextEditingController();
   final _api = TmdApi();
+  final _theTvdb = TheTvdbClient();
 
   List<TmdMovie>? _results;
   bool _searching = false;
+  int _searchGeneration = 0;
   bool _noKey = false;
   String? _error;
   late TmdKind _kind;
+  MetadataProvider _provider = MetadataProvider.tmdb;
 
   /// Season-picker step: non-null once a multi-season TV show is selected.
   TmdMovie? _seasonFor;
@@ -87,15 +91,18 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
 
   @override
   void dispose() {
+    _theTvdb.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   Future<void> _search() async {
     final query = _controller.text.trim();
+    final generation = ++_searchGeneration;
     if (query.isEmpty) return;
+    if (_provider == MetadataProvider.tmdb) {
     final key = await _api.effectiveApiKey();
-    if (!mounted) return;
+    if (!mounted || generation != _searchGeneration) return;
     if (key.isEmpty) {
       setState(() {
         _searching = false;
@@ -103,6 +110,29 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
         _noKey = true;
       });
       return;
+    }
+    } else {
+      bool configured;
+      try {
+        configured = await _theTvdb.isConfiguredAsync;
+      } catch (_) {
+        if (!mounted || generation != _searchGeneration) return;
+        setState(() {
+          _searching = false;
+          _error = 'Secure TheTVDB credential storage is unavailable.';
+          _noKey = true;
+        });
+        return;
+      }
+      if (!mounted || generation != _searchGeneration) return;
+      if (!configured) {
+        setState(() {
+          _searching = false;
+          _results = null;
+          _noKey = true;
+        });
+        return;
+      }
     }
     setState(() {
       _searching = true;
@@ -113,34 +143,40 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
     });
     try {
       final results = <TmdMovie>[];
-      // Numeric query → TMDB id lookup (issue #22). Movie and TV ids are
-      // independent namespaces, so probe both and keep whichever resolves.
       if (RegExp(r'^\d{1,10}$').hasMatch(query)) {
         final id = int.parse(query);
+        if (_provider == MetadataProvider.tmdb) {
         final byKind = await Future.wait([
           _api.byId(id, TmdKind.movie),
           _api.byId(id, TmdKind.tv),
         ]);
         results.addAll(byKind.whereType<TmdMovie>());
+      } else {
+          final byId = await _theTvdb.byId(id, kind: _kind);
+          if (byId != null) results.add(byId);
       }
-      final primary = await _api.search(
-        query,
-        year: widget.initialYear,
-        kind: _kind,
-      );
+      }
+      final primary = _provider == MetadataProvider.tmdb
+          ? await _api.search(query, year: widget.initialYear,
+        kind: _kind)
+          : await _theTvdb.search(query, year: widget.initialYear, kind: _kind);
       final fallbackKind = _kind == TmdKind.tv ? TmdKind.movie : TmdKind.tv;
-      final fallback = await _api.search(query, kind: fallbackKind);
+      final fallback = _provider == MetadataProvider.tmdb
+          ? await _api.search(query, kind: fallbackKind)
+          : await _theTvdb.search(query, kind: fallbackKind);
       results.addAll(primary);
       results.addAll(fallback);
       final seen = <String>{};
-      results.removeWhere((m) => !seen.add('${m.kind}:${m.id}'));
-      if (!mounted) return;
+      results.removeWhere((m) => !seen.add(m.providerKey));
+      if (!mounted || generation != _searchGeneration) return;
       setState(() => _results = results);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _searchGeneration) return;
       setState(() => _error = 'Search failed: $e');
     } finally {
-      if (mounted) setState(() => _searching = false);
+      if (mounted && generation == _searchGeneration) {
+        setState(() => _searching = false);
+      }
     }
   }
 
@@ -153,7 +189,19 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
       _loadingSeasons = true;
       _error = null;
     });
-    var names = await _api.seasonNames(movie);
+    Map<int, String> names;
+    try {
+      names = movie.provider == MetadataProvider.theTvdb
+          ? await _theTvdb.seasonNames(movie)
+          : await _api.seasonNames(movie);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadingSeasons = false;
+        _error = 'Could not load seasons: $error';
+      });
+      return;
+    }
     if (!mounted) return;
     final seasons = {
       for (final e in names.entries)
@@ -161,10 +209,12 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
     };
     if (seasons.length <= 1) {
       // Single season (or no names) — no picker needed.
-      Navigator.of(context).pop(TmdbFixMatchPick(
+      Navigator.of(context).pop(
+        TmdbFixMatchPick(
         movie: movie,
         season: seasons.isEmpty ? null : seasons.keys.first,
-      ));
+        ),
+      );
       return;
     }
     final auto = widget.folderName?.trim();
@@ -174,8 +224,9 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
     if (autoSeason != null && names.containsKey(autoSeason)) {
       // Folder name uniquely identifies a season (suffix / exact match) —
       // skip the extra tap (issue #22 Railgun S → Season 2).
-      Navigator.of(context).pop(
-          TmdbFixMatchPick(movie: movie, season: autoSeason));
+      Navigator.of(
+        context,
+      ).pop(TmdbFixMatchPick(movie: movie, season: autoSeason));
       return;
     }
     setState(() {
@@ -223,8 +274,8 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
                           title: const Text('Whole series'),
                           subtitle: const Text('No specific season'),
                           onTap: () => Navigator.of(context).pop(
-                              TmdbFixMatchPick(
-                                  movie: _seasonFor!, season: null)),
+                            TmdbFixMatchPick(movie: _seasonFor!, season: null),
+                          ),
                         );
                       }
                       final ordered = _seasonNames.entries.toList()
@@ -245,7 +296,9 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
                         ),
                         onTap: () => Navigator.of(context).pop(
                             TmdbFixMatchPick(
-                                movie: _seasonFor!, season: entry.key)),
+                                movie: _seasonFor!, season: entry.key,
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -256,21 +309,37 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
                   autofocus: true,
                   onSubmitted: (_) => _search(),
                   decoration: InputDecoration(
-                    hintText: '${l10n.detailsSearchTitle} · TMDB id',
+                    hintText: '${l10n.detailsSearchTitle} · ${_provider.label} id',
                     prefixIcon: const Icon(Icons.search),
                   ),
                 ),
                 const SizedBox(height: 8),
                 SegmentedButton<TmdKind>(
                   segments: const [
-                    ButtonSegment(
-                        value: TmdKind.tv, label: Text('TV Series')),
-                    ButtonSegment(
-                        value: TmdKind.movie, label: Text('Movie')),
+                    ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
+                    ButtonSegment(value: TmdKind.movie, label: Text('Movie')),
                   ],
                   selected: {_kind},
                   onSelectionChanged: (sel) =>
                       setState(() => _kind = sel.first),
+                ),
+                const SizedBox(height: 8),
+                SegmentedButton<MetadataProvider>(
+                  segments: const [
+                    ButtonSegment(
+                      value: MetadataProvider.tmdb,
+                      label: Text('TMDB'),
+                    ),
+                    ButtonSegment(
+                      value: MetadataProvider.theTvdb,
+                      label: Text('TheTVDB'),
+                    ),
+                  ],
+                  selected: {_provider},
+                  onSelectionChanged: (selection) {
+                    setState(() => _provider = selection.first);
+                    _search();
+                  },
                 ),
                 const SizedBox(height: 8),
                 if (_searching || _loadingSeasons)
@@ -331,11 +400,11 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
                               [
                                 if (movie.kind == TmdKind.tv)
                                   'TV Series',
+                                movie.provider.label,
                                 if (movie.year != null)
                                   '${movie.year}',
                                 if (movie.voteAverage > 0)
-                                  movie.voteAverage
-                                      .toStringAsFixed(1),
+                                  movie.voteAverage.toStringAsFixed(1),
                               ].join('  ·  '),
                             ),
                             onTap: () => _onPickShow(movie),

@@ -337,8 +337,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         if (key == null || key.isEmpty || _watchedKeys.contains(key)) continue;
         final meta = _service.metaFor(TmdStore.identityKeyFor(_toVideoItem(e)));
         if (meta == null) continue;
-        final id = meta.movie.id;
-        final isTv = meta.movie.kind == TmdKind.tv;
+         final id = meta.movie.tmdbId;
+         if (id == null) continue;
+         final isTv = meta.movie.kind == TmdKind.tv;
+
         final shouldMark =
             isTv ? watched.showSeasons.containsKey(id) : watched.movieIds.contains(id);
         if (shouldMark) {
@@ -1501,7 +1503,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       // previously carried onto this key (from an older build) so the video's
       // details screen re-searches instead of showing the folder's match.
       final existing = _service.metaFor(videoKey);
-      if (existing != null && existing.movie.id == meta.movie.id) {
+      if (existing != null &&
+          existing.movie.providerKey == meta.movie.providerKey) {
         try {
           await _service.clear(videoKey);
         } catch (_) {}
@@ -1662,7 +1665,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       // Standalone movie: drop any folder meta carried onto this key so the
       // video's details screen resolves its own title.
       final existing = _service.metaFor(videoKey);
-      if (existing != null && existing.movie.id == meta.movie.id) {
+      if (existing != null &&
+          existing.movie.providerKey == meta.movie.providerKey) {
         try {
           await _service.clear(videoKey);
         } catch (_) {}
@@ -2143,8 +2147,14 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                           Wrap(
                             spacing: 6,
                             runSpacing: 6,
-                            children: [
-                              if (singleEpisode?.runtimeMinutes != null)
+                             children: [
+                               if (movie.provider == MetadataProvider.theTvdb)
+                                 const _FactChip(
+                                   icon: Icons.travel_explore,
+                                   label: 'TheTVDB',
+                                 ),
+                               if (singleEpisode?.runtimeMinutes != null)
+
                                 _FactChip(
                                   icon: Icons.schedule,
                                   label:
@@ -2166,10 +2176,34 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                               if (details?.genres != null)
                                 for (final genre in details!.genres)
                                   _FactChip(label: genre),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
+                             ],
+                           ),
+                           if (movie.provider == MetadataProvider.theTvdb) ...[
+                             const SizedBox(height: 4),
+                             Align(
+                               alignment: Alignment.centerLeft,
+                               child: TextButton.icon(
+                                 onPressed: () => _openTheTvdb(context),
+                                 icon: const Icon(Icons.open_in_new, size: 14),
+                                 label: const Text('Metadata by TheTVDB'),
+                                 style: TextButton.styleFrom(
+                                   padding: EdgeInsets.zero,
+                                   minimumSize: Size.zero,
+                                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                   visualDensity: VisualDensity.compact,
+                                 ),
+                               ),
+                             ),
+                             Text(
+                               'This product uses the TheTVDB API but is not endorsed by TheTVDB.',
+                               style: theme.textTheme.bodySmall?.copyWith(
+                                 color: colorScheme.onSurfaceVariant,
+                               ),
+                             ),
+                           ],
+                           const SizedBox(height: 10),
+                           Text(
+
                             details?.tagline ?? '',
                             style: theme.textTheme.bodyMedium?.copyWith(
                               fontStyle: FontStyle.italic,
@@ -2857,6 +2891,13 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Icon(Icons.movie, color: colorScheme.onSurfaceVariant),
+    );
+  }
+
+  Future<void> _openTheTvdb(BuildContext context) async {
+    await launchUrl(
+      Uri.parse('https://thetvdb.com/'),
+      mode: LaunchMode.externalApplication,
     );
   }
 }

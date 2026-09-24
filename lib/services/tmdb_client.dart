@@ -8,15 +8,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/tmdb_api_key.dart';
 import '../models/video_item.dart';
 import 'image_cache_service.dart';
+import 'the_tvdb_client.dart';
 
-/// The TMDB poster URL (w185) for a cached meta, or null when there's no
-/// poster. Shared by the folder/WebDAV/SMB row tiles that show per-file art.
-String? posterUrlOf(TmdMeta? meta) => meta?.movie.posterPath == null
-    ? null
-    : 'https://image.tmdb.org/t/p/w185${meta!.movie.posterPath}';
+String? metadataImageUrl(String? value, {int width = 780}) {
+  if (value == null || value.isEmpty) return null;
+  if (value.startsWith('//')) return 'https:$value';
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+  return 'https://image.tmdb.org/t/p/w$width$value';
+}
+
+/// The poster URL for a cached meta, or null when there is no poster.
+String? posterUrlOf(TmdMeta? meta) => meta?.movie.posterUrl(width: 185);
+
+List<String> _stringList(dynamic value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<String>()
+      .where((item) => item.trim().isNotEmpty)
+      .toList(growable: false);
+}
 
 /// What kind of title a matched file represents.
 enum TmdKind { movie, tv }
+
+enum MetadataProvider { tmdb, theTvdb }
+
+extension MetadataProviderDetails on MetadataProvider {
+  String get label => switch (this) {
+    MetadataProvider.tmdb => 'TMDB',
+    MetadataProvider.theTvdb => 'TheTVDB',
+  };
+}
 
 /// A TMDB search hit (movie or series).
 class TmdMovie {
@@ -29,7 +51,9 @@ class TmdMovie {
     this.overview = '',
     this.voteAverage = 0,
     this.kind = TmdKind.movie,
+    this.provider = MetadataProvider.tmdb,
     this.originalTitle,
+    this.alternateTitles = const [],
   });
 
   final int id;
@@ -40,18 +64,26 @@ class TmdMovie {
   final String overview;
   final double voteAverage;
   final TmdKind kind;
+  final MetadataProvider provider;
   final String? originalTitle;
+  final List<String> alternateTitles;
+
+  int? get tmdbId => provider == MetadataProvider.tmdb ? id : null;
+
+  String get providerKey => '${provider.name}:${kind.name}:$id';
 
   String? posterUrl({int width = 342}) =>
-      posterPath == null ? null : 'https://image.tmdb.org/t/p/w$width$posterPath';
+      metadataImageUrl(posterPath, width: width);
 
-  String? backdropUrl({int width = 780}) => backdropPath == null
-      ? null
-      : 'https://image.tmdb.org/t/p/w$width$backdropPath';
+  String? backdropUrl({int width = 780}) =>
+      metadataImageUrl(backdropPath, width: width);
 
   String get yearLabel => year != null ? '$year' : '';
 
-  factory TmdMovie.fromJson(Map<String, dynamic> json, {TmdKind kind = TmdKind.movie}) {
+  factory TmdMovie.fromJson(
+    Map<String, dynamic> json, {
+    TmdKind kind = TmdKind.movie,
+  }) {
     final date = json[kind == TmdKind.movie ? 'release_date' : 'first_air_date'] as String?;
     final year = date != null && date.length >= 4 ? int.tryParse(date.substring(0, 4)) : null;
     return TmdMovie(
@@ -63,7 +95,11 @@ class TmdMovie {
       overview: json['overview'] as String? ?? '',
       voteAverage: (json['vote_average'] as num?)?.toDouble() ?? 0,
       kind: kind,
+      provider: json['provider'] == 'theTvdb'
+          ? MetadataProvider.theTvdb
+          : MetadataProvider.tmdb,
       originalTitle: json[kind == TmdKind.movie ? 'original_title' : 'original_name'] as String?,
+      alternateTitles: _stringList(json['alternateTitles']),
     );
   }
 
@@ -76,7 +112,9 @@ class TmdMovie {
         'overview': overview,
         'voteAverage': voteAverage,
         'kind': kind.name,
+    'provider': provider.name,
         'originalTitle': originalTitle,
+    'alternateTitles': alternateTitles,
       };
 
   factory TmdMovie.fromMetaJson(Map<String, dynamic> json) => TmdMovie(
@@ -88,7 +126,11 @@ class TmdMovie {
         overview: json['overview'] as String? ?? '',
         voteAverage: (json['voteAverage'] as num?)?.toDouble() ?? 0,
         kind: json['kind'] == 'tv' ? TmdKind.tv : TmdKind.movie,
+    provider: json['provider'] == 'theTvdb'
+        ? MetadataProvider.theTvdb
+        : MetadataProvider.tmdb,
         originalTitle: json['originalTitle'] as String?,
+    alternateTitles: _stringList(json['alternateTitles']),
       );
 }
 
@@ -100,15 +142,13 @@ class TmdCastMember {
   final String? profilePath;
 
   String? profileUrl({int width = 185}) =>
-      profilePath == null ? null : 'https://image.tmdb.org/t/p/w$width$profilePath';
+      metadataImageUrl(profilePath, width: width);
 }
 
 class TmdTrailer {
-  const TmdTrailer({
-    required this.key,
+  const TmdTrailer({required this.key,
     required this.name,
-    required this.site,
-  });
+    required this.site});
 
   final String key;
   final String name;
@@ -167,10 +207,14 @@ class TmdDetails {
 
   /// Absolute URLs for every still in [stills] (wide enough for a gallery row).
   List<String> stillUrls({int width = 780}) => stills
-      .map((s) => 'https://image.tmdb.org/t/p/w$width$s')
+      .map((s) => metadataImageUrl(s, width: width))
+      .whereType<String>()
       .toList();
 
-  factory TmdDetails.fromJson(Map<String, dynamic> json, {TmdKind kind = TmdKind.movie}) {
+  factory TmdDetails.fromJson(
+    Map<String, dynamic> json, {
+    TmdKind kind = TmdKind.movie,
+  }) {
     final date = json[kind == TmdKind.movie ? 'release_date' : 'first_air_date'] as String?;
     final year = date != null && date.length >= 4 ? int.tryParse(date.substring(0, 4)) : null;
     final credits = json['credits'] as Map<String, dynamic>?;
@@ -276,11 +320,12 @@ class TmdEpisode {
   final List<String> stills;
 
   String? stillUrl({int width = 300}) =>
-      stillPath == null ? null : 'https://image.tmdb.org/t/p/w$width$stillPath';
+      metadataImageUrl(stillPath, width: width);
 
   /// Absolute URLs for every still in [stills] (wide enough for a gallery row).
   List<String> stillUrls({int width = 500}) => stills
-      .map((s) => 'https://image.tmdb.org/t/p/w$width$s')
+      .map((s) => metadataImageUrl(s, width: width))
+      .whereType<String>()
       .toList();
 
   /// Falls back to "Episode N" so tiles never show a blank name.
@@ -321,8 +366,7 @@ class TmdEpisode {
             .toList()
         : (json['stills'] as List? ?? const []).whereType<String>().toList();
     return TmdEpisode(
-      episodeNumber: (json['episode_number'] ?? json['episodeNumber'] as num?)
-              ?.toInt() ??
+      episodeNumber: (json['episode_number'] ?? json['episodeNumber'] as num?)?.toInt() ??
           0,
       name: json['name'] as String? ?? '',
       overview: json['overview'] as String? ?? '',
@@ -330,8 +374,7 @@ class TmdEpisode {
       airDate: (json['air_date'] ?? json['airDate']) as String?,
       runtimeMinutes: (json['runtime'] ?? json['runtimeMinutes'] as num?)
           ?.toInt(),
-      voteAverage: (json['vote_average'] ?? json['voteAverage'] as num?)
-              ?.toDouble() ??
+      voteAverage: (json['vote_average'] ?? json['voteAverage'] as num?)?.toDouble() ??
           0,
       cast: _castMembersFrom(castList),
       guestStars: _castMembersFrom(guestList),
@@ -403,7 +446,7 @@ class TmdSeason {
 
   /// Full URL for the season poster (e.g. "Season 2" artwork).
   String? posterUrl({int width = 300}) =>
-      posterPath == null ? null : 'https://image.tmdb.org/t/p/w$width$posterPath';
+      metadataImageUrl(posterPath, width: width);
 
   TmdEpisode? episode(int episodeNumber) {
     for (final e in episodes) {
@@ -415,8 +458,9 @@ class TmdSeason {
   /// Returns a copy with [replacement] swapped in for its episode number.
   TmdSeason withEpisode(TmdEpisode replacement) {
     final next = List<TmdEpisode>.of(episodes);
-    final index =
-        next.indexWhere((e) => e.episodeNumber == replacement.episodeNumber);
+    final index = next.indexWhere(
+      (e) => e.episodeNumber == replacement.episodeNumber,
+    );
     if (index >= 0) {
       next[index] = replacement;
     } else {
@@ -497,7 +541,8 @@ class TmdMeta {
       details: d,
       seasons: seasons,
       folderSeason: folderSeason,
-      manual: manual);
+      manual: manual,
+  );
 
   TmdMeta withSeason(TmdSeason season) {
     final next = Map<int, TmdSeason>.of(seasons);
@@ -507,7 +552,8 @@ class TmdMeta {
         details: details,
         seasons: next,
         folderSeason: folderSeason,
-        manual: manual);
+        manual: manual,
+    );
   }
 
   TmdMeta withFolderSeason(int s) => TmdMeta(
@@ -515,7 +561,8 @@ class TmdMeta {
       details: details,
       seasons: seasons,
       folderSeason: s,
-      manual: manual);
+      manual: manual,
+  );
 
   Map<String, dynamic> toJson() => {
         'movie': movie.toJson(),
@@ -534,9 +581,15 @@ class TmdMeta {
         'year': d.year,
         'runtimeMinutes': d.runtimeMinutes,
         'genres': d.genres,
+    'trailers': d.trailers
+        .map((t) => {'key': t.key, 'name': t.name, 'site': t.site})
+        .toList(),
+    'stills': d.stills,
         'cast': d.cast
             .map(
-              (c) => {'name': c.name, 'character': c.character, 'profilePath': c.profilePath},
+              (c) => {
+            'name': c.name, 'character': c.character, 'profilePath': c.profilePath,
+          },
             )
             .toList(),
         'posterPath': d.posterPath,
@@ -577,6 +630,20 @@ class TmdMeta {
       year: json['year'] as int?,
       runtimeMinutes: json['runtimeMinutes'] as int?,
       genres: (json['genres'] as List? ?? const []).cast<String>(),
+      trailers: (json['trailers'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (t) => TmdTrailer(
+              key: t['key'] as String? ?? '',
+              name: t['name'] as String? ?? 'Trailer',
+              site: t['site'] as String? ?? 'YouTube',
+            ),
+          )
+          .where((t) => t.key.isNotEmpty)
+          .toList(),
+      stills: (json['stills'] as List? ?? const [])
+          .whereType<String>()
+          .toList(),
       cast: (json['cast'] as List? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(
@@ -670,13 +737,22 @@ class ParsedFileName {
   }
 
   static final RegExp _yearPattern = RegExp(r'\b(18|19|20)\d{2}\b');
-  static final RegExp _episodePattern = RegExp(r'\bS(\d{1,2})E(\d{1,2})\b', caseSensitive: false);
-  static final RegExp _episodeShortPattern =
-      RegExp(r'\b(\d{1,2})x(\d{1,3})\b', caseSensitive: false);
+  static final RegExp _episodePattern = RegExp(
+    r'\bS(\d{1,2})E(\d{1,2})\b',
+    caseSensitive: false,
+  );
+  static final RegExp _episodeShortPattern = RegExp(
+    r'\b(\d{1,2})x(\d{1,3})\b',
+    caseSensitive: false,
+  );
+
   /// E01 / EP01 / EP1 style — no season prefix.  season defaults to 1
   /// (most folders are single-season), episode extracted from the number.
-  static final RegExp _episodeOnlyPattern =
-      RegExp(r'\bEP?(\d{1,3})\b', caseSensitive: false);
+  static final RegExp _episodeOnlyPattern = RegExp(
+    r'\bEP?(\d{1,3})\b',
+    caseSensitive: false,
+  );
+
   /// [01] / [02] style — common anime fansub episode numbering in brackets.
   static final RegExp _bracketEpisodePattern =
       RegExp(r'\[(\d{1,3})\]');
@@ -684,13 +760,17 @@ class ParsedFileName {
   /// Bare season tag (`S02`, `S1`) — used by TV-season folder names like
   /// `HOUSE.S02.1080p...`. There's no episode number, so this is a whole
   /// season; the tag must be stripped or it pollutes the search title.
-  static final RegExp _seasonOnlyPattern =
-      RegExp(r'\bS(\d{1,2})\b', caseSensitive: false);
+  static final RegExp _seasonOnlyPattern = RegExp(
+    r'\bS(\d{1,2})\b',
+    caseSensitive: false,
+  );
 
   /// Word-style season tag (`Season 2`, `Season 03`) — used by SMB/browser
   /// season folders like "Season 2". Parsed for season detection.
-  static final RegExp _seasonWordPattern =
-      RegExp(r'\bSeason\s*(\d{1,2})\b', caseSensitive: false);
+  static final RegExp _seasonWordPattern = RegExp(
+    r'\bSeason\s*(\d{1,2})\b',
+    caseSensitive: false,
+  );
 
   static const List<String> _noise = [
     '1080p', '720p', '2160p', '480p', '4k', 'uhd', 'hd', 'sdr',
@@ -746,7 +826,9 @@ class ParsedFileName {
     );
 
     // Bitrate annotations (`224kbps`, `640kbps`).
-    name = name.replaceAll(RegExp(r'\b\d+\s?kbps\b', caseSensitive: false), ' ');
+    name = name.replaceAll(
+      RegExp(r'\b\d+\s?kbps\b', caseSensitive: false), ' ',
+    );
 
     // Release-group suffix is conventionally attached with a dash
     // (e.g. `...x265-GROUP`). Drop everything from the last dash on. When the
@@ -763,8 +845,8 @@ class ParsedFileName {
     // plain Capitalized title like `Dune - Part Two` must be preserved.
     final groupPrefixMatch = RegExp(
             r'^\s*([^\s-]+(?:[-._][^\s-]+){1,3})\s*-\s+',
-            caseSensitive: false)
-        .matchAsPrefix(name);
+            caseSensitive: false,
+    ).matchAsPrefix(name);
     if (groupPrefixMatch != null) {
       final prefix = groupPrefixMatch.group(1)!;
       // Release-group guard: only strip a prefix that actually looks like a
@@ -949,9 +1031,10 @@ final yearMatch = _yearPattern.firstMatch(name);
     if (lower.contains('live-action')) return true;
     // "J-Drama" / "K-Drama" / "Drama" — case-insensitive; only match when
     // separated so `drama` inside another word doesn't false-positive.
-    if (RegExp(r'(?:^|[\s\(\[\-])(?:j[\-\s]?drama|k[\-\s]?drama|drama)(?:[\s\)\]\-]|$)',
-            caseSensitive: false)
-        .hasMatch(lower)) {
+    if (RegExp(
+      r'(?:^|[\s\(\[\-])(?:j[\-\s]?drama|k[\-\s]?drama|drama)(?:[\s\)\]\-]|$)',
+      caseSensitive: false,
+    ).hasMatch(lower)) {
       return true;
     }
     return false;
@@ -1013,7 +1096,10 @@ final yearMatch = _yearPattern.firstMatch(name);
       'k-drama', 'k drama', 'kdrama',
     ]) {
       cleaned = cleaned.replaceAll(
-        RegExp('(?<![\\w])${RegExp.escape(phrase)}(?![\\w])', caseSensitive: false),
+        RegExp(
+          '(?<![\\w])${RegExp.escape(phrase)}(?![\\w])',
+          caseSensitive: false,
+        ),
         ' ',
       );
     }
@@ -1057,7 +1143,10 @@ final yearMatch = _yearPattern.firstMatch(name);
   ];
 
   static String _fallbackTitle(String fileName) {
-    final cleaned = fileName.replaceAll(RegExp(r'[._\-\u2013\u2014\[\](){}]'), ' ');
+    final cleaned = fileName.replaceAll(
+      RegExp(r'[._\-\u2013\u2014\[\](){}]'),
+      ' ',
+    );
     final parts = cleaned.split(' ').where((w) => w.isNotEmpty).take(6);
     return parts.join(' ');
   }
@@ -1116,7 +1205,10 @@ class TmdApi {
     return tmdbDefaultApiKey;
   }
 
-  Future<List<TmdMovie>> search(String query, {int? year, TmdKind kind = TmdKind.movie}) async {
+  Future<List<TmdMovie>> search(
+    String query, {
+    int? year, TmdKind kind = TmdKind.movie,
+  }) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return const [];
     final searchQuery = canonicalSeriesQuery(query);
@@ -1135,14 +1227,18 @@ class TmdApi {
         .map((r) => TmdMovie.fromJson(r, kind: kind))
         .where((m) => m.id != 0)
         .toList();
-    debugPrint('TMDB search("$searchQuery") kind=$kind year=$year → ${movies.length} results: ${movies.map((m) => '${m.title}(${m.year})').join(', ')}');
+    debugPrint(
+      'TMDB search("$searchQuery") kind=$kind year=$year → ${movies.length} results: ${movies.map((m) => '${m.title}(${m.year})').join(', ')}',
+    );
     return movies;
   }
 
   Future<TmdDetails> details(TmdMovie movie) async {
     final key = await effectiveApiKey();
     final endpoint = movie.kind == TmdKind.movie ? '/movie/${movie.id}' : '/tv/${movie.id}';
-    final json = await _get('$endpoint?api_key=$key&language=en-US&append_to_response=credits,videos,images');
+    final json = await _get(
+      '$endpoint?api_key=$key&language=en-US&append_to_response=credits,videos,images',
+    );
     var details = TmdDetails.fromJson(json, kind: movie.kind);
     return details;
   }
@@ -1185,7 +1281,9 @@ class TmdApi {
 
   /// Episodes of one season (`/tv/{id}/season/{n}`), in one request. Empty when
   /// there's no key configured or the payload has no episodes.
-  Future<List<TmdEpisode>> seasonEpisodes(TmdMovie movie, int seasonNumber) async {
+  Future<List<TmdEpisode>> seasonEpisodes(
+    TmdMovie movie, int seasonNumber,
+  ) async {
     final key = await effectiveApiKey();
     if (key.isEmpty || seasonNumber <= 0) return const [];
     final json = await _get(
@@ -1221,7 +1319,11 @@ class TmdApi {
       // an empty stills list even when the episode has a gallery on the site —
       // the dedicated /images sub-endpoint is authoritative, so merge it in.
       if (parsed.stills.isEmpty) {
-        final gallery = await episodeGallery(movie, seasonNumber, episodeNumber);
+        final gallery = await episodeGallery(
+          movie,
+          seasonNumber,
+          episodeNumber,
+        );
         if (gallery.isNotEmpty) return parsed.withStills(gallery);
       }
       return parsed;
@@ -1287,7 +1389,9 @@ class TmdApi {
     // for the unnumbered base; _score then ranks Part N by the trailing
     // number still carried on parsed.title.
     if (results.isEmpty) {
-      final base = RegExp(r'^(.*?)\s+\d{1,3}$').firstMatch(query.trim())?.group(1)?.trim();
+      final base = RegExp(
+        r'^(.*?)\s+\d{1,3}$',
+      ).firstMatch(query.trim())?.group(1)?.trim();
       if (base != null && base.isNotEmpty && base.toLowerCase() != query.toLowerCase()) {
         results = await search(base, year: year, kind: kind);
         if (results.isEmpty) {
@@ -1334,7 +1438,9 @@ class TmdApi {
     // demote results whose title contains an anime/animation hint, so e.g.
     // `Kakegurui Twin (2021)` wins over `Kakegurui Twin (2017)`.
     if (parsed.liveAction) {
-      if (RegExp(r'(?:^|\W)(anime|animation|animated)(?:\W|$)').hasMatch(title)) {
+      if (RegExp(
+        r'(?:^|\W)(anime|animation|animated)(?:\W|$)',
+      ).hasMatch(title)) {
         score -= 0.15;
       }
     }
@@ -1351,7 +1457,10 @@ class TmdApi {
         score -= 0.35;
       }
     } else if (qPart != null && titlePart == null) {
-      if (!RegExp(r'\b(?:part|vol|movie|chapter|film)\s+\d+', caseSensitive: false).hasMatch(title)) {
+      if (!RegExp(
+        r'\b(?:part|vol|movie|chapter|film)\s+\d+',
+        caseSensitive: false,
+      ).hasMatch(title)) {
         score -= 0.25;
       }
     }
@@ -1373,20 +1482,30 @@ class TmdApi {
   /// (library folders are primarily shows) unless [preferMovie] is set — used
   /// when available evidence (standalone movie files, no SxxEyy anywhere)
   /// says the folder holds movies rather than a series.
-  Future<TmdMatch?> bestForQuery(String query,
-      {int? year, bool liveAction = false, bool preferMovie = false, bool hasMovieSequelPattern = false, int? desiredPart}) async {
+  Future<TmdMatch?> bestForQuery(
+    String query, {
+    int? year, bool liveAction = false, bool preferMovie = false, bool hasMovieSequelPattern = false, int? desiredPart,
+  }) async {
     final key = await effectiveApiKey();
     if (key.isEmpty) return null;
     final clean = canonicalSeriesQuery(query);
     if (clean.isEmpty) return null;
     final tv = await search(clean, year: year, kind: TmdKind.tv);
     final movie = await search(clean, year: year, kind: TmdKind.movie);
-    debugPrint('TMDB bestForQuery("$query") year=$year liveAction=$liveAction preferMovie=$preferMovie hasMovieSequelPattern=$hasMovieSequelPattern tv=${tv.length} movie=${movie.length}');
+    debugPrint(
+      'TMDB bestForQuery("$query") year=$year liveAction=$liveAction preferMovie=$preferMovie hasMovieSequelPattern=$hasMovieSequelPattern tv=${tv.length} movie=${movie.length}',
+    );
     TmdMatch? best;
     void consider(TmdMovie candidate, double tieBoost) {
-      final score = _queryScore(candidate, clean, year: year, liveAction: liveAction, desiredPart: desiredPart) +
+      final score =
+          _queryScore(
+            candidate,
+            clean, year: year, liveAction: liveAction, desiredPart: desiredPart,
+          ) +
           tieBoost;
-      debugPrint('TMDB   consider(${candidate.title} (${candidate.year}) kind=${candidate.kind}) score=${score.toStringAsFixed(4)} tieBoost=$tieBoost');
+      debugPrint(
+        'TMDB   consider(${candidate.title} (${candidate.year}) kind=${candidate.kind}) score=${score.toStringAsFixed(4)} tieBoost=$tieBoost',
+      );
       if (score < 0.5) return;
       if (best == null || score > best!.score) {
         best = TmdMatch(candidate, score);
@@ -1412,18 +1531,25 @@ class TmdApi {
         consider(m, 0.0);
       }
     }
-    debugPrint('TMDB bestForQuery result: ${best?.movie.title} (${best?.movie.year}) score=${best?.score.toStringAsFixed(4)}');
+    debugPrint(
+      'TMDB bestForQuery result: ${best?.movie.title} (${best?.movie.year}) score=${best?.score.toStringAsFixed(4)}',
+    );
     return best;
   }
 
-  double _queryScore(TmdMovie movie, String query, {int? year, bool liveAction = false, int? desiredPart}) {
+  double _queryScore(
+    TmdMovie movie, String query, {
+    int? year, bool liveAction = false, int? desiredPart,
+  }) {
     final q = canonicalSeriesQuery(query).toLowerCase();
     final title = movie.title.toLowerCase();
     final dist = _levenshteinDistance(q, title);
     final maxLen = q.length > title.length ? q.length : title.length;
     if (maxLen == 0) return 0.0;
     var score = (1.0 - dist / maxLen).clamp(0.0, 1.0);
-    debugPrint('TMDB _queryScore: q="$q" title="$title" dist=$dist maxLen=$maxLen baseScore=${score.toStringAsFixed(4)}');
+    debugPrint(
+      'TMDB _queryScore: q="$q" title="$title" dist=$dist maxLen=$maxLen baseScore=${score.toStringAsFixed(4)}',
+    );
 
     // Year disambiguation: when a year is provided, strongly boost results
     // whose release year matches. This breaks ties between identically-named
@@ -1432,10 +1558,14 @@ class TmdApi {
       final candidateYear = movie.year;
       if (candidateYear == year) {
         score += 0.5;
-        debugPrint('TMDB _queryScore: year boost +0.5 (candidateYear=$candidateYear == year=$year)');
+        debugPrint(
+          'TMDB _queryScore: year boost +0.5 (candidateYear=$candidateYear == year=$year)',
+        );
       } else if (candidateYear != null) {
         score -= 0.2;
-        debugPrint('TMDB _queryScore: year penalty -0.2 (candidateYear=$candidateYear != year=$year)');
+        debugPrint(
+          'TMDB _queryScore: year penalty -0.2 (candidateYear=$candidateYear != year=$year)',
+        );
       }
     }
 
@@ -1444,9 +1574,13 @@ class TmdApi {
     // demote results whose title contains an anime/original-name hint, so
     // e.g. `Kakegurui Twin (2021)` wins over `Kakegurui Twin (2017)`.
     if (liveAction && score >= 0.5) {
-      if (RegExp(r'(?:^|\W)(anime|animation|animated)(?:\W|$)').hasMatch(title)) {
+      if (RegExp(
+        r'(?:^|\W)(anime|animation|animated)(?:\W|$)',
+      ).hasMatch(title)) {
         score -= 0.15;
-        debugPrint('TMDB _queryScore: liveAction penalty -0.15 (anime hint in title)');
+        debugPrint(
+          'TMDB _queryScore: liveAction penalty -0.15 (anime hint in title)',
+        );
       }
     }
 
@@ -1464,19 +1598,28 @@ class TmdApi {
     if (qPart != null && titlePart != null) {
       if (qPart == titlePart) {
         score += 0.45;
-        debugPrint('TMDB _queryScore: part match boost +0.45 (qPart=$qPart titlePart=$titlePart)');
+        debugPrint(
+          'TMDB _queryScore: part match boost +0.45 (qPart=$qPart titlePart=$titlePart)',
+        );
       } else {
         score -= 0.35;
-        debugPrint('TMDB _queryScore: part mismatch penalty -0.35 (qPart=$qPart titlePart=$titlePart)');
+        debugPrint(
+          'TMDB _queryScore: part mismatch penalty -0.35 (qPart=$qPart titlePart=$titlePart)',
+        );
       }
     } else if (qPart != null && titlePart == null) {
       // Query asks for a specific part but title has no Part marker (the
       // base collection entry).  Demote base so numbered parts win.
-      if (RegExp(r'\b(?:part|vol|movie|chapter|film)\s+\d+', caseSensitive: false).hasMatch(title)) {
+      if (RegExp(
+        r'\b(?:part|vol|movie|chapter|film)\s+\d+',
+        caseSensitive: false,
+      ).hasMatch(title)) {
         // Title has some part marker we didn't parse — ignore.
       } else {
         score -= 0.25;
-        debugPrint('TMDB _queryScore: q has part $qPart but title has none — penalty -0.25');
+        debugPrint(
+          'TMDB _queryScore: q has part $qPart but title has none — penalty -0.25',
+        );
       }
     }
 
@@ -1491,7 +1634,10 @@ class TmdApi {
   }
 
   static int? _partNumberFromTitle(String title) {
-    final m = RegExp(r'\bpart\s+(\d+|[ivxlcdm]+)\b', caseSensitive: false).firstMatch(title);
+    final m = RegExp(
+      r'\bpart\s+(\d+|[ivxlcdm]+)\b',
+      caseSensitive: false,
+    ).firstMatch(title);
     if (m == null) return null;
     final raw = m.group(1)!.toUpperCase();
     final asInt = int.tryParse(raw);
@@ -1500,7 +1646,9 @@ class TmdApi {
   }
 
   static int? _romanToInt(String roman) {
-    const values = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000};
+    const values = {
+      'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000,
+    };
     var total = 0;
     var prev = 0;
     for (var i = roman.length - 1; i >= 0; i--) {
@@ -1530,7 +1678,7 @@ class TmdApi {
         curr[j] = [
           prev[j] + 1,      // deletion
           curr[j - 1] + 1,  // insertion
-          prev[j - 1] + cost // substitution
+          prev[j - 1] + cost, // substitution
         ].reduce((x, y) => x < y ? x : y);
       }
       final tmp = prev;
@@ -1551,10 +1699,14 @@ class TmdApi {
       }
       try {
         final request =
-            await _client.getUrl(uri).timeout(const Duration(seconds: 15));
+            await _client
+            .getUrl(uri)
+            .timeout(const Duration(seconds: 15));
         request.headers.set(HttpHeaders.acceptHeader, 'application/json');
         final response =
-            await request.close().timeout(const Duration(seconds: 30));
+            await request.close().timeout(
+          const Duration(seconds: 30),
+        );
         final body = await response.transform(utf8.decoder).join();
         if (response.statusCode != 200) {
           // 429 is a rate-limit burst — retry once before surfacing it.
@@ -1588,8 +1740,12 @@ class TmdApi {
     }
   }
 
-  static String _query(Map<String, String> params) =>
-      params.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&');
+  static String _query(Map<String, String> params) => params.entries
+      .map(
+        (e) =>
+            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}',
+      )
+      .join('&');
 }
 
 class TmdException implements Exception {
@@ -1623,8 +1779,9 @@ class TmdStore {
       final result = <String, TmdMeta>{};
       for (final entry in json.entries) {
         try {
-          result[entry.key] =
-              TmdMeta.fromJson((entry.value as Map).cast<String, dynamic>());
+          result[entry.key] = TmdMeta.fromJson(
+            (entry.value as Map).cast<String, dynamic>(),
+          );
         } catch (_) {}
       }
       return result;
@@ -1677,7 +1834,7 @@ class TmdStore {
     if (identityKey.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final list = [
-      ...(prefs.getStringList(suppressedPrefsKey) ?? const <String>[])
+      ...(prefs.getStringList(suppressedPrefsKey) ?? const <String>[]),
     ];
     if (list.contains(identityKey)) return;
     list.add(identityKey);
@@ -1688,7 +1845,7 @@ class TmdStore {
     if (identityKey.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final list = [
-      ...(prefs.getStringList(suppressedPrefsKey) ?? const <String>[])
+      ...(prefs.getStringList(suppressedPrefsKey) ?? const <String>[]),
     ];
     if (!list.remove(identityKey)) return;
     await prefs.setStringList(suppressedPrefsKey, list);
@@ -1709,6 +1866,7 @@ class TmdService extends ChangeNotifier {
   static final TmdService instance = TmdService._();
 
   final TmdApi _api = TmdApi();
+  final TheTvdbClient _theTvdb = TheTvdbClient();
   Map<String, TmdMeta> _cache = {};
   final Map<String, Future<TmdMeta?>> _pending = {};
 
@@ -1728,6 +1886,19 @@ class TmdService extends ChangeNotifier {
 
   bool get loaded => _loaded;
 
+  void refreshTheTvdbCredentials() {
+    _theTvdb.invalidateToken();
+  }
+
+  Future<bool> get _useTheTvdbFallback async {
+    try {
+      return await TheTvdbClient.isFallbackEnabled() &&
+          await _theTvdb.isConfiguredAsync;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static int? _trailingPartNumber(String folderName) {
     final stripped = folderName.replaceAll(RegExp(r'\[[^\]]*\]'), ' ');
     final m = RegExp(r'\b(\d{1,3})\s*$').firstMatch(stripped.trim());
@@ -1736,7 +1907,10 @@ class TmdService extends ChangeNotifier {
   }
 
   static int? _partNumberFromTitle(String title) {
-    final m = RegExp(r'\bpart\s+(\d+|[ivxlcdm]+)\b', caseSensitive: false).firstMatch(title);
+    final m = RegExp(
+      r'\bpart\s+(\d+|[ivxlcdm]+)\b',
+      caseSensitive: false,
+    ).firstMatch(title);
     if (m == null) return null;
     final raw = m.group(1)!.toUpperCase();
     final asInt = int.tryParse(raw);
@@ -1745,7 +1919,9 @@ class TmdService extends ChangeNotifier {
   }
 
   static int? _romanToInt(String roman) {
-    const values = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000};
+    const values = {
+      'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000,
+    };
     var total = 0;
     var prev = 0;
     for (var i = roman.length - 1; i >= 0; i--) {
@@ -1841,8 +2017,18 @@ class TmdService extends ChangeNotifier {
     }
   }
 
-  Future<TmdMeta?> _resolveNow(String identityKey, ParsedFileName parsed) async {
-    final match = await _api.bestMatch(parsed);
+  Future<TmdMeta?> _resolveNow(
+    String identityKey, ParsedFileName parsed,
+  ) async {
+    TmdMatch? match;
+    try {
+      match = await _api.bestMatch(parsed);
+    } catch (_) {}
+    if (match == null && await _useTheTvdbFallback) {
+      try {
+        match = await _theTvdb.bestMatch(parsed);
+      } catch (_) {}
+    }
     if (match == null) {
       return null;
     }
@@ -1879,7 +2065,9 @@ class TmdService extends ChangeNotifier {
     // re-match on the next home refresh / folder re-open (issue #11).
     if (_suppressed.contains(metadataKey)) return null;
     final cached = _cache[metadataKey];
-    debugPrint('TMDB resolveFolder("$metadataKey","$folderName") cached=$cached keepSeasons=${cached?.seasons[cached.folderSeason ?? -1]?.posterPath != null}');
+    debugPrint(
+      'TMDB resolveFolder("$metadataKey","$folderName") cached=$cached keepSeasons=${cached?.seasons[cached.folderSeason ?? -1]?.posterPath != null}',
+    );
     // A user-pinned "Fix match" entry is sacred: re-resolution (home refresh,
     // library rescan, prefetch) must NEVER overwrite it — the old path
     // recalculated the match from the folder name every call and silently
@@ -1899,7 +2087,7 @@ class TmdService extends ChangeNotifier {
     // Season 1). Detect staleness by checking if the cached season name
     // is consistent with the current folder name.
     if (cached != null && cached.folderSeason != null) {
-      final names = _seasonNamesCache[cached.movie.id];
+      final names = _seasonNamesCache[_seasonKeyForMovie(cached.movie)];
       if (names != null) {
         final cachedSeasonName = names[cached.folderSeason];
         if (cachedSeasonName != null) {
@@ -1915,7 +2103,10 @@ class TmdService extends ChangeNotifier {
           // "Season 2". Only run the check when the folder name contains a
           // season-like pattern (S01, Season N, roman numeral) so single-show
           // folders aren't incorrectly wiped.
-          final hasSeasonTag = RegExp(r'\bs\d{1,2}\b|\bseason\s+\d+|\b(?:I{1,3}|IV|V|VI{0,3}|IX|X)\b', caseSensitive: false).hasMatch(q);
+          final hasSeasonTag = RegExp(
+            r'\bs\d{1,2}\b|\bseason\s+\d+|\b(?:I{1,3}|IV|V|VI{0,3}|IX|X)\b',
+            caseSensitive: false,
+          ).hasMatch(q);
           if (hasSeasonTag) {
             final matches = q.contains(sLower) || sLower.contains(q);
             if (!matches) {
@@ -1955,12 +2146,18 @@ class TmdService extends ChangeNotifier {
       final folderPart = _trailingPartNumber(folderName);
       final cachedPart = _partNumberFromTitle(cached.movie.title);
       if (folderPart != null && cachedPart != null && folderPart != cachedPart) {
-        debugPrint('TMDB resolveFolder: stale movie-part cache "$metadataKey" (folder part $folderPart vs cached "${cached.movie.title}" part $cachedPart) — will re-resolve, keeping stale poster until fresh');
+        debugPrint(
+          'TMDB resolveFolder: stale movie-part cache "$metadataKey" (folder part $folderPart vs cached "${cached.movie.title}" part $cachedPart) — will re-resolve, keeping stale poster until fresh',
+        );
       } else if (folderPart != null && cachedPart == null) {
-        final hasAnyPartMarker = RegExp(r'\b(?:part|vol(?:ume)?|movie|chapter|film)\s+\d+', caseSensitive: false)
-            .hasMatch(cached.movie.title);
+        final hasAnyPartMarker = RegExp(
+          r'\b(?:part|vol(?:ume)?|movie|chapter|film)\s+\d+',
+          caseSensitive: false,
+        ).hasMatch(cached.movie.title);
         if (!hasAnyPartMarker) {
-          debugPrint('TMDB resolveFolder: movie-part folder "$metadataKey" cached as base title without part marker — will re-resolve, keeping stale poster until fresh');
+          debugPrint(
+            'TMDB resolveFolder: movie-part folder "$metadataKey" cached as base title without part marker — will re-resolve, keeping stale poster until fresh',
+          );
         }
       }
     }
@@ -1969,7 +2166,9 @@ class TmdService extends ChangeNotifier {
     if (inFlight != null) return inFlight;
 
     final parsed = ParsedFileName.parse(folderName);
-    debugPrint('TMDB resolveFolder parsed: title="${parsed.title}" year=${parsed.year} season=${parsed.season} episode=${parsed.episode} isEpisode=${parsed.isEpisode} seriesName=${parsed.seriesName}');
+    debugPrint(
+      'TMDB resolveFolder parsed: title="${parsed.title}" year=${parsed.year} season=${parsed.season} episode=${parsed.episode} isEpisode=${parsed.isEpisode} seriesName=${parsed.seriesName}',
+    );
     if (parsed.title.isEmpty && (fileNames == null || fileNames.isEmpty)) {
       return null;
     }
@@ -2011,7 +2210,9 @@ class TmdService extends ChangeNotifier {
         final base = m?.group(1);
         if (base != null &&
             base.isNotEmpty &&
-            candidates.every((c2) => c2.q.toLowerCase() != base.toLowerCase())) {
+            candidates.every(
+              (c2) => c2.q.toLowerCase() != base.toLowerCase(),
+            )) {
           baseCandidates.add((q: base, y: c.y));
         }
       }
@@ -2024,12 +2225,15 @@ class TmdService extends ChangeNotifier {
     final hasMovieSequelPattern = fileEvidence.hasMovieSequelPattern;
 
     final desiredPart = _trailingPartNumber(folderName);
-    final future = _resolveFolderCandidates(metadataKey, candidates,
+    final future = _resolveFolderCandidates(
+      metadataKey,
+      candidates,
         preferMovie: preferMovie,
         liveAction: parsed.liveAction,
         folderName: folderName,
         hasMovieSequelPattern: hasMovieSequelPattern,
-        desiredPart: desiredPart);
+        desiredPart: desiredPart,
+    );
     _pending[metadataKey] = future;
     try {
       final meta = await future;
@@ -2056,8 +2260,10 @@ class TmdService extends ChangeNotifier {
   /// files contribute their title. Returns up to [maxQueries] unique queries
   /// (most common first) plus whether any file looked like an episode, and
   /// the most common year found in file names (for year disambiguation).
-  static ({List<String> queries, bool hasEpisodes, bool hasMovieSequelPattern, int? yearHint}) _queriesFromFileNames(
-      Iterable<String> names, {int maxQueries = 4}) {
+  static ({
+    List<String> queries, bool hasEpisodes, bool hasMovieSequelPattern, int? yearHint,
+  })
+  _queriesFromFileNames(Iterable<String> names, {int maxQueries = 4}) {
     final counts = <String, int>{};
     var hasEpisodes = false;
     var hasMovieSequelPattern = false;
@@ -2069,11 +2275,16 @@ class TmdService extends ChangeNotifier {
       // so the folder resolves as a TV show instead of a same-named movie.
       if (p.season > 0 && !p.isEpisode) hasEpisodes = true;
       final q =
-          (p.isEpisode ? (p.seriesName ?? p.title) : p.title).trim().toLowerCase();
+          (p.isEpisode ? (p.seriesName ?? p.title) : p.title)
+          .trim()
+          .toLowerCase();
       if (q.isEmpty) continue;
       if (p.isEpisode) hasEpisodes = true;
       // Detect movie sequel patterns: "Part 1", "Vol 2", "Movie 3", "Chapter 1".
-      if (RegExp(r'\b(?:part|vol(?:ume)?|movie|chapter|film)\s+\d+\b', caseSensitive: false).hasMatch(name)) {
+      if (RegExp(
+        r'\b(?:part|vol(?:ume)?|movie|chapter|film)\s+\d+\b',
+        caseSensitive: false,
+      ).hasMatch(name)) {
         hasMovieSequelPattern = true;
       }
       if (p.year != null) yearCounts[p.year!] = (yearCounts[p.year!] ?? 0) + 1;
@@ -2093,7 +2304,9 @@ class TmdService extends ChangeNotifier {
         ..sort((a, b) => b.value.compareTo(a.value));
       fileYearHint = sorted.first.key;
     }
-    return (queries: queries, hasEpisodes: hasEpisodes, hasMovieSequelPattern: hasMovieSequelPattern, yearHint: fileYearHint);
+    return (
+      queries: queries, hasEpisodes: hasEpisodes, hasMovieSequelPattern: hasMovieSequelPattern, yearHint: fileYearHint,
+    );
   }
 
   /// Runs [_resolveFolderNow] across [candidates] in order, returning the
@@ -2109,72 +2322,80 @@ class TmdService extends ChangeNotifier {
   }) async {
     TmdMeta? last;
     for (final c in candidates) {
-      last = await _resolveFolderNow(metadataKey, c.q, c.y,
+      last = await _resolveFolderNow(
+        metadataKey,
+        c.q, c.y,
           liveAction: liveAction,
           folderName: folderName,
           preferMovie: preferMovie,
           hasMovieSequelPattern: hasMovieSequelPattern,
-          desiredPart: desiredPart);
+          desiredPart: desiredPart,
+      );
       if (last != null) return last;
       // No match for this query — move on to the next candidate query.
     }
     return last;
   }
 
-  /// Matches [folderName] to a TMDB season number using the season names
-  /// already fetched for [showId]. Returns the season number or null.
-  /// Makes NO API calls — the season names must already be cached.
-  int? matchFolderToSeason(String folderName, int showId) {
-    final names = _seasonNamesCache[showId];
+  String _seasonKey(int showId, MetadataProvider provider) =>
+      '${provider.name}:tv:$showId';
+
+  String _seasonKeyForMovie(TmdMovie movie) => movie.providerKey;
+
+  int? matchFolderToSeason(
+    String folderName, int showId, {
+    MetadataProvider provider = MetadataProvider.tmdb,
+  }) {
+    final names = _seasonNamesCache[_seasonKey(showId, provider)];
     if (names == null || names.isEmpty) return null;
     return _matchSeasonFromFolder(folderName, names);
   }
 
-  /// Whether TMDB season names are cached in memory for [showId] — i.e. a
-  /// [matchFolderToSeason] returning null means "folder is genuinely not a
-  /// season" rather than "names unavailable (offline restart)".
-  bool hasSeasonNames(int showId) =>
-      _seasonNamesCache[showId]?.isNotEmpty ?? false;
+  bool hasSeasonNames(
+    int showId, {
+    MetadataProvider provider = MetadataProvider.tmdb,
+  }) => _seasonNamesCache[_seasonKey(showId, provider)]?.isNotEmpty ?? false;
 
-  /// Debug: print cached season names.
-  Map<int, String> seasonNameMapForDebug(int showId) =>
-      _seasonNamesCache[showId] ?? {};
+  Map<int, String> seasonNameMapForDebug(
+    int showId, {
+    MetadataProvider provider = MetadataProvider.tmdb,
+  }) => _seasonNamesCache[_seasonKey(showId, provider)] ?? {};
 
-  /// Fetch season names from the API for [movie] and cache them.
-  /// Always calls the API — use this when you need the FULL season list
-  /// (e.g. for season matching in SeriesSeasonsScreen). If the API call
-  /// fails (offline), the existing in-memory cache is kept.
   Future<void> fetchSeasonNames(TmdMovie? movie) async {
     if (movie == null || movie.kind != TmdKind.tv || movie.id <= 0) return;
-    final names = await _api.seasonNames(movie);
+    try {
+      final names = movie.provider == MetadataProvider.theTvdb
+          ? await _theTvdb.seasonNames(movie)
+          : await _api.seasonNames(movie);
     if (names.isNotEmpty) {
-      _seasonNamesCache[movie.id] = names;
+        _seasonNamesCache[_seasonKeyForMovie(movie)] = names;
       _savePersistedSeasonNames();
     }
+  } catch (_) {}
   }
 
-  /// Season-name map (number → name) for the show matched under
-  /// [identityKey], fetched once per show and cached in memory. Empty when
-  /// there is no key, the match is not a TV show, or the request fails. Used
-  /// to resolve roman-numeral season subfolders ("Strike the Blood II" →
-  /// Season 2) against the names the show-level endpoint returns — a single
-  /// call per show, much cheaper than one /season/{n} request per candidate.
   Future<Map<int, String>> seasonNameMapFor(String identityKey) async {
     await ensureLoaded();
     final meta = _cache[identityKey];
     if (meta == null || meta.movie.kind != TmdKind.tv) return const {};
-    final cached = _seasonNamesCache[meta.movie.id];
+    final key = _seasonKeyForMovie(meta.movie);
+    final cached = _seasonNamesCache[key];
     if (cached != null) return cached;
-    final names = await _api.seasonNames(meta.movie);
+    try {
+      final names = meta.movie.provider == MetadataProvider.theTvdb
+          ? await _theTvdb.seasonNames(meta.movie)
+          : await _api.seasonNames(meta.movie);
     if (names.isNotEmpty) {
-      _seasonNamesCache[meta.movie.id] = names;
+        _seasonNamesCache[key] = names;
       _savePersistedSeasonNames();
     }
     return names;
+  } catch (_) {
+      return const {};
+    }
   }
 
-  /// Cached season names per show ID, populated by [seasonNames] calls.
-  final Map<int, Map<int, String>> _seasonNamesCache = {};
+  final Map<String, Map<int, String>> _seasonNamesCache = {};
 
   /// SharedPreferences key for persisted season names.
   static const _seasonNamesPrefsKey = 'dreamplayer.seasonNames';
@@ -2187,12 +2408,16 @@ class TmdService extends ChangeNotifier {
       if (raw == null) return;
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       for (final entry in decoded.entries) {
-        final showId = int.tryParse(entry.key);
-        if (showId == null) continue;
+        final parts = entry.key.split(':');
+        final key = parts.length >= 3
+            ? entry.key
+            : parts.length == 2
+            ? '${parts[0]}:tv:${parts[1]}'
+            : '${MetadataProvider.tmdb.name}:tv:${entry.key}';
         final names = (entry.value as Map<String, dynamic>).map(
           (k, v) => MapEntry(int.tryParse(k) ?? 0, v as String? ?? ''),
         );
-        if (names.isNotEmpty) _seasonNamesCache[showId] = names;
+        if (names.isNotEmpty) _seasonNamesCache[key] = names;
       }
     } catch (_) {}
   }
@@ -2218,7 +2443,7 @@ class TmdService extends ChangeNotifier {
     for (final entry in _cache.entries) {
       final meta = entry.value;
       if (meta.movie.kind != TmdKind.tv || meta.seasons.isEmpty) continue;
-      final showId = meta.movie.id;
+      final showId = _seasonKeyForMovie(meta.movie);
       if (_seasonNamesCache.containsKey(showId)) continue;
       final names = <int, String>{};
       for (final sEntry in meta.seasons.entries) {
@@ -2230,11 +2455,31 @@ class TmdService extends ChangeNotifier {
   }
 
   Future<TmdMeta?> _resolveFolderNow(
-      String metadataKey, String query, int? year,
-      {bool liveAction = false, String? folderName, bool preferMovie = false, bool hasMovieSequelPattern = false, int? desiredPart}) async {
-    debugPrint('TMDB _resolveFolderNow key="$metadataKey" query="$query" year=$year liveAction=$liveAction folderName="$folderName" preferMovie=$preferMovie desiredPart=$desiredPart');
-    final match = await _api.bestForQuery(query,
-        year: year, liveAction: liveAction, preferMovie: preferMovie, hasMovieSequelPattern: hasMovieSequelPattern, desiredPart: desiredPart);
+      String metadataKey, String query, int? year, {
+    bool liveAction = false, String? folderName, bool preferMovie = false, bool hasMovieSequelPattern = false, int? desiredPart,
+  }) async {
+    debugPrint(
+      'TMDB _resolveFolderNow key="$metadataKey" query="$query" year=$year liveAction=$liveAction folderName="$folderName" preferMovie=$preferMovie desiredPart=$desiredPart',
+    );
+    TmdMatch? match;
+    try {
+      match = await _api.bestForQuery(
+        query,
+        year: year, liveAction: liveAction, preferMovie: preferMovie, hasMovieSequelPattern: hasMovieSequelPattern, desiredPart: desiredPart,
+      );
+    } catch (_) {}
+    if (match == null && await _useTheTvdbFallback) {
+      try {
+        match = await _theTvdb.bestForQuery(
+          query,
+          year: year,
+          liveAction: liveAction,
+          preferMovie: preferMovie,
+          hasMovieSequelPattern: hasMovieSequelPattern,
+          desiredPart: desiredPart,
+        );
+      } catch (_) {}
+    }
     if (match == null) return null;
 
     // Check if the folder name matches a season name on TMDB.
@@ -2244,15 +2489,22 @@ class TmdService extends ChangeNotifier {
     // (1080p, WEB-DL, etc.) so exact/containment matching works correctly.
     int? folderSeason;
     if (match.movie.kind == TmdKind.tv) {
-      final names = await _api.seasonNames(match.movie);
-      _seasonNamesCache[match.movie.id] = names;
+      var names = <int, String>{};
+      try {
+        names = match.movie.provider == MetadataProvider.theTvdb
+            ? await _theTvdb.seasonNames(match.movie)
+            : await _api.seasonNames(match.movie);
+      } catch (_) {}
+      _seasonNamesCache[_seasonKeyForMovie(match.movie)] = names;
       _savePersistedSeasonNames();
       // Use the original folder name for season matching — the cleaned
       // query strips the season tag (e.g. House S02 → House) and would
       // miss the fast-path ParsedFileName season check.
       final seasonQuery = (folderName != null && folderName.isNotEmpty) ? folderName : query;
       folderSeason = _matchSeasonFromFolder(seasonQuery, names);
-      debugPrint('TMDB _resolveFolderNow $metadataKey matchId=${match.movie.id} seasons=$names folderSeason=$folderSeason');
+      debugPrint(
+        'TMDB _resolveFolderNow $metadataKey matchId=${match.movie.id} seasons=$names folderSeason=$folderSeason',
+      );
     }
 
     // When multiple auto-expanded folders share the same metadataKey
@@ -2262,7 +2514,7 @@ class TmdService extends ChangeNotifier {
     final existing = _cache[metadataKey];
     if (existing != null &&
         existing.folderSeason != null &&
-        existing.movie.id == match.movie.id) {
+        existing.movie.providerKey == match.movie.providerKey) {
       return existing;
     }
 
@@ -2271,13 +2523,18 @@ class TmdService extends ChangeNotifier {
     // resolution only provides folderSeason; _fetchSeasonData adds the
     // full per-season data (episodes, posters) later.
     final mergedSeasons = <int, TmdSeason>{};
-    if (existing != null && existing.movie.id == match.movie.id) {
+    if (existing != null &&
+        existing.movie.providerKey == match.movie.providerKey) {
       mergedSeasons.addAll(existing.seasons);
     }
 
     final meta = TmdMeta(
       movie: match.movie,
-      details: existing?.details,
+      details:
+          existing != null &&
+              existing.movie.providerKey == match.movie.providerKey
+          ? existing.details
+          : null,
       seasons: mergedSeasons,
       folderSeason: folderSeason,
       manual: false,
@@ -2294,8 +2551,7 @@ class TmdService extends ChangeNotifier {
 
   /// Checks if [folderName] matches any season name in [seasonNames].
   /// Returns the matched season number, or null if no match.
-  int? _matchSeasonFromFolder(
-      String folderName, Map<int, String> seasonNames) {
+  int? _matchSeasonFromFolder(String folderName, Map<int, String> seasonNames) {
     return matchFolderToSeasonName(folderName, seasonNames);
   }
 
@@ -2328,7 +2584,8 @@ class TmdService extends ChangeNotifier {
   /// home card. The bracket-strip + containment passes resolve Season 1 (and
   /// every real roman-suffix folder) deterministically before overlap runs.
   static int? matchFolderToSeasonName(
-      String folderName, Map<int, String> seasonNames) {
+      String folderName, Map<int, String> seasonNames,
+  ) {
     if (folderName.isEmpty || seasonNames.isEmpty) return null;
 
     // Fast path: explicit Sxx or Season N tag in the folder name
@@ -2337,12 +2594,18 @@ class TmdService extends ChangeNotifier {
     if (parsed.season > 0 && seasonNames.containsKey(parsed.season)) {
       return parsed.season;
     }
-    final sMatch = RegExp(r'\bS(\d{1,2})\b', caseSensitive: false).firstMatch(folderName);
+    final sMatch = RegExp(
+      r'\bS(\d{1,2})\b',
+      caseSensitive: false,
+    ).firstMatch(folderName);
     if (sMatch != null) {
       final s = int.tryParse(sMatch.group(1)!);
       if (s != null && seasonNames.containsKey(s)) return s;
     }
-    final seasonMatch = RegExp(r'\bSeason\s+(\d{1,2})\b', caseSensitive: false).firstMatch(folderName);
+    final seasonMatch = RegExp(
+      r'\bSeason\s+(\d{1,2})\b',
+      caseSensitive: false,
+    ).firstMatch(folderName);
     if (seasonMatch != null) {
       final s = int.tryParse(seasonMatch.group(1)!);
       if (s != null && seasonNames.containsKey(s)) return s;
@@ -2437,8 +2700,14 @@ class TmdService extends ChangeNotifier {
     for (final entry in entries) {
       final sName = entry.value.toLowerCase().trim();
       if (sName.isEmpty) continue;
-      final qWords = q.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-      final sWords = sName.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      final qWords = q
+          .split(RegExp(r'\s+'))
+          .where((w) => w.isNotEmpty)
+          .toList();
+      final sWords = sName
+          .split(RegExp(r'\s+'))
+          .where((w) => w.isNotEmpty)
+          .toList();
       if (qWords.isEmpty || sWords.isEmpty) continue;
       final shorter = qWords.length <= sWords.length ? qWords : sWords;
       final longer = qWords.length <= sWords.length ? sWords : qWords;
@@ -2493,8 +2762,10 @@ class TmdService extends ChangeNotifier {
   /// trailing noise longer than 2 chars, or trailing punctuation/numbers that
   /// cannot be part of a season letter suffix.
   static String _stripTrailingHeavyNoise(String input) {
-    final words =
-        input.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final words = input
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
     while (words.length > 1) {
       final last = words.last;
       final punct = RegExp(r'^[^\p{L}\p{N}]+$', unicode: true).hasMatch(last);
@@ -2560,13 +2831,26 @@ class TmdService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<TmdDetails?> detailsForMovie(TmdMovie movie) async {
+    try {
+      return movie.provider == MetadataProvider.theTvdb
+          ? await _theTvdb.details(movie)
+          : await _api.details(movie);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Fetches full details (synopsis, cast, runtime) for a matched video.
   Future<TmdDetails?> detailsFor(String identityKey) async {
     final meta = _cache[identityKey];
     if (meta == null) return null;
     if (meta.details != null) return meta.details;
     try {
-      final details = await _api.details(meta.movie);
+      final details = meta.movie.provider == MetadataProvider.theTvdb
+          ? await _theTvdb.details(meta.movie)
+          : await _api.details(meta.movie);
+      if (details == null) return null;
       // Merge onto the FRESHEST cache entry, not the snapshot taken before the
       // network call — a concurrent seasonFor/withDetails write may have added
       // seasons to the same key while this request was in flight. Writing back
@@ -2578,11 +2862,12 @@ class TmdService extends ChangeNotifier {
       await TmdStore.save(identityKey, _cache[identityKey]!);
       // Prefetch backdrop, cast profiles, and stills for offline use.
       ImageCacheService.instance.prefetchImages(
-        backdropUrl: details.backdropPath != null
-            ? 'https://image.tmdb.org/t/p/w780${details.backdropPath}'
-            : null,
-        stillUrls: details.stills,
-        profileUrls: details.cast.map((c) => c.profileUrl()).whereType<String>().toList(),
+        backdropUrl: metadataImageUrl(details.backdropPath, width: 780),
+        stillUrls: details.stillUrls(),
+        profileUrls: details.cast
+            .map((c) => c.profileUrl())
+            .whereType<String>()
+            .toList(),
       );
       notifyListeners();
       return details;
@@ -2599,7 +2884,9 @@ class TmdService extends ChangeNotifier {
     await ensureLoaded();
     if (seasonNumber <= 0) return null;
     final cached = _cache[identityKey];
-    debugPrint('TMDB seasonFor($identityKey,$seasonNumber) cached=${cached != null} hasSeason=${cached?.seasons[seasonNumber]?.posterPath != null}');
+    debugPrint(
+      'TMDB seasonFor($identityKey,$seasonNumber) cached=${cached != null} hasSeason=${cached?.seasons[seasonNumber]?.posterPath != null}',
+    );
     if (cached == null || cached.movie.kind != TmdKind.tv) return null;
     final already = cached.seasons[seasonNumber];
     // A season may exist with only a poster/name (from the show-details
@@ -2611,6 +2898,36 @@ class TmdService extends ChangeNotifier {
 
     _pendingDetail.add(pendingKey);
     try {
+      if (cached.movie.provider == MetadataProvider.theTvdb) {
+        final episodes = await _theTvdb.seasonEpisodes(
+          cached.movie,
+          season: seasonNumber,
+        );
+        if (episodes.isEmpty) return null;
+        final available = await _theTvdb.seasons(cached.movie);
+        final remoteSeason = available
+            .where((item) => item.seasonNumber == seasonNumber)
+            .firstOrNull;
+        final season = TmdSeason(
+          seasonNumber: seasonNumber,
+          name: remoteSeason?.name ?? 'Season $seasonNumber',
+          overview: remoteSeason?.overview ?? '',
+          posterPath: remoteSeason?.posterPath ?? cached.movie.posterPath,
+          episodes: episodes,
+        );
+        _cache[identityKey] = (_cache[identityKey] ?? cached).withSeason(
+          season,
+        );
+        await TmdStore.save(identityKey, _cache[identityKey]!);
+        ImageCacheService.instance.prefetchImages(
+          posterUrl: season.posterUrl(),
+          stillUrls: episodes
+              .map((e) => e.stillUrl())
+              .whereType<String>()
+              .toList(),
+        );
+        return season;
+      }
       // Fetch the full season endpoint — it includes poster_path, name,
       // overview AND the episodes list.
       final key = await _api.effectiveApiKey();
@@ -2632,12 +2949,17 @@ class TmdService extends ChangeNotifier {
         episodes: episodes,
       );
       _cache[identityKey] = (_cache[identityKey] ?? cached).withSeason(season);
-      debugPrint('TMDB seasonFor STORED $identityKey season=$seasonNumber poster=${season.posterPath} episodes=${episodes.length}');
+      debugPrint(
+        'TMDB seasonFor STORED $identityKey season=$seasonNumber poster=${season.posterPath} episodes=${episodes.length}',
+      );
       await TmdStore.save(identityKey, _cache[identityKey]!);
       // Prefetch season poster + episode stills for offline use.
       ImageCacheService.instance.prefetchImages(
         posterUrl: season.posterUrl(),
-        stillUrls: episodes.map((e) => e.stillUrl()).whereType<String>().toList(),
+        stillUrls: episodes
+            .map((e) => e.stillUrl())
+            .whereType<String>()
+            .toList(),
       );
       return season;
     } catch (_) {
@@ -2664,6 +2986,7 @@ class TmdService extends ChangeNotifier {
     if (season == null) return null;
     final existing = season.episode(episodeNumber);
     if (existing == null) return null;
+    if (cached.movie.provider == MetadataProvider.theTvdb) return existing;
     // Only a completed stills gallery short-circuits. Cast alone means an
     // earlier run hit the empty `append_to_response=images` case, so the
     // dedicated /images gallery must be retried.
@@ -2701,8 +3024,10 @@ class TmdService extends ChangeNotifier {
   /// resolved against the show's TMDB season names (issue #22 — a bare
   /// [TmdMeta] with no [TmdMeta.folderSeason] left Railgun S/T folders
   /// looking like Season 1 of the main show).
-  Future<void> setManual(VideoItem video, TmdMovie movie,
-      {int? folderSeason, String? folderName}) async {
+  Future<void> setManual(
+    VideoItem video, TmdMovie movie, {
+    int? folderSeason, String? folderName,
+  }) async {
     final identityKey = TmdStore.identityKeyFor(video);
     if (identityKey.isEmpty) return;
     await ensureLoaded();
@@ -2710,8 +3035,10 @@ class TmdService extends ChangeNotifier {
     final existing = _cache[identityKey];
     _cache[identityKey] = TmdMeta(
       movie: movie,
-      details: existing?.movie.id == movie.id ? existing?.details : null,
-      seasons: existing?.movie.id == movie.id ? existing!.seasons : const {},
+      details: existing?.movie.providerKey == movie.providerKey
+          ? existing?.details : null,
+      seasons: existing?.movie.providerKey == movie.providerKey
+          ? existing!.seasons : const {},
       folderSeason: season,
       manual: true,
     );
@@ -2726,15 +3053,19 @@ class TmdService extends ChangeNotifier {
   /// Manual fix for a library folder (identity = `folder:<id>`), so the folder
   /// details screen can be pinned to a TV series without a video.
   /// Same [folderSeason]/[folderName] resolution as [setManual].
-  Future<void> setManualFolder(String metadataKey, TmdMovie movie,
-      {int? folderSeason, String? folderName}) async {
+  Future<void> setManualFolder(
+    String metadataKey, TmdMovie movie, {
+    int? folderSeason, String? folderName,
+  }) async {
     await ensureLoaded();
     final season = await _resolveManualSeason(movie, folderSeason, folderName);
     final existing = _cache[metadataKey];
     _cache[metadataKey] = TmdMeta(
       movie: movie,
-      details: existing?.movie.id == movie.id ? existing?.details : null,
-      seasons: existing?.movie.id == movie.id ? existing!.seasons : const {},
+      details: existing?.movie.providerKey == movie.providerKey
+          ? existing?.details : null,
+      seasons: existing?.movie.providerKey == movie.providerKey
+          ? existing!.seasons : const {},
       folderSeason: season,
       manual: true,
     );
@@ -2748,17 +3079,25 @@ class TmdService extends ChangeNotifier {
   /// otherwise match [folderName] against the show's TMDB season names
   /// (fetched once and cached). Returns null for movies / no folder name.
   Future<int?> _resolveManualSeason(
-      TmdMovie movie, int? folderSeason, String? folderName) async {
+      TmdMovie movie, int? folderSeason, String? folderName,
+  ) async {
     if (folderSeason != null) return folderSeason;
     if (movie.kind != TmdKind.tv) return null;
     final name = folderName?.trim();
     if (name == null || name.isEmpty) return null;
-    var names = _seasonNamesCache[movie.id];
+    final seasonKey = _seasonKeyForMovie(movie);
+    var names = _seasonNamesCache[seasonKey];
     if (names == null || names.isEmpty) {
-      names = await _api.seasonNames(movie);
+      try {
+        names = movie.provider == MetadataProvider.theTvdb
+            ? await _theTvdb.seasonNames(movie)
+            : await _api.seasonNames(movie);
       if (names.isNotEmpty) {
-        _seasonNamesCache[movie.id] = names;
+          _seasonNamesCache[seasonKey] = names;
         await _savePersistedSeasonNames();
+      }
+      } catch (_) {
+        return null;
       }
     }
     if (names.isEmpty) return null;
@@ -2808,10 +3147,8 @@ class TmdService extends ChangeNotifier {
   /// Nova-style: carry a folder's TMDB metadata to every video file inside it.
   /// For a TV show folder this means every episode gets the show's poster
   /// without re-searching TMDB per file.
-  void carryFolderMetaToAll(
-    String folderKey,
-    List<VideoItem> videos,
-  ) {
+  void carryFolderMetaToAll(String folderKey,
+    List<VideoItem> videos) {
     if (folderKey.isEmpty) return;
     final meta = _cache[folderKey];
     if (meta == null) return;

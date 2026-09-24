@@ -27,6 +27,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   `vo=gpu-next`/libplacebo; while enabled, libplacebo tone mapping is therefore
   unavailable and hardware decode may switch to `mediacodec-copy`. The panel
   warns about increased GPU load, heat, battery use, and possible stutter.
+- **Optional TheTVDB metadata provider** — TheTVDB v4 can be configured in
+  Settings, used as a fallback when TMDB has no confident match, or selected
+  explicitly from Fix Match/Group Poster. Provider-qualified IDs and artwork
+  are stored in the existing metadata cache, with TV/anime season and episode
+  enrichment; API credentials use platform secure storage and SIMKL remains
+  TMDB-only.
 
 ### Fixed
 

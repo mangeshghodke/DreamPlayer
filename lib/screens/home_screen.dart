@@ -23,6 +23,7 @@ import '../services/smb_client.dart';
 
 import '../services/entitlements.dart';
 import '../services/tmdb_client.dart';
+import '../services/the_tvdb_client.dart';
 import 'trial_intro_screen.dart';
 import '../services/upnp_client.dart';
 import '../services/webdav_client.dart';
@@ -513,14 +514,27 @@ class _HomeScreenState extends State<HomeScreen>
     if (_inTests) return;
     final service = TmdService.instance;
     await service.ensureLoaded();
-    // Quick connectivity check — skip TMDB resolution when offline to avoid
-    // blocking the UI with sequential 15 s connection timeouts per folder.
+    Future<List<InternetAddress>> probe(String host) async {
+      try {
+        return await InternetAddress.lookup(host)
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {
+        return const [];
+      }
+    }
+
+    var useTheTvdb = false;
     try {
-      final result = await InternetAddress.lookup('api.themoviedb.org')
-          .timeout(const Duration(seconds: 3));
-      if (result.isEmpty || result.first.rawAddress.isEmpty) return;
-    } catch (_) {
-      debugPrint('TMDB _resolveFolderMeta: offline — skipping metadata resolution');
+      useTheTvdb = await TheTvdbClient.isFallbackEnabled() &&
+          await TheTvdbClient.defaultCredentialStore.isConfiguredAsync;
+    } catch (_) {}
+    final hosts = <String>['api.themoviedb.org'];
+    if (useTheTvdb) hosts.add('api4.thetvdb.com');
+    final connectivity = await Future.wait(hosts.map(probe));
+    if (connectivity.every(
+      (result) => result.isEmpty || result.first.rawAddress.isEmpty,
+    )) {
+      debugPrint('Metadata _resolveFolderMeta: offline — skipping resolution');
       return;
     }
     // Regex to detect season-like folder names (S01, Season N, roman numerals).

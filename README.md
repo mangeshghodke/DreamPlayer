@@ -103,6 +103,7 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 - **Picture-in-Picture** — system-drawn transport controls (rewind, play-pause, forward) work for BOTH engines, including the libmpv engine
 - **Two play engines — your choice** — every video's details screen shows **Play** (Media3) and **Play with MPV** (libmpv, Android). mpv runs hardware-first (`hwdec=auto-safe`) with its own FFmpeg software fallback and decodes lossless codecs to PCM through Android `AudioTrack`; Media3 retains optional HDMI bitstream passthrough. Video renders into a **native SurfaceView** (not a Flutter texture). Media3 remains the DV/HDR engine; the MPV path can optionally **tone-map HDR → SDR** (Settings → Player → HDR tone-map) when a libplacebo-enabled libmpv is present.
 - **Anime4K for MPV (Android, opt-in)** — enable the Anime4K toggle in the MPV picture panel, then choose Mode A, B, C, A+A, B+B, or C+A. The selected preset takes effect immediately and an `Upscaled` chip is shown while active. It is limited to SDR MPV playback; HDR/DV and PiP are disabled. The bundled Anime4K v4.0.1 fast presets use legacy `vo=gpu` because they do not compile with `vo=gpu-next`/libplacebo, so libplacebo tone mapping is unavailable while enabled. The panel warns about extra GPU load, heat, battery use, and stutter.
+- **Optional TheTVDB metadata** — configure a TheTVDB v4 API key in Settings → Metadata. DreamPlayer keeps TMDB as the primary source, can use TheTVDB as a fallback, and lets you choose it explicitly in Fix Match/Group Poster. Provider IDs and artwork are cached independently; SIMKL matching remains TMDB-only.
 
 ### Second engine (Android): libmpv
 
@@ -160,6 +161,24 @@ not run mpv; AetherEngine covers its own failures.
 For SMB sources the mpv engine gets the file over a tiny loopback HTTP/1.1
 server (`SmbHttpProxy.kt`, bound to `127.0.0.1`, byte-range aware) — jcifs-ng
 only talks to Media3-native `DataSource`s, and libmpv can't read `smb://`.
+
+### Optional metadata providers
+
+TMDB remains the default metadata source. Settings → Metadata also accepts an
+optional TheTVDB v4 API key and subscriber PIN. When enabled, TheTVDB is tried
+only after TMDB fails to produce a confident automatic match; Fix Match and
+Group Poster also let you choose TMDB or TheTVDB explicitly. TheTVDB results
+reuse the existing title, artwork, cast, season, and episode models, while
+provider-qualified IDs prevent collisions in the cache. The API key and optional
+PIN are stored in Android Keystore-backed storage or the iOS Keychain; legacy
+values are migrated at startup, and Android excludes the legacy Dart preferences
+file from backup. SIMKL synchronization continues to use TMDB IDs only.
+
+TheTVDB artwork and episode data remain subject to TheTVDB's API terms and
+attribution requirements. See [TheTVDB](https://thetvdb.com/) for details. This
+product uses the TheTVDB API but is not endorsed by TheTVDB. TheTVDB is
+currently the supported external provider; adult-content providers such as AVDB
+are intentionally not enabled.
 
 ### Android TV / Fire TV
 - Full 10-foot UI with D-pad navigation and custom focus highlights

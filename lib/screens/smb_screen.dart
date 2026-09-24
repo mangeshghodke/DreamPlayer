@@ -357,7 +357,8 @@ class _SmbScreenState extends State<SmbScreen> {
         if (key.isEmpty || _watchedKeys.contains(key)) continue;
         final meta = _tmdbMeta[entry.path];
         if (meta == null) continue;
-        final id = meta.movie.id;
+        final id = meta.movie.tmdbId;
+        if (id == null) continue;
         final isTv = meta.movie.kind == TmdKind.tv;
         final shouldMark = isTv ? watched.showSeasons.containsKey(id) : watched.movieIds.contains(id);
         // For episodes, also ensure season is in map (already counts as watched show).
@@ -855,7 +856,7 @@ class _SmbScreenState extends State<SmbScreen> {
       // video's key (older builds) so it re-searches its own title.
       final videoKey = TmdStore.identityKeyFor(item);
       final existing = TmdService.instance.metaFor(videoKey);
-      if (existing != null && existing.movie.id == folderMeta.movie.id) {
+      if (existing != null && existing.movie.providerKey == folderMeta.movie.providerKey) {
         try {
           await TmdService.instance.clear(videoKey);
         } catch (_) {}

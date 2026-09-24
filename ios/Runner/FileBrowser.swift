@@ -3,6 +3,7 @@ import Flutter
 import Foundation
 import UniformTypeIdentifiers
 import UIKit
+import Security
 
 /// iOS implementation of the `dreamplayer/files` channel (same contract as
 /// `FileBrowser.kt` on Android). iOS is sandboxed, so there is no whole-storage
@@ -505,5 +506,128 @@ extension FileBrowser: UIDocumentPickerDelegate {
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
         pickerCompletion?(nil)
         pickerCompletion = nil
+    }
+}
+
+final class TheTvdbCredentialStore {
+    private static let channelName = "dreamplayer/the_tvdb_credentials"
+    private static let service = "com.dreamplayer.app.theTvdb"
+    private static let apiKeyAccount = "apiKey"
+    private static let pinAccount = "pin"
+    private static let legacyApiKey = "dreamplayer.theTvdbApiKey"
+    private static let legacyPin = "dreamplayer.theTvdbPin"
+
+    static func register(with messenger: FlutterBinaryMessenger) {
+        migrateLegacy()
+        let channel = FlutterMethodChannel(name: channelName, binaryMessenger: messenger)
+        channel.setMethodCallHandler { call, result in
+            do {
+                switch call.method {
+                case "read":
+                    let apiKey = try read(apiKeyAccount)
+                    let pin = try read(pinAccount)
+                    result([
+                        "apiKey": apiKey ?? NSNull(),
+                        "pin": pin ?? NSNull(),
+                    ])
+                case "write":
+                    let args = call.arguments as? [String: Any]
+                    try write(args?["apiKey"] as? String, account: apiKeyAccount)
+                    try write(args?["pin"] as? String, account: pinAccount)
+                    result(nil)
+                case "clear":
+                    try delete(apiKeyAccount)
+                    try delete(pinAccount)
+                    result(nil)
+                default:
+                    result(FlutterMethodNotImplemented)
+                }
+            } catch {
+                result(FlutterError(
+                    code: "credential_store",
+                    message: error.localizedDescription,
+                    details: nil
+                ))
+            }
+        }
+    }
+
+    private static func migrateLegacy() {
+        let defaults = UserDefaults.standard
+        guard let apiKey = defaults.string(forKey: legacyApiKey),
+              !apiKey.isEmpty else { return }
+        do {
+            let existingKey = try read(apiKeyAccount) ?? ""
+            if existingKey.isEmpty {
+                try write(apiKey, account: apiKeyAccount)
+            }
+            if let pin = defaults.string(forKey: legacyPin),
+               !pin.isEmpty {
+                let existingPin = try read(pinAccount) ?? ""
+                if existingPin.isEmpty {
+                    try write(pin, account: pinAccount)
+                }
+            }
+            defaults.removeObject(forKey: legacyApiKey)
+            defaults.removeObject(forKey: legacyPin)
+        } catch {
+        }
+    }
+
+    private static func read(_ account: String) throws -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw keychainError(status) }
+        guard let data = item as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            throw NSError(
+                domain: service,
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "TheTVDB credential could not be read."]
+            )
+        }
+        return value
+    }
+
+    private static func write(_ value: String?, account: String) throws {
+        try delete(account)
+        guard let value, !value.isEmpty else { return }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: Data(value.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else { throw keychainError(status) }
+    }
+
+    private static func delete(_ account: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw keychainError(status)
+        }
+    }
+
+    private static func keychainError(_ status: OSStatus) -> NSError {
+        NSError(
+            domain: service,
+            code: Int(status),
+            userInfo: [NSLocalizedDescriptionKey: "TheTVDB Keychain operation failed (\(status))."]
+        )
     }
 }

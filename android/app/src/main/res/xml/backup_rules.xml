@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Exclude WebDAV credentials from Android auto-backup. The password file is
-     AES-encrypted (EncryptedSharedPreferences) but the server list should not
-     leave the device either. -->
+<!-- Exclude credential-bearing shared preferences from Android auto-backup. -->
 <full-backup-content>
     <exclude domain="sharedpref" path="dreamplayer.webdavServers.xml"/>
     <exclude domain="sharedpref" path="dreamplayer.webdavSecrets.xml"/>
+    <exclude domain="sharedpref" path="dreamplayer.theTvdbSecrets.xml"/>
+    <exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>
 </full-backup-content>

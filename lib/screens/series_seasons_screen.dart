@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../widgets/cached_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -118,7 +119,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     // This prevents stale cached data from overwriting a correct _meta when
     // multiple auto-expanded folders share the same metadataKey.
     final current = _meta;
-    if (current != null && meta != null && meta.movie.id == current.movie.id) {
+    if (current != null && meta != null && meta.movie.providerKey == current.movie.providerKey) {
       if (meta.seasons.length <= current.seasons.length) {
         // Group unchanged — but a standalone movie card may have just
         // resolved (it reuses the same notify channel). Force a rebuild
@@ -397,10 +398,17 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             // season fetch), matchFolderToSeason returns null for everything —
             // in that case keep the scan/file-evidence season rather than
             // ungrouping every folder blindly.
-            final namesAvailable = service.hasSeasonNames(meta!.movie.id);
+            final namesAvailable = service.hasSeasonNames(
+              meta!.movie.id,
+              provider: meta.movie.provider,
+            );
             for (int i = 0; i < _folders.length; i++) {
               final f = _folders[i];
-              final s = service.matchFolderToSeason(f.folder.name, meta.movie.id);
+              final s = service.matchFolderToSeason(
+                f.folder.name,
+                meta.movie.id,
+                provider: meta.movie.provider,
+              );
               int? eff;
               if (s != null) {
                 eff = s;
@@ -1742,8 +1750,30 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
                       ),
                     ),
                   ],
+                  if (movie.provider == MetadataProvider.theTvdb) ...[
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _openTheTvdb,
+                        icon: const Icon(Icons.open_in_new, size: 14),
+                        label: const Text('Metadata by TheTVDB'),
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'This product uses the TheTVDB API but is not endorsed by TheTVDB.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Row(
+
                     children: [
                       if (displayRating > 0) ...[
                         const Icon(Icons.star, size: 14, color: Colors.amber),
@@ -1798,6 +1828,13 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _openTheTvdb() async {
+    await launchUrl(
+      Uri.parse('https://thetvdb.com/'),
+      mode: LaunchMode.externalApplication,
     );
   }
 }

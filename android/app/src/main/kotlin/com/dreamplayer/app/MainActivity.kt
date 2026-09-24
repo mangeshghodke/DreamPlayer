@@ -92,6 +92,9 @@ class MainActivity : FlutterActivity() {
         fileBrowser!!.configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FileBrowser.CHANNEL),
         )
+        TheTvdbCredentialStore(this).configure(
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TheTvdbCredentialStore.CHANNEL),
+        )
         WebDAVClient(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WebDAVClient.CHANNEL),
         )

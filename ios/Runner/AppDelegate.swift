@@ -77,6 +77,7 @@ import Network
       withId: "dreamplayer/exo_player"
     )
     FileBrowser.register(with: messenger)
+    TheTvdbCredentialStore.register(with: messenger)
     IntentBridge.shared.configure(with: messenger)
     WebDAVClient.register(with: messenger)
     FtpClient.register(with: messenger)

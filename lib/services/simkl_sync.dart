@@ -48,8 +48,8 @@ class SimklSync {
     final result = <String>{};
     for (final entry in cache.entries) {
       final meta = entry.value;
-      final id = meta.movie.id;
-      if (id == 0) continue;
+      final id = meta.movie.tmdbId;
+      if (id == null || id == 0) continue;
       if (meta.movie.kind == TmdKind.tv) {
         final base = entry.key.split('/').last.split(r'\').last;
         final parsed = ParsedFileName.parse(base);
