@@ -17,6 +17,7 @@ class MediaProbe(private val context: Context) {
     }
 
     private val executor = Executors.newSingleThreadExecutor()
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     fun configure(channel: MethodChannel) {
         channel.setMethodCallHandler { call, result ->
@@ -30,10 +31,13 @@ class MediaProbe(private val context: Context) {
                     executor.execute {
                         try {
                             val info = probe(path, uri, headers, allowSelfSigned)
-                            result.success(info)
+                            // MethodChannel.Result callbacks must run on the
+                            // platform thread — see FileBrowser.kt's
+                            // getThumbnail for the same pattern.
+                            mainHandler.post { result.success(info) }
                         } catch (e: Exception) {
                             Log.e(TAG, "probe failed", e)
-                            result.error("probe_failed", e.message, null)
+                            mainHandler.post { result.error("probe_failed", e.message, null) }
                         }
                     }
                 }
@@ -44,10 +48,10 @@ class MediaProbe(private val context: Context) {
                     executor.execute {
                         try {
                             val info = probeLocal(filePath)
-                            result.success(info)
+                            mainHandler.post { result.success(info) }
                         } catch (e: Exception) {
                             Log.e(TAG, "probeFile failed", e)
-                            result.error("probe_failed", e.message, null)
+                            mainHandler.post { result.error("probe_failed", e.message, null) }
                         }
                     }
                 }

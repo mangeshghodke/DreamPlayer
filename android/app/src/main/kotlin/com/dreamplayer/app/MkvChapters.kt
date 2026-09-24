@@ -52,6 +52,7 @@ internal object MkvChapters {
     private const val MAX_TOP_LEVEL_CHILDREN = 64
     private const val MAX_CHAPTERS = 999
     private const val MAX_HEADER_BYTES = 1 shl 20
+    private const val MAX_CHAPTER_ATOM_DEPTH = 32
 
     fun parse(path: String): List<Chapter> {
         val raf = try {
@@ -314,14 +315,19 @@ internal object MkvChapters {
                 editions && id == ID_EDITION_ENTRY && size >= 0 ->
                     parseContainer(r, dataStart + size, out, editions = false)
                 !editions && id == ID_CHAPTER_ATOM && size >= 0 ->
-                    parseAtom(r, dataStart + size, out)
+                    parseAtom(r, dataStart + size, out, depth = 0)
             }
             if (size < 0) return
             r.seek(dataStart + size)
         }
     }
 
-    private fun parseAtom(r: SeekableReader, endPos: Long, out: MutableList<Chapter>) {
+    /// `depth` bounds ChapterAtom nesting: a corrupted/pathological MKV can
+    /// nest thousands of levels in only a few bytes each, which would
+    /// StackOverflowError this background probe thread and crash the whole
+    /// process (an uncaught Error isn't limited to the thread it occurs on).
+    /// Real-world chapter trees never nest anywhere close to this deep.
+    private fun parseAtom(r: SeekableReader, endPos: Long, out: MutableList<Chapter>, depth: Int) {
         var startNs = -1L
         var endNs = -1L
         var title: String? = null
@@ -338,7 +344,9 @@ internal object MkvChapters {
                     if (size >= 0) title = title ?: readDisplayTitle(r, dataStart + size)
                 // Nested ChapterAtoms (sub-chapters) flatten into one list.
                 ID_CHAPTER_ATOM ->
-                    if (size >= 0) parseAtom(r, dataStart + size, out)
+                    if (size >= 0 && depth < MAX_CHAPTER_ATOM_DEPTH) {
+                        parseAtom(r, dataStart + size, out, depth + 1)
+                    }
             }
             if (size < 0) return
             r.seek(dataStart + size)

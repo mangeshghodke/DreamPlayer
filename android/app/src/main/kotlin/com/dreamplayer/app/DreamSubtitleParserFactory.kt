@@ -258,7 +258,11 @@ class FrameSubParser(
             for (line in lines.take(10)) {
                 val m = MICRODVD_FPS.matcher(line.trim())
                 if (m.matches()) {
-                    fps = m.group(1).toDoubleOrNull() ?: DEFAULT_FPS
+                    // A header of exactly "0" (or unparseable) must not reach
+                    // parseFrames — dividing by it there produces Infinity,
+                    // which .toLong() turns into Long.MAX_VALUE and corrupts
+                    // the whole track's cue timing.
+                    fps = m.group(1).toDoubleOrNull()?.takeIf { it > 0.0 } ?: DEFAULT_FPS
                     break
                 }
             }
@@ -291,8 +295,19 @@ class FrameSubParser(
             val startFrame = m.group(1).toLongOrNull() ?: continue
             val endFrame = m.group(2).toLongOrNull() ?: continue
             if (endFrame <= startFrame) continue
-            val startUs = (startFrame * 1_000_000.0 / fps).toLong()
-            val endUs = (endFrame * 1_000_000.0 / fps).toLong()
+            // MPL2's `[N]` is a fixed unit — tenths of a second — not a frame
+            // number, so it must NOT go through the fps-based conversion
+            // (that formula is MicroDVD-only and made every .mpl2 file run
+            // 2.5x too fast at the default 25 fps).
+            val startUs: Long
+            val endUs: Long
+            if (mode == Mode.MPL2) {
+                startUs = startFrame * 100_000L
+                endUs = endFrame * 100_000L
+            } else {
+                startUs = (startFrame * 1_000_000.0 / fps).toLong()
+                endUs = (endFrame * 1_000_000.0 / fps).toLong()
+            }
             val body = TAG_STRIP.matcher(m.group(3)).replaceAll("").trim()
             if (body.isEmpty()) continue
             emit(outputOptions, output, startUs, endUs - startUs, cue(body), deferred)
