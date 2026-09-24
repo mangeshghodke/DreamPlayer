@@ -630,6 +630,26 @@ class ExoPlayerView(
     /// chapters API). Empty for network sources or files without chapters.
     @Volatile private var chapters: List<MkvChapters.Chapter> = emptyList()
 
+    /// Bumped on every open() so the HDR10/HDR10+/chapters background probe
+    /// threads (which can outlive the file they were scanning — e.g. the user
+    /// opens a second file before the first file's probes finish, or a
+    /// deferred remote probe's 400ms delay elapses after a newer open()) can
+    /// tell a stale result apart from a current one instead of unconditionally
+    /// overwriting hdr10PlusContent/hdr10Content/chapters with data that
+    /// belongs to whatever was previously open.
+    @Volatile private var openGeneration = 0
+
+    /// True once [dispose] has run; probe callbacks check this before posting
+    /// to [emit] so a late background result can't call stateMap()/emit()
+    /// against an already-released player and torn-down event channel.
+    @Volatile private var disposed = false
+
+    /// The [openGeneration] captured when a remote source's probes were
+    /// deferred (see [fireDeferredProbes]) — passed through explicitly rather
+    /// than re-read at fire time, since [openGeneration] may already have
+    /// advanced past it by the time the 400ms delay elapses.
+    private var pendingProbesGeneration = 0
+
     /// Name of the video decoder currently in use (e.g. `c2.qti.hevc.decoder`
     /// for HW, `c2.android.hevc.decoder` for SW). Updated via
     /// `AnalyticsListener.onVideoDecoderInitialized`.
@@ -639,12 +659,16 @@ class ExoPlayerView(
     /// country 0xB5 / provider 0x003C = ST 2094-40) on a background thread and
     /// flips [hdr10PlusContent], re-emitting the event map so the UI upgrades
     /// the label from HDR10 to HDR10+. Never blocks playback or the main thread.
-    private fun probeHdr10Plus(path: String?, uri: String?, headers: Map<String, String>) {
+    private fun probeHdr10Plus(path: String?, uri: String?, headers: Map<String, String>, generation: Int = openGeneration) {
         Thread {
             try {
-                if (scanForHdr10Plus(path, uri, headers) && !hdr10PlusContent) {
+                if (scanForHdr10Plus(path, uri, headers) &&
+                    !hdr10PlusContent &&
+                    generation == openGeneration &&
+                    !disposed
+                ) {
                     hdr10PlusContent = true
-                    handler.post { emit() }
+                    handler.post { if (!disposed) emit() }
                 }
             } catch (_: Throwable) {
                 // Best-effort probe; never let it affect playback.
@@ -952,19 +976,24 @@ class ExoPlayerView(
         val selfSigned = pendingProbesSelfSigned
         // Small delay after READY so the ring has a head start even if the
         // first frame arrived from a partial buffer.
+        val gen = pendingProbesGeneration
         handler.postDelayed({
-            probeHdr10Plus(path, uri, headers)
-            probeHdr10(path, uri, headers)
-            probeChapters(path, uri, headers, selfSigned)
+            probeHdr10Plus(path, uri, headers, gen)
+            probeHdr10(path, uri, headers, gen)
+            probeChapters(path, uri, headers, selfSigned, gen)
         }, 400)
     }
 
-    private fun probeHdr10(path: String?, uri: String?, headers: Map<String, String>) {
+    private fun probeHdr10(path: String?, uri: String?, headers: Map<String, String>, generation: Int = openGeneration) {
         Thread {
             try {
-                if (scanForStaticHdr(path, uri, headers) && !hdr10Content) {
+                if (scanForStaticHdr(path, uri, headers) &&
+                    !hdr10Content &&
+                    generation == openGeneration &&
+                    !disposed
+                ) {
                     hdr10Content = true
-                    handler.post { emit() }
+                    handler.post { if (!disposed) emit() }
                 }
             } catch (_: Throwable) {
                 // Best-effort probe; never let it affect playback.
@@ -984,6 +1013,7 @@ class ExoPlayerView(
         uri: String?,
         headers: Map<String, String> = emptyMap(),
         allowSelfSigned: Boolean = false,
+        generation: Int = openGeneration,
     ) {
         val isLocal = !path.isNullOrEmpty()
         val isSmb = !uri.isNullOrEmpty() && uri!!.startsWith("smb://", ignoreCase = true)
@@ -1119,12 +1149,43 @@ class ExoPlayerView(
                             ?.takeIf { it.isNotEmpty() }
                             ?: PlayerCodecs.decoderMode(activity)
                         if (currentMode != lastDecoderMode) {
+                            val previousMode = lastDecoderMode
                             Log.i("ExoPlayerView", "Decoder mode changed: $lastDecoderMode -> $currentMode (from open channel), recreating player.")
-                            player.removeListener(listener)
-                            player.release()
-                            player = createPlayer()
-                            player.addListener(listener)
-                            playerView.player = player
+                            // Build the replacement BEFORE releasing the current
+                            // one: if createPlayer() throws (extension/renderer
+                            // construction failure, OOM — most likely exactly
+                            // when a device is already struggling to decode,
+                            // which is when the software-fallback path forces
+                            // this exact recreation), the old player is still
+                            // alive and attached, so playback degrades to "mode
+                            // switch didn't apply this time" instead of every
+                            // future play/pause/seek call hitting a released
+                            // player with no recovery.
+                            val newPlayer = try {
+                                createPlayer()
+                            } catch (e: Exception) {
+                                Log.e(
+                                    "ExoPlayerView",
+                                    "createPlayer() failed while switching to decoder mode " +
+                                        "$currentMode; keeping existing player",
+                                    e,
+                                )
+                                // createPlayer() sets lastDecoderMode as its first
+                                // step, so a failure partway through construction
+                                // can leave it pointing at the mode that never
+                                // actually took effect — revert it so a later
+                                // open() retries the recreation instead of
+                                // wrongly believing it already matches.
+                                lastDecoderMode = previousMode
+                                null
+                            }
+                            if (newPlayer != null) {
+                                player.removeListener(listener)
+                                player.release()
+                                player = newPlayer
+                                player.addListener(listener)
+                                playerView.player = player
+                            }
                         } else {
                             Log.i("ExoPlayerView", "Decoder mode unchanged: $currentMode, no player recreation.")
                         }
@@ -1159,6 +1220,7 @@ class ExoPlayerView(
                     currentVideoDecoderName = null
                     probesFired = true
                     pendingProbes = null
+                    openGeneration++
                     // Capture the source URI scheme so the ⓘ info sheet can
                     // label the source ("Local" / "SMB" / "WebDAV" / etc.).
                     val resolvedUri = when {
@@ -1363,6 +1425,7 @@ class ExoPlayerView(
                     if (remoteProbe) {
                         pendingProbes = Triple(path, uri, headers)
                         pendingProbesSelfSigned = allowSelfSigned
+                        pendingProbesGeneration = openGeneration
                         probesFired = false
                     } else {
                         pendingProbes = null
@@ -2326,6 +2389,11 @@ class ExoPlayerView(
     }
 
     override fun dispose() {
+        // Set before anything else releases: guards a background probe
+        // thread's completion callback (posted to the main handler, possibly
+        // arriving after this returns) from calling emit()/stateMap() against
+        // the player/event channel this function is about to tear down.
+        disposed = true
         if (activeView === this) activeView = null
         restoreRefreshRate()
         stopPositionTicker()

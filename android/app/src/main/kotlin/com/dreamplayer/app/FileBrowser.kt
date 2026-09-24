@@ -55,13 +55,23 @@ class FileBrowser(private val activity: MainActivity) {
                     openAllFilesAccessSettings()
                     result.success(null)
                 }
-                "getStorageRoots" -> result.success(storageRoots())
+                "getStorageRoots" -> try {
+                    result.success(storageRoots())
+                } catch (e: Exception) {
+                    android.util.Log.w("FileBrowser", "getStorageRoots failed", e)
+                    result.success(emptyList<Map<String, Any?>>())
+                }
                 "listDirectory" -> {
                     val path = call.argument<String>("path")
                     if (path == null) {
                         result.error("bad_args", "Missing path", null)
                     } else {
-                        result.success(listDirectory(path))
+                        try {
+                            result.success(listDirectory(path))
+                        } catch (e: Exception) {
+                            android.util.Log.w("FileBrowser", "listDirectory failed for $path", e)
+                            result.success(listOf(mapOf("error" to "not_found", "path" to path)))
+                        }
                     }
                 }
                 "pickFolder" -> pickFolder(result)
@@ -209,51 +219,61 @@ class FileBrowser(private val activity: MainActivity) {
             return result
         }
 
-        // Fallback: SAF DocumentFile path (for non-local providers).
+        // Fallback: SAF DocumentFile path (for non-local providers). A tree
+        // whose backing volume was removed/unmounted or whose grant was
+        // revoked since bookmarking throws from findFile/isDirectory/
+        // listFiles/child.name with no warning — caught here so the caller
+        // gets the same structured not_found response as every other
+        // missing-folder case instead of an unhandled platform exception.
         try {
-            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            activity.contentResolver.takePersistableUriPermission(treeUri, flags)
-        } catch (_: Exception) { /* grant may fail; best-effort */ }
-        var doc = DocumentFile.fromTreeUri(activity, treeUri)
-            ?: return listOf(mapOf("error" to "not_found", "path" to path))
-        if (relative.isNotEmpty()) {
-            for (segment in relative.split('/')) {
-                if (segment.isEmpty()) continue
-                doc = doc.findFile(segment)
-                    ?: return listOf(mapOf("error" to "not_found", "path" to path))
+            try {
+                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                activity.contentResolver.takePersistableUriPermission(treeUri, flags)
+            } catch (_: Exception) { /* grant may fail; best-effort */ }
+            var doc = DocumentFile.fromTreeUri(activity, treeUri)
+                ?: return listOf(mapOf("error" to "not_found", "path" to path))
+            if (relative.isNotEmpty()) {
+                for (segment in relative.split('/')) {
+                    if (segment.isEmpty()) continue
+                    doc = doc.findFile(segment)
+                        ?: return listOf(mapOf("error" to "not_found", "path" to path))
+                }
             }
-        }
-        if (!doc.isDirectory) return listOf(mapOf("error" to "not_found", "path" to path))
-        val base = if (relative.isEmpty()) treePath(id) else "${treePath(id)}/$relative"
-        val dirs = mutableListOf<Map<String, Any?>>()
-        val files = mutableListOf<Map<String, Any?>>()
-        for (child in doc.listFiles()) {
-            val name = child.name ?: continue
-            if (name.startsWith(".")) continue
-            if (child.isDirectory) {
-                dirs.add(
-                    mapOf(
-                        "name" to name,
-                        "path" to "$base/$name",
-                        "isDirectory" to true,
-                        "size" to 0L,
-                    ),
-                )
-            } else if (isVideo(name)) {
-                files.add(
-                    mapOf(
-                        "name" to name,
-                        "path" to child.uri.toString(),
-                        "isDirectory" to false,
-                        "size" to child.length(),
-                    ),
-                )
+            if (!doc.isDirectory) return listOf(mapOf("error" to "not_found", "path" to path))
+            val base = if (relative.isEmpty()) treePath(id) else "${treePath(id)}/$relative"
+            val dirs = mutableListOf<Map<String, Any?>>()
+            val files = mutableListOf<Map<String, Any?>>()
+            for (child in doc.listFiles()) {
+                val name = child.name ?: continue
+                if (name.startsWith(".")) continue
+                if (child.isDirectory) {
+                    dirs.add(
+                        mapOf(
+                            "name" to name,
+                            "path" to "$base/$name",
+                            "isDirectory" to true,
+                            "size" to 0L,
+                        ),
+                    )
+                } else if (isVideo(name)) {
+                    files.add(
+                        mapOf(
+                            "name" to name,
+                            "path" to child.uri.toString(),
+                            "isDirectory" to false,
+                            "size" to child.length(),
+                        ),
+                    )
+                }
             }
+            dirs.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
+            files.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
+            return dirs + files
+        } catch (e: Exception) {
+            android.util.Log.w("FileBrowser", "listTreeDirectory: SAF listing failed for $path", e)
+            return listOf(mapOf("error" to "not_found", "path" to path))
         }
-        dirs.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
-        files.sortBy { it["name"].toString().lowercase(Locale.ROOT) }
-        return dirs + files
     }
 
     /// Attempts to resolve a tree URI to an actual local file-system path.
@@ -339,16 +359,26 @@ class FileBrowser(private val activity: MainActivity) {
         return prefs.all.keys
             .filter { it.startsWith(BOOKMARK_PREFIX) }
             .mapNotNull { key ->
-                val id = key.removePrefix(BOOKMARK_PREFIX)
-                val uri = treeUriFor(id) ?: return@mapNotNull null
-                val doc = DocumentFile.fromTreeUri(activity, uri) ?: return@mapNotNull null
-                mapOf(
-                    "name" to treeDisplayName(uri, doc),
-                    "path" to treePath(id),
-                    "isDirectory" to true,
-                    "size" to 0L,
-                    "bookmarkId" to id,
-                )
+                // A single stale/revoked SAF grant (SD card removed, access
+                // revoked in system Settings, a grant that didn't survive a
+                // reinstall) must not take down the WHOLE root list — without
+                // this, one bad bookmark hides internal storage and every
+                // other healthy bookmark too.
+                try {
+                    val id = key.removePrefix(BOOKMARK_PREFIX)
+                    val uri = treeUriFor(id) ?: return@mapNotNull null
+                    val doc = DocumentFile.fromTreeUri(activity, uri) ?: return@mapNotNull null
+                    mapOf(
+                        "name" to treeDisplayName(uri, doc),
+                        "path" to treePath(id),
+                        "isDirectory" to true,
+                        "size" to 0L,
+                        "bookmarkId" to id,
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.w("FileBrowser", "bookmarkEntries: skipping inaccessible bookmark $key", e)
+                    null
+                }
             }
     }
 
@@ -528,12 +558,24 @@ class FileBrowser(private val activity: MainActivity) {
             return
         }
         val treeUri = data.data!!
-        try {
+        val grantSucceeded = try {
             activity.contentResolver.takePersistableUriPermission(
                 treeUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
-        } catch (_: Exception) {
+            true
+        } catch (e: Exception) {
+            // Android caps persistable grants per app (~128) and some
+            // providers reject GRANT_PERSISTABLE outright. Bookmarking
+            // anyway would save a folder that silently fails to list on the
+            // next process restart with no diagnostic for the user — surface
+            // the failure instead of pretending it succeeded.
+            android.util.Log.w("FileBrowser", "takePersistableUriPermission failed for $treeUri, not bookmarking", e)
+            false
+        }
+        if (!grantSucceeded) {
+            result.error("grant_failed", "Could not get lasting access to the selected folder", null)
+            return
         }
         val id = UUID.randomUUID().toString()
         if (pendingFolderIsLibrary) {

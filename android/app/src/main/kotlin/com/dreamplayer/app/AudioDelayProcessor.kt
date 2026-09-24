@@ -90,6 +90,23 @@ class AudioDelayProcessor : AudioProcessor {
             }
         } else {
             // Negative delay: drop the leading samples of the stream.
+            // Audio still held back from a POSITIVE delay (the slider was
+            // dragged straight through 0, e.g. +2000ms to -500ms, with no
+            // call landing on exactly 0) must be drained here too — this and
+            // the delay==0 branch above are the only places that read
+            // `pending`, so without this the buffered audio was stranded
+            // until one glitchy burst at end-of-stream, or silently lost if
+            // a seek's flush() ran first, leaving a lasting A/V desync.
+            if (pendingLen > 0) {
+                val n = input.remaining()
+                val combined = ByteBuffer.allocateDirect(pendingLen + n)
+                combined.put(pending, 0, pendingLen)
+                if (n > 0) combined.put(input)
+                combined.flip()
+                pendingLen = 0
+                outputBuffer = combined
+                return
+            }
             var toDrop = -delay * sampleRate * bytesPerFrame / 1000 - dropRemaining
             if (toDrop > 0) {
                 val n = minOf(toDrop, input.remaining().toLong()).toInt()
