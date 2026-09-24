@@ -1815,13 +1815,22 @@ class ExoPlayerView(
             // can never be left in that state regardless of which detection
             // path wins the race.
             val window = activity.window
-            if (window != null && window.colorMode != ActivityInfo.COLOR_MODE_DEFAULT) {
-                window.colorMode = ActivityInfo.COLOR_MODE_DEFAULT
+            if (window != null) {
+                val hadForcedHdr = window.colorMode != ActivityInfo.COLOR_MODE_DEFAULT ||
+                    window.desiredHdrHeadroom > 1.0f || hdrHeadroomSet > 1.0f
+                if (window.colorMode != ActivityInfo.COLOR_MODE_DEFAULT) {
+                    window.colorMode = ActivityInfo.COLOR_MODE_DEFAULT
+                }
+                if (window.desiredHdrHeadroom > 1.0f) {
+                    window.setDesiredHdrHeadroom(1.0f)
+                }
                 hdrHeadroomSet = 1.0f
-                val sv = playerView.videoSurfaceView as? android.view.SurfaceView
-                val sc = sv?.surfaceControl
-                if (sc != null && sc.isValid) {
-                    SurfaceControl.Transaction().setDataSpace(sc, 0).apply()
+                if (hadForcedHdr) {
+                    val sv = playerView.videoSurfaceView as? android.view.SurfaceView
+                    val sc = sv?.surfaceControl
+                    if (sc != null && sc.isValid) {
+                        SurfaceControl.Transaction().setDataSpace(sc, 0).apply()
+                    }
                 }
             }
             return

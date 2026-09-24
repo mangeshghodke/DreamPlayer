@@ -30,6 +30,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
+- **Dolby Vision brightness settle after startup (issue #28)** — if the
+  background HDR10 SEI probe briefly classified a DV base layer as HDR10,
+  Media3 could leave the Activity window in forced HDR mode. Dolby Vision now
+  actively restores the default window color mode/headroom and clears the
+  temporary forced surface dataspace, keeping the in-app brightness setting
+  aligned with the panel output.
 - **Explicit filename seasons now drive library grouping and episode metadata
   (issue #26)** — physical folders named `S1` / `S2` (or scanner-generated
   `Season01` / `Season02`) with the same normalized title collapse into one
