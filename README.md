@@ -8,10 +8,25 @@
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS%20%7C%20iPad%20%7C%20Android%20TV-blue)](https://github.com/mangeshghodke/DreamPlayer)
 [![Flutter](https://img.shields.io/badge/Flutter-3.44-46A6F2?logo=flutter&logoColor=white&color=46A6F2)](https://flutter.dev)
 [![Downloads](https://img.shields.io/github/downloads/mangeshghodke/DreamPlayer/total)](https://github.com/mangeshghodke/DreamPlayer/releases)
+[![App Store](https://img.shields.io/badge/App_Store-Download-0D96F2?logo=apple&logoColor=white)](https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889)
 [![Donate](https://img.shields.io/badge/Donate-Razorpay-2D8CF0)](https://rzp.io/rzp/cZ5afqVG)
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub_Sponsors-Support-EA4AAA?logo=github&logoColor=white)](https://github.com/sponsors/mangeshghodke/)
 
 A cross-platform video player for **Android, iOS/iPad, and Android TV** — built for true Dolby Vision, HDR10/HDR10+, and lossless audio playback.
+
+## 📲 Now on the App Store
+
+**DreamPlayer is live on the App Store** — approved and available on iPhone and iPad.
+
+[![App Store](https://img.shields.io/badge/App_Store-Download%20on%20iPhone%20%26%20iPad-0D96F2?logo=apple&logoColor=white&style=for-the-badge)](https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889)
+
+**[Download DreamPlayer on the App Store →](https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889)**
+
+- Free, no ads, no account required
+- Requires **iOS / iPadOS 17.0** or later
+- Play your own files: local storage, Files-app folders, WebDAV, FTP/SFTP, Jellyfin, DLNA, and Files-app "Open with" hand-offs from SMB/NAS shares
+- Full Dolby Vision / HDR10 / HDR10+ / HLG support on capable iPad and iPhone panels, plus lossless audio (DTS-HD, TrueHD, E-AC3, FLAC)
+- Android builds remain free on the [Releases](https://github.com/mangeshghodke/DreamPlayer/releases) page
 
 ## Highlights
 
@@ -315,11 +330,19 @@ Center → AirPlay / Head-tracking, not from inside any third-party app.
 
 ## Download
 
+### iOS / iPadOS — [App Store](https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889)
+
+DreamPlayer is approved and **live on the App Store** for iPhone and iPad (requires iOS / iPadOS 17.0+).
+
+**[Download on the App Store →](https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889)**
+
+### Android
+
 Prebuilt **Android** binaries are on the [Releases](https://github.com/mangeshghodke/DreamPlayer/releases) page.
 
 - **Android** — universal APK + per-architecture APKs (arm64, armv7, x86_64)
 
-**iOS / iPadOS** — no `.ipa` is published here. Apple only allows distribution via the **App Store**, **TestFlight**, or **Ad Hoc** (DPLA 7.6 / 3.2(g)), so GitHub Releases are Android-only. Signed iOS builds are produced by the separate [`ios.yml`](https://github.com/mangeshghodke/DreamPlayer/actions/workflows/ios.yml) workflow and uploaded to **TestFlight**.
+No `.ipa` is published on GitHub Releases. Apple only allows iOS distribution via the **App Store**, **TestFlight**, or **Ad Hoc** (DPLA 7.6 / 3.2(g)). Signed iOS builds are produced by the separate [`ios.yml`](https://github.com/mangeshghodke/DreamPlayer/actions/workflows/ios.yml) workflow, uploaded to **TestFlight**, and released publicly on the App Store.
 
 ## Getting Started
 
