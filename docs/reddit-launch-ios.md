@@ -79,7 +79,73 @@ hard to argue against.
 
 ---
 
-## 0.8 The three posts
+## 0.8 r/iosapps rule compliance — READ THIS FIRST
+
+Checked 28 Sep 2026. r/iosapps is one of the most tightly run app subs on
+Reddit, and it is actively hostile to promo posts that don't follow its format.
+Nearly all of it is enforced, and non-compliant posts get removed.
+
+### Where you currently stand
+
+r/iosapps uses a two-tier "Trust vs Transparency" system. You must qualify for
+the **main feed** or you can only post in the monthly **App Shelf** megathread.
+
+**Tier 1 — Trust Path.** Any ONE of these. You currently qualify for **none**:
+
+| Signal | Required | You have |
+|---|---|---|
+| App Store ratings | 20+ | **0** (app is 4 days old) |
+| GitHub stars | 100+ | **65** |
+| Recognised developer flair | granted by mods | no |
+
+**Tier 2 — Transparency Path.** Needs BOTH. You **do** qualify:
+
+| Requirement | You have |
+|---|---|
+| Real-life identity + real contact details | Mangesh Ghodke, established account, reachable via the repo's issue tracker |
+| Published Privacy Policy | `https://mangeshghodke.github.io/DreamPlayer/privacy.html` (verified 200) |
+| Published Terms of Service | `https://mangeshghodke.github.io/DreamPlayer/terms.html` (verified 200) |
+
+→ **Post to the main feed under the Transparency Path**, with your name, a
+contact route, and both policy links in the post body.
+
+### Mandatory requirements checklist
+
+- [ ] **10 r/iOSApps *local* karma.** This is karma earned by commenting *in
+      this sub*, not your account's total karma. An established account
+      elsewhere almost certainly has 0 here. **Check this first** — if you are
+      short, spend a few days commenting before posting.
+- [ ] **ABC format.** A – Answer (what problem does it solve), B – Better
+      (**must name a competitor** and explain what you do better), C – Cost
+      (pricing, IAP, direct App Store link). Non-ABC posts are removed.
+- [ ] **Flair required.** Priority: Vibe Coded > Lifetime > Subscription >
+      Freemium > Free. You have a lifetime purchase → **"Lifetime"**.
+- [ ] **Prefix the title `[OS]`.** The sub asks for this on open-source posts.
+      DreamPlayer is GPLv3, so it applies and it's a genuine positive.
+- [ ] **App Store link**, never a sideload or TestFlight link, never a URL
+      shortener.
+- [ ] **No affiliate, referral or invite links** anywhere.
+- [ ] **Do not link the "Write a Review" composer** or ask for ratings —
+      that is against the rules and it's the obvious route to the 20 ratings
+      you need for Tier 1. Let those accumulate organically.
+- [ ] **Always disclose you are the developer** in any comment promoting it.
+- [ ] **One self-promo per developer per 30 days**, counted from your last app
+      post *even if that post was removed*. Treat this as a one-shot for the
+      month — do not post to two subs in the same week on this account.
+- [ ] Not an AI app, so rule 9 doesn't apply. Nothing "vibe coded".
+
+### The good news in all this
+
+The `Lifetime` flair and the `[OS]` prefix are both accurate and both put you in
+the most credible bucket the sub recognises for a paid app. Open source plus a
+lifetime tier plus a named competitor in the B section is close to the ideal
+submission shape. The sub is explicitly trying to filter out *throwaway* promo
+accounts — you are demonstrably not one, and the post below is written to prove
+it.
+
+---
+
+## 0.9 The three posts
 
 Each post below carries a **short, honest comparison**. The full table in 0.7 is
 deliberately kept out of the post body — a big grid of competitor checkmarks
@@ -89,84 +155,82 @@ compare to Infuse?", which they almost certainly will.
 
 ### 1. r/iosapps
 
+**Flair:** `Lifetime` · **Title must be prefixed `[OS]`**
+
 **Title**
 
 ```
-[Made for iOS] DreamPlayer — local video player with Dolby Vision, lossless audio and NAS support (7-day trial)
+[OS] DreamPlayer — Dolby Vision, lossless audio and NAS support for your own files (7-day trial)
 ```
 
-**Body**
+**Body** — note the explicit A / B / C headings. r/iosapps requires this shape.
 
 ```
-I make this one, so take it with a grain of salt — but I built it to solve a
-problem I kept hitting, and I think a few other people here have too.
+I'm the developer, so upfront about that. Everything below is verifiable and the
+app is GPLv3 if you want to read the source.
 
-This is a player for your OWN files. Nothing to sign up for, no streaming
-service, no library sitting on someone else's servers.
+**A — Answer: what problem does it solve?**
 
-What it does:
+A video player for your OWN files, on iPhone and iPad, that takes HDR and
+lossless audio seriously — plus your NAS.
 
-• Dolby Vision, HDR10, HDR10+ and HLG passthrough on hardware that supports
-  it. Verified Dolby Vision on an iPad Pro M2. This was the main reason I
-  built it — most iOS players either don't try, or quietly tone-map to SDR.
+I wanted Dolby Vision to actually work on my iPad, and I wanted my DTS-HD and
+TrueHD tracks without remuxing anything. I also wanted my SMB share to just work
+through the Files app instead of needing a separate server app. So this plays
+files you already have, from disk or a NAS, with no account and no sign-up.
 
-• Real lossless audio: DTS-HD, TrueHD, Dolby E-AC3 and 24-bit multichannel
-  FLAC, with mid-playback track switching.
+**B — Better: how does it compare to the alternatives?**
 
-• MKV, TS and other containers AVPlayer won't open natively, via an FFmpeg
-  demux layer — so a .mkv doesn't need converting first.
+Infuse is the obvious comparison and it's a great app — if you want one app
+across Apple TV and Mac, Chromecast, and iCloud sync of your library, buy Infuse
+and you won't regret it. It's the more complete Apple product, and I'm not going
+to pretend otherwise.
 
-• Your NAS, several ways: SMB through the Files app's own "Connect to Server",
-  plus WebDAV, FTP/SFTP, Jellyfin and DLNA. Works with "Open with" from any
-  file manager.
+Three concrete differences:
 
-• Sidecar subtitles just attach themselves — drop a .srt or .ass next to the
-  video and it's picked up and auto-matched. PiP, chapters, multi-audio too.
+• **The trial actually unlocks Dolby Vision.** Infuse locks Dolby Vision *and*
+  Dolby/DTS audio behind Pro from the very first play. Here the 7-day trial
+  includes Dolby Vision, HDR10, HDR10+ and HLG, so you can test it on your own
+  rips before spending anything.
 
-Being straight about the cost, because I know it's the first question:
+• **About half the lifetime price.** ₹4,999 (~$60) vs $99.99–$119.99.
 
-It's free to download and you get a 7-day trial of everything, including
-Dolby Vision. After that, Dolby Vision / HDR playback and the extras
-(playback speed, A-B loop, sleep timer, subtitle styling, online subtitle
-search, download to device) are part of a subscription — ₹199/month, ₹1,499/year,
-or ₹4,999 once. Browsing your files, playing SDR content, subtitles, PiP and
-all the source types stay free.
+• **It also runs on Android and Android TV**, and it's open source.
 
-For reference, Infuse locks Dolby Vision behind its Pro tier outright, so I'm
-not claiming to be more generous — but I'm cheaper at every level than Infuse
-is, and everything is unlocked for the first week so you can actually test the
-HDR on your own files before deciding.
-
-What it doesn't do:
-
-• No streaming services. It's for files you already have.
-• Dolby Vision output depends on your display, obviously.
-• Can't fix it if the iPad's own hardware can't decode something.
-• Requires iOS/iPadOS 17 or later.
-
-How it stacks up, briefly, since I know Infuse is the name that comes up:
-
-Infuse is the more complete Apple product and I'm not going to pretend
-otherwise — it runs on Apple TV and Mac too, has Chromecast, iCloud/Trakt sync
-across your devices, direct Plex, and handles Blu-ray folder formats I don't
-touch. If you want one app for the entire Apple household, buy Infuse.
-
-What DreamPlayer does differently:
-• Roughly half the lifetime price — ₹4,999 (~$60) vs $99.99–$119.99
-• The 7-day trial actually unlocks Dolby Vision, instead of locking it
-  permanently behind Pro from the first play
-• It also runs on Android and Android TV, and it's open source (GPLv3)
-
-Worth being straight about two others: nPlayer is $4.99 once with no
+Worth being straight about the others: nPlayer is $4.99 once with no
 subscription and is excellent value — if you don't watch Dolby Vision it's hard
-to argue against. And VLC is genuinely free forever, but its HDR support is
-partial.
+to argue against. VLC is genuinely free forever, but its HDR support is partial.
 
-https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889
+**C — Cost: pricing and IAP**
 
-Happy to answer questions on the technical side — especially how the HDR path
-works, which took a lot of digging.
+Free to download. Nothing is charged to play your files.
+
+Free permanently: browsing every source, playback of non-HDR video, subtitles
+(all formats, sidecar auto-load), PiP, chapters, multi-audio, aspect control,
+and all source types (SMB via Files, WebDAV, FTP/SFTP, Jellyfin, DLNA).
+
+Subscription (₹199/mo, ₹1,499/yr, or ₹4,999 one-time) unlocks: Dolby Vision /
+HDR10 / HDR10+ / HLG playback, playback speed, A-B loop, sleep timer, subtitle
+appearance settings, online subtitle search, and download to device. Android is
+free in full.
+
+App Store: https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889
+
+**Developer / contact**
+Mangesh Ghodke — source, issues and contact via the GitHub repo linked below.
+Privacy Policy: https://mangeshghodke.github.io/DreamPlayer/privacy.html
+Terms of Service: https://mangeshghodke.github.io/DreamPlayer/terms.html
 ```
+
+**The `[OS]` prefix is worth keeping in the title** — the sub asks for it on
+open-source posts, and being GPLv3 with 65 stars of real development history is
+one of your strongest credibility signals. Don't drop it to look less
+self-promotional; the whole point of the post is that you're not a throwaway.
+
+**Then answer every comment.** Disclose you're the developer if asked. Don't
+ask anyone for a rating or a review — that's against the rules and it's the one
+thing that would undo everything above.
+
 
 ---
 
