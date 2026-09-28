@@ -881,6 +881,28 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 self.ensurePipController()
                 // Reset any pinch-zoom from a previous session.
                 self.setZoom(1.0)
+                // Resume is not reliable from the load parameter alone on every
+                // source type: the network path (Jellyfin direct-play, plain
+                // http(s)) goes through AetherEngine's own loopback producer
+                // rather than a local AVPlayer item, and there the start
+                // position is not always honoured — the session comes up at 0.
+                // Re-assert it once the engine is actually ready so a tap on a
+                // Continue watching card lands where the viewer left off.
+                if let startPosition, startPosition > 0 {
+                    Task { @MainActor [weak self] in
+                        guard let self, self.engine != nil else { return }
+                        await self.waitForEngineReady(timeout: 5.0)
+                        guard let engine = self.engine else { return }
+                        // Only correct a genuine miss: if it already resumed
+                        // (or the viewer is parked at the very start on
+                        // purpose) leave it alone.
+                        let current = engine.currentTime
+                        if current < startPosition * 0.9, startPosition > 2.0 {
+                            await engine.seek(to: startPosition)
+                        }
+                        self.emit()
+                    }
+                }
                 self.emit()
                 // Probe chapters for local / Files-app SMB files. The provider
                 // mounts SMB at a local path, so a FileHandle read suffices
