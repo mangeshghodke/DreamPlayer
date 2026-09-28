@@ -32,6 +32,7 @@ import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_tile.dart';
 import 'licenses_screen.dart';
+import 'credential_dialogs.dart';
 import 'paywall_sheet.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -307,31 +308,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loginOpensubtitles() async {
-    final uCtrl = TextEditingController();
-    final pCtrl = TextEditingController();
-    String? err;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
-        title: Text(AppLocalizations.of(context).settingsOpenSubtitlesSignIn),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: uCtrl, decoration: InputDecoration(labelText: 'Username')),
-          TextField(controller: pCtrl, obscureText: true, decoration: InputDecoration(labelText: 'Password')),
-          if (err != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(err!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
-          SizedBox(height: 8),
-          Text(AppLocalizations.of(context).settingsOpensubAccountHint, style: TextStyle(color: Colors.white54, fontSize: 11)),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel')),
-          TextButton(onPressed: () async {
-            try {
-              await OpensubtitlesClient.instance.login(username: uCtrl.text.trim(), password: pCtrl.text);
-              if (ctx.mounted) Navigator.pop(ctx, true);
-            } catch (e) { setDlg(() => err = e.toString()); }
-          }, child: Text(AppLocalizations.of(context).settingsSignIn)),
-        ],
-      )),
-    );
+    final ok = await showOpensubtitlesSignInDialog(context);
     if (ok == true) await _loadOpensubtitles();
   }
 
@@ -366,55 +343,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _editTmdbKey() async {
-    final ctrl = TextEditingController(text: _tmdbKey.isEmpty ? '' : _tmdbKey);
-    String? err;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
-        title: Text(AppLocalizations.of(context).settingsTmdbKey),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(
-            'Get a free key at themoviedb.org/settings/api',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
-          ),
-          SizedBox(height: 12),
-          TextField(
-            controller: ctrl,
-            decoration: InputDecoration(
-              labelText: AppLocalizations.of(context).settingsApiKeyHint,
-              hintText: '32-character hex string',
-            ),
-          ),
-          if (err != null) Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(err!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-          ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel')),
-          if (_tmdbKey.isNotEmpty)
-            TextButton(onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove(TmdApi.prefsKey);
-              if (ctx.mounted) Navigator.pop(ctx, true);
-            }, child: Text(AppLocalizations.of(context).settingsRemove)),
-          TextButton(onPressed: () async {
-            final entered = ctrl.text.trim();
-            if (entered.isNotEmpty && entered.length != 32) {
-              setDlg(() => err = 'Key must be 32 characters');
-              return;
-            }
-            final prefs = await SharedPreferences.getInstance();
-            if (entered.isEmpty) {
-              await prefs.remove(TmdApi.prefsKey);
-            } else {
-              await prefs.setString(TmdApi.prefsKey, entered);
-            }
-            if (ctx.mounted) Navigator.pop(ctx, true);
-          }, child: Text(AppLocalizations.of(context).commonSave)),
-        ],
-      )),
-    );
+    final ok = await showTmdbApiKeyDialog(context, _tmdbKey);
     if (ok == true) await _loadTmdbKey();
   }
 
