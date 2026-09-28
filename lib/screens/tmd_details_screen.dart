@@ -36,6 +36,57 @@ import 'opensubtitles_sheet.dart';
 import 'player_screen.dart';
 import '../l10n/app_localizations.dart';
 
+/// Shared "change / set default" artwork menu for a single identity key
+/// (issue #33). Used by the details-screen app bar, by each sub-folder row, and
+/// by the grouped-series screen, so a folder and its season sub-folders are
+/// independently changeable instead of sharing one override.
+Future<void> showArtworkMenuForKey(BuildContext context, String key) async {
+  if (key.isEmpty) return;
+  final service = TmdService.instance;
+  await showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: const Color(0xFF16161A),
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final kind in ArtworkKind.values) ...[
+            ListTile(
+              leading: Icon(kind == ArtworkKind.poster
+                  ? Icons.photo_library_outlined
+                  : Icons.wallpaper_outlined),
+              title: Text(kind == ArtworkKind.poster
+                  ? 'Change poster'
+                  : 'Change backdrop'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                ArtworkPickerSheet.show(context, identityKey: key, kind: kind);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.restart_alt),
+              title: Text(kind == ArtworkKind.poster
+                  ? 'Set default poster'
+                  : 'Set default backdrop'),
+              subtitle: const Text(
+                'Go back to the artwork the provider picked',
+                style: TextStyle(fontSize: 12),
+              ),
+              enabled: service.hasArtworkOverride(key, kind),
+              onTap: service.hasArtworkOverride(key, kind)
+                  ? () {
+                      Navigator.of(sheetContext).pop();
+                      service.resetArtwork(key, kind);
+                    }
+                  : null,
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
 /// Shows TMDB metadata with a Play/Resume button and a "Fix match" manual
 /// search.
 ///
@@ -1146,72 +1197,17 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// picker: "Set default" is a deliberate undo, and burying it in the sheet
   /// makes it easy to forget it exists.
   Future<void> _showArtworkMenu() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF16161A),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final kind in ArtworkKind.values) ...[
-              ListTile(
-                leading: Icon(kind == ArtworkKind.poster
-                    ? Icons.photo_library_outlined
-                    : Icons.wallpaper_outlined),
-                title: Text(kind == ArtworkKind.poster
-                    ? 'Change poster'
-                    : 'Change backdrop'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _changeArtwork(kind);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.restart_alt),
-                title: Text(kind == ArtworkKind.poster
-                    ? 'Set default poster'
-                    : 'Set default backdrop'),
-                subtitle: const Text(
-                  'Go back to the artwork the provider picked',
-                  style: TextStyle(fontSize: 12),
-                ),
-                enabled: _service.hasArtworkOverride(_identityKey, kind),
-                onTap: _service.hasArtworkOverride(_identityKey, kind)
-                    ? () {
-                        Navigator.of(sheetContext).pop();
-                        _resetArtwork(kind);
-                      }
-                    : null,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
+    await showArtworkMenuForKey(context, _identityKey);
   }
 
-  Future<void> _resetArtwork(ArtworkKind kind) async {
-    await _service.resetArtwork(_identityKey, kind);
-    if (!mounted) return;
-    setState(() => _meta = _service.metaFor(_identityKey));
-  }
+
 
   /// Opens the "Change poster" / "Change backdrop" picker (issue #33).
   ///
   /// The pick is stored against [_identityKey] and applied at read time by
   /// `TmdService.metaFor`, so it updates this screen and every card showing the
   /// same item, and it survives the next re-resolution.
-  Future<void> _changeArtwork(ArtworkKind kind) async {
-    final changed = await ArtworkPickerSheet.show(
-      context,
-      identityKey: _identityKey,
-      kind: kind,
-    );
-    if (changed != true || !mounted) return;
-    // The service notifies on set/reset, but re-read the meta anyway so the
-    // header swaps immediately rather than waiting for the listener.
-    setState(() => _meta = _service.metaFor(_identityKey));
-  }
+
 
   Future<void> _fixMatch() async {
     final parsed = ParsedFileName.parse(
@@ -2493,6 +2489,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           ),
           watched: _watchedKeys.contains(_watchedKeyForFile(e)),
           onToggleWatched: e.isDirectory ? null : () => _toggleWatched(e),
+          // Sub-folders only: an episode file has no artwork of its own to
+          // change, it shows a still frame.
+          artworkKey: e.isDirectory
+              ? TmdStore.identityKeyFor(_toVideoItem(e))
+              : null,
           onTap: () => _openFolderEntry(e),
         );
 
@@ -3693,6 +3694,7 @@ class _FolderEntryTile extends StatelessWidget {
     this.folderSeason,
     this.watched = false,
     this.onToggleWatched,
+    this.artworkKey,
   });
 
   final FileEntry entry;
@@ -3703,6 +3705,9 @@ class _FolderEntryTile extends StatelessWidget {
   final int? folderSeason;
   final bool watched;
   final VoidCallback? onToggleWatched;
+  /// Identity key of THIS entry, so its artwork can be overridden separately
+  /// from its parent folder (issue #33). Null hides the per-row action.
+  final String? artworkKey;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -3741,6 +3746,19 @@ class _FolderEntryTile extends StatelessWidget {
     // The RAW filename (e.g. House.S02E05.1080p...mkv) shown subdued on its
     // own line — the title row leads with the SxxEyy badge + episode name so
     // the list reads cleanly instead of shouting the full filename.
+    // Per-child artwork action (issue #33). Previously the parent folder's
+    // picker was the only entry point, so a folder and its season sub-folders
+    // could not be given different artwork; each row now carries its own key.
+    final artworkButton = artworkKey == null
+        ? null
+        : IconButton(
+            tooltip: 'Change artwork',
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.image_outlined),
+            onPressed: () => showArtworkMenuForKey(context, artworkKey!),
+          );
+
     final filenameWidget = Text(
       entry.name,
       maxLines: 1,
@@ -3861,6 +3879,7 @@ class _FolderEntryTile extends StatelessWidget {
               ),
               onPressed: onToggleWatched,
             ),
+          ?artworkButton,
           const Icon(Icons.chevron_right),
         ],
       ),
