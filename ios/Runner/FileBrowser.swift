@@ -526,9 +526,13 @@ final class TheTvdbCredentialStore {
                 case "read":
                     let apiKey = try read(apiKeyAccount)
                     let pin = try read(pinAccount)
+                    // `x ?? NSNull()` does not typecheck: for a `String?` LHS
+                    // the RHS must be `String` or `String?`, and NSNull is
+                    // neither. `nullIfNil` widens to Any explicitly so the
+                    // value crosses to Dart as null instead of crashing.
                     result([
-                        "apiKey": apiKey ?? NSNull(),
-                        "pin": pin ?? NSNull(),
+                        "apiKey": nullIfNil(apiKey),
+                        "pin": nullIfNil(pin),
                     ])
                 case "write":
                     let args = call.arguments as? [String: Any]
@@ -550,6 +554,13 @@ final class TheTvdbCredentialStore {
                 ))
             }
         }
+    }
+
+    /// Widen an optional String to Any, mapping nil to NSNull so the Flutter
+    /// standard codec maps it back to Dart `null`.
+    private static func nullIfNil(_ value: String?) -> Any {
+        if let value { return value }
+        return NSNull()
     }
 
     private static func migrateLegacy() {
