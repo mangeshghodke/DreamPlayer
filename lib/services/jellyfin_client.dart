@@ -648,22 +648,24 @@ class JellyfinClient {
     if (password.isEmpty) {
       throw const JellyfinException('Enter a password.');
     }
-    final auth = await _authHeader;
     final json = await _postJson(
       '${server.url}/Users/AuthenticateByName',
       allowSelfSigned: server.allowSelfSigned,
       headers: {
-        // The standard `Authorization` header is what current Jellyfin
-        // (10.10+, and 12.x) requires. Sending only the legacy
-        // `X-Emby-Authorization` header makes a 12.x server reject the
-        // request with **400 "Error processing request."** before it ever
-        // looks at the credentials. `X-Emby-Authorization` is still sent for
-        // older servers; both together verify as a normal auth failure (401)
-        // on 12.1.0 rather than a 400.
-        'Authorization': auth,
-        'X-Emby-Authorization': auth,
-        // No token yet at login time — sending an empty one is meaningless and
-        // older servers have been known to 400 on it.
+        // Standard `Authorization: MediaBrowser ...` — supported by Jellyfin
+        // core since **10.8**, so one code path covers every version.
+        //
+        // Do NOT send `X-Emby-Authorization` (alone or alongside). Jellyfin
+        // 10.12 flipped `EnableLegacyAuthorization` to false by default and
+        // 12.0's migration force-disables it even on servers upgraded from
+        // 10.x — which makes the legacy header return a bare 400 "Error
+        // processing request." before credentials are even examined. Legacy is
+        // slated for permanent removal in 10.13+.
+        //
+        // Sending both is also not safe: there are reports of the
+        // legacy+standard combination producing spurious 401s (jellyfin#16086).
+        'Authorization': await _authHeader,
+        // No token exists yet at login time, so don't send an empty one.
         if (server.token != null && server.token!.isNotEmpty)
           'X-Emby-Token': server.token!,
       },
