@@ -317,9 +317,10 @@ To enable spatial audio in DreamPlayer:
    the **ⓘ** button next to the title — the "Spatial audio" row reads
    "On" with the routing info.
 
-The chip is Android-only. iOS uses Apple's own spatial audio for Atmos
-content on the native AVPlayer path; the system toggles it from Control
-Center → AirPlay / Head-tracking, not from inside any third-party app.
+The chip is Android-only today. On iOS, Apple spatializes multichannel
+soundtracks on the native AVPlayer path and the system controls it from
+Control Center → AirPlay / Head-tracking — DreamPlayer does not surface a
+state for it yet.
 
 ## Requirements
 

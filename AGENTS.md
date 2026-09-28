@@ -558,7 +558,7 @@ A video player app supporting:
 
 - **Volume Boost + Night Mode — Android-only (2026-08)**: real effects live in `ExoPlayerView.kt` (`applyAudioEffects`): a `LoudnessEnhancer` on the player's audio session — boost 1.0–3.0× maps to 0–1500 mB gain; Night Mode alone pins 400 mB (compression-ish lift) and combines additively with boost; re-attached on `onAudioSessionIdChanged`, persisted via `flutter.dreamplayer.audioBoost`/`nightMode` prefs, re-applied on every open. **Verified on-device** (OnePlus CPH2573): `dumpsys media.audio_flinger` shows the `Loudness Enhancer` effect chain attach/detach as the toggles change. iOS is a **deliberate no-op** (`AvPlayerView.applyAudioBoost`): `AVPlayer.volume` caps at 1.0 and there is no public DRC-over-AVPlayer API, so boost >1 clamps back to 1.0 and night mode only stores/emits the flag. To avoid fake affordances, both controls are hidden on iOS (Settings Player section + player ⋮ sheet gated on `defaultTargetPlatform == TargetPlatform.android`); settings still persist cross-platform and light up if the engine ever gains a gain/DRC hook. A real iOS fix means routing AetherEngine's decoded PCM through an owned `AVAudioEngine` + Apple's DynamicsProcessor unit — large effort, deferred.
 
-- **Bass Boost — Android-only (2026-08-25)**: `android.media.audiofx.BassBoost` attached to the same session in `applyAudioEffects` (independent of the loudness guard — applies even at 1.0× / night mode off); levels Off/Low/Medium/High → strength ~150–1000; persisted `flutter.dreamplayer.bassBoost`, live via `setBassBoost`, emitted as `bassBoost` in the event map. The ⋮ sheet row is **gated on `_liveSpatial == 'on'`** — it exists to offset HRTF low-end thinning during spatial virtualization, so it appears only while the teal Spatial chip is active and vanishes when routing/content changes. Works on any output (wired/USB/BT) since it's session-level DSP. iOS: no public API over AVPlayer; would need AetherEngine PCM routed through an owned `AVAudioEngine` with an `AVAudioUnitEQ` low-shelf band (+4–8 dB @ ~100 Hz) plus re-plumbing position/pause/rate/seek — deferred alongside volume boost.
+- **Bass Boost — Android-only (2026-08-25)**: `android.media.audiofx.BassBoost` attached to the same session in `applyAudioEffects` (independent of the loudness guard — applies even at 1.0× / night mode off); levels Off/Low/Medium/High → strength ~150–1000; persisted `flutter.dreamplayer.bassBoost`, live via `setBassBoost`, emitted as `bassBoost` in the event map. The ⋮ sheet row is **gated on `_liveSpatial == 'on'`** — it exists to offset HRTF low-end thinning during spatial virtualization, so it appears only while the teal Spatial chip is active and vanishes when routing/content changes. Works on any output (wired/USB/BT) since it's session-level DSP. iOS: no public API over AVPlayer; would need AetherEngine PCM routed through an owned `AVAudioEngine` with an `AVAudioUnitEQ` low-shelf band (+4–8 dB @ ~100 Hz) plus re-plumbing position/pause/rate/seek — deferred alongside volume boost. The `_liveSpatial == 'on'` gate this row depends on is set by the **Android-only** `system_controls` channel today; if/when iOS spatial ships (see "iOS spatial audio" in the Roadmap) the same gate starts working on iOS for free, which is the correct behavior — the row exists to offset HRTF low-end thinning.
 
 - **Background playback + media notification controls (2026-08-26)** — the #1 competitor-gap feature: audio keeps playing and lock screen / notification / headset controls work when the app is backgrounded or the screen locks.
   - **Android** (`PlaybackManager.kt`, `PlaybackService.kt`): deliberate **NOT** a Media3 `MediaSessionService` refactor — the player stays in the Activity-scoped platform view, so a plain **`MediaSessionCompat`** (`androidx.media:media:1.7.0`) wraps it and a thin **foreground service** (type `mediaPlayback`) only holds foreground priority + hosts the `MediaStyle` notification (rew-10s / play-pause / ffw-10s / close, tap → app). All actions route through session callbacks back into the live player instance. Player hygiene added in one go: `setAudioAttributes(..., handleAudioFocus=true)` (pauses for calls/other apps), `setHandleAudioBecomingNoisy(true)` (pause on headphone unplug), `setWakeMode(C.WAKE_MODE_NETWORK)` (CPU+Wi-Fi locks so streams keep buffering with screen off). `POST_NOTIFICATIONS` requested fire-and-forget in Dart before first playback (13+; denial hides the notification but playback/service still work).
@@ -828,6 +828,86 @@ Source: https://github.com/mangeshghodke/DreamPlayer/issues/6
 - FTP download hidden — Dart `HttpClient` cannot handle `ftp://` URIs; native download bridge too complex for now
 - **All shipped (2026-09)**: downloaded files in home grid with a green "downloaded" badge + local playback (`_buildDownloadedGrid` in home_screen.dart:1080), Settings → Downloads → download directory picker (settings_screen.dart:503, native `setDownloadDir`/`getDownloadDir`). Nothing left in this phase.
 
+### iOS spatial audio — NOT IMPLEMENTED (design decided 2026-09-28, user deferred)
+
+**Current state: iOS does nothing.** `AvPlayerView.swift:729` only does
+`setCategory(.playback, mode: .moviePlayback)` + `setActive(true)` and never
+declares multichannel support, so **iOS never even offers the user spatial
+audio**. There is no iOS handler for the `system_controls` channel at all
+(it is registered only in `MainActivity.kt:229`), so
+`SystemControls.spatialAudioChanges` never emits on iOS, `_liveSpatial`
+stays `''`, and the teal Spatial chip is hard-gated on `Platform.isAndroid`
+(`player_screen.dart:4402` and `:6426`). The Android Spatializer wiring
+(`ExoPlayerView.kt:147-256`, `spatialStatus()` → `map["spatialAudio"]`) is
+Android-only and is the parity target.
+
+**Do NOT use SpatialAudioKit** (researched 2026-09-28,
+https://spatialaudiokit.github.io/docs/). It is a Swift package by
+@olilarkin for decoding **object-based spatial audio *files*** — Dolby
+Atmos ADM/BWF masters and multichannel Opus in Ogg containers — bundling
+libiamf, fdk-aac, iamf-tools and opusfile. Its target is apps whose *content*
+is a spatial-audio asset (Apple Music style). DreamPlayer plays
+**channel-based** movie soundtracks (DTS-HD 5.1/7.1, TrueHD, E-AC3,
+multichannel FLAC): there is no spatial file to decode, so SpatialAudioKit
+would add a large binary dependency and spatialize nothing. Adding it would
+be wasted build weight and licence surface. The same reasoning rules out
+`AVAudioEnvironmentNode` / `PHASE` / `AUSpatialMixer` for this feature —
+those are for *positional* placement of discrete sources, which a film mix
+does not need.
+
+**The correct path is Apple's own AVPlayer spatialization** (channel-based →
+binaural HRTF, i.e. the same transform Android's `Spatializer` applies).
+Four steps, all in `ios/Runner/AvPlayerView.swift`:
+
+1. **Declare multichannel support** —
+   `try? AVAudioSession.sharedInstance().setSupportsMultichannelContent(true)`.
+   This is the call that makes iOS offer spatial audio in Control Center /
+   AirPods settings at all. Without it the feature is invisible.
+2. **Opt the item in** — `AVPlayerItem.allowedAudioSpatializationFormats =
+   .multichannel` (iOS 15+). The default already spatializes, but being
+   explicit matters for the AetherEngine FFmpeg path.
+3. **Detect the real state** — `AVAudioSession.sharedInstance()
+   .currentRoute.outputs.first?.isSpatialAudioEnabled` (iOS 15+). This is
+   `true` only when the route can render spatial audio **and** the user has
+   permitted it, so it is the honest signal (no separate "user preference"
+   flag to get wrong).
+4. **Observe changes** — listen for
+   `AVAudioSession.spatialPlaybackCapabilitiesChangedNotification`, read
+   `notification.userInfo?[AVAudioSessionSpatialAudioEnabledKey]`, and push
+   the new value over the **existing** `system_controls` channel as
+   `spatialAudioChanged` so `SystemControls.spatialAudioChanges` and the
+   existing Dart plumbing work unchanged. Then drop the
+   `Platform.isAndroid` gates on the chip (`:4402`, `:6426`).
+
+**No entitlement required.** `com.apple.developer.coremotion.head-pose` and
+`com.apple.developer.spatial-audio.profile-access` are only for apps doing
+*custom* spatial audio via `AVAudioEngine` / `PHASE` / `AUSpatialMixer`.
+We ride AVPlayer's built-in system spatialization, so the provisioning
+profile does not need regenerating. We also already register for Now Playing
+(`updateNowPlaying()` → `MPNowPlayingInfoCenter`), which per WWDC23 is what
+makes the system auto-enable spatial audio on the non-AVPlayer paths.
+
+**Scope rule (same as Android):** only gate on multichannel (5.1/7.1) PCM.
+Stereo/downmixed routes and encoded bitstreams are not spatialized, so the
+chip must not claim otherwise. Reuse the existing `_liveSpatial == 'on'`
+string contract — the Bass Boost row (gated on it, `player_screen.dart:5825`)
+would then appear on iOS too, which is correct: it exists to offset the
+low-end thinning of HRTF virtualization.
+
+**Verification gap — the reason this is deferred.** There is no Mac and no
+iOS device in the dev loop, so this can only be CI-verified. A green build
+proves it *compiles*, not that spatial audio *works*; the 2026-09-24
+TestFlight run failed on a one-line Swift type error in
+`FileBrowser.swift` that local tooling could never have caught. Budget for a
+TestFlight cycle and on-device verification with AirPods Pro. Still
+needs on-device confirmation: the AetherEngine FFmpeg path (WebDAV/FTP/Files)
+decodes to PCM through a loopback producer, and whether
+`allowedAudioSpatializationFormats = .multichannel` spatializes that path
+is unknown until tested. Also note Apple's Control Center only shows the
+spatial icon for `AVPlayer` / `AVSampleBufferAudioRenderer` playback, and
+AirPods settings can read "Spatial Audio Not Playing" even while spatial
+audio is in fact active — do not treat either as a failure signal.
+
 ### Player feature backlog (prioritized 2026-09)
 
 1. Android release signing (deferred — see CI/Deployment).
@@ -1077,7 +1157,10 @@ branch. Future Android-only features must follow the same pattern: read
 - Note: bass/volume-boost/night-mode/spatial (28–31) are **Android-only today**;
   they don't exist on iOS, so they're NOT in this gate map. If iOS audio DSP
   is ever built (AVAudioEngine), it can be added behind the paywall later —
-  never double-gate the same feature.
+  never double-gate the same feature. (Spatial audio is a different case: it
+  is NOT custom DSP on iOS, it rides AVPlayer's built-in system
+  spatialization — see "iOS spatial audio" in the Roadmap, which is deferred
+  for a verification reason, not an entitlement one.)
 
 **Testing gate** (2026-09-09): ✅ **ALL 7 GATES VERIFIED** on-device
 (OnePlus CPH2573, `a019b7f3`, debug APK, 2026-09-09). Paywall code can
