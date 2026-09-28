@@ -1334,9 +1334,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Text(
-                    'Enter your own TMDB API key to enable movie posters, '
-                    'ratings, cast, and episode details. Get a free key at '
-                    'themoviedb.org → Settings → API → Create.',
+                    'Enter your own API key to enable movie posters, '
+                    'ratings, cast, and episode details. TMDB is the primary '
+                    'provider (free key at themoviedb.org → Settings → API '
+                    '→ Create); TheTVDB is optional and covers some titles '
+                    'TMDB does not. You can use either one on its own, or '
+                    'both.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Colors.white54,
                     ),
@@ -1511,8 +1514,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       '1080p, WEB-DL, and release group tags like -RARBG are '
                       'stripped before searching).\n\n'
                       'You can also manually fix a match: open the file\'s '
-                      'details screen, tap "Fix match", and search TMDB '
-                      'yourself.',
+                      'details screen, tap "Fix match", and search for the '
+                      'right title yourself. That search covers every '
+                      'metadata provider you have configured, so it will find '
+                      'the title even if it is not on TMDB.',
+            ),
+            _FaqTile(
+              icon: Icons.travel_explore,
+              question: 'Do I need TMDB, or can I use TheTVDB only?',
+              answer: 'Either one works on its own — you can use TMDB only, '
+                  'TheTVDB only, or both.\n\n'
+                  'TMDB stays the primary provider because it covers movies '
+                  'and series most completely. TheTVDB is optional and kicks '
+                  'in when TMDB has no confident match for a file, which is '
+                  'common for some anime and older or more obscure series. '
+                  'If you only add a TheTVDB key and leave TMDB unset, it '
+                  'simply becomes your provider and everything still works.\n\n'
+                  'To set one up, go to Settings → Metadata. Get a free TMDB '
+                  'key at themoviedb.org → Settings → API → Create, and a '
+                  'TheTVDB v4 key at thetvdb.com/api. TheTVDB also asks for a '
+                  'Subscriber PIN on some accounts — leave it blank if yours '
+                  'does not need one.\n\n'
+                  'Keys are stored in the platform secure store (Android '
+                  'Keystore / iOS Keychain), never in plain text.\n\n'
+                  'You do not need to pick a provider anywhere else: "Get '
+                  'info" and "Fix match" search everything you have '
+                  'configured and show one combined result list, so a title '
+                  'that is only on TheTVDB will still turn up.',
             ),
             // Restore Purchases — always visible when paywall is effective.
             // Opens the paywall sheet so the user can see which product is
