@@ -20,7 +20,14 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Android refuses to install the APK as an upgrade over an existing install.
 # v0.4.9 shipped build 36, so 0.5.0 starts at 37.
 # (iOS build numbers are per marketing version, so they are independent.)
-version: 0.5.0+37
+# The +N is Android's versionCode AND iOS's CFBundleVersion, but they have
+# different rules:
+#   - Android versionCode is global and must ALWAYS increase, or the APK is
+#     refused as a downgrade. v0.5.0 shipped 37, so never go below that.
+#   - iOS build numbers are per marketing version, so any value above the
+#     last one for 0.5.0 works. Apple treats them as opaque.
+# Jellyfin login fix is in this build, hence the bump to 38.
+version: 0.5.0+38
 
 environment:
   sdk: ^3.12.2
