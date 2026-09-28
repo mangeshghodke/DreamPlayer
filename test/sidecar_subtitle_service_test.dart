@@ -51,7 +51,7 @@ void main() {
         id: 'x',
         title: 'x',
         duration: Duration.zero,
-        uri: 'http://192.168.1.16:8096/Videos/123/api-stream?static=true&api_key=k',
+        uri: 'http://192.168.1.16:8096/Videos/123/api-stream?static=true&ApiKey=k',
       );
       final result = await SidecarSubtitleService.instance.find(video);
       expect(result, isEmpty);
@@ -290,12 +290,12 @@ void main() {
         id: 'j1',
         title: 'Show',
         duration: Duration.zero,
-        uri: 'http://192.168.1.16:8096/Videos/abc/stream?static=true&api_key=k',
+        uri: 'http://192.168.1.16:8096/Videos/abc/stream?static=true&ApiKey=k',
         httpHeaders: const {'X-Emby-Token': 'abc'},
       );
       const sub = VideoExternalSub(
         uri: 'http://192.168.1.16:8096/Videos/abc/Subtitles/0/0/Stream.srt'
-            '?static=true&api_key=k',
+            '?static=true&ApiKey=k',
         label: 'Show.S01E01.eng.srt',
         language: 'eng',
       );

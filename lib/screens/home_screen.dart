@@ -1325,7 +1325,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Jellyfin stream URLs embed the session's `api_key`, which rotates on
+  /// Jellyfin stream URLs embed the session's `ApiKey`, which rotates on
   /// re-login. Rebuild the URL from the stable resume key
   /// (`jellyfin:<host>/<item>`) against the current saved server + token.
   Future<VideoItem> _restoreJellyfinSource(VideoItem video) async {
@@ -1347,13 +1347,13 @@ class _HomeScreenState extends State<HomeScreen>
     }
     if (server == null || !server.isAuthenticated) return video;
     final item = JellyfinItem(id: itemId, name: video.title);
-    // Refresh stale api_key in persisted external subtitle URLs (token rotates).
+    // Refresh stale ApiKey in persisted external subtitle URLs (token rotates).
     final refreshedSubs = video.externalSubtitles.map((s) {
       var u = s.uri;
-      if (u.contains('api_key=')) {
+      if (u.contains('ApiKey=')) {
         u = u.replaceAll(
-          RegExp(r'api_key=[^&]*'),
-          'api_key=${server!.token ?? ''}',
+          RegExp(r'ApiKey=[^&]*'),
+          'ApiKey=${server!.token ?? ''}',
         );
       }
       return VideoExternalSub(

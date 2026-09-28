@@ -16,7 +16,7 @@ void main() {
       const video = VideoItem(
         id: 'j1',
         title: 'Movie',
-        uri: 'http://192.168.1.16:8096/Videos/abc/stream?api_key=x',
+        uri: 'http://192.168.1.16:8096/Videos/abc/stream?ApiKey=x',
         resumeKey: 'jellyfin:192.168.1.16/abc',
         duration: Duration.zero,
       );
@@ -75,7 +75,7 @@ void main() {
           'https://host:8920');
     });
 
-    test('streamUrl embeds static + mediaSourceId + api_key', () {
+    test('streamUrl embeds static + mediaSourceId + ApiKey', () {
       const server = JellyfinServer(
         name: 'Home',
         url: 'http://192.168.1.16:8096',
@@ -92,7 +92,7 @@ void main() {
       expect(url, contains('/Videos/item1/stream'));
       expect(url, contains('static=true'));
       expect(url, contains('mediaSourceId=source1'));
-      expect(url, contains('api_key=tok123'));
+      expect(url, contains('ApiKey=tok123'));
     });
 
     test('resumeKey is host/item and stable across tokens', () {
@@ -227,11 +227,11 @@ void main() {
       expect(info.durationLabel, '1:00h');
       expect(
         info.imageUrl,
-        contains('/Items/ser1/Images/Primary?tag=p1&api_key=tok'),
+        contains('/Items/ser1/Images/Primary?tag=p1&ApiKey=tok'),
       );
       expect(
         info.backdropUrl,
-        contains('/Items/ser1/Images/Backdrop?tag=b1&api_key=tok'),
+        contains('/Items/ser1/Images/Backdrop?tag=b1&ApiKey=tok'),
       );
     });
 
@@ -396,7 +396,7 @@ void main() {
       expect(url, contains('DeviceId=dev1'));
       expect(url, contains('VideoCodec=h264'));
       expect(url, contains('AudioCodec=aac'));
-      expect(url, contains('api_key=tok123'));
+      expect(url, contains('ApiKey=tok123'));
       expect(
         url,
         contains(
@@ -447,7 +447,7 @@ void main() {
         id: 'jf1',
         title: 'Oldboy',
         uri:
-            'http://192.168.1.16:8096/Videos/vid42/stream?static=true&mediaSourceId=msrc9&api_key=tok123',
+            'http://192.168.1.16:8096/Videos/vid42/stream?static=true&mediaSourceId=msrc9&ApiKey=tok123',
         resumeKey: 'jellyfin:192.168.1.16/vid42',
         duration: Duration(minutes: 97),
         jellyfinServerId: '192.168.1.16',
@@ -456,7 +456,7 @@ void main() {
       final fb = await JellyfinClient().transcodeFallbackFor(video);
       expect(fb, isNotNull);
       expect(fb!.uri, contains('/Videos/vid42/master.m3u8'));
-      expect(fb.uri, contains('api_key=tok123'));
+      expect(fb.uri, contains('ApiKey=tok123'));
       expect(fb.resumeKey, video.resumeKey);
       expect(fb.jellyfinItemId, video.jellyfinItemId);
       expect(fb.allowSelfSigned, isTrue);
@@ -496,7 +496,7 @@ void main() {
       expect(
         JellyfinClient.itemIdFromStreamUrl(
           'http://192.168.1.16:8096/Videos/0123456789abcdef0123456789abcdef/'
-          'stream?static=true&mediaSourceId=ab&api_key=xyz',
+          'stream?static=true&mediaSourceId=ab&ApiKey=xyz',
         ),
         '0123456789abcdef0123456789abcdef',
       );
@@ -505,7 +505,7 @@ void main() {
     test('/Videos/{id}/{sourceId}/stream shape', () {
       expect(
         JellyfinClient.itemIdFromStreamUrl(
-          'https://nas:8920/Videos/uuid1/uuid2/stream?static=true&api_key=t',
+          'https://nas:8920/Videos/uuid1/uuid2/stream?static=true&ApiKey=t',
         ),
         'uuid1',
       );

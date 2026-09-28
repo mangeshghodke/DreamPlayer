@@ -374,7 +374,7 @@ class JellyfinItemInfo {
   final double communityRating;
   final int? runTimeTicks;
 
-  /// Full server URL to the poster art (token embedded as `api_key`).
+  /// Full server URL to the poster art (token embedded as `ApiKey`).
   final String? imageUrl;
   final String? backdropUrl;
 
@@ -417,12 +417,12 @@ class JellyfinItemInfo {
     String? imageUrl;
     if (id.isNotEmpty && primaryTag.isNotEmpty) {
       imageUrl =
-          '$serverUrl/Items/$id/Images/Primary?tag=$primaryTag&api_key=$token';
+          '$serverUrl/Items/$id/Images/Primary?tag=$primaryTag&ApiKey=$token';
     }
     String? backdropUrl;
     if (id.isNotEmpty && backdropTag != null && backdropTag.isNotEmpty) {
       backdropUrl =
-          '$serverUrl/Items/$id/Images/Backdrop?tag=$backdropTag&api_key=$token';
+          '$serverUrl/Items/$id/Images/Backdrop?tag=$backdropTag&ApiKey=$token';
     }
     return JellyfinItemInfo(
       id: id,
@@ -487,7 +487,7 @@ class JellyfinException implements Exception {
 
 /// REST + mDNS client for Jellyfin / Emby servers.
 ///
-/// The stream URL carries the token as an `api_key` query parameter (Jellyfin
+/// The stream URL carries the token as an `ApiKey` query parameter (Jellyfin
 /// accepts it there or as an `X-Emby-Token` header), so playback works through
 /// the existing ExoPlayer/Media3 (Android) and AetherEngine (iOS) HTTP stacks
 /// with zero native changes.
@@ -696,7 +696,7 @@ class JellyfinClient {
   Future<List<JellyfinItem>> getLibraries(JellyfinServer server) async {
     final userId = server.userId ?? '';
     final json = await _getJson(
-      '${server.url}/Users/$userId/Views?api_key=${server.token}',
+      '${server.url}/Users/$userId/Views?ApiKey=${server.token}',
       allowSelfSigned: server.allowSelfSigned,
     );
     return _itemsFromJson(json);
@@ -707,7 +707,7 @@ class JellyfinClient {
     final userId = server.userId ?? '';
     final uri = Uri.parse('${server.url}/Users/$userId/Items').replace(
       queryParameters: {
-        'api_key': server.token ?? '',
+        'ApiKey': server.token ?? '',
         'ParentId': parentId,
         'Recursive': 'false',
         'Fields':
@@ -724,7 +724,7 @@ class JellyfinClient {
     final userId = server.userId ?? '';
     final uri = Uri.parse('${server.url}/Users/$userId/Items/$itemId').replace(
       queryParameters: {
-        'api_key': server.token ?? '',
+        'ApiKey': server.token ?? '',
         'Fields': 'MediaSources,Width,Height,Chapters',
       },
     );
@@ -831,7 +831,7 @@ class JellyfinClient {
   /// Without this, a video opened from the Jellyfin app via "Open with" /
   /// external player comes in as a bare stream URL with no sidecar subtitle
   /// tracks. Matching the URL back to a saved server + item id lets the app
-  /// attach [VideoItem.externalSubtitles] (DeliveryUrls with api_key) the
+  /// attach [VideoItem.externalSubtitles] (DeliveryUrls with ApiKey) the
   /// same way in-app Jellyfin playback does.
   ///
   /// Best-effort: any failure (no saved server, unknown item, network error)
@@ -879,7 +879,7 @@ class JellyfinClient {
     final userId = server.userId ?? '';
     final uri = Uri.parse('${server.url}/Users/$userId/Items/$itemId').replace(
       queryParameters: {
-        'api_key': server.token ?? '',
+        'ApiKey': server.token ?? '',
         'Fields':
             'Overview,Genres,ProductionYear,CommunityRating,RunTimeTicks,OfficialRating',
       },
@@ -903,7 +903,7 @@ class JellyfinClient {
     if (itemId.isEmpty) return const [];
     try {
       final uri = Uri.parse('${server.url}/Items/$itemId/Ancestors').replace(
-        queryParameters: {'api_key': server.token ?? ''},
+        queryParameters: {'ApiKey': server.token ?? ''},
       );
       final decoded = await _getJsonRaw(
         uri.toString(),
@@ -979,7 +979,7 @@ class JellyfinClient {
   /// A playable item as a [VideoItem] ready for the player/details screen.
   VideoItem videoItem(JellyfinServer server, JellyfinItem item) {
     // Build full delivery URLs for external subtitles. Jellyfin's
-    // DeliveryUrl is a relative path without the token — append api_key
+    // DeliveryUrl is a relative path without the token — append ApiKey
     // so Media3 / AetherEngine can fetch it without extra headers.
     final externalSubsRaw = item.externalSubtitles.map((sub) {
       String url;
@@ -987,14 +987,14 @@ class JellyfinClient {
         url = sub.deliveryUrl.startsWith('http')
             ? sub.deliveryUrl
             : '${server.url}${sub.deliveryUrl}';
-        if (!url.contains('api_key=')) {
+        if (!url.contains('ApiKey=')) {
           url += url.contains('?') ? '&' : '?';
-          url += 'api_key=${server.token ?? ''}';
+          url += 'ApiKey=${server.token ?? ''}';
         }
       } else {
         url = '${server.url}/Videos/${item.id}/${item.mediaSourceId ?? item.id}'
             '/Subtitles/${sub.index}/Stream.${sub.extension}'
-            '?api_key=${server.token ?? ''}';
+            '?ApiKey=${server.token ?? ''}';
       }
       return VideoExternalSub(
         uri: url,
@@ -1025,7 +1025,7 @@ class JellyfinClient {
     );
   }
 
-  /// Direct-play stream URL (token as `api_key`). Plays via the existing HTTP
+  /// Direct-play stream URL (token as `ApiKey`). Plays via the existing HTTP
   /// data sources on both platforms; [allowSelfSigned] is honored through the
   /// same opt-in permissive path as self-signed WebDAV.
   String streamUrl(JellyfinServer server, JellyfinItem item) {
@@ -1035,7 +1035,7 @@ class JellyfinClient {
     final uri = Uri.parse(base).replace(queryParameters: {
       'static': 'true',
       'mediaSourceId': item.mediaSourceId ?? item.id,
-      'api_key': server.token ?? '',
+      'ApiKey': server.token ?? '',
     });
     return uri.toString();
   }
@@ -1063,7 +1063,7 @@ class JellyfinClient {
       'VideoBitrate': '$maxBitrateBps',
       'MaxStreamingBitrate': '$maxBitrateBps',
       'TranscodeReasons': 'CodecNotSupported',
-      'api_key': server.token ?? '',
+      'ApiKey': server.token ?? '',
     });
     return uri.toString();
   }
