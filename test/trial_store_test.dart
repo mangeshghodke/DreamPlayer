@@ -169,8 +169,10 @@ void main() {
       await e.setDebugFreeUser(true);
       await e.startTrial();
       expect(e.trialActive, isTrue);
-      // inDays truncates, so 6d23h59m reads as 6 — assert on hours.
-      expect(e.trialRemaining.inHours, greaterThan(167));
+      // Compare seconds, not inHours: `inHours` truncates, so 167h59m reads as
+      // 167 and an `> 167` assertion would flake.
+      expect(e.trialRemaining.inSeconds, greaterThan(167 * 3600),
+          reason: 'a fresh trial is (just under) the full 7 days');
       await e.setDebugFreeUser(false);
     });
   });

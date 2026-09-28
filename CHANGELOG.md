@@ -3,7 +3,7 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
-## Unreleased
+## 0.5.0
 
 ### Added
 
@@ -33,8 +33,39 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   are stored in the existing metadata cache, with TV/anime season and episode
   enrichment; API credentials use platform secure storage and SIMKL remains
   TMDB-only.
+- **No provider picker in Get info / Fix match** — both dialogs (and the Group
+  poster picker) now search every metadata provider that has credentials and
+  show a single merged result list, so the provider choice is no longer
+  surfaced as clutter. TMDB stays first and TheTVDB fills in the gaps;
+  cross-provider duplicates (same title + year + kind) collapse to one row.
+  A provider that is unconfigured or errors is simply skipped, so TheTVDB
+  takes over cleanly when there is no TMDB key. The empty state now names the
+  fix ("Add a TMDB or TheTVDB API key in Settings → Metadata to search") and
+  the duplicate TheTVDB chip is gone from the details header (the required
+  "Metadata by TheTVDB" attribution link stays).
+- **First App Store release** — DreamPlayer is approved and live on the App
+  Store for iPhone and iPad (iOS/iPadOS 17.0+), free, no ads, no account
+  required. README documents the listing and the download badge.
 
 ### Fixed
+
+- **Free trial now survives app deletion and reinstall (iOS)** — the trial
+  start time was stored only in SharedPreferences, which lives in the app
+  container and is wiped when the app is deleted, so removing and
+  reinstalling DreamPlayer granted a fresh 7-day trial every time (visible as
+  redownloads in App Store Connect). The start time is now mirrored into the
+  iOS Keychain, where it survives deletion. A reinstall resumes the original
+  trial (3 days used → 4 left) instead of restarting at day 0, an already
+  expired trial stays expired, and pre-existing installs are migrated on first
+  launch. The Keychain item is `kSecAttrSynchronizable`, so it also follows
+  the user to a new device through iCloud Keychain or an encrypted backup
+  rather than granting another 7 days; if iCloud Keychain is unavailable the
+  write falls back to a device-local item. Android is untouched.
+- **Settings credential dialogs no longer overflow** — the OpenSubtitles
+  sign-in box and the TMDB API-key editor put a bare `Column` directly into
+  `AlertDialog.content`, which overflowed the bottom of the dialog on
+  landscape phones and at large text scales. Both now scroll like the TheTVDB
+  dialog beside them.
 
 - **Dolby Vision brightness settle after startup (issue #28)** — if the
   background HDR10 SEI probe briefly classified a DV base layer as HDR10,
