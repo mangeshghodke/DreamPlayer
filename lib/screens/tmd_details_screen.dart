@@ -1127,6 +1127,63 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     });
   }
 
+  /// "Change poster" / "Change backdrop" + their resets (issue #33), behind a
+  /// single ⋮ in the app bar.
+  ///
+  /// The reset rows are separate entries rather than a control inside the
+  /// picker: "Set default" is a deliberate undo, and burying it in the sheet
+  /// makes it easy to forget it exists.
+  Future<void> _showArtworkMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF16161A),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final kind in ArtworkKind.values) ...[
+              ListTile(
+                leading: Icon(kind == ArtworkKind.poster
+                    ? Icons.photo_library_outlined
+                    : Icons.wallpaper_outlined),
+                title: Text(kind == ArtworkKind.poster
+                    ? 'Change poster'
+                    : 'Change backdrop'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _changeArtwork(kind);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.restart_alt),
+                title: Text(kind == ArtworkKind.poster
+                    ? 'Set default poster'
+                    : 'Set default backdrop'),
+                subtitle: const Text(
+                  'Go back to the artwork the provider picked',
+                  style: TextStyle(fontSize: 12),
+                ),
+                enabled: _service.hasArtworkOverride(_identityKey, kind),
+                onTap: _service.hasArtworkOverride(_identityKey, kind)
+                    ? () {
+                        Navigator.of(sheetContext).pop();
+                        _resetArtwork(kind);
+                      }
+                    : null,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _resetArtwork(ArtworkKind kind) async {
+    await _service.resetArtwork(_identityKey, kind);
+    if (!mounted) return;
+    setState(() => _meta = _service.metaFor(_identityKey));
+  }
+
   /// Opens the "Change poster" / "Change backdrop" picker (issue #33).
   ///
   /// The pick is stored against [_identityKey] and applied at read time by
@@ -1748,6 +1805,14 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                   : const Icon(Icons.cloud_done_outlined),
               onPressed: _syncingSimkl ? null : _syncFromSimkl,
             ),
+          // Artwork actions (issue #33). Only offered when there is actually a
+          // match to change art for.
+          if (meta != null)
+            IconButton(
+              tooltip: 'More options',
+              icon: const Icon(Icons.more_vert),
+              onPressed: _showArtworkMenu,
+            ),
         ],
       ),
       body: _loading
@@ -2273,18 +2338,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                         foregroundColor: theme.colorScheme.error,
                       ),
                       child: Text(AppLocalizations.of(context).detailsRemoveInfo),
-                    ),
-                    // "Change poster" / "Change backdrop" (issue #33). Sits
-                    // right next to Fix match because it's the other half of
-                    // the same problem: Fix match corrects WHICH film this is,
-                    // these correct the art for the film it already matched.
-                    TextButton(
-                      onPressed: () => _changeArtwork(ArtworkKind.poster),
-                      child: const Text('Change poster'),
-                    ),
-                    TextButton(
-                      onPressed: () => _changeArtwork(ArtworkKind.backdrop),
-                      child: const Text('Change backdrop'),
                     ),
                   ],
                 ),

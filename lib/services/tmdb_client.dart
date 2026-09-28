@@ -1414,26 +1414,7 @@ class TmdApi {
         : '/movie/${movie.id}/images';
     try {
       final json = await _get('$path?api_key=$key');
-      final images = json['images'] as Map<String, dynamic>?;
-      MetaImage parse(dynamic raw) {
-        final m = (raw as Map).cast<String, dynamic>();
-        return MetaImage(
-          url: m['file_path'] as String? ?? '',
-          provider: MetadataProvider.tmdb,
-          width: (m['width'] as num?)?.toInt() ?? 0,
-          height: (m['height'] as num?)?.toInt() ?? 0,
-          voteAverage: (m['vote_average'] as num?)?.toDouble() ?? 0,
-          language: m['iso_639_1'] as String?,
-        );
-      }
-
-      List<MetaImage> list(String key) => (images?[key] as List? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(parse)
-          .where((img) => img.url.isNotEmpty)
-          .toList();
-
-      return (posters: list('posters'), backdrops: list('backdrops'));
+      return parseArtworkResponse(json);
     } on TmdException {
       return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
     } on SocketException {
@@ -1441,6 +1422,43 @@ class TmdApi {
     } on TimeoutException {
       return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
     }
+  }
+
+  /// Splits a TMDB images payload into posters and backdrops.
+  ///
+  /// Shape matters here: the dedicated `/movie|tv/{id}/images` endpoint returns
+  /// `posters`/`backdrops`/`logos` at the **top level**, whereas the same data
+  /// from a details call using `append_to_response=images` arrives **nested**
+  /// under an `images` key. Reading only `json['images']` silently yielded zero
+  /// candidates for the dedicated endpoint (issue #33, "didn't fetch any
+  /// backdrops"), so both shapes are accepted here.
+  static ({List<MetaImage> posters, List<MetaImage> backdrops})
+      parseArtworkResponse(Map<String, dynamic> json) {
+    final nested = json['images'];
+    final images = nested is Map
+        ? nested.cast<String, dynamic>()
+        : json;
+
+    MetaImage parse(dynamic raw) {
+      final m = (raw as Map).cast<String, dynamic>();
+      return MetaImage(
+        url: m['file_path'] as String? ?? '',
+        provider: MetadataProvider.tmdb,
+        width: (m['width'] as num?)?.toInt() ?? 0,
+        height: (m['height'] as num?)?.toInt() ?? 0,
+        voteAverage: (m['vote_average'] as num?)?.toDouble() ?? 0,
+        language: m['iso_639_1'] as String?,
+      );
+    }
+
+    List<MetaImage> list(String bucket) =>
+        (images[bucket] as List? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(parse)
+            .where((img) => img.url.isNotEmpty)
+            .toList();
+
+    return (posters: list('posters'), backdrops: list('backdrops'));
   }
 
   /// Every still-frame file path for one episode from the dedicated images
@@ -2099,26 +2117,77 @@ class TmdService extends ChangeNotifier {
   ) async {
     final meta = _cache[identityKey];
     if (meta == null) return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    final movie = meta.movie;
     final posters = <MetaImage>[];
     final backdrops = <MetaImage>[];
 
-    final tmdb = await _api.artworkImages(meta.movie);
-    posters.addAll(tmdb.posters);
-    backdrops.addAll(tmdb.backdrops);
-
-    final tvdbId = meta.movie.provider == MetadataProvider.theTvdb
-        ? meta.movie.id
-        : await _theTvdbIdForTitle(meta.movie);
-    if (tvdbId != null) {
+    // Both providers are asked, always — the issue asks for "all images from
+    // every configured provider". Querying only the provider that WON the match
+    // is what made this look broken: a TheTVDB-matched title has no TMDB id, so
+    // it yielded nothing when TheTVDB wasn't configured, and a TMDB-matched
+    // title never showed TheTVDB art even when TheTVDB was set up.
+    if (movie.provider == MetadataProvider.tmdb) {
+      final tmdb = await _api.artworkImages(movie);
+      posters.addAll(tmdb.posters);
+      backdrops.addAll(tmdb.backdrops);
+    } else {
       try {
-        final tvdb = await _theTvdb.artworkImages(tvdbId, kind: meta.movie.kind);
+        final tvdb = await _theTvdb.artworkImages(movie.id, kind: movie.kind);
         posters.addAll(tvdb.posters);
         backdrops.addAll(tvdb.backdrops);
       } catch (_) {
-        // TheTVDB artwork is a bonus; never fail the picker over it.
+        // Never fail the picker over one provider.
+      }
+    }
+
+    // The other provider needs a title lookup (ids are not shared). It only
+    // accepts an exact normalised-title match, because artwork from the wrong
+    // show is worse than showing fewer options.
+    if (movie.provider == MetadataProvider.tmdb) {
+      final tvdbId = await _theTvdbIdForTitle(movie);
+      if (tvdbId != null) {
+        try {
+          final tvdb = await _theTvdb.artworkImages(tvdbId, kind: movie.kind);
+          posters.addAll(tvdb.posters);
+          backdrops.addAll(tvdb.backdrops);
+        } catch (_) {}
+      }
+    } else {
+      final tmdbId = await _tmdbIdForTitle(movie);
+      if (tmdbId != null) {
+        final tmdb = await _api.artworkImages(
+          TmdMovie(id: tmdbId, title: movie.title, kind: movie.kind),
+        );
+        posters.addAll(tmdb.posters);
+        backdrops.addAll(tmdb.backdrops);
       }
     }
     return (posters: posters, backdrops: backdrops);
+  }
+
+  /// Resolves a TMDB id for a TheTVDB-sourced item by exact normalised title
+  /// match, so a TheTVDB-matched title can still offer TMDB artwork.
+  Future<int?> _tmdbIdForTitle(TmdMovie movie) async {
+    try {
+      final key = await _api.effectiveApiKey();
+      if (key.isEmpty) return null;
+      final hits = await _api.search(
+        movie.title,
+        year: movie.year,
+        kind: movie.kind,
+      );
+      if (hits.isEmpty) return null;
+      final wanted = _normaliseTitle(movie.title);
+      for (final hit in hits) {
+        if (hit.provider == MetadataProvider.tmdb &&
+            _normaliseTitle(hit.title) == wanted) {
+          return hit.id;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Resolves a TheTVDB id for a TMDB-sourced item by exact normalised title

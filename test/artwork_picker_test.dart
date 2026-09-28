@@ -166,9 +166,9 @@ void main() {
     }) =>
         {
           'image': image,
-          if (type != null) 'type': type,
-          if (width != null) 'width': width,
-          if (height != null) 'height': height,
+          'type': ?type,
+          'width': ?width,
+          'height': ?height,
         };
 
     test('splits posters (type 1) from backdrops (type 2)', () {
@@ -228,6 +228,93 @@ void main() {
 
     test('a malformed response yields empty lists rather than throwing', () {
       final out = TheTvdbClient.mapArtworkResponse(null);
+      expect(out.posters, isEmpty);
+      expect(out.backdrops, isEmpty);
+    });
+  });
+
+  _artworkRegressionTests();
+}
+
+/// Regression cover for "Change backdrop showed nothing" (issue #33).
+///
+/// The dedicated `/movie|tv/{id}/images` endpoint returns `posters` and
+/// `backdrops` at the TOP level; only a details call with
+/// `append_to_response=images` nests them under an `images` key. Reading only
+/// `json['images']` therefore returned zero candidates for the endpoint the
+/// picker actually calls, and the grid rendered "No backdrops available" for
+/// titles that plainly have hundreds of them.
+void _artworkRegressionTests() {
+  group('TmdApi.parseArtworkResponse', () {
+    Map<String, dynamic> entry(String path,
+            {int w = 2000, int h = 3000, String? lang}) =>
+        <String, dynamic>{
+          'file_path': path,
+          'width': w,
+          'height': h,
+          'iso_639_1': lang,
+          'vote_average': 7.3,
+          'aspect_ratio': 0.67,
+        };
+
+    test('reads the top-level shape returned by /images', () {
+      final out = TmdApi.parseArtworkResponse({
+        'id': 299534,
+        'backdrops': [entry('/bd.jpg', w: 3840, h: 2160, lang: null)],
+        'logos': [entry('/logo.png', w: 200, h: 80)],
+        'posters': [entry('/poster.jpg', lang: 'en')],
+      });
+      expect(out.backdrops.length, 1);
+      expect(out.backdrops.single.url, '/bd.jpg');
+      expect(out.posters.length, 1);
+      expect(out.posters.single.url, '/poster.jpg');
+      expect(out.backdrops.single.provider, MetadataProvider.tmdb);
+      expect(out.backdrops.single.width, 3840);
+      expect(out.backdrops.single.height, 2160);
+    });
+
+    test('reads the nested shape from append_to_response=images', () {
+      final out = TmdApi.parseArtworkResponse({
+        'id': 1,
+        'images': {
+          'backdrops': [entry('/nested-bd.jpg', w: 1920, h: 1080)],
+          'posters': [entry('/nested-p.jpg')],
+        },
+      });
+      expect(out.backdrops.single.url, '/nested-bd.jpg');
+      expect(out.posters.single.url, '/nested-p.jpg');
+    });
+
+    test('ignores logos entirely', () {
+      final out = TmdApi.parseArtworkResponse({
+        'logos': [entry('/logo.png', w: 200, h: 80)],
+        'posters': <Map<String, dynamic>>[],
+        'backdrops': <Map<String, dynamic>>[],
+      });
+      expect(out.posters, isEmpty);
+      expect(out.backdrops, isEmpty);
+    });
+
+    test('drops entries with no file_path', () {
+      final out = TmdApi.parseArtworkResponse({
+        'posters': [
+          {'width': 100, 'height': 150},
+          entry('/ok.jpg'),
+        ],
+      });
+      expect(out.posters.length, 1);
+      expect(out.posters.single.url, '/ok.jpg');
+    });
+
+    test('tolerates a null iso_639_1 on backdrops', () {
+      final out = TmdApi.parseArtworkResponse({
+        'backdrops': [entry('/bd.jpg', w: 3840, h: 2160, lang: null)],
+      });
+      expect(out.backdrops.single.language, isNull);
+    });
+
+    test('an empty payload yields empty lists', () {
+      final out = TmdApi.parseArtworkResponse({'id': 5});
       expect(out.posters, isEmpty);
       expect(out.backdrops, isEmpty);
     });
