@@ -1351,14 +1351,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Text(
-                    'Enter your own API key to enable movie posters, '
-                    'ratings, cast, and episode details. TMDB is the primary '
-                    'provider (free key at themoviedb.org → Settings → API '
-                    '→ Create); TheTVDB is optional and covers some titles '
-                    'TMDB does not. You can use either one on its own, or '
-                    'both.',
+                    'TMDB is the primary provider and is what fetches the '
+                    'details: title, overview, rating, genres, cast and season '
+                    'and episode data. Enter your own key (free at '
+                    'themoviedb.org → Settings → API → Create).\n\n'
+                    'TheTVDB is an optional fallback that mainly widens the '
+                    'pool of posters and backdrops you can pick from under '
+                    '⋮ → Change poster / Change backdrop, and covers some '
+                    'titles TMDB does not have.\n\n'
+                    'TMDB is required for the full experience: TheTVDB on its '
+                    'own resolves titles and artwork, but has no season or '
+                    'episode data, and some artwork types are unavailable.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Colors.white54,
+                      height: 1.35,
                     ),
                   ),
                 ),
@@ -1367,8 +1373,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    title: Text(AppLocalizations.of(context).settingsTmdbApiKey),
                    subtitle: Text(
                      _tmdbKey.isEmpty
-                         ? 'Not set — enter your own key'
-                         : 'Set (${_tmdbKey.substring(0, 4)}…${_tmdbKey.substring(_tmdbKey.length - 4)})',
+                         ? 'Not set — required for details, season and episode data'
+                         : 'Set (${_tmdbKey.substring(0, 4)}…${_tmdbKey.substring(_tmdbKey.length - 4)}) · fetches all details',
                    ),
                    onTap: _editTmdbKey,
                  ),
@@ -1378,8 +1384,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    subtitle: Text(
                      _theTvdbStorageError ??
                          (_theTvdbKey.isEmpty
-                             ? 'Not configured — optional anime/TV fallback'
-                             : 'Configured${_theTvdbPin.isEmpty ? '' : ' · PIN set'}'),
+                             ? 'Not configured — optional; extra posters and backdrops'
+                             : 'Configured${_theTvdbPin.isEmpty ? '' : ' · PIN set'} · extra posters and backdrops'),
                    ),
                    onTap: _editTheTvdbCredentials,
                  ),
