@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 // Implementation imports: Apple's unfinished-transaction APIs are exposed by
@@ -142,6 +143,9 @@ class Entitlements extends ChangeNotifier {
     // Apple confirmation sheet.
     if (paywallEnabled) {
       unawaited(sweepUnfinishedTransactions());
+      // Re-read what the customer already owns. Without this an app update
+      // locks out existing subscribers until they tap Restore Purchases.
+      unawaited(refreshEntitlements());
     }
   }
 
@@ -179,6 +183,120 @@ class Entitlements extends ChangeNotifier {
   }
 
   StreamSubscription<List<PurchaseDetails>>? purchaseSub;
+
+  /// The product IDs we sell. Anything else in the transaction history is
+  /// ignored when re-deriving entitlements.
+  static const Set<String> _productIds = {
+    'dp_premium_monthly_2026',
+    'dp_premium_yearly_2026',
+    'dp_premium_lifetime_2026',
+  };
+
+  /// Pure: does this transaction prove the user is entitled *right now*?
+  ///
+  /// [expirationMs] null means a non-consumable (the lifetime unlock), which
+  /// never expires. A subscription is entitled until its expiry passes. A
+  /// revoked transaction (refund, or family-sharing revoked) never counts,
+  /// which is why the revocation check comes before the expiry check.
+  @visibleForTesting
+  static bool isEntitledTransaction({
+    required String productId,
+    required int? expirationMs,
+    required int? revocationMs,
+    int? nowMs,
+  }) {
+    if (!_productIds.contains(productId)) return false;
+    if (revocationMs != null) return false;
+    if (expirationMs == null) return true;
+    final now = nowMs ?? DateTime.now().millisecondsSinceEpoch;
+    return expirationMs > now;
+  }
+
+  /// StoreKit returns dates as ISO-8601 strings in `jsonRepresentation` but as
+  /// millisecond strings on the wrapper, so accept either.
+  static int? _parseEpochMs(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) {
+      final s = value.trim();
+      if (s.isEmpty) return null;
+      final asInt = int.tryParse(s);
+      if (asInt != null) return asInt;
+      return DateTime.tryParse(s)?.millisecondsSinceEpoch;
+    }
+    return null;
+  }
+
+  /// Re-derive entitlement from the customer's existing StoreKit purchases.
+  ///
+  /// Called at app start. Without this, a customer who already paid is locked
+  /// out after an app update: the app boots with `_advanced == false` because
+  /// nothing ever asks StoreKit what the user already owns, and the only way
+  /// back in is tapping Restore Purchases by hand. That is the bug this fixes.
+  ///
+  /// Reads `Transaction.all` (a plain query that creates no transactions and
+  /// does not touch the payment queue) and keeps any of our products that is
+  /// neither revoked nor expired. Deliberately NOT using
+  /// `InAppPurchase.restorePurchases()` here: that emits through the purchase
+  /// stream, where the orphaned-transaction guards in [_onPurchaseUpdate]
+  /// correctly reject anything the user did not just buy.
+  Future<void> refreshEntitlements() async {
+    if (defaultTargetPlatform == TargetPlatform.android) return;
+    if (!paywallEnabled && !_debugFreeUser) return;
+    if (_advanced) return; // already entitled this session
+    try {
+      final all = await SK2Transaction.transactions();
+      String? entitledProduct;
+      for (final t in all) {
+        var productId = t.productId;
+        int? expirationMs = _parseEpochMs(t.expirationDate);
+        int? revocationMs;
+
+        // jsonRepresentation is the canonical StoreKit 2 payload and carries
+        // revocationDate / productID; the wrapper omits revocation entirely.
+        final raw = t.jsonRepresentation;
+        if (raw != null && raw.isNotEmpty) {
+          try {
+            final json = jsonDecode(raw);
+            if (json is Map<String, dynamic>) {
+              productId = (json['productID'] ?? json['productId'] ?? productId)
+                  as String;
+              expirationMs = _parseEpochMs(json['expirationDate']) ??
+                  expirationMs;
+              revocationMs = _parseEpochMs(json['revocationDate']);
+            }
+          } catch (_) {
+            // Keep the wrapper-derived values; expiry/revocation fall back to
+            // the conservative reading below.
+          }
+        }
+
+        if (isEntitledTransaction(
+          productId: productId,
+          expirationMs: expirationMs,
+          revocationMs: revocationMs,
+        )) {
+          entitledProduct ??= productId;
+        }
+      }
+      if (entitledProduct == null) {
+        IapLog.instance.log(
+          'ENTITLE',
+          'no active purchase found in ${all.length} transaction(s)',
+        );
+        return;
+      }
+      _advanced = true;
+      _activeProductId = entitledProduct;
+      _purchaseFailed = false;
+      _purchaseCanceled = false;
+      IapLog.instance.log('ENTITLE', 'restored existing purchase: $entitledProduct');
+      notifyListeners();
+    } catch (e) {
+      IapLog.instance.log('ENTITLE', 'refreshEntitlements ERROR: $e');
+    }
+  }
 
   /// Start listening to StoreKit purchase stream (call when paywall opens).
   void startPurchaseListener() {
