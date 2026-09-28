@@ -522,6 +522,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             await self.waitForEngineReady(timeout: 3.0)
                             let trackId2 = self.engineAudioId(forFlatPosition: index)
                             self.engine?.selectAudioTrack(index: trackId2)
+                            // Re-applying the selection makes the engine
+                            // re-probe the container, which drops the playhead
+                            // a second time — put it back where it was.
+                            await self.reassertPosition(resumeAt, timeout: 3.0)
                             self.emit()
                         }
                     }
@@ -890,16 +894,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 // Continue watching card lands where the viewer left off.
                 if let startPosition, startPosition > 0 {
                     Task { @MainActor [weak self] in
-                        guard let self, self.engine != nil else { return }
-                        await self.waitForEngineReady(timeout: 5.0)
-                        guard let engine = self.engine else { return }
-                        // Only correct a genuine miss: if it already resumed
-                        // (or the viewer is parked at the very start on
-                        // purpose) leave it alone.
-                        let current = engine.currentTime
-                        if current < startPosition * 0.9, startPosition > 2.0 {
-                            await engine.seek(to: startPosition)
-                        }
+                        guard let self else { return }
+                        await self.reassertPosition(startPosition)
                         self.emit()
                     }
                 }
@@ -1019,6 +1015,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             }
             // Fresh AVPlayer instance after reload — re-apply the saved rate.
             applySpeed(pendingSpeed)
+            // `load(startPosition:)` is not honoured for network sources, so a
+            // reload from a saved position still comes up at 0. Re-assert it.
+            await reassertPosition(position)
         } catch let error as CancellationError {
             // Superseded by a newer load elsewhere — not a playback failure.
         } catch {
@@ -1046,6 +1045,26 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             }
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
+    }
+
+    /// Moves the playhead to `position` when the engine came up short of it.
+    ///
+    /// `engine.load(startPosition:)` is honoured for local AVPlayer items but
+    /// not for network sources: Jellyfin direct-play and plain http(s) are fed
+    /// to the engine through its own loopback producer, where the session
+    /// always opens at 0. The same happens when an audio-track change forces
+    /// the engine to re-probe the container. An explicit `seek` once the engine
+    /// has settled is the only thing that actually moves the playhead, so both
+    /// the open/resume path and the track-switch reload funnel through here.
+    ///
+    /// Positions under ~2 s are ignored so a deliberate "start from the top"
+    /// is never undone, and an already-correct playhead is left alone.
+    private func reassertPosition(_ position: Double, timeout: TimeInterval = 5.0) async {
+        guard position > 2.0, let engine = self.engine else { return }
+        await waitForEngineReady(timeout: timeout)
+        guard let engine = self.engine else { return }
+        guard engine.currentTime < position * 0.9 else { return }
+        await engine.seek(to: position)
     }
 
     /// Converts a Dart flat position (the `index` field in the
