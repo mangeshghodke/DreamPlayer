@@ -488,6 +488,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // can transiently error during screen recording or a brief
                     // codec re-init, but AVPlayer recovers on its own.
                     self.audioSwitchSuppressUntil = Date().addingTimeInterval(2.0)
+                    // Capture the position BEFORE attempting the in-place
+                    // switch. On a network source that attempt is what resets
+                    // the playhead (the engine must re-probe the container and
+                    // its loopback/ByteRange reader cannot rewind), so reading
+                    // currentTime afterwards always yields 0 and the reload
+                    // below faithfully restarts the file from the beginning.
+                    let resumeAt = self.engine?.currentTime ?? .zero
                     self.engine?.selectAudioTrack(index: trackId)
                     // Network / custom-IO sources (WebDAV, FTP/SFTP, Jellyfin
                     // direct-play over HTTP) cannot switch the audio track in
@@ -495,32 +502,21 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // loopback/ByteRange reader can't rewind without a fresh
                     // source.  The engine does not always surface this as an
                     // error (it can silently no-op the switch), so proactively
-                    // reload the session from the current position and re-apply
-                    // the chosen track to guarantee the selection takes effect.
-                    // Local files are left alone — AVPlayer handles in-place
-                    // track selection natively without a reload, which avoids
-                    // conflicting with ReplayKit during screen recording.
+                    // reload the session from the position we captured above and
+                    // re-apply the chosen track to guarantee the selection takes
+                    // effect. Local files are left alone — AVPlayer handles
+                    // in-place track selection natively without a reload, which
+                    // avoids conflicting with ReplayKit during screen recording.
                     let scheme = self.currentSourceURL?.scheme?.lowercased()
                     let isNetworkSource = scheme == "http" || scheme == "https"
                         || scheme == "ftp" || scheme == "sftp"
                         || self.lastWebDAVInfo != nil || self.lastFtpUri != nil
                     if isNetworkSource {
                         Task { @MainActor [weak self] in
-                            guard let self, let engine = self.engine else { return }
+                            guard let self, self.engine != nil else { return }
                             // Let the engine settle its in-place attempt first.
                             try? await Task.sleep(nanoseconds: 300_000_000)
-                            // If the engine already hit an error, try to recover.
-                            if case .error = engine.state {
-                                let curPos = engine.currentTime
-                                await self.reloadSession(at: curPos)
-                                await self.waitForEngineReady(timeout: 3.0)
-                                let trackId2 = self.engineAudioId(forFlatPosition: index)
-                                self.engine?.selectAudioTrack(index: trackId2)
-                                self.emit()
-                                return
-                            }
-                            let curPos = engine.currentTime
-                            await self.reloadSession(at: curPos)
+                            await self.reloadSession(at: resumeAt)
                             // Wait for the freshly loaded engine to reach
                             // .ready so selectAudioTrack is honored.
                             await self.waitForEngineReady(timeout: 3.0)
