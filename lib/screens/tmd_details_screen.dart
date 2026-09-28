@@ -2148,11 +2148,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                             spacing: 6,
                             runSpacing: 6,
                              children: [
-                               if (movie.provider == MetadataProvider.theTvdb)
-                                 const _FactChip(
-                                   icon: Icons.travel_explore,
-                                   label: 'TheTVDB',
-                                 ),
                                if (singleEpisode?.runtimeMinutes != null)
 
                                 _FactChip(

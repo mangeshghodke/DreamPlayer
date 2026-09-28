@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../services/metadata_search.dart';
 import '../services/tmdb_client.dart';
-import '../services/the_tvdb_client.dart';
 import 'cached_image.dart';
 
-/// TMDB poster picker for a manual group — query + Movie/TV toggle, results
+/// Poster picker for a manual group — query + Movie/TV toggle, results
 /// list, tap a result to pick it. Returns the picked [TmdMeta] or null
 /// (skip/cancel) so the group falls back to any member's cached meta.
 /// Shared by the group-creation flow (home screen) and the group detail
 /// screen's Fix match.
+///
+/// Search runs across every configured metadata provider (TMDB, TheTVDB) and
+/// shows one merged, de-duplicated result list — no provider picker.
 class GroupPosterDialog extends StatefulWidget {
   const GroupPosterDialog({super.key, required this.initialQuery});
 
@@ -20,14 +23,13 @@ class GroupPosterDialog extends StatefulWidget {
 
 class _GroupPosterDialogState extends State<GroupPosterDialog> {
   final _controller = TextEditingController();
-  final _api = TmdApi();
-  final _theTvdb = TheTvdbClient();
+  final _search = MetadataSearch();
   List<TmdMovie>? _results;
   bool _searching = false;
   int _searchGeneration = 0;
   String? _error;
+  bool _noKey = false;
   TmdKind _kind = TmdKind.movie;
-  MetadataProvider _provider = MetadataProvider.tmdb;
 
   @override
   void initState() {
@@ -35,19 +37,19 @@ class _GroupPosterDialogState extends State<GroupPosterDialog> {
     _controller.text = widget.initialQuery;
     if (_controller.text.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _search();
+        if (mounted) _runSearch();
       });
     }
   }
 
   @override
   void dispose() {
-    _theTvdb.dispose();
+    _search.dispose();
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _search() async {
+  Future<void> _runSearch() async {
     final query = _controller.text.trim();
     final generation = ++_searchGeneration;
     if (query.isEmpty) return;
@@ -55,22 +57,19 @@ class _GroupPosterDialogState extends State<GroupPosterDialog> {
       _searching = true;
       _results = null;
       _error = null;
+      _noKey = false;
     });
     try {
-      // The Movie/TV tab is honored: only the SELECTED kind is searched.
-      // The other kind fills in only when the primary returns empty
-      // (kind-first fallback), so the tab is never just a reorder.
-      var results = _provider == MetadataProvider.tmdb
-          ? await _api.search(query, kind: _kind)
-          : await _theTvdb.search(query, kind: _kind);
-      if (results.isEmpty) {
-        final fallbackKind = _kind == TmdKind.movie ? TmdKind.tv : TmdKind.movie;
-        results = _provider == MetadataProvider.tmdb
-            ? await _api.search(query, kind: fallbackKind)
-            : await _theTvdb.search(query, kind: fallbackKind);
+      if (!await _search.hasAnyProvider) {
+        if (!mounted || generation != _searchGeneration) return;
+        setState(() {
+          _searching = false;
+          _results = null;
+          _noKey = true;
+        });
+        return;
       }
-      final seen = <String>{};
-      results.retainWhere((m) => seen.add(m.providerKey));
+      final results = await _search.search(query, kind: _kind);
       if (!mounted || generation != _searchGeneration) return;
       setState(() {
         _searching = false;
@@ -99,14 +98,13 @@ class _GroupPosterDialogState extends State<GroupPosterDialog> {
             TextField(
               controller: _controller,
               decoration: InputDecoration(
-                 hintText: 'Search ${_provider.label}…',
-
+                hintText: 'Search…',
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.search),
-                  onPressed: _search,
+                  onPressed: _runSearch,
                 ),
               ),
-              onSubmitted: (_) => _search(),
+              onSubmitted: (_) => _runSearch(),
             ),
             const SizedBox(height: 8),
             SegmentedButton<TmdKind>(
@@ -117,22 +115,7 @@ class _GroupPosterDialogState extends State<GroupPosterDialog> {
               selected: {_kind},
               onSelectionChanged: (s) {
                 setState(() => _kind = s.first);
-                _search();
-              },
-            ),
-            const SizedBox(height: 8),
-            SegmentedButton<MetadataProvider>(
-              segments: const [
-                ButtonSegment(value: MetadataProvider.tmdb, label: Text('TMDB')),
-                ButtonSegment(
-                  value: MetadataProvider.theTvdb,
-                  label: Text('TheTVDB'),
-                ),
-              ],
-              selected: {_provider},
-              onSelectionChanged: (s) {
-                setState(() => _provider = s.first);
-                _search();
+                _runSearch();
               },
             ),
             const SizedBox(height: 8),
@@ -155,6 +138,17 @@ class _GroupPosterDialogState extends State<GroupPosterDialog> {
     if (_searching) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (_noKey) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(12),
+          child: Text(
+            'Add a TMDB or TheTVDB API key in Settings → Metadata to search.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
     if (_error != null) {
       return Center(
         child: Padding(
@@ -164,7 +158,7 @@ class _GroupPosterDialogState extends State<GroupPosterDialog> {
       );
     }
     if (_results == null) {
-      return Center(child: Text('Search ${_provider.label} to pick a poster'));
+      return const Center(child: Text('Search to pick a poster'));
     }
     return ListView.separated(
       itemCount: _results!.length,
@@ -186,10 +180,9 @@ class _GroupPosterDialogState extends State<GroupPosterDialog> {
                 )
               : const SizedBox(width: 40, height: 60),
           title: Text(m.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-           subtitle: Text(
-             [m.provider.label, if (m.year != null) '${m.year}'].join(' · '),
-           ),
-
+          subtitle: Text(
+            [if (m.year != null) '${m.year}'].join(' · '),
+          ),
           trailing: m.kind == TmdKind.tv
               ? const Text('TV',
                   style: TextStyle(fontSize: 11, color: Colors.purple))
