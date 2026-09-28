@@ -2136,7 +2136,7 @@ class _HomeScreenState extends State<HomeScreen>
     final url = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(AppLocalizations.of(context).homePlayUrl),
+        title: Text(AppLocalizations.of(dialogContext).homePlayUrl),
         content: TvTextField(
           controller: controller,
           autofocus: true,
@@ -2146,7 +2146,7 @@ class _HomeScreenState extends State<HomeScreen>
           textInputAction: TextInputAction.done,
           decoration: InputDecoration(
             hintText: 'https://example.com/video.mp4',
-            labelText: AppLocalizations.of(context).homeVideoUrl,
+            labelText: AppLocalizations.of(dialogContext).homeVideoUrl,
           ),
           onSubmitted: (v) => Navigator.of(dialogContext).pop(v),
         ),
@@ -2158,7 +2158,7 @@ class _HomeScreenState extends State<HomeScreen>
           TextButton(
             onPressed: () =>
                 Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: Text(AppLocalizations.of(context).detailsPlay),
+            child: Text(AppLocalizations.of(dialogContext).detailsPlay),
           ),
         ],
       ),

@@ -191,17 +191,17 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
         backgroundColor: const Color(0xFF2C2C2E),
-        title: Text(AppLocalizations.of(context).opensubtitlesSignIn, style: TextStyle(color: Colors.white)),
+        title: Text(AppLocalizations.of(ctx).opensubtitlesSignIn, style: TextStyle(color: Colors.white)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: uCtrl, decoration: InputDecoration(labelText: AppLocalizations.of(context).settingsUsername, labelStyle: TextStyle(color: Colors.white70)), style: const TextStyle(color: Colors.white)),
+          TextField(controller: uCtrl, decoration: InputDecoration(labelText: AppLocalizations.of(ctx).settingsUsername, labelStyle: TextStyle(color: Colors.white70)), style: const TextStyle(color: Colors.white)),
           SizedBox(height: 8),
-          TextField(controller: pCtrl, obscureText: true, decoration: InputDecoration(labelText: AppLocalizations.of(context).settingsPassword, labelStyle: TextStyle(color: Colors.white70)), style: const TextStyle(color: Colors.white)),
+          TextField(controller: pCtrl, obscureText: true, decoration: InputDecoration(labelText: AppLocalizations.of(ctx).settingsPassword, labelStyle: TextStyle(color: Colors.white70)), style: const TextStyle(color: Colors.white)),
           if (err != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(err!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
           SizedBox(height: 8),
-          Text(AppLocalizations.of(context).opensubtitlesAnonymousHint, style: TextStyle(color: Colors.white54, fontSize: 11)),
+          Text(AppLocalizations.of(ctx).opensubtitlesAnonymousHint, style: TextStyle(color: Colors.white54, fontSize: 11)),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(AppLocalizations.of(context).commonCancel)),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(AppLocalizations.of(ctx).commonCancel)),
           TextButton(onPressed: () async {
             try {
               await OpensubtitlesClient.instance.login(username: uCtrl.text.trim(), password: pCtrl.text);
@@ -209,7 +209,7 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
             } catch (e) {
               setDlg(() => err = e.toString());
             }
-          }, child: Text(AppLocalizations.of(context).jellyfinSignIn)),
+          }, child: Text(AppLocalizations.of(ctx).jellyfinSignIn)),
         ],
       )),
     );

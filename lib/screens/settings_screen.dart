@@ -377,7 +377,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? testError;
     final changed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      // `dialogContext` is the dialog's own context. It must be used for
+      // anything looked up from inside the dialog — calling
+      // `AppLocalizations.of(context)` with the SCREEN's context here builds a
+      // widget in the dialog subtree that depends on an InheritedElement
+      // outside it, which trips `assert(_dependents.isEmpty)` in
+      // `InheritedElement.debugDeactivated` when the dialog is dismissed
+      // (red screen on saving a TheTVDB key).
+      builder: (dialogContext) => StatefulBuilder(
         builder: (ctx, setDialog) => AlertDialog(
           title: const Text('TheTVDB'),
           content: SingleChildScrollView(
@@ -470,7 +477,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         }
                       }
                     },
-              child: Text(AppLocalizations.of(context).commonSave),
+              child: Text(AppLocalizations.of(dialogContext).commonSave),
             ),
           ],
         ),
@@ -1213,7 +1220,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               TextButton(
                                 onPressed: () => Navigator.pop(context, temp),
-                                child: Text(AppLocalizations.of(context).commonSave),
+              child: Text(AppLocalizations.of(context).commonSave),
                               ),
                             ],
                           ),
