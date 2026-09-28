@@ -54,7 +54,23 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
+        // NOTE: this is intentionally NOT flutter.versionCode.
+        //
+        // The "+N" in pubspec.yaml drives two different numbers with two
+        // different rules:
+        //   - iOS CFBundleVersion — per marketing version, so it can restart
+        //     at any value and Apple treats it as opaque (we're on 0.5.0 (4)).
+        //   - Android versionCode — GLOBAL and must always increase, or Android
+        //     refuses the APK as a downgrade. The published v0.5.0 release
+        //     shipped 37.
+        //
+        // Keeping them in one pubspec value would force the iOS build number
+        // to 38 just to keep Android upgradeable. So Android's versionCode is
+        // pinned here and must be bumped BY HAND, always above the last
+        // published release.
+        //
+        // Last published: 0.5.0 -> versionCode 37.
+        versionCode = 38
         versionName = flutter.versionName
     }
 
