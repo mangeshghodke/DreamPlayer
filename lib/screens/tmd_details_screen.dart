@@ -40,8 +40,9 @@ import '../l10n/app_localizations.dart';
 /// (issue #33). Used by the details-screen app bar, by each sub-folder row, and
 /// by the grouped-series screen, so a folder and its season sub-folders are
 /// independently changeable instead of sharing one override.
-Future<void> showArtworkMenuForKey(BuildContext context, String key) async {
-  if (key.isEmpty) return;
+Future<bool> showArtworkMenuForKey(BuildContext context, String key) async {
+  if (key.isEmpty) return false;
+  var changed = false;
   final service = TmdService.instance;
   await showModalBottomSheet<void>(
     context: context,
@@ -60,7 +61,8 @@ Future<void> showArtworkMenuForKey(BuildContext context, String key) async {
                   : 'Change backdrop'),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                ArtworkPickerSheet.show(context, identityKey: key, kind: kind);
+                ArtworkPickerSheet.show(context, identityKey: key, kind: kind)
+                    .then((v) => changed = v == true);
               },
             ),
             ListTile(
@@ -77,6 +79,7 @@ Future<void> showArtworkMenuForKey(BuildContext context, String key) async {
                   ? () {
                       Navigator.of(sheetContext).pop();
                       service.resetArtwork(key, kind);
+                      changed = true;
                     }
                   : null,
             ),
@@ -85,6 +88,7 @@ Future<void> showArtworkMenuForKey(BuildContext context, String key) async {
       ),
     ),
   );
+  return changed;
 }
 
 /// Shows TMDB metadata with a Play/Resume button and a "Fix match" manual
@@ -1197,7 +1201,13 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// picker: "Set default" is a deliberate undo, and burying it in the sheet
   /// makes it easy to forget it exists.
   Future<void> _showArtworkMenu() async {
-    await showArtworkMenuForKey(context, _identityKey);
+    final changed = await showArtworkMenuForKey(context, _identityKey);
+    if (changed && mounted) {
+      // The screen renders the cached _meta, but artwork overrides are applied
+      // inside metaFor() - so re-read through it, or the pick appears to do
+      // nothing here (it only showed up later, from Home).
+      setState(() => _meta = _service.metaFor(_identityKey) ?? _meta);
+    }
   }
 
 
@@ -2489,11 +2499,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           ),
           watched: _watchedKeys.contains(_watchedKeyForFile(e)),
           onToggleWatched: e.isDirectory ? null : () => _toggleWatched(e),
-          // Sub-folders only: an episode file has no artwork of its own to
-          // change, it shows a still frame.
-          artworkKey: e.isDirectory
-              ? TmdStore.identityKeyFor(_toVideoItem(e))
-              : null,
+          // Every row gets its own key: the user wants a per-episode backdrop,
+          // falling back to the show's default when one is not set.
+          artworkKey: TmdStore.identityKeyFor(_toVideoItem(e)),
           onTap: () => _openFolderEntry(e),
         );
 
