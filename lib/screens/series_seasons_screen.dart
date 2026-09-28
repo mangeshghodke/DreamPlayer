@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+
+import 'artwork_picker_sheet.dart';
+import '../services/artwork_override.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/cached_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -64,6 +67,66 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   String get _groupKey => widget.group.metadataKey;
 
   static const _hiddenSeasonsPrefKey = 'dreamplayer.hiddenSeriesSeasons';
+
+  /// The ⋮ that opens the artwork actions (issue #33). Mirrors
+  /// TmdDetailsScreen's so the feature is reachable from every screen that
+  /// shows a title.
+  Widget _artworkMenuButton() => IconButton(
+        tooltip: 'More options',
+        icon: const Icon(Icons.more_vert),
+        onPressed: _showArtworkMenu,
+      );
+
+  Future<void> _showArtworkMenu() async {
+    final meta = _meta;
+    if (meta == null) return;
+    final key = widget.group.primary.metadataKey;
+    if (key.isEmpty) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF16161A),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final kind in ArtworkKind.values) ...[
+              ListTile(
+                leading: Icon(kind == ArtworkKind.poster
+                    ? Icons.photo_library_outlined
+                    : Icons.wallpaper_outlined),
+                title: Text(kind == ArtworkKind.poster
+                    ? 'Change poster'
+                    : 'Change backdrop'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  ArtworkPickerSheet.show(context,
+                      identityKey: key, kind: kind);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.restart_alt),
+                title: Text(kind == ArtworkKind.poster
+                    ? 'Set default poster'
+                    : 'Set default backdrop'),
+                subtitle: const Text(
+                  'Go back to the artwork the provider picked',
+                  style: TextStyle(fontSize: 12),
+                ),
+                enabled: TmdService.instance.hasArtworkOverride(key, kind),
+                onTap: TmdService.instance.hasArtworkOverride(key, kind)
+                    ? () {
+                        Navigator.of(sheetContext).pop();
+                        TmdService.instance.resetArtwork(key, kind);
+                        setState(() {});
+                      }
+                    : null,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   Future<void> _loadHiddenSeasons() async {
     final prefs = await SharedPreferences.getInstance();
@@ -743,6 +806,11 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
               backdrop: backdrop,
               collapsed: _collapsed,
             ),
+            // "Change poster" / "Change backdrop" (issue #33). A multi-folder
+            // series group opens THIS screen rather than TmdDetailsScreen, so
+            // without this the artwork actions are simply absent for grouped
+            // series.
+            actions: [if (_meta != null) _artworkMenuButton()],
           ),
           if (_loading)
             const SliverFillRemaining(
