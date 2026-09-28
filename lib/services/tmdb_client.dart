@@ -2112,14 +2112,19 @@ class TmdService extends ChangeNotifier {
   /// accepts a hit whose normalised title equals this item's, and otherwise
   /// returns nothing, because showing artwork from the wrong show would be
   /// worse than showing fewer options.
-  Future<({List<MetaImage> posters, List<MetaImage> backdrops})> artworkFor(
-    String identityKey,
-  ) async {
+  Future<({List<MetaImage> posters, List<MetaImage> backdrops, List<String> notes})>
+      artworkFor(String identityKey) async {
     final meta = _cache[identityKey];
-    if (meta == null) return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    if (meta == null) {
+      return (posters: <MetaImage>[], backdrops: <MetaImage>[], notes: <String>[]);
+    }
     final movie = meta.movie;
     final posters = <MetaImage>[];
     final backdrops = <MetaImage>[];
+    // Shown in the picker so a provider that contributed nothing is explained
+    // rather than looking like a bug (issue #33: a TheTVDB key appeared to do
+    // nothing on TMDB-matched titles, with no indication why).
+    final notes = <String>[];
 
     // Both providers are asked, always — the issue asks for "all images from
     // every configured provider". Querying only the provider that WON the match
@@ -2140,29 +2145,86 @@ class TmdService extends ChangeNotifier {
       }
     }
 
-    // The other provider needs a title lookup (ids are not shared). It only
-    // accepts an exact normalised-title match, because artwork from the wrong
-    // show is worse than showing fewer options.
+    // The other provider has no shared id, so it needs a lookup. Try the
+    // learned-pairs map first (free, no network), then a strict title search.
+    // Only a strict match is ever recorded, so this can't drift into returning
+    // artwork for the wrong show.
     if (movie.provider == MetadataProvider.tmdb) {
-      final tvdbId = await _theTvdbIdForTitle(movie);
-      if (tvdbId != null) {
-        try {
-          final tvdb = await _theTvdb.artworkImages(tvdbId, kind: movie.kind);
-          posters.addAll(tvdb.posters);
-          backdrops.addAll(tvdb.backdrops);
-        } catch (_) {}
-      }
+      await _addOtherProviderArtwork(
+        movie: movie,
+        other: MetadataProvider.theTvdb,
+        posters: posters,
+        backdrops: backdrops,
+        notes: notes,
+        findId: () => _theTvdbIdForTitle(movie),
+        fetch: (id) => _theTvdb.artworkImages(id, kind: movie.kind),
+      );
     } else {
-      final tmdbId = await _tmdbIdForTitle(movie);
-      if (tmdbId != null) {
-        final tmdb = await _api.artworkImages(
-          TmdMovie(id: tmdbId, title: movie.title, kind: movie.kind),
-        );
-        posters.addAll(tmdb.posters);
-        backdrops.addAll(tmdb.backdrops);
+      await _addOtherProviderArtwork(
+        movie: movie,
+        other: MetadataProvider.tmdb,
+        posters: posters,
+        backdrops: backdrops,
+        notes: notes,
+        findId: () => _tmdbIdForTitle(movie),
+        fetch: (id) async => _api.artworkImages(
+          TmdMovie(id: id, title: movie.title, kind: movie.kind),
+        ),
+      );
+    }
+    return (posters: posters, backdrops: backdrops, notes: notes);
+  }
+
+  /// Adds the second provider's artwork for [movie], using a learned id pair
+  /// before falling back to a strict title search, and records the pair once a
+  /// search succeeds. Appends a user-facing note when the provider can't
+  /// contribute.
+  Future<void> _addOtherProviderArtwork({
+    required TmdMovie movie,
+    required MetadataProvider other,
+    required List<MetaImage> posters,
+    required List<MetaImage> backdrops,
+    required List<String> notes,
+    required Future<int?> Function() findId,
+    required Future<({List<MetaImage> posters, List<MetaImage> backdrops})>
+        Function(int id) fetch,
+  }) async {
+    const label = 'TheTVDB';
+    if (other == MetadataProvider.theTvdb) {
+      if (!await _theTvdb.isConfiguredAsync) {
+        notes.add('Add a TheTVDB API key in Settings → Metadata to see '
+            'TheTVDB artwork here.');
+        return;
       }
     }
-    return (posters: posters, backdrops: backdrops);
+    var id = CrossProviderIdStore.lookup(movie.title, movie.kind, other);
+    if (id == null) {
+      try {
+        id = await findId();
+      } catch (_) {
+        id = null;
+      }
+      // Only a successful strict match is remembered, so a later lookup from
+      // this map can never surface art from a different title.
+      if (id != null) {
+        await CrossProviderIdStore.record(
+          movie.title,
+          movie.kind,
+          other,
+          id,
+        );
+      }
+    }
+    if (id == null) {
+      notes.add('No $label match found for this title, so only ${movie.provider.label} '
+          'artwork is shown.');
+      return;
+    }
+    try {
+      final art = await fetch(id);
+      posters.addAll(art.posters);
+      backdrops.addAll(art.backdrops);
+    } catch (_) {}
   }
 
   /// Resolves a TMDB id for a TheTVDB-sourced item by exact normalised title
@@ -2211,10 +2273,7 @@ class TmdService extends ChangeNotifier {
     }
   }
 
-  static String _normaliseTitle(String title) => title
-      .toLowerCase()
-      .replaceAll(RegExp(r'[^a-z0-9]+'), '')
-      .trim();
+  static String _normaliseTitle(String title) => normaliseMetaTitle(title);
 
   bool isResolving(String identityKey) => _pending.containsKey(identityKey);
 

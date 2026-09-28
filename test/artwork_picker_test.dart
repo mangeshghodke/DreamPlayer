@@ -100,6 +100,10 @@ void main() {
   group('ArtworkOverrideStore', () {
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
+      // Both stores memoise; without the reset each test would inherit the
+      // previous one's state and pass or fail for the wrong reason.
+      ArtworkOverrideStore.resetForTest();
+      CrossProviderIdStore.resetForTest();
       await ArtworkOverrideStore.load();
     });
 
@@ -234,6 +238,7 @@ void main() {
   });
 
   _artworkRegressionTests();
+  _crossProviderTests();
 }
 
 /// Regression cover for "Change backdrop showed nothing" (issue #33).
@@ -317,6 +322,81 @@ void _artworkRegressionTests() {
       final out = TmdApi.parseArtworkResponse({'id': 5});
       expect(out.posters, isEmpty);
       expect(out.backdrops, isEmpty);
+    });
+  });
+}
+
+/// Cross-provider id pairs (issue #33 tightening). The map only ever holds
+/// strictly-verified pairs, so it must never be able to point at a different
+/// show — and it must survive a restart.
+void _crossProviderTests() {
+  group('normaliseMetaTitle', () {
+    test('collapses punctuation, case and spacing', () {
+      expect(normaliseMetaTitle('Komi-san'), 'komisan');
+      expect(normaliseMetaTitle('KOMI SAN'), 'komisan');
+      expect(normaliseMetaTitle('Komi  san!'), 'komisan');
+    });
+  });
+
+  group('CrossProviderIdStore', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      CrossProviderIdStore.resetForTest();
+      ArtworkOverrideStore.resetForTest();
+    });
+
+    test('records and looks up a pair under one title', () async {
+      await CrossProviderIdStore.record(
+        'Komi-san', TmdKind.tv, MetadataProvider.theTvdb, 371980);
+      expect(
+        CrossProviderIdStore.lookup(
+            'Komi-san', TmdKind.tv, MetadataProvider.theTvdb),
+        371980,
+      );
+    });
+
+    test('a partner id is preserved when the other side is added', () async {
+      await CrossProviderIdStore.record(
+        'Komi-san', TmdKind.tv, MetadataProvider.theTvdb, 371980);
+      await CrossProviderIdStore.record(
+        'Komi-san', TmdKind.tv, MetadataProvider.tmdb, 197189);
+      expect(
+        CrossProviderIdStore.lookup(
+            'Komi-san', TmdKind.tv, MetadataProvider.theTvdb),
+        371980,
+      );
+      expect(
+        CrossProviderIdStore.lookup('Komi-san', TmdKind.tv, MetadataProvider.tmdb),
+        197189,
+      );
+    });
+
+    test('lookup is normalisation-insensitive', () async {
+      await CrossProviderIdStore.record(
+        'Komi-san', TmdKind.tv, MetadataProvider.theTvdb, 371980);
+      expect(
+        CrossProviderIdStore.lookup(
+            'KOMI  SAN!', TmdKind.tv, MetadataProvider.theTvdb),
+        371980,
+      );
+    });
+
+    test('movie and tv kinds do not collide', () async {
+      await CrossProviderIdStore.record(
+        'Dune', TmdKind.movie, MetadataProvider.theTvdb, 11);
+      expect(
+        CrossProviderIdStore.lookup('Dune', TmdKind.tv, MetadataProvider.theTvdb),
+        isNull,
+      );
+    });
+
+    test('a non-positive id is not stored', () async {
+      await CrossProviderIdStore.record(
+        'Dune', TmdKind.movie, MetadataProvider.theTvdb, 0);
+      expect(
+        CrossProviderIdStore.lookup('Dune', TmdKind.movie, MetadataProvider.theTvdb),
+        isNull,
+      );
     });
   });
 }

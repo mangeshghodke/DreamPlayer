@@ -1127,6 +1127,18 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     });
   }
 
+  /// The ⋮ that opens the artwork actions (issue #33).
+  ///
+  /// Shared by both app bars in this screen: the hero path renders
+  /// `appBar: null` plus its own [SliverAppBar], and the plain path renders a
+  /// regular [AppBar], so the button has to exist in both to be visible on
+  /// every kind of details page.
+  Widget _artworkMenuButton() => IconButton(
+        tooltip: 'More options',
+        icon: const Icon(Icons.more_vert),
+        onPressed: _showArtworkMenu,
+      );
+
   /// "Change poster" / "Change backdrop" + their resets (issue #33), behind a
   /// single ⋮ in the app bar.
   ///
@@ -1807,12 +1819,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
             ),
           // Artwork actions (issue #33). Only offered when there is actually a
           // match to change art for.
-          if (meta != null)
-            IconButton(
-              tooltip: 'More options',
-              icon: const Icon(Icons.more_vert),
-              onPressed: _showArtworkMenu,
-            ),
+          if (meta != null) _artworkMenuButton(),
         ],
       ),
       body: _loading
@@ -2111,6 +2118,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
               backdrop: movie.backdropUrl(),
               collapsed: _heroCollapsed,
             ),
+            // The hero branch renders `appBar: null` and supplies its own
+            // SliverAppBar, so the ⋮ has to be declared here too — putting it
+            // only in the plain AppBar left it invisible for exactly the
+            // movie/series pages it was meant for.
+            actions: [if (_meta != null) _artworkMenuButton()],
           ),
         SliverToBoxAdapter(
           child: Padding(

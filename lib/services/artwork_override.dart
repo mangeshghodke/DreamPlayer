@@ -83,6 +83,11 @@ class ArtworkOverrideStore {
   /// Maps an identity key to a map of ArtworkKind name → [MetaImage] JSON.
   static Map<String, Map<String, dynamic>>? _memo;
 
+  /// Clears the in-memory memo so a test can start from a known state.
+  /// [load] short-circuits once memoised, so without this each test would
+  /// inherit the previous one's overrides.
+  static void resetForTest() => _memo = null;
+
   static Future<void> load() async {
     if (_memo != null) return;
     final prefs = await SharedPreferences.getInstance();
@@ -140,5 +145,84 @@ class ArtworkOverrideStore {
   static Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, jsonEncode(_memo ?? {}));
+  }
+}
+
+/// Normalised form used to match a title across providers: lowercase,
+/// punctuation and whitespace stripped. "Komi-san", "Komi san" and
+/// "KOMI SAN" all collapse to `komisan`.
+String normaliseMetaTitle(String title) =>
+    title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '').trim();
+
+/// Verified TMDB ↔ TheTVDB id pairs, keyed by normalised title + kind.
+///
+/// The two providers share no ids, so finding one title in both means a title
+/// search. That search is strict (exact normalised-title match) and, for many
+/// real titles, simply misses — aliases, Japanese vs English names, subtitle
+/// variants. This store turns that into a one-off: a pair is recorded **only
+/// after a strict match has already succeeded**, so a map hit can never
+/// surface artwork from a different show. Every later open of that title is a
+/// map lookup instead of a network round-trip.
+///
+/// Misses are deliberately not cached. A miss usually means the title really
+/// isn't in the other provider, and remembering that would keep a newly-added
+/// provider (or a fixed alias) from ever contributing.
+class CrossProviderIdStore {
+  CrossProviderIdStore._();
+
+  static const String _prefsKey = 'dreamplayer.crossProviderIds';
+
+  /// 'movie:komisan' → {'tmdb': 197189, 'theTvdb': 371980}
+  static Map<String, Map<String, int>>? _memo;
+
+  static String _key(String title, TmdKind kind) =>
+      '${kind.name}:${normaliseMetaTitle(title)}';
+
+  /// Clears the in-memory memo so a test can start from a known state.
+  static void resetForTest() => _memo = null;
+
+  static Future<void> load() async {
+    if (_memo != null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_prefsKey);
+    if (raw == null || raw.isEmpty) {
+      _memo = {};
+      return;
+    }
+    try {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      _memo = json.map(
+        (key, value) => MapEntry(
+          key,
+          (value as Map).map((k, v) => MapEntry(k as String, (v as num).toInt())),
+        ),
+      );
+    } catch (_) {
+      _memo = {};
+    }
+  }
+
+  static int? lookup(
+    String title,
+    TmdKind kind,
+    MetadataProvider provider,
+  ) =>
+      (_memo ?? const <String, Map<String, int>>{})[_key(title, kind)]?[provider.name];
+
+  /// Records one provider's id, preserving any id already stored for the other.
+  static Future<void> record(
+    String title,
+    TmdKind kind,
+    MetadataProvider provider,
+    int id,
+  ) async {
+    if (id <= 0) return;
+    await load();
+    final map = _memo ??= {};
+    final entry = map.putIfAbsent(_key(title, kind), () => <String, int>{});
+    if (entry[provider.name] == id) return;
+    entry[provider.name] = id;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsKey, jsonEncode(map));
   }
 }

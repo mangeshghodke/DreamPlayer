@@ -40,7 +40,8 @@ class ArtworkPickerSheet extends StatefulWidget {
 }
 
 class _ArtworkPickerSheetState extends State<ArtworkPickerSheet> {
-  late Future<({List<MetaImage> posters, List<MetaImage> backdrops})> _future;
+  late Future<({List<MetaImage> posters, List<MetaImage> backdrops, List<String> notes})>
+      _future;
 
   @override
   void initState() {
@@ -121,7 +122,7 @@ class _ArtworkPickerSheetState extends State<ArtworkPickerSheet> {
                     );
                   }
                   final data = snap.data ??
-                      (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+                      (posters: <MetaImage>[], backdrops: <MetaImage>[], notes: <String>[]);
                   final images = _isPoster ? data.posters : data.backdrops;
                   if (images.isEmpty) {
                     return Padding(
@@ -136,7 +137,7 @@ class _ArtworkPickerSheetState extends State<ArtworkPickerSheet> {
                       ),
                     );
                   }
-                  return _buildGrid(context, images);
+                  return _buildGrid(context, images, data.notes);
                 },
               ),
             ),
@@ -146,7 +147,7 @@ class _ArtworkPickerSheetState extends State<ArtworkPickerSheet> {
     );
   }
 
-  Widget _buildGrid(BuildContext context, List<MetaImage> images) {
+  Widget _buildGrid(BuildContext context, List<MetaImage> images, List<String> notes) {
     // Group by provider so a title with art from both is readable — the user
     // asked for "every configured provider" in one list, and Nova separates
     // them the same way.
@@ -162,6 +163,27 @@ class _ArtworkPickerSheetState extends State<ArtworkPickerSheet> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
       children: [
+        // Explain a provider that contributed nothing, so an added API key
+        // doesn't look like it silently did nothing (issue #33).
+        for (final note in notes)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.info_outline,
+                    size: 15, color: Colors.white38),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    note,
+                    style: const TextStyle(
+                        fontSize: 12, color: Colors.white54, height: 1.3),
+                  ),
+                ),
+              ],
+            ),
+          ),
         for (final entry in byProvider.entries) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
