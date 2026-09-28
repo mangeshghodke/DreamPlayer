@@ -1649,7 +1649,11 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
             : 'Season ${season.seasonNumber} · ${season.name}')
         : (movie?.title ?? '');
     final String? displayPoster = showSeason ? season.posterUrl() : movie?.posterUrl();
-    final String displayOverview = showSeason ? season.overview : (widget.details?.overview ?? '');
+    // See firstNonEmptyOverview - `??` would let TheTVDB's empty synopsis
+    // shadow the search payload's real one (issue #33).
+    final String displayOverview = showSeason
+        ? season.overview
+        : firstNonEmptyOverview([widget.details?.overview, movie?.overview]);
     final double displayRating = movie?.voteAverage ?? 0;
     final List<String> displayGenres = showSeason ? [] : (widget.details?.genres ?? []);
 

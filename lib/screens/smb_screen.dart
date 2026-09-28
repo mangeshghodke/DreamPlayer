@@ -1837,7 +1837,7 @@ class _SeriesFolderHeader extends StatelessWidget {
     final seasonOverview = season?.overview ?? '';
     final displayOverview = season != null
         ? seasonOverview
-        : (details?.overview ?? '');
+        : firstNonEmptyOverview([details?.overview, meta.overviewText()]);
 
     return Padding(
       padding: const EdgeInsets.all(16),

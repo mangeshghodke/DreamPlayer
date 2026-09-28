@@ -589,15 +589,49 @@ void artworkBackfillTests() {
     expect(meta.movie.backdropPath, isNull);
   });
 
-  test('an EMPTY details overview must not shadow the movie synopsis', () {
-    // Regression: the details screen renders `details?.overview ?? movie.overview`,
-    // so an empty-but-present overview hides a perfectly good synopsis.
+  test('overviewText() prefers the real synopsis over an empty details one', () {
+    // Regression (issue #33). TheTVDB extended records carry an EMPTY
+    // synopsis, and `details?.overview ?? movie.overview` would let '' shadow
+    // the good one because '' is not null. This exercises the REAL helper the
+    // screens call - a previous test asserted an intended expression instead of
+    // the shipped code, passed, and left the bug in place.
     final meta = TmdMeta(movie: searchOnlyMovie())
         .withDetails(const TmdDetails(title: 'Avengers: Endgame', overview: ''));
     expect(meta.details!.overview, '');
-    final shown = (meta.details?.overview.isNotEmpty ?? false)
-        ? meta.details!.overview
-        : meta.movie.overview;
-    expect(shown, 'A real synopsis from the search payload.');
+    expect(meta.overviewText(), 'A real synopsis from the search payload.');
+  });
+
+  test('overviewText() prefers a non-empty details synopsis', () {
+    final meta = TmdMeta(movie: searchOnlyMovie()).withDetails(
+      const TmdDetails(title: 'Avengers: Endgame', overview: 'From details.'),
+    );
+    expect(meta.overviewText(), 'From details.');
+  });
+
+  test('overviewText() prefers an episode synopsis when given one', () {
+    final meta = TmdMeta(movie: searchOnlyMovie())
+        .withDetails(const TmdDetails(title: 'Avengers: Endgame', overview: ''));
+    expect(
+      meta.overviewText(episodeOverview: 'This episode.'),
+      'This episode.',
+    );
+  });
+
+  test('overviewText() is empty when nothing has text', () {
+    final meta = TmdMeta(
+      movie: const TmdMovie(
+        id: 148,
+        title: 'Avengers: Endgame',
+        kind: TmdKind.movie,
+        provider: MetadataProvider.theTvdb,
+      ),
+    ).withDetails(const TmdDetails(title: 'Avengers: Endgame', overview: '  '));
+    expect(meta.overviewText(), '');
+  });
+
+  test('firstNonEmptyOverview skips blanks and whitespace', () {
+    expect(firstNonEmptyOverview([null, '', '   ', 'real']), 'real');
+    expect(firstNonEmptyOverview([null, '', '  ']), '');
+    expect(firstNonEmptyOverview(['  padded  ']), 'padded');
   });
 }

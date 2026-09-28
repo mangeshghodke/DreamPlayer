@@ -595,6 +595,23 @@ class TmdMeta {
   /// match was silently lost (issue #11).
   final bool manual;
 
+  /// The synopsis to display: the first NON-EMPTY of the details overview and
+  /// the movie overview, plus an optional episode-specific one.
+  ///
+  /// Uses `??` nowhere on purpose. `details?.overview ?? movie.overview` looks
+  /// equivalent but is not: TheTVDB's extended movie record carries no synopsis
+  /// at all, so `details.overview` is an empty string, and `''` is not null —
+  /// so it shadowed the perfectly good synopsis from the search payload and the
+  /// overview rendered blank (issue #33). Every overview fallback in the app
+  /// goes through here.
+  String overviewText({String? episodeOverview}) {
+    for (final candidate in [episodeOverview, details?.overview, movie.overview]) {
+      final text = candidate?.trim();
+      if (text != null && text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
   TmdMeta withDetails(TmdDetails d) => TmdMeta(
       // Backfill the movie's artwork from the richer provider record, so a
       // TheTVDB-sourced item (whose search payload carries no `artworks`) gets
@@ -627,7 +644,6 @@ class TmdMeta {
       );
 
   /// Applies the user's "Change poster" / "Change backdrop" picks.
-  ///
   /// Applied at **read** time by [TmdService.metaFor] rather than stored in the
   /// cache, so a pick survives re-resolution (which replaces the whole [TmdMeta])
   /// and a later "Fix match" that repoints this key at a different film. Both
@@ -1911,6 +1927,22 @@ class TmdException implements Exception {
 /// Caches [TmdMeta] per video identity (resumeKey ?? path ?? uri) in
 /// shared_preferences and mirrors the in-memory map so the UI can rebuild when
 /// metadata arrives.
+/// The first NON-EMPTY synopsis among the candidates, or ''.
+///
+/// Every overview fallback in the app goes through here (or
+/// [TmdMeta.overviewText]). `a?.overview ?? b` looks equivalent but is not:
+/// TheTVDB's extended movie record carries no synopsis at all, so its
+/// `overview` is an empty string, and `''` is not null — so it shadowed the
+/// perfectly good synopsis from the search payload and the overview rendered
+/// blank (issue #33).
+String firstNonEmptyOverview(Iterable<String?> candidates) {
+  for (final candidate in candidates) {
+    final text = candidate?.trim();
+    if (text != null && text.isNotEmpty) return text;
+  }
+  return '';
+}
+
 class TmdStore {
   TmdStore._();
 

@@ -429,7 +429,11 @@ class _HeaderState extends State<_Header> {
     }
 
     final poster = movie.posterUrl();
-    final overview = details?.overview ?? '';
+    // firstNonEmptyOverview, not `details?.overview ?? movie.overview`:
+    // TheTVDB extended records have an EMPTY synopsis, and '' is not null, so
+    // it shadowed the good one from the search payload - issue #33.
+    final overview =
+        firstNonEmptyOverview([details?.overview, movie.overview]);
     final rating = movie.voteAverage;
     final genres = details?.genres ?? const <String>[];
 

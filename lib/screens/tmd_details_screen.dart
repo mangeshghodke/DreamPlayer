@@ -2090,9 +2090,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         ? (episodeOverview ??
             seasonOverview ??
             (widget.folder == null && singleEpisode == null
-                ? (details?.overview ?? movie.overview)
+                ? meta.overviewText()
                 : ''))
-        : (episodeOverview ?? details?.overview ?? movie.overview);
+        : meta.overviewText(episodeOverview: episodeOverview);
     // Build episode label using effectiveSeason instead of parsed season (which
     // may be 0 for anime [01] bracket numbering).
     final effectiveEpisodeLabel = _parsed.isEpisode
