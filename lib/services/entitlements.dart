@@ -12,6 +12,7 @@ import 'package:in_app_purchase_storekit/src/store_kit_wrappers/sk_payment_trans
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dream_player/services/iap_logger.dart';
+import 'package:dream_player/services/trial_store.dart';
 
 /// Whether `PAYWALL_ENABLED` was passed at build time.
 const bool paywallEnabled = bool.fromEnvironment('PAYWALL_ENABLED', defaultValue: false);
@@ -131,11 +132,7 @@ class Entitlements extends ChangeNotifier {
       _debugTrialExpired = prefs.getBool(_kDebugTrialExpired) ?? false;
     } catch (_) {}
 
-    // Load trial start time from SharedPreferences (clears on app delete).
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _trialStartedAtMs = prefs.getInt(_kTrialStartedAt);
-    } catch (_) {}
+    await _loadTrialStart();
 
     IapLog.instance.log('INIT', 'debugFreeUser=$_debugFreeUser, debugTrialExpired=$_debugTrialExpired, trialStartedAt=$_trialStartedAtMs, isAdvanced=$isAdvanced, isEntitled=$isEntitled');
 
@@ -145,6 +142,39 @@ class Entitlements extends ChangeNotifier {
     // Apple confirmation sheet.
     if (paywallEnabled) {
       unawaited(sweepUnfinishedTransactions());
+    }
+  }
+
+  /// Resolve the trial start time from both stores.
+  ///
+  /// SharedPreferences is read first so an existing install keeps the value it
+  /// already has (and is backfilled into the Keychain so a later reinstall is
+  /// covered). When SharedPreferences is empty — a fresh install, or a
+  /// reinstall after the app was deleted — the Keychain is consulted, which is
+  /// what makes the trial *resume* instead of restarting at day 0.
+  Future<void> _loadTrialStart() async {
+    int? fromPrefs;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      fromPrefs = prefs.getInt(_kTrialStartedAt);
+    } catch (_) {}
+    if (fromPrefs != null && fromPrefs > 0) {
+      _trialStartedAtMs = fromPrefs;
+      // Migration: an install that predates the Keychain store. Backfill it so
+      // deleting + reinstalling the app doesn't hand out a second trial.
+      await TrialStore.instance.writeStartMs(fromPrefs);
+      return;
+    }
+    final fromKeychain = await TrialStore.instance.readStartMs();
+    if (fromKeychain != null) {
+      _trialStartedAtMs = fromKeychain;
+      IapLog.instance.log('TRIAL', 'restored from Keychain: $fromKeychain');
+      // Mirror back into prefs so the value is present even if a future build
+      // ever drops the Keychain read.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(_kTrialStartedAt, fromKeychain);
+      } catch (_) {}
     }
   }
 
@@ -292,11 +322,17 @@ class Entitlements extends ChangeNotifier {
     return finished;
   }
 
+  /// Persist the trial start time to BOTH stores.
+  ///
+  /// SharedPreferences is the app-container copy (fast, always writable);
+  /// the iOS Keychain is the copy that survives app deletion, which is what
+  /// stops the delete-and-reinstall free-trial loop.
   Future<void> _persistTrialStart(int ms) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_kTrialStartedAt, ms);
     } catch (_) {}
+    await TrialStore.instance.writeStartMs(ms);
   }
 
   Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchases) async {
@@ -433,11 +469,34 @@ class Entitlements extends ChangeNotifier {
   }
 
   /// Start the 7-day free trial (called from the paywall "Start free trial" button).
+  ///
+  /// Restores rather than restarts when a start time already exists (from
+  /// SharedPreferences OR the iOS Keychain) — this is the guard that closes
+  /// the delete-and-reinstall loop: after a reinstall the Keychain still holds
+  /// the original timestamp, so the remaining days are honored instead of a
+  /// fresh 7 days being handed out.
   Future<void> startTrial() async {
-    if (_trialStartedAtMs != null) return; // already started
-    _trialStartedAtMs = DateTime.now().millisecondsSinceEpoch;
+    if (_trialStartedAtMs == null) {
+      // init() normally populates this from both stores, but the paywall can
+      // be reached before init() settles. Re-check the Keychain here so a
+      // restore is never overwritten with "now".
+      final restored = await TrialStore.instance.readStartMs();
+      if (restored != null) {
+        _trialStartedAtMs = restored;
+        await _persistTrialStart(restored);
+        notifyListeners();
+        return;
+      }
+      _trialStartedAtMs = DateTime.now().millisecondsSinceEpoch;
+      await _persistTrialStart(_trialStartedAtMs!);
+      notifyListeners();
+      return;
+    }
+    // Already started. Re-persist anyway (idempotent) so an install that
+    // predates the Keychain store gets its start time written there — without
+    // this, a pre-Keychain user would keep getting a fresh trial on every
+    // reinstall because nothing ever backfills the surviving store.
     await _persistTrialStart(_trialStartedAtMs!);
-    notifyListeners();
   }
 
   bool get purchaseFailed => _purchaseFailed;
@@ -528,6 +587,7 @@ class Entitlements extends ChangeNotifier {
     _purchaseFailed = false;
     _purchaseCanceled = false;
     _initialised = false;
+    TrialStore.resetProbeForTest();
   }
 
   /// Test-only: force the trial start time.
