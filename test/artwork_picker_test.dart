@@ -251,8 +251,10 @@ void main() {
     });
   });
 
-  _artworkRegressionTests();
-  _crossProviderTests();
+  artworkRegressionTests();
+  crossProviderTests();
+  realPayloadTests();
+  artworkBackfillTests();
 }
 
 /// Regression cover for "Change backdrop showed nothing" (issue #33).
@@ -263,7 +265,7 @@ void main() {
 /// `json['images']` therefore returned zero candidates for the endpoint the
 /// picker actually calls, and the grid rendered "No backdrops available" for
 /// titles that plainly have hundreds of them.
-void _artworkRegressionTests() {
+void artworkRegressionTests() {
   group('TmdApi.parseArtworkResponse', () {
     Map<String, dynamic> entry(String path, {int w = 2000, int h = 3000, String? lang}) =>
         <String, dynamic>{
@@ -341,7 +343,7 @@ void _artworkRegressionTests() {
 /// Cross-provider id pairs (issue #33 tightening). The map only ever holds
 /// strictly-verified pairs, so it must never be able to point at a different
 /// show — and it must survive a restart.
-void _crossProviderTests() {
+void crossProviderTests() {
   group('normaliseMetaTitle', () {
     test('collapses punctuation, case and spacing', () {
       expect(normaliseMetaTitle('Komi-san'), 'komisan');
@@ -411,6 +413,7 @@ void _crossProviderTests() {
       );
     });
   });
+}
 
 /// Tests built from a REAL TheTVDB v4 `/movies/{id}/extended` payload captured
 /// on-device (issue #33). The `type` ids and dimensions are verbatim from that
@@ -485,61 +488,33 @@ void realPayloadTests() {
       expect(details.posterPath, isNotNull);
     });
 
-    test('overview is read from overviewTranslations (a LIST), English first', () {
+    test('a language-code list is NEVER used as the synopsis', () {
+      // Captured on-device: an extended movie record's overviewTranslations is
+      // ["jpn", "heb", ...] - bare language codes, not {language, text}.
+      // Reading it as prose is what showed "heb" as the synopsis (issue #33).
       final details = TheTvdbClient.mapExtendedResponse({
         'data': {
-          'id': 1,
-          'name': 'Something',
-          'overviewTranslations': [
-            {'language': 'heb', 'overview': 'Hebrew synopsis text'},
-            {'language': 'eng', 'overview': 'English synopsis text'},
-          ],
+          'id': 148,
+          'name': 'Avengers: Endgame',
+          'overviewTranslations': ['jpn', 'heb', 'eng'],
         },
       }, kind: TmdKind.movie);
-      expect(details!.overview, 'English synopsis text');
+      expect(details!.overview, '');
     });
 
-    test('a record with only one language still yields an overview', () {
-      final details = TheTvdbClient.mapExtendedResponse({
-        'data': {
-          'id': 1,
-          'name': 'Something',
-          'overviewTranslations': [
-            {'language': 'jpn', 'overview': '日本語のあらすじ'},
-          ],
-        },
+    test('the real synopsis comes from the SEARCH payload overview', () {
+      final movie = TheTvdbClient.mapSearchResult({
+        'objectID': 'movie-148',
+        'tvdb_id': 148,
+        'name': 'Avengers: Endgame',
+        'extended_title': 'Avengers: Endgame',
+        'year': 2019,
+        'overview': 'After the devastating events of Infinity War...',
+        'image_url': 'https://artworks.thetvdb.com/banners/movies/148/posters/eng.jpg',
+        'thumbnail': 'https://artworks.thetvdb.com/banners/movies/148/posters/eng-thumb.jpg',
       }, kind: TmdKind.movie);
-      expect(details!.overview, '日本語のあらすじ');
-    });
-
-    test('a language-token list never leaks a code as the synopsis', () {
-      // The user-visible bug: the overview rendered as "heb" - a bare language
-      // token instead of prose.
-      final details = TheTvdbClient.mapExtendedResponse({
-        'data': {
-          'id': 1,
-          'name': 'Something',
-          'overviewTranslations': [
-            {'language': 'heb', 'overview': 'Real synopsis'},
-          ],
-        },
-      }, kind: TmdKind.movie);
-      expect(details!.overview, isNot('heb'));
-      expect(details.overview, 'Real synopsis');
-    });
-
-    test('a plain overview field still wins when present', () {
-      final details = TheTvdbClient.mapExtendedResponse({
-        'data': {
-          'id': 1,
-          'name': 'Something',
-          'overview': 'Direct synopsis',
-          'overviewTranslations': [
-            {'language': 'eng', 'overview': 'Translated synopsis'},
-          ],
-        },
-      }, kind: TmdKind.movie);
-      expect(details!.overview, 'Direct synopsis');
+      expect(movie, isNotNull);
+      expect(movie!.overview, 'After the devastating events of Infinity War...');
     });
 
     test('no overview anywhere yields an empty string, never a token', () {
@@ -551,5 +526,78 @@ void realPayloadTests() {
   });
 }
 
-  realPayloadTests();
+
+/// The backdrop bug (issue #33). TheTVDB's search payload has no `artworks`
+/// array - only `image_url`/`thumbnail` - so a TheTVDB-sourced TmdMovie had a
+/// poster but NEVER a backdrop, and the card/hero rendered bare. The backdrop
+/// only exists on the extended record, which TmdMeta.withDetails() now
+/// backfills.
+void artworkBackfillTests() {
+  TmdMovie searchOnlyMovie() => TmdMovie(
+        id: 148,
+        title: 'Avengers: Endgame',
+        kind: TmdKind.movie,
+        provider: MetadataProvider.theTvdb,
+        posterPath: 'https://artworks.thetvdb.com/banners/movies/148/p.jpg',
+        overview: 'A real synopsis from the search payload.',
+      );
+
+  test('withDetails backfills a missing backdrop from the extended record', () {
+    final meta = TmdMeta(movie: searchOnlyMovie())
+        .withDetails(const TmdDetails(
+      title: 'Avengers: Endgame',
+      posterPath: 'https://artworks.thetvdb.com/banners/movies/148/p2.jpg',
+      backdropPath: 'https://artworks.thetvdb.com/banners/movies/148/b.jpg',
+    ));
+    expect(meta.movie.backdropPath, endsWith('/b.jpg'));
+    expect(meta.movie.backdropUrl(), endsWith('/b.jpg'));
+  });
+
+  test('an existing search poster is not overwritten by the details poster', () {
+    final meta = TmdMeta(movie: searchOnlyMovie())
+        .withDetails(const TmdDetails(
+      title: 'Avengers: Endgame',
+      posterPath: 'https://example.com/other.jpg',
+      backdropPath: 'https://example.com/b.jpg',
+    ));
+    expect(meta.movie.posterPath, endsWith('/148/p.jpg'));
+    expect(meta.movie.backdropPath, endsWith('/b.jpg'));
+  });
+
+  test('backfill fills a missing poster too', () {
+    final meta = TmdMeta(
+      movie: const TmdMovie(
+        id: 148,
+        title: 'Avengers: Endgame',
+        kind: TmdKind.movie,
+        provider: MetadataProvider.theTvdb,
+      ),
+    ).withDetails(const TmdDetails(
+      title: 'Avengers: Endgame',
+      posterPath: 'https://example.com/p.jpg',
+      backdropPath: 'https://example.com/b.jpg',
+    ));
+    expect(meta.movie.posterPath, endsWith('/p.jpg'));
+    expect(meta.movie.backdropPath, endsWith('/b.jpg'));
+  });
+
+  test('a details record with no artwork changes nothing', () {
+    final before = searchOnlyMovie();
+    final meta = TmdMeta(movie: before)
+        .withDetails(const TmdDetails(title: 'Avengers: Endgame'));
+    expect(meta.movie.posterPath, before.posterPath);
+    expect(meta.movie.backdropPath, isNull);
+  });
+
+  test('an EMPTY details overview must not shadow the movie synopsis', () {
+    // Regression: the details screen renders `details?.overview ?? movie.overview`,
+    // so an empty-but-present overview hides a perfectly good synopsis.
+    final meta = TmdMeta(movie: searchOnlyMovie())
+        .withDetails(const TmdDetails(title: 'Avengers: Endgame', overview: ''));
+    expect(meta.details!.overview, '');
+    final shown = (meta.details?.overview.isNotEmpty ?? false)
+        ? meta.details!.overview
+        : meta.movie.overview;
+    expect(shown, 'A real synopsis from the search payload.');
+  });
 }

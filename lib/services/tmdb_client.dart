@@ -82,19 +82,42 @@ class TmdMovie {
   String get yearLabel => year != null ? '$year' : '';
 
   /// Copy with the artwork swapped for a "Change poster/backdrop" pick.
-  TmdMovie copyWith({String? posterPath, String? backdropPath}) => TmdMovie(
+  TmdMovie copyWith({
+    String? posterPath,
+    String? backdropPath,
+    String? overview,
+  }) =>
+      TmdMovie(
         id: id,
         title: title,
         year: year,
         posterPath: posterPath ?? this.posterPath,
         backdropPath: backdropPath ?? this.backdropPath,
-        overview: overview,
+        overview: overview ?? this.overview,
         voteAverage: voteAverage,
         kind: kind,
         provider: provider,
         originalTitle: originalTitle,
         alternateTitles: alternateTitles,
       );
+
+  /// Backfills this item's artwork from a richer provider record.
+  ///
+  /// TheTVDB's **search** payload has no `artworks` array at all - only a
+  /// single `image_url`/`thumbnail` - so [TmdMovie] built from a match has a
+  /// poster but never a backdrop. The backdrop (and often a better poster)
+  /// only exist on the **extended** record, which is a different shape. Without
+  /// this, every card and hero for a TheTVDB-sourced title renders without a
+  /// backdrop even though one is available (issue #33).
+  ///
+  /// Only fills gaps: an explicit search-level poster is left alone.
+  TmdMovie withArtworkFrom(TmdDetails details) {
+    if (details.posterPath == null && details.backdropPath == null) return this;
+    return copyWith(
+      posterPath: posterPath ?? details.posterPath,
+      backdropPath: backdropPath ?? details.backdropPath,
+    );
+  }
 
   factory TmdMovie.fromJson(
     Map<String, dynamic> json, {
@@ -573,7 +596,10 @@ class TmdMeta {
   final bool manual;
 
   TmdMeta withDetails(TmdDetails d) => TmdMeta(
-      movie: movie,
+      // Backfill the movie's artwork from the richer provider record, so a
+      // TheTVDB-sourced item (whose search payload carries no `artworks`) gets
+      // the backdrop that only exists on the extended record — issue #33.
+      movie: movie.withArtworkFrom(d),
       details: d,
       seasons: seasons,
       folderSeason: folderSeason,

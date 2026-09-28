@@ -1549,26 +1549,11 @@ String _overviewFromMap(Map<String, dynamic> map) {
       if (picked != null && picked.isNotEmpty) return picked;
     }
   }
-  // v4: a list of {language, overview} / {language, value} objects.
-  for (final key in const ['overviewTranslations']) {
-    final list = _listValue(map[key]);
-    if (list == null) continue;
-    final byLanguage = <String, String>{};
-    for (final item in list) {
-      final m = _mapValue(item);
-      if (m == null) continue;
-      final text = _stringValue(
-            m['overview'] ?? m['value'] ?? m['text'] ?? m['description'],
-          ) ??
-          '';
-      if (text.trim().isEmpty) continue;
-      final lang = (_stringValue(m['language'] ?? m['languageCode']) ?? '')
-          .toLowerCase();
-      byLanguage.putIfAbsent(lang, () => text.trim());
-    }
-    final picked = _pickByLanguage(byLanguage);
-    if (picked != null && picked.isNotEmpty) return picked;
-  }
+  // `overviewTranslations` is a list of bare LANGUAGE CODES ("jpn", "heb",
+  // ...), not {language, text} objects - captured on-device. Reading it as
+  // prose is what rendered the synopsis as "heb" (issue #33), so it is
+  // deliberately ignored here. The real synopsis for a v4 record comes from
+  // the search payload's `overview` / `overviews`.
   return '';
 }
 
