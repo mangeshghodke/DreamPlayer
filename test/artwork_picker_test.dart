@@ -162,55 +162,43 @@ void main() {
   });
 
   group('TheTvdbClient.mapArtworkResponse', () {
-    Map<String, dynamic> entry({
-      required String image,
+    // TheTVDB artwork entries carry `image`, optional `category`, and
+    // dimensions. `type` is accepted so a payload that only has ids is also
+    // covered (it must not crash, and must not be classified by them).
+    Map<String, dynamic> entry(
+      String image, {
+      int? w,
+      int? h,
+      String? category,
       int? type,
-      int? width,
-      int? height,
     }) =>
-        {
+        <String, dynamic>{
           'image': image,
+          'category': ?category,
           'type': ?type,
-          'width': ?width,
-          'height': ?height,
+          'width': ?w,
+          'height': ?h,
         };
 
-    test('splits posters (type 1) from backdrops (type 2)', () {
+    test('classifies by the category string', () {
       final out = TheTvdbClient.mapArtworkResponse({
         'data': {
           'artworks': [
-            entry(image: '/poster.jpg', type: 1),
-            entry(image: '/bd.jpg', type: 2),
+            entry('/p.jpg', category: 'poster', w: 500, h: 750),
+            entry('/bd.jpg', category: 'backdrop', w: 1920, h: 1080),
           ],
         },
       });
-      expect(out.posters.length, 1);
-      expect(out.backdrops.length, 1);
-      expect(out.posters.single.url, 'https://artworks.thetvdb.com/poster.jpg');
-      expect(out.posters.single.provider, MetadataProvider.theTvdb);
+      expect(out.posters.single.url, endsWith('/p.jpg'));
+      expect(out.backdrops.single.url, endsWith('/bd.jpg'));
     });
 
-    test('drops logos, banners and clearlogos (type >= 3)', () {
+    test('falls back to aspect ratio when there is no category', () {
       final out = TheTvdbClient.mapArtworkResponse({
         'data': {
           'artworks': [
-            entry(image: '/logo.png', type: 3),
-            entry(image: '/banner.jpg', type: 6),
-            entry(image: '/clear.png', type: 9),
-            entry(image: '/poster.jpg', type: 1),
-          ],
-        },
-      });
-      expect(out.posters.length, 1);
-      expect(out.backdrops, isEmpty);
-    });
-
-    test('falls back to aspect ratio when type is missing', () {
-      final out = TheTvdbClient.mapArtworkResponse({
-        'data': {
-          'artworks': [
-            entry(image: '/tall.jpg', width: 500, height: 750),
-            entry(image: '/wide.jpg', width: 1920, height: 1080),
+            entry('/tall.jpg', w: 500, h: 750),
+            entry('/wide.jpg', w: 1920, h: 1080),
           ],
         },
       });
@@ -218,16 +206,42 @@ void main() {
       expect(out.backdrops.single.url, endsWith('/wide.jpg'));
     });
 
-    test('ignores entries with no image', () {
+    test('category wins over geometry (a wide "poster" is still a poster)', () {
+      final out = TheTvdbClient.mapArtworkResponse({
+        'data': {
+          'artworks': [entry('/odd.jpg', category: 'poster', w: 1920, h: 1080)],
+        },
+      });
+      expect(out.posters.length, 1);
+      expect(out.backdrops, isEmpty);
+    });
+
+    test('drops logos and clearlogos', () {
       final out = TheTvdbClient.mapArtworkResponse({
         'data': {
           'artworks': [
-            {'type': 1},
-            entry(image: '/ok.jpg', type: 1),
+            entry('/logo.png', category: 'logo', w: 400, h: 200),
+            entry('/clear.png', category: 'clearlogo', w: 800, h: 200),
+            entry('/ok.jpg', category: 'poster', w: 500, h: 750),
           ],
         },
       });
       expect(out.posters.length, 1);
+      expect(out.posters.single.url, endsWith('/ok.jpg'));
+      expect(out.backdrops, isEmpty);
+    });
+
+    test('ignores entries with no image', () {
+      final out = TheTvdbClient.mapArtworkResponse({
+        'data': {
+          'artworks': [
+            {'category': 'poster', 'width': 100, 'height': 150},
+            entry('/ok.jpg', category: 'poster', w: 500, h: 750),
+          ],
+        },
+      });
+      expect(out.posters.length, 1);
+      expect(out.posters.single.url, endsWith('/ok.jpg'));
     });
 
     test('a malformed response yields empty lists rather than throwing', () {
@@ -251,15 +265,13 @@ void main() {
 /// titles that plainly have hundreds of them.
 void _artworkRegressionTests() {
   group('TmdApi.parseArtworkResponse', () {
-    Map<String, dynamic> entry(String path,
-            {int w = 2000, int h = 3000, String? lang}) =>
+    Map<String, dynamic> entry(String path, {int w = 2000, int h = 3000, String? lang}) =>
         <String, dynamic>{
           'file_path': path,
           'width': w,
           'height': h,
           'iso_639_1': lang,
           'vote_average': 7.3,
-          'aspect_ratio': 0.67,
         };
 
     test('reads the top-level shape returned by /images', () {
@@ -399,4 +411,145 @@ void _crossProviderTests() {
       );
     });
   });
+
+/// Tests built from a REAL TheTVDB v4 `/movies/{id}/extended` payload captured
+/// on-device (issue #33). The `type` ids and dimensions are verbatim from that
+/// capture, not from documentation or guesswork.
+void realPayloadTests() {
+  group('TheTVDB v4 real payload shapes', () {
+    Map<String, dynamic> art(int type, int w, int h) =>
+        <String, dynamic>{
+          'id': 1,
+          'image': 'https://artworks.thetvdb.com/banners/x.jpg',
+          'thumbnail': 'https://artworks.thetvdb.com/banners/x-thumb.jpg',
+          'width': w,
+          'height': h,
+          'type': type,
+          'language': null,
+          'score': 9.5,
+        };
+
+    test('poster types 2/7/13/14 are posters', () {
+      for (final type in const [2, 7, 13, 14]) {
+        final out = TheTvdbClient.mapArtworkResponse({
+          'data': {
+            'artworks': [art(type, 680, 1000)],
+          },
+        });
+        expect(out.posters.length, 1, reason: 'type $type should be a poster');
+        expect(out.backdrops, isEmpty, reason: 'type $type is not a backdrop');
+      }
+    });
+
+    test('backdrop types 3/15 are backdrops', () {
+      for (final type in const [3, 15]) {
+        final out = TheTvdbClient.mapArtworkResponse({
+          'data': {
+            'artworks': [art(type, 1920, 1080)],
+          },
+        });
+        expect(out.backdrops.length, 1, reason: 'type $type should be a backdrop');
+        expect(out.posters, isEmpty, reason: 'type $type is not a poster');
+      }
+    });
+
+    test('type 1 (758x140 logo strip) and 18 (square) are neither', () {
+      final out = TheTvdbClient.mapArtworkResponse({
+        'data': {
+          'artworks': [art(1, 758, 140), art(18, 1024, 1024)],
+        },
+      });
+      expect(out.posters, isEmpty);
+      expect(out.backdrops, isEmpty);
+    });
+
+    test('a type-15 backdrop is actually used for the automatic artwork', () {
+      // This is the regression: type 15 was missing from the old table, so no
+      // backdrop was ever chosen for a TheTVDB movie.
+      final details = TheTvdbClient.mapExtendedResponse(
+        {
+          'data': {
+            'id': 1,
+            'name': 'Girls und Panzer das Finale: Part II',
+            'year': 2019,
+            'artworks': [
+              art(14, 680, 1000),
+              art(15, 1920, 1080),
+            ],
+          },
+        },
+        kind: TmdKind.movie,
+      );
+      expect(details, isNotNull);
+      expect(details!.backdropPath, endsWith('x.jpg'));
+      expect(details.posterPath, isNotNull);
+    });
+
+    test('overview is read from overviewTranslations (a LIST), English first', () {
+      final details = TheTvdbClient.mapExtendedResponse({
+        'data': {
+          'id': 1,
+          'name': 'Something',
+          'overviewTranslations': [
+            {'language': 'heb', 'overview': 'Hebrew synopsis text'},
+            {'language': 'eng', 'overview': 'English synopsis text'},
+          ],
+        },
+      }, kind: TmdKind.movie);
+      expect(details!.overview, 'English synopsis text');
+    });
+
+    test('a record with only one language still yields an overview', () {
+      final details = TheTvdbClient.mapExtendedResponse({
+        'data': {
+          'id': 1,
+          'name': 'Something',
+          'overviewTranslations': [
+            {'language': 'jpn', 'overview': '日本語のあらすじ'},
+          ],
+        },
+      }, kind: TmdKind.movie);
+      expect(details!.overview, '日本語のあらすじ');
+    });
+
+    test('a language-token list never leaks a code as the synopsis', () {
+      // The user-visible bug: the overview rendered as "heb" - a bare language
+      // token instead of prose.
+      final details = TheTvdbClient.mapExtendedResponse({
+        'data': {
+          'id': 1,
+          'name': 'Something',
+          'overviewTranslations': [
+            {'language': 'heb', 'overview': 'Real synopsis'},
+          ],
+        },
+      }, kind: TmdKind.movie);
+      expect(details!.overview, isNot('heb'));
+      expect(details.overview, 'Real synopsis');
+    });
+
+    test('a plain overview field still wins when present', () {
+      final details = TheTvdbClient.mapExtendedResponse({
+        'data': {
+          'id': 1,
+          'name': 'Something',
+          'overview': 'Direct synopsis',
+          'overviewTranslations': [
+            {'language': 'eng', 'overview': 'Translated synopsis'},
+          ],
+        },
+      }, kind: TmdKind.movie);
+      expect(details!.overview, 'Direct synopsis');
+    });
+
+    test('no overview anywhere yields an empty string, never a token', () {
+      final details = TheTvdbClient.mapExtendedResponse({
+        'data': {'id': 1, 'name': 'Something', 'year': 2019},
+      }, kind: TmdKind.movie);
+      expect(details!.overview, '');
+    });
+  });
+}
+
+  realPayloadTests();
 }

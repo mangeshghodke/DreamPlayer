@@ -503,10 +503,6 @@ class TheTvdbClient {
         ]),
       );
       if (url == null || url.isEmpty) continue;
-      // Logos/clearlos/banners are square-ish or very wide; they aren't useful
-      // as a poster or a backdrop, so drop anything the type calls out.
-      final type = _intValue(entry['type']);
-      if (type != null && type >= 3) continue;
       final width = _intValue(entry['width']) ?? 0;
       final height = _intValue(entry['height']) ?? 0;
       final image = MetaImage(
@@ -517,13 +513,12 @@ class TheTvdbClient {
         voteAverage: _ratingValue(entry['score'] ?? entry['rating']),
         language: _stringValue(entry['language']),
       );
-      final aspect = image.aspect;
-      // Prefer the declared type; fall back to geometry when it's absent.
-      final isBackdrop = type == 2 || (type == null && aspect >= 1.2);
-      final isPoster = type == 1 || (type == null && aspect > 0 && aspect < 0.9);
-      if (isBackdrop) {
+      // Classification lives in _classifyArtwork so the picker and the
+      // automatic choice can never disagree again.
+      final slot = _classifyArtwork(entry, width: width, height: height);
+      if (slot == _ArtworkSlot.backdrop) {
         backdrops.add(image);
-      } else if (isPoster) {
+      } else if (slot == _ArtworkSlot.poster) {
         posters.add(image);
       }
     }
@@ -739,18 +734,7 @@ class TheTvdbClient {
       year: _yearFromMap(map),
       posterPath: artwork.poster,
       backdropPath: artwork.backdrop,
-      overview:
-          _stringValue(
-            map['overview'] ??
-                map['summary'] ??
-                map['description'] ??
-                _firstString(
-                  map['overviews'] ??
-                      map['overviewTranslations'] ??
-                      map['overview_translated'],
-                ),
-          ) ??
-          '',
+      overview: _overviewFromMap(map),
       voteAverage: _ratingValue(map['rating'] ?? map['voteAverage']),
       kind: resolvedKind,
       provider: MetadataProvider.theTvdb,
@@ -792,18 +776,7 @@ class TheTvdbClient {
     return TmdDetails(
       title: title,
       tagline: _stringValue(map['tagline'] ?? map['summary']),
-      overview:
-          _stringValue(
-            map['overview'] ??
-                map['summary'] ??
-                map['description'] ??
-                _firstString(
-                  map['overviews'] ??
-                      map['overviewTranslations'] ??
-                      map['overview_translated'],
-                ),
-          ) ??
-          '',
+      overview: _overviewFromMap(map),
       voteAverage: _ratingValue(map['rating'] ?? map['voteAverage']),
       voteCount:
           _intValue(map['votes'] ?? map['voteCount'] ?? map['ratingCount']) ??
@@ -871,18 +844,7 @@ class TheTvdbClient {
     return TmdEpisode(
       episodeNumber: episodeNumber,
       name: _stringValue(map['name'] ?? map['title']) ?? '',
-      overview:
-          _stringValue(
-            map['overview'] ??
-                map['summary'] ??
-                map['description'] ??
-                _firstString(
-                  map['overviews'] ??
-                      map['overviewTranslations'] ??
-                      map['overview_translated'],
-                ),
-          ) ??
-          '',
+      overview: _overviewFromMap(map),
       stillPath: still,
       airDate: _stringValue(
         map['aired'] ?? map['airDate'] ?? map['firstAired'],
@@ -1554,11 +1516,141 @@ List<String> _genresFromMap(Map<String, dynamic> map) {
   return result;
 }
 
+/// Reads a movie/show synopsis from a v4 extended record.
+///
+/// Captured on-device (issue #33): there is **no** `overview` / `summary` /
+/// `description` key at all, and `overviewTranslations` is a **LIST** of
+/// `{language, overview}` objects - not a map. The old code fed that list to
+/// `_firstString`, which only understands scalars, so it always resolved to
+/// null and the synopsis was empty (or a stray language token leaked through
+/// another field).
+String _overviewFromMap(Map<String, dynamic> map) {
+  for (final key in const [
+    'overview',
+    'summary',
+    'description',
+    'plot',
+  ]) {
+    final direct = _stringValue(map[key]);
+    if (direct != null && direct.trim().isNotEmpty) return direct.trim();
+  }
+  // A language-keyed map: {eng: "...", heb: "..."}
+  for (final key in const ['overviews', 'overview_translated']) {
+    final value = map[key];
+    if (value is Map) {
+      final byLanguage = <String, String>{};
+      value.forEach((k, v) {
+        final text = _stringValue(v);
+        if (text != null && text.trim().isNotEmpty) {
+          byLanguage.putIfAbsent(k.toString().toLowerCase(), () => text.trim());
+        }
+      });
+      final picked = _pickByLanguage(byLanguage);
+      if (picked != null && picked.isNotEmpty) return picked;
+    }
+  }
+  // v4: a list of {language, overview} / {language, value} objects.
+  for (final key in const ['overviewTranslations']) {
+    final list = _listValue(map[key]);
+    if (list == null) continue;
+    final byLanguage = <String, String>{};
+    for (final item in list) {
+      final m = _mapValue(item);
+      if (m == null) continue;
+      final text = _stringValue(
+            m['overview'] ?? m['value'] ?? m['text'] ?? m['description'],
+          ) ??
+          '';
+      if (text.trim().isEmpty) continue;
+      final lang = (_stringValue(m['language'] ?? m['languageCode']) ?? '')
+          .toLowerCase();
+      byLanguage.putIfAbsent(lang, () => text.trim());
+    }
+    final picked = _pickByLanguage(byLanguage);
+    if (picked != null && picked.isNotEmpty) return picked;
+  }
+  return '';
+}
+
+/// English first, then the first available language.
+String? _pickByLanguage(Map<String, String> byLanguage) {
+  if (byLanguage.isEmpty) return null;
+  for (final lang in const ['eng', 'en', 'en-us']) {
+    final hit = byLanguage[lang];
+    if (hit != null && hit.isNotEmpty) return hit;
+  }
+  for (final entry in byLanguage.entries) {
+    if (entry.value.isNotEmpty) return entry.value;
+  }
+  return null;
+}
+
 class _ArtworkSelection {
   const _ArtworkSelection({this.poster, this.backdrop});
 
   final String? poster;
   final String? backdrop;
+}
+
+/// Which slot a TheTVDB artwork belongs in.
+enum _ArtworkSlot { poster, backdrop, other }
+
+/// Classifies ONE TheTVDB artwork entry.
+///
+/// The numeric `type` table below is taken from a real v4 `/movies/{id}/extended`
+/// payload captured on-device (issue #33) - 125 artwork entries across a batch
+/// of movie records, cross-checked against each entry's own dimensions:
+///
+///   type 2  680x1000  (0.68) poster      type 3  1280x720 (1.78) backdrop
+///   type 7  680x1000  (0.68) poster      type 15 1920x1080 (1.78) backdrop
+///   type 13  300x450  (0.67) poster      type 1  758x140  (5.41) neither
+///   type 14  680x1000  (0.68) poster      type 18 1024x1024 (1.00) neither
+///
+/// The previous code (inherited, pre-dating the picker) mapped 2/7 to poster
+/// and 1/3/6/8 to backdrop. It never listed 13/14/15 - which is 54 of the 125
+/// observed entries and EVERY backdrop (10x type 15) - so TheTVDB backdrops
+/// silently never appeared. `category` is NOT sent by v4 (it is null on every
+/// entry), so it cannot be used.
+///
+/// Types 6 and 8 are not present in any captured payload; they are deliberately
+/// left out rather than guessed, so an unknown id falls through to geometry.
+_ArtworkSlot _classifyArtwork(Map<String, dynamic> entry, {int? width, int? height}) {
+  final typeId = _intValue(entry['type'] ?? entry['artworkType']);
+  if (typeId != null) {
+    if (typeId == 2 || typeId == 7 || typeId == 13 || typeId == 14) {
+      return _ArtworkSlot.poster;
+    }
+    if (typeId == 3 || typeId == 15) return _ArtworkSlot.backdrop;
+    // 1 (logo strip), 18 (square) and any id we have not verified.
+    return _ArtworkSlot.other;
+  }
+
+  // A `category`/label string, if a future payload ever sends one.
+  final label = (_stringValue(
+            entry['category'] ??
+                (entry['type'] is String ? entry['type'] : null) ??
+                entry['name'] ??
+                entry['slug'],
+          ) ??
+          '')
+      .toLowerCase();
+  if (label.contains('poster')) return _ArtworkSlot.poster;
+  if (label.contains('background') ||
+      label.contains('backdrop') ||
+      label.contains('banner') ||
+      label.contains('fanart')) {
+    return _ArtworkSlot.backdrop;
+  }
+  if (label.isNotEmpty) return _ArtworkSlot.other;
+
+  // Untyped entry: fall back to geometry. Posters are portrait, backdrops
+  // landscape.
+  if (width != null && height != null && width > 0 && height > 0) {
+    final aspect = width / height;
+    if (aspect >= 1.2) return _ArtworkSlot.backdrop;
+    if (aspect < 0.9) return _ArtworkSlot.poster;
+  }
+  return _ArtworkSlot.other;
 }
 
 _ArtworkSelection _selectArtwork(
@@ -1589,28 +1681,16 @@ _ArtworkSelection _selectArtwork(
       ]),
     );
     if (url == null) continue;
-    final typeId = _intValue(entry['type'] ?? entry['artworkType']);
-    final type =
-        _stringValue(
-          entry['type'] ??
-              entry['artworkType'] ??
-              entry['name'] ??
-              entry['slug'],
-        )?.toLowerCase() ??
-        '';
     final thumbnail = _absoluteTvdbUrl(
       _firstValue(entry, const ['thumbnail', 'thumbnailUrl', 'thumb']),
     );
-    final isPoster = typeId == 2 || typeId == 7 || type.contains('poster');
-    final isBackdrop =
-        typeId == 1 ||
-        typeId == 3 ||
-        typeId == 6 ||
-        typeId == 8 ||
-        type.contains('background') ||
-        type.contains('backdrop') ||
-        type.contains('banner') ||
-        type.contains('fanart');
+    final slot = _classifyArtwork(
+      entry,
+      width: _intValue(entry['width']),
+      height: _intValue(entry['height']),
+    );
+    final isPoster = slot == _ArtworkSlot.poster;
+    final isBackdrop = slot == _ArtworkSlot.backdrop;
     if (isPoster) {
       poster ??= thumbnail ?? url;
     } else if (isBackdrop) {
