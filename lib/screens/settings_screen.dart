@@ -1359,9 +1359,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'pool of posters and backdrops you can pick from under '
                     '⋮ → Change poster / Change backdrop, and covers some '
                     'titles TMDB does not have.\n\n'
-                    'TMDB is required for the full experience: TheTVDB on its '
-                    'own resolves titles and artwork, but has no season or '
-                    'episode data, and some artwork types are unavailable.',
+                    'You can use either one on its own, or both — TMDB gives '
+                    'the richer detail, TheTVDB widens the artwork and covers '
+                    'what TMDB lacks.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Colors.white54,
                       height: 1.35,
