@@ -5,8 +5,11 @@
 > gated behind the subscription after the 7-day trial (`_checkHdrGate()` in
 > `player_screen.dart`). Do not publish the old wording.
 
-**Post AFTER 0.5.0 is approved and live.** The currently-live 0.4.8 has the
-paywall disabled and is entirely free — see the timing note at the bottom.
+**Posting timing — you can post now.** The paywall and the 7-day trial are
+already live in 0.4.8, so the drafts below describe what someone gets today,
+not a future state. 0.5.0 only adds the Keychain mirror of the trial start
+time (so the trial survives a reinstall) — the trial itself, and the Dolby
+Vision / HDR gate, are unchanged.
 
 App Store link (use this, it's already live):
 `https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889`
@@ -163,10 +166,11 @@ Would really like feedback from people with iPads I haven't been able to test on
 
 ## Before you post — read this
 
-**Timing.** The live build right now is **0.4.8**, paywall disabled,
-completely free. **0.5.0** turns it on. Post now and people install the free
-build, then get upgraded to the paywall version. Legal (they get the trial) but
-on Reddit that's the comment thread that ends a post. Wait for approval.
+**Timing.** No need to wait for anything. The paywall and the 7-day trial are
+already live in the App Store build (0.4.8), and the drafts above describe
+exactly that. 0.5.0 adds the Keychain mirror of the trial start time so the
+trial survives deleting and reinstalling — the trial and the Dolby Vision / HDR
+gate are unchanged, so the posts stay accurate either way.
 
 **The claim that would have blown this up.** The earlier draft said Dolby
 Vision was free forever. It is not — it's the paid tier. One person reading the
