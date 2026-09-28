@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'artwork_override.dart';
 import 'tmdb_client.dart';
 
 const String theTvdbApiKeyPrefsKey = 'dreamplayer.theTvdbApiKey';
@@ -459,6 +460,74 @@ class TheTvdbClient {
         : '/movies/$id/extended';
     final data = await _authorizedGet(path);
     return mapExtendedResponse(data, kind: kind);
+  }
+
+  /// Every artwork TheTVDB holds for a show/movie, split into posters and
+  /// backdrops, for the "Change poster" / "Change backdrop" picker.
+  ///
+  /// Reads the same `/series|movies/{id}/extended` record [extended] already
+  /// fetches — the v4 `artworks` array is a single flat list mixing posters,
+  /// backdrops, logos, banners and clearlogos, so entries are classified by
+  /// their `type` (1 = poster, 2 = backdrop) and fall back to aspect ratio when
+  /// the provider omits it.
+  Future<({List<MetaImage> posters, List<MetaImage> backdrops})> artworkImages(
+    int id, {
+    TmdKind kind = TmdKind.movie,
+  }) async {
+    if (id <= 0 || !await _hasCredentials()) {
+      return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    }
+    final path = kind == TmdKind.tv
+        ? '/series/$id/extended'
+        : '/movies/$id/extended';
+    final data = await _authorizedGet(path);
+    return mapArtworkResponse(data);
+  }
+
+  /// Splits an extended record's `artworks` array into posters and backdrops.
+  static ({List<MetaImage> posters, List<MetaImage> backdrops})
+      mapArtworkResponse(dynamic response) {
+    final map = _dataMap(response);
+    if (map == null) return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    final posters = <MetaImage>[];
+    final backdrops = <MetaImage>[];
+    for (final entry in _artworkEntries(map['artworks'] ?? map['artwork'])) {
+      final url = _absoluteTvdbUrl(
+        _firstValue(entry, const [
+          'image',
+          'image_url',
+          'imageUrl',
+          'url',
+          'thumbnail',
+          'thumbnailUrl',
+        ]),
+      );
+      if (url == null || url.isEmpty) continue;
+      // Logos/clearlos/banners are square-ish or very wide; they aren't useful
+      // as a poster or a backdrop, so drop anything the type calls out.
+      final type = _intValue(entry['type']);
+      if (type != null && type >= 3) continue;
+      final width = _intValue(entry['width']) ?? 0;
+      final height = _intValue(entry['height']) ?? 0;
+      final image = MetaImage(
+        url: url,
+        provider: MetadataProvider.theTvdb,
+        width: width,
+        height: height,
+        voteAverage: _ratingValue(entry['score'] ?? entry['rating']),
+        language: _stringValue(entry['language']),
+      );
+      final aspect = image.aspect;
+      // Prefer the declared type; fall back to geometry when it's absent.
+      final isBackdrop = type == 2 || (type == null && aspect >= 1.2);
+      final isPoster = type == 1 || (type == null && aspect > 0 && aspect < 0.9);
+      if (isBackdrop) {
+        backdrops.add(image);
+      } else if (isPoster) {
+        posters.add(image);
+      }
+    }
+    return (posters: posters, backdrops: backdrops);
   }
 
   Future<TmdDetails?> seriesDetails(int id) => extended(id, kind: TmdKind.tv);

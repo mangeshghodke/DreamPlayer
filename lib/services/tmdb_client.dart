@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/tmdb_api_key.dart';
 import '../models/video_item.dart';
+import 'artwork_override.dart';
 import 'image_cache_service.dart';
 import 'the_tvdb_client.dart';
 
@@ -79,6 +80,21 @@ class TmdMovie {
       metadataImageUrl(backdropPath, width: width);
 
   String get yearLabel => year != null ? '$year' : '';
+
+  /// Copy with the artwork swapped for a "Change poster/backdrop" pick.
+  TmdMovie copyWith({String? posterPath, String? backdropPath}) => TmdMovie(
+        id: id,
+        title: title,
+        year: year,
+        posterPath: posterPath ?? this.posterPath,
+        backdropPath: backdropPath ?? this.backdropPath,
+        overview: overview,
+        voteAverage: voteAverage,
+        kind: kind,
+        provider: provider,
+        originalTitle: originalTitle,
+        alternateTitles: alternateTitles,
+      );
 
   factory TmdMovie.fromJson(
     Map<String, dynamic> json, {
@@ -210,6 +226,26 @@ class TmdDetails {
       .map((s) => metadataImageUrl(s, width: width))
       .whereType<String>()
       .toList();
+
+  /// Copy with the artwork swapped for a "Change poster/backdrop" pick.
+  TmdDetails copyWith({String? posterPath, String? backdropPath}) => TmdDetails(
+        title: title,
+        tagline: tagline,
+        overview: overview,
+        voteAverage: voteAverage,
+        voteCount: voteCount,
+        year: year,
+        runtimeMinutes: runtimeMinutes,
+        genres: genres,
+        cast: cast,
+        trailers: trailers,
+        stills: stills,
+        posterPath: posterPath ?? this.posterPath,
+        backdropPath: backdropPath ?? this.backdropPath,
+        originalTitle: originalTitle,
+        numberOfSeasons: numberOfSeasons,
+        numberOfEpisodes: numberOfEpisodes,
+      );
 
   factory TmdDetails.fromJson(
     Map<String, dynamic> json, {
@@ -557,12 +593,33 @@ class TmdMeta {
   }
 
   TmdMeta withFolderSeason(int s) => TmdMeta(
-      movie: movie,
-      details: details,
-      seasons: seasons,
-      folderSeason: s,
-      manual: manual,
-  );
+        movie: movie,
+        details: details,
+        seasons: seasons,
+        folderSeason: s,
+        manual: manual,
+      );
+
+  /// Applies the user's "Change poster" / "Change backdrop" picks.
+  ///
+  /// Applied at **read** time by [TmdService.metaFor] rather than stored in the
+  /// cache, so a pick survives re-resolution (which replaces the whole [TmdMeta])
+  /// and a later "Fix match" that repoints this key at a different film. Both
+  /// [TmdMovie] and [TmdDetails] carry artwork, so both are updated — the
+  /// details header and the poster cards read different ones.
+  TmdMeta withArtwork({String? posterPath, String? backdropPath}) => TmdMeta(
+        movie: movie.copyWith(
+          posterPath: posterPath,
+          backdropPath: backdropPath,
+        ),
+        details: details?.copyWith(
+          posterPath: posterPath,
+          backdropPath: backdropPath,
+        ),
+        seasons: seasons,
+        folderSeason: folderSeason,
+        manual: manual,
+      );
 
   Map<String, dynamic> toJson() => {
         'movie': movie.toJson(),
@@ -1336,6 +1393,56 @@ class TmdApi {
     }
   }
 
+  /// Every poster and backdrop TMDB holds for a movie/show, for the
+  /// "Change poster" / "Change backdrop" picker.
+  ///
+  /// Fetched **on demand** rather than captured from the details response's
+  /// `append_to_response=images`: the picker is a rare action, and the image
+  /// lists (dozens of entries with per-language variants) would otherwise bloat
+  /// the persisted [TmdMeta] cache for every resolved item.
+  Future<({List<MetaImage> posters, List<MetaImage> backdrops})> artworkImages(
+    TmdMovie movie,
+  ) async {
+    final key = await effectiveApiKey();
+    if (key.isEmpty) return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    // Only TMDB-sourced items have a TMDB id to ask about.
+    if (movie.provider != MetadataProvider.tmdb) {
+      return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    }
+    final path = movie.kind == TmdKind.tv
+        ? '/tv/${movie.id}/images'
+        : '/movie/${movie.id}/images';
+    try {
+      final json = await _get('$path?api_key=$key');
+      final images = json['images'] as Map<String, dynamic>?;
+      MetaImage parse(dynamic raw) {
+        final m = (raw as Map).cast<String, dynamic>();
+        return MetaImage(
+          url: m['file_path'] as String? ?? '',
+          provider: MetadataProvider.tmdb,
+          width: (m['width'] as num?)?.toInt() ?? 0,
+          height: (m['height'] as num?)?.toInt() ?? 0,
+          voteAverage: (m['vote_average'] as num?)?.toDouble() ?? 0,
+          language: m['iso_639_1'] as String?,
+        );
+      }
+
+      List<MetaImage> list(String key) => (images?[key] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(parse)
+          .where((img) => img.url.isNotEmpty)
+          .toList();
+
+      return (posters: list('posters'), backdrops: list('backdrops'));
+    } on TmdException {
+      return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    } on SocketException {
+      return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    } on TimeoutException {
+      return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    }
+  }
+
   /// Every still-frame file path for one episode from the dedicated images
   /// endpoint (`/tv/{id}/season/{n}/episode/{m}/images`) — the same source the
   /// TMDB site's episode gallery uses. Used when the episode endpoint's
@@ -1937,7 +2044,108 @@ class TmdService extends ChangeNotifier {
     return total > 0 ? total : null;
   }
 
-  TmdMeta? metaFor(String identityKey) => _cache[identityKey];
+  TmdMeta? metaFor(String identityKey) {
+    final meta = _cache[identityKey];
+    if (meta == null) return null;
+    final poster = ArtworkOverrideStore.overrideFor(
+      identityKey,
+      ArtworkKind.poster,
+    );
+    final backdrop = ArtworkOverrideStore.overrideFor(
+      identityKey,
+      ArtworkKind.backdrop,
+    );
+    if (poster == null && backdrop == null) return meta;
+    return meta.withArtwork(
+      posterPath: poster?.url,
+      backdropPath: backdrop?.url,
+    );
+  }
+
+  /// Records a "Change poster" / "Change backdrop" pick and refreshes every
+  /// card showing this item. The pick is applied by [metaFor] at read time, so
+  /// it survives the next re-resolution.
+  Future<void> setArtwork(
+    String identityKey,
+    ArtworkKind kind,
+    MetaImage image,
+  ) async {
+    await ArtworkOverrideStore.set(identityKey, kind, image);
+    TmdStore.changes.notify();
+    notifyListeners();
+  }
+
+  /// Drops a pick so the provider's default artwork shows through again.
+  Future<void> resetArtwork(String identityKey, ArtworkKind kind) async {
+    await ArtworkOverrideStore.clear(identityKey, kind);
+    TmdStore.changes.notify();
+    notifyListeners();
+  }
+
+  /// Whether the user has overridden the poster/backdrop for this item.
+  bool hasArtworkOverride(String identityKey, ArtworkKind kind) =>
+      ArtworkOverrideStore.isOverridden(identityKey, kind);
+
+  /// Every poster/backdrop candidate for an item, from TMDB and — when it is
+  /// configured — TheTVDB, for the picker.
+  ///
+  /// A TMDB-sourced item has no TheTVDB id, so TheTVDB candidates need a
+  /// best-effort title+year lookup. That match is deliberately strict: it only
+  /// accepts a hit whose normalised title equals this item's, and otherwise
+  /// returns nothing, because showing artwork from the wrong show would be
+  /// worse than showing fewer options.
+  Future<({List<MetaImage> posters, List<MetaImage> backdrops})> artworkFor(
+    String identityKey,
+  ) async {
+    final meta = _cache[identityKey];
+    if (meta == null) return (posters: <MetaImage>[], backdrops: <MetaImage>[]);
+    final posters = <MetaImage>[];
+    final backdrops = <MetaImage>[];
+
+    final tmdb = await _api.artworkImages(meta.movie);
+    posters.addAll(tmdb.posters);
+    backdrops.addAll(tmdb.backdrops);
+
+    final tvdbId = meta.movie.provider == MetadataProvider.theTvdb
+        ? meta.movie.id
+        : await _theTvdbIdForTitle(meta.movie);
+    if (tvdbId != null) {
+      try {
+        final tvdb = await _theTvdb.artworkImages(tvdbId, kind: meta.movie.kind);
+        posters.addAll(tvdb.posters);
+        backdrops.addAll(tvdb.backdrops);
+      } catch (_) {
+        // TheTVDB artwork is a bonus; never fail the picker over it.
+      }
+    }
+    return (posters: posters, backdrops: backdrops);
+  }
+
+  /// Resolves a TheTVDB id for a TMDB-sourced item by exact normalised title
+  /// match. Returns null when TheTVDB is unconfigured or nothing matches.
+  Future<int?> _theTvdbIdForTitle(TmdMovie movie) async {
+    try {
+      if (!await _theTvdb.isConfiguredAsync) return null;
+      final hits = await _theTvdb.search(
+        movie.title,
+        year: movie.year,
+        kind: movie.kind,
+      );
+      if (hits.isEmpty) return null;
+      final wanted = _normaliseTitle(movie.title);
+      for (final hit in hits) {
+        if (_normaliseTitle(hit.title) == wanted) return hit.id;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _normaliseTitle(String title) => title
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '')
+      .trim();
 
   bool isResolving(String identityKey) => _pending.containsKey(identityKey);
 
@@ -1950,6 +2158,9 @@ class TmdService extends ChangeNotifier {
       ..clear()
       ..addAll(await TmdStore.loadSuppressed());
     await _loadPersistedSeasonNames();
+    // "Change poster/backdrop" picks are read inside metaFor(), so they have to
+    // be in memory before any card renders.
+    await ArtworkOverrideStore.load();
     _loaded = true;
     notifyListeners();
   }

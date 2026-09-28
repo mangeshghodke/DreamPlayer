@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
-import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/hdr_format.dart';
 import '../models/video_item.dart';
+import '../services/artwork_override.dart';
 import '../services/file_browser.dart';
 import '../services/ftp_client.dart';
+import 'artwork_picker_sheet.dart';
+import '../widgets/cached_image.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/upnp_client.dart';
@@ -1123,6 +1125,23 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       _details = null;
       _loading = false;
     });
+  }
+
+  /// Opens the "Change poster" / "Change backdrop" picker (issue #33).
+  ///
+  /// The pick is stored against [_identityKey] and applied at read time by
+  /// `TmdService.metaFor`, so it updates this screen and every card showing the
+  /// same item, and it survives the next re-resolution.
+  Future<void> _changeArtwork(ArtworkKind kind) async {
+    final changed = await ArtworkPickerSheet.show(
+      context,
+      identityKey: _identityKey,
+      kind: kind,
+    );
+    if (changed != true || !mounted) return;
+    // The service notifies on set/reset, but re-read the meta anyway so the
+    // header swaps immediately rather than waiting for the listener.
+    setState(() => _meta = _service.metaFor(_identityKey));
   }
 
   Future<void> _fixMatch() async {
@@ -2254,6 +2273,18 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                         foregroundColor: theme.colorScheme.error,
                       ),
                       child: Text(AppLocalizations.of(context).detailsRemoveInfo),
+                    ),
+                    // "Change poster" / "Change backdrop" (issue #33). Sits
+                    // right next to Fix match because it's the other half of
+                    // the same problem: Fix match corrects WHICH film this is,
+                    // these correct the art for the film it already matched.
+                    TextButton(
+                      onPressed: () => _changeArtwork(ArtworkKind.poster),
+                      child: const Text('Change poster'),
+                    ),
+                    TextButton(
+                      onPressed: () => _changeArtwork(ArtworkKind.backdrop),
+                      child: const Text('Change backdrop'),
                     ),
                   ],
                 ),
