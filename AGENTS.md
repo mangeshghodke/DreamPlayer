@@ -216,6 +216,33 @@ A video player app supporting:
     session (`reloadSession(at:)` — start for replay, target for scrubber
     pull-back) instead of calling a no-op seek. The active subtitle track is
     re-applied after the reload.
+  - **`load(startPosition:)` is IGNORED for network sources — seek must be
+    retried (2026-09-28, iOS, user-verified)**: `engine.load(startPosition:)`
+    is honoured for local AVPlayer items but **silently dropped for network
+    sources** — Jellyfin direct-play and plain http(s) are fed to the engine
+    through its own **loopback producer** (not a local `AVPlayer` item), so the
+    session always opens at 0 no matter what you pass. A single post-ready
+    `engine.seek(to:)` is ALSO not enough: a seek issued the instant the engine
+    reports ready is swallowed because the loopback producer is still filling
+    and has no data at that offset yet. **A seek issued later on the same
+    session works — which is why scrubbing by hand is reliable while resume is
+    not** (that asymmetry is the diagnostic tell; if hand-scrub works and resume
+    doesn't, it is this, not a Dart/`ResumeStore` bug). Fix is
+    `reassertPosition(_:attempts:settle:)` in `AvPlayerView.swift`: seek, sleep
+    ~900 ms, re-issue while `currentTime < position * 0.9`, stop as soon as it
+    sticks (5 attempts on open, 3 on track switch). Positions ≤ 2 s are ignored
+    so a deliberate "start from the top" is never undone. This one gap caused
+    **two** user-visible iOS bugs, both fixed in `7bce150`/`4327874`:
+    (1) Continue Watching started at the beginning on a Jellyfin file, and
+    (2) changing the audio track restarted the file. The track-switch path
+    re-asserts **twice** — once inside `reloadSession()` and once after
+    re-applying the selection, because selecting the track makes the engine
+    re-probe the container a second time and drop the playhead again.
+    Symptom signature: switching **to** the container's DEFAULT track preserves
+    the position while switching to any non-default track resets to 0.
+    `reloadSession()` is deliberately **not** used for local files — an
+    `AVPlayer` in-place track switch is enough there, and reloading conflicts
+    with ReplayKit during screen recording.
   - **Subtitles render host-side**: AetherEngine decodes cues into
     `engine.$subtitleCues` and its `AetherPlayerView` does NOT paint them, so
     `AvPlayerView` draws its own `SubtitleOverlayView` (text + PGS/DVB bitmap
