@@ -39,7 +39,9 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   surfaced as clutter. TMDB stays first and TheTVDB fills in the gaps;
   cross-provider duplicates (same title + year + kind) collapse to one row.
   A provider that is unconfigured or errors is simply skipped, so TheTVDB
-  takes over cleanly when there is no TMDB key. The empty state now names the
+  takes over cleanly when there is no TMDB key. Works on both Android and
+  iOS. A new Settings FAQ entry covers whether TheTVDB can be used on its
+  own. The empty state now names the
   fix ("Add a TMDB or TheTVDB API key in Settings → Metadata to search") and
   the duplicate TheTVDB chip is gone from the details header (the required
   "Metadata by TheTVDB" attribution link stays).
@@ -49,6 +51,19 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
+- **Existing purchases now survive an app update (iOS)** — a customer who had
+  already subscribed or bought the lifetime unlock was **locked out after
+  updating the app**: the paywall appeared on previously-unlocked features and
+  the only way back in was tapping Restore Purchases for a purchase they had
+  already made. The app never asked StoreKit what the user already owns at
+  launch. It now re-reads the purchase history at startup, so subscriptions and
+  the lifetime unlock are restored automatically on update *and* on
+  reinstall — Restore Purchases remains as the fallback for a new device or a
+  different Apple ID, as Apple requires. Expired subscriptions and refunded
+  purchases correctly lose access.
+- **TheTVDB now works on iOS (build fix)** — the iOS build had been broken
+  since TheTVDB landed, so 0.4.8 was shipped without a working TheTVDB
+  credential store. Fixed in 0.5.0.
 - **Free trial now survives app deletion and reinstall (iOS)** — the trial
   start time was stored only in SharedPreferences, which lives in the app
   container and is wiped when the app is deleted, so removing and

@@ -16,7 +16,11 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.5.0+3
+# versionCode must stay ABOVE every previously released build number, or
+# Android refuses to install the APK as an upgrade over an existing install.
+# v0.4.9 shipped build 36, so 0.5.0 starts at 37.
+# (iOS build numbers are per marketing version, so they are independent.)
+version: 0.5.0+37
 
 environment:
   sdk: ^3.12.2
