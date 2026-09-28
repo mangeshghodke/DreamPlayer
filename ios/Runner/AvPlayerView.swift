@@ -525,7 +525,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             // Re-applying the selection makes the engine
                             // re-probe the container, which drops the playhead
                             // a second time — put it back where it was.
-                            await self.reassertPosition(resumeAt, timeout: 3.0)
+                            await self.reassertPosition(resumeAt, attempts: 3)
                             self.emit()
                         }
                     }
@@ -1053,19 +1053,34 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// not for network sources: Jellyfin direct-play and plain http(s) are fed
     /// to the engine through its own loopback producer, where the session
     /// always opens at 0. The same happens when an audio-track change forces
-    /// the engine to re-probe the container. An explicit `seek` once the engine
-    /// has settled is the only thing that actually moves the playhead, so both
-    /// the open/resume path and the track-switch reload funnel through here.
+    /// the engine to re-probe the container.
+    ///
+    /// A seek issued the moment the engine reports ready is routinely
+    /// swallowed — the loopback producer is still filling and has no data at
+    /// that offset yet. A seek issued later on the same session works, which
+    /// is why scrubbing by hand is reliable while resume is not. So this
+    /// retries: seek, let the producer catch up, and re-issue while the
+    /// playhead is still short. It stops as soon as the position sticks.
     ///
     /// Positions under ~2 s are ignored so a deliberate "start from the top"
-    /// is never undone, and an already-correct playhead is left alone.
-    private func reassertPosition(_ position: Double, timeout: TimeInterval = 5.0) async {
-        guard position > 2.0, let engine = self.engine else { return }
-        await waitForEngineReady(timeout: timeout)
-        guard let engine = self.engine else { return }
-        guard engine.currentTime < position * 0.9 else { return }
-        await engine.seek(to: position)
+    /// is never undone.
+    private func reassertPosition(
+        _ position: Double,
+        attempts: Int = 5,
+        settle: UInt64 = 900_000_000
+    ) async {
+        guard position > 2.0 else { return }
+        for _ in 0..<attempts {
+            guard let engine = self.engine else { return }
+            await waitForEngineReady(timeout: 5.0)
+            guard let engine = self.engine else { return }
+            guard engine.currentTime < position * 0.9 else { return }
+            await engine.seek(to: position)
+            // Let the seek land before deciding whether to try again.
+            try? await Task.sleep(nanoseconds: settle)
+        }
     }
+
 
     /// Converts a Dart flat position (the `index` field in the
     /// `audioTracks` map) to the engine's native audio track `id`.
