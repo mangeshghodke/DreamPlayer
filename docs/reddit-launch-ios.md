@@ -1,14 +1,20 @@
 # Reddit launch posts — DreamPlayer for iOS
 
-**Post AFTER 0.5.0 is approved and live.** Reason in the note at the bottom —
-read it before posting.
+> **REVISED.** An earlier draft claimed "Dolby Vision and HDR are free and
+> stay free". **That was false** — Dolby Vision / HDR10 / HDR10+ / HLG is
+> gated behind the subscription after the 7-day trial (`_checkHdrGate()` in
+> `player_screen.dart`). Do not publish the old wording.
 
-App Store link (already live, use this):
+**Post AFTER 0.5.0 is approved and live.** The currently-live 0.4.8 has the
+paywall disabled and is entirely free — see the timing note at the bottom.
+
+App Store link (use this, it's already live):
 `https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889`
 
-All three drafts: same App Store link, no link in the title, transparency that
-you're the developer, honest limitations included (that part is what makes the
-post land on Reddit rather than get removed).
+Every draft: link at the end (not the title), transparent that you're the
+developer, honest limitations, and **honest about the trial** — which is also
+the strongest selling angle, since Infuse (the closest comparable) locks
+Dolby Vision behind Pro permanently.
 
 ---
 
@@ -17,57 +23,62 @@ post land on Reddit rather than get removed).
 **Title**
 
 ```
-[Made for iOS] DreamPlayer — a local video player that actually does Dolby Vision and lossless audio
+[Made for iOS] DreamPlayer — local video player with Dolby Vision, lossless audio and NAS support (7-day trial)
 ```
 
 **Body**
 
 ```
-I make this one, so take it with a grain of salt — but the problem it solves is
-one I kept hitting myself, so I thought it might be useful to someone else.
+I make this one, so take it with a grain of salt — but I built it to solve a
+problem I kept hitting, and I think a few other people here have too.
 
 This is a player for your OWN files. Nothing to sign up for, no streaming
-service, no library sitting on someone else's servers. Your files, your NAS, your
-disk.
+service, no library sitting on someone else's servers.
 
-What it does that I couldn't find elsewhere on iOS:
+What it does:
 
-• Dolby Vision and HDR10/HDR10+/HLG passthrough, on hardware that supports it.
-  Verified on an iPad Pro M2. This was the main reason I built it — the
-  built-in players handle HDR inconsistently and most third-party ones just
-  don't try.
+• Dolby Vision, HDR10, HDR10+ and HLG passthrough on hardware that supports
+  it. Verified Dolby Vision on an iPad Pro M2. This was the main reason I
+  built it — most iOS players either don't try, or quietly tone-map to SDR.
 
-• Real lossless audio: DTS-HD, TrueHD, Dolby E-AC3, and 24-bit multichannel
+• Real lossless audio: DTS-HD, TrueHD, Dolby E-AC3 and 24-bit multichannel
   FLAC, with mid-playback track switching.
 
-• MKV, TS and other containers AVPlayer won't open natively — it uses an
-  FFmpeg demux layer for those, so a .mkv doesn't need converting first.
+• MKV, TS and other containers AVPlayer won't open natively, via an FFmpeg
+  demux layer — so a .mkv doesn't need converting first.
 
-• Your NAS, several ways: SMB shares through the Files app's own "Connect to
-  Server", plus WebDAV, FTP/SFTP, Jellyfin and DLNA. Also works with
-  "Open with" from any file manager.
+• Your NAS, several ways: SMB through the Files app's own "Connect to Server",
+  plus WebDAV, FTP/SFTP, Jellyfin and DLNA. Works with "Open with" from any
+  file manager.
 
-• Sidecar subtitles just work — drop a .srt/.ass next to the video and it
-  attaches automatically, correctly matched. Picture-in-picture too.
+• Sidecar subtitles just attach themselves — drop a .srt or .ass next to the
+  video and it's picked up and auto-matched. PiP, chapters, multi-audio too.
 
-What it does NOT do, so you can decide if it's worth your time:
+Being straight about the cost, because I know it's the first question:
+
+It's free to download and you get a 7-day trial of everything, including
+Dolby Vision. After that, Dolby Vision / HDR playback and the extras
+(playback speed, A-B loop, sleep timer, subtitle styling, online subtitle
+search, download to device) are part of a subscription — ₹199/month, ₹1,499/year,
+or ₹4,999 once. Browsing your files, playing SDR content, subtitles, PiP and
+all the source types stay free.
+
+For reference, Infuse locks Dolby Vision behind its Pro tier outright, so I'm
+not claiming to be more generous — but I'm cheaper at every level than Infuse
+is, and everything is unlocked for the first week so you can actually test the
+HDR on your own files before deciding.
+
+What it doesn't do:
 
 • No streaming services. It's for files you already have.
 • Dolby Vision output depends on your display, obviously.
-• No Android-style codec soup — if the iPad's own hardware can't decode
-  something, the app can't fix that.
+• Can't fix it if the iPad's own hardware can't decode something.
 • Requires iOS/iPadOS 17 or later.
-
-On cost: browsing, playback, all of the sources, subtitles and Dolby
-Vision/HDR are free and stay free. There's a 7-day trial that unlocks the
-extras (playback speed, A-B loop, sleep timer, subtitle styling, online
-subtitle search, download to device), and a subscription after that if you
-want them. Nothing I've listed as free is behind that.
 
 https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889
 
-Happy to answer questions about the technical side — especially how the HDR
-path works, since that took some digging.
+Happy to answer questions on the technical side — especially how the HDR path
+works, which took a lot of digging.
 ```
 
 ---
@@ -77,7 +88,7 @@ path works, since that took some digging.
 **Title**
 
 ```
-New on the App Store: DreamPlayer, a local video player for iPhone and iPad with Dolby Vision + lossless audio
+New on the App Store: DreamPlayer — local video player with Dolby Vision, lossless audio, NAS support
 ```
 
 **Body**
@@ -85,26 +96,29 @@ New on the App Store: DreamPlayer, a local video player for iPhone and iPad with
 ```
 Just released DreamPlayer on the App Store. I'm the developer.
 
-Short version: it's a video player for your own files, and it takes HDR and
-lossless audio seriously on iOS.
+It's a video player for your own files, and it takes HDR and lossless audio
+seriously on iOS.
 
 • Dolby Vision, HDR10, HDR10+ and HLG passthrough on capable hardware
-  (verified on iPad Pro M2)
-• DTS-HD, TrueHD, Dolby E-AC3, and 24-bit multichannel FLAC
-• MKV / TS / WebM via an FFmpeg demux layer, so you don't have to remux
-• Plays from NAS: SMB via the Files app, plus WebDAV, FTP/SFTP, Jellyfin, DLNA
-• Automatic sidecar subtitles (.srt, .ass, .vtt and friends), PiP, chapters
+  (verified Dolby Vision on iPad Pro M2)
+• DTS-HD, TrueHD, Dolby E-AC3 and 24-bit multichannel FLAC
+• MKV / TS / WebM via an FFmpeg demux layer, so no remuxing needed
+• NAS support: SMB through the Files app, plus WebDAV, FTP/SFTP, Jellyfin, DLNA
+• Auto sidecar subtitles, PiP, chapters, multi-audio
 
-It works on iPhone and iPad, needs iOS 17+.
+iPhone and iPad, needs iOS 17+.
 
-Free to browse and play everything, including all the HDR formats. A 7-day
-trial covers the extras (playback speed, A-B loop, sleep timer, subtitle
-styling, online subtitle search, download to device), with an optional
-subscription after that. Android version exists too and is free.
+On price, since it's the obvious question: free to download, with a 7-day trial
+that unlocks everything including Dolby Vision. After that Dolby Vision / HDR
+and the extras (playback speed, A-B loop, sleep timer, subtitle styling, online
+subtitle search, download to device) are subscription — ₹199/month, ₹1,499/year,
+or ₹4,999 one-time. Browsing, SDR playback, subtitles, PiP and all source types
+stay free. Infuse puts Dolby Vision behind Pro permanently, so this is a
+deliberate difference rather than an accident.
 
 https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889
 
-Feedback welcome — especially on devices I haven't tested against.
+Feedback welcome, especially from devices I haven't tested against.
 ```
 
 ---
@@ -114,63 +128,65 @@ Feedback welcome — especially on devices I haven't tested against.
 **Title**
 
 ```
-iPad app I made: local video player with Dolby Vision passthrough, lossless audio, and NAS support
+iPad app I made: local video player with Dolby Vision passthrough, lossless audio and NAS support
 ```
 
 **Body**
 
 ```
-Made this because I wanted my iPad to play my own library properly — including
-the Dolby Vision and DTS-HD files that the built-in player handles badly or not
-at all. Verified Dolby Vision and HDR10 passthrough on an iPad Pro M2.
+Built this because I wanted my iPad to play my own library properly —
+including the Dolby Vision and DTS-HD files the built-in player handles badly
+or not at all. Verified Dolby Vision and HDR10 passthrough on an iPad Pro M2.
 
 iPad-relevant bits:
 
 • Real HDR passthrough (DV, HDR10, HDR10+, HLG) rather than tone-mapped SDR
 • DTS-HD / TrueHD / E-AC3 / 24-bit multichannel FLAC
-• PiP, chapter support, and sidecar subtitles that just attach themselves
-• Reads NAS shares — SMB through the Files app's "Connect to Server", so no
-  third-party server app needed. WebDAV, FTP/SFTP, Jellyfin and DLNA also work.
-• AirPlay for the TV when you want the big screen
+• PiP, chapters, multi-audio, and sidecar subtitles that attach themselves
+• NAS shares without a third-party server app — SMB through the Files app's
+  "Connect to Server". WebDAV, FTP/SFTP, Jellyfin and DLNA also work.
+• AirPlay to the TV when you want the big screen
 
-It plays files you already own — no streaming services, no sign-up.
+It plays files you already own. No streaming services, no sign-up.
 
-Free to browse, play, and use all the HDR formats. 7-day trial for the extras
-(speed, A-B loop, sleep timer, subtitle styling, online subtitle search,
-download), optional subscription after.
+Free to download with a 7-day trial that unlocks everything, Dolby Vision
+included. After the trial, Dolby Vision / HDR and the extras (speed, A-B loop,
+sleep timer, subtitle styling, online subtitle search, download) are a
+subscription — ₹199/mo, ₹1,499/yr, or ₹4,999 once. Everything else stays free.
 
 https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889
 
-Would love feedback from people with iPads I haven't been able to test on.
+Would really like feedback from people with iPads I haven't been able to test on.
 ```
 
 ---
 
 ## Before you post — read this
 
-**Timing.** The live App Store build right now is **0.4.8**, which has the
-paywall disabled and is completely free. **0.5.0** turns the paywall on. If
-you post now, people install the free 0.4.8, then get upgraded to the paywall
-build. That's legal — they get the 7-day trial — but on Reddit, "it was free
-when they said so" is exactly the comment thread that kills a post. Wait for
-0.5.0 to be approved and live, then post. The drafts above describe 0.5.0
-accurately.
+**Timing.** The live build right now is **0.4.8**, paywall disabled,
+completely free. **0.5.0** turns it on. Post now and people install the free
+build, then get upgraded to the paywall version. Legal (they get the trial) but
+on Reddit that's the comment thread that ends a post. Wait for approval.
 
-**Every draft is transparent** that you made the app. Don't hide it. Reddit
-users find astrotuffed posts fast and the response is disproportionately
-hostile.
-
-**On r/iosapps specifically**, check the current self-promotion rule before
-posting — they change it. If there's a "no self-promotion" day or a required
-flair/tag, use it or wait. Getting this wrong is the fastest way to have the
-post removed and the account flagged.
+**The claim that would have blown this up.** The earlier draft said Dolby
+Vision was free forever. It is not — it's the paid tier. One person reading the
+paywall and your post would have said so publicly. Every draft above now states
+the trial up front, which is both honest and the better pitch: Infuse locks DV
+behind Pro permanently, you unlock it for a week so people can test on their
+own files.
 
 **Don't post all three at once.** Same text to three subs reads as spam
-coordination. Space them out — 0.5.0 live, post r/iosapps; a few days later
-r/ipad; then r/AppStore. And actually participate in the comments. A dev who
-answers technical questions gets a very different reception than one who
-disappears after posting.
+coordination. Space them: 0.5.0 live → r/iosapps → a few days → r/ipad → then
+r/AppStore.
 
-**If it gets traction**, the comments asking "is this just a wrapper?" are
-inevitable. The FFmpeg demux layer, the native HDR passthrough path, and the
-Keychain-persisted trial are all real answers to that.
+**Check r/iosapps' self-promotion rule on the day you post.** Those change,
+and some days require a flair or ban promotion outright.
+
+**Work the comments.** Expect "is this just a wrapper?" — the FFmpeg demux
+layer, the native HDR passthrough path, and the Keychain-persisted trial are
+all real answers, and answering technical questions is what separates a
+well-received dev post from a downvoted one.
+
+**Don't compare yourself to Infuse by name in the title.** Mentioning it once
+in the body is fine and factual; making it the headline invites fanboyism and
+argument you don't need.
