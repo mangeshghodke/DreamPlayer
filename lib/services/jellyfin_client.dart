@@ -501,9 +501,15 @@ class JellyfinClient {
 
   Future<SharedPreferences> get _sharedPrefs async => _cachedPrefs ??= _prefs ?? await SharedPreferences.getInstance();
 
-  String get _authHeader {
+  /// The `MediaBrowser Client=...` auth header value.
+  ///
+  /// Uses the **stable** per-install [deviceId]. It previously used
+  /// `DateTime.now()` here, which minted a brand-new DeviceId on *every*
+  /// request — the server saw each call as a different device, sessions never
+  /// lined up, and the device list in Jellyfin filled with junk entries.
+  Future<String> get _authHeader async {
     return 'MediaBrowser Client="DreamPlayer", Device="DreamPlayer", '
-        'DeviceId="${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}", Version="1.0.0"';
+        'DeviceId="${await deviceId}", Version="1.0.0"';
   }
 
   /// Normalizes user input into a usable base URL.
@@ -642,12 +648,24 @@ class JellyfinClient {
     if (password.isEmpty) {
       throw const JellyfinException('Enter a password.');
     }
+    final auth = await _authHeader;
     final json = await _postJson(
       '${server.url}/Users/AuthenticateByName',
       allowSelfSigned: server.allowSelfSigned,
       headers: {
-        'X-Emby-Authorization': _authHeader,
-        'X-Emby-Token': server.token ?? '',
+        // The standard `Authorization` header is what current Jellyfin
+        // (10.10+, and 12.x) requires. Sending only the legacy
+        // `X-Emby-Authorization` header makes a 12.x server reject the
+        // request with **400 "Error processing request."** before it ever
+        // looks at the credentials. `X-Emby-Authorization` is still sent for
+        // older servers; both together verify as a normal auth failure (401)
+        // on 12.1.0 rather than a 400.
+        'Authorization': auth,
+        'X-Emby-Authorization': auth,
+        // No token yet at login time — sending an empty one is meaningless and
+        // older servers have been known to 400 on it.
+        if (server.token != null && server.token!.isNotEmpty)
+          'X-Emby-Token': server.token!,
       },
       body: {'Username': username, 'Pw': password},
     );
