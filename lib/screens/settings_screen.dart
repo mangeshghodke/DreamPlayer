@@ -483,6 +483,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+    // `showDialog`'s future completes when the route is POPPED — i.e. at the
+    // START of the exit animation, not when it has finished. The dialog's
+    // subtree (and its EditableText) therefore keeps rebuilding for a few more
+    // frames. Disposing the controllers immediately made that rebuild hit
+    // "A TextEditingController was used after being disposed", which corrupts
+    // the element tree and makes the subsequent teardown assert
+    // `_dependency.isEmpty` in InheritedElement.debugDeactivated — the red
+    // screen this dialog used to show on saving a key.
+    // Regression test: test/tvdb_dialog_save_test.dart
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     keyController.dispose();
     pinController.dispose();
     if (changed == true) await _loadTheTvdb();
