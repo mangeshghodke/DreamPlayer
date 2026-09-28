@@ -201,6 +201,15 @@ class _PlayerScreenState extends State<PlayerScreen>
   VideoParams? _mpvVideoParams;
   Future<void>? _mpvAnime4kApplyChain;
   bool _mpvPictureControlsOpen = false;
+
+  /// Position to restore after an audio-track switch reset playback to the
+  /// start. Cleared as soon as it has been applied (or once the safety-net
+  /// timer fires). Null when no switch is in flight.
+  Duration? _pendingTrackSwitchResume;
+
+  /// The track index that was selected before the in-flight switch, so the
+  /// track event can tell "the switch landed" from "no change yet".
+  int _selectedAudioTrackBeforeSwitch = -1;
   Future<void>? _mpvPictureApplyChain;
   double _mpvZoomScale = 1.0;
   /// Last hwdec value applied to the mpv instance ('mediacodec',
@@ -1099,6 +1108,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       _pendingAudioTrackRestore =
           await AudioTrackStore.load(_resumeKey, engine: 'mpv');
     }
+    // A pending track-switch restore belongs to the file we are leaving.
+    _pendingTrackSwitchResume = null;
+    _selectedAudioTrackBeforeSwitch = -1;
     _mpvAudioDefaultApplied = false;
     _mpvAudioPinInFlight = false;
     // Reset VO attach cache — new session gets fresh wid; otherwise a reused
@@ -3131,6 +3143,17 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     _audioTracks = e.audioTracks;
     _selectedAudioTrackIndex = e.selectedAudioTrack;
+    // An audio-track switch on a progressive stream (Jellyfin / WebDAV / http)
+    // makes Media3 re-initialise the extractor, which can drop playback back
+    // to 0. The switch is now confirmed by the track list changing, so restore
+    // the position here as soon as it lands.
+    final pendingSwitch = _pendingTrackSwitchResume;
+    if (pendingSwitch != null &&
+        _audioTracks.isNotEmpty &&
+        e.selectedAudioTrack != _selectedAudioTrackBeforeSwitch) {
+      _pendingTrackSwitchResume = null;
+      unawaited(_restoreAfterTrackSwitch(pendingSwitch));
+    }
     // Restore the user's chosen audio track on first track event after open.
     if (_pendingAudioTrackRestore != null && _audioTracks.isNotEmpty) {
       final restore = _pendingAudioTrackRestore;
@@ -4075,9 +4098,55 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (choice != null && choice != selected) {
       // Native side switches the track; onTracksChanged re-emits with the new
       // codec/channels, which updates the top-bar audio chip automatically.
-      _exo?.selectAudioTrack(choice);
+      //
+      // Capture the live position FIRST. Switching audio on a progressive HTTP
+      // stream (Jellyfin, WebDAV, plain http) makes Media3 re-initialise the
+      // extractor, which surfaces as playback jumping back to 0. Re-seeking
+      // once the switch settles keeps the viewer where they were. Local files
+      // usually don't need it, but seeking to the same spot is a no-op there.
+      var resumeFrom = _position;
+      final exo = _exo;
+      if (exo != null) {
+        try {
+          final state = await exo.getState();
+          if (state != null && state.positionMs > 0) {
+            resumeFrom = Duration(milliseconds: state.positionMs);
+          }
+        } catch (_) {}
+      }
+      _pendingTrackSwitchResume = resumeFrom;
+      _selectedAudioTrackBeforeSwitch = selected;
+      exo?.selectAudioTrack(choice);
       AudioTrackStore.save(_resumeKey, engine: 'media3', trackIndex: choice);
+      // Safety net: if no tracks-changed event arrives (some containers don't
+      // re-emit), restore the position anyway.
+      Future<void>.delayed(const Duration(milliseconds: 1200), () {
+        final pending = _pendingTrackSwitchResume;
+        if (pending == null) return;
+        _pendingTrackSwitchResume = null;
+        _restoreAfterTrackSwitch(pending);
+      });
     }
+  }
+
+  /// Seeks back to [position] after an audio-track switch reset playback to
+  /// the start, without fighting the user if they scrubbed in the meantime.
+  Future<void> _restoreAfterTrackSwitch(Duration position) async {
+    if (!mounted) return;
+    final exo = _exo;
+    if (exo == null) return;
+    // Ignore anything too close to the start: that's likely a genuine
+    // "go to the beginning" rather than a track-switch reset.
+    if (position < const Duration(seconds: 2)) return;
+    try {
+      final state = await exo.getState();
+      if (!mounted || state == null) return;
+      // Only correct it if the player really did jump back; if the user has
+      // already moved on, leave them alone.
+      if (state.positionMs > position.inMilliseconds + 5000) return;
+      await exo.seekTo(position);
+      if (mounted) setState(() => _position = position);
+    } catch (_) {}
   }
 
   /// Audio-track picker for the mpv fallback — identical UI to the Media3
