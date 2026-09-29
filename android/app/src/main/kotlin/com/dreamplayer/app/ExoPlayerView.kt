@@ -538,11 +538,35 @@ class ExoPlayerView(
     /// them separately - see [applyBitmapCueScaling].
     private var subtitleSizeMult: Double = 1.0
 
-    /// Vertical subtitle position (0-255, 0 = bottom, 255 = top), mirrored from
-    /// [applySubtitleStyle]. Media3's setBottomPaddingFraction only reaches TEXT
-    /// cues - it is read solely by drawTextLayout - so bitmap cues need the
-    /// offset folded into the cue's line instead.
-    private var subtitleVPos: Int = 20
+    /// vPos the subtitle style defaults to, and where the two ranges below meet.
+    private val bitmapDefaultVPos = 20
+
+    /// Vertical subtitle position (0-255), mirrored from [applySubtitleStyle].
+    /// Media3's setBottomPaddingFraction only reaches TEXT cues - it is read
+    /// solely by drawTextLayout - so bitmap cues need the offset folded into the
+    /// cue's line instead.
+    private var subtitleVPos: Int = bitmapDefaultVPos
+
+    /// Bottom edge of a bottom-anchored bitmap cue, as a fraction of the video
+    /// height, at vPos 0 - just past the video's bottom edge, so the subtitle
+    /// can drop into the letterbox bar the way MPV's sub-pos allows. A text cue
+    /// cannot go below the edge, since Media3 only ever lifts text from there.
+    private val bitmapBelowVideoEdge = 1.15f
+
+    /// Fraction of the video height at which a bottom-anchored bitmap cue's
+    /// bottom edge should sit for a given vPos.
+    ///
+    /// vPos is 0 = bottom .. 255 = top, matching the text-cue convention where
+    /// Media3 lifts text from the bottom edge. The bottom of the slider is spent
+    /// travelling from below the video's bottom edge up to the default
+    /// placement, so the default itself is unchanged and the two ranges meet
+    /// continuously at [bitmapDefaultVPos].
+    private fun bitmapBottomFraction(vPos: Int): Float {
+        val d = bitmapDefaultVPos
+        if (vPos >= d) return 1f - vPos / 255f
+        val atDefault = 1f - d / 255f
+        return bitmapBelowVideoEdge + (vPos / d.toFloat()) * (atDefault - bitmapBelowVideoEdge)
+    }
 
     /// Last cue set pushed by the player, kept so a subtitle-size change can
     /// re-scale a bitmap cue that is already on screen.
@@ -2182,8 +2206,7 @@ class ExoPlayerView(
         val cues = cueGroup?.cues ?: return
         val view = playerView.subtitleView ?: return
         val mult = subtitleSizeMult
-        val vFrac = (subtitleVPos / 255.0).toFloat()
-        if (mult == 1.0 && vFrac <= 0.0) return
+        val bottomFrac = bitmapBottomFraction(subtitleVPos)
         view.setCues(cues.map { cue ->
             val bitmap = cue.bitmap
             if (bitmap == null) {
@@ -2211,8 +2234,8 @@ class ExoPlayerView(
                 // authored line and scale about their centre.
                 val bottomAnchored = cue.line + h > 0.5f
                 val newLine =
-                    if (bottomAnchored) 1f - vFrac - hScaled
-                    else cue.line + h * grow - vFrac
+                    if (bottomAnchored) bottomFrac - hScaled
+                    else cue.line + h * grow - (1f - bottomFrac)
                 Cue.Builder()
                     .setBitmap(bitmap)
                     .setSize((w * mult).toFloat())
@@ -2223,7 +2246,7 @@ class ExoPlayerView(
                     }
                     .setPosition((cue.position + w * grow).coerceIn(0f, 1f))
                     .setPositionAnchor(cue.positionAnchor)
-                    .setLine(newLine.coerceIn(0f, 1f), cue.lineType)
+                    .setLine(newLine.coerceIn(0f, 1.2f), cue.lineType)
                     .setLineAnchor(cue.lineAnchor)
                     .setVerticalType(cue.verticalType)
                     .setShearDegrees(cue.shearDegrees)
