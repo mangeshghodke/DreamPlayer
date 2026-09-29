@@ -2198,17 +2198,32 @@ class ExoPlayerView(
                     w * (bitmap.height.toFloat() / bitmap.width.toFloat())
                 }
                 val grow = ((1.0 - mult) / 2.0).toFloat()
+                val hScaled = (h * mult).toFloat()
+                // Vertical: text cues are drawn flush above the bottom edge and
+                // lifted from there (drawTextLayout: parentBottom - textHeight -
+                // parentHeight * fraction), so measure vPos from the bottom for
+                // bottom-anchored bitmaps too - the cue's bottom sits at
+                // (1 - vFrac) and growing extends upward. Lifting the disc's
+                // authored line instead floated normal subtitles into the middle
+                // of the frame, because a lift sized for text is huge relative
+                // to a bitmap cue's own height. Cues that are not
+                // bottom-anchored (mid-frame signs, karaoke) keep the disc's
+                // authored line and scale about their centre.
+                val bottomAnchored = cue.line + h > 0.5f
+                val newLine =
+                    if (bottomAnchored) 1f - vFrac - hScaled
+                    else cue.line + h * grow - vFrac
                 Cue.Builder()
                     .setBitmap(bitmap)
                     .setSize((w * mult).toFloat())
                     .apply {
                         if (cue.bitmapHeight != Cue.DIMEN_UNSET) {
-                            setBitmapHeight((h * mult).toFloat())
+                            setBitmapHeight(hScaled)
                         }
                     }
                     .setPosition((cue.position + w * grow).coerceIn(0f, 1f))
                     .setPositionAnchor(cue.positionAnchor)
-                    .setLine((cue.line + h * grow - vFrac).coerceIn(0f, 1f), cue.lineType)
+                    .setLine(newLine.coerceIn(0f, 1f), cue.lineType)
                     .setLineAnchor(cue.lineAnchor)
                     .setVerticalType(cue.verticalType)
                     .setShearDegrees(cue.shearDegrees)
