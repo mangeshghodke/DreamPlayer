@@ -1777,7 +1777,10 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
         ? firstNonEmptyOverview([season.overview, movie?.overview])
         : firstNonEmptyOverview([widget.details?.overview, movie?.overview]);
     final double displayRating = movie?.voteAverage ?? 0;
-    final List<String> displayGenres = showSeason ? [] : (widget.details?.genres ?? []);
+    // Genres were emptied for seasons, which left the season view with neither
+    // genres nor a date while the episode view showed both. A season inherits
+    // its show's genres, so use them for both (issue #33).
+    final List<String> displayGenres = widget.details?.genres ?? const [];
 
     // No-match state: simple card with just Get Info button.
     if (!hasMeta) {
@@ -1861,6 +1864,13 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
+                      // Year chip beside the genres, mirroring the episode
+                      // view's date + genre chip row. Shown for seasons too,
+                      // which previously had no date at all.
+                      if (movie.year != null && showSeason) ...[
+                        const SizedBox(height: 6),
+                        _SeriesHeaderChip(label: '${movie.year}'),
+                      ],
                       if (displayRating > 0) ...[
                         const SizedBox(height: 6),
                         Row(
@@ -1882,20 +1892,7 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
                           runSpacing: 4,
                           children: [
                             for (final genre in displayGenres)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme
-                                      .surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  genre,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant),
-                                ),
-                              ),
+                              _SeriesHeaderChip(label: genre),
                           ],
                         ),
                       ],
@@ -1958,6 +1955,37 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Small rounded label used in the series header's fact row (year / genres),
+/// matching the chip styling used by the episode details header.
+class _SeriesHeaderChip extends StatelessWidget {
+  const _SeriesHeaderChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
