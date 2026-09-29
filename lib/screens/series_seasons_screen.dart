@@ -68,6 +68,19 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
 
   static const _hiddenSeasonsPrefKey = 'dreamplayer.hiddenSeriesSeasons';
 
+  /// The metadata key of the season-folder that owns [season], or null.
+  ///
+  /// `widget.group.primary.metadataKey` is the SHOW's key, and every season row
+  /// used to render that single meta — so an artwork pick made on any season
+  /// rewrote the whole group, including the parent (issue #33). Each season
+  /// folder carries its own key in `_folders`, so an override can be scoped to
+  /// just that season; a season with no pick keeps the show's default artwork.
+  String? _folderKeyForSeason(int season) => seasonFolderKey(
+        season,
+        _folders.map((f) => (season: f.folderSeason, key: f.metadataKey)),
+        _groupKey,
+      );
+
   /// The ⋮ that opens the artwork actions (issue #33). Mirrors
   /// TmdDetailsScreen's so the feature is reachable from every screen that
   /// shows a title.
@@ -1132,6 +1145,23 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                             ),
                       ),
                     ),
+                    // Per-season artwork, scoped to THIS season folder's key so
+                    // seasons are independently changeable and an unset one
+                    // keeps the show's default (issue #33).
+                    if (_folderKeyForSeason(s) != null)
+                      IconButton(
+                        tooltip: 'Change artwork for this season',
+                        iconSize: 18,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.image_outlined),
+                        onPressed: () async {
+                          final changed = await showArtworkMenuForKey(
+                            context,
+                            _folderKeyForSeason(s)!,
+                          );
+                          if (changed && mounted) setState(() {});
+                        },
+                      ),
                     _SeasonBadge(
                       text: sg.watchedBadge(watchedCount, entries.length),
                     ),
@@ -1454,6 +1484,26 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     }
     return null;
   }
+}
+
+/// Picks the metadata key that owns [season] from [folders], ignoring the
+/// show/group key.
+///
+/// The cascade in issue #33 came from season rows resolving the GROUP's meta:
+/// one artwork pick on any season rewrote every season and the parent. This is
+/// split out as a pure function because that selection is the part that has to
+/// be right, and it is otherwise only reachable through the widget tree.
+String? seasonFolderKey(
+  int season,
+  Iterable<({int? season, String key})> folders,
+  String groupKey,
+) {
+  for (final folder in folders) {
+    if (folder.season == season && folder.key.isNotEmpty && folder.key != groupKey) {
+      return folder.key;
+    }
+  }
+  return null;
 }
 
 class _SeasonBadge extends StatelessWidget {
