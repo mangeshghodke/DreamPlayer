@@ -112,8 +112,17 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                     : 'Change backdrop'),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  ArtworkPickerSheet.show(context,
-                      identityKey: key, kind: kind);
+                  // Re-read through metaFor after the pick: _meta is the raw
+                  // cached match and artwork overrides are applied at read
+                  // time, so without this the change only showed up after
+                  // navigating away and back (issue #33).
+                  ArtworkPickerSheet.show(context, identityKey: key, kind: kind)
+                      .then((v) {
+                    if (v == true && mounted) {
+                      setState(() =>
+                          _meta = TmdService.instance.metaFor(_groupKey));
+                    }
+                  });
                 },
               ),
               ListTile(
@@ -130,7 +139,8 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                     ? () {
                         Navigator.of(sheetContext).pop();
                         TmdService.instance.resetArtwork(key, kind);
-                        setState(() {});
+                        setState(
+                            () => _meta = TmdService.instance.metaFor(_groupKey));
                       }
                     : null,
               ),

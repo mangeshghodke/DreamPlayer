@@ -2486,7 +2486,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           onToggleWatched: e.isDirectory ? null : () => _toggleWatched(e),
           // Every row gets its own key: the user wants a per-episode backdrop,
           // falling back to the show's default when one is not set.
-          artworkKey: TmdStore.identityKeyFor(_toVideoItem(e)),
           onTap: () => _openFolderEntry(e),
         );
 
@@ -3682,7 +3681,6 @@ class _FolderEntryTile extends StatelessWidget {
     this.folderSeason,
     this.watched = false,
     this.onToggleWatched,
-    this.artworkKey,
   });
 
   final FileEntry entry;
@@ -3693,9 +3691,6 @@ class _FolderEntryTile extends StatelessWidget {
   final int? folderSeason;
   final bool watched;
   final VoidCallback? onToggleWatched;
-  /// Identity key of THIS entry, so its artwork can be overridden separately
-  /// from its parent folder (issue #33). Null hides the per-row action.
-  final String? artworkKey;
 
   static String _sizeLabel(int bytes) {
     if (bytes <= 0) return '';
@@ -3734,19 +3729,6 @@ class _FolderEntryTile extends StatelessWidget {
     // The RAW filename (e.g. House.S02E05.1080p...mkv) shown subdued on its
     // own line — the title row leads with the SxxEyy badge + episode name so
     // the list reads cleanly instead of shouting the full filename.
-    // Per-child artwork action (issue #33). Previously the parent folder's
-    // picker was the only entry point, so a folder and its season sub-folders
-    // could not be given different artwork; each row now carries its own key.
-    final artworkButton = artworkKey == null
-        ? null
-        : IconButton(
-            tooltip: 'Change artwork',
-            iconSize: 18,
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.image_outlined),
-            onPressed: () => showArtworkMenuForKey(context, artworkKey!),
-          );
-
     final filenameWidget = Text(
       entry.name,
       maxLines: 1,
@@ -3867,7 +3849,6 @@ class _FolderEntryTile extends StatelessWidget {
               ),
               onPressed: onToggleWatched,
             ),
-          ?artworkButton,
           const Icon(Icons.chevron_right),
         ],
       ),
