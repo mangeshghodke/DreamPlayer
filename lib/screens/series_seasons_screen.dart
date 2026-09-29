@@ -1805,145 +1805,162 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
       );
     }
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (displayPoster != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: CachedImage(
-                  displayPoster,
-                  width: 72,
-                  height: 108,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                ),
-              ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    displayTitle,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+    // Laid out to match the episode details header (TmdDetailsScreen): the
+    // poster/title/rating block, then the overview as its OWN section below,
+    // then the attribution and the Fix match / Remove actions. They used to be
+    // crammed inside the Card's right column, which made this screen look
+    // nothing like the episode view (issue #33).
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (displayPoster != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: CachedImage(
+                      displayPoster,
+                      width: 104,
+                      height: 156,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
                   ),
-                  // Show series name as subtitle when displaying season info.
-                  if (showSeason && widget.seriesTitle != null)
-                    Text(
-                      widget.seriesTitle!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                    ),
-                  if (movie.year != null && !showSeason)
-                    Text(
-                      '${movie.year}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                    ),
-                  if (displayOverview.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Overview',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      displayOverview,
-                      maxLines: _expanded ? null : 4,
-                      overflow:
-                          _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    GestureDetector(
-                      onTap: () => setState(() => _expanded = !_expanded),
-                      child: Text(
-                        _expanded ? 'Less' : 'More',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                    ),
-                  ],
-                  if (movie.provider == MetadataProvider.theTvdb)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: const TheTvdbInfoButton(),
-                    ),
-                  const SizedBox(height: 6),
-                  Row(
-
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (displayRating > 0) ...[
-                        const Icon(Icons.star, size: 14, color: Colors.amber),
-                        const SizedBox(width: 2),
-                        Text(
-                          displayRating.toStringAsFixed(1),
-                          style: const TextStyle(fontSize: 12),
+                      Text(
+                        displayTitle,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(width: 12),
-                      ],
-                      Flexible(
-                        child: TextButton(
-                          onPressed: widget.onFixMatch,
-                          child: Text(widget.onRemoveInfo != null ? 'Fix match' : 'Get Info'),
-                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      if (widget.onRemoveInfo != null)
-                        Flexible(
-                          child: TextButton(
-                            onPressed: widget.onRemoveInfo,
-                            child: const Text('Remove'),
+                      const SizedBox(height: 4),
+                      // Show series name as subtitle when displaying season info.
+                      if (showSeason && widget.seriesTitle != null)
+                        Text(
+                          widget.seriesTitle!,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
+                      if (movie.year != null && !showSeason)
+                        Text(
+                          '${movie.year}',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      if (displayRating > 0) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.star,
+                                size: 14, color: Colors.amber),
+                            const SizedBox(width: 2),
+                            Text(
+                              displayRating.toStringAsFixed(1),
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (displayGenres.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            for (final genre in displayGenres)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme
+                                      .surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  genre,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
-                  // Genres (like SMB browser) — only for series-level view.
-                  if (displayGenres.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        for (final genre in displayGenres)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              genre,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (displayOverview.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text(
+            showSeason ? 'Season overview' : 'Overview',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            displayOverview,
+            maxLines: _expanded ? null : 4,
+            overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+          ),
+          GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Text(
+              _expanded ? 'Less' : 'More',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
               ),
             ),
+          ),
+        ],
+        if (movie.provider == MetadataProvider.theTvdb) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: const TheTvdbInfoButton(),
+          ),
+        ],
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Flexible(
+              child: TextButton(
+                onPressed: widget.onFixMatch,
+                child: Text(widget.onRemoveInfo != null ? 'Fix match' : 'Get Info'),
+              ),
+            ),
+            if (widget.onRemoveInfo != null)
+              Flexible(
+                child: TextButton(
+                  onPressed: widget.onRemoveInfo,
+                  child: const Text('Remove info'),
+                ),
+              ),
           ],
         ),
-      ),
+      ],
     );
   }
-
-
 }
-
 
 /// Poster card for a season in [SeriesSeasonsScreen].
 class _SeasonPosterCard extends StatelessWidget {
