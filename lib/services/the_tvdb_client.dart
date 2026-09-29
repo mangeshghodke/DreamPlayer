@@ -1711,8 +1711,14 @@ _ArtworkSelection _selectArtwork(
       'thumbnail',
     ]),
   );
-  var poster = preferBackdrop ? null : direct;
-  var backdrop = preferBackdrop ? direct : null;
+  // `direct` is the record's `image` - a small POSTER thumbnail. It must not
+  // be seeded into the backdrop slot up front: doing so (for TV, where
+  // preferBackdrop is true) meant `backdrop ??= url` below could never fire, so
+  // a 680x1000 poster was permanently pinned as the 16:9 hero backdrop and the
+  // real 1920x1080 Background artwork was never used (issue #33). Collect
+  // candidates first, then assign.
+  String? posterCandidate;
+  String? backdropCandidate;
   final entries = _artworkEntries(map['artworks'] ?? map['artwork']);
   for (final entry in entries) {
     final url = _absoluteTvdbUrl(
@@ -1737,22 +1743,30 @@ _ArtworkSelection _selectArtwork(
     final isPoster = slot == _ArtworkSlot.poster;
     final isBackdrop = slot == _ArtworkSlot.backdrop;
     if (isPoster) {
-      poster ??= thumbnail ?? url;
+      posterCandidate ??= thumbnail ?? url;
     } else if (isBackdrop) {
-      backdrop ??= url;
+      backdropCandidate ??= url;
     } else {
-      poster ??= thumbnail ?? url;
+      posterCandidate ??= thumbnail ?? url;
       final width = _intValue(entry['width']);
       final height = _intValue(entry['height']);
-      if (backdrop == null &&
-          url != poster &&
+      if (backdropCandidate == null &&
+          url != posterCandidate &&
           width != null &&
           height != null &&
           width > height) {
-        backdrop = url;
+        backdropCandidate = url;
       }
     }
   }
+  // Poster: a real poster artwork, else the record image.
+  // Backdrop: a real Background artwork, else the record image ONLY when the
+  // record has no artworks at all - a portrait poster stretched across a 16:9
+  // hero looks worse than no backdrop, and the screens degrade cleanly without
+  // one.
+  final poster = posterCandidate ?? direct;
+  final backdrop = backdropCandidate ??
+      (entries.isEmpty ? direct : null);
   return _ArtworkSelection(poster: poster, backdrop: backdrop);
 }
 

@@ -751,4 +751,70 @@ void artworkBackfillTests() {
       }
     });
   });
+
+  group('series backdrop is a real Background, not a poster thumbnail', () {
+    Map<String, dynamic> art(int type, int w, int h) => <String, dynamic>{
+          'image': 'https://artworks.thetvdb.com/banners/x-$type.jpg',
+          'thumbnail': 'https://artworks.thetvdb.com/banners/x-$type-t.jpg',
+          'type': type,
+          'width': w,
+          'height': h,
+        };
+
+    test('a series prefers its 1920x1080 Background for the backdrop', () {
+      final details = TheTvdbClient.mapExtendedResponse({
+        'data': {
+          'id': 334824,
+          'name': 'Dark',
+          // The record image is a 680x1000 POSTER thumbnail - this is what was
+          // being pinned as the 16:9 hero backdrop.
+          'image': 'https://artworks.thetvdb.com/banners/series/334824-1.jpg',
+          'artworks': [
+            art(14, 680, 1000), // movie poster
+            art(3, 1920, 1080), // series Background
+          ],
+        },
+      }, kind: TmdKind.tv);
+      expect(details!.backdropPath, endsWith('x-3.jpg'));
+      expect(details.backdropPath, isNot(contains('334824-1')));
+    });
+
+    test('the backdrop is never the portrait record image when artworks exist',
+        () {
+      final details = TheTvdbClient.mapExtendedResponse({
+        'data': {
+          'id': 334824,
+          'name': 'Dark',
+          'image': 'https://artworks.thetvdb.com/banners/series/334824-1.jpg',
+          'artworks': [art(14, 680, 1000)],
+        },
+      }, kind: TmdKind.tv);
+      // No Background artwork exists -> no backdrop, rather than a poster
+      // stretched across the hero.
+      expect(details!.backdropPath, isNull);
+    });
+
+    test('a record with no artworks falls back to the record image', () {
+      final details = TheTvdbClient.mapExtendedResponse({
+        'data': {
+          'id': 1,
+          'name': 'Minimal',
+          'image': 'https://artworks.thetvdb.com/banners/series/1-1.jpg',
+        },
+      }, kind: TmdKind.tv);
+      expect(details!.backdropPath, contains('series/1-1.jpg'));
+    });
+
+    test('a movie still gets its Background artwork as the backdrop', () {
+      final details = TheTvdbClient.mapExtendedResponse({
+        'data': {
+          'id': 148,
+          'name': 'Avengers: Endgame',
+          'image': 'https://artworks.thetvdb.com/banners/movies/148-1.jpg',
+          'artworks': [art(14, 680, 1000), art(15, 1920, 1080)],
+        },
+      }, kind: TmdKind.movie);
+      expect(details!.backdropPath, endsWith('x-15.jpg'));
+    });
+  });
 }
