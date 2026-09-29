@@ -34,6 +34,17 @@ class _CachedImageState extends State<CachedImage> {
   Uint8List? _bytes;
   bool _error = false;
 
+  /// Set when [_bytes] exist but the platform could not DECODE them (truncated
+  /// write, a partial download, an image format the decoder rejects).
+  ///
+  /// Previously that path fell straight through to [widget.errorBuilder], whose
+  /// callers draw a near-black icon on a near-black background - so a real
+  /// decode failure was indistinguishable from "no image", which is how a
+  /// backdrop could appear for a moment and then vanish with the URL still
+  /// reachable. Falling back to [Image.network] re-fetches by URL, which is
+  /// what the disk cache entry should have been.
+  bool _decodeFailed = false;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +59,7 @@ class _CachedImageState extends State<CachedImage> {
       // _bytes to placeholder.  The new fetch will replace it on success;
       // on failure (offline) the stale poster stays instead of going blank.
       _error = false;
+      _decodeFailed = false;
       _load();
     }
   }
@@ -61,6 +73,7 @@ class _CachedImageState extends State<CachedImage> {
       setState(() {
         _bytes = cached;
         _error = false;
+        _decodeFailed = false;
       });
       return;
     }
@@ -71,6 +84,7 @@ class _CachedImageState extends State<CachedImage> {
       setState(() {
         _bytes = bytes;
         _error = false;
+        _decodeFailed = false;
       });
     } else {
       // Offline or fetch failed — keep the previous poster (_bytes) if any
@@ -94,13 +108,32 @@ class _CachedImageState extends State<CachedImage> {
       }
       return const SizedBox.shrink();
     }
+    if (_bytes != null && _decodeFailed) {
+      return Image.network(
+        widget.url,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        errorBuilder: widget.errorBuilder,
+      );
+    }
     if (_bytes != null) {
       return Image.memory(
         _bytes!,
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
-        errorBuilder: widget.errorBuilder,
+        errorBuilder: (context, error, stack) {
+          // Bytes are present but undecodable — mark it and fall back to a
+          // network fetch of the same URL rather than showing the caller
+          // placeholder, which is visually indistinguishable from blank.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_decodeFailed) {
+              setState(() => _decodeFailed = true);
+            }
+          });
+          return const SizedBox.shrink();
+        },
       );
     }
     if (widget.loadingBuilder != null) {
