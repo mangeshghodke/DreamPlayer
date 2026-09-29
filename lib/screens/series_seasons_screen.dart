@@ -1971,6 +1971,12 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
               Flexible(
                 child: TextButton(
                   onPressed: widget.onRemoveInfo,
+                  // Match the episode/details header, where Remove info is a
+                  // destructive action and reads in the error colour rather
+                  // than the default primary purple.
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                  ),
                   child: const Text('Remove info'),
                 ),
               ),
