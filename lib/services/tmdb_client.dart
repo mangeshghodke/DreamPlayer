@@ -2179,8 +2179,29 @@ class TmdService extends ChangeNotifier {
   }
 
   /// Drops a pick so the provider's default artwork shows through again.
+  /// Drops a pick so the provider's own artwork shows through again.
+  ///
+  /// The cached match can predate the artwork backfill in
+  /// [TmdMeta.withDetails] - e.g. a meta resolved before that fix, or one whose
+  /// extended-record fetch failed. Resetting then strips the override and leaves
+  /// the item with NO artwork at all, which looked like the backdrop being
+  /// deleted and only corrected itself after navigating away (and a fresh
+  /// details fetch) - issue #33. So refetch details when the default artwork is
+  /// missing, before returning, so the reset is correct immediately.
   Future<void> resetArtwork(String identityKey, ArtworkKind kind) async {
     await ArtworkOverrideStore.clear(identityKey, kind);
+    final meta = _cache[identityKey];
+    final missing =
+        kind == ArtworkKind.poster
+            ? (meta?.movie.posterPath == null)
+            : (meta?.movie.backdropPath == null);
+    if (meta != null && missing) {
+      try {
+        await detailsFor(identityKey);
+      } catch (_) {
+        // Best effort: fall through and render whatever we have.
+      }
+    }
     TmdStore.changes.notify();
     notifyListeners();
   }

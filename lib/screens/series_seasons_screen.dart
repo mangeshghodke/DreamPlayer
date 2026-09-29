@@ -138,8 +138,16 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                 onTap: TmdService.instance.hasArtworkOverride(key, kind)
                     ? () {
                         Navigator.of(sheetContext).pop();
-                        TmdService.instance.resetArtwork(key, kind);
-                        setState(() {});
+                        // resetArtwork() refetches details when the default
+                        // artwork is missing, so re-read through metaFor
+                        // afterwards or the reset renders as "backdrop gone"
+                        // until the screen is reopened (issue #33).
+                        TmdService.instance.resetArtwork(key, kind).then((_) {
+                          if (mounted) {
+                            setState(() => _meta =
+                                TmdService.instance.metaFor(_groupKey));
+                          }
+                        });
                       }
                     : null,
               ),
