@@ -887,10 +887,17 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
               onRemoveInfo: () => _removeInfo(),
               season: seasonInfo,
               seriesTitle: seasonInfo != null ? meta.movie.title : null,
+              // A season that has no folder key of its own IS the group (a
+              // single-season series: season 1's folder is the group's primary),
+              // so fall back to the GROUP key - which is where a poster picked
+              // for it is stored, and which metaFor() returns override-applied.
+              // Passing '' instead made this null for exactly that case, so the
+              // pick updated Home but never the view (issue #33).
               seasonMeta: seasonInfo == null
                   ? null
-                  : TmdService.instance
-                      .metaFor(_folderKeyForSeason(seasonInfo.seasonNumber) ?? ''),
+                  : TmdService.instance.metaFor(
+                      _folderKeyForSeason(seasonInfo.seasonNumber) ??
+                          _groupKey),
             ),
           ),
         ),
@@ -1778,6 +1785,9 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
             ? season.name
             : 'Season ${season.seasonNumber} · ${season.name}')
         : (movie?.title ?? '');
+    // The season's own meta first (that is where a season poster pick lives),
+    // then the group's season poster, so a season with no pick keeps showing
+    // the season artwork rather than the show's main poster.
     final String? displayPoster = showSeason
         ? (widget.seasonMeta?.movie.posterUrl() ?? season.posterUrl())
         : movie?.posterUrl();
