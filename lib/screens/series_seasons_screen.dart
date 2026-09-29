@@ -1199,6 +1199,12 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                           _watchedKeys.contains(_resumeKeyFor(entry) ?? ''),
                       seasonNumber: s,
                       episode: _episodeFor(entry),
+                      // TheTVDB has no episode stills (screencaps are artwork
+                      // types 11/12 and no endpoint we use returns them), so
+                      // episodes fall back to the series backdrop. TMDB episodes
+                      // still render their own still, which takes precedence in
+                      // the tile.
+                      fallbackImageUrl: _meta?.movie.backdropUrl(width: 780),
                       onTap: () => _openEntry(entry),
                       onToggleWatched: () => _toggleWatched(entry),
                     ),
@@ -1557,6 +1563,7 @@ class _EntryTile extends StatelessWidget {
     required this.seasonNumber,
     this.episode,
     this.onToggleWatched,
+    this.fallbackImageUrl,
   });
 
   final Object entry;
@@ -1566,6 +1573,10 @@ class _EntryTile extends StatelessWidget {
   final bool watched;
   final int seasonNumber;
   final TmdEpisode? episode;
+  /// Artwork shown when the episode has no still of its own. TheTVDB exposes no
+  /// episode stills (screencaps are artwork types 11/12 and no endpoint we use
+  /// returns them), so those episodes fall back to the series backdrop.
+  final String? fallbackImageUrl;
   final VoidCallback? onToggleWatched;
 
   String get _name {
@@ -1707,11 +1718,11 @@ class _EntryTile extends StatelessWidget {
     );
 
     return TvTile(
-      leading: stillUrl != null
+      leading: (stillUrl ?? fallbackImageUrl) != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: CachedImage(
-                stillUrl,
+                stillUrl ?? fallbackImageUrl!,
                 width: 64,
                 height: 40,
                 fit: BoxFit.cover,
