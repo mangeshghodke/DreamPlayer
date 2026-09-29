@@ -432,8 +432,10 @@ void realPayloadTests() {
           'score': 9.5,
         };
 
-    test('poster types 2/7/13/14 are posters', () {
-      for (final type in const [2, 7, 13, 14]) {
+    test('poster types 2/7/14 are posters', () {
+      // 13 was wrongly included here: the official /artwork/types table says
+      // 13 is an actor Photo, not a poster.
+      for (final type in const [2, 7, 14]) {
         final out = TheTvdbClient.mapArtworkResponse({
           'data': {
             'artworks': [art(type, 680, 1000)],
@@ -444,8 +446,8 @@ void realPayloadTests() {
       }
     });
 
-    test('backdrop types 3/15 are backdrops', () {
-      for (final type in const [3, 15]) {
+    test('backdrop types 3/8/15 are backdrops', () {
+      for (final type in const [3, 8, 15]) {
         final out = TheTvdbClient.mapArtworkResponse({
           'data': {
             'artworks': [art(type, 1920, 1080)],
@@ -456,7 +458,7 @@ void realPayloadTests() {
       }
     });
 
-    test('type 1 (758x140 logo strip) and 18 (square) are neither', () {
+    test('type 1 (758x140 banner) and 18 (1024x1024 icon) are neither', () {
       final out = TheTvdbClient.mapArtworkResponse({
         'data': {
           'artworks': [art(1, 758, 140), art(18, 1024, 1024)],
@@ -633,5 +635,120 @@ void artworkBackfillTests() {
     expect(firstNonEmptyOverview([null, '', '   ', 'real']), 'real');
     expect(firstNonEmptyOverview([null, '', '  ']), '');
     expect(firstNonEmptyOverview(['  padded  ']), 'padded');
+  });
+
+  test('a season synopsis never renders as bare language codes', () {
+    // Issue #33 follow-up: the MOVIE/SHOW mappers were fixed to ignore
+    // `overviewTranslations` (a list of language codes) but the SEASON mapper
+    // still read it as prose, so a series showed "eng, fra, tur" as its
+    // overview while per-episode text was correct.
+    final seasons = TheTvdbClient.mapSeasonsResponse({
+      'data': [
+        {
+          'id': 1,
+          'number': 1,
+          'name': 'Season 1',
+          'overviewTranslations': ['eng', 'fra', 'tur'],
+        },
+      ],
+    });
+    expect(seasons.length, 1);
+    final overview = seasons.single.overview;
+    expect(overview, isNot('eng'));
+    for (final code in ['eng', 'fra', 'tur']) {
+      expect(overview, isNot(contains(code)),
+          reason: 'language code "$code" leaked into the synopsis');
+    }
+  });
+
+  test('a season with a real overview still shows it', () {
+    final seasons = TheTvdbClient.mapSeasonsResponse({
+      'data': [
+        {
+          'id': 1,
+          'number': 2,
+          'name': 'Season 2',
+          'overview': 'What happens in season two.',
+          'overviewTranslations': ['eng'],
+        },
+      ],
+    });
+    expect(seasons.single.overview, 'What happens in season two.');
+  });
+
+  group('official GET /artwork/types table', () {
+    Map<String, dynamic> art(int type) => <String, dynamic>{
+          'image': 'https://artworks.thetvdb.com/banners/x.jpg',
+          'type': type,
+          'width': 100,
+          'height': 100,
+        };
+
+    test('posters are 2 (series), 7 (season), 14 (movie), 27 (list)', () {
+      for (final type in const [2, 7, 14, 27]) {
+        final out = TheTvdbClient.mapArtworkResponse({
+          'data': {
+            'artworks': [art(type)],
+          },
+        });
+        expect(out.posters.length, 1, reason: 'type $type should be a poster');
+        expect(out.backdrops, isEmpty);
+      }
+    });
+
+    test('backgrounds are 3 (series), 8 (season), 15 (movie)', () {
+      for (final type in const [3, 8, 15]) {
+        final out = TheTvdbClient.mapArtworkResponse({
+          'data': {
+            'artworks': [art(type)],
+          },
+        });
+        expect(out.backdrops.length, 1,
+            reason: 'type $type should be a background');
+        expect(out.posters, isEmpty);
+      }
+    });
+
+    test('type 1 is a 758x140 BANNER, never a backdrop', () {
+      // Regression: the old table mapped 1 -> backdrop, which would have put a
+      // thin banner strip into the hero backdrop slot.
+      final out = TheTvdbClient.mapArtworkResponse({
+        'data': {
+          'artworks': [art(1)],
+        },
+      });
+      expect(out.posters, isEmpty);
+      expect(out.backdrops, isEmpty);
+    });
+
+    test('type 13 is an actor PHOTO at 300x450, never a poster', () {
+      final out = TheTvdbClient.mapArtworkResponse({
+        'data': {
+          'artworks': [
+            <String, dynamic>{
+              'image': 'https://artworks.thetvdb.com/people/x.jpg',
+              'type': 13,
+              'width': 300,
+              'height': 450,
+            },
+          ],
+        },
+      });
+      expect(out.posters, isEmpty);
+      expect(out.backdrops, isEmpty);
+    });
+
+    test('banners, icons, clear-art/clear-logo and cinemagraphs are all skipped',
+        () {
+      for (final type in const [1, 5, 6, 10, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26, 11, 12]) {
+        final out = TheTvdbClient.mapArtworkResponse({
+          'data': {
+            'artworks': [art(type)],
+          },
+        });
+        expect(out.posters, isEmpty, reason: 'type $type must not be a poster');
+        expect(out.backdrops, isEmpty, reason: 'type $type must not be a backdrop');
+      }
+    });
   });
 }

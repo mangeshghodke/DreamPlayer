@@ -945,13 +945,11 @@ class TheTvdbClient {
       byNumber[number] = TmdSeason(
         seasonNumber: number,
         name: name?.isNotEmpty == true ? name! : 'Season $number',
-        overview:
-            _stringValue(
-              item['overview'] ??
-                  item['summary'] ??
-                  _firstString(item['overviewTranslations']),
-            ) ??
-            '',
+        // _overviewFromMap, not `_firstString(item['overviewTranslations'])`:
+        // v4 sends that as a list of bare LANGUAGE CODES ("eng", "fra", ...),
+        // so the season synopsis rendered as "eng, fra, tur" (issue #33). Same
+        // fix as the movie/show mappers.
+        overview: _overviewFromMap(item),
         posterPath: artwork.poster,
         episodes: _episodeItems(
           item['episodes'] ?? item['episodeList'],
@@ -1635,31 +1633,40 @@ enum _ArtworkSlot { poster, backdrop, other }
 
 /// Classifies ONE TheTVDB artwork entry.
 ///
-/// The numeric `type` table below is taken from a real v4 `/movies/{id}/extended`
-/// payload captured on-device (issue #33) - 125 artwork entries across a batch
-/// of movie records, cross-checked against each entry's own dimensions:
+/// The id table is the OFFICIAL one, fetched from `GET /artwork/types`
+/// (recordType: series/season/movie/episode/actor/company/award/list):
 ///
-///   type 2  680x1000  (0.68) poster      type 3  1280x720 (1.78) backdrop
-///   type 7  680x1000  (0.68) poster      type 15 1920x1080 (1.78) backdrop
-///   type 13  300x450  (0.67) poster      type 1  758x140  (5.41) neither
-///   type 14  680x1000  (0.68) poster      type 18 1024x1024 (1.00) neither
+///   Poster     2 series | 7 season | 14 movie | 27 list
+///   Background 3 series | 8 season | 15 movie
+///   Banner     1 series | 6 season | 16 movie     -> neither
+///   Icon       5 series | 10 season | 18 movie    -> neither
+///   ClearArt   22 series | 24 movie              -> neither
+///   ClearLogo  23 series | 25 movie              -> neither
+///   Cinemagraph 20 series | 21 movie             -> neither
+///   Photo      13 actor                          -> neither
+///   Screencap  11/12 episode                    -> neither
 ///
-/// The previous code (inherited, pre-dating the picker) mapped 2/7 to poster
-/// and 1/3/6/8 to backdrop. It never listed 13/14/15 - which is 54 of the 125
-/// observed entries and EVERY backdrop (10x type 15) - so TheTVDB backdrops
-/// silently never appeared. `category` is NOT sent by v4 (it is null on every
-/// entry), so it cannot be used.
+/// Three earlier hand-written tables were wrong in ways that showed on screen:
+/// type 1 is a 758x140 Banner strip (treated as a backdrop), type 13 is an
+/// actor Photo at 300x450 (treated as a poster, and it is 300x450 in a real
+/// payload), and type 8 is a season Background that was unlisted. Issue #33.
 ///
-/// Types 6 and 8 are not present in any captured payload; they are deliberately
-/// left out rather than guessed, so an unknown id falls through to geometry.
+/// `category` is not sent by v4, and geometry alone mis-classifies banners,
+/// icons and clear-art (a 758x140 strip is very "landscape").
 _ArtworkSlot _classifyArtwork(Map<String, dynamic> entry, {int? width, int? height}) {
   final typeId = _intValue(entry['type'] ?? entry['artworkType']);
   if (typeId != null) {
-    if (typeId == 2 || typeId == 7 || typeId == 13 || typeId == 14) {
+    // Poster: 2 series, 7 season, 14 movie, 27 list.
+    if (typeId == 2 || typeId == 7 || typeId == 14 || typeId == 27) {
       return _ArtworkSlot.poster;
     }
-    if (typeId == 3 || typeId == 15) return _ArtworkSlot.backdrop;
-    // 1 (logo strip), 18 (square) and any id we have not verified.
+    // Background: 3 series, 8 season, 15 movie.
+    if (typeId == 3 || typeId == 8 || typeId == 15) {
+      return _ArtworkSlot.backdrop;
+    }
+    // Everything else is a banner, icon, clear-art/clear-logo, cinemagraph,
+    // screencap, actor photo or company/award icon - none of which belong in a
+    // poster or backdrop slot.
     return _ArtworkSlot.other;
   }
 
