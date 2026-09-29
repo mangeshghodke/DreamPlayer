@@ -2088,16 +2088,18 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final episodeAirDate = singleEpisode?.airDate;
     final episodeOverview =
         (singleEpisode?.overview.isNotEmpty ?? false) ? singleEpisode!.overview : null;
-    // When a specific season is resolved (season folder or single episode),
-    // show that season's overview only — never fall back to the series
-    // synopsis (a season like "Strike the Blood Final" has no overview of its
-    // own, so it renders blank rather than the base show's text).
+    // Episode, then season, then the show's own synopsis.
+    //
+    // This used to stop at the season, on the theory that a season folder with
+    // no season overview ("Strike the Blood Final") should render blank rather
+    // than another show's text. But a folder that IS a different series entry
+    // (like that one) resolves to its OWN meta, so the fallback shows its own
+    // synopsis - not a mismatched one - and TheTVDB simply does not provide a
+    // season overview at all, which left every TheTVDB season folder blank
+    // (issue #33).
     final displayOverview = effectiveSeason > 0
         ? (episodeOverview ??
-            seasonOverview ??
-            (widget.folder == null && singleEpisode == null
-                ? meta.overviewText()
-                : ''))
+            firstNonEmptyOverview([seasonOverview, meta.overviewText()]))
         : meta.overviewText(episodeOverview: episodeOverview);
     // Build episode label using effectiveSeason instead of parsed season (which
     // may be 0 for anime [01] bracket numbering).

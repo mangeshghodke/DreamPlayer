@@ -1719,8 +1719,10 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
     final String? displayPoster = showSeason ? season.posterUrl() : movie?.posterUrl();
     // See firstNonEmptyOverview - `??` would let TheTVDB's empty synopsis
     // shadow the search payload's real one (issue #33).
+    // Season synopsis, falling back to the show's own (TheTVDB does not
+    // provide a season overview, so the season view would otherwise be blank).
     final String displayOverview = showSeason
-        ? season.overview
+        ? firstNonEmptyOverview([season.overview, movie?.overview])
         : firstNonEmptyOverview([widget.details?.overview, movie?.overview]);
     final double displayRating = movie?.voteAverage ?? 0;
     final List<String> displayGenres = showSeason ? [] : (widget.details?.genres ?? []);
