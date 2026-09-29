@@ -71,6 +71,15 @@ Future<bool?> showOpensubtitlesSignInDialog(BuildContext context) async {
       ],
     )),
   );
+  // `showDialog`'s future completes when the route is POPPED — the START of the
+  // exit animation, not the end. The dialog's TextField keeps rebuilding for a
+  // few more frames, so disposing immediately made that rebuild hit "A
+  // TextEditingController was used after being disposed", which corrupts the
+  // element tree and makes the subsequent teardown assert
+  // `_dependents.isEmpty` in InheritedElement.debugDeactivated — the red screen
+  // on saving a TMDB key. Same fix as the TheTVDB dialog in settings_screen.
+  // Regression test: test/tvdb_dialog_save_test.dart (and its TMDB sibling).
+  await Future<void>.delayed(const Duration(milliseconds: 400));
   uCtrl.dispose();
   pCtrl.dispose();
   return ok;
@@ -141,6 +150,15 @@ Future<bool?> showTmdbApiKeyDialog(BuildContext context, String currentKey) asyn
       ],
     )),
   );
+  // `showDialog`'s future completes when the route is POPPED — the START of the
+  // exit animation, not the end. The dialog's TextField keeps rebuilding for a
+  // few more frames, so disposing immediately made that rebuild hit "A
+  // TextEditingController was used after being disposed", which corrupts the
+  // element tree and makes the subsequent teardown assert
+  // `_dependents.isEmpty` in InheritedElement.debugDeactivated — the red screen
+  // on saving a TMDB key. Same fix as the TheTVDB dialog in settings_screen.
+  // Regression test: test/tvdb_dialog_save_test.dart (and its TMDB sibling).
+  await Future<void>.delayed(const Duration(milliseconds: 400));
   ctrl.dispose();
   return ok;
 }

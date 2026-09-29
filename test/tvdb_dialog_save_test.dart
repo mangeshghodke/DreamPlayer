@@ -89,4 +89,46 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('saving a TMDB key does not trip the dependents assertion',
+      (tester) async {
+    await tester.pumpWidget(wrap(const SettingsScreen()));
+    await tester.pumpAndSettle();
+
+    final metadata = find.text(
+      AppLocalizations.of(tester.element(find.byType(SettingsScreen)))
+          .settingsMetadata,
+    );
+    await tester.ensureVisible(metadata);
+    await tester.tap(metadata);
+    await tester.pumpAndSettle();
+
+    final tmdbTile = find.text(
+      AppLocalizations.of(tester.element(find.byType(SettingsScreen)))
+          .settingsTmdbApiKey,
+    );
+    expect(tmdbTile, findsOneWidget);
+    await tester.ensureVisible(tmdbTile);
+    await tester.tap(tmdbTile);
+    await tester.pumpAndSettle();
+
+    // 32-character key so the length validation passes and Save really pops.
+    final fields = find.byType(TextField);
+    expect(fields, findsOneWidget);
+    await tester.enterText(fields.first, 'a' * 32);
+    await tester.pumpAndSettle();
+
+    final save = find.text(
+      AppLocalizations.of(tester.element(find.byType(SettingsScreen))).commonSave,
+    );
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+
+    // Surfaces 'A TextEditingController was used after being disposed' with a
+    // full stack if the controller is disposed before the dialog finishes
+    // animating out.
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
 }
