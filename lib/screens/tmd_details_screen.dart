@@ -1175,12 +1175,16 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         onPressed: _showArtworkMenu,
       );
 
-  /// "Change poster" / "Change backdrop" + their resets (issue #33), behind a
-  /// single ⋮ in the app bar.
+  /// "Change poster" / "Change backdrop" behind a single ⋮ in the app bar.
   ///
-  /// The reset rows are separate entries rather than a control inside the
-  /// picker: "Set default" is a deliberate undo, and burying it in the sheet
-  /// makes it easy to forget it exists.
+  /// There is deliberately no "Set default" row any more. The reset was
+  /// implicated in a backdrop that appeared for a moment and then went blank
+  /// after re-entering the folder, and that was never root-caused: the metadata
+  /// cache was verified correct and stable, the artwork URL returned a valid
+  /// 200 JPEG, and clearing the image cache did not help. Offering an undo that
+  /// leads into an unexplained blank state is worse than not offering it, so it
+  /// is omitted until the cause is understood. TmdService.resetArtwork and
+  /// detailsFor(force:) remain in place so it can be reinstated cheaply.
   Future<void> _showArtworkMenu() async {
     final changed = await showArtworkMenuForKey(context, _identityKey);
     if (changed && mounted) {
