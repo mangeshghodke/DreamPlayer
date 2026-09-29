@@ -102,7 +102,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final kind in ArtworkKind.values) ...[
+            for (final kind in ArtworkKind.values)
               ListTile(
                 leading: Icon(kind == ArtworkKind.poster
                     ? Icons.photo_library_outlined
@@ -125,33 +125,6 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                   });
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.restart_alt),
-                title: Text(kind == ArtworkKind.poster
-                    ? 'Set default poster'
-                    : 'Set default backdrop'),
-                subtitle: const Text(
-                  'Go back to the artwork the provider picked',
-                  style: TextStyle(fontSize: 12),
-                ),
-                enabled: TmdService.instance.hasArtworkOverride(key, kind),
-                onTap: TmdService.instance.hasArtworkOverride(key, kind)
-                    ? () {
-                        Navigator.of(sheetContext).pop();
-                        // resetArtwork() refetches details when the default
-                        // artwork is missing, so re-read through metaFor
-                        // afterwards or the reset renders as "backdrop gone"
-                        // until the screen is reopened (issue #33).
-                        TmdService.instance.resetArtwork(key, kind).then((_) {
-                          if (mounted) {
-                            setState(() => _meta =
-                                TmdService.instance.metaFor(_groupKey));
-                          }
-                        });
-                      }
-                    : null,
-              ),
-            ],
           ],
         ),
       ),

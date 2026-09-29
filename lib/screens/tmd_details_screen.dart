@@ -44,7 +44,6 @@ import '../l10n/app_localizations.dart';
 Future<bool> showArtworkMenuForKey(BuildContext context, String key) async {
   if (key.isEmpty) return false;
   var changed = false;
-  final service = TmdService.instance;
   await showModalBottomSheet<void>(
     context: context,
     backgroundColor: const Color(0xFF16161A),
@@ -52,7 +51,7 @@ Future<bool> showArtworkMenuForKey(BuildContext context, String key) async {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final kind in ArtworkKind.values) ...[
+          for (final kind in ArtworkKind.values)
             ListTile(
               leading: Icon(kind == ArtworkKind.poster
                   ? Icons.photo_library_outlined
@@ -66,25 +65,6 @@ Future<bool> showArtworkMenuForKey(BuildContext context, String key) async {
                     .then((v) => changed = v == true);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.restart_alt),
-              title: Text(kind == ArtworkKind.poster
-                  ? 'Set default poster'
-                  : 'Set default backdrop'),
-              subtitle: const Text(
-                'Go back to the artwork the provider picked',
-                style: TextStyle(fontSize: 12),
-              ),
-              enabled: service.hasArtworkOverride(key, kind),
-              onTap: service.hasArtworkOverride(key, kind)
-                  ? () {
-                      Navigator.of(sheetContext).pop();
-                      service.resetArtwork(key, kind);
-                      changed = true;
-                    }
-                  : null,
-            ),
-          ],
         ],
       ),
     ),
