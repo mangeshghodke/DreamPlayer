@@ -2197,7 +2197,9 @@ class TmdService extends ChangeNotifier {
             : (meta?.movie.backdropPath == null);
     if (meta != null && missing) {
       try {
-        await detailsFor(identityKey);
+        // force: the cached details would short-circuit and leave the item
+        // with no artwork at all after the override is cleared.
+        await detailsFor(identityKey, force: true);
       } catch (_) {
         // Best effort: fall through and render whatever we have.
       }
@@ -3277,10 +3279,17 @@ class TmdService extends ChangeNotifier {
   }
 
   /// Fetches full details (synopsis, cast, runtime) for a matched video.
-  Future<TmdDetails?> detailsFor(String identityKey) async {
+  /// [force] skips the cached-details short-circuit and re-fetches.
+  ///
+  /// Needed after an artwork override is reset: the cached [meta] can predate
+  /// the artwork backfill in [TmdMeta.withDetails], so `meta.details` may
+  /// already be non-null while `movie.backdropPath` is still null — and the
+  /// early return would then make the "refetch" a silent no-op, leaving
+  /// "Set default backdrop" looking like it deleted the artwork (issue #33).
+  Future<TmdDetails?> detailsFor(String identityKey, {bool force = false}) async {
     final meta = _cache[identityKey];
     if (meta == null) return null;
-    if (meta.details != null) return meta.details;
+    if (!force && meta.details != null) return meta.details;
     try {
       final details = meta.movie.provider == MetadataProvider.theTvdb
           ? await _theTvdb.details(meta.movie)
