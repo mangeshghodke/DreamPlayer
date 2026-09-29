@@ -24,6 +24,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.text.Cue
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
@@ -531,7 +533,21 @@ class ExoPlayerView(
         "dreamplayer/exo_events_$viewId",
     )
 
+    /// User subtitle-size multiplier, mirrored from [applySubtitleStyle]. Bitmap
+    /// (PGS/DVB) cues ignore SubtitleView's own sizing, so it is applied to
+    /// them separately - see [applyBitmapCueScaling].
+    private var subtitleSizeMult: Double = 1.0
+
+    /// Last cue set pushed by the player, kept so a subtitle-size change can
+    /// re-scale a bitmap cue that is already on screen.
+    private var lastCueGroup: CueGroup? = null
+
     private val listener = object : Player.Listener {
+
+        override fun onCues(cueGroup: CueGroup) {
+            lastCueGroup = cueGroup
+            applyBitmapCueScaling(cueGroup)
+        }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             emit()
@@ -2091,6 +2107,9 @@ class ExoPlayerView(
         bgOpacity: Int = 128,
     ) {
         SubtitleTiming.delayUs = delayMs * 1000L
+        // Remembered even if the view is not up yet, so the first open() still
+        // scales bitmap subtitles; and re-applied below to any cue on screen.
+        subtitleSizeMult = sizeMult.coerceIn(0.6, 2.0)
         val view = playerView.subtitleView ?: return
         view.setFractionalTextSize(
             SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * sizeMult.coerceIn(0.6, 2.0).toFloat()
@@ -2119,6 +2138,49 @@ class ExoPlayerView(
             null,
         )
         view.setStyle(style)
+
+        // A bitmap cue may already be showing; re-scale it to the new size.
+        applyBitmapCueScaling(lastCueGroup)
+    }
+
+    /// Applies the user's subtitle size to **bitmap** subtitles (PGS, DVB).
+    ///
+    /// These ignore every SubtitleView styling API: the painter derives a
+    /// bitmap cue's drawn height from `cue.bitmapHeight * cue.size` alone, so
+    /// `setFractionalTextSize` and `setStyle` never reach them - which is why
+    /// the size setting used to do nothing for PGS. The size baked into the
+    /// cue is the disc author's own, relative to the PGS plane.
+    ///
+    /// PlayerView's internal ComponentListener is registered at the
+    /// `playerView.player =` assignment, before ours, and ExoPlayer dispatches
+    /// `onCues(CueGroup)` through a ListenerSet that iterates its listeners in
+    /// insertion order - so by the time this runs the SubtitleView has the
+    /// original cues and we re-push them with the multiplier folded into
+    /// `size` (setCues is a plain assign, so the last call wins).
+    /// Positioning stays Media3's own (it anchors the bottom edge, so larger
+    /// subtitles grow upward), and text cues are passed through untouched.
+    private fun applyBitmapCueScaling(cueGroup: CueGroup?) {
+        val cues = cueGroup?.cues ?: return
+        val view = playerView.subtitleView ?: return
+        val mult = subtitleSizeMult
+        if (mult == 1.0 || cues.none { it.bitmap != null }) return
+        view.setCues(cues.map { cue ->
+            val bitmap = cue.bitmap
+            if (bitmap == null) cue
+            else Cue.Builder()
+                .setBitmap(bitmap)
+                .setPosition(cue.position)
+                .setPositionAnchor(cue.positionAnchor)
+                .setLine(cue.line, cue.lineType)
+                .setLineAnchor(cue.lineAnchor)
+                .setSize((cue.size * mult).toFloat())
+                .setBitmapHeight(cue.bitmapHeight)
+                .setVerticalType(cue.verticalType)
+                .setShearDegrees(cue.shearDegrees)
+                .setZIndex(cue.zIndex)
+                .apply { if (cue.windowColorSet) setWindowColor(cue.windowColor) }
+                .build()
+        })
     }
 
     private fun applyFitMode(mode: Int) {
