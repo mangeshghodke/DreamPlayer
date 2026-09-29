@@ -142,6 +142,15 @@ class ArtworkOverrideStore {
     }
   }
 
+  /// Drops every stored pick, so a provider change starts from the new
+  /// provider's default artwork instead of keeping a pick that was chosen
+  /// against the old one.
+  static Future<void> clearAll() async {
+    _memo = {};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
+  }
+
   static Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, jsonEncode(_memo ?? {}));

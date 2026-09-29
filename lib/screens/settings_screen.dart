@@ -78,6 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _theTvdbKey = '';
   String _theTvdbPin = '';
   bool _theTvdbFallback = true;
+  MetadataProviderChoice _metadataProvider = MetadataProviderChoice.tmdb;
   String? _theTvdbStorageError;
 
   @override
@@ -352,6 +353,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final store = TheTvdbClient.defaultCredentialStore;
       await store.load();
       final fallback = await TheTvdbClient.isFallbackEnabled();
+      _metadataProvider = await TheTvdbClient.providerChoice();
       if (!mounted) return;
       setState(() {
         _theTvdbKey = store.apiKey ?? '';
@@ -496,6 +498,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     keyController.dispose();
     pinController.dispose();
     if (changed == true) await _loadTheTvdb();
+  }
+
+  /// Switching provider clears cached metadata, otherwise a title resolved
+  /// earlier by the other provider keeps showing (and its own cache entry
+  /// survives the change, so the choice would look like it did nothing).
+  Future<void> _setMetadataProvider(MetadataProviderChoice choice) async {
+    if (_metadataProvider == choice) return;
+    await TheTvdbClient.setProviderChoice(choice);
+    await TmdService.instance.clearAllResolved();
+    if (!mounted) return;
+    setState(() => _metadataProvider = choice);
   }
 
   Future<void> _setTheTvdbFallback(bool enabled) async {
@@ -1389,14 +1402,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    ),
                    onTap: _editTheTvdbCredentials,
                  ),
+                 // Which provider resolves metadata (Settings toggle). This is
+                 // a real choice, not the old fallback switch: picking TheTVDB
+                 // makes it the PRIMARY resolver, so a user with only a
+                 // TheTVDB key never queries TMDB at all.
+                 Padding(
+                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                   child: Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       const Text('Metadata provider'),
+                       const SizedBox(height: 8),
+                       SegmentedButton<MetadataProviderChoice>(
+                         segments: const [
+                           ButtonSegment(
+                             value: MetadataProviderChoice.tmdb,
+                             label: Text('TMDB'),
+                             icon: Icon(Icons.movie, size: 18),
+                           ),
+                           ButtonSegment(
+                             value: MetadataProviderChoice.theTvdb,
+                             label: Text('TheTVDB'),
+                             icon: Icon(Icons.travel_explore, size: 18),
+                           ),
+                         ],
+                         selected: {_metadataProvider},
+                         onSelectionChanged: (selection) =>
+                             _setMetadataProvider(selection.first),
+                       ),
+                       const SizedBox(height: 6),
+                       Text(
+                         _metadataProvider == MetadataProviderChoice.tmdb
+                             ? 'TMDB resolves everything. TheTVDB is used only '
+                                 'as a fallback, if you enable it below.'
+                             : 'TheTVDB resolves everything. TMDB is not queried.',
+                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                               color: Colors.white54,
+                             ),
+                       ),
+                     ],
+                   ),
+                 ),
                  SwitchListTile(
                    secondary: const Icon(Icons.merge_type),
                    title: const Text('Use TheTVDB as fallback'),
                    subtitle: const Text(
-                     'Try TheTVDB when TMDB has no confident match',
+                     'Only used when TMDB is the selected provider',
                    ),
-                   value: _theTvdbFallback && _theTvdbKey.isNotEmpty,
-                   onChanged: _theTvdbKey.isEmpty
+                   value: _metadataProvider == MetadataProviderChoice.tmdb &&
+                       _theTvdbFallback &&
+                       _theTvdbKey.isNotEmpty,
+                   onChanged: (_metadataProvider != MetadataProviderChoice.tmdb ||
+                           _theTvdbKey.isEmpty)
                        ? null
                        : (value) => _setTheTvdbFallback(value),
                  ),

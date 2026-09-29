@@ -14,6 +14,45 @@ const String theTvdbPinPrefsKey = 'dreamplayer.theTvdbPin';
 const String theTvdbApiBaseUrl = 'https://api4.thetvdb.com/v4';
 const String theTvdbArtworkBaseUrl = 'https://artworks.thetvdb.com';
 
+/// Which provider resolves metadata, chosen in Settings.
+///
+/// Distinct from the TheTVDB *fallback* switch: the fallback only lets TheTVDB
+/// rescue a title TMDB has no match for, whereas choosing TheTVDB here makes it
+/// the PRIMARY resolver, so a user holding only a TheTVDB key never queries TMDB.
+enum MetadataProviderChoice { tmdb, theTvdb }
+
+/// Resolution order for the given configuration.
+///
+/// Pure so it can be unit-tested without any network or credentials - the
+/// previous TMDB-then-TheTVDB ordering was hard-coded at two call sites and
+/// could not be verified to actually flip.
+///
+/// A provider is only tried when it is usable: TMDB needs a key, TheTVDB needs
+/// credentials, and in TMDB-primary mode TheTVDB still requires the fallback
+/// switch so that choosing TMDB does not silently start pulling TheTVDB art in.
+List<MetadataProvider> providerOrderFor({
+  required MetadataProviderChoice choice,
+  required bool tmdbConfigured,
+  required bool theTvdbConfigured,
+  required bool theTvdbFallbackEnabled,
+}) {
+  if (choice == MetadataProviderChoice.theTvdb) {
+    if (theTvdbConfigured) {
+      return [MetadataProvider.theTvdb, ...(tmdbConfigured ? [MetadataProvider.tmdb] : [])];
+    }
+    // No TheTVDB key: TMDB is the only option, so fall back to it rather than
+    // resolving nothing at all.
+    return [MetadataProvider.tmdb];
+  }
+  if (!tmdbConfigured) {
+    return theTvdbConfigured ? [MetadataProvider.theTvdb] : [MetadataProvider.tmdb];
+  }
+  return [
+    MetadataProvider.tmdb,
+    if (theTvdbConfigured && theTvdbFallbackEnabled) MetadataProvider.theTvdb,
+  ];
+}
+
 class TheTvdbException implements Exception {
   const TheTvdbException(this.message, {this.statusCode});
 
@@ -285,6 +324,20 @@ class TheTvdbClient {
   static Future<bool> isFallbackEnabled() async {
     final preferences = await SharedPreferences.getInstance();
     return preferences.getBool(fallbackPrefsKey) ?? true;
+  }
+
+  static const String providerPrefsKey = 'dreamplayer.metadataProvider';
+
+  static Future<MetadataProviderChoice> providerChoice() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getString(providerPrefsKey) == 'theTvdb'
+        ? MetadataProviderChoice.theTvdb
+        : MetadataProviderChoice.tmdb;
+  }
+
+  static Future<void> setProviderChoice(MetadataProviderChoice choice) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(providerPrefsKey, choice.name);
   }
 
   static Future<void> setFallbackEnabled(bool enabled) async {

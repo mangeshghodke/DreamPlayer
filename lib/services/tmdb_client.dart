@@ -1985,6 +1985,14 @@ class TmdStore {
     changes.notify();
   }
 
+  /// Wipes the whole persisted cache. Used when the metadata provider changes,
+  /// so titles don't keep the previous provider's match.
+  static Future<void> clearAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
+    changes.notify();
+  }
+
   static Future<void> remove(String identityKey) async {
     if (identityKey.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
@@ -2073,13 +2081,32 @@ class TmdService extends ChangeNotifier {
     _theTvdb.invalidateToken();
   }
 
-  Future<bool> get _useTheTvdbFallback async {
-    try {
-      return await TheTvdbClient.isFallbackEnabled() &&
-          await _theTvdb.isConfiguredAsync;
-    } catch (_) {
-      return false;
+
+
+  /// Resolves a match by trying each provider in the order the user chose
+  /// (see `providerOrderFor`). Both resolution paths go through here so the
+  /// Settings provider choice actually flips the order instead of only
+  /// changing a fallback switch that TMDB still consults first.
+  Future<TmdMatch?> _matchInProviderOrder({
+    required Future<TmdMatch?> Function() tmdb,
+    required Future<TmdMatch?> Function() theTvdb,
+  }) async {
+    final order = providerOrderFor(
+      choice: await TheTvdbClient.providerChoice(),
+      tmdbConfigured: (await _api.effectiveApiKey()).isNotEmpty,
+      theTvdbConfigured: await _theTvdb.isConfiguredAsync,
+      theTvdbFallbackEnabled: await TheTvdbClient.isFallbackEnabled(),
+    );
+    for (final provider in order) {
+      try {
+        final match =
+            provider == MetadataProvider.tmdb ? await tmdb() : await theTvdb();
+        if (match != null) return match;
+      } catch (_) {
+        // Try the next provider rather than failing the whole resolve.
+      }
     }
+    return null;
   }
 
   static int? _trailingPartNumber(String folderName) {
@@ -2417,15 +2444,10 @@ class TmdService extends ChangeNotifier {
   Future<TmdMeta?> _resolveNow(
     String identityKey, ParsedFileName parsed,
   ) async {
-    TmdMatch? match;
-    try {
-      match = await _api.bestMatch(parsed);
-    } catch (_) {}
-    if (match == null && await _useTheTvdbFallback) {
-      try {
-        match = await _theTvdb.bestMatch(parsed);
-      } catch (_) {}
-    }
+    final match = await _matchInProviderOrder(
+      tmdb: () => _api.bestMatch(parsed),
+      theTvdb: () => _theTvdb.bestMatch(parsed),
+    );
     if (match == null) {
       return null;
     }
@@ -2858,25 +2880,20 @@ class TmdService extends ChangeNotifier {
     debugPrint(
       'TMDB _resolveFolderNow key="$metadataKey" query="$query" year=$year liveAction=$liveAction folderName="$folderName" preferMovie=$preferMovie desiredPart=$desiredPart',
     );
-    TmdMatch? match;
-    try {
-      match = await _api.bestForQuery(
+    final match = await _matchInProviderOrder(
+      tmdb: () => _api.bestForQuery(
         query,
         year: year, liveAction: liveAction, preferMovie: preferMovie, hasMovieSequelPattern: hasMovieSequelPattern, desiredPart: desiredPart,
-      );
-    } catch (_) {}
-    if (match == null && await _useTheTvdbFallback) {
-      try {
-        match = await _theTvdb.bestForQuery(
-          query,
-          year: year,
-          liveAction: liveAction,
-          preferMovie: preferMovie,
-          hasMovieSequelPattern: hasMovieSequelPattern,
-          desiredPart: desiredPart,
-        );
-      } catch (_) {}
-    }
+      ),
+      theTvdb: () => _theTvdb.bestForQuery(
+        query,
+        year: year,
+        liveAction: liveAction,
+        preferMovie: preferMovie,
+        hasMovieSequelPattern: hasMovieSequelPattern,
+        desiredPart: desiredPart,
+      ),
+    );
     if (match == null) return null;
 
     // Check if the folder name matches a season name on TMDB.
@@ -3519,6 +3536,19 @@ class TmdService extends ChangeNotifier {
     _cache[fromKey] ??= source;
     _cache[toKey] = source;
     await TmdStore.save(toKey, source);
+    notifyListeners();
+  }
+
+  /// Drops every cached match so a provider change actually takes effect.
+  ///
+  /// Without this, switching the Settings provider leaves titles resolving to
+  /// the previous provider from the cache, which makes the choice look inert.
+  /// Persisted entries go too, since a stale entry would be re-read on the next
+  /// cold start.
+  Future<void> clearAllResolved() async {
+    _cache.clear();
+    await TmdStore.clearAll();
+    await ArtworkOverrideStore.clearAll();
     notifyListeners();
   }
 
