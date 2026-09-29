@@ -1044,7 +1044,14 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                   );
                 }
                 final s = sortedSeasons[index];
-                final posterUrl = _meta?.seasons[s]?.posterUrl(width: 300) ??
+                // A season's own artwork override is keyed to its FOLDER key, so
+                // read it through metaFor - _meta is the group/show and would
+                // ignore the pick entirely (issue #33).
+                final seasonMeta = _folderKeyForSeason(s) == null
+                    ? null
+                    : TmdService.instance.metaFor(_folderKeyForSeason(s)!);
+                final posterUrl = seasonMeta?.movie.posterUrl(width: 300) ??
+                    _meta?.seasons[s]?.posterUrl(width: 300) ??
                     _meta?.movie.posterUrl(width: 300);
                 final tmdbName = _meta?.seasons[s]?.name;
                 final genericName = 'Season $s';
@@ -1159,7 +1166,12 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                             context,
                             _folderKeyForSeason(s)!,
                           );
-                          if (changed && mounted) setState(() {});
+                          if (changed && mounted) {
+                            setState(() {
+                              _meta = TmdService.instance
+                                  .metaFor(_groupKey);
+                            });
+                          }
                         },
                       ),
                     _SeasonBadge(
