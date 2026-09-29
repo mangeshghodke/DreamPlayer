@@ -9,6 +9,7 @@ import '../services/library_folders.dart';
 import '../services/series_grouping.dart';
 import '../widgets/group_poster_dialog.dart';
 import 'tmd_details_screen.dart';
+import '../widgets/thetvdb_attribution.dart';
 
 /// Movie-group detail screen — mirrors the [SeriesSeasonsScreen] layout:
 /// backdrop hero app bar, header card (poster + overview + rating + genres),
@@ -499,27 +500,11 @@ class _HeaderState extends State<_Header> {
                       ),
                     ),
                   ],
-                  if (movie.provider == MetadataProvider.theTvdb) ...[
-                    const SizedBox(height: 4),
+                  if (movie.provider == MetadataProvider.theTvdb)
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: _openTheTvdb,
-                        icon: const Icon(Icons.open_in_new, size: 14),
-                        label: const Text('Metadata by TheTVDB'),
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
+                      child: const TheTvdbInfoButton(),
                     ),
-                    Text(
-                      'This product uses the TheTVDB API but is not endorsed by TheTVDB.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
                   const SizedBox(height: 6),
                   Row(
 
@@ -585,12 +570,7 @@ class _HeaderState extends State<_Header> {
     );
   }
 
-  Future<void> _openTheTvdb() async {
-    await launchUrl(
-      Uri.parse('https://thetvdb.com/'),
-      mode: LaunchMode.externalApplication,
-    );
-  }
+
 }
 
 /// Horizontal scrollable cast row — mirrors `_CastRow` in

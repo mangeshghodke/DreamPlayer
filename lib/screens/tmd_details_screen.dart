@@ -10,6 +10,7 @@ import '../services/file_browser.dart';
 import '../services/ftp_client.dart';
 import 'artwork_picker_sheet.dart';
 import '../widgets/cached_image.dart';
+import '../widgets/thetvdb_attribution.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/upnp_client.dart';
@@ -2277,29 +2278,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                                   _FactChip(label: genre),
                              ],
                            ),
-                           if (movie.provider == MetadataProvider.theTvdb) ...[
-                             const SizedBox(height: 4),
+                           if (movie.provider == MetadataProvider.theTvdb)
                              Align(
                                alignment: Alignment.centerLeft,
-                               child: TextButton.icon(
-                                 onPressed: () => _openTheTvdb(context),
-                                 icon: const Icon(Icons.open_in_new, size: 14),
-                                 label: const Text('Metadata by TheTVDB'),
-                                 style: TextButton.styleFrom(
-                                   padding: EdgeInsets.zero,
-                                   minimumSize: Size.zero,
-                                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                   visualDensity: VisualDensity.compact,
-                                 ),
-                               ),
+                               child: const TheTvdbInfoButton(),
                              ),
-                             Text(
-                               'This product uses the TheTVDB API but is not endorsed by TheTVDB.',
-                               style: theme.textTheme.bodySmall?.copyWith(
-                                 color: colorScheme.onSurfaceVariant,
-                               ),
-                             ),
-                           ],
                            const SizedBox(height: 10),
                            Text(
 
@@ -2996,12 +2979,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     );
   }
 
-  Future<void> _openTheTvdb(BuildContext context) async {
-    await launchUrl(
-      Uri.parse('https://thetvdb.com/'),
-      mode: LaunchMode.externalApplication,
-    );
-  }
+
 }
 
 class _RatingBadge extends StatelessWidget {

@@ -23,6 +23,13 @@ const List<_LicenseEntry> _entries = [
       'https://github.com/superuser404notfound/FFmpegBuild'),
   _LicenseEntry('SMBClient (SMB2/3, via AetherEngineSMB for WebDAV)',
       'MIT', 'https://github.com/kishikawakatsumi/SMBClient'),
+  // Required by the TheTVDB v4 API terms: the attribution used to sit under
+  // every TheTVDB-sourced title's overview, which was noisy. It now lives here
+  // and behind the small (i) button on those screens.
+  _LicenseEntry('TheTVDB (metadata: artwork, overviews, seasons/episodes)',
+      'Free for non-commercial use; this product uses the TheTVDB API but is '
+      'not endorsed by TheTVDB',
+      'https://thetvdb.github.io/v4-api/'),
   _LicenseEntry('Flutter SDK / Dart', 'BSD 3-Clause', 'https://flutter.dev'),
   _LicenseEntry('permission_handler', 'MIT',
       'https://pub.dev/packages/permission_handler'),

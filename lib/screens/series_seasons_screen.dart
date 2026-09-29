@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 
 import 'artwork_picker_sheet.dart';
+import '../widgets/thetvdb_attribution.dart';
 import '../services/artwork_override.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../widgets/cached_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -1824,27 +1824,11 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
                       ),
                     ),
                   ],
-                  if (movie.provider == MetadataProvider.theTvdb) ...[
-                    const SizedBox(height: 4),
+                  if (movie.provider == MetadataProvider.theTvdb)
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: _openTheTvdb,
-                        icon: const Icon(Icons.open_in_new, size: 14),
-                        label: const Text('Metadata by TheTVDB'),
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
+                      child: const TheTvdbInfoButton(),
                     ),
-                    Text(
-                      'This product uses the TheTVDB API but is not endorsed by TheTVDB.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
                   const SizedBox(height: 6),
                   Row(
 
@@ -1905,12 +1889,7 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
     );
   }
 
-  Future<void> _openTheTvdb() async {
-    await launchUrl(
-      Uri.parse('https://thetvdb.com/'),
-      mode: LaunchMode.externalApplication,
-    );
-  }
+
 }
 
 
