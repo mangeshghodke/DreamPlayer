@@ -887,6 +887,10 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
               onRemoveInfo: () => _removeInfo(),
               season: seasonInfo,
               seriesTitle: seasonInfo != null ? meta.movie.title : null,
+              seasonMeta: seasonInfo == null
+                  ? null
+                  : TmdService.instance
+                      .metaFor(_folderKeyForSeason(seasonInfo.seasonNumber) ?? ''),
             ),
           ),
         ),
@@ -1733,7 +1737,13 @@ class _SeriesHeader extends StatefulWidget {
     this.onRemoveInfo,
     this.season,
     this.seriesTitle,
+    this.seasonMeta,
   });
+
+  /// The season folder's OWN metadata, when it has one. An artwork override is
+  /// keyed to the season folder, not to the group, so without this the header
+  /// showed the group's season poster and ignored the pick (issue #33).
+  final TmdMeta? seasonMeta;
 
   final TmdMeta? meta;
   final TmdDetails? details;
@@ -1768,7 +1778,9 @@ class _SeriesHeaderState extends State<_SeriesHeader> {
             ? season.name
             : 'Season ${season.seasonNumber} · ${season.name}')
         : (movie?.title ?? '');
-    final String? displayPoster = showSeason ? season.posterUrl() : movie?.posterUrl();
+    final String? displayPoster = showSeason
+        ? (widget.seasonMeta?.movie.posterUrl() ?? season.posterUrl())
+        : movie?.posterUrl();
     // See firstNonEmptyOverview - `??` would let TheTVDB's empty synopsis
     // shadow the search payload's real one (issue #33).
     // Season synopsis, falling back to the show's own (TheTVDB does not
