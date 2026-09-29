@@ -2204,8 +2204,6 @@ class TmdService extends ChangeNotifier {
         // Best effort: fall through and render whatever we have.
       }
     }
-    TmdStore.changes.notify();
-    notifyListeners();
   }
 
   /// Whether the user has overridden the poster/backdrop for this item.
