@@ -538,6 +538,12 @@ class ExoPlayerView(
     /// them separately - see [applyBitmapCueScaling].
     private var subtitleSizeMult: Double = 1.0
 
+    /// Vertical subtitle position (0-255, 0 = bottom, 255 = top), mirrored from
+    /// [applySubtitleStyle]. Media3's setBottomPaddingFraction only reaches TEXT
+    /// cues - it is read solely by drawTextLayout - so bitmap cues need the
+    /// offset folded into the cue's line instead.
+    private var subtitleVPos: Int = 20
+
     /// Last cue set pushed by the player, kept so a subtitle-size change can
     /// re-scale a bitmap cue that is already on screen.
     private var lastCueGroup: CueGroup? = null
@@ -2110,6 +2116,7 @@ class ExoPlayerView(
         // Remembered even if the view is not up yet, so the first open() still
         // scales bitmap subtitles; and re-applied below to any cue on screen.
         subtitleSizeMult = sizeMult.coerceIn(0.6, 2.0)
+        subtitleVPos = vPos.coerceIn(0, 255)
         val view = playerView.subtitleView ?: return
         view.setFractionalTextSize(
             SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * sizeMult.coerceIn(0.6, 2.0).toFloat()
@@ -2143,43 +2150,72 @@ class ExoPlayerView(
         applyBitmapCueScaling(lastCueGroup)
     }
 
-    /// Applies the user's subtitle size to **bitmap** subtitles (PGS, DVB).
+    /// Applies the user's subtitle **size and vertical position** to bitmap
+    /// subtitles (PGS, DVB).
     ///
-    /// These ignore every SubtitleView styling API: the painter derives a
-    /// bitmap cue's drawn height from `cue.bitmapHeight * cue.size` alone, so
-    /// `setFractionalTextSize` and `setStyle` never reach them - which is why
-    /// the size setting used to do nothing for PGS. The size baked into the
-    /// cue is the disc author's own, relative to the PGS plane.
+    /// Neither reaches them through SubtitleView, because the bitmap path
+    /// (SubtitlePainter.setupBitmapLayout) ignores the styling API entirely:
+    ///
+    ///   width  = parentWidth  * cue.size
+    ///   height = parentHeight * cue.bitmapHeight
+    ///   x      = parentLeft   + parentWidth  * cue.position
+    ///   y      = parentTop    + parentHeight * cue.line
+    ///
+    /// PgsParser sets `size` to the bitmap's WIDTH fraction and
+    /// `bitmapHeight` to its HEIGHT fraction, with start anchors - so scaling
+    /// only `size` stretches the subtitles sideways, and the start anchor pins
+    /// the top-left corner so a growing box drifts off centre. Scaling both
+    /// dimensions and moving the anchor back by half the growth keeps the
+    /// subtitle centred and its aspect intact.
+    ///
+    /// Vertical position is folded into `line` the same way Media3's
+    /// bottomPaddingFraction does for text (drawTextLayout: parentHeight *
+    /// fraction), because that value is never read for bitmap cues.
     ///
     /// PlayerView's internal ComponentListener is registered at the
     /// `playerView.player =` assignment, before ours, and ExoPlayer dispatches
-    /// `onCues(CueGroup)` through a ListenerSet that iterates its listeners in
-    /// insertion order - so by the time this runs the SubtitleView has the
-    /// original cues and we re-push them with the multiplier folded into
-    /// `size` (setCues is a plain assign, so the last call wins).
-    /// Positioning stays Media3's own (it anchors the bottom edge, so larger
-    /// subtitles grow upward), and text cues are passed through untouched.
+    /// `onCues(CueGroup)` through a ListenerSet that iterates in insertion
+    /// order - so the SubtitleView already holds the original cues here and we
+    /// re-push them (setCues is a plain assign, so the last call wins).
+    /// Positioning stays Media3's own and text cues pass through untouched.
     private fun applyBitmapCueScaling(cueGroup: CueGroup?) {
         val cues = cueGroup?.cues ?: return
         val view = playerView.subtitleView ?: return
         val mult = subtitleSizeMult
-        if (mult == 1.0 || cues.none { it.bitmap != null }) return
+        val vFrac = (subtitleVPos / 255.0).toFloat()
+        if (mult == 1.0 && vFrac <= 0.0) return
         view.setCues(cues.map { cue ->
             val bitmap = cue.bitmap
-            if (bitmap == null) cue
-            else Cue.Builder()
-                .setBitmap(bitmap)
-                .setPosition(cue.position)
-                .setPositionAnchor(cue.positionAnchor)
-                .setLine(cue.line, cue.lineType)
-                .setLineAnchor(cue.lineAnchor)
-                .setSize((cue.size * mult).toFloat())
-                .setBitmapHeight(cue.bitmapHeight)
-                .setVerticalType(cue.verticalType)
-                .setShearDegrees(cue.shearDegrees)
-                .setZIndex(cue.zIndex)
-                .apply { if (cue.windowColorSet) setWindowColor(cue.windowColor) }
-                .build()
+            if (bitmap == null) {
+                cue
+            } else {
+                val w = cue.size
+                // Height as a fraction of the view; when the cue carries no
+                // bitmapHeight the painter derives it from the bitmap's aspect.
+                val h = if (cue.bitmapHeight != Cue.DIMEN_UNSET) {
+                    cue.bitmapHeight
+                } else {
+                    w * (bitmap.height.toFloat() / bitmap.width.toFloat())
+                }
+                val grow = ((1.0 - mult) / 2.0).toFloat()
+                Cue.Builder()
+                    .setBitmap(bitmap)
+                    .setSize((w * mult).toFloat())
+                    .apply {
+                        if (cue.bitmapHeight != Cue.DIMEN_UNSET) {
+                            setBitmapHeight((h * mult).toFloat())
+                        }
+                    }
+                    .setPosition((cue.position + w * grow).coerceIn(0f, 1f))
+                    .setPositionAnchor(cue.positionAnchor)
+                    .setLine((cue.line + h * grow - vFrac).coerceIn(0f, 1f), cue.lineType)
+                    .setLineAnchor(cue.lineAnchor)
+                    .setVerticalType(cue.verticalType)
+                    .setShearDegrees(cue.shearDegrees)
+                    .setZIndex(cue.zIndex)
+                    .apply { if (cue.windowColorSet) setWindowColor(cue.windowColor) }
+                    .build()
+            }
         })
     }
 
