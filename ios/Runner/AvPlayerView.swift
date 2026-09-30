@@ -300,6 +300,18 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// Pending/active FTP/SFTP uri (dreamplayer `ftp://<serverId>/<path>`),
     /// rebuilt on replay/scrub-after-end like the WebDAV source.
     private var lastFtpUri: String?
+
+    // ---- SMB stream (see SMBBridge.openShare). The engine plays through an
+    // SMBIOReader over a live SMBConnection that SMBBridge owns. We never
+    // close that connection on a track switch: the demux thread may still be
+    // reading it, which is the race that crashed the retired AMSMB2 build.
+    // SMBBridge tears it down on closeShare instead. ----
+    private var smbToken: String?
+    private var isSMBStream = false
+    /// Extension carried by the token URL, handed to the engine as a probe hint.
+    private var smbFormatHint: String?
+    /// Size probe is a real SMB stat; keep it off the main actor.
+    private static let smbChunkSize = 4 * 1024 * 1024
     /// Lower-cased scheme of the currently-open source (e.g. "file", "http",
     /// "https", "ftp", "sftp", "dreamplayersmb", "dreamplayerwebdav"). Captured
     /// at open time so the network chip can gate between "Local" and a live
@@ -521,7 +533,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     let scheme = self.currentSourceURL?.scheme?.lowercased()
                     let isNetworkSource = scheme == "http" || scheme == "https"
                         || scheme == "ftp" || scheme == "sftp"
+                        || scheme == "dreamplayersmb"
                         || self.lastWebDAVInfo != nil || self.lastFtpUri != nil
+                        || self.isSMBStream
                     if isNetworkSource {
                         Task { @MainActor [weak self] in
                             guard let self, self.engine != nil else { return }
@@ -702,6 +716,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         var localURL: URL?
         var webDAVSource: (url: URL, headers: [String: String], allowSelfSigned: Bool)?
         var ftpUri: String?
+        smbToken = nil
+        isSMBStream = false
+        smbFormatHint = nil
         if let path, !path.isEmpty {
             localURL = URL(fileURLWithPath: path)
             source = .url(localURL!)
@@ -714,6 +731,21 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             ftpUri = uri
             localURL = URL(string: uri)
             source = nil
+        } else if let uri, uri.hasPrefix("dreamplayersmb://"),
+                  let connection = SMBBridge.shared.connection(for: uri) {
+            // SMBBridge.openShare minted this token and is holding the live
+            // SMBConnection. Read-ahead matters here: without it the engine's
+            // per-read SMB round-trips starve the demux thread (the original
+            // reason iOS SMB felt slow). SMBIOReader also unblocks its own
+            // parked read on cancel, so teardown can't stall.
+            smbToken = uri
+            isSMBStream = true
+            let ext = Self.smbTokenExtension(uri)
+            smbFormatHint = ext.isEmpty ? Self.sniffFormatFromSMB(connection) : ext
+            source = .custom(
+                BufferedSMBReader(source: connection, chunkSize: Self.smbChunkSize),
+                formatHint: smbFormatHint
+            )
         } else if let uri, let u = URL(string: uri),
                   (u.scheme?.lowercased() == "http" || u.scheme?.lowercased() == "https"),
                   !httpHeaders.isEmpty || allowSelfSigned {
@@ -1882,6 +1914,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         mpVolumeView?.removeFromSuperview()
         mpVolumeView = nil
         UIApplication.shared.isIdleTimerDisabled = false
+        // Release the SMB socket. The engine has already stopped above, so the
+        // demux thread is done with the reader and this close cannot race an
+        // in-flight read — the ordering that crashed the retired build.
+        if let token = smbToken, !token.isEmpty {
+            let serverId = String(token.dropFirst("dreamplayersmb://".count).prefix { $0 != "-" && $0 != "." })
+            SMBBridge.shared.closePlayback(serverId: serverId)
+        }
+        smbToken = nil
+        isSMBStream = false
     }
 }
 
@@ -1937,4 +1978,62 @@ private extension UIColor {
             alpha: CGFloat((argb >> 24) & 0xFF) / 255.0
         )
     }
+
+    // MARK: - SMB helpers
+
+    /// Extension from a `dreamplayersmb://<token>.<ext>` URL, or "".
+    private static func smbTokenExtension(_ urlString: String) -> String {
+        let tail = urlString.dropFirst("dreamplayersmb://".count)
+        let ext = (tail as NSString).pathExtension.lowercased()
+        // A token is `<serverId>-<n>`; anything that looks like a real
+        // extension is one, anything else means the NAS file had no extension.
+        guard !ext.isEmpty, ext.count <= 5, ext.allSatisfy({ $0.isLetter || $0.isNumber }) else {
+            return ""
+        }
+        return ext
+    }
+
+    /// Guess the container for an extensionless NAS file by reading its first
+    /// bytes. FFmpeg's custom-source probe fails outright on a hint-less
+    /// source, so an extensionless file would otherwise never open.
+    private static func sniffFormatFromSMB(_ source: ByteRangeSource) -> String? {
+        guard let head = try? readSyncHead(source) else { return nil }
+        func starts(_ bytes: [UInt8]) -> Bool {
+            guard head.count >= bytes.count else { return false }
+            return Array(head.prefix(bytes.count)) == bytes
+        }
+        if starts([0x1A, 0x45, 0xDF, 0xA3]) { return "matroska" }   // MKV/WebM
+        if head.count >= 12, String(data: head.prefix(12), encoding: .ascii)?
+            .hasPrefix("RIFF") == true, head.count >= 8,
+           String(data: head[8..<12], encoding: .ascii) == "AVI " { return "avi" }
+        if starts([0x66, 0x74, 0x79, 0x70]) { return "mp4" }        // ftyp
+        if head.count >= 4, head[0] == 0x47, head[1] == 0x00 { return "mpegts" }
+        if starts([0x47]) { return "mpegts" }
+        if starts([0xFF, 0xD8, 0xFF]) { return "mjpeg" }          // many .ts/.m2ts
+        if starts([0x25, 0x50, 0x44, 0x46]) { return "pdf" }      // not video; ignore
+        if head.count >= 12, String(data: head.prefix(12), encoding: .ascii)?
+            .hasPrefix("RIFF") == true { return "wav" }
+        return nil
+    }
+
+    /// Holder for the sniff read. A class, not a captured `var`: mutating a
+    /// captured local from a Task trips Swift 6 strict concurrency, and the
+    /// semaphore's signal/wait is the happens-before edge.
+    private final class HeadRead: @unchecked Sendable {
+        var data: Data?
+        init() {}
+    }
+
+    /// Blocking read of the first bytes, for the sniff above only.
+    private static func readSyncHead(_ source: ByteRangeSource) -> Data? {
+        let semaphore = DispatchSemaphore(value: 0)
+        let out = HeadRead()
+        Task.detached(priority: .userInitiated) {
+            out.data = try? await source.read(at: 0, length: 16)
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return out.data
+    }
+
 }

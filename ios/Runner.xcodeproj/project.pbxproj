@@ -23,6 +23,8 @@
 		
 		A1B2C3D5000000000000000E /* BufferedSMBReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000D /* BufferedSMBReader.swift */; };
 		A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000E /* WebDAVClient.swift */; };
+		A1B2C3D5000000000000033 /* SMBBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000032 /* SMBBridge.swift */; };
+		A1B2C3D5000000000000034 /* SMBClient in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000000000000035 /* SMBClient */; };
 		A1B2C3D50000000000000010 /* JellyfinDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */; };
 		A1B2C3D50000000000000012 /* CacheCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011 /* CacheCleaner.swift */; };
 		A1B2C3D50000000000000017 /* MediaProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000017 /* MediaProbe.swift */; };
@@ -81,6 +83,7 @@
 		
 		A1B2C3D4000000000000000D /* BufferedSMBReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BufferedSMBReader.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000000E /* WebDAVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClient.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000032 /* SMBBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMBBridge.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinDiscovery.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000011 /* CacheCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheCleaner.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000017 /* MediaProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaProbe.swift; sourceTree = "<group>"; };
@@ -107,6 +110,7 @@
 				78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */,
 				A1B2C3D40000000000000006 /* AetherEngine in Frameworks */,
 				A1B2C3D5000000000000000D /* AetherEngineSMB in Frameworks */,
+				A1B2C3D5000000000000034 /* SMBClient in Frameworks */,
 				A1B2C3D50000000000000016 /* Citadel in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -174,6 +178,7 @@
 				A1B2C3D40000000000000003 /* IntentBridge.swift */,
 				A1B2C3D4000000000000000D /* BufferedSMBReader.swift */,
 				A1B2C3D4000000000000000E /* WebDAVClient.swift */,
+				A1B2C3D4000000000000032 /* SMBBridge.swift */,
 				A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */,
 				A1B2C3D40000000000000011 /* CacheCleaner.swift */,
 				A1B2C3D40000000000000017 /* MediaProbe.swift */,
@@ -225,6 +230,7 @@
 				78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */,
 				A1B2C3D40000000000000005 /* AetherEngine */,
 				A1B2C3D4000000000000000C /* AetherEngineSMB */,
+				A1B2C3D4000000000000035 /* SMBClient */,
 				A1B2C3D40000000000000016 /* Citadel */,
 			);
 			productName = Runner;
@@ -263,6 +269,7 @@
 			packageReferences = (
 				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
 				A1B2C3D40000000000000004 /* XCRemoteSwiftPackageReference "AetherEngine" */,
+				A1B2C3D4000000000000036 /* XCRemoteSwiftPackageReference "SMBClient" */,
 				A1B2C3D40000000000000015 /* XCRemoteSwiftPackageReference "Citadel" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
@@ -355,6 +362,7 @@
 				A1B2C3D50000000000000003 /* IntentBridge.swift in Sources */,
 				A1B2C3D5000000000000000E /* BufferedSMBReader.swift in Sources */,
 				A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */,
+				A1B2C3D5000000000000033 /* SMBBridge.swift in Sources */,
 				A1B2C3D50000000000000010 /* JellyfinDiscovery.swift in Sources */,
 				A1B2C3D50000000000000012 /* CacheCleaner.swift in Sources */,
 				A1B2C3D50000000000000017 /* MediaProbe.swift in Sources */,
@@ -714,6 +722,14 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		A1B2C3D4000000000000036 /* XCRemoteSwiftPackageReference "SMBClient" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kishikawakatsumi/SMBClient";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.3.1;
+			};
+		};
 		A1B2C3D40000000000000004 /* XCRemoteSwiftPackageReference "AetherEngine" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/superuser404notfound/AetherEngine";
@@ -741,6 +757,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D40000000000000004 /* XCRemoteSwiftPackageReference "AetherEngine" */;
 			productName = AetherEngine;
+		};
+		A1B2C3D4000000000000035 /* SMBClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4000000000000036 /* XCRemoteSwiftPackageReference "SMBClient" */;
+			productName = SMBClient;
 		};
 		A1B2C3D4000000000000000C /* AetherEngineSMB */ = {
 			isa = XCSwiftPackageProductDependency;

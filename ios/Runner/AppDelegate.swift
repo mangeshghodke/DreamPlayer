@@ -79,6 +79,7 @@ import Network
     FileBrowser.register(with: messenger)
     TheTvdbCredentialStore.register(with: messenger)
     IntentBridge.shared.configure(with: messenger)
+    SMBBridge.register(with: messenger)
     WebDAVClient.register(with: messenger)
     FtpClient.register(with: messenger)
     JellyfinDiscovery.register(with: messenger)
