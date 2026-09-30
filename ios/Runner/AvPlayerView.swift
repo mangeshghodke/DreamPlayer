@@ -895,10 +895,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     engine.pause()
                     lastError = dvUnsupportedProfile
                     self.emit()
-                    // `result(nil)` is normally sent at the end of open(); this
-                    // early exit must send it or the Dart `open()` future never
-                    // completes and the player screen hangs.
-                    result(nil)
+                    // Return from this Task only — the shared `result(nil)`
+                    // after the Task closes the Dart `open()` future. Do NOT
+                    // call `result` here: it is a non-escaping parameter, and
+                    // the Task would both fail to compile and double-send.
                     return
                 }
                 if let pending = self.pendingAutoSubtitleIndex,
