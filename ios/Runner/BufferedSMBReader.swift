@@ -276,12 +276,25 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
                 }
                 if bufEof { ringLock.wait(); continue }
 
-                // Trim consumed prefix.
-                let consumed = Swift.max(position - bufStart, 0)
-                if consumed > 0 {
+                // Where the playhead sits relative to the buffered window.
+                let delta = position - bufStart
+                if delta < 0 || delta >= valid {
+                    // Outside the window: a backward seek, or a forward jump
+                    // past everything we hold (a seekbar drag). The ring has to
+                    // be reset to the new position, NOT trimmed.
+                    //
+                    // Trimming here stalled every large seek: nextWritePos was
+                    // already ahead of `position`, so `max` kept that larger
+                    // value and the prefetcher kept filling the old region
+                    // while the reader waited on the new one — forever. Small
+                    // seeks only worked because nextWritePos was barely ahead.
                     bufStart = position
-                    valid -= consumed
-                    if valid < 0 { valid = 0 }
+                    valid = 0
+                    nextWritePos = position
+                } else {
+                    // Sequential consumption: drop the prefix we just read past.
+                    bufStart = position
+                    valid -= delta
                     nextWritePos = max(nextWritePos, bufStart + valid)
                 }
 

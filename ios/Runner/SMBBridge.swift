@@ -1,6 +1,7 @@
 import AetherEngineSMB
 import Flutter
 import Foundation
+import Network
 import Security
 import SMBClient
 
@@ -62,7 +63,11 @@ final class SMBBridge: NSObject {
     private var servers: [String: ServerMeta] = [:]
     private var listingCache: [ListingCacheKey: CachedListing] = [:]
     /// Live playback connections by token, so `closeShare` is exact.
-    private var playback: [String: SMBConnection] = [:]
+    /// One entry per playback token, each holding the primary connection
+    /// followed by any extra parallel-prefetch sockets. The extras are what
+    /// makes read-ahead parallel: SMB serialises requests per connection, so
+    /// one socket is one request in flight at a time.
+    private var playback: [String: [SMBConnection]] = [:]
     /// Servers a live player is reading from. The browser's dispose calls
     /// closeShare, which must NOT tear the socket out from under a player that
     /// is still using it — the old build had exactly this latch and dropping it
@@ -502,11 +507,8 @@ final class SMBBridge: NSObject {
                         let slice = Array(hosts[index..<end])
                         index = end
                         group.addTask {
-                            var open: [String] = []
-                            for host in slice where Self.port445Open(host: host, timeoutMs: 400) {
-                                open.append(host)
-                            }
-                            for host in open {
+                            for host in slice
+                            where await Self.port445OpenNW(host: host, timeout: 0.6) {
                                 box.append(host, Self.reverseName(host))
                             }
                         }
@@ -554,61 +556,74 @@ final class SMBBridge: NSObject {
     /// first sweep returned 0 hosts in 2 ms, which is impossible for a real
     /// network scan, so the failure has to be before any packets move.
     private static var lastProbeFailure: String = ""
+    /// One queue for every probe connection, so 24 parallel sweeps cannot
+    /// spawn 24 run-loop threads.
+    private static let probeQueue = DispatchQueue(
+        label: "app.dreamplayer.smb.probe", qos: .utility, attributes: .concurrent)
 
-    private static func port445Open(host: String, timeoutMs: Int32) -> Bool {
-        var hints = addrinfo()
-        hints.ai_family = AF_INET
-        hints.ai_socktype = SOCK_STREAM
-        hints.ai_flags = AI_NUMERICHOST
-        var res: UnsafeMutablePointer<addrinfo>?
-        let gai = getaddrinfo(host, "445", &hints, &res)
-        guard gai == 0, let ai = res else {
-            lastProbeFailure = "getaddrinfo(\(host))=\(gai)"
-            return false
-        }
-        defer { freeaddrinfo(res) }
-        let fd = socket(ai.pointee.ai_family, ai.pointee.ai_socktype, ai.pointee.ai_protocol)
-        guard fd >= 0 else {
-            lastProbeFailure = "socket(\(host))=\(errno)"
-            return false
-        }
-        defer { close(fd) }
-        let flags = fcntl(fd, F_GETFL, 0)
-        guard flags >= 0 else {
-            lastProbeFailure = "F_GETFL(\(host))=\(errno)"
-            return false
-        }
-        guard fcntl(fd, F_SETFL, flags | O_NONBLOCK) >= 0 else {
-            lastProbeFailure = "F_SETFL(\(host))=\(errno)"
-            return false
-        }
-        let rc = withUnsafePointer(to: ai.pointee.ai_addr) { ptr -> Int32 in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.connect(fd, $0, socklen_t(ai.pointee.ai_addrlen))
+    /// TCP reachability over Network.framework.
+    ///
+    /// A raw BSD connect() to a LAN address returns EPERM on iOS: Local Network
+    /// privacy gates it, and the denial is immediate — which is why the first
+    /// sweep reported 0 hosts in 2 ms. Network.framework is the transport the
+    /// rest of the app already uses successfully (every SMB session goes
+    /// through SMBClient's NWConnection), so the probe uses it too rather than
+    /// being refused by a gate the app has already been granted.
+    private static func port445OpenNW(host: String, timeout: TimeInterval) async -> Bool {
+        await withTaskGroup(of: Bool.self) { group in
+            // The timeout is a sibling task rather than asyncAfter: a
+            // DispatchQueue closure capturing the continuation (and the
+            // NWConnection) is an escaping @Sendable capture of both, and it
+            // also could not be cancelled — a fast .ready left the timer to
+            // fire later and write a stale failure reason.
+            group.addTask {
+                await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+                    let conn = NWConnection(
+                        host: NWEndpoint.Host(host), port: 445, using: .tcp)
+                    let once = ProbeOnce()
+                    let finish: (Bool) -> Void = { ok in
+                        if once.claim() {
+                            conn.cancel()
+                            cont.resume(returning: ok)
+                        }
+                    }
+                    conn.stateUpdateHandler = { state in
+                        switch state {
+                        case .ready: finish(true)
+                        case .failed(let error):
+                            lastProbeFailure = "nw(\(host))=\(error)"
+                            finish(false)
+                        case .cancelled: finish(false)
+                        default: break
+                        }
+                    }
+                    conn.start(queue: probeQueue)
+                    group.addTask {
+                        try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                        lastProbeFailure = "nw(\(host)) timeout"
+                        finish(false)
+                    }
+                }
             }
-        }
-        if rc == 0 { return true }
-        guard errno == EINPROGRESS else {
-            lastProbeFailure = "connect(\(host)) errno=\(errno)"
+            // First task to finish wins; the other is cancelled by scope exit.
+            for await result in group where result {
+                return true
+            }
             return false
         }
-        var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
-        let pr = poll(&pfd, 1, timeoutMs)
-        guard pr > 0 else {
-            lastProbeFailure = "poll(\(host)) timeout after \(timeoutMs)ms"
-            return false
+    }
+
+    /// One-shot guard so a probe continuation resumes exactly once, whichever
+    /// of {ready, failed, cancelled, timeout} gets there first.
+    private final class ProbeOnce: @unchecked Sendable {
+        private let lock = NSLock()
+        private var done = false
+        func claim() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            if done { return false }
+            done = true
+            return true
         }
-        var err: Int32 = 0
-        var len = socklen_t(MemoryLayout<Int32>.size)
-        guard getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len) == 0 else {
-            lastProbeFailure = "getsockopt(\(host))=\(errno)"
-            return false
-        }
-        if err != 0 {
-            lastProbeFailure = "so_error(\(host))=\(err)"
-            return false
-        }
-        return true
     }
 
     /// Reverse DNS, falling back to the address itself when the LAN has no
@@ -933,31 +948,64 @@ final class SMBBridge: NSObject {
                 await MainActor.run { completion(nil) }
                 return
             }
-            do {
-                let connection = try await SMBConnection.connect(
-                    server: url,
-                    share: share,
-                    path: Self.normalized(path),
-                    user: server.anonymous ? "" : server.username,
-                    password: server.anonymous ? "" : password,
-                    domain: server.domain
-                )
-                let ext = (path as NSString).pathExtension
-                self.lock.lock()
-                self.tokenCounter += 1
-                let token = "\(server.id)-\(self.tokenCounter)"
-                self.playback[token] = connection
-                self.lock.unlock()
-                await MainActor.run {
-                    let tokenURL = "dreamplayersmb://\(token).\(ext.isEmpty ? "mkv" : ext)"
-                    SBMLog.log("openShare ok \(share)/\(path) -> \(tokenURL) (\(connection.byteSize) bytes)")
-                    completion(tokenURL)
+            // Open the primary plus N-1 extra sockets CONCURRENTLY. Opening
+            // them one after another cost a full handshake each and was the
+            // slowest part of starting playback.
+            let cleanPath = Self.normalized(path)
+            let user = server.anonymous ? "" : server.username
+            let secret = server.anonymous ? "" : password
+            let realm = server.domain
+            let wanted = Self.prefetchConnectionCount
+
+            var opened: [SMBConnection] = []
+            var firstError: Error?
+            await withTaskGroup(of: Result<SMBConnection, Error>.self) { group in
+                for _ in 0..<wanted {
+                    group.addTask {
+                        do {
+                            return .success(try await SMBConnection.connect(
+                                server: url, share: share, path: cleanPath,
+                                user: user, password: secret, domain: realm
+                            ))
+                        } catch {
+                            return .failure(error)
+                        }
+                    }
                 }
-            } catch {
+                for await outcome in group {
+                    switch outcome {
+                    case .success(let c): opened.append(c)
+                    case .failure(let e): if firstError == nil { firstError = e }
+                    }
+                }
+            }
+
+            guard let primary = opened.first else {
                 await MainActor.run {
-                    SBMLog.log("openShare FAILED \(share)/\(path): \(error)")
+                    SBMLog.log("openShare FAILED \(share)/\(path): \(String(describing: firstError))")
                     completion(nil)
                 }
+                return
+            }
+            // Extra sockets are best-effort: one is enough to play, and a
+            // NAS that refuses a 4th session still gets a working reader.
+            if opened.count < wanted {
+                SBMLog.log(
+                    "openShare: \(opened.count)/\(wanted) sockets "
+                    + "(\(String(describing: firstError)))")
+            }
+            let ext = (path as NSString).pathExtension
+            self.lock.lock()
+            self.tokenCounter += 1
+            let token = "\(server.id)-\(self.tokenCounter)"
+            self.playback[token] = opened
+            self.lock.unlock()
+            await MainActor.run {
+                let tokenURL = "dreamplayersmb://\(token).\(ext.isEmpty ? "mkv" : ext)"
+                SBMLog.log(
+                    "openShare ok \(share)/\(path) -> \(tokenURL) "
+                    + "(\(primary.byteSize) bytes, \(opened.count) socket(s))")
+                completion(tokenURL)
             }
         }
     }
@@ -979,7 +1027,7 @@ final class SMBBridge: NSObject {
         if playerActive.contains(serverId) { return }
         let doomed = playback.keys.filter { $0.hasPrefix("\(serverId)-") }
         for token in doomed {
-            playback[token]?.close()
+            for c in playback[token] ?? [] { c.close() }
             playback.removeValue(forKey: token)
         }
     }
@@ -994,7 +1042,7 @@ final class SMBBridge: NSObject {
             playerActive.remove(serverId)
             let doomed = playback.keys.filter { $0.hasPrefix("\(serverId)-") }
             for token in doomed {
-                playback[token]?.close()
+                for c in playback[token] ?? [] { c.close() }
                 playback.removeValue(forKey: token)
             }
         }
@@ -1009,6 +1057,20 @@ final class SMBBridge: NSObject {
         var description: String { message }
         var errorDescription: String? { message }
     }
+
+    /// How many independent SMB sockets to open per playback session.
+    ///
+    /// SMB serialises requests per connection, so a single socket keeps exactly
+    /// one read in flight — that ceiling is why one connection felt slow on a
+    /// fast NAS. BufferedSMBReader runs `min(4, sources.count)` prefetch
+    /// tasks, so 4 is that ceiling.
+    ///
+    /// A 4-connection attempt previously "failed to play anything" (reverted in
+    /// d569489), but that was over AMSMB2/libsmb2, whose first connectShare
+    /// EPERMs on iOS — four sockets on a broken transport. The transport is now
+    /// a pure-Swift client over NWConnection, so the experiment is worth
+    /// repeating. 1 is the safe fallback if a NAS dislikes parallel sessions.
+    private static let prefetchConnectionCount = 4
 
     /// One-shot holder for a connection opened on a background thread. A
     /// class, not a captured `var`: the semaphore's signal/wait is the
@@ -1120,8 +1182,8 @@ final class SMBBridge: NSObject {
             let ext = (path as NSString).pathExtension
             let token = "\(server.id)-\(tag)"
             lock.lock()
-            playback[token]?.close()
-            playback[token] = result
+            for c in playback[token] ?? [] { c.close() }
+            playback[token] = [result]
             lock.unlock()
             SBMLog.log("open(\(tag)) ok -> \(result.byteSize) bytes, token \(token).\(ext)")
         }
@@ -1139,7 +1201,8 @@ final class SMBBridge: NSObject {
 
     /// Resolves a `dreamplayersmb://` URL handed to the player back to its
     /// live connection. Returns nil once the session has been closed.
-    func connection(for urlString: String) -> SMBConnection? {
+    /// Every socket for a token, primary first.
+    func connections(for urlString: String) -> [SMBConnection] {
         guard urlString.hasPrefix("dreamplayersmb://") else { return nil }
         var token = String(urlString.dropFirst("dreamplayersmb://".count))
         if let dot = token.lastIndex(of: ".") {
@@ -1147,7 +1210,12 @@ final class SMBBridge: NSObject {
         }
         lock.lock()
         defer { lock.unlock() }
-        return playback[token]
+        return playback[token] ?? []
+    }
+
+    /// The primary (first) socket, or nil once the session is closed.
+    func connection(for urlString: String) -> SMBConnection? {
+        connections(for: urlString).first
     }
 
     /// The `IOReader` the engine plays from, with read-ahead disabled by

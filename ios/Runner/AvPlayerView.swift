@@ -315,6 +315,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// FRESH reader on the same socket: SMBConnection serves independent range
     /// reads, so this needs no reconnect.
     private var smbConnection: SMBConnection?
+    /// Every socket minted for the session. SMB serialises reads per socket,
+    /// so extra sockets are what let read-ahead run in parallel; the
+    /// multi-source BufferedSMBReader runs one prefetch task per source.
+    private var smbConnections: [SMBConnection] = []
     /// emit() runs several times a second, so state/error logging has to
     /// remember the last line or one event fills the log with copies.
     private var lastLoggedState: String = ""
@@ -771,6 +775,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         smbUri = nil
         smbServerId = nil
         smbConnection = nil
+        smbConnections = []
         let smbResume = Self.smbParts(fromResumeKey: resumeKey)
         if let uri, uri.hasPrefix("dreamplayersmb://"),
            let connection = SMBBridge.shared.connection(for: uri) {
@@ -784,7 +789,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // parked read on cancel, so teardown can't stall.
             smbToken = uri
             smbConnection = connection
+            smbConnections = SMBBridge.shared.connections(for: uri)
             isSMBStream = true
+            SBMLog.log("open: \(smbConnections.count) SMB socket(s) for playback")
             // Hold the socket: the browsing screen calls closeShare when it is
             // disposed, and that must not stop playback.
             SMBBridge.shared.setPlayerActive(true, serverId: SMBBridge.shared.serverId(forToken: uri))
@@ -980,13 +987,18 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         }.value
                     if let connection {
                         self.smbConnection = connection
+                        // openSmb stores a single socket; the browser's
+                        // openShare path is the parallel one.
+                        self.smbConnections = [connection]
                         self.isSMBStream = true
                         let ext = (pendingSmbUri as NSString).pathExtension
                         self.smbFormatHint = ext.isEmpty
                             ? Self.sniffFormatFromSMB(connection) : ext
                         source = .custom(
                             BufferedSMBReader(
-                                source: connection, chunkSize: Self.smbChunkSize
+                                sources: self.smbConnections.isEmpty
+                                    ? [connection] : self.smbConnections,
+                                chunkSize: Self.smbChunkSize
                             ),
                             formatHint: self.smbFormatHint
                         )
@@ -1308,11 +1320,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // SMBConnection serves independent range reads, so a new reader
             // over the SAME socket starts with a fresh ring and its own
             // prefetcher — no reconnect, no re-auth.
+            let sockets = smbConnections.isEmpty ? [connection] : smbConnections
             SBMLog.log(
-                "buildFreshSource: SMB — new reader on the live connection "
-                + "(\(connection.byteSize) bytes, hint=\(smbFormatHint ?? "none"))")
+                "buildFreshSource: SMB — new reader on \(sockets.count) live "
+                + "socket(s) (\(connection.byteSize) bytes, "
+                + "hint=\(smbFormatHint ?? "none"))")
             return .custom(
-                BufferedSMBReader(source: connection, chunkSize: Self.smbChunkSize),
+                BufferedSMBReader(
+                    sources: sockets, chunkSize: Self.smbChunkSize
+                ),
                 formatHint: smbFormatHint
             )
         }
