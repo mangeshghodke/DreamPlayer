@@ -569,49 +569,76 @@ final class SMBBridge: NSObject {
     /// rest of the app already uses successfully (every SMB session goes
     /// through SMBClient's NWConnection), so the probe uses it too rather than
     /// being refused by a gate the app has already been granted.
+    /// Races one connection attempt against a timeout, returning whether the
+    /// port answered.
+    ///
+    /// Both halves are child tasks of ONE group, per the TaskGroup rule that a
+    /// group must not be used from outside the task that created it — nesting a
+    /// second group inside a child task would capture `group` (an `inout`) in an
+    /// escaping closure. A group also waits for every child before returning,
+    /// so the winner is whichever result arrives first rather than whichever is
+    /// first in iteration order: the connection task completes on the first
+    /// state it settles, and the timer is cancelled with the group.
     private static func port445OpenNW(host: String, timeout: TimeInterval) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group in
-            // The timeout is a sibling task rather than asyncAfter: a
-            // DispatchQueue closure capturing the continuation (and the
-            // NWConnection) is an escaping @Sendable capture of both, and it
-            // also could not be cancelled — a fast .ready left the timer to
-            // fire later and write a stale failure reason.
+        await withTaskGroup(of: ProbeOutcome.self) { group in
+            group.addTask { await Self.nwConnect(host: host) }
             group.addTask {
-                await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-                    let conn = NWConnection(
-                        host: NWEndpoint.Host(host), port: 445, using: .tcp)
-                    let once = ProbeOnce()
-                    let finish: (Bool) -> Void = { ok in
-                        if once.claim() {
-                            conn.cancel()
-                            cont.resume(returning: ok)
-                        }
-                    }
-                    conn.stateUpdateHandler = { state in
-                        switch state {
-                        case .ready: finish(true)
-                        case .failed(let error):
-                            lastProbeFailure = "nw(\(host))=\(error)"
-                            finish(false)
-                        case .cancelled: finish(false)
-                        default: break
-                        }
-                    }
-                    conn.start(queue: probeQueue)
-                    group.addTask {
-                        try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                        lastProbeFailure = "nw(\(host)) timeout"
-                        finish(false)
-                    }
-                }
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                lastProbeFailure = "nw(\(host)) timeout"
+                return .gaveUp
             }
-            // First task to finish wins; the other is cancelled by scope exit.
-            for await result in group where result {
-                return true
+
+            for await outcome in group {
+                if outcome == .open {
+                    // Task.sleep honours cancellation, so the timer ends at
+                    // once even though the group still awaits both children.
+                    group.cancelAll()
+                    return true
+                }
             }
             return false
         }
     }
+
+    /// One NWConnection attempt, resolving on the first settled state.
+    private static func nwConnect(host: String) async -> ProbeOutcome {
+        let open = await withCheckedContinuation {
+            (cont: CheckedContinuation<Bool, Never>) in
+            let conn = NWConnection(
+                host: NWEndpoint.Host(host), port: 445, using: .tcp)
+            let once = ProbeOnce()
+            let finish: (Bool) -> Void = { ok in
+                if once.claim() {
+                    conn.cancel()
+                    cont.resume(returning: ok)
+                }
+            }
+            conn.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    finish(true)
+                case .failed(let error):
+                    lastProbeFailure = "nw(\(host))=\(error)"
+                    finish(false)
+                case .cancelled:
+                    finish(false)
+                default:
+                    break
+                }
+            }
+            conn.start(queue: probeQueue)
+        }
+        return open ? .open : .gaveUp
+    }
+
+
+    /// A probe's single verdict, so the group reads as a race between "the port
+    /// answered" and "we gave up" rather than two anonymous Bools.
+    private enum ProbeOutcome: Sendable, Equatable {
+        case open
+        case gaveUp
+    }
+
 
     /// One-shot guard so a probe continuation resumes exactly once, whichever
     /// of {ready, failed, cancelled, timeout} gets there first.
@@ -959,7 +986,7 @@ final class SMBBridge: NSObject {
 
             var opened: [SMBConnection] = []
             var firstError: Error?
-            await withTaskGroup(of: Result<SMBConnection, Error>.self) { group in
+            await withTaskGroup(of: Result<SMBConnection, any Error>.self) { group in
                 for _ in 0..<wanted {
                     group.addTask {
                         do {
