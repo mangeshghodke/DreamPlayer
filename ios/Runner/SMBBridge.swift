@@ -155,7 +155,9 @@ final class SMBBridge: NSObject {
         // Android-only: LAN subnet scan, and the mpv loopback bridge (iOS has
         // no mpv engine). Answered so Dart never blocks on a missing handler.
         case "discoverServers":
-            result([])
+            discoverServers { found in
+                result(found.map { ["host": $0.host, "hostname": $0.hostname] })
+            }
         case "checkServer":
             result(false)
         case "startLoopback", "stopLoopback":
@@ -440,6 +442,123 @@ final class SMBBridge: NSObject {
         } onError: { message in
             completion(false, message)
         }
+    }
+
+    // MARK: - LAN discovery
+
+    /// Scans the local /24 for hosts answering on the SMB port (445).
+    ///
+    /// A subnet sweep, not NetBIOS broadcast: iOS apps get no broadcast name
+    /// service, and a reverse lookup on each hit gives the pretty name. Home
+    /// and small-office LANs are /24 in practice; a /16 would take minutes.
+    private func discoverServers(completion: @escaping ([(host: String, hostname: String)]) -> Void) {
+        Task.detached(priority: .utility) {
+            var found: [(host: String, hostname: String)] = []
+            if let local = Self.localIPv4() {
+                let prefix = local.split(separator: ".").dropLast().joined(separator: ".")
+                // A small worker pool: a serial sweep of 254 hosts at a
+                // 250ms timeout each would take a minute on a dead subnet.
+                let hosts = (1...254).map { "\(prefix).\($0)" }
+                let workers = 24
+                let chunk = max(hosts.count / workers, 1)
+                let lock = NSLock()
+                await withTaskGroup(of: Void.self) { group in
+                    var index = 0
+                    while index < hosts.count {
+                        let end = min(index + chunk, hosts.count)
+                        let slice = Array(hosts[index..<end])
+                        index = end
+                        group.addTask {
+                            var open: [String] = []
+                            for host in slice where Self.port445Open(host: host, timeoutMs: 400) {
+                                open.append(host)
+                            }
+                            if !open.isEmpty {
+                                lock.lock()
+                                found.append(contentsOf: open.map { ($0, Self.reverseName($0)) })
+                                lock.unlock()
+                            }
+                        }
+                    }
+                }
+            }
+            await MainActor.run {
+                completion(found.sorted { $0.host < $1.host })
+            }
+        }
+    }
+
+    /// First non-loopback IPv4 on an up interface, as a dotted string.
+    private static func localIPv4() -> String? {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
+        defer { freeifaddrs(ifaddr) }
+        var result: String?
+        var ptr: UnsafeMutablePointer<ifaddrs>? = first
+        while let cur = ptr {
+            let flags = Int32(cur.pointee.ifa_flags)
+            let family = cur.pointee.ifa_addr.pointee.sa_family
+            if flags & IFF_UP == IFF_UP, flags & IFF_LOOPBACK == 0, family == UInt8(AF_INET) {
+                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                let len = socklen_t(cur.pointee.ifa_addr.pointee.sa_len)
+                if getnameinfo(
+                    cur.pointee.ifa_addr, len,
+                    &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST
+                ) == 0 {
+                    result = String(cString: host)
+                }
+            }
+            ptr = cur.pointee.ifa_next
+        }
+        return result
+    }
+
+    /// Non-blocking TCP connect to port 445 with a poll() timeout.
+    private static func port445Open(host: String, timeoutMs: Int32) -> Bool {
+        var hints = addrinfo()
+        hints.ai_family = AF_INET
+        hints.ai_socktype = SOCK_STREAM
+        hints.ai_flags = AI_NUMERICHOST
+        var res: UnsafeMutablePointer<addrinfo>?
+        guard getaddrinfo(host, "445", &hints, &res) == 0, let ai = res else { return false }
+        defer { freeaddrinfo(res) }
+        let fd = socket(ai.pointee.ai_family, ai.pointee.ai_socktype, ai.pointee.ai_protocol)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        let flags = fcntl(fd, F_GETFL, 0)
+        guard flags >= 0, fcntl(fd, F_SETFL, flags | O_NONBLOCK) >= 0 else { return false }
+        let rc = withUnsafePointer(to: ai.pointee.ai_addr) { ptr -> Int32 in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(fd, $0, socklen_t(ai.pointee.ai_addrlen))
+            }
+        }
+        if rc == 0 { return true }
+        guard errno == EINPROGRESS else { return false }
+        var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+        guard poll(&pfd, 1, timeoutMs) > 0 else { return false }
+        var err: Int32 = 0
+        var len = socklen_t(MemoryLayout<Int32>.size)
+        guard getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len) == 0 else { return false }
+        return err == 0
+    }
+
+    /// Reverse DNS, falling back to the address itself when the LAN has no
+    /// name service (most home routers do not).
+    private static func reverseName(_ host: String) -> String {
+        var hints = addrinfo()
+        hints.ai_family = AF_INET
+        hints.ai_flags = AI_NUMERICHOST
+        var res: UnsafeMutablePointer<addrinfo>?
+        guard getaddrinfo(host, nil, &hints, &res) == 0, let ai = res else { return host }
+        defer { freeaddrinfo(res) }
+        var name = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+        if getnameinfo(
+            ai.pointee.ai_addr, socklen_t(ai.pointee.ai_addrlen),
+            &name, socklen_t(name.count), nil, 0, NI_NAMEREQD
+        ) == 0 {
+            return String(cString: name)
+        }
+        return host
     }
 
     // MARK: - Browsing

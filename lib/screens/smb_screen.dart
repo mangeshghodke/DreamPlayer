@@ -381,9 +381,21 @@ class _SmbScreenState extends State<SmbScreen> {
     if (server == null) return;
     final service = TmdService.instance;
     for (final entry in entries) {
-      if (entry.isDirectory) continue;
       if (_tmdbMeta.containsKey(entry.path)) continue;
       _tmdbMeta[entry.path] = null; // placeholder to avoid duplicate requests
+      if (entry.isDirectory) {
+        // A folder ("Movies", "Downloads", a show's season dir) is its own
+        // card, so resolve it like a library folder and give it a poster
+        // instead of listing it as a bare row.
+        final folderKey = 'folder:smb:${server.id}/$_share/${entry.path}';
+        service.resolveFolder(folderKey, entry.name).then((meta) {
+          if (!mounted) return;
+          setState(() {
+            _tmdbMeta[entry.path] = meta;
+          });
+        }).catchError((_) {});
+        continue;
+      }
       final key = 'smb:${server.id}/$_share/${entry.path}';
       service.resolve(VideoItem(
         id: 'smb:$key',
@@ -1135,12 +1147,12 @@ class _SmbScreenState extends State<SmbScreen> {
           final key = _watchedKeyFor(entry);
           // Read poster from TmdService directly (not the local _tmdbMeta map)
           // so fix-match changes appear instantly on rebuild.
+          // Directories resolve as folders, files as individual titles, so a
+          // "Movies" folder shows its own poster/card rather than a bare row.
           final serviceKey = entry.isDirectory
-              ? null
+              ? 'folder:smb:${_browsing!.id}/$_share/${entry.path}'
               : 'smb:${_browsing!.id}/$_share/${entry.path}';
-          final meta = serviceKey != null
-              ? TmdService.instance.metaFor(serviceKey)
-              : null;
+          final meta = TmdService.instance.metaFor(serviceKey);
           // Use TMDB episode runtime as fallback duration when ContinueWatchingStore
           // has zero duration (happens when video.duration was zero at save time).
           int? fallbackDurationMs;

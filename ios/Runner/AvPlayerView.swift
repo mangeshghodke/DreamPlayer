@@ -719,20 +719,11 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         smbToken = nil
         isSMBStream = false
         smbFormatHint = nil
-        if let path, !path.isEmpty {
-            localURL = URL(fileURLWithPath: path)
-            source = .url(localURL!)
-        } else if let uri, uri.lowercased().hasPrefix("ftp://") || uri.lowercased().hasPrefix("sftp://") {
-            // FTP/SFTP playback: the engine has no FTP stack, so serve it via
-            // FtpClient's ByteRangeSource (plain-FTP REST reads or Citadel
-            // SFTP offset reads) wrapped in BufferedSMBReader read-ahead —
-            // the same shape as the WebDAV path below. Built inside the load
-            // Task so the blocking handshake never touches the main thread.
-            ftpUri = uri
-            localURL = URL(string: uri)
-            source = nil
-        } else if let uri, uri.hasPrefix("dreamplayersmb://"),
-                  let connection = SMBBridge.shared.connection(for: uri) {
+        if let uri, uri.hasPrefix("dreamplayersmb://"),
+           let connection = SMBBridge.shared.connection(for: uri) {
+            // Must precede the plain-path branch: Dart sends `path` alongside
+            // `uri`, and an SMB item's path is "smb://share/file", which as a
+            // file:// URL is ENOENT.
             // SMBBridge.openShare minted this token and is holding the live
             // SMBConnection. Read-ahead matters here: without it the engine's
             // per-read SMB round-trips starve the demux thread (the original
@@ -746,6 +737,19 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 BufferedSMBReader(source: connection, chunkSize: Self.smbChunkSize),
                 formatHint: smbFormatHint
             )
+
+        } else if let path, !path.isEmpty {
+            localURL = URL(fileURLWithPath: path)
+            source = .url(localURL!)
+        } else if let uri, uri.lowercased().hasPrefix("ftp://") || uri.lowercased().hasPrefix("sftp://") {
+            // FTP/SFTP playback: the engine has no FTP stack, so serve it via
+            // FtpClient's ByteRangeSource (plain-FTP REST reads or Citadel
+            // SFTP offset reads) wrapped in BufferedSMBReader read-ahead —
+            // the same shape as the WebDAV path below. Built inside the load
+            // Task so the blocking handshake never touches the main thread.
+            ftpUri = uri
+            localURL = URL(string: uri)
+            source = nil
         } else if let uri, let u = URL(string: uri),
                   (u.scheme?.lowercased() == "http" || u.scheme?.lowercased() == "https"),
                   !httpHeaders.isEmpty || allowSelfSigned {
