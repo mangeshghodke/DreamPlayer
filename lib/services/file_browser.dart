@@ -71,15 +71,49 @@ class FileBrowserService {
   }
 
   /// Directories (first) and video files inside [path].
+  /// Why the most recent [listDirectory] came back empty, if it failed.
+  ///
+  /// The native side used to answer a failed listing with a single
+  /// `{"error": ...}` pseudo-entry that this method silently dropped, so an
+  /// unreadable folder was indistinguishable from an empty one — and adding
+  /// one looked like a no-op. The reason is now retained so callers can
+  /// explain the failure.
+  String? lastListError;
+
+  /// Human-readable text for [lastListError].
+  String? get lastListErrorText => switch (lastListError) {
+        'no_permission' =>
+          'iOS refused access to that location. If it is an external drive, '
+              'reconnect it and pick the folder again.',
+        'stale_bookmark' =>
+          'That folder is on a drive iOS can no longer grant access to. '
+              'Reconnect the drive and add the folder again.',
+        'not_found' =>
+          'That folder could not be opened. Check it is still connected.',
+        _ => null,
+      };
+
   Future<List<FileEntry>> listDirectory(String path) async {
     final result = await _channel.invokeListMethod<dynamic>('listDirectory', {
       'path': path,
     });
-    if (result == null) return const [];
-    return result
-        .where((e) => (e as Map<dynamic, dynamic>)['error'] == null)
-        .map((e) => FileEntry.fromMap(e as Map<dynamic, dynamic>))
-        .toList();
+    if (result == null) {
+      lastListError = null;
+      return const [];
+    }
+    String? error;
+    final entries = <FileEntry>[];
+    for (final e in result) {
+      final map = e as Map<dynamic, dynamic>;
+      final err = map['error'];
+      if (err != null) {
+        error ??= err.toString();
+        continue;
+      }
+      entries.add(FileEntry.fromMap(map));
+    }
+    lastListError = error;
+    return entries;
   }
 
   /// Presents the system folder picker (iOS document picker / Android

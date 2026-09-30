@@ -149,24 +149,49 @@ final class FileBrowser: NSObject {
     /// Bookmark resolution touches shared state, so it stays on the main thread;
     /// only the scan itself is moved to a background queue.
     private func listDirectory(_ path: String, result: @escaping FlutterResult) {
+        lastStaleBookmarkURL = nil
         resolveAllBookmarks()
         let roots = bookmarkRoots
+        // Did we manage to open a scope for anything? If the drive was picked
+        // from an external volume and the scope was refused, every listing
+        // under it fails and the caller sees an empty folder.
+        let anyScopeOpen = !activeSecurityScopedURLs.isEmpty
         DispatchQueue.global(qos: .userInitiated).async {
-            let entries = Self.scanDirectory(path, roots: roots)
+            let entries = Self.scanDirectory(
+                path,
+                roots: roots,
+                staleBookmark: self.lastStaleBookmarkURL != nil,
+                scopeOpen: anyScopeOpen
+            )
             DispatchQueue.main.async {
                 result(entries)
             }
         }
     }
 
-    private static func scanDirectory(_ path: String, roots: [String: URL]) -> [[String: Any]] {
+    private static func scanDirectory(
+        _ path: String,
+        roots: [String: URL],
+        staleBookmark: Bool = false,
+        scopeOpen: Bool = true
+    ) -> [[String: Any]] {
         let url = URL(fileURLWithPath: path)
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
             options: [.skipsHiddenFiles]
         ) else {
-            return [["error": "not_found", "path": path]]
+            // Say WHY. A bare "not_found" was indistinguishable from an
+            // empty folder, so a failed add looked like a silent no-op.
+            let reason: String
+            if !scopeOpen {
+                reason = "no_permission"
+            } else if staleBookmark {
+                reason = "stale_bookmark"
+            } else {
+                reason = "not_found"
+            }
+            return [["error": reason, "path": path]]
         }
 
         var dirs: [[String: Any]] = []
@@ -278,14 +303,32 @@ final class FileBrowser: NSObject {
     /// which is macOS-only); access still has to be started explicitly.
     private func resolve(_ data: Data) -> URL? {
         var isStale = false
-        return try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale)
+        let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale)
+        if isStale, let url {
+            // A stale bookmark still resolves, but on a removable volume the
+            // scope it carries is usually no longer valid — which is why an
+            // external drive kept failing while internal storage worked.
+            // The URL is still the truth right now, so re-issue a fresh
+            // bookmark from it and report the staleness for diagnostics.
+            lastStaleBookmarkURL = url
+        }
+        return url
     }
 
-    private func startAccess(_ url: URL) {
-        guard !activeSecurityScopedURLs.contains(url) else { return }
-        if url.startAccessingSecurityScopedResource() {
-            activeSecurityScopedURLs.append(url)
-        }
+    /// Set when the most recent resolve saw a stale bookmark. Purely
+    /// diagnostic: surfaced on list errors so a silent "nothing added" becomes
+    /// an explainable failure.
+    private var lastStaleBookmarkURL: URL?
+
+    /// Returns false when the security scope could NOT be started. Previously
+    /// the return value was discarded, so a refused scope looked exactly like
+    /// success and the folder simply listed as empty.
+    @discardableResult
+    private func startAccess(_ url: URL) -> Bool {
+        if activeSecurityScopedURLs.contains(url) { return true }
+        let started = url.startAccessingSecurityScopedResource()
+        if started { activeSecurityScopedURLs.append(url) }
+        return started
     }
 
     private func removeBookmark(_ bookmarkId: String) {
