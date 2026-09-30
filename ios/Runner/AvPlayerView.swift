@@ -527,7 +527,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     self.audioSwitchSuppressUntil = Date().addingTimeInterval(2.0)
                     SBMLog.log(
                         "selectAudioTrack: flat=\(index) -> id=\(trackId) "
-                        + "smb=\(self.isSMBStream) resumeAt=\(resumeAt)s "
+                        + "smb=\(self.isSMBStream) "
+                        + "now=\(self.engine?.currentTime ?? .zero)s "
                         + "tracks=\(self.engine?.audioTracks.count ?? 0)")
                     // Capture the position BEFORE attempting the in-place
                     // switch. On a network source that attempt is what resets
@@ -778,7 +779,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // so it is built inside the load Task like the FTP/WebDAV paths —
             // doing it here froze the main thread on a spinner.
             smbUri = uri
-            smbServerId = Self.serverIdFromResumeKey(resumeKey)
+            smbServerId = smbResume?.id
             localURL = URL(string: uri)
             source = nil
         } else if let path, !path.isEmpty {
@@ -918,22 +919,28 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // token into "No such file or directory".
                     let serverId = smbServerId
                     let parts = smbResume
-                    let connection = await Task.detached(priority: .userInitiated) {
-                        if let live = SMBBridge.shared.connection(for: pendingSmbUri) {
-                            return live
-                        }
-                        if let parts {
-                            SBMLog.log(
-                                "open: token is stale, re-opening from resumeKey "
-                                + "server=\(parts.id) share=\(parts.share)")
-                            return SMBBridge.shared.openSmb(
-                                serverId: parts.id, share: parts.share, path: parts.path
+                    let connection: SMBConnection? =
+                        await Task.detached(priority: .userInitiated) {
+                            if let live = SMBBridge.shared.connection(
+                                for: pendingSmbUri
+                            ) {
+                                return live
+                            }
+                            if let parts {
+                                SBMLog.log(
+                                    "open: token is stale, re-opening from "
+                                    + "resumeKey server=\(parts.id) "
+                                    + "share=\(parts.share)")
+                                return SMBBridge.shared.openSmb(
+                                    serverId: parts.id,
+                                    share: parts.share,
+                                    path: parts.path
+                                )
+                            }
+                            return SMBBridge.shared.openFromSmbUri(
+                                pendingSmbUri, serverId: serverId
                             )
-                        }
-                        return SMBBridge.shared.openFromSmbUri(
-                            pendingSmbUri, serverId: serverId
-                        )
-                    }.value
+                        }.value
                     if let connection {
                         self.smbConnection = connection
                         self.isSMBStream = true

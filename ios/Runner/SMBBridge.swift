@@ -1059,7 +1059,10 @@ final class SMBBridge: NSObject {
             serverURL.host = server.host
             if server.port > 0 && server.port != 445 { serverURL.port = server.port }
             do {
-                guard let url = serverURL.url else { throw BadHost(message: "Could not build an smb:// URL for \(host)") }
+                guard let url = serverURL.url else {
+                    throw BadHost(
+                        message: "Could not build an smb:// URL for \(server.host)")
+                }
                 out.connection = try await SMBConnection.connect(
                     server: url,
                     share: share,
