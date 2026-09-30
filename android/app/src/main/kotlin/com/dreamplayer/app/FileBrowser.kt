@@ -11,6 +11,7 @@ import android.provider.DocumentsContract
 import android.provider.Settings
 import androidx.documentfile.provider.DocumentFile
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.MethodCall
 import java.io.File
 import java.util.Locale
 import java.util.UUID
@@ -85,6 +86,11 @@ class FileBrowser(private val activity: MainActivity) {
                         mainHandler.post { result.success(bytes) }
                     }.start()
                 }
+                // Irreversible file deletion, deliberately restricted to
+                // LOCAL storage. Network sources (SMB/WebDAV/FTP/UPnP/Jellyfin)
+                // are refused: they would each need their own protocol-level
+                // delete, and a mis-fired tap on a NAS share is real data loss.
+                "deleteLocalFile" -> deleteLocalFile(call, result)
                 "resolveImportedPath" -> result.success(true)
                 "resolvePath" -> result.success(true)
                 "removeBookmark" -> {
@@ -100,6 +106,86 @@ class FileBrowser(private val activity: MainActivity) {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    /// Deletes a local file, permanently.
+    ///
+    /// Accepts either a plain filesystem path (needs
+    /// `MANAGE_EXTERNAL_STORAGE` on Android 11+) or a `content://` SAF URI
+    /// (deleted through the persisted tree grant). Refuses anything that is
+    /// not a plain local file — a network path, a directory, or a synthetic
+    /// `tree:<id>` path — so this can never be used to wipe a share by
+    /// accident. Callers are expected to have confirmed with the user first.
+    private fun deleteLocalFile(call: MethodCall, result: MethodChannel.Result) {
+        val path = call.argument<String>("path")
+        val uri = call.argument<String>("uri")
+        if (path == null && uri == null) {
+            result.error("bad_args", "Missing path or uri", null)
+            return
+        }
+        // Synthetic SAF paths are addressed by uri, never by path.
+        if (path != null && path.startsWith("tree:")) {
+            result.error("unsupported", "Delete this folder from the file browser", null)
+            return
+        }
+        if (path != null && (path.startsWith("smb:") || path.startsWith("ftp:") ||
+                path.startsWith("sftp:") || path.startsWith("http") ||
+                path.startsWith("jellyfin:") || path.startsWith("upnp:"))) {
+            result.error(
+                "unsupported",
+                "Only local files can be deleted. Remove it from the network share instead.",
+                null
+            )
+            return
+        }
+        if (!hasAllFilesAccess() && uri == null) {
+            result.error(
+                "no_permission",
+                "All Files Access is required to delete a local file",
+                null
+            )
+            return
+        }
+
+        // A non-content:// uri cannot be deleted safely and the path branch
+        // below needs a non-null path; reject rather than risk a null deref.
+        if (path == null && (uri == null || !uri.startsWith("content://"))) {
+            result.error("unsupported", "That item cannot be deleted from here", null)
+            return
+        }
+
+        val deleted = if (uri != null && uri.startsWith("content://")) {
+            val resolver = activity.contentResolver
+            try {
+                resolver.delete(Uri.parse(uri), null, null) > 0
+            } catch (e: Exception) {
+                result.error("delete_failed", e.message ?: "Could not delete the file", null)
+                return
+            }
+        } else {
+            val f = File(path)
+            // Never delete a directory, and never something outside storage.
+            if (f.isDirectory) {
+                result.error("unsupported", "Only files can be deleted", null)
+                return
+            }
+            if (!Environment.isExternalStorageManager() &&
+                !f.absolutePath.startsWith(activity.filesDir.parent ?: "")
+            ) {
+                result.error("no_permission", "No permission to delete this file", null)
+                return
+            }
+            if (!f.exists()) {
+                result.error("not_found", "That file no longer exists", null)
+                return
+            }
+            if (!f.delete()) {
+                result.error("delete_failed", "Could not delete the file", null)
+                return
+            }
+            true
+        }
+        result.success(deleted)
     }
 
     private fun hasAllFilesAccess(): Boolean =

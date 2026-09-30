@@ -330,6 +330,67 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     } catch (_) {}
   }
 
+  /// Irreversible delete of a **local** file, behind a confirmation that
+  /// names the file and states plainly that it cannot be undone.
+  ///
+  /// Only reachable for entries [FileBrowserService.canDelete] accepts — a
+  /// local file, never a directory and never a network source.
+  Future<void> _confirmDeleteFile(FileEntry entry) async {
+    final theme = Theme.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: const Text('Delete file?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              entry.name,
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This permanently deletes the file from your device. '
+              'It cannot be undone.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.colorScheme.error,
+              foregroundColor: theme.colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final failure =
+        await FileBrowserService.instance.deleteLocalFile(entry.path);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (failure != null) {
+      messenger.showSnackBar(SnackBar(content: Text(failure)));
+      return;
+    }
+    // Drop the watched mark so a stale tick cannot come back for a file that
+    // no longer exists.
+    _watchedKeys.remove(_watchedKeyForFile(entry));
+    await _loadFolderEntries();
+  }
+
   Future<void> _toggleWatched(Object entry) async {
     final key = entry is FileEntry
         ? _watchedKeyForFile(entry)
@@ -2472,6 +2533,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           // falling back to the show's default when one is not set.
           artworkKey: TmdStore.identityKeyFor(_toVideoItem(e)),
           onTap: () => _openFolderEntry(e),
+          onLongPress: FileBrowserService.canDelete(e)
+              ? () => _confirmDeleteFile(e)
+              : null,
         );
 
     return [
@@ -3667,12 +3731,16 @@ class _FolderEntryTile extends StatelessWidget {
     this.watched = false,
     this.onToggleWatched,
     this.artworkKey,
+    this.onLongPress,
   });
 
   final FileEntry entry;
   final TmdEpisode? episode;
   final TmdMeta? tmdbMeta;
   final VoidCallback onTap;
+
+  /// Destructive secondary action (delete). Never the primary tap.
+  final VoidCallback? onLongPress;
   final double? resumeProgress;
   final int? folderSeason;
   final bool watched;
@@ -3702,6 +3770,7 @@ class _FolderEntryTile extends StatelessWidget {
         title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
+        onLongPress: onLongPress,
       );
     }
 
@@ -3856,6 +3925,7 @@ class _FolderEntryTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
+      onLongPress: onLongPress,
     );
   }
 }

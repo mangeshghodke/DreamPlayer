@@ -1901,7 +1901,66 @@ class _FolderScreenState extends State<FolderScreen> {
       resumePositionMs: _resumePositionsMs[key],
       durationMs: _durationsMs[key],
       onTap: () => _openEntry(fileEntry),
+      onLongPress:
+          FileBrowserService.canDelete(fileEntry) ? () => _confirmDeleteFile(fileEntry) : null,
     );
+  }
+
+  /// Irreversible delete, behind a confirmation that names the file and spells
+  /// out that it cannot be undone. Only offered for local files — see
+  /// [FileBrowserService.canDelete].
+  Future<void> _confirmDeleteFile(FileEntry entry) async {
+    final theme = Theme.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: const Text('Delete file?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              entry.name,
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This permanently deletes the file from your device. '
+              'It cannot be undone.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.colorScheme.error,
+              foregroundColor: theme.colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final failure = await FileBrowserService.instance.deleteLocalFile(entry.path);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (failure != null) {
+      messenger.showSnackBar(SnackBar(content: Text(failure)));
+      return;
+    }
+    // The file is gone: drop its watched mark so a stale tick cannot come back.
+    _watchedKeys.remove(_watchedKeyForEntry(entry));
+    await _load();
   }
 
   /// Fix match for the series folder — opens the TMDB search dialog.
@@ -2261,6 +2320,7 @@ class _FolderTile extends StatelessWidget {
     required this.entry,
     required this.tmdbMeta,
     required this.onTap,
+    this.onLongPress,
     this.watched = false,
     this.onToggleWatched,
     this.episode,
@@ -2273,6 +2333,7 @@ class _FolderTile extends StatelessWidget {
   final FileEntry entry;
   final TmdMeta? tmdbMeta;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final bool watched;
   final VoidCallback? onToggleWatched;
   final TmdEpisode? episode;
@@ -2440,6 +2501,7 @@ class _FolderTile extends StatelessWidget {
       title: titleWidget,
       subtitle: subtitleWidget,
       onTap: onTap,
+      onLongPress: onLongPress,
     );
   }
 

@@ -548,6 +548,94 @@ class _HomeScreenState extends State<HomeScreen>
     _openGroup(g);
   }
 
+  /// The selected card as a local, deletable **file** — or null.
+  ///
+  /// Selection can hold folders (many files, not deletable as one action) or
+  /// network-backed entries, so the menu only offers the destructive option
+  /// when exactly one local file card is selected.
+  ({FileEntry entry, String libraryId})? _selectedDeletableFile() {
+    if (_selectedIds.length != 1) return null;
+    final id = _selectedIds.first;
+    for (final f in _folders) {
+      if (f.id != id) continue;
+      if (!f.isFile) return null;
+      final entry = FileEntry(
+        name: f.name,
+        path: f.path,
+        isDirectory: false,
+        size: f.videoSizeBytes ?? 0,
+      );
+      return FileBrowserService.canDelete(entry)
+          ? (entry: entry, libraryId: f.id)
+          : null;
+    }
+    return null;
+  }
+
+  /// Deletes a local file from a home card, behind a confirmation that names
+  /// it and states that it cannot be undone.
+  Future<void> _confirmDeleteHomeFile(
+    FileEntry entry, {
+    required String libraryId,
+  }) async {
+    final theme = Theme.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: const Text('Delete file?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              entry.name,
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This permanently deletes the file from your device. '
+              'It cannot be undone.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.colorScheme.error,
+              foregroundColor: theme.colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    // The dialog has been answered — leave selection mode either way, so a
+    // cancel returns the user to where they started.
+    _exitSelection();
+    if (confirmed != true || !mounted) return;
+
+    final failure =
+        await FileBrowserService.instance.deleteLocalFile(entry.path);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (failure != null) {
+      messenger.showSnackBar(SnackBar(content: Text(failure)));
+      return;
+    }
+    // The card is a library entry in its own right — drop it by its store id
+    // (not the path) so the grid reflects the file actually being gone.
+    await LibraryFoldersStore.remove(libraryId);
+    await _loadLibrary();
+  }
+
   void _onGroupLongPress(SeriesGroup g) {
     // Long-press enters selection mode (tap toggles the whole group) — the
     // top-right 3-dot menu then offers Group / Remove from library.
@@ -1556,6 +1644,19 @@ class _HomeScreenState extends State<HomeScreen>
                       if (v == 'group' && _selectedIds.length >= 2) _groupSelected();
                       if (v == 'clear') _exitSelection();
                       if (v == 'ungroup') _ungroupSelectionAsGroup();
+                      if (v == 'delete_file') {
+                        final target = _selectedDeletableFile();
+                        if (target != null) {
+                          // Selection is cleared *after* the user answers,
+                          // not before: exiting first rebuilds the screen
+                          // underneath the dialog as the popup route closes,
+                          // which could dismiss the confirmation outright.
+                          unawaited(
+                            _confirmDeleteHomeFile(target.entry,
+                                libraryId: target.libraryId),
+                          );
+                        }
+                      }
                       if (v == 'remove' && _selectedIds.isNotEmpty) {
                         final foldersToRemove = _folders
                             .where((f) => _selectedIds.contains(f.id))
@@ -1578,6 +1679,14 @@ class _HomeScreenState extends State<HomeScreen>
                         const PopupMenuItem(value: 'ungroup', child: Text('Ungroup')),
                       if (_selectedIds.isNotEmpty)
                         const PopupMenuItem(value: 'remove', child: Text('Remove from library')),
+                      // Irreversible file deletion, only offered when the
+                      // selection is a single local file (a folder can hold
+                      // many files, and a network share is never deletable).
+                      if (_selectedDeletableFile() != null)
+                        const PopupMenuItem(
+                          value: 'delete_file',
+                          child: Text('Delete file from device'),
+                        ),
                       const PopupMenuItem(value: 'clear', child: Text('Clear selection')),
                     ],
                   ),

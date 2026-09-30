@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/services.dart';
 
 /// A directory/file entry returned by the native file browser.
@@ -114,6 +116,61 @@ class FileBrowserService {
     }
     lastListError = error;
     return entries;
+  }
+
+  /// Permanently deletes a **local** file.
+  ///
+  /// Android only, and only for a plain filesystem path or a `content://` SAF
+  /// URI. Network sources are refused natively — deleting from a NAS share
+  /// needs protocol-level support this app deliberately does not have, and a
+  /// mis-fired tap there is irreversible.
+  ///
+  /// [path] carries both cases: the native listing returns a plain absolute
+  /// path for direct files and the document URI itself for SAF tree entries.
+  /// Returns null on success, or a human-readable reason it could not be done.
+  Future<String?> deleteLocalFile(String path) async {
+    if (path.isEmpty) return 'Nothing to delete';
+    if (!Platform.isAndroid) {
+      return 'Deleting files is only supported on Android';
+    }
+    try {
+      final isSaf = path.startsWith('content://');
+      final ok = await _channel.invokeMethod<bool>('deleteLocalFile', {
+        if (isSaf) 'uri': path else 'path': path,
+      });
+      if (ok == true) return null;
+      return 'The file could not be deleted';
+    } on PlatformException catch (e) {
+      return switch (e.code) {
+        'no_permission' =>
+          'DreamPlayer needs All Files Access to delete local files.',
+        'unsupported' =>
+          e.message ?? 'That item cannot be deleted from here.',
+        'not_found' => 'That file no longer exists.',
+        _ => e.message ?? 'The file could not be deleted.',
+      };
+    } catch (_) {
+      return 'The file could not be deleted';
+    }
+  }
+
+  /// True when this entry can be offered a Delete action.
+  ///
+  /// Deliberately narrow: a local file only. Network-backed entries return
+  /// false so the UI hides the option instead of offering something that
+  /// would always fail.
+  ///
+  /// [isAndroid] is a test seam that lets the Android-eligible cases be
+  /// verified on a desktop host; production call sites never pass it, so it
+  /// defaults to the real platform.
+  static bool canDelete(FileEntry e, {bool? isAndroid}) {
+    if (e.isDirectory) return false;
+    if (!(isAndroid ?? Platform.isAndroid)) return false;
+    final p = e.path;
+    if (p.startsWith('/')) return true;
+    // SAF tree entries arrive with the document URI in `path`.
+    if (p.startsWith('content://')) return true;
+    return false;
   }
 
   /// Presents the system folder picker (iOS document picker / Android
