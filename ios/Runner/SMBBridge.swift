@@ -966,6 +966,15 @@ final class SMBBridge: NSObject {
         lock.unlock()
     }
 
+    /// Local error for a host we could not even build a URL for. A distinct
+    /// type because `SMBConnection.SMBError`'s memberwise initializer is
+    /// internal to AetherEngineSMB and cannot be thrown from here.
+    struct BadHost: Error, CustomStringConvertible, LocalizedError {
+        let message: String
+        var description: String { message }
+        var errorDescription: String? { message }
+    }
+
     /// One-shot holder for a connection opened on a background thread. A
     /// class, not a captured `var`: the semaphore's signal/wait is the
     /// happens-before edge, and a reference type makes the sharing explicit.
@@ -1021,7 +1030,7 @@ final class SMBBridge: NSObject {
             serverURL.host = server.host
             if server.port > 0 && server.port != 445 { serverURL.port = server.port }
             do {
-                guard let url = serverURL.url else { throw SMBConnection.SMBError(message: "bad host") }
+                guard let url = serverURL.url else { throw BadHost(message: "Could not build an smb:// URL for \(host)") }
                 out.connection = try await SMBConnection.connect(
                     server: url,
                     share: share,
@@ -1049,7 +1058,7 @@ final class SMBBridge: NSObject {
             lock.unlock()
             SBMLog.log("openFromSmbUri ok -> \(result.byteSize) bytes, token \(token).\(ext)")
         }
-        return result
+        return out.connection
     }
 
     /// The saved-server id embedded in a `dreamplayersmb://` token, or "".

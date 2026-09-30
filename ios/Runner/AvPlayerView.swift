@@ -893,10 +893,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             do {
                 if let pendingSmbUri = smbUri {
                     // Blocking handshake (login + tree connect + stat) — keep it
-                    // off the main actor or the UI locks on a spinner.
+                    // off the main actor or the UI locks on a spinner. The
+                    // server id is read here, on the actor, because touching
+                    // main-actor state from inside the detached closure is an
+                    // isolation violation.
+                    let serverId = smbServerId
                     let connection = await Task.detached(priority: .userInitiated) {
                         SMBBridge.shared.openFromSmbUri(
-                            pendingSmbUri, serverId: self.smbServerId
+                            pendingSmbUri, serverId: serverId
                         )
                     }.value
                     if let connection {
