@@ -81,6 +81,8 @@ final class SMBBridge: NSObject {
 
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         let args = call.arguments as? [String: Any] ?? [:]
+        SBMLog.boot()
+        SBMLog.log("-> \(call.method) \(SBMLog.scrub(args))")
         switch call.method {
         case "listServers":
             result(listServers())
@@ -377,10 +379,13 @@ final class SMBBridge: NSObject {
                         domain: server.domain.isEmpty ? nil : server.domain
                     )
                 }
+                SBMLog.log("connect ok: \(server.host):\(server.port) as \(server.anonymous || server.username.isEmpty ? "guest/anon" : server.username)")
                 await MainActor.run { body(client) }
             } catch {
                 client.session.disconnect()
-                await MainActor.run { onError(Self.friendly(error, host: server.host)) }
+                let message = Self.friendly(error, host: server.host)
+                SBMLog.log("connect FAILED \(server.host):\(server.port): \(message) raw=\(error)")
+                await MainActor.run { onError(message) }
             }
         }
     }
@@ -457,10 +462,18 @@ final class SMBBridge: NSObject {
     /// service, and a reverse lookup on each hit gives the pretty name. Home
     /// and small-office LANs are /24 in practice; a /16 would take minutes.
     private func discoverServers(completion: @escaping ([(host: String, hostname: String)]) -> Void) {
+        let started = Date()
         Task.detached(priority: .utility) {
             var found: [(host: String, hostname: String)] = []
-            if let local = Self.localIPv4() {
-                let prefix = local.split(separator: ".").dropLast().joined(separator: ".")
+            guard let local = Self.localIPv4() else {
+                await MainActor.run {
+                    SBMLog.log("discover: no non-loopback IPv4 interface found")
+                    completion([])
+                }
+                return
+            }
+            SBMLog.log("discover: sweeping \(local)/24 on port 445")
+            let prefix = local.split(separator: ".").dropLast().joined(separator: ".")
                 // A small worker pool: a serial sweep of 254 hosts at a
                 // 250ms timeout each would take a minute on a dead subnet.
                 let hosts = (1...254).map { "\(prefix).\($0)" }
@@ -486,9 +499,12 @@ final class SMBBridge: NSObject {
                         }
                     }
                 }
-            }
             await MainActor.run {
-                completion(found.sorted { $0.host < $1.host })
+                let sorted = found.sorted { $0.host < $1.host }
+                SBMLog.log(
+                    "discover: \(sorted.count) host(s) in \(SBMLog.since(started)) -> "
+                    + sorted.map { "\($0.host)\(($0.hostname == $0.host ? "" : " (\($0.hostname))"))" }.joined(separator: ", "))
+                completion(sorted)
             }
         }
     }
@@ -885,10 +901,15 @@ final class SMBBridge: NSObject {
                 self.playback[token] = connection
                 self.lock.unlock()
                 await MainActor.run {
-                    completion("dreamplayersmb://\(token).\(ext.isEmpty ? "mkv" : ext)")
+                    let tokenURL = "dreamplayersmb://\(token).\(ext.isEmpty ? "mkv" : ext)"
+                    SBMLog.log("openShare ok \(share)/\(path) -> \(tokenURL) (\(connection.byteSize) bytes)")
+                    completion(tokenURL)
                 }
             } catch {
-                await MainActor.run { completion(nil) }
+                await MainActor.run {
+                    SBMLog.log("openShare FAILED \(share)/\(path): \(error)")
+                    completion(nil)
+                }
             }
         }
     }
@@ -930,6 +951,85 @@ final class SMBBridge: NSObject {
             }
         }
         lock.unlock()
+    }
+
+    /// Opens an SMB file straight from an `smb://host/share/path` URI.
+    ///
+    /// Not every entry point mints a token first: a bookmarked folder card or a
+    /// Continue-Watching entry hands the player its stored `smb://` URI, and
+    /// the engine has no `smb` scheme ("protocol not found"). Resolving it
+    /// here means every path plays, not just the ones that went through the
+    /// browser's openShare. [serverId] comes from the item's resume key
+    /// (`smb:<serverId>/<share>/<path>`), with a host match as a fallback.
+    func openFromSmbUri(_ uri: String, serverId: String?) -> SMBConnection? {
+        let started = Date()
+        guard let comps = URLComponents(string: uri), let host = comps.host else {
+            SBMLog.log("openFromSmbUri: unparseable \(uri)")
+            return nil
+        }
+        let segments = comps.path.split(separator: "/").map(String.init)
+        guard segments.count >= 2 else {
+            SBMLog.log("openFromSmbUri: expected /share/path, got \(comps.path)")
+            return nil
+        }
+        let share = segments[0]
+        let path = segments.dropFirst().joined(separator: "/")
+
+        loadServersIfNeeded()
+        lock.lock()
+        let all = Array(servers.values)
+        lock.unlock()
+        // Prefer the id from the resume key; fall back to host+share match so a
+        // stale/missing key still finds the right credentials.
+        let server = serverId.flatMap { id in all.first { $0.id == id } }
+            ?? all.first { $0.host == host && share.hasPrefix($0.id) == false
+                && all.count == 1 }
+            ?? all.first { $0.host == host }
+        guard let server else {
+            SBMLog.log("openFromSmbUri: no saved server for \(host) (id=\(serverId ?? "nil"))")
+            return nil
+        }
+        SBMLog.log("openFromSmbUri \(uri) -> server \(server.name) [\(SBMLog.since(started))]")
+
+        let password = getPassword(server.id)
+        var result: SMBConnection?
+        var failure: String?
+        let done = DispatchSemaphore(value: 0)
+        Task.detached(priority: .userInitiated) {
+            var serverURL = URLComponents()
+            serverURL.scheme = "smb"
+            serverURL.host = server.host
+            if server.port > 0 && server.port != 445 { serverURL.port = server.port }
+            do {
+                guard let url = serverURL.url else { throw SMBConnection.SMBError(message: "bad host") }
+                result = try await SMBConnection.connect(
+                    server: url,
+                    share: share,
+                    path: Self.normalized(path),
+                    user: server.anonymous ? "" : server.username,
+                    password: server.anonymous ? "" : password,
+                    domain: server.domain
+                )
+            } catch {
+                failure = Self.friendly(error, host: server.host)
+            }
+            done.signal()
+        }
+        done.wait()
+        if let failure {
+            SBMLog.log("openFromSmbUri FAILED: \(failure)")
+            return nil
+        }
+        if let result {
+            let ext = (path as NSString).pathExtension
+            let token = "\(server.id)-uridirect"
+            lock.lock()
+            playback[token]?.close()
+            playback[token] = result
+            lock.unlock()
+            SBMLog.log("openFromSmbUri ok -> \(result.byteSize) bytes, token \(token).\(ext)")
+        }
+        return result
     }
 
     /// The saved-server id embedded in a `dreamplayersmb://` token, or "".

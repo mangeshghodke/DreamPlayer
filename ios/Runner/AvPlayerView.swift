@@ -706,6 +706,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          let path = args?["path"] as? String
          let uri = args?["uri"] as? String
          let subtitleUri = args?["subtitleUri"] as? String
+         // Carries the saved SMB server id ("smb:<id>/<share>/<path>"), which
+         // is how a raw smb:// URI is matched back to its credentials.
+         let resumeKey = args?["resumeKey"] as? String
          // Identity of the source being opened — used to detect
          // same-file re-opens (resume/replay) where the engine probe
          // may drop DV info when loading with a start position.
@@ -748,6 +751,21 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 formatHint: smbFormatHint
             )
 
+        } else if let uri, uri.lowercased().hasPrefix("smb://"),
+                  let connection = SMBBridge.shared.openFromSmbUri(
+                    uri, serverId: Self.serverIdFromResumeKey(resumeKey)
+                  ) {
+            // A bookmarked folder card or Continue-Watching entry hands the
+            // player its stored smb:// URI rather than a token. The engine has
+            // no smb scheme, so resolve it to a live connection here.
+            SBMLog.log("open: resolved smb:// \(uri) from resumeKey=\(resumeKey ?? "nil")")
+            isSMBStream = true
+            let ext = (uri as NSString).pathExtension
+            smbFormatHint = ext.isEmpty ? Self.sniffFormatFromSMB(connection) : ext
+            source = .custom(
+                BufferedSMBReader(source: connection, chunkSize: Self.smbChunkSize),
+                formatHint: smbFormatHint
+            )
         } else if let path, !path.isEmpty {
             localURL = URL(fileURLWithPath: path)
             source = .url(localURL!)
@@ -902,10 +920,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     )
                 }
                 guard let finalSource = source else {
+                    SBMLog.log("open: NO SOURCE. path=\(path ?? "nil") uri=\(uri ?? "nil")")
                     self.lastError = "Missing media source"
                     self.emit()
                     return
                 }
+                SBMLog.log(
+                    "open: source=\(self.isSMBStream ? "smb-custom" : "other") "
+                    + "hint=\(self.smbFormatHint ?? "none") path=\(path ?? "nil") uri=\(uri ?? "nil")")
                 self.lastSource = finalSource
                 self.lastWebDAVInfo = webDAVSource
                 self.lastFtpUri = ftpUri
@@ -1942,6 +1964,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     }
 
     // MARK: - SMB helpers
+
+    /// Server id from a resume key of the form `smb:<serverId>/<share>/<path>`.
+    private static func serverIdFromResumeKey(_ key: String?) -> String? {
+        guard let key, key.hasPrefix("smb:") else { return nil }
+        let rest = String(key.dropFirst(4))
+        let id = String(rest.prefix { $0 != "/" })
+        return id.isEmpty ? nil : id
+    }
+
 
     /// Extension from a `dreamplayersmb://<token>.<ext>` URL, or "".
     private static func smbTokenExtension(_ urlString: String) -> String {
