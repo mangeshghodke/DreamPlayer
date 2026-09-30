@@ -310,8 +310,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private var isSMBStream = false
     /// Extension carried by the token URL, handed to the engine as a probe hint.
     private var smbFormatHint: String?
-    /// Size probe is a real SMB stat; keep it off the main actor.
-    private static let smbChunkSize = 4 * 1024 * 1024
+    /// Read-ahead chunk for SMB playback.
+    ///
+    /// 1 MiB, not 4 MiB: SMB reads are serialised per connection, so a bigger
+    /// request does not go faster, it just makes each gap in playback longer
+    /// if one read is slow. 1 MiB is also well inside the MaxReadSize a NAS
+    /// advertises — Android's jcifs-ng path had to fall back to 256 KiB
+    /// because a larger single read drew STATUS_INVALID_PARAMETER, and
+    /// ByteRangeSource is allowed to satisfy a request with a short read.
+    private static let smbChunkSize = 1024 * 1024
     /// Lower-cased scheme of the currently-open source (e.g. "file", "http",
     /// "https", "ftp", "sftp", "dreamplayersmb", "dreamplayerwebdav"). Captured
     /// at open time so the network chip can gate between "Local" and a live
@@ -731,6 +738,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // parked read on cancel, so teardown can't stall.
             smbToken = uri
             isSMBStream = true
+            // Hold the socket: the browsing screen calls closeShare when it is
+            // disposed, and that must not stop playback.
+            SMBBridge.shared.setPlayerActive(true, serverId: SMBBridge.shared.serverId(forToken: uri))
             let ext = Self.smbTokenExtension(uri)
             smbFormatHint = ext.isEmpty ? Self.sniffFormatFromSMB(connection) : ext
             source = .custom(
@@ -1922,8 +1932,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         // demux thread is done with the reader and this close cannot race an
         // in-flight read — the ordering that crashed the retired build.
         if let token = smbToken, !token.isEmpty {
-            let serverId = String(token.dropFirst("dreamplayersmb://".count).prefix { $0 != "-" && $0 != "." })
-            SMBBridge.shared.closePlayback(serverId: serverId)
+            let serverId = SMBBridge.shared.serverId(forToken: token)
+            // Releasing the latch also closes the socket, so no separate
+            // closePlayback call is needed (and none should race this one).
+            SMBBridge.shared.setPlayerActive(false, serverId: serverId)
         }
         smbToken = nil
         isSMBStream = false

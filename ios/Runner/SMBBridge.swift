@@ -63,6 +63,11 @@ final class SMBBridge: NSObject {
     private var listingCache: [ListingCacheKey: CachedListing] = [:]
     /// Live playback connections by token, so `closeShare` is exact.
     private var playback: [String: SMBConnection] = [:]
+    /// Servers a live player is reading from. The browser's dispose calls
+    /// closeShare, which must NOT tear the socket out from under a player that
+    /// is still using it — the old build had exactly this latch and dropping it
+    /// stops playback the moment the browsing screen goes away.
+    private var playerActive: Set<String> = []
     private var tokenCounter: UInt64 = 0
 
     // MARK: - Registration
@@ -891,6 +896,8 @@ final class SMBBridge: NSObject {
     /// Tears down a playback connection by the server id the token embeds.
     private func closeShare(id: String?) {
         guard let id else { return }
+        // Honours the player-active latch: the browser calls this on dispose,
+        // which can happen while a player is still streaming from the socket.
         closePlayback(serverId: id)
     }
 
@@ -899,12 +906,39 @@ final class SMBBridge: NSObject {
     /// mid-read on the connection.
     func closePlayback(serverId: String) {
         lock.lock()
+        defer { lock.unlock() }
+        if playerActive.contains(serverId) { return }
         let doomed = playback.keys.filter { $0.hasPrefix("\(serverId)-") }
         for token in doomed {
             playback[token]?.close()
             playback.removeValue(forKey: token)
         }
+    }
+
+    /// Called by the player when it takes a connection, and again when it lets
+    /// go. While marked, closeShare from the browser is a no-op.
+    func setPlayerActive(_ active: Bool, serverId: String) {
+        lock.lock()
+        if active {
+            playerActive.insert(serverId)
+        } else {
+            playerActive.remove(serverId)
+            let doomed = playback.keys.filter { $0.hasPrefix("\(serverId)-") }
+            for token in doomed {
+                playback[token]?.close()
+                playback.removeValue(forKey: token)
+            }
+        }
         lock.unlock()
+    }
+
+    /// The saved-server id embedded in a `dreamplayersmb://` token, or "".
+    func serverId(forToken urlString: String) -> String {
+        guard urlString.hasPrefix("dreamplayersmb://") else { return "" }
+        let tail = String(urlString.dropFirst("dreamplayersmb://".count))
+        let stem = (tail as NSString).deletingPathExtension
+        let serverId = String(stem.prefix { $0 != "-" })
+        return serverId
     }
 
     /// Resolves a `dreamplayersmb://` URL handed to the player back to its
