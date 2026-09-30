@@ -9,17 +9,17 @@ enum LibraryViewMode {
   /// Same grid, tighter cards and a shorter text block — fits more titles on
   /// screen at the cost of smaller art.
   ///
-  /// A true list view is deliberately not here: neither [VideoCard] nor
-  /// [FolderCard] has a wide/row presentation, so it needs a new row widget
-  /// that receives the item data (the grids only pass a finished card
-  /// builder). That is its own change rather than a mode flag.
-  compact('compact');
+  compact('compact'),
+
+  /// One wide row per title, rendered by `LibraryListRow`.
+  list('list');
 
   const LibraryViewMode(this.value);
   final String value;
 
   static LibraryViewMode fromString(String? s) => switch (s) {
         'compact' => LibraryViewMode.compact,
+        'list' => LibraryViewMode.list,
         _ => LibraryViewMode.poster,
       };
 }
@@ -88,7 +88,10 @@ class LayoutStore extends ChangeNotifier {
   Future<void> _persist() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefsKey, '$_mode:$_columns');
+      // `value`, not the enum itself: '\$mode' would serialise as
+      // "LibraryViewMode.compact", which fromString() never matches, so the
+      // setting silently reverted to poster on every load.
+      await prefs.setString(_prefsKey, '${_mode.value}:$_columns');
     } catch (_) {
       // Non-fatal: the in-memory value still applies for this session.
     }
@@ -114,11 +117,19 @@ class LayoutStore extends ChangeNotifier {
   }
 
   /// Column count to build for [width] honouring the user's override.
+  ///
+  /// An explicit choice is honoured on any screen width — the request was
+  /// "see more titles at once", so silently clamping "4" back to the 2 that a
+  /// 360dp phone fits would make the setting look broken. Only the absolute
+  /// bounds in [setColumns] apply.
   int columnsForWidth(double width) {
-    final cap = maxColumnsForWidth(width);
+    // A list is one row per title by definition.
+    if (_mode == LibraryViewMode.list) return 1;
     if (_columns <= 0) return autoColumnsForWidth(width);
-    return _columns > cap ? cap : _columns;
+    return _columns;
   }
+
+  bool get isList => _mode == LibraryViewMode.list;
 
   /// Height of the text block under a card. Compact mode trims it so more
   /// rows fit on screen.
