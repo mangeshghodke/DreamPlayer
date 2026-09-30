@@ -104,14 +104,14 @@ final class SMBBridge: NSObject {
         case "listShares":
             withServer(args["id"] as? String, result: result) { server, reply in
                 self.listShares(server: server) { shares in
-                    reply(shares, error: shares == nil ? "Could not list shares" : nil)
+                    reply(shares, shares == nil ? "Could not list shares" : nil)
                 }
             }
         case "addShare":
             withServer(args["id"] as? String, result: result) { server, reply in
                 let share = args["share"] as? String ?? ""
                 self.addShare(server: server, share: share) { ok in
-                    reply(ok, error: ok ? nil : "Could not connect to share \(share)")
+                    reply(ok, ok ? nil : "Could not connect to share \(share)")
                 }
             }
         case "listDirectory", "listDirectoryAll":
@@ -119,7 +119,7 @@ final class SMBBridge: NSObject {
                 let share = args["share"] as? String ?? ""
                 let path = args["path"] as? String ?? ""
                 self.listDirectory(server: server, share: share, path: path) { entries in
-                    reply(entries, error: entries == nil ? "Could not read that folder" : nil)
+                    reply(entries, entries == nil ? "Could not read that folder" : nil)
                 }
             }
         case "fetchSizes":
@@ -127,7 +127,7 @@ final class SMBBridge: NSObject {
                 let share = args["share"] as? String ?? ""
                 let paths = args["paths"] as? [String] ?? []
                 self.fetchSizes(server: server, share: share, paths: paths) { sizes in
-                    reply(sizes, error: nil)
+                    reply(sizes, nil)
                 }
             }
         case "fetchBytes":
@@ -138,7 +138,7 @@ final class SMBBridge: NSObject {
                 self.fetchBytes(
                     server: server, share: share, path: path, maxBytes: maxBytes
                 ) { bytes in
-                    reply(bytes, error: bytes == nil ? "Could not read \(path)" : nil)
+                    reply(bytes, bytes == nil ? "Could not read \(path)" : nil)
                 }
             }
         case "openShare":
@@ -146,7 +146,7 @@ final class SMBBridge: NSObject {
                 let share = args["share"] as? String ?? ""
                 let path = args["path"] as? String ?? ""
                 self.openShare(server: server, share: share, path: path) { token in
-                    reply(token, error: token == nil ? "Could not open \(path)" : nil)
+                    reply(token, token == nil ? "Could not open \(path)" : nil)
                 }
             }
         case "closeShare":
@@ -345,7 +345,17 @@ final class SMBBridge: NSObject {
         _ body: @escaping @MainActor (SMBClient) -> Void,
         onError: @escaping @MainActor (String) -> Void
     ) {
-        let password = getPassword(server.id)
+        connect(server, password: getPassword(server.id), body, onError: onError)
+    }
+
+    /// Same as `connect`, but with the password supplied by the caller — used
+    /// by testConnection, which tests credentials that are not saved yet.
+    private func connect(
+        _ server: ServerMeta,
+        password: String,
+        _ body: @escaping @MainActor (SMBClient) -> Void,
+        onError: @escaping @MainActor (String) -> Void
+    ) {
         Task.detached(priority: .userInitiated) {
             let client = server.port > 0 && server.port != 445
                 ? SMBClient(host: server.host, port: server.port)
@@ -387,6 +397,49 @@ final class SMBBridge: NSObject {
         }
         let message = error.localizedDescription
         return message.isEmpty ? "SMB error on \(host)" : message
+    }
+
+    /// Probes a server with credentials the user has not saved yet.
+    ///
+    /// Builds a throwaway `ServerMeta` (id "") and connects with the supplied
+    /// password, so nothing touches the Keychain. Reports the friendly reason
+    /// the Dart dialog shows inline.
+    private func testConnection(
+        host: String,
+        port: Int,
+        username: String,
+        password: String,
+        domain: String,
+        anonymous: Bool,
+        completion: @escaping (Bool, String?) -> Void
+    ) {
+        let probe = ServerMeta(
+            id: "",
+            name: host,
+            host: host,
+            port: port,
+            username: username,
+            domain: domain,
+            anonymous: anonymous
+        )
+        connect(probe, password: password) { client in
+            Task {
+                // Listing shares proves the credentials AND the tree connect,
+                // not just that the socket opened.
+                var ok = false
+                do {
+                    _ = try await client.listShares()
+                    ok = true
+                } catch {
+                    ok = false
+                }
+                _ = try? await client.logoff()
+                client.session.disconnect()
+                await MainActor.run { completion(ok, ok ? nil : "Connected, but could not list shares") }
+            }
+        } onError: { message in
+            completion(false, message)
+        }
     }
 
     // MARK: - Browsing

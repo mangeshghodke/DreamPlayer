@@ -1924,60 +1924,6 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         smbToken = nil
         isSMBStream = false
     }
-}
-
-// MARK: - PictureInPictureControllerDelegate
-
-extension AvPlayerView: AVPictureInPictureControllerDelegate {
-    func pictureInPictureControllerWillStart(
-        _ pictureInPictureController: AVPictureInPictureController
-    ) {
-        inPip = true
-        emit()
-    }
-
-    func pictureInPictureControllerDidStop(
-        _ pictureInPictureController: AVPictureInPictureController
-    ) {
-        inPip = false
-        emit()
-        // Re-arm defensively (no-op when the controller is still bound to a
-        // live layer) so the next HOME swipe floats again.
-        ensurePipController()
-    }
-
-    /// User tapped the restore button on the pip window — the layer is back
-    /// inline. The controller stays valid while its AVPlayerLayer keeps the
-    /// same player, so it is NOT nilled here: nil-ing left no controller for
-    /// the next HOME swipe (auto-start silently did nothing and the app just
-    /// minimized). A new load replaces the controller via
-    /// [invalidatePipController] + [ensurePipController].
-    func pictureInPictureController(
-        _ pictureInPictureController: AVPictureInPictureController,
-        restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
-    ) {
-        completionHandler(true)
-    }
-}
-
-// MARK: - Style helpers
-
-private extension Double {
-    func clamped(_ range: ClosedRange<Double>) -> Double {
-        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
-    }
-}
-
-private extension UIColor {
-    /// ARGB int from the Dart side (alpha in the top byte).
-    convenience init(argb: Int) {
-        self.init(
-            red: CGFloat((argb >> 16) & 0xFF) / 255.0,
-            green: CGFloat((argb >> 8) & 0xFF) / 255.0,
-            blue: CGFloat(argb & 0xFF) / 255.0,
-            alpha: CGFloat((argb >> 24) & 0xFF) / 255.0
-        )
-    }
 
     // MARK: - SMB helpers
 
@@ -2035,5 +1981,58 @@ private extension UIColor {
         semaphore.wait()
         return out.data
     }
-
 }
+
+
+// MARK: - PictureInPictureControllerDelegate
+
+extension AvPlayerView: AVPictureInPictureControllerDelegate {
+    func pictureInPictureControllerWillStart(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) {
+        inPip = true
+        emit()
+    }
+
+    func pictureInPictureControllerDidStop(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) {
+        inPip = false
+        emit()
+        // Re-arm defensively (no-op when the controller is still bound to a
+        // live layer) so the next HOME swipe floats again.
+        ensurePipController()
+    }
+
+    /// User tapped the restore button on the pip window — the layer is back
+    /// inline. The controller stays valid while its AVPlayerLayer keeps the
+    /// same player, so it is NOT nilled here: nil-ing left no controller for
+    /// the next HOME swipe (auto-start silently did nothing and the app just
+    /// minimized). A new load replaces the controller via
+    /// [invalidatePipController] + [ensurePipController].
+    func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
+    ) {
+        completionHandler(true)
+    }
+}
+
+// MARK: - Style helpers
+
+private extension Double {
+    func clamped(_ range: ClosedRange<Double>) -> Double {
+        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+private extension UIColor {
+    /// ARGB int from the Dart side (alpha in the top byte).
+    convenience init(argb: Int) {
+        self.init(
+            red: CGFloat((argb >> 16) & 0xFF) / 255.0,
+            green: CGFloat((argb >> 8) & 0xFF) / 255.0,
+            blue: CGFloat(argb & 0xFF) / 255.0,
+            alpha: CGFloat((argb >> 24) & 0xFF) / 255.0
+        )
+    }}
