@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show File, InternetAddress, Platform;
+import 'dart:io' show File, InternetAddress;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -2369,13 +2369,9 @@ class _HomeScreenState extends State<HomeScreen>
                       leading: const Icon(Icons.folder_shared_outlined),
                       title: Text(AppLocalizations.of(context).homeSmbNas),
                       subtitle: Text(
-                        Platform.isAndroid
-                            ? AppLocalizations.of(context).homeSmbLocalShares
-                            : AppLocalizations.of(context).homeSmbViaFilesApp,
+                        AppLocalizations.of(context).homeSmbLocalShares,
                       ),
-                      onTap: () => Navigator.of(context).pop(
-                        Platform.isAndroid ? 'smb' : 'smb-ios',
-                      ),
+                      onTap: () => Navigator.of(context).pop('smb'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.cloud_outlined),
@@ -2442,11 +2438,14 @@ class _HomeScreenState extends State<HomeScreen>
         ).push(MaterialPageRoute<void>(builder: (_) => const SmbScreen()));
         break;
       case 'smb-ios':
-        // iOS: SMB goes through the Files app. Picking a folder from the
-        // system document picker (which lists Files-app "Connect to Server"
-        // shares) bookmarks it as a library folder, so the share shows up on
-        // the home grid with a TMDB poster and is browsable/playable.
-        await _addFolderToLibrary();
+        // iOS now speaks SMB natively (AetherEngineSMB over a pure-Swift
+        // NWConnection client) instead of routing through the Files app,
+        // whose security-scoped bookmarks were unreliable. Kept as a distinct
+        // case so the Files-app folder picker stays reachable for physical
+        // external drives, which are a different capability from an SMB share.
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const SmbScreen()));
         break;
       case 'upnp':
         await Navigator.of(

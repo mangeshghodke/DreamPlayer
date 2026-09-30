@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/video_item.dart';
-import '../services/folder_scanner.dart';
 import '../services/library_folders.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/simkl_client.dart';
@@ -15,12 +12,10 @@ import '../utils/file_info_extractor.dart';
 import '../utils/season_group.dart' as sg;
 import '../widgets/season_progress_ring.dart';
 import '../widgets/server_form_kit.dart';
-import '../widgets/tmdb_fix_match_dialog.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_text_field.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
-import '../l10n/app_localizations.dart';
 
 /// SMB / LAN-share browser: saved servers -> shares -> folders -> videos.
 /// Playback streams through the native SMB client (local proxy URL on iOS);
@@ -33,21 +28,6 @@ class SmbScreen extends StatefulWidget {
 }
 
 class _SmbScreenState extends State<SmbScreen> {
-  /// Whether [old] is a child (or deeper descendant) of [root] in the SMB
-  /// path hierarchy. For SMB, `networkPath` is relative to the share, so we
-  /// compare the full share-relative path: `share/networkPath`.
-  static bool _isChildOfRoot(LibraryFolder old, LibraryFolder root) {
-    if (old.source != LibraryFolderSource.smb) return false;
-    if (old.networkShare != root.networkShare) return false;
-    final rootNp = root.networkPath ?? '';
-    final oldNp = old.networkPath ?? '';
-    // When root is at share root (networkPath empty), any non-empty old
-    // networkPath is a child.
-    if (rootNp.isEmpty) return oldNp.isNotEmpty;
-    // Otherwise old must be deeper inside root.
-    return oldNp.startsWith('$rootNp/') && oldNp.length > rootNp.length + 1;
-  }
-
   static final _epPattern = RegExp(
       r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
       caseSensitive: false);
@@ -97,10 +77,6 @@ class _SmbScreenState extends State<SmbScreen> {
   TmdDetails? _seriesDetails;
   bool _loadingSeriesMeta = false;
   final Set<int> _expandedSeasons = {};
-
-  /// Generation counter to prevent stale async `_detectAndLoadSeriesFolder`
-  /// calls from overwriting `_seriesMeta` when a newer load is in flight.
-  int _seriesGeneration = 0;
 
   bool get _atBrowseRoot => _browsing == null || (_share.isEmpty && _path.isEmpty);
 
@@ -255,56 +231,10 @@ class _SmbScreenState extends State<SmbScreen> {
   Future<void> _bookmarkCurrentFolder() async {
     final server = _browsing;
     if (server == null || _share.isEmpty) return;
-    final cleanPath = _path.replaceAll(RegExp(r'^/+'), '').replaceAll(RegExp(r'/+$'), '');
+    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
     final folderName = cleanPath.isEmpty ? _share : cleanPath.split('/').last;
     final repoPath = cleanPath.isEmpty ? _share : '$_share/$cleanPath';
     final id = 'smb_${server.id}_${repoPath.hashCode}';
-
-    // Check auto-expand pref.
-    final prefs = await SharedPreferences.getInstance();
-    final autoExpand = prefs.getBool('dreamplayer.autoExpandFolders') ?? true;
-
-    // Check if the folder has subdirectories — deep scan into individual cards.
-    final hasSubdirs = _entries.any((e) => e.isDirectory);
-    if (autoExpand && hasSubdirs && _entries.isNotEmpty) {
-      // Deep scan: recursively traverse subdirectories (up to 5 levels).
-      final rootFolder = LibraryFolder(
-        id: id,
-        name: folderName,
-        path: 'smb:${server.id}/$repoPath',
-        addedAt: DateTime.now(),
-        source: LibraryFolderSource.smb,
-        networkServerId: server.id,
-        networkShare: _share,
-        networkPath: cleanPath,
-        networkLabel: server.name,
-      );
-      final scanDepth = await FolderScanner.savedScanDepth();
-      final scanner = FolderScanner(maxDepth: scanDepth);
-      final expanded = await scanner.scan(rootFolder);
-      if (expanded.isNotEmpty) {
-        final expandedNames = expanded.map((e) => e.name).toSet();
-        final existing = await LibraryFoldersStore.load();
-        for (final old in existing) {
-          if (old.parentId == id ||
-              expandedNames.contains(old.name) ||
-              _isChildOfRoot(old, rootFolder)) {
-            await LibraryFoldersStore.remove(old.id);
-          }
-        }
-        await LibraryFoldersStore.bulkAdd(expanded);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content:
-                    Text('"$folderName" expanded into ${expanded.length} items')),
-          );
-        }
-        return;
-      }
-    }
-
-    // Fallback: add as a single card.
     final folder = LibraryFolder(
       id: id,
       name: folderName,
@@ -315,9 +245,6 @@ class _SmbScreenState extends State<SmbScreen> {
       networkShare: _share,
       networkPath: cleanPath,
       networkLabel: server.name,
-      yearHint: ParsedFileName.yearFromNames(
-        _entries.map((e) => e.name),
-      ),
     );
     await LibraryFoldersStore.add(folder);
     if (mounted) {
@@ -326,8 +253,6 @@ class _SmbScreenState extends State<SmbScreen> {
       );
     }
   }
-
-
 
   Future<void> _syncFromSimkl() async {
     final client = SimklClient();
@@ -357,8 +282,7 @@ class _SmbScreenState extends State<SmbScreen> {
         if (key.isEmpty || _watchedKeys.contains(key)) continue;
         final meta = _tmdbMeta[entry.path];
         if (meta == null) continue;
-        final id = meta.movie.tmdbId;
-        if (id == null) continue;
+        final id = meta.movie.id;
         final isTv = meta.movie.kind == TmdKind.tv;
         final shouldMark = isTv ? watched.showSeasons.containsKey(id) : watched.movieIds.contains(id);
         // For episodes, also ensure season is in map (already counts as watched show).
@@ -388,79 +312,30 @@ class _SmbScreenState extends State<SmbScreen> {
     final server = _browsing;
     if (server == null) return;
     path = path.replaceAll(RegExp(r'/+$'), '');
-    final service = TmdService.instance;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _isSeriesFolder = false;
+      _seriesMeta = null;
+      _seriesDetails = null;
+      _expandedSeasons.clear();
+    });
     try {
       final entries = await _smb.listDirectory(server.id, _share, path);
       if (!mounted) return;
-
-      // Pre-populate ALL cached data in ONE setState to avoid any flash.
-      final cachedMeta = <String, TmdMeta?>{};
-      for (final entry in entries) {
-        if (entry.isDirectory) continue;
-        final key = 'smb:${server.id}/$_share/${entry.path}';
-        cachedMeta[entry.path] = service.metaFor(key);
-      }
-      final cleanPath = path.replaceAll(RegExp(r'/+$'), '');
-      final metadataKey = 'smb_folder:${server.id}/$_share/$cleanPath';
-      final cachedSeriesMeta = service.metaFor(metadataKey);
-      final hasExplicitEpisodes = entries.any((entry) =>
-          !entry.isDirectory &&
-          ParsedFileName.parse(entry.name).hasExplicitSeason);
-      final isCachedSeries = cachedSeriesMeta != null &&
-          cachedSeriesMeta.details != null &&
-          (cachedSeriesMeta.folderSeason != null || hasExplicitEpisodes);
-      final cachedSeasonsReady = isCachedSeries &&
-          cachedSeriesMeta.seasons.isNotEmpty;
-
       setState(() {
         _path = path;
         _entries = entries;
         _loading = false;
-        _error = null;
         _fileSizes.clear();
-        _tmdbMeta
-          ..clear()
-          ..addAll(cachedMeta);
-        if (isCachedSeries) {
-          _isSeriesFolder = true;
-          _seriesMeta = cachedSeriesMeta;
-          _seriesDetails = cachedSeriesMeta.details;
-          _loadingSeriesMeta = false;
-        } else {
-          _isSeriesFolder = false;
-          _seriesMeta = null;
-          _seriesDetails = null;
-          _loadingSeriesMeta = false;
-        }
-      });
-      // Prevent focus from the previously tapped directory from jumping to
-      // whatever new item lands at the same index after the list rebuilds.
-      // Must run AFTER the rebuild (post-frame) because the ListView rebuild
-      // re-creates children and Flutter's focus manager auto-focuses the
-      // child at the same index — unfocusing before is too early.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          FocusManager.instance.primaryFocus?.unfocus();
-          FocusScope.of(context).unfocus();
-        }
       });
       await _refreshWatched();
-
-      // Only prefetch entries that aren't already cached — skip entirely when
-      // every entry is already in TmdService cache (no .then() → setState churn).
-      final uncachedEntries = <SmbEntry>[];
-      for (final entry in entries) {
-        if (entry.isDirectory) continue;
-        if (_tmdbMeta[entry.path] != null) continue;
-        uncachedEntries.add(entry);
-      }
-      if (uncachedEntries.isNotEmpty) {
-        _prefetchTmdbMeta(uncachedEntries);
-      }
-      // Only run async series detection when season data isn't fully cached.
-      if (!cachedSeasonsReady) {
-        _detectAndLoadSeriesFolder(entries);
-      }
+      // Clear stale poster cache so fix-match / resolve changes are reflected
+      // when navigating back into a folder.
+      _tmdbMeta.clear();
+      _prefetchTmdbMeta(entries);
+      // Detect TV series folder and load rich metadata.
+      _detectAndLoadSeriesFolder(entries);
       // Background-fetch file sizes (listDirectory returns 0 for performance).
       _fetchSizes(entries);
     } on PlatformException catch (e) {
@@ -534,12 +409,7 @@ class _SmbScreenState extends State<SmbScreen> {
     final server = _browsing;
     if (server == null) return;
 
-    // Capture generation — if a newer load starts while we're fetching,
-    // discard stale results so they don't overwrite _seriesMeta.
-    final gen = ++_seriesGeneration;
-
     final videoEntries = entries.where((e) => !e.isDirectory).toList();
-    final dirEntries = entries.where((e) => e.isDirectory).toList();
     if (videoEntries.isEmpty) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
       return;
@@ -560,11 +430,7 @@ class _SmbScreenState extends State<SmbScreen> {
     // list — otherwise _seriesFolderBody filters to episodes only and the
     // non-episode videos disappear (bookmark via FolderScreen groups ALL
     // videos so they stay visible there).
-    //
-    // Also: when the folder contains subdirectories, the user needs to
-    // navigate INTO them (season subfolders). Don't hide directories behind
-    // the series view — stay in flat file list so subdirectories are visible.
-    final isSeries = (episodes.isNotEmpty || hasSequentialNumbering) && dirEntries.isEmpty;
+    final isSeries = episodes.isNotEmpty || hasSequentialNumbering;
 
     if (!isSeries) {
       if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
@@ -577,6 +443,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
     setState(() {
       _isSeriesFolder = true;
+      _loadingSeriesMeta = true;
     });
 
     final service = TmdService.instance;
@@ -587,23 +454,10 @@ class _SmbScreenState extends State<SmbScreen> {
     final metadataKey = 'smb_folder:${server.id}/$_share/$cleanPath';
 
     // Resolve from cache or search TMDB.
-    // Re-resolve when folderSeason is null (stale cache from before season-detection fix).
-    var meta = service.metaFor(metadataKey);
-    if (meta != null && meta.folderSeason != null) {
-      // Cache hit with season data — use it.
-    } else {
-      setState(() => _loadingSeriesMeta = true);
-      meta = await service.resolveFolder(
-        metadataKey,
-        folderName,
-        yearHint: ParsedFileName.yearFromNames(
-          videoEntries.map((e) => e.name),
-        ),
-        fileNames: videoEntries.map((e) => e.name).toList(),
-      );
-    }
+    var meta = service.metaFor(metadataKey) ??
+        await service.resolveFolder(metadataKey, folderName);
 
-    if (!mounted || gen != _seriesGeneration) return;
+    if (!mounted) return;
     if (meta == null) {
       setState(() {
         _seriesMeta = null;
@@ -615,7 +469,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
     // Fetch full details (cast, overview, genres).
     final details = await service.detailsFor(metadataKey);
-    if (!mounted || gen != _seriesGeneration) return;
+    if (!mounted) return;
 
     setState(() {
       _seriesMeta = meta;
@@ -632,21 +486,11 @@ class _SmbScreenState extends State<SmbScreen> {
       seasonsNeeded.add(meta.folderSeason!);
     }
     for (final e in episodes) {
-      final parsed = ParsedFileName.parse(e.name);
-      if (parsed.hasExplicitSeason) {
-        seasonsNeeded.add(parsed.season);
-      } else if (parsed.season > 0) {
-        seasonsNeeded.add(parsed.season);
-      }
+      final s = ParsedFileName.parse(e.name).season;
+      if (s > 0) seasonsNeeded.add(s);
     }
     // For sequentially-numbered files, default to season 1.
     if (seasonsNeeded.isEmpty && hasSequentialNumbering) {
-      seasonsNeeded.add(1);
-    }
-    // Anime bracket numbering ([01]/[02]) — parsed seasons are all 0 and
-    // folderSeason may be null. Always fetch season 1 so episode stills
-    // resolve to the first (only) season on TMDB.
-    if (seasonsNeeded.isEmpty && episodes.isNotEmpty) {
       seasonsNeeded.add(1);
     }
     for (final season in seasonsNeeded) {
@@ -659,7 +503,7 @@ class _SmbScreenState extends State<SmbScreen> {
     // Without this, _episodeForEntry looks up an empty seasons map and
     // per-episode details (stills/names/ratings/overview) never appear
     // until the user backs out and re-enters.
-    if (!mounted || gen != _seriesGeneration) return;
+    if (!mounted) return;
     final freshMeta = service.metaFor(metadataKey) ?? meta;
     setState(() {
       _seriesMeta = freshMeta;
@@ -732,7 +576,6 @@ class _SmbScreenState extends State<SmbScreen> {
 
   Future<void> _openEntry(SmbEntry entry) async {
     if (entry.isDirectory) {
-      FocusScope.of(context).unfocus();
       if (_share.isEmpty) {
         // Tapping a share in the shares list: this entry IS the share. The
         // share name lives in `_share` (a folder path is relative to it), so
@@ -750,18 +593,16 @@ class _SmbScreenState extends State<SmbScreen> {
     }
 
     final server = _browsing;
-    if (server == null || _opening) {
-      return;
-    }
+    if (server == null || _opening) return;
+
     // Only the tapped video's stream URL is needed (play-next was removed), so
     // open just it and navigate immediately — the folder loop that opened every
     // video up-front made TMDB details feel slow (ring spinner while N serial
     // openShare round-trips ran).
     final index = _entries.indexWhere((e) => !e.isDirectory && e.path == entry.path);
-    if (index < 0) {
-      return;
-    }
+    if (index < 0) return;
     final video = _entries[index];
+
     setState(() => _opening = true);
     String? videoUrl;
     List<VideoExternalSub> externalSubs = const [];
@@ -856,7 +697,7 @@ class _SmbScreenState extends State<SmbScreen> {
       // video's key (older builds) so it re-searches its own title.
       final videoKey = TmdStore.identityKeyFor(item);
       final existing = TmdService.instance.metaFor(videoKey);
-      if (existing != null && existing.movie.providerKey == folderMeta.movie.providerKey) {
+      if (existing != null && existing.movie.id == folderMeta.movie.id) {
         try {
           await TmdService.instance.clear(videoKey);
         } catch (_) {}
@@ -877,7 +718,6 @@ class _SmbScreenState extends State<SmbScreen> {
   }
 
   Future<void> _goUp() async {
-    FocusScope.of(context).unfocus();
     if (_browsing == null) {
       Navigator.of(context).pop();
       return;
@@ -956,7 +796,7 @@ class _SmbScreenState extends State<SmbScreen> {
   Widget build(BuildContext context) {
     final browsing = _browsing;
     return PopScope(
-      canPop: false,
+      canPop: browsing == null,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         await _goUp();
@@ -976,21 +816,21 @@ class _SmbScreenState extends State<SmbScreen> {
         actions: [
           if (browsing != null && _share.isNotEmpty && !_loading)
             IconButton(
-              tooltip: AppLocalizations.of(context).smbBookmarkHome,
+              tooltip: 'Bookmark this folder to Home',
               icon: const Icon(Icons.bookmark_add_outlined),
               onPressed: _bookmarkCurrentFolder,
             ),
           if (browsing != null && _share.isNotEmpty && !_loading)
             IconButton(
-              tooltip: AppLocalizations.of(context).smbSyncSimkl,
+              tooltip: 'Sync watched from SIMKL',
               icon: _syncingSimkl
-                  ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.cloud_done_outlined),
               onPressed: _syncingSimkl ? null : _syncFromSimkl,
             ),
           if (browsing != null)
             IconButton(
-              tooltip: AppLocalizations.of(context).smbServerList,
+              tooltip: 'Server list',
               icon: const Icon(Icons.dns_outlined),
               onPressed: () => setState(() {
                 _browsing = null;
@@ -1006,7 +846,7 @@ class _SmbScreenState extends State<SmbScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (_scanning)
-                  Padding(
+                  const Padding(
                     padding: EdgeInsets.only(bottom: 8),
                     child: SizedBox(
                       width: 24,
@@ -1018,21 +858,21 @@ class _SmbScreenState extends State<SmbScreen> {
                   FloatingActionButton(
                     heroTag: 'smb_scan',
                     onPressed: _discover,
-                    tooltip: AppLocalizations.of(context).smbScanNetwork,
+                    tooltip: 'Scan network',
                     child: const Icon(Icons.wifi_find),
                   ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'smb_refresh',
                   onPressed: _loadServers,
                   tooltip: 'Refresh',
                   child: const Icon(Icons.refresh),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 FloatingActionButton(
                   heroTag: 'smb_add',
                   onPressed: _addServer,
-                  tooltip: AppLocalizations.of(context).smbAddServer,
+                  tooltip: 'Add server',
                   child: const Icon(Icons.add),
                 ),
               ],
@@ -1052,9 +892,9 @@ class _SmbScreenState extends State<SmbScreen> {
 
   Widget _body(BuildContext context) {
     if (_opening) {
-      return Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
-    if (_loading) return Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
         child: Padding(
@@ -1063,14 +903,14 @@ class _SmbScreenState extends State<SmbScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.cloud_off_outlined, size: 64),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text('Error: $_error',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               FilledButton(
                 onPressed: _atBrowseRoot ? _loadServers : _goUp,
-                child: Text(AppLocalizations.of(context).commonRetry),
+                child: const Text('Retry'),
               ),
             ],
           ),
@@ -1095,7 +935,7 @@ class _SmbScreenState extends State<SmbScreen> {
                     _share.isEmpty
                         ? 'No shares found. Check your NAS share settings '
                             'and make sure shares are visible to the network.'
-                        : AppLocalizations.of(context).commonNothingHere,
+                        : 'Nothing here',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
@@ -1111,25 +951,6 @@ class _SmbScreenState extends State<SmbScreen> {
       return _seriesFolderBody(context);
     }
     return _flatFileList(context);
-  }
-
-  int? _firstCachedSeason([TmdMeta? meta]) {
-    final seasons = (meta ?? _seriesMeta)?.seasons.keys;
-    if (seasons == null || seasons.isEmpty) return null;
-    return seasons.first;
-  }
-
-  int _seasonOf(SmbEntry entry) {
-    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
-    final meta = TmdService.instance.metaFor(
-          'smb_folder:${_browsing?.id ?? ''}/$_share/$cleanPath',
-        ) ??
-        _seriesMeta;
-    final parsed = ParsedFileName.parse(entry.name);
-    return parsed.seasonWithFallback(
-      meta?.folderSeason,
-      firstAvailableSeason: _firstCachedSeason(meta),
-    );
   }
 
   /// Nova-style series folder view: series header (poster, title, rating,
@@ -1165,9 +986,14 @@ class _SmbScreenState extends State<SmbScreen> {
     final service = TmdService.instance;
     final cachedMeta = service.metaFor(metadataKey);
 
+    // When the folder name matches a season name on TMDB (e.g. "Strike the
+    // Blood Final" → Season 5), override the parsed season so all episodes
+    // group under the correct season.
+    final folderSeason = cachedMeta?.folderSeason;
+
     final seasonGroups = sg.groupBySeason<SmbEntry>(
       episodes,
-      (e) => _seasonOf(e),
+      (e) => folderSeason ?? ParsedFileName.parse(e.name).season,
       (e) => ParsedFileName.parse(e.name).episode,
     );
     final sortedSeasons = seasonGroups.keys.toList()..sort();
@@ -1175,7 +1001,6 @@ class _SmbScreenState extends State<SmbScreen> {
     return RefreshIndicator(
       onRefresh: _onRefresh,
       child: CustomScrollView(
-        key: ValueKey('smb-series-$_share-$_path'),
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
         SliverToBoxAdapter(
@@ -1183,9 +1008,8 @@ class _SmbScreenState extends State<SmbScreen> {
             meta: meta,
             details: details,
             metadataKey: metadataKey,
-            folderSeason: _seriesMeta?.folderSeason,
             onFixMatch: () async {
-    final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
+              final cleanPath = _path.replaceAll(RegExp(r'/+$'), '');
               final folderName =
                   cleanPath.isEmpty ? _share : cleanPath.split('/').last;
               await _fixMatchSeries(folderName);
@@ -1210,7 +1034,7 @@ class _SmbScreenState extends State<SmbScreen> {
             child: Row(
               children: [
                 Text(
-                  AppLocalizations.of(context).smbEpisodes,
+                  'Episodes',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -1249,9 +1073,7 @@ class _SmbScreenState extends State<SmbScreen> {
                 });
               },
               seasonName: cachedMeta?.seasons[s]?.name,
-              onTapEntry: (entry) {
-                _openEntry(entry);
-              },
+              onTapEntry: (entry) => _openEntry(entry),
               onToggleWatched: (entry) => _toggleWatched(entry),
               resumePositionsMs: _resumePositionsMs,
               durationsMs: _durationsMs,
@@ -1269,7 +1091,7 @@ class _SmbScreenState extends State<SmbScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             sliver: SliverToBoxAdapter(
               child: Text(
-                AppLocalizations.of(context).smbOtherVideos,
+                'Other videos',
                 style: TextStyle(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w700,
@@ -1284,9 +1106,7 @@ class _SmbScreenState extends State<SmbScreen> {
               final mKey = 'smb:${server.id}/$_share/${m.path}';
               return _SmbTile(
                 entry: m,
-                onTap: () {
-                  _openEntry(m);
-                },
+                onTap: () => _openEntry(m),
                 tmdbMeta: TmdService.instance.metaFor(mKey),
                 watched: _watchedKeys.contains(mKey),
                 onToggleWatched: () => _toggleWatched(m),
@@ -1308,7 +1128,6 @@ class _SmbScreenState extends State<SmbScreen> {
     return RefreshIndicator(
       onRefresh: _onRefresh,
       child: ListView.builder(
-        key: ValueKey('smb-$_share-$_path'),
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: _entries.length,
         itemBuilder: (context, index) {
@@ -1328,7 +1147,7 @@ class _SmbScreenState extends State<SmbScreen> {
           if (meta != null && meta.movie.kind == TmdKind.tv) {
             final parsed = ParsedFileName.parse(entry.name);
             if (parsed.isEpisode) {
-              final season = meta.seasons[_seasonOf(entry)];
+              final season = meta.seasons[parsed.season];
               final episode = season?.episode(parsed.episode);
               if (episode?.runtimeMinutes != null) {
                 fallbackDurationMs = episode!.runtimeMinutes! * 60 * 1000;
@@ -1337,9 +1156,7 @@ class _SmbScreenState extends State<SmbScreen> {
           }
           return _SmbTile(
             entry: entry,
-            onTap: () {
-              _openEntry(entry);
-            },
+            onTap: () => _openEntry(entry),
             tmdbMeta: meta,
             watched: key.isNotEmpty && _watchedKeys.contains(key),
             onToggleWatched: () => _toggleWatched(entry),
@@ -1379,7 +1196,7 @@ class _SmbScreenState extends State<SmbScreen> {
               ),
               TextButton(
                 onPressed: () => _fixMatchSeries(folderName),
-                child: Text('Get Info'),
+                child: const Text('Get Info'),
               ),
             ],
           ),
@@ -1398,22 +1215,18 @@ class _SmbScreenState extends State<SmbScreen> {
     final metadataKey = 'smb_folder:${server.id}/$_share/$cleanPath';
 
     final parsed = ParsedFileName.parse(folderName);
-    final picked = await showTmdbFixMatchDialog(
-      context,
-      initialQuery: parsed.title.isNotEmpty ? parsed.title : folderName,
-      initialYear: parsed.year,
-      initialKind: TmdKind.tv,
-      folderName: folderName,
+    final picked = await showDialog<TmdMovie>(
+      context: context,
+      builder: (context) => _SearchDialog(
+        initialQuery: parsed.title.isNotEmpty ? parsed.title : folderName,
+        initialYear: parsed.year,
+        initialKind: TmdKind.tv,
+      ),
     );
     if (picked == null || !mounted) return;
 
     final service = TmdService.instance;
-    await service.setManualFolder(
-      metadataKey,
-      picked.movie,
-      folderSeason: picked.season,
-      folderName: folderName,
-    );
+    await service.setManualFolder(metadataKey, picked);
     if (!mounted) return;
 
     // Reload with the new metadata.
@@ -1434,20 +1247,11 @@ class _SmbScreenState extends State<SmbScreen> {
     // Fetch season data.
     final videoEntries = _entries.where((e) => !e.isDirectory).toList();
     final episodes = videoEntries.where(_isEpisodeEntry).toList();
-    final seasonsNeeded = <int>{};
-    for (final e in episodes) {
-      final parsed = ParsedFileName.parse(e.name);
-      if (parsed.hasExplicitSeason) {
-        seasonsNeeded.add(parsed.season);
-      } else if (parsed.season > 0) {
-        seasonsNeeded.add(parsed.season);
-      }
-    }
-    if (meta?.folderSeason != null) seasonsNeeded.add(meta!.folderSeason!);
-    // Anime bracket numbering — default to season 1.
-    if (seasonsNeeded.isEmpty && episodes.isNotEmpty) {
-      seasonsNeeded.add(1);
-    }
+    final seasonsNeeded = episodes
+        .map((e) => ParsedFileName.parse(e.name).season)
+        .where((s) => s > 0)
+        .toSet()
+        .toList();
     for (final season in seasonsNeeded) {
       await service.seasonFor(metadataKey, season);
       if (!mounted) return;
@@ -1463,14 +1267,14 @@ class _SmbScreenState extends State<SmbScreen> {
 
   Widget _serverList(BuildContext context) {
     if (_servers.isEmpty && _discovered.isEmpty && !_scanning) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.dns_outlined, size: 48, color: Colors.white38),
             SizedBox(height: 12),
               Text(
-                AppLocalizations.of(context).commonNothingYet,
+                'Nothing yet',
                 style: TextStyle(color: Colors.white54),
               ),
           ],
@@ -1483,7 +1287,7 @@ class _SmbScreenState extends State<SmbScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           if (_scanning)
-            Padding(
+            const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
@@ -1638,9 +1442,7 @@ class _SmbTile extends StatelessWidget {
         leading: Icon(Icons.folder, color: colorScheme.primary),
         title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          onTap();
-        },
+        onTap: onTap,
       );
     }
 
@@ -1649,7 +1451,7 @@ class _SmbTile extends StatelessWidget {
         ? 'S${parsed.season.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}'
         : '';
 
-    final posterUrl = parsed.isEpisode ? null : posterUrlOf(tmdbMeta);
+    final posterUrl = posterUrlOf(tmdbMeta);
 
     final filenameWidget = Text(
       entry.name,
@@ -1678,7 +1480,7 @@ class _SmbTile extends StatelessWidget {
                   ),
             ),
           ),
-          SizedBox(width: 6),
+          const SizedBox(width: 6),
         ],
         Expanded(
           child: Text(
@@ -1697,9 +1499,9 @@ class _SmbTile extends StatelessWidget {
           ),
         ),
         if (tmdbMeta != null && tmdbMeta!.movie.voteAverage > 0) ...[
-          SizedBox(width: 6),
+          const SizedBox(width: 6),
           const Icon(Icons.star, size: 13, color: Colors.amber),
-          SizedBox(width: 2),
+          const SizedBox(width: 2),
           Text(
             tmdbMeta!.movie.voteAverage.toStringAsFixed(1),
             style: TextStyle(
@@ -1716,19 +1518,6 @@ class _SmbTile extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         filenameWidget,
-        // Episode overview from TMDB meta (like series seasons tile).
-        if (tmdbMeta != null && tmdbMeta!.movie.overview.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: Text(
-              tmdbMeta!.movie.overview,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ),
         if (_sizeLabel(effectiveSize ?? entry.size).isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2),
@@ -1759,7 +1548,7 @@ class _SmbTile extends StatelessWidget {
       leading: posterUrl != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: CachedImage(
+              child: Image.network(
                 posterUrl,
                 width: 48,
                 height: 72,
@@ -1791,9 +1580,7 @@ class _SmbTile extends StatelessWidget {
             ),
         ],
       ),
-      onTap: () {
-        onTap();
-      },
+      onTap: onTap,
     );
   }
 }
@@ -1808,7 +1595,6 @@ class _SeriesFolderHeader extends StatelessWidget {
     required this.onFixMatch,
     required this.onRemoveInfo,
     this.details,
-    this.folderSeason,
   });
 
   final TmdMeta meta;
@@ -1816,28 +1602,12 @@ class _SeriesFolderHeader extends StatelessWidget {
   final String metadataKey;
   final VoidCallback onFixMatch;
   final VoidCallback onRemoveInfo;
-  final int? folderSeason;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final movie = meta.movie;
-
-    // When a specific season folder is open, prefer its poster/name/overview.
-    final season = folderSeason != null ? meta.seasons[folderSeason!] : null;
-    final seasonPosterUrl = season?.posterUrl(width: 342);
-    final posterUrl = seasonPosterUrl ?? movie.posterUrl(width: 342);
-
-    final seasonName = season?.name ?? '';
-    final displayName = (seasonName.isNotEmpty && seasonName != movie.title)
-        ? seasonName
-        : movie.title;
-
-    final seasonOverview = season?.overview ?? '';
-    final displayOverview = season != null
-        ? seasonOverview
-        : firstNonEmptyOverview([details?.overview, meta.overviewText()]);
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -1849,9 +1619,9 @@ class _SeriesFolderHeader extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: posterUrl != null
-                    ? CachedImage(
-                        posterUrl,
+                child: movie.posterUrl(width: 342) != null
+                    ? Image.network(
+                        movie.posterUrl(width: 342)!,
                         width: 104,
                         height: 156,
                         fit: BoxFit.cover,
@@ -1859,14 +1629,14 @@ class _SeriesFolderHeader extends StatelessWidget {
                       )
                     : _posterFallback(colorScheme),
               ),
-              SizedBox(width: 16),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (displayName.isNotEmpty)
+                    if (movie.title.isNotEmpty)
                       Text(
-                        displayName,
+                        movie.title,
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -1880,9 +1650,9 @@ class _SeriesFolderHeader extends StatelessWidget {
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     _RatingBadge(rating: movie.voteAverage),
-                    SizedBox(height: 6),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -1897,44 +1667,44 @@ class _SeriesFolderHeader extends StatelessWidget {
               ),
             ],
           ),
-          if (displayOverview.isNotEmpty) ...[
-            SizedBox(height: 20),
+          if (details != null && details!.overview.isNotEmpty) ...[
+            const SizedBox(height: 20),
             Text(
-              AppLocalizations.of(context).smbOverview,
+              'Overview',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 6),
             Text(
-              displayOverview,
+              details!.overview,
               maxLines: 6,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
             ),
           ],
           if (details != null && details!.cast.isNotEmpty) ...[
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             _CastRow(cast: details!.cast),
           ],
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             children: [
               TextButton(
                 onPressed: onFixMatch,
-                child: Text('Fix match'),
+                child: const Text('Fix match'),
               ),
               TextButton(
                 onPressed: onRemoveInfo,
                 style: TextButton.styleFrom(
                   foregroundColor: theme.colorScheme.error,
                 ),
-                child: Text('Remove info'),
+                child: const Text('Remove info'),
               ),
             ],
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -1998,12 +1768,9 @@ class _SmbSeasonExpansion extends StatelessWidget {
         e.isDirectory ? '' : 'smb:$serverId/$share/${e.path}';
     final watched = sg.watchedCount(entries, watchedKeys, keyOf);
     final total = entries.length;
-    final genericLabel = sg.seasonHeader(season);
-    final headerLabel = (seasonName != null &&
-            seasonName!.isNotEmpty &&
-            seasonName != genericLabel)
-        ? '$genericLabel · $seasonName'
-        : genericLabel;
+    final headerLabel = (seasonName != null && seasonName!.isNotEmpty)
+        ? '${sg.seasonHeader(season)} · $seasonName'
+        : sg.seasonHeader(season);
     final seasonData = cachedMeta?.seasons[season];
 
     return Theme(
@@ -2027,14 +1794,14 @@ class _SmbSeasonExpansion extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             SeasonProgressRing(
               watched: watched,
               total: total,
               size: 28,
               strokeWidth: 2.5,
             ),
-            SizedBox(width: 6),
+            const SizedBox(width: 6),
             Text(
               sg.watchedBadge(watched, total),
               style: TextStyle(
@@ -2142,7 +1909,7 @@ class _SmbEpisodeTile extends StatelessWidget {
       leading: stillUrl != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: CachedImage(
+              child: Image.network(
                 stillUrl,
                 width: 64,
                 height: 40,
@@ -2173,7 +1940,7 @@ class _SmbEpisodeTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (parsed.isEpisode) SizedBox(width: 6),
+              if (parsed.isEpisode) const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   episode?.nameLabel ?? parsed.title,
@@ -2233,7 +2000,7 @@ class _SmbEpisodeTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.star, size: 12, color: Colors.amber),
-                  SizedBox(width: 2),
+                  const SizedBox(width: 2),
                   Text(
                     episode!.voteAverage.toStringAsFixed(1),
                     style: TextStyle(
@@ -2245,7 +2012,7 @@ class _SmbEpisodeTile extends StatelessWidget {
               ),
             ),
           if (watched)
-            Padding(
+            const Padding(
               padding: EdgeInsets.only(right: 4),
               child: Icon(Icons.check_circle, color: Colors.green, size: 20),
             ),
@@ -2262,9 +2029,7 @@ class _SmbEpisodeTile extends StatelessWidget {
           ),
         ],
       ),
-      onTap: () {
-        onTap();
-      },
+      onTap: onTap,
     );
 
     return tile;
@@ -2296,13 +2061,13 @@ class _CastRow extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         SizedBox(
           height: 130,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: cast.length,
-            separatorBuilder: (_, _) => SizedBox(width: 12),
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final member = cast[index];
               return SizedBox(
@@ -2312,7 +2077,7 @@ class _CastRow extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(40),
                       child: member.profileUrl() != null
-                          ? CachedImage(
+                          ? Image.network(
                               member.profileUrl()!,
                               width: 72,
                               height: 72,
@@ -2322,7 +2087,7 @@ class _CastRow extends StatelessWidget {
                             )
                           : _avatarFallback(colorScheme, member.name),
                     ),
-                    SizedBox(height: 6),
+                    const SizedBox(height: 6),
                     Text(
                       member.name,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -2393,7 +2158,7 @@ class _RatingBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.star, size: 14, color: Colors.amber),
-          SizedBox(width: 4),
+          const SizedBox(width: 4),
           Text(
             rating.toStringAsFixed(1),
             style: TextStyle(
@@ -2439,6 +2204,189 @@ class _FactChip extends StatelessWidget {
   }
 }
 
+/// Manual search dialog for picking the right TMDB entry (series folder fix match).
+class _SearchDialog extends StatefulWidget {
+  const _SearchDialog({this.initialQuery, this.initialYear, this.initialKind});
+
+  final String? initialQuery;
+  final int? initialYear;
+  final TmdKind? initialKind;
+
+  @override
+  State<_SearchDialog> createState() => _SearchDialogState();
+}
+
+class _SearchDialogState extends State<_SearchDialog> {
+  final _controller = TextEditingController();
+  final _api = TmdApi();
+
+  List<TmdMovie>? _results;
+  bool _searching = false;
+  bool _noKey = false;
+  String? _error;
+  late TmdKind _kind;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.text = widget.initialQuery ?? '';
+    _kind = widget.initialKind ?? TmdKind.tv;
+    if (_controller.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _search();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search() async {
+    final query = _controller.text.trim();
+    if (query.isEmpty) return;
+    final key = await _api.effectiveApiKey();
+    if (!mounted) return;
+    if (key.isEmpty) {
+      setState(() {
+        _searching = false;
+        _results = null;
+        _noKey = true;
+      });
+      return;
+    }
+    setState(() {
+      _searching = true;
+      _results = null;
+      _error = null;
+      _noKey = false;
+    });
+    try {
+      final primary = await _api.search(
+        query,
+        year: widget.initialYear,
+        kind: _kind,
+      );
+      final fallbackKind = _kind == TmdKind.tv ? TmdKind.movie : TmdKind.tv;
+      final fallback = await _api.search(query, kind: fallbackKind);
+      final results = <TmdMovie>[...primary, ...fallback];
+      final seen = <int>{};
+      results.removeWhere((m) => !seen.add(m.id));
+      if (!mounted) return;
+      setState(() => _results = results);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Search failed: $e');
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return AlertDialog(
+      title: const Text('Get Info'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              onSubmitted: (_) => _search(),
+              decoration: const InputDecoration(
+                hintText: 'Search title',
+                prefixIcon: Icon(Icons.search),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<TmdKind>(
+              segments: const [
+                ButtonSegment(value: TmdKind.tv, label: Text('TV Series')),
+                ButtonSegment(value: TmdKind.movie, label: Text('Movie')),
+              ],
+              selected: {_kind},
+              onSelectionChanged: (sel) => setState(() => _kind = sel.first),
+            ),
+            const SizedBox(height: 8),
+            if (_searching)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_noKey)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Search is unavailable right now. Try again in a moment.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Search failed. Try again in a moment.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colorScheme.error),
+                ),
+              )
+            else if (_results != null)
+              if (_results!.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No results. Try a different title.'),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _results!.length,
+                    itemBuilder: (context, index) {
+                      final movie = _results![index];
+                      return ListTile(
+                        leading: movie.posterUrl(width: 92) != null
+                            ? Image.network(
+                                movie.posterUrl(width: 92)!,
+                                width: 36,
+                                height: 54,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    const Icon(Icons.movie),
+                              )
+                            : const Icon(Icons.movie),
+                        title: Text(movie.title),
+                        subtitle: Text(
+                          [
+                            if (movie.kind == TmdKind.tv) 'TV Series',
+                            if (movie.year != null) '${movie.year}',
+                            if (movie.voteAverage > 0)
+                              movie.voteAverage.toStringAsFixed(1),
+                          ].join('  ·  '),
+                        ),
+                        onTap: () => Navigator.of(context).pop(movie),
+                      );
+                    },
+                  ),
+                ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
 
 class _ServerFormDialog extends StatefulWidget {
   const _ServerFormDialog({
@@ -2555,8 +2503,8 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
     return serverDialog(
       title: ServerDialogTitle(
         icon: widget.existing == null ? Icons.add_link : Icons.dns_outlined,
-        title: widget.existing == null ? 'Add server' : AppLocalizations.of(context).smbEditServer,
-        subtitle: AppLocalizations.of(context).smbNetworkShare,
+        title: widget.existing == null ? 'Add server' : 'Edit server',
+        subtitle: 'SMB / network share',
       ),
       content: SizedBox(
         width: 440,
@@ -2574,13 +2522,13 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       textInputAction: TextInputAction.next,
                       decoration: serverFieldDecoration(
                         context,
-                        label: AppLocalizations.of(context).smbName,
+                        label: 'Name',
                         hint: 'e.g. Living room NAS',
                         icon: Icons.badge_outlined,
                         optional: true,
                       ),
                     ),
-                    SizedBox(height: 14),
+                    const SizedBox(height: 14),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -2593,13 +2541,13 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                             textInputAction: TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: AppLocalizations.of(context).smbHost,
+                              label: 'Host',
                               hint: '192.168.1.10 or nas.local',
                               icon: Icons.lan_outlined,
                             ),
                           ),
                         ),
-                        SizedBox(width: 14),
+                        const SizedBox(width: 14),
                         Expanded(
                           flex: 2,
                           child: TvTextField(
@@ -2609,7 +2557,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                                 _guest ? TextInputAction.done : TextInputAction.next,
                             decoration: serverFieldDecoration(
                               context,
-                              label: AppLocalizations.of(context).smbPort,
+                              label: 'Port',
                               hint: '445',
                               icon: Icons.settings_ethernet,
                             ),
@@ -2622,41 +2570,41 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       controlAffinity: ListTileControlAffinity.leading,
                       dense: true,
                       activeThumbColor: theme.colorScheme.primary,
-                      title: Text('Guest — no username/password',
+                      title: const Text('Guest — no username/password',
                           style: TextStyle(fontSize: 14)),
                       value: _guest,
                       onChanged: (v) => setState(() => _guest = v),
                     ),
                     if (!_guest) ...[
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       TvTextField(
                         controller: _username,
                         autofillHints: const [AutofillHints.username],
                         textInputAction: TextInputAction.next,
                         decoration: serverFieldDecoration(
                           context,
-                          label: AppLocalizations.of(context).smbUsername,
+                          label: 'Username',
                           hint: 'admin',
                           icon: Icons.person_outline,
                         ),
                       ),
-                      SizedBox(height: 14),
+                      const SizedBox(height: 14),
                       ServerPasswordField(
                         icon: Icons.lock_outline,
                         controller: _password,
                         label: widget.existing?.hasPassword ?? false
                             ? 'Password (leave empty to keep)'
-                            : AppLocalizations.of(context).smbPassword,
+                            : 'Password',
                         hint: '••••••••',
                       ),
-                      SizedBox(height: 14),
+                      const SizedBox(height: 14),
                       TvTextField(
                         controller: _domain,
                         textInputAction: TextInputAction.done,
                         decoration: serverFieldDecoration(
                           context,
-                          label: AppLocalizations.of(context).smbDomain,
-                          hint: AppLocalizations.of(context).smbDomainHint,
+                          label: 'Domain',
+                          hint: 'WORKGROUP',
                           icon: Icons.account_tree_outlined,
                           optional: true,
                         ),
@@ -2684,16 +2632,16 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           ),
           onPressed: _testing ? null : _test,
           icon: _testing
-              ? SizedBox(
+              ? const SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.wifi_tethering, size: 16),
-          label: Text(AppLocalizations.of(context).commonTest),
+          label: const Text('Test'),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancel'),
+          child: const Text('Cancel'),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -2702,7 +2650,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
           ),
           onPressed: _save,
           icon: const Icon(Icons.check_rounded, size: 16),
-          label: Text(AppLocalizations.of(context).commonSave),
+          label: const Text('Save'),
         ),
       ],
     );
