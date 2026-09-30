@@ -1199,11 +1199,10 @@ final class SMBBridge: NSObject {
         return serverId
     }
 
-    /// Resolves a `dreamplayersmb://` URL handed to the player back to its
-    /// live connection. Returns nil once the session has been closed.
-    /// Every socket for a token, primary first.
+    /// Every socket for a `dreamplayersmb://` token, primary first. Empty once
+    /// the session has been closed.
     func connections(for urlString: String) -> [SMBConnection] {
-        guard urlString.hasPrefix("dreamplayersmb://") else { return nil }
+        guard urlString.hasPrefix("dreamplayersmb://") else { return [] }
         var token = String(urlString.dropFirst("dreamplayersmb://".count))
         if let dot = token.lastIndex(of: ".") {
             token = String(token[token.startIndex..<dot])
