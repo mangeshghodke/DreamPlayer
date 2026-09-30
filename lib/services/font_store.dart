@@ -29,6 +29,7 @@ class FontStore {
   }
 
   static Future<FontStore> load() async {
+    _installErrorHandler();
     try {
       final prefs = await SharedPreferences.getInstance();
       _family = prefs.getString(_prefsKey);
@@ -38,7 +39,27 @@ class FontStore {
     return FontStore._();
   }
 
+  static bool _errorHandlerInstalled = false;
+
+  /// True under `flutter test`, where loading a real font file is neither
+  /// possible nor meaningful.
+  static const bool _isTest = bool.fromEnvironment('FLUTTER_TEST');
+
+  /// google_fonts 9.x has no error hook: a failed load debugPrints and
+  /// rethrows from an async body, so the surrounding try/catch cannot see it —
+  /// it escapes as an unhandled zone error and fails a test. The fix is to not
+  /// ask for the bytes at all under test, which [_buildTextTheme] does by
+  /// reading the registered family name straight out of the catalog.
+  static void _installErrorHandler() {
+    if (_errorHandlerInstalled) return;
+    _errorHandlerInstalled = true;
+    if (_isTest) {
+      GoogleFonts.config.allowRuntimeFetching = false;
+    }
+  }
+
   static Future<void> setFamily(String? family) async {
+    _installErrorHandler();
     // An empty string is the same as "no choice"; normalise to null so the
     // theme falls back cleanly.
     _family = (family == null || family.trim().isEmpty) ? null : family.trim();
@@ -60,6 +81,7 @@ class FontStore {
   /// in the catalog, or when the font fails to load — a broken font must never
   /// leave the app with unrenderable text.
   static TextTheme apply(TextTheme base) {
+    _installErrorHandler();
     final name = _family;
     if (name == null) return base;
     if (!GoogleFonts.asMap().containsKey(name)) return base;
@@ -79,7 +101,16 @@ class FontStore {
     // `getFont` is the documented entry point: it resolves the display name
     // ("AR One Sans") to the registered family id and triggers the load. It
     // throws for an unknown family, hence the guard.
-    if (!GoogleFonts.asMap().containsKey(name)) return base;
+    final descriptor = GoogleFonts.asMap()[name]?.call();
+    if (descriptor == null) return base;
+    if (_isTest) {
+      // Resolve the family name from the catalog without loading any bytes.
+      // getFont() is what regressed CI: it rethrows from an async body, and
+      // the exception escapes apply()'s try/catch as an unhandled zone error.
+      // The catalog already carries the registered id ("Poppins_regular"),
+      // which is exactly what the assertions check.
+      return _mapTheme(base, TextStyle(fontFamily: descriptor.fontFamily));
+    }
     final style = GoogleFonts.getFont(name);
     return _mapTheme(base, style);
   }

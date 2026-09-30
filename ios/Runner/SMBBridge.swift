@@ -347,17 +347,17 @@ final class SMBBridge: NSObject {
     /// guest session first and then a fully anonymous one, which is what a NAS
     /// with a public share expects. An explicit username that fails is a real
     /// auth error and must not silently downgrade.
-    private func connect(
+    private func withClient(
         _ server: ServerMeta,
         _ body: @escaping @MainActor (SMBClient) -> Void,
         onError: @escaping @MainActor (String) -> Void
     ) {
-        connect(server, password: getPassword(server.id), body, onError: onError)
+        withClient(server, password: getPassword(server.id), body, onError: onError)
     }
 
     /// Same as `connect`, but with the password supplied by the caller — used
     /// by testConnection, which tests credentials that are not saved yet.
-    private func connect(
+    private func withClient(
         _ server: ServerMeta,
         password: String,
         _ body: @escaping @MainActor (SMBClient) -> Void,
@@ -429,7 +429,7 @@ final class SMBBridge: NSObject {
             domain: domain,
             anonymous: anonymous
         )
-        connect(probe, password: password) { client in
+        withClient(probe, password: password) { client in
             Task {
                 // Listing shares proves the credentials AND the tree connect,
                 // not just that the socket opened.
@@ -534,7 +534,7 @@ final class SMBBridge: NSObject {
         guard flags >= 0, fcntl(fd, F_SETFL, flags | O_NONBLOCK) >= 0 else { return false }
         let rc = withUnsafePointer(to: ai.pointee.ai_addr) { ptr -> Int32 in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                connect(fd, $0, socklen_t(ai.pointee.ai_addrlen))
+                Darwin.connect(fd, $0, socklen_t(ai.pointee.ai_addrlen))
             }
         }
         if rc == 0 { return true }
@@ -572,7 +572,7 @@ final class SMBBridge: NSObject {
         server: ServerMeta,
         completion: @escaping ([[String: Any]]?) -> Void
     ) {
-        connect(server) { client in
+        withClient(server) { client in
             Task {
                 do {
                     let shares = try await client.listShares()
@@ -606,7 +606,7 @@ final class SMBBridge: NSObject {
         share: String,
         completion: @escaping (Bool) -> Void
     ) {
-        connect(server) { client in
+        withClient(server) { client in
             Task {
                 var ok = false
                 do {
@@ -640,7 +640,7 @@ final class SMBBridge: NSObject {
         }
         lock.unlock()
 
-        connect(server) { client in
+        withClient(server) { client in
             Task {
                 var built: [[String: Any]]?
                 do {
