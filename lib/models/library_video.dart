@@ -1,3 +1,5 @@
+import '../models/video_item.dart';
+
 /// A video entry discovered by the background MediaStore scanner.
 class LibraryVideo {
   const LibraryVideo({
@@ -55,6 +57,18 @@ class LibraryVideo {
     if (height >= 360) return '360p';
     return '${height}p';
   }
+
+  /// Plays this entry. MediaStore rows carry an absolute path, so the item is a
+  /// plain local file (no URI, no auth) and the path doubles as the resume key.
+  VideoItem toVideoItem() => VideoItem(
+        id: 'scan:$id',
+        title: title,
+        path: path,
+        resumeKey: path,
+        duration: Duration(milliseconds: duration),
+        sizeBytes: sizeBytes,
+        resolution: resolution.isEmpty ? null : resolution,
+      );
 
   Map<String, dynamic> toJson() => {
         'id': id,

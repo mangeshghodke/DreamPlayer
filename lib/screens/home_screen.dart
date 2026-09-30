@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../app.dart' show appRouteObserver;
 import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
+import '../models/library_video.dart';
 import '../services/continue_watching.dart';
 import '../services/download_manager.dart';
 import '../services/file_browser.dart';
@@ -17,6 +18,7 @@ import '../services/jellyfin_client.dart';
 import '../services/layout_store.dart';
 import '../services/library_folders.dart';
 import '../services/manual_groups.dart';
+import '../services/native_media_scanner.dart';
 import '../services/default_engine_store.dart';
 import '../services/network_video_resolver.dart';
 import '../services/series_grouping.dart';
@@ -114,6 +116,7 @@ class _HomeScreenState extends State<HomeScreen>
     LayoutStore.instance.addListener(_onLayoutChanged);
     // Read the persisted layout so the first frame is already correct.
     unawaited(LayoutStore.load());
+    unawaited(_loadOtherVideosPref());
     // Open the drawer when the download notification is tapped.
     DownloadManager.instance.onNotificationTap = _openDownloadsDrawer;
     _loadLibrary();
@@ -129,9 +132,80 @@ class _HomeScreenState extends State<HomeScreen>
     if (mounted) setState(() {});
   }
 
+  Future<void> _loadOtherVideosPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('dreamplayer.otherVideos') ?? false;
+    if (!mounted) return;
+    setState(() => _otherVideosEnabled = enabled);
+    if (enabled) await _scanOtherVideos();
+  }
+
   /// View density / column count changed in Settings — re-sliver the grids.
   void _onLayoutChanged() {
     if (mounted) setState(() {});
+  }
+
+  // ---- Other videos (issue #34, item 1) ----
+  // Opt-in: a MediaStore index of every video on the device, minus anything
+  // already reachable through a library folder. The device-wide scan was
+  // retired in 2026-08 because "nothing is auto-scanned" became a design
+  // principle, so this stays behind a user toggle instead of running always.
+  bool _otherVideosEnabled = false;
+  bool _scanning = false;
+  List<LibraryVideo> _scannedVideos = const [];
+
+  /// Device videos whose path is NOT under any library folder root.
+  List<LibraryVideo> get _otherVideos =>
+      otherVideosExcludingLibrary(_scannedVideos, _folders);
+
+  Future<void> _scanOtherVideos() async {
+    if (_scanning) return;
+    setState(() => _scanning = true);
+    try {
+      final scanned = await NativeMediaScanner.instance.scanAll();
+      if (!mounted) return;
+      setState(() {
+        _scannedVideos = scanned;
+        _scanning = false;
+      });
+      if (scanned.isEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No videos found. Grant Photos & videos access and retry.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  Widget _buildOtherVideosGrid(ThemeData theme) {
+    final videos = _otherVideos;
+    return _videoGridSliver(
+      count: videos.length,
+      itemBuilder: (context, index) {
+        final v = videos[index];
+        return VideoCard(
+          key: ValueKey('other_${v.id}'),
+          video: v.toVideoItem(),
+          subtitle: v.resolutionLabel.isEmpty ? null : v.resolutionLabel,
+          onTap: () => unawaited(_openTmdDetails(v)),
+        );
+      },
+    );
+  }
+
+  Future<void> _openTmdDetails(LibraryVideo v) async {
+    if (!mounted) return;
+    // Open the details page first; Play launches the player from there.
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TmdDetailsScreen(video: v.toVideoItem()),
+      ),
+    );
+    // A play may have moved the resume position — refresh on return.
+    await _loadLibrary();
   }
 
   Future<void> _showTrialIntroIfNeeded() async {
@@ -1541,6 +1615,21 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               _buildDownloadedGrid(theme),
             ],
+            // ---- Other videos (device videos outside the library) ----
+            if (_otherVideosEnabled && _scannedVideos.isNotEmpty) ...[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    'Other videos',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              _buildOtherVideosGrid(theme),
+            ],
             // ---- Continue watching ----
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -2233,6 +2322,37 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   static const double _textBlockHeight = 84;
+}
+
+/// Trims whitespace and any trailing slashes so path prefixes compare
+/// reliably. SMB/WebDAV listings often return "Folder/".
+String normaliseLibraryPath(String path) {
+  var p = path.trim();
+  while (p.length > 1 && p.endsWith('/')) {
+    p = p.substring(0, p.length - 1);
+  }
+  return p;
+}
+
+/// The "Other videos" section: every MediaStore video that is NOT reachable
+/// through a library folder.
+///
+/// [folders] is whatever folder list the caller already holds, so this needs
+/// no extra async load. A video counts as "in the library" when its path sits
+/// at or under a folder root; everything else is an unlisted device video.
+List<LibraryVideo> otherVideosExcludingLibrary(
+  List<LibraryVideo> scanned,
+  List<LibraryFolder> folders,
+) {
+  final roots = <String>{
+    for (final f in folders)
+      if (normaliseLibraryPath(f.path).isNotEmpty) normaliseLibraryPath(f.path),
+  };
+  return scanned.where((v) {
+    final p = normaliseLibraryPath(v.path);
+    if (p.isEmpty) return false;
+    return !roots.any((root) => p == root || p.startsWith('$root/'));
+  }).toList();
 }
 
 class _EmptyLibrary extends StatelessWidget {

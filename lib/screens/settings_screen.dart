@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -47,6 +49,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   int _diskBytes = 0;
   int _imageCacheBytes = 0;
+  bool _otherVideos = false;
   bool _cleared = false;
   bool _passthrough = false;
   bool _swipeGestures = true;
@@ -93,6 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadAutoPlayNext();
     _loadDecoderMode();
     _loadDefaultEngine();
+    unawaited(_loadOtherVideos());
     _loadToneMapMode();
     _loadAudioFilters();
     _loadSimkl();
@@ -102,6 +106,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadTmdbKey();
     _loadTheTvdb();
     _loadAutoExpandFolders();
+  }
+
+  Future<void> _loadOtherVideos() async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = prefs.getBool('dreamplayer.otherVideos') ?? false;
+    if (!mounted) return;
+    setState(() => _otherVideos = v);
   }
 
   Future<void> _loadSimkl() async {
@@ -800,6 +811,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (mounted) setState(() => _autoExpandFolders = v);
                   },
                 ),
+                if (Platform.isAndroid)
+                  SwitchListTile(
+                    secondary: const Icon(Icons.video_library_outlined),
+                    title: const Text('Other videos section'),
+                    subtitle: const Text(
+                        'List videos on this device that are not in your library, such as camera clips and music videos'),
+                    value: _otherVideos,
+                    onChanged: (v) async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('dreamplayer.otherVideos', v);
+                      if (!mounted) return;
+                      setState(() => _otherVideos = v);
+                    },
+                  ),
                 if (_autoExpandFolders)
                   ListTile(
                     leading: const Icon(Icons.height),
