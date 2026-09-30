@@ -14,6 +14,7 @@ import '../services/file_browser.dart';
 import '../services/folder_scanner.dart';
 import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
+import '../services/layout_store.dart';
 import '../services/library_folders.dart';
 import '../services/manual_groups.dart';
 import '../services/default_engine_store.dart';
@@ -108,6 +109,11 @@ class _HomeScreenState extends State<HomeScreen>
     TmdService.instance.addListener(_onMetadataChanged);
     // Rebuild the downloads grid when a download completes/is deleted.
     DownloadManager.instance.addListener(_onMetadataChanged);
+    // Re-sliver the library grids when the user changes view density or the
+    // column count in Settings.
+    LayoutStore.instance.addListener(_onLayoutChanged);
+    // Read the persisted layout so the first frame is already correct.
+    unawaited(LayoutStore.load());
     // Open the drawer when the download notification is tapped.
     DownloadManager.instance.onNotificationTap = _openDownloadsDrawer;
     _loadLibrary();
@@ -120,6 +126,11 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _onMetadataChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// View density / column count changed in Settings — re-sliver the grids.
+  void _onLayoutChanged() {
     if (mounted) setState(() {});
   }
 
@@ -154,6 +165,7 @@ class _HomeScreenState extends State<HomeScreen>
     LibraryFoldersStore.changes.removeListener(_loadLibrary);
     TmdService.instance.removeListener(_onMetadataChanged);
     DownloadManager.instance.removeListener(_onMetadataChanged);
+    LayoutStore.instance.removeListener(_onLayoutChanged);
     DownloadManager.instance.onNotificationTap = null;
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
@@ -1889,10 +1901,12 @@ class _HomeScreenState extends State<HomeScreen>
       sliver: SliverLayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.crossAxisExtent;
-          final columns = _columnsForWidth(width);
+          final layout = LayoutStore.instance;
+          final columns = layout.columnsForWidth(width);
           const spacing = 14.0;
           final itemWidth = (width - spacing * (columns - 1)) / columns;
-          final itemHeight = itemWidth * 9 / 16 + _textBlockHeight;
+          final itemHeight =
+              itemWidth * 9 / 16 + layout.textBlockHeight(_textBlockHeight);
           return SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
@@ -1973,10 +1987,12 @@ class _HomeScreenState extends State<HomeScreen>
       sliver: SliverLayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.crossAxisExtent;
-          final columns = _columnsForWidth(width);
+          final layout = LayoutStore.instance;
+          final columns = layout.columnsForWidth(width);
           const spacing = 14.0;
           final itemWidth = (width - spacing * (columns - 1)) / columns;
-          final itemHeight = itemWidth * 3 / 2 + _textBlockHeight;
+          final itemHeight =
+              itemWidth * 3 / 2 + layout.textBlockHeight(_textBlockHeight);
           return SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
@@ -2200,12 +2216,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  static int _columnsForWidth(double width) {
-    if (width >= 1000) return 6;
-    if (width >= 760) return 4;
-    if (width >= 480) return 3;
-    return 2;
-  }
 
   /// Percent-encodes each path segment (mirrors `_encodePath` in
   /// `webdav_screen.dart`).

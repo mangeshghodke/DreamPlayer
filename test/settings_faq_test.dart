@@ -26,6 +26,20 @@ void main() {
         home: const Scaffold(body: SettingsScreen()),
       );
 
+  /// Scrolls a row into view without tapping it. The settings list is a lazy
+  /// ListView, so adding a new section above the FAQ can push a row past the
+  /// initially-built viewport and make a bare `find.text` fail even though the
+  /// row exists and is reachable by scrolling.
+  Future<void> reveal(WidgetTester tester, String text) async {
+    final finder = find.text(text);
+    await tester.scrollUntilVisible(
+      finder,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+  }
+
   /// Scrolls the FAQ question into view, then taps it to expand.
   ///
   /// The settings list is a lazy ListView, so a long list (Android hides
@@ -107,6 +121,7 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     await tester.pumpWidget(wrap());
     await tester.pumpAndSettle();
+    await reveal(tester, 'Which playback engine should I use?');
     expect(find.text('Which playback engine should I use?'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });

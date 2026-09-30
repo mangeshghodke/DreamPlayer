@@ -30,6 +30,7 @@ import '../services/the_tvdb_client.dart';
 import '../services/watched_store.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
+import '../services/layout_store.dart';
 import '../widgets/tv_tile.dart';
 import 'licenses_screen.dart';
 import 'credential_dialogs.dart';
@@ -892,6 +893,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ],
             ),
+            const _LayoutSection(),
+            const Divider(),
             // === Player ===
             if (!isTv)
               ExpansionTile(
@@ -1877,6 +1880,106 @@ class _FaqTile extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
             height: 1.4,
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Library layout preferences (issue #34, item 6): how dense the home grids
+/// are, and how many cards per row.
+class _LayoutSection extends StatelessWidget {
+  const _LayoutSection();
+
+  static String _modeLabel(LibraryViewMode m) => switch (m) {
+        LibraryViewMode.poster => 'Poster',
+        LibraryViewMode.compact => 'Compact',
+      };
+
+  static String _columnsLabel(int columns) =>
+      columns <= 0 ? 'Automatic' : '$columns per row';
+
+  Future<void> _pickMode(BuildContext context) async {
+    final store = LayoutStore.instance;
+    final choice = await showDialog<LibraryViewMode>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Library view'),
+        children: [
+          for (final m in LibraryViewMode.values)
+            ListTile(
+              title: Text(_modeLabel(m)),
+              subtitle: Text(switch (m) {
+                LibraryViewMode.poster =>
+                  'Full poster cards with title and subtitle',
+                LibraryViewMode.compact =>
+                  'Smaller artwork and a shorter text block — fit more titles',
+              }),
+              trailing: m == store.mode
+                  ? const Icon(Icons.check, size: 20)
+                  : null,
+              onTap: () => Navigator.of(ctx).pop(m),
+            ),
+        ],
+      ),
+    );
+    if (choice != null) await store.setMode(choice);
+  }
+
+  Future<void> _pickColumns(BuildContext context) async {
+    final store = LayoutStore.instance;
+    // Automatic plus every count the grids will honour (capped per width).
+    final options = <int>[0, 2, 3, 4, 5, 6];
+    final choice = await showDialog<int>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Items per row'),
+        children: [
+          for (final n in options)
+            ListTile(
+              title: Text(n <= 0 ? 'Automatic' : '$n'),
+              subtitle: n <= 0
+                  ? const Text('Fit to the screen width')
+                  : const Text('Capped on narrow screens so cards stay readable'),
+              trailing: n == store.columns
+                  ? const Icon(Icons.check, size: 20)
+                  : null,
+              onTap: () => Navigator.of(ctx).pop(n),
+            ),
+        ],
+      ),
+    );
+    if (choice != null) await store.setColumns(choice);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      leading: const Icon(Icons.grid_view),
+      title: const Text('Layout'),
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      children: [
+        ListenableBuilder(
+          listenable: LayoutStore.instance,
+          builder: (context, _) {
+            final store = LayoutStore.instance;
+            return Column(
+              children: [
+                TvTile(
+                  leading: const Icon(Icons.density_medium),
+                  title: const Text('Library view'),
+                  subtitle: Text(_modeLabel(store.mode)),
+                  onTap: () => _pickMode(context),
+                ),
+                TvTile(
+                  leading: const Icon(Icons.grid_on),
+                  title: const Text('Items per row'),
+                  subtitle: Text(_columnsLabel(store.columns)),
+                  onTap: () => _pickColumns(context),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );
