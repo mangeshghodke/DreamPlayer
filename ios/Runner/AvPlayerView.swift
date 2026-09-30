@@ -308,6 +308,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     // SMBBridge tears it down on closeShare instead. ----
     private var smbToken: String?
     private var isSMBStream = false
+    /// A raw smb:// URI awaiting resolution inside the load Task.
+    private var smbUri: String?
+    private var smbServerId: String?
     /// Extension carried by the token URL, handed to the engine as a probe hint.
     private var smbFormatHint: String?
     /// Read-ahead chunk for SMB playback.
@@ -729,6 +732,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         smbToken = nil
         isSMBStream = false
         smbFormatHint = nil
+        smbUri = nil
+        smbServerId = nil
         if let uri, uri.hasPrefix("dreamplayersmb://"),
            let connection = SMBBridge.shared.connection(for: uri) {
             // Must precede the plain-path branch: Dart sends `path` alongside
@@ -751,21 +756,16 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 formatHint: smbFormatHint
             )
 
-        } else if let uri, uri.lowercased().hasPrefix("smb://"),
-                  let connection = SMBBridge.shared.openFromSmbUri(
-                    uri, serverId: Self.serverIdFromResumeKey(resumeKey)
-                  ) {
+        } else if let uri, uri.lowercased().hasPrefix("smb://") {
             // A bookmarked folder card or Continue-Watching entry hands the
-            // player its stored smb:// URI rather than a token. The engine has
-            // no smb scheme, so resolve it to a live connection here.
-            SBMLog.log("open: resolved smb:// \(uri) from resumeKey=\(resumeKey ?? "nil")")
-            isSMBStream = true
-            let ext = (uri as NSString).pathExtension
-            smbFormatHint = ext.isEmpty ? Self.sniffFormatFromSMB(connection) : ext
-            source = .custom(
-                BufferedSMBReader(source: connection, chunkSize: Self.smbChunkSize),
-                formatHint: smbFormatHint
-            )
+            // player its stored smb:// URI rather than a token, and the engine
+            // has no smb scheme. Resolving it means a blocking SMB handshake,
+            // so it is built inside the load Task like the FTP/WebDAV paths —
+            // doing it here froze the main thread on a spinner.
+            smbUri = uri
+            smbServerId = Self.serverIdFromResumeKey(resumeKey)
+            localURL = URL(string: uri)
+            source = nil
         } else if let path, !path.isEmpty {
             localURL = URL(fileURLWithPath: path)
             source = .url(localURL!)
@@ -891,6 +891,31 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         Task { @MainActor [weak self] in
             guard let self, let engine = self.engine else { return }
             do {
+                if let pendingSmbUri = smbUri {
+                    // Blocking handshake (login + tree connect + stat) — keep it
+                    // off the main actor or the UI locks on a spinner.
+                    let connection = await Task.detached(priority: .userInitiated) {
+                        SMBBridge.shared.openFromSmbUri(
+                            pendingSmbUri, serverId: self.smbServerId
+                        )
+                    }.value
+                    if let connection {
+                        self.isSMBStream = true
+                        let ext = (pendingSmbUri as NSString).pathExtension
+                        self.smbFormatHint = ext.isEmpty
+                            ? Self.sniffFormatFromSMB(connection) : ext
+                        source = .custom(
+                            BufferedSMBReader(
+                                source: connection, chunkSize: Self.smbChunkSize
+                            ),
+                            formatHint: self.smbFormatHint
+                        )
+                    } else {
+                        self.lastError = "Could not open that file on the SMB share"
+                        self.emit()
+                        return
+                    }
+                }
                 if let pendingFtpUri = ftpUri {
                     // Handshake (login + PASV/SFTP open) is blocking I/O —
                     // keep it off the main actor like the WebDAV probe.

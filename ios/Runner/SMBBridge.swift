@@ -461,10 +461,26 @@ final class SMBBridge: NSObject {
     /// A subnet sweep, not NetBIOS broadcast: iOS apps get no broadcast name
     /// service, and a reverse lookup on each hit gives the pretty name. Home
     /// and small-office LANs are /24 in practice; a /16 would take minutes.
+    /// Shared, lock-guarded box for results produced on background threads.
+    /// A captured `var` written by concurrent task-group children is a data
+    /// race even when every write holds a lock: the variable itself lives in a
+    /// shared box the compiler is free to treat as non-atomic. A reference type
+    /// makes the sharing explicit. Same pattern as SMBIOReader's ReadOutcome.
+    private final class HostBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var items: [(host: String, hostname: String)] = []
+        func append(_ host: String, _ hostname: String) {
+            lock.lock(); items.append((host, hostname)); lock.unlock()
+        }
+        func snapshot() -> [(host: String, hostname: String)] {
+            lock.lock(); defer { lock.unlock() }; return items
+        }
+    }
+
     private func discoverServers(completion: @escaping ([(host: String, hostname: String)]) -> Void) {
         let started = Date()
         Task.detached(priority: .utility) {
-            var found: [(host: String, hostname: String)] = []
+            let box = HostBox()
             guard let local = Self.localIPv4() else {
                 await MainActor.run {
                     SBMLog.log("discover: no non-loopback IPv4 interface found")
@@ -479,7 +495,6 @@ final class SMBBridge: NSObject {
                 let hosts = (1...254).map { "\(prefix).\($0)" }
                 let workers = 24
                 let chunk = max(hosts.count / workers, 1)
-                let lock = NSLock()
                 await withTaskGroup(of: Void.self) { group in
                     var index = 0
                     while index < hosts.count {
@@ -491,16 +506,14 @@ final class SMBBridge: NSObject {
                             for host in slice where Self.port445Open(host: host, timeoutMs: 400) {
                                 open.append(host)
                             }
-                            if !open.isEmpty {
-                                lock.lock()
-                                found.append(contentsOf: open.map { ($0, Self.reverseName($0)) })
-                                lock.unlock()
+                            for host in open {
+                                box.append(host, Self.reverseName(host))
                             }
                         }
                     }
                 }
             await MainActor.run {
-                let sorted = found.sorted { $0.host < $1.host }
+                let sorted = box.snapshot().sorted { $0.host < $1.host }
                 SBMLog.log(
                     "discover: \(sorted.count) host(s) in \(SBMLog.since(started)) -> "
                     + sorted.map { "\($0.host)\(($0.hostname == $0.host ? "" : " (\($0.hostname))"))" }.joined(separator: ", "))
@@ -953,6 +966,14 @@ final class SMBBridge: NSObject {
         lock.unlock()
     }
 
+    /// One-shot holder for a connection opened on a background thread. A
+    /// class, not a captured `var`: the semaphore's signal/wait is the
+    /// happens-before edge, and a reference type makes the sharing explicit.
+    private final class ConnectionBox: @unchecked Sendable {
+        var connection: SMBConnection?
+        var failure: String?
+    }
+
     /// Opens an SMB file straight from an `smb://host/share/path` URI.
     ///
     /// Not every entry point mints a token first: a bookmarked folder card or a
@@ -992,8 +1013,7 @@ final class SMBBridge: NSObject {
         SBMLog.log("openFromSmbUri \(uri) -> server \(server.name) [\(SBMLog.since(started))]")
 
         let password = getPassword(server.id)
-        var result: SMBConnection?
-        var failure: String?
+        let out = ConnectionBox()
         let done = DispatchSemaphore(value: 0)
         Task.detached(priority: .userInitiated) {
             var serverURL = URLComponents()
@@ -1002,7 +1022,7 @@ final class SMBBridge: NSObject {
             if server.port > 0 && server.port != 445 { serverURL.port = server.port }
             do {
                 guard let url = serverURL.url else { throw SMBConnection.SMBError(message: "bad host") }
-                result = try await SMBConnection.connect(
+                out.connection = try await SMBConnection.connect(
                     server: url,
                     share: share,
                     path: Self.normalized(path),
@@ -1011,16 +1031,16 @@ final class SMBBridge: NSObject {
                     domain: server.domain
                 )
             } catch {
-                failure = Self.friendly(error, host: server.host)
+                out.failure = Self.friendly(error, host: server.host)
             }
             done.signal()
         }
         done.wait()
-        if let failure {
+        if let failure = out.failure {
             SBMLog.log("openFromSmbUri FAILED: \(failure)")
             return nil
         }
-        if let result {
+        if let result = out.connection {
             let ext = (path as NSString).pathExtension
             let token = "\(server.id)-uridirect"
             lock.lock()
