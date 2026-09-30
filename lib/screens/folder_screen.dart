@@ -15,6 +15,7 @@ import '../services/upnp_client.dart';
 import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
 import '../utils/file_info_extractor.dart';
+import '../utils/media_junk_filter.dart';
 import '../utils/season_group.dart' as sg;
 import '../widgets/season_progress_ring.dart';
 import '../widgets/tmdb_fix_match_dialog.dart';
@@ -222,7 +223,14 @@ class _FolderScreenState extends State<FolderScreen> {
       return;
     }
     try {
-      final entries = await _service.listDirectory(_currentPath);
+      final entries = (await _service.listDirectory(_currentPath))
+          // Hide extras/artwork/state entries so opening a movie folder does
+          // not list its `Featurettes/` and a dozen trailers, and so the
+          // per-file TMDB prefetch below never fires for them.
+          .where((e) => e.isDirectory
+              ? !isJunkDirectory(e.name)
+              : !isJunkFile(e.name))
+          .toList();
       if (!mounted) return;
       setState(() {
         _entries = entries;

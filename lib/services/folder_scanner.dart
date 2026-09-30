@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:dream_player/utils/media_junk_filter.dart';
+
 import 'file_browser.dart';
 import 'ftp_client.dart';
 import 'jellyfin_client.dart';
@@ -89,15 +91,30 @@ class FolderScanner {
       return;
     }
 
+    // Drop non-content children BEFORE deciding what this folder is.
+    //
+    // A `Featurettes/` subfolder inside a movie folder would otherwise make the
+    // movie look like a container (it has subdirs), so the movie never becomes
+    // its own library card — and every trailer inside it fires its own doomed
+    // TMDB search. Hidden entries (`.thumbnails`) and artwork/resume sidecars
+    // are removed for the same reason.
+    final visible = children
+        .where((c) {
+          final name = _nameOf(c);
+          if (name.isEmpty) return false;
+          return _isDirectory(c) ? !isJunkDirectory(name) : !isJunkFile(name);
+        })
+        .toList();
+
     // Check if any direct child is a video file or subdirectory.
     // Leaf folders that directly contain videos (no subdirs) become a
     // single library entry. Pure containers and mixed folders (subdirs +
     // loose files like TV Shows/lanterns.mkv) are expanded instead.
     final isJellyfinTree = root.source == LibraryFolderSource.jellyfin;
-    final hasVideoFiles = children.any(
+    final hasVideoFiles = visible.any(
       (c) => !_isDirectory(c) && (isJellyfinTree ? true : _isVideoFile(_nameOf(c))),
     );
-    final hasSubdirs = children.any(_isDirectory);
+    final hasSubdirs = visible.any(_isDirectory);
 
     // Only add this directory as a library entry if it is a leaf folder
     // (has videos but no subdirs). Mixed/container folders are expanded
@@ -111,7 +128,7 @@ class FolderScanner {
     // Process children: recurse into subdirectories, and collect loose
     // video files as standalone entries (at root, or inside a mixed
     // container where the parent would otherwise hide them).
-    for (final child in children) {
+    for (final child in visible) {
       if (cancel) return;
 
       final name = _nameOf(child);

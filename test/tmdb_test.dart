@@ -918,4 +918,178 @@ void main() {
       expect(service.metaFor(key), isNull);
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Regressions from a real library at /mnt/external/Movies (69 names scanned).
+  // Every case below was verified to produce a broken TMDB query before the
+  // release-tail / year / language-code fixes.
+  // ─────────────────────────────────────────────────────────────────────────
+  group('ParsedFileName — real library names', () {
+    test('does not eat a trailing 4-digit year as a file extension', () {
+      // `2008` sits exactly where an extension would be. Stripping it threw
+      // away the only year hint, so the search fell back to popularity order.
+      final rock = ParsedFileName.parse('Rock On!!.2008');
+      expect(rock.title, 'Rock On!!');
+      expect(rock.year, 2008);
+
+      final ramayana =
+          ParsedFileName.parse('Ramayana.The.Legend.of.Prince.Rama.1992');
+      expect(ramayana.title, 'Ramayana The Legend of Prince Rama');
+      expect(ramayana.year, 1992);
+
+      // A real extension is still stripped.
+      expect(ParsedFileName.parse('De Dhakka (2008).mp4').title, 'De Dhakka');
+    });
+
+    test('keeps a hyphenated title prefix that looks like a release group', () {
+      // The old leading-group stripper deleted "Spider-Man" because any
+      // hyphenated prefix was assumed to be a release group.
+      for (final name in [
+        'Spider-Man - Across the Spider-Verse (2023) 2160p 4K UHD HDR10 DV BluRay '
+            'REMUX x265 10bit HEVC Multi Audio [Org AMZN Hindi-Tamil-Telugu '
+            'DDP 5.1 ~ 640Kbps + English TrueHD Atmos 7.1] ESub ~ DataLass.mkv',
+        'Spider-Man - Across the Spider-Verse',
+        'Spider-Man Across the Spider-Verse (2023) 2160p',
+      ]) {
+        expect(ParsedFileName.parse(name).title, 'Spider Man Across the Spider Verse',
+            reason: name);
+      }
+    });
+
+    test('cuts the release group after a "(1)" duplicate marker', () {
+      // The `(1)` group is removed as a bracket group, leaving a trailing
+      // space; the old dash-cut saw `site.contains(' ')` and skipped the cut,
+      // leaking "NOSiViD" into the query.
+      final parsed = ParsedFileName.parse(
+        'Harry.Potter.and.the.Chamber.of.Secrets.2002.2160p.WEB-DL.HIN-ENG.'
+        'DTS-X.7.1.DV.HEVC-NOSiViD (1).mkv',
+      );
+      expect(parsed.title, 'Harry Potter and the Chamber of Secrets');
+      expect(parsed.year, 2002);
+    });
+
+    test('strips language codes out of audio track lists', () {
+      final avengers = ParsedFileName.parse(
+        'Avengers.Infinity.War.2018.IMAX.2160p.DSNP.WEB-DL.HIN-ENG-TAM-TEL.'
+        'x265.10bit.HDR.HIN-ENG.DTS-HD.MA.TrueHD.7.1.Atmos-SWTYBLZ.mkv',
+      );
+      // Previously "Avengers Infinity War HIN TAM TEL HIN".
+      expect(avengers.title, 'Avengers Infinity War');
+      expect(avengers.year, 2018);
+
+      final deathly = ParsedFileName.parse(
+        'Harry.Potter.and.the.Deathly.Hallows.Part.1.2010.2160p.WEB-DL.'
+        'HIN-ENG.DTS-X.7.1.DV.HEVC-NOSiViD.mkv',
+      );
+      // Previously "Harry Potter and the Deathly Hallows Part 1 HIN X".
+      expect(deathly.title, 'Harry Potter and the Deathly Hallows Part 1');
+    });
+
+    test('strips " ~ GROUP" tails and leftover separators', () {
+      final topGun = ParsedFileName.parse(
+        'Top Gun - Maverick (2022) IMAX 2160p 4K UHD HDR10 DV BluRay REMUX '
+        'x265 10bit HEVC [Org Hindi DDP 5.1 ~ 640Kbps + English DTS-HDMA '
+        'TrueHD Atmos 7.1] Esub ~ FGT.mkv',
+      );
+      // Previously "Top Gun Maverick ~".
+      expect(topGun.title, 'Top Gun Maverick');
+      expect(topGun.year, 2022);
+    });
+
+    test('handles YouTube-dump filenames with credits and native script', () {
+      final deool = ParsedFileName.parse(
+        'Deool Band - Marathi Movie - Mohan Joshi, Nivedita Saraf, '
+        'Gashmeer Mahajani, Girija Joshi.mp4',
+      );
+      expect(deool.title, 'Deool Band');
+
+      final golmaal = ParsedFileName.parse(
+        'गोलमाल _ Golmaal _ Superhit Comedy Movie _ Full Marathi Movie HD _ '
+        'Bharat Jadhav, Amruta Khanvilkar.mp4',
+      );
+      expect(golmaal.title, 'Golmaal');
+    });
+
+    test('strips a "By <uploader>" folder credit', () {
+      final parsed = ParsedFileName.parse(
+        'Deool Band (2015) Marathi DVDScr By KeTaN',
+      );
+      expect(parsed.title, 'Deool Band');
+      expect(parsed.year, 2015);
+
+      // A lowercase "by" inside a real title is untouched.
+      expect(ParsedFileName.parse('Stand by Me (1986).mkv').title, 'Stand by Me');
+    });
+
+    test('strips stated file size and remaining release tokens', () {
+      final faster = ParsedFileName.parse(
+        'Faster Fene (2017) 1080p Marathi UNTOUCHED HD AVC AAC 3.6GB - MovCr.mp4',
+      );
+      expect(faster.title, 'Faster Fene');
+      expect(faster.year, 2017);
+
+      // Previously "Home Alone RM4K".
+      expect(
+        ParsedFileName.parse(
+          'Home Alone (1990) RM4K (1080p BluRay x265 HEVC 10bit AAC 5.1 Tigole)',
+        ).title,
+        'Home Alone',
+      );
+      // Previously "Special 26 DDR".
+      expect(
+        ParsedFileName.parse('Special 26.2013.2160p..HEVC.DTS.5.1.DDR.mkv').title,
+        'Special 26',
+      );
+    });
+
+    test('prefers the folder title for a single-video folder', () {
+      // The file carries a subtitle the folder does not.
+      final swades = ParsedFileName.parse(
+        'Swades - We, the People.mp4',
+        parentFolderName: 'Swades 2004 1080p BluRay x264 Hindi AAC - Ozlem',
+      );
+      expect(swades.title, 'Swades');
+      expect(swades.year, 2004);
+
+      // The file misspells the folder title.
+      final navra = ParsedFileName.parse(
+        'Navra Maza Navsacha (2004).mp4',
+        parentFolderName: 'Navra Majha Navsacha 2004',
+      );
+      expect(navra.title, 'Navra Majha Navsacha');
+      expect(navra.year, 2004);
+    });
+
+    test('does not let a container folder name override the file title', () {
+      final parsed = ParsedFileName.parse(
+        'Harry.Potter.and.the.Sorcerers.Stone.2001.mkv',
+        parentFolderName: 'Harry Potter Series',
+      );
+      expect(parsed.title, 'Harry Potter and the Sorcerers Stone');
+    });
+
+    test('still resolves episode tags from a series folder', () {
+      final parsed = ParsedFileName.parse(
+        'House.S02E04.1080p.WEB-DL.mkv',
+        parentFolderName: 'House',
+      );
+      expect(parsed.isEpisode, isTrue);
+      expect(parsed.season, 2);
+      expect(parsed.episode, 4);
+      expect(parsed.seriesName, 'House');
+    });
+
+    test('does not cut a real title subtitle', () {
+      // Hyphens are normalised to spaces by _cleanName; what matters is that
+      // neither half of the title is deleted.
+      expect(ParsedFileName.parse('Dune - Part Two (2021).mkv').title,
+          'Dune Part Two');
+      expect(ParsedFileName.parse('Top Gun - Maverick (2022).mkv').title,
+          'Top Gun Maverick');
+      expect(
+        ParsedFileName.parse('Home Alone 2 - Lost in New York (1992).mkv').title,
+        'Home Alone 2 Lost in New York',
+      );
+    });
+  });
 }

@@ -894,6 +894,40 @@ class ParsedFileName {
     'anaglyph', 'anaglyphe',
     // OTT / release-group tags stripped before TMDB search
     'dovi', 'dsnp', 'aptv', 'gplay', 'sic', 'zee5', 'apex', 'wrtb', 'notag', 'vff', 'qxr', 'tigor', 'fgt',
+    // Source/encoding descriptors seen on real Indian + scene library dumps
+    'rm4k', 'untouched', 'bcore', 'hybrid', 'msubs', 'msub', 'mastered',
+    'mkv', 'dvd5', 'mpeg', 'ddr', 'hc', 'org', 'audio', 'marathi',
+    'dubbed', 'retail', 'ntsc', 'pal', 'camrip', 'hdcam', 'telecine',
+  ];
+
+  /// Ad/promo words that trail a title in YouTube-dump names
+  /// (`... - Marathi Movie - Actor One, Actor Two`).
+  ///
+  /// Kept out of [_noise] on purpose: "Movie" and "Full" are real words in
+  /// real titles (`The Great Movie`). They are only removed when they form the
+  /// *entire* tail after a separator — see [_isReleaseTail].
+  static const Set<String> _descriptorWords = {
+    'movie', 'film', 'full', 'superhit', 'official', 'dubbed', 'video',
+    'clip', 'online', 'watch', 'hd', 'print', 'hdrip', 'webrip',
+  };
+
+  /// ISO-639-2/T style language codes that leak out of audio track lists.
+  ///
+  ///   `HIN-ENG`        -> "HIN X"   (the hyphen became a separator, ENG was
+  ///                                 stripped as noise, HIN was left behind)
+  ///   `HIN-ENG-TAM-TEL` -> "HIN TAM TEL HIN"
+  ///
+  /// The list is deliberately conservative — only codes that are not plausible
+  /// standalone words in a film title. Deliberately excluded: `per`, `may`,
+  /// `dan`, `can`, `all`, `cat`, `war`, `art`, `red`, `man`, `top`, `nor`
+  /// (all real title words or real given names).
+  static const List<String> _languageCodes = [
+    'hin', 'tam', 'tel', 'urd', 'pun', 'ben', 'mar', 'guj', 'kan', 'asm',
+    'kas', 'mal', 'mly', 'ori', 'nep', 'sin', 'kor', 'jpn', 'jap', 'chi',
+    'zho', 'cmd', 'tha', 'vie', 'ind', 'ara', 'heb', 'gre', 'ell', 'tur',
+    'pol', 'rus', 'cze', 'ces', 'slk', 'slo', 'hun', 'rum', 'ron', 'ukr',
+    'dut', 'nld', 'swe', 'fin', 'spa', 'esp', 'fre', 'fra', 'ita', 'por',
+    'lat', 'swa', 'pes', 'bur', 'khm', 'lao', 'fil',
   ];
 
   static ParsedFileName parse(String fileName, {String? parentFolderName}) {
@@ -901,8 +935,30 @@ class ParsedFileName {
     final dot = name.lastIndexOf('.');
     if (dot > 0) {
       final ext = name.substring(dot + 1).toLowerCase();
-      if (ext.length <= 4) name = name.substring(0, dot);
+      // A folder/file name that ends in a bare 4-digit year
+      // (`Rock On!!.2008`, `Ramayana.The.Legend.of.Prince.Rama.1992`) has
+      // that year sitting exactly where an extension would be. Stripping it
+      // silently threw away the only year hint the name carried, so the
+      // search fell back to popularity order and picked same-titled
+      // duplicates. Only strip real alphabetic extensions.
+      //
+      // The digit-before-dot guard covers the same class of bug for sizes:
+      // `... AVC AAC 3.6GB` (an extensionless name) must not lose "6GB".
+      final beforeDot = name.substring(0, dot);
+      final extLooksReal = !(RegExp(r'\d').hasMatch(ext) &&
+          beforeDot.isNotEmpty &&
+          RegExp(r'\d$').hasMatch(beforeDot));
+      if (ext.length <= 4 && !_yearPattern.hasMatch(ext) && extLooksReal) {
+        name = beforeDot;
+      }
     }
+
+    // Pre-passes that must run before any structural parsing, because they
+    // remove characters that would otherwise be mistaken for structure.
+    name = _stripNonLatinScript(name);
+    name = _collapseYouTubeDump(name);
+    name = _stripCreditList(name);
+    name = _stripUploaderCredit(name);
 
     // Audio/subtitle metadata often lives in brackets
     // (`[Hindi AMZN DDP 2.0 224kbps + English DTS-HD MA 5.1]`) or parens
@@ -936,59 +992,21 @@ class ParsedFileName {
     // sitting right before the dash when it's an all-caps release-group name
     // (`USURY`), so the search query stays title-only.
     //
-    // Un-bracketed fan-sub folders use the REVERSE convention `<GROUP> - 
-    // <Title>` (`VCB-Studio - Show`, `Ohys-Raws - Show`). Without handling
-    // that first, the dash-cut below keeps the group token ("VCB-Studio")
-    // as the whole title. Strip a leading group ONLY when it looks like a
-    // release group (contains a `.`/`_`/`-` separator or is all-caps) — a
-    // plain Capitalized title like `Dune - Part Two` must be preserved.
-    final groupPrefixMatch = RegExp(
-            r'^\s*([^\s-]+(?:[-._][^\s-]+){1,3})\s*-\s+',
-            caseSensitive: false,
-    ).matchAsPrefix(name);
-    if (groupPrefixMatch != null) {
-      final prefix = groupPrefixMatch.group(1)!;
-      // Release-group guard: only strip a prefix that actually looks like a
-      // group (contains a `.`/`_`/`-` separator, or is all-caps). A plain
-      // Capitalized title like `Dune - Part Two` / `In the Mood for Love`
-      // must be preserved (the separator check is what keeps "Dune" intact:
-      // the single word has no dot/underscore/hyphen of its own).
-      final looksLikeGroup = prefix.contains('-') ||
-          prefix.contains('.') ||
-          prefix.contains('_') ||
-          (prefix.length >= 3 && prefix == prefix.toUpperCase());
-      if (looksLikeGroup && prefix.length <= 24) {
-        final remainder = name.substring(groupPrefixMatch.end).trim();
-        if (remainder.split(RegExp(r'\s+')).length >= 2) {
-          name = remainder;
-        }
-      }
-    }
-
-    final dash = name.lastIndexOf('-');
-    if (dash > 0) {
-      final beforeDash = name.substring(0, dash);
-      final site = name.substring(dash + 1);
-      if (site.contains('.')) {
-        final space = beforeDash.lastIndexOf(' ');
-        if (space > 0) {
-          final groupToken = beforeDash.substring(space + 1);
-          if (groupToken.length <= 12 &&
-              groupToken == groupToken.toUpperCase()) {
-            name = beforeDash.substring(0, space);
-          } else {
-            name = beforeDash;
-          }
-        } else {
-          name = beforeDash;
-        }
-      } else if (!site.contains(' ')) {
-        // Single-word dashed suffix with no dot is a release group (`Title -
-        // VCB-Studio`). Cut it. Multi-word suffixes (`"Dune - Part Two"`,
-        // `"In the Mood for Love - Part 2"`) are titles, not groups — keep them.
-        name = beforeDash;
-      }
-    }
+    // Release-group / junk-tail removal. This replaces the old
+    // "cut at the last dash" heuristic, which produced two real bugs:
+    //
+    //  * `Spider-Man - Across the Spider-Verse` — the leading-group stripper
+    //    treated any hyphenated prefix as a release group, so it deleted
+    //    "Spider-Man" and the title became "Across the Spider Verse".
+    //  * `...DV.HEVC-NOSiViD (1)` — the `(1)` duplicate-download marker is
+    //    removed as a bracket group, leaving a trailing space; the old code
+    //    then saw `site.contains(' ')` and skipped the cut entirely, so
+    //    "NOSiViD" survived into the TMDB query.
+    //
+    // The new pass trims each side, treats `2+` dot runs as separators too
+    // (`x265 DTS... FRG`), and only cuts when there is positive evidence the
+    // tail is release metadata rather than a subtitle.
+    name = _stripReleaseTail(name);
 
 final yearMatch = _yearPattern.firstMatch(name);
     int? year;
@@ -1067,7 +1085,7 @@ final yearMatch = _yearPattern.firstMatch(name);
       name = name.replaceAll(seasonWordMatch.group(0)!, ' ');
     }
 
-    final title = _cleanName(name);
+    var title = _cleanName(name);
 
     /// Detect an explicit "Live Action" / "Drama" keyword in either the file
     /// name or the parent folder. Stripped from the cleaned title so TMDB
@@ -1105,6 +1123,23 @@ final yearMatch = _yearPattern.firstMatch(name);
       // Carry the parent folder's live-action flag too.
       liveAction = liveAction || folderParsed.liveAction;
     }
+    // Single-video folder whose file name carries a subtitle, an alternate
+    // title or a typo'd spelling: the folder name is the more reliable source.
+    //   `Swades 2004 ... / Swades - We, the People.mp4`   -> "Swades We, the People"
+    //   `Navra Majha Navsacha 2004 / Navra Maza Navsacha (2004).mp4` -> "Navra Maza ..."
+    // Both folders resolve correctly on their own; only the file-level parse
+    // was wrong, and a single-video folder's card is resolved from the file.
+    // Episodes are excluded — there the folder legitimately holds the series
+    // name and the file carries the episode tag.
+    if (!isEpisode && parentFolderName != null && parentFolderName.isNotEmpty) {
+      final folderParsed = parse(parentFolderName);
+      if (!_isContainerFolderName(folderParsed.title) &&
+          _titleAffinity(title, folderParsed.title)) {
+        title = folderParsed.title;
+        year ??= folderParsed.year;
+      }
+    }
+
     return ParsedFileName(
       title: title.isEmpty
           ? (effectiveSeriesName ?? _fallbackTitle(fileName))
@@ -1137,6 +1172,358 @@ final yearMatch = _yearPattern.firstMatch(name);
       return true;
     }
     return false;
+  }
+
+  /// Removes non-Latin script so a Devanagari/Tamil/Cyrillic title segment
+  /// cannot pollute the query. YouTube-dump filenames lead with the native
+  /// script and follow with the Latin title
+  /// (`गोलमाल _ Golmaal _ Superhit Comedy Movie _ ...`); stripping the script
+  /// first lets the segment pass below pick the Latin half.
+  static final RegExp _nonLatinScript = RegExp(
+    r'[\u0600-\u06FF\u0700-\u074F\u0900-\u097F\u0980-\u0DFF'
+    r'\u0E00-\u0E7F\u1000-\u109F\u3040-\u30FF\u3400-\u4DBF'
+    r'\u4E00-\u9FFF\uAC00-\uD7AF]+',
+  );
+
+  static String _stripNonLatinScript(String name) =>
+      name.replaceAll(_nonLatinScript, ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  /// YouTube "rip" filenames concatenate a description with `_`:
+  ///   `गोलमाल _ Golmaal _ Superhit Comedy Movie _ Full Marathi Movie HD _ Actor1, Actor2`
+  /// Every such dump has at least two `_` separators (real titles don't), so
+  /// requiring that count keeps this from touching normal dotted names.
+  static String _collapseYouTubeDump(String name) {
+    if ('_'.allMatches(name).length < 2) return name;
+    // Never truncate a name that carries an episode or year marker — those
+    // hold the match signal (`Stranger_Things_[S02E04]_1080p` has three
+    // underscores but is a perfectly good episode name).
+    if (_hasEpisodePattern(name) || _yearPattern.hasMatch(name)) return name;
+    final segments = name
+        .split('_')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty && RegExp(r'[A-Za-z0-9]').hasMatch(s))
+        .toList();
+    return segments.isEmpty ? name : segments.first;
+  }
+
+  /// Actor/credit lists appended to a title:
+  ///   `Deool Band - Marathi Movie - Mohan Joshi, Nivedita Saraf, Gashmeer Mahajani`
+  /// Require at least two commas so a title that merely contains one comma is
+  /// left alone.
+  static String _stripCreditList(String name) {
+    if (!name.contains(',')) return name;
+    if (','.allMatches(name).length < 2) return name;
+    final head = name.substring(0, name.indexOf(',')).trim();
+    if (head.isEmpty) return name;
+    return head;
+  }
+
+  /// A folder-level uploader credit at the end of the name:
+  ///   `Deool Band (2015) Marathi DVDScr By KeTaN`
+  /// Only the literal word "By" with a capital B, which is the convention in
+  /// hand-made folder names — a lowercase "by" inside a title ("Stand by Me")
+  /// is untouched.
+  static String _stripUploaderCredit(String name) {
+    final m = RegExp(r'\s+By\s+\S+\s*$').firstMatch(name);
+    if (m == null) return name;
+    final head = name.substring(0, m.start).trim();
+    return head.isEmpty ? name : head;
+  }
+
+  /// Cuts a trailing release group / site / junk tail.
+  ///
+  /// Only cuts when there is positive evidence, because titles legitimately
+  /// contain dashes (`Spider-Man`, `Dune - Part Two`, `Top Gun - Maverick`,
+  /// `Home Alone 2 - Lost in New York`). Runs repeatedly so a tail like
+  /// `Title - Descriptor - Group` peels off one segment at a time.
+  static String _stripReleaseTail(String input) {
+    var name = _stripLeadingGroup(input);
+    for (var pass = 0; pass < 3; pass++) {
+      final next = _stripReleaseTailOnce(name);
+      if (next == name) break;
+      name = next;
+    }
+    return name.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// Un-bracketed fan-sub folders use the REVERSE convention
+  /// `<GROUP> - <Title>` (`VCB-Studio - Toaru Kagaku no Railgun`,
+  /// `Ohys-Raws - Jujutsu Kaisen`). Without this the group becomes the whole
+  /// search query. The guard is [_looksLikeReleaseToken] on the first token, so
+  /// a hyphenated title prefix (`Spider-Man - Across the Spider-Verse`) and a
+  /// `Title - Subtitle` pair are both left alone.
+  static String _stripLeadingGroup(String name) {
+    final m = RegExp(r'^\s*([^\s]+)\s+[-\u2013\u2014~]\s+(.+)$').firstMatch(name);
+    if (m == null) return name;
+    final prefix = m.group(1)!;
+    if (prefix.length > 24) return name;
+    if (!_looksLikeReleaseToken(prefix)) return name;
+    return m.group(2)!.trim();
+  }
+
+  static String _stripReleaseTailOnce(String name) {
+    // Candidate separators: a spaced dash, a spaced tilde, a glued dash, or a
+    // run of 2+ dots (`x265 DTS... FRG`, `Title ~ GROUP`). Single dots are
+    // title punctuation, never separators.
+    final candidates = <({int start, int length, bool spaced})>[];
+    for (final m in RegExp(r'\s+[-\u2013\u2014~]\s+').allMatches(name)) {
+      candidates.add((start: m.start, length: m.end - m.start, spaced: true));
+    }
+    for (final m in RegExp(r'[-\u2013\u2014]|\.{2,}').allMatches(name)) {
+      if (m.start > 0) {
+        candidates.add((start: m.start, length: m.end - m.start, spaced: false));
+      }
+    }
+    if (candidates.isEmpty) return _dropDotSeparatedGroup(name);
+
+    // Try the latest separator first (the tail is normally at the end), then
+    // work backwards, so `Title - Descriptor - Group` peels `Group` first.
+    candidates.sort((a, b) => b.start.compareTo(a.start));
+    for (final c in candidates) {
+      final head = name.substring(0, c.start).trim();
+      final tail = name.substring(c.start + c.length).trim();
+      if (head.isEmpty || tail.isEmpty) continue;
+      if (_isReleaseTail(head, tail, spaced: c.spaced)) {
+        return _dropTrailingGroupToken(head);
+      }
+    }
+    return _dropDotSeparatedGroup(name);
+  }
+
+  /// `Interstellar...MSubs.HEVC.Homelander` — some rips attach the group with a
+  /// dot rather than a dash, so the separator passes never see it and the
+  /// handle survives as part of the title.
+  ///
+  /// Only fires when the chunk before the final dot is an unambiguous
+  /// codec/format word, which keeps real dotted titles safe: `Dr. Strange`
+  /// (preceded by "Dr") and `Ramayana.The.Legend.of.Prince.Rama.1992`
+  /// (preceded by "Rama") are both left alone.
+  static String _dropDotSeparatedGroup(String name) {
+    final trimmed = name.trimRight();
+    final dot = trimmed.lastIndexOf('.');
+    if (dot <= 0) return name;
+    final tail = trimmed.substring(dot + 1);
+    final head = trimmed.substring(0, dot);
+    if (_chunks(tail).length != 1) return name;
+    if (_chunks(head).isEmpty) return name;
+    if (!_codecNoiseWords.contains(_chunks(head).last)) return name;
+    return head.trim();
+  }
+
+  static List<String> _chunks(String text) => text
+      .toLowerCase()
+      .split(RegExp(r'[\s._-]+'))
+      .where((c) => c.isNotEmpty)
+      .toList();
+
+  /// Unambiguous codec/format tokens, used only as the "the thing just before
+  /// the group name" test. Deliberately excludes `ma`, `blu`, `rip`, `hd` and
+  /// `web` on their own — those appear inside real words.
+  static const Set<String> _codecNoiseWords = {
+    'hevc', 'h264', 'h265', 'x264', 'x265', 'avc', 'av1', 'xvid', 'mkv',
+    'mpeg', 'mp4', 'ddp', 'truehd', 'atmos', 'dts', 'aac', 'ac3', 'eac3',
+    'flac', 'hdr', 'hdr10', 'dovi', 'dv', 'bluray', 'uhd', 'web', 'webdl',
+    'webrip', 'hdtv', '10bit', '8bit', 'sdr', 'remux',
+  };
+
+  /// `Oldboy ... x264 USURY-4kHdHub.com` — after cutting the dotted site, the
+  /// all-caps group token glued in front of the dash is left dangling
+  /// ("Oldboy USURY"). Drop it too, but only when it looks like a handle: it
+  /// must contain a letter, be short/all-caps or letter+digit, and sit in a
+  /// head that is otherwise full of release tags. Pure numbers are never
+  /// dropped, which keeps `Special 26` and `Home Alone 2` intact.
+  static String _dropTrailingGroupToken(String head) {
+    if (_countNoiseChunks(head) < 2) return head;
+    final m = RegExp(r'^(.*[\s._])([A-Za-z0-9][A-Za-z0-9._-]{0,15})$')
+        .firstMatch(head.trimRight());
+    if (m == null) return head;
+    final token = m.group(2)!;
+    // A stated file size is not a release group — `3.6GB` would otherwise be
+    // read as the token "6GB" and stripped, leaving a bare "3".
+    if (RegExp(r'^\d+(?:\.\d+)?\s?(?:GB|MB|GiB|MiB|KB|kbps)$',
+            caseSensitive: false)
+        .hasMatch(token)) {
+      return head;
+    }
+    final letters = token.replaceAll(RegExp(r'[^A-Za-z]'), '');
+    if (letters.isEmpty) return head; // "26", "2"
+    if (letters != letters.toUpperCase() && !RegExp(r'\d').hasMatch(token)) {
+      return head; // a normal Capitalised word
+    }
+    if (!_looksLikeReleaseToken(token)) return head;
+    return m.group(1)!.trim();
+  }
+
+  /// Evidence test for cutting at a separator.
+  static bool _isReleaseTail(String head, String tail, {required bool spaced}) {
+    // Count chunks, not whitespace-words. A dotted tail like
+    // `Blood.Prince.2009.2160p...` is a single whitespace-word but many
+    // chunks, and treating it as one word let the release-token heuristic
+    // delete "Blood Prince" from "Harry Potter and the Half-Blood Prince".
+    final tailChunks = _chunks(tail);
+    final tailWordCount = tailChunks.length;
+    if (tailWordCount == 0) return false;
+
+    // A single-chunk tail made only of release metadata is always safe to cut.
+    if (tailWordCount == 1 && _looksLikeReleaseToken(tailChunks.first)) {
+      return true;
+    }
+    // `...x264 USURY-4kHdHub.com` — the group/site compound is two chunks
+    // because the site carries a TLD. Accept it when the first chunk looks
+    // like a handle and the second is a TLD.
+    if (_isSiteTail(tailChunks)) return true;
+
+    final headNoise = _countNoiseChunks(head);
+    if (spaced) {
+      // A tail made purely of ad/promo words (`... - Marathi Movie`) is junk.
+      if (tailWordCount <= 4 && _isAllDescriptorWords(tail)) return true;
+      // `... - Marathi Movie - Actor One` — once the head has already been
+      // reduced to a descriptor phrase, whatever follows is a credit list.
+      if (_headContainsDescriptor(head)) return true;
+      // `Title - SUBTITLE` is a title; only cut a spaced dash when the head is
+      // already full of release metadata AND the tail carries none of it —
+      // that is a site/credit tail (`... AC3 5.1 - MovCr`).
+      if (tailWordCount > 3) return false;
+      if (_countNoiseChunks(tail) > 0) return false;
+      return headNoise >= 2;
+    }
+
+    // Glued dash / dot run: the head's last chunk being noise (`...DV.HEVC-`,
+    // `...Atmos-`, `...5.1-`) is strong evidence of a group tail.
+    if (_lastChunkIsNoise(head)) return true;
+    // `...2160p..HEVC` style where the last chunk is a bare number
+    // (`5.1-Flights`, `H.265-Homerander`) still counts as noise when the rest
+    // of the head is full of release tags.
+    if (_lastChunkIsBareNumber(head) && headNoise >= 1) return true;
+    return false;
+  }
+
+  static const Set<String> _tlds = {
+    'com', 'net', 'org', 'in', 'me', 'to', 'cc', 'xyz', 'info', 'biz', 'tv',
+    'io', 'co', 'uk', 'us', 'ru', 'ir',
+  };
+
+  static bool _isSiteTail(List<String> chunks) {
+    if (chunks.length != 2) return false;
+    if (!_tlds.contains(chunks.last)) return false;
+    return _looksLikeReleaseToken(chunks.first);
+  }
+
+  static bool _headContainsDescriptor(String head) {
+    final words = head
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((w) => w.isNotEmpty);
+    return words.any((w) => _descriptorWords.contains(w) || w == 'marathi');
+  }
+
+  static bool _isAllDescriptorWords(String tail) {
+    final words = tail
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (words.isEmpty || words.length > 4) return false;
+    return words.every((w) =>
+        _descriptorWords.contains(w) || _noise.contains(w) || w == 'marathi');
+  }
+
+  /// Splits a raw name into `.`/`_`/space-delimited chunks and counts how many
+  /// are known release-noise words.
+  static int _countNoiseChunks(String text) {
+    final normalized = text.toLowerCase();
+    var count = 0;
+    for (final chunk in normalized.split(RegExp(r'[\s._-]+'))) {
+      if (chunk.isEmpty) continue;
+      if (_isNoiseWord(chunk)) count++;
+    }
+    return count;
+  }
+
+  static bool _lastChunkIsNoise(String head) {
+    final chunks = head
+        .toLowerCase()
+        .split(RegExp(r'[\s._-]+'))
+        .where((c) => c.isNotEmpty)
+        .toList();
+    if (chunks.isEmpty) return false;
+    return _isNoiseWord(chunks.last);
+  }
+
+  static bool _lastChunkIsBareNumber(String head) {
+    final chunks = head
+        .toLowerCase()
+        .split(RegExp(r'[\s._-]+'))
+        .where((c) => c.isNotEmpty)
+        .toList();
+    if (chunks.isEmpty) return false;
+    final last = chunks.last;
+    return RegExp(r'^\d{1,4}(gb|mb|kbps|kb|mb)?$').hasMatch(last);
+  }
+
+  static bool _isNoiseWord(String chunk) {
+    if (_noise.contains(chunk)) return true;
+    final squashed = chunk.replaceAll('-', '').replaceAll('_', '');
+    return _noise.contains(squashed) || _garbageCaseSensitive.contains(chunk);
+  }
+
+  /// True when a token is clearly a release group, site or uploader handle:
+  /// `SWTYBLZ`, `FRG`, `SiC_3`, `Hon3y`, `VCB-Studio`, `Ohys-Raws`,
+  /// `MovCr`, `3.6GB`, `AtishMKV`.
+  static bool _looksLikeReleaseToken(String token) {
+    final t = token.trim();
+    if (t.isEmpty || t.length > 24) return false;
+    final letters = t.replaceAll(RegExp(r'[^A-Za-z]'), '');
+    if (letters.isEmpty) return true; // pure digits/punctuation
+    if (RegExp(r'\d').hasMatch(t)) return true; // SiC_3, Hon3y, 3.6GB
+    if (letters == letters.toUpperCase() && letters.length <= 8) return true;
+    for (final suffix in const [
+      'studio', 'raws', 'group', 'team', 'release', 'subs', 'fansub',
+      'productions', 'inc', 'llc', 'official', 'hq',
+    ]) {
+      final lower = t.toLowerCase();
+      if (lower == suffix || lower.endsWith('-$suffix') || lower.endsWith('_$suffix')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// True for folder names that name a *collection*, not a film. Used to stop
+  /// the single-video-folder fallback from promoting "Harry Potter Series"
+  /// over the real per-film folder name.
+  static bool _isContainerFolderName(String title) {
+    final lower = ' ${title.toLowerCase()} ';
+    for (final word in const [
+      'series', 'collection', 'trilogy', 'saga', 'pack', 'complete',
+      'movies', 'shows', 'seasons', 'volume', 'vol', 'duology', 'quadrology',
+    ]) {
+      if (RegExp('(?<![a-z0-9])$word(?![a-z0-9])').hasMatch(lower)) return true;
+    }
+    return false;
+  }
+
+  /// How alike two titles must be before the folder name is trusted over the
+  /// file name. Measured as shared tokens / min(token counts):
+  ///   "Swades We the People" vs "Swades"                     -> 1/1  accept
+  ///   "Navra Maza Navsacha" vs "Navra Majha Navsacha"       -> 2/3  accept
+  ///   "Fast Five" vs "Fast Furious Collection"              -> 1/2  reject
+  static bool _titleAffinity(String a, String b) {
+    final at = a
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((w) => w.isNotEmpty)
+        .toSet();
+    final bt = b
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((w) => w.isNotEmpty)
+        .toSet();
+    if (at.isEmpty || bt.isEmpty) return false;
+    if (at.length == 1 && bt.length == 1) return at.first == bt.first;
+    final shared = at.intersection(bt).length;
+    final denom = at.length < bt.length ? at.length : bt.length;
+    return denom > 0 && shared / denom >= 0.6;
   }
 
   static bool _isGenericTitle(String title) {
@@ -1212,6 +1599,26 @@ final yearMatch = _yearPattern.firstMatch(name);
         ' ',
       );
     }
+
+    // Language codes from audio track lists (`HIN-ENG-TAM-TEL`).
+    for (final code in _languageCodes) {
+      cleaned = cleaned.replaceAll(
+        RegExp('(?<![\\w])$code(?![\\w])', caseSensitive: false),
+        ' ',
+      );
+    }
+
+    // Residual joiners left after the audio bracket was dropped
+    // (`Esub ~ FGT` -> "Top Gun Maverick ~"). `~` and `+` never carry title
+    // meaning once the bracketed track list is gone.
+    cleaned = cleaned.replaceAll(RegExp(r'[~+]'), ' ');
+
+    // Stated file size (`3.6GB`, `640 MB`) — release metadata, not a title.
+    cleaned = cleaned.replaceAll(
+      RegExp(r'(?<![A-Za-z0-9])\d{1,4}(?:\.\d{1,2})?\s?(?:GB|MB|GiB|MiB)(?![A-Za-z0-9])',
+          caseSensitive: false),
+      ' ',
+    );
 
     // Nova-style: replace dots and underscores with spaces (AFTER noise removal)
     cleaned = cleaned.replaceAll(RegExp(r'[._]'), ' ');
