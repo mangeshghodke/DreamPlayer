@@ -10,6 +10,7 @@ import 'services/entitlements.dart';
 import 'services/image_cache_service.dart';
 import 'services/language_service.dart';
 import 'services/layout_store.dart';
+import 'services/font_store.dart';
 import 'utils/tv_helper.dart';
 
 Future<void> main() async {
@@ -20,6 +21,7 @@ Future<void> main() async {
   // Persisted accent colour + library layout (issue #34).
   unawaited(AccentStore.load());
   unawaited(LayoutStore.load());
+  unawaited(FontStore.load());
   unawaited(DownloadManager.instance.init());
   unawaited(ImageCacheService.instance.init());
   // StoreKit entitlement + 7-day trial state (iOS-only monetization; Android

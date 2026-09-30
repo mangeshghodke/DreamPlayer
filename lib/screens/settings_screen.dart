@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -34,6 +35,7 @@ import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
 import '../services/accent_store.dart';
 import '../services/layout_store.dart';
+import '../services/font_store.dart';
 import '../widgets/tv_tile.dart';
 import 'licenses_screen.dart';
 import 'credential_dialogs.dart';
@@ -1981,6 +1983,21 @@ class _LayoutSection extends StatelessWidget {
     if (choice != null) await store.setColumns(choice);
   }
 
+  /// Searchable list of the whole Google Fonts catalog (~1900 families).
+  /// Each preview is rendered in its own font, so the choice is visual.
+  Future<void> _pickFont(BuildContext context) async {
+    final all = FontStore.catalog;
+    final choice = await showModalBottomSheet<String?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => _FontPickerSheet(allFamilies: all),
+    );
+    if (choice == null) return;
+    await FontStore.setFamily(choice.isEmpty ? null : choice);
+    AppSettingsBus.instance.notify();
+  }
+
   Future<void> _pickAccent(BuildContext context) async {
     final choice = await showDialog<Accent>(
       context: context,
@@ -2035,6 +2052,22 @@ class _LayoutSection extends StatelessWidget {
                   subtitle: Text(_columnsLabel(store.columns)),
                   onTap: () => _pickColumns(context),
                 ),
+                // Self-contained: the value comes from the store, and the bus
+                // rebuilds both this tile and the app theme when it changes.
+                ValueListenableBuilder(
+                  valueListenable: AppSettingsBus.instance,
+                  builder: (context, _, _) => ListTile(
+                    leading: const Icon(Icons.font_download),
+                    title: const Text('Font'),
+                    subtitle: Text(
+                      FontStore.family ?? 'Platform default',
+                    ),
+                    trailing: FontStore.family == null
+                        ? null
+                        : const Icon(Icons.check, size: 20),
+                    onTap: () => _pickFont(context),
+                  ),
+                ),
                 ListTile(
                   leading: const Icon(Icons.palette_outlined),
                   title: const Text('Accent colour'),
@@ -2055,6 +2088,115 @@ class _LayoutSection extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+/// Searchable Google Fonts picker.
+///
+/// The catalog is large (~1900), so the list is lazy and filtered by a search
+/// field. "Platform default" clears the choice. Each row previews its own
+/// family, which is the whole point of the feature.
+class _FontPickerSheet extends StatefulWidget {
+  const _FontPickerSheet({required this.allFamilies});
+
+  final List<String> allFamilies;
+
+  @override
+  State<_FontPickerSheet> createState() => _FontPickerSheetState();
+}
+
+class _FontPickerSheetState extends State<_FontPickerSheet> {
+  String _query = '';
+
+  /// The family rendered in its own typeface, falling back to the app font if
+  /// the family is unknown or fails to load. Never throws: an unknown family
+  /// would take the whole picker down mid-scroll.
+  TextStyle _previewStyle(String name) {
+    final base = Theme.of(context).textTheme.titleMedium ??
+        const TextStyle(fontSize: 16);
+    try {
+      return GoogleFonts.getFont(
+        name,
+        fontSize: base.fontSize,
+        fontWeight: FontWeight.w500,
+        color: base.color,
+      );
+    } catch (_) {
+      return base;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _query.trim().toLowerCase();
+    final matches = q.isEmpty
+        ? widget.allFamilies
+        : widget.allFamilies.where((f) => f.toLowerCase().contains(q)).toList();
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.85,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              autofocus: true,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search fonts',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.restart_alt),
+            title: const Text('Platform default'),
+            trailing: FontStore.family == null
+                ? const Icon(Icons.check, size: 20)
+                : null,
+            onTap: () => Navigator.of(context).pop(''),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: matches.isEmpty
+                ? const Center(child: Text('No font matches that name'))
+                : ListView.builder(
+                    controller: scrollController,
+                    itemCount: matches.length,
+                    itemBuilder: (context, i) {
+                      final name = matches[i];
+                      // Must go through google_fonts: it registers the real
+                      // family (e.g. "Poppins_regular") and kicks off the
+                      // load. A raw TextStyle(fontFamily: name) asks the
+                      // engine for a family literally called "Poppins",
+                      // which is never registered — so every row silently
+                      // rendered in the default font and the list looked
+                      // uniform. The subtitle stays in the app font so the
+                      // family name is still readable while it downloads.
+                      return ListTile(
+                        title: Text(
+                          name,
+                          style: _previewStyle(name),
+                        ),
+                        subtitle: Text(
+                          name,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        trailing: FontStore.family == name
+                            ? const Icon(Icons.check, size: 20)
+                            : null,
+                        onTap: () => Navigator.of(context).pop(name),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

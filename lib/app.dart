@@ -7,6 +7,7 @@ import 'screens/player_screen.dart';
 import 'screens/settings_screen.dart';
 import 'models/video_item.dart';
 import 'services/accent_store.dart';
+import 'services/font_store.dart';
 import 'services/default_engine_store.dart';
 import 'services/jellyfin_client.dart';
 import 'services/language_service.dart';
@@ -78,6 +79,16 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> {
     }
   }
 
+  /// Base theme with the user's Google Font applied on top.
+  ///
+  /// [FontStore.apply] takes a TextTheme (not a ThemeData) and returns the
+  /// input untouched when the family cannot be loaded, so a font problem can
+  /// never leave the app with unrenderable text.
+  ThemeData _themed() {
+    final base = AppTheme.dark(seed: AccentStore.instance.accent.color);
+    return base.copyWith(textTheme: FontStore.apply(base.textTheme));
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -86,13 +97,15 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> {
       listenable: Listenable.merge([
         LanguageService.instance,
         AccentStore.instance,
+        // A font change has to rebuild the theme, not just the settings page.
+        AppSettingsBus.instance,
       ]),
       builder: (context, _) {
         return MaterialApp(
           key: ValueKey('app-${LanguageService.instance.locale?.languageCode ?? 'system'}'),
           title: 'DreamPlayer',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.dark(seed: AccentStore.instance.accent.color),
+          theme: _themed(),
           locale: LanguageService.instance.locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
