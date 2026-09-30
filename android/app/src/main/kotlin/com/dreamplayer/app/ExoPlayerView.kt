@@ -38,6 +38,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.LoadControl
+import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -460,6 +461,21 @@ class ExoPlayerView(
             .also { p ->
                 p.repeatMode = Player.REPEAT_MODE_OFF
                 p.volume = 1f
+                // Land every seek on the nearest sync sample instead of the exact
+                // requested microsecond (Media3's default is SeekParameters.EXACT).
+                //
+                // EXACT asks the decoder to start mid-GOP and rebuild its reference
+                // picture set from a non-keyframe. Some real-world MKVs can't do
+                // that: the LG Dolby Vision demos carry duplicated Dolby Vision RPU
+                // NAL units inside single access units and declare no video-track
+                // duration, so after an EXACT seek the HEVC decoder lands at the
+                // right position but never emits another frame — the picture freezes
+                // while elapsed time keeps advancing, and the seekbar looks dead.
+                // CLOSEST_SYNC always restarts from a clean I-frame. The cost is at
+                // most one GOP of seek granularity (~4s on those files); every other
+                // file seeks to the same sample it would have anyway whenever the
+                // target is already on or beside a keyframe.
+                p.setSeekParameters(SeekParameters.CLOSEST_SYNC)
                 // Background-playback hygiene: proper audio-focus handling (pause
                 // for phone calls / other apps' audio), pause when headphones are
                 // unplugged, and CPU/Wi-Fi wake locks while playing in background

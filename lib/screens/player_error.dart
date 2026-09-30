@@ -39,6 +39,9 @@ String friendlyPlayerError(ExoPlayerEvent e) {
           : 'This device cannot decode Dolby Vision Profile 5. Play the '
                 'HDR10 or SDR version of the file, or watch it on a Dolby '
                 'Vision-capable device.';
+    case 'UnsupportedDolbyVisionProfile4':
+      return 'Dolby Vision Profile 4 is a broadcast format that iOS does not '
+          'decode. Play the HDR10 version of this video instead.';
     case 'ERROR_CODE_DECODING_FAILED':
       return 'The video decoder failed while playing this file. It may be '
           'corrupt, or the video codec (often 10-bit H.265/HEVC) is not '

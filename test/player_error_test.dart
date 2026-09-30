@@ -157,5 +157,19 @@ void main() {
           isFalse);
       expect(isVideoDecodeError('UnsupportedDolbyVisionProfile5'), isFalse);
     });
-  });
+  
+    test('maps an unsupported Dolby Vision Profile 4 to a clear message', () {
+      // iOS refuses DV P4 (single-layer IPTPQc2, broadcast format) at load.
+      final msg = friendlyPlayerError(ev('UnsupportedDolbyVisionProfile4'));
+      expect(msg, contains('Profile 4'));
+      expect(msg, contains('broadcast'));
+      expect(msg, isNot(contains('Playback failed')));
+    });
+
+    test('maps an unsupported Dolby Vision Profile 5 to a clear message', () {
+      final msg = friendlyPlayerError(ev('UnsupportedDolbyVisionProfile5'));
+      expect(msg.toLowerCase(), contains('profile 5'));
+      expect(msg, isNot(contains('Playback failed')));
+    });
+});
 }

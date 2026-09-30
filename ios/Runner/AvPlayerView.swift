@@ -271,6 +271,17 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private var isDolbyVision = false
     private var dvProfile: Int?
 
+    /// Set when the loaded file is a Dolby Vision profile this platform
+    /// cannot decode, so playback is stopped with a specific reason instead of
+    /// a bare "playback failed".
+    ///
+    /// Profile 4 is single-layer IPTPQc2: unlike P7/P8 it carries **no
+    /// backward-compatible HDR10 base layer**, so there is no plain-HEVC
+    /// fallback to degrade into — and AVFoundation does not decode P4 at all
+    /// (Apple supports P8, and P5 on Apple Silicon). P4 is a broadcast/IPTV
+    /// profile rather than a consumer-delivery one.
+    private var dvUnsupportedProfile: String?
+
     private var lastError: String?
     private var pendingAutoSubtitleIndex: Int?
     private var savedVolume: Float = 1
@@ -745,6 +756,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
              videoHeight = 0
              isDolbyVision = false
              dvProfile = nil
+             dvUnsupportedProfile = nil
              isHdr10PlusContent = false
              isHdr10Content = false
          } else {
@@ -874,6 +886,21 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                      self.isDolbyVision = probe.isDolbyVision || self.isDolbyVision
                      self.dvProfile = probe.dvProfile ?? self.dvProfile
                  }
+                // Dolby Vision Profile 4 cannot be decoded on iOS — reject it
+                // here, while we still know what the file is, so the user gets
+                // "Profile 4 is a broadcast format iOS does not decode" instead
+                // of the engine's opaque "playback failed" some seconds later.
+                if Self.isUnsupportedDVProfile(dvProfile, isDV: isDolbyVision) {
+                    dvUnsupportedProfile = "UnsupportedDolbyVisionProfile4"
+                    engine.pause()
+                    lastError = dvUnsupportedProfile
+                    self.emit()
+                    // `result(nil)` is normally sent at the end of open(); this
+                    // early exit must send it or the Dart `open()` future never
+                    // completes and the player screen hangs.
+                    result(nil)
+                    return
+                }
                 if let pending = self.pendingAutoSubtitleIndex,
                    engine.subtitleTracks.contains(where: { $0.id == pending }) {
                     engine.selectSubtitleTrack(index: pending)
@@ -1273,6 +1300,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         tickTimer = nil
     }
 
+    /// True when the file is a Dolby Vision profile iOS has no decoder for.
+    /// P4 is single-layer IPTPQc2 with no backward-compatible HDR10 base layer,
+    /// so unlike P7/P8 there is nothing to fall back to.
+    private static func isUnsupportedDVProfile(_ profile: Int?, isDV: Bool) -> Bool {
+        guard isDV, let profile else { return false }
+        return profile == 4
+    }
+
     /// Reads the most recent indicated bitrate from AVPlayerItemAccessLog
     /// (the system's smoothed moving average — only populated for http/https
     /// sources; returns 0 for file://). Returns (currentBytesPerSec,
@@ -1282,19 +1317,26 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         let state = engine.state
 
         let st: Int
-        switch state {
-        case .idle: st = 1
-        case .loading, .seeking: st = 2
-        case .playing, .paused: st = 3
-        case .ended: st = 4
-        case .error(let message):
-            if Date() < audioSwitchSuppressUntil {
-                // Hide transient error during audio-switch window.
-                // If the engine recovers, this error is never shown.
-                st = 2
-            } else {
-                st = 1
-                lastError = message
+        // A file we deliberately refused (unsupported DV profile) must surface as
+        // an error regardless of what the engine still thinks its state is.
+        if let forcedError = dvUnsupportedProfile {
+            st = 1
+            lastError = forcedError
+        } else {
+            switch state {
+            case .idle: st = 1
+            case .loading, .seeking: st = 2
+            case .playing, .paused: st = 3
+            case .ended: st = 4
+            case .error(let message):
+                if Date() < audioSwitchSuppressUntil {
+                    // Hide transient error during audio-switch window.
+                    // If the engine recovers, this error is never shown.
+                    st = 2
+                } else {
+                    st = 1
+                    lastError = message
+                }
             }
         }
 

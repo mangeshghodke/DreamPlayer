@@ -25,7 +25,7 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 - Free, no ads, no account required
 - Requires **iOS / iPadOS 17.0** or later
 - Play your own files: local storage, Files-app folders, WebDAV, FTP/SFTP, Jellyfin, DLNA, and Files-app "Open with" hand-offs from SMB/NAS shares
-- Full Dolby Vision / HDR10 / HDR10+ / HLG support on capable iPad and iPhone panels, plus lossless audio (DTS-HD, TrueHD, E-AC3, FLAC)
+- Full Dolby Vision (P7/P8/P9) / HDR10 / HDR10+ / HLG support on capable iPad and iPhone panels, plus lossless audio (DTS-HD, TrueHD, E-AC3, FLAC) — DV Profile 4 is Android-only
 - Android builds remain free on the [Releases](https://github.com/mangeshghodke/DreamPlayer/releases) page
 
 ## 📸 Screenshots
@@ -88,10 +88,11 @@ Each thumbnail is linked — click any image to open it full size.
 ## Highlights
 
 ### Dolby Vision & HDR
-- Plays **Dolby Vision** Profiles **P4 / P5 / P7 / P8 / P9** at 4K 60fps with zero dropped frames — chip shows `DV P8`, `DV P7`, etc.
+- Plays **Dolby Vision** Profiles **P7 / P8 / P9** at 4K 60fps with zero dropped frames — chip shows `DV P8`, `DV P7`, etc.
+- **Profile 4** (single-layer IPTPQc2, a broadcast/IPTV profile) plays on **Android** only. iOS has no P4 decoder and no backward-compatible base layer to fall back to, so it reports a clear "not supported" message instead of failing silently.
 - Full **HDR10 / HDR10+ / HLG** passthrough to the display panel
 - Live on-screen chips showing the active HDR format (profile-aware), video codec, audio codec, and resolution
-- Graceful fallback on non-DV devices (P7/P8 as HDR10, P5 shows clean error)
+- Graceful fallback on non-DV devices (P7/P8 as HDR10, P4/P5 show a clean error)
 
 ### Lossless Audio
 - All major codecs: **DTS, DTS-HD, TrueHD, E-AC3, AC3, AAC, FLAC** and more
