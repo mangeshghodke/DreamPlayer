@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'cached_image.dart';
 import 'package:flutter/services.dart';
 
+import '../utils/display_title.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
@@ -204,14 +205,12 @@ class _FolderCardState extends State<FolderCard> {
     // folder that resolves to the whole show) shows the base series title
     // ("Strike the Blood").  A manual group name (displayNameOverride) wins
     // over everything so the user-entered group name shows on the card.
-    final seasonName = folderSeason != null
-        ? widget.tmdbMeta?.seasons[folderSeason]?.name
-        : null;
-    final title = (widget.displayNameOverride?.isNotEmpty ?? false)
-        ? widget.displayNameOverride!
-        : (seasonName?.isNotEmpty ?? false)
-            ? seasonName!
-            : (hasMeta ? movie.title : (hasJellyfin ? info.name : folder.name));
+    final title = folderDisplayTitle(
+      folder: folder,
+      meta: widget.tmdbMeta,
+      displayNameOverride: widget.displayNameOverride,
+      jellyfinName: hasJellyfin ? info.name : null,
+    );
 
     // TV/Movie badge: TMDB kind, else the Jellyfin type, else none.
     final kindBadge = hasMeta

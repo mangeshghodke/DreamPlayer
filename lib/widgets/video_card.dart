@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../models/hdr_format.dart';
 import '../models/video_item.dart';
+import '../utils/display_title.dart';
 import '../services/thumbnail_store.dart';
 import '../services/tmdb_client.dart';
 import '../utils/codec_info.dart';
@@ -292,9 +293,7 @@ class _VideoCardState extends State<VideoCard> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              (tmdbMeta?.movie.title.isNotEmpty ?? false)
-                                  ? tmdbMeta!.movie.title
-                                  : video.title,
+                              videoDisplayTitle(video, tmdbMeta),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context)
