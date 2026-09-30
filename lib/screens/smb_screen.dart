@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
+import '../services/folder_scanner.dart';
 import '../services/library_folders.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/simkl_client.dart';
@@ -246,6 +247,46 @@ class _SmbScreenState extends State<SmbScreen> {
       networkPath: cleanPath,
       networkLabel: server.name,
     );
+    // Expand the bookmarked folder into one card per show/movie/season, the
+    // same way the WebDAV and local pickers do. A plain add() leaves a single
+    // opaque "Movies" card, which is what made the grid look un-bookmarked.
+    final scanDepth = await FolderScanner.savedScanDepth();
+    final scanner = FolderScanner(maxDepth: scanDepth);
+    final expanded = await scanner.scan(folder);
+    if (expanded.isNotEmpty) {
+      // Drop the parent and any previously-bookmarked children so a re-bookmark
+      // refreshes rather than duplicating.
+      final expandedNames = expanded.map((e) => e.name).toSet();
+      final existing = await LibraryFoldersStore.load();
+      for (final old in existing) {
+        final isChild = old.networkServerId == server.id &&
+            old.networkShare == _share &&
+            old.networkPath != null &&
+            cleanPath.isNotEmpty &&
+            (old.networkPath as String).startsWith(cleanPath);
+        if (old.id == id ||
+            old.parentId == id ||
+            expandedNames.contains(old.name) ||
+            isChild) {
+          await LibraryFoldersStore.remove(old.id);
+        }
+      }
+      await LibraryFoldersStore.bulkAdd(expanded);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Bookmarked $folderName to Home \u2014 ${expanded.length} '
+              'items (SMB \u00b7 ${server.name})',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Scan found nothing listable (empty folder, or the source could not be
+    // walked) — fall back to bookmarking the folder itself.
     await LibraryFoldersStore.add(folder);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
