@@ -778,9 +778,21 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // has no smb scheme. Resolving it means a blocking SMB handshake,
             // so it is built inside the load Task like the FTP/WebDAV paths —
             // doing it here froze the main thread on a spinner.
-            smbUri = uri
+            //
+            // The condition above tests `uri` with optional chaining, so it does
+            // not bind it: unwrap here. A resumed item may also carry no `uri`
+            // at all (path only), in which case the durable resume key is the
+            // only handle — synthesise an smb:// URI from it so the load Task
+            // has something to work from.
+            if let stored = uri {
+                smbUri = stored
+            } else if let parts = smbResume {
+                smbUri = "smb://\(parts.id)/\(parts.share)/\(parts.path)"
+            }
             smbServerId = smbResume?.id
-            localURL = URL(string: uri)
+            if let resolved = smbUri {
+                localURL = URL(string: resolved)
+            }
             source = nil
         } else if let path, !path.isEmpty {
             localURL = URL(fileURLWithPath: path)
