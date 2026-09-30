@@ -431,15 +431,16 @@ final class SMBBridge: NSObject {
     ) {
         connect(server) { client in
             Task {
+                var ok = false
                 do {
                     try await client.connectShare(share)
-                    await MainActor.run { completion(true) }
+                    ok = true
                 } catch {
-                    await MainActor.run { completion(false) }
-                } finally {
-                    _ = try? await client.logoff()
-                    client.session.disconnect()
+                    ok = false
                 }
+                _ = try? await client.logoff()
+                client.session.disconnect()
+                await MainActor.run { completion(ok) }
             }
         } onError: { _ in
             completion(false)
@@ -464,20 +465,20 @@ final class SMBBridge: NSObject {
 
         connect(server) { client in
             Task {
+                var built: [[String: Any]]?
                 do {
                     try await client.connectShare(share)
                     let files = try await client.listDirectory(path: Self.normalized(path))
-                    let built = self.buildEntries(files: files, share: share, path: path)
+                    built = self.buildEntries(files: files, share: share, path: path)
                     self.lock.lock()
-                    self.listingCache[key] = CachedListing(built)
+                    self.listingCache[key] = CachedListing(built!)
                     self.lock.unlock()
-                    await MainActor.run { completion(built) }
                 } catch {
-                    await MainActor.run { completion(nil) }
-                } finally {
-                    _ = try? await client.logoff()
-                    client.session.disconnect()
+                    built = nil
                 }
+                _ = try? await client.logoff()
+                client.session.disconnect()
+                await MainActor.run { completion(built) }
             }
         } onError: { _ in
             completion(nil)
