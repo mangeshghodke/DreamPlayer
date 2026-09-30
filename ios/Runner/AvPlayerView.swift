@@ -745,6 +745,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         smbUri = nil
         smbServerId = nil
         smbConnection = nil
+        let smbResume = Self.smbParts(fromResumeKey: resumeKey)
         if let uri, uri.hasPrefix("dreamplayersmb://"),
            let connection = SMBBridge.shared.connection(for: uri) {
             // Must precede the plain-path branch: Dart sends `path` alongside
@@ -768,7 +769,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 formatHint: smbFormatHint
             )
 
-        } else if let uri, uri.lowercased().hasPrefix("smb://") {
+        } else if smbResume != nil
+                    || uri?.lowercased().hasPrefix("smb://") == true
+                    || uri?.hasPrefix("dreamplayersmb://") == true {
             // A bookmarked folder card or Continue-Watching entry hands the
             // player its stored smb:// URI rather than a token, and the engine
             // has no smb scheme. Resolving it means a blocking SMB handshake,
@@ -909,9 +912,25 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // server id is read here, on the actor, because touching
                     // main-actor state from inside the detached closure is an
                     // isolation violation.
+                    // A live token is the cheap path; otherwise rebuild from
+                    // the resume key, which survives a restart. Falling through
+                    // to the plain-path branch here is what turned a stale
+                    // token into "No such file or directory".
                     let serverId = smbServerId
+                    let parts = smbResume
                     let connection = await Task.detached(priority: .userInitiated) {
-                        SMBBridge.shared.openFromSmbUri(
+                        if let live = SMBBridge.shared.connection(for: pendingSmbUri) {
+                            return live
+                        }
+                        if let parts {
+                            SBMLog.log(
+                                "open: token is stale, re-opening from resumeKey "
+                                + "server=\(parts.id) share=\(parts.share)")
+                            return SMBBridge.shared.openSmb(
+                                serverId: parts.id, share: parts.share, path: parts.path
+                            )
+                        }
+                        return SMBBridge.shared.openFromSmbUri(
                             pendingSmbUri, serverId: serverId
                         )
                     }.value
@@ -2036,12 +2055,18 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
     // MARK: - SMB helpers
 
-    /// Server id from a resume key of the form `smb:<serverId>/<share>/<path>`.
-    private static func serverIdFromResumeKey(_ key: String?) -> String? {
+    /// `smb:<serverId>/<share>/<path>` split into its parts.
+    ///
+    /// This is the durable handle on an SMB file. A `dreamplayersmb://` token
+    /// is NOT: it is minted per playback session, so a resumed or
+    /// Continue-Watching item carries a token whose connection died with the
+    /// previous run. Resuming therefore has to go through the resume key.
+    private static func smbParts(fromResumeKey key: String?) -> (id: String, share: String, path: String)? {
         guard let key, key.hasPrefix("smb:") else { return nil }
         let rest = String(key.dropFirst(4))
-        let id = String(rest.prefix { $0 != "/" })
-        return id.isEmpty ? nil : id
+        let segments = rest.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard segments.count >= 2, !segments[0].isEmpty, !segments[1].isEmpty else { return nil }
+        return (segments[0], segments[1], segments.dropFirst(2).joined(separator: "/"))
     }
 
 

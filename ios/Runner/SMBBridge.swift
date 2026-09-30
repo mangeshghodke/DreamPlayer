@@ -983,6 +983,24 @@ final class SMBBridge: NSObject {
         var failure: String?
     }
 
+    /// Opens an SMB file from its parts. This is the path a resume takes: the
+    /// stored `dreamplayersmb://` token belongs to a previous session and its
+    /// connection is long gone, but `smb:<serverId>/<share>/<path>` is durable.
+    func openSmb(serverId: String, share: String, path: String) -> SMBConnection? {
+        let started = Date()
+        loadServersIfNeeded()
+        lock.lock()
+        let all = Array(servers.values)
+        lock.unlock()
+        guard let server = all.first(where: { $0.id == serverId }) else {
+            SBMLog.log("openSmb: no saved server with id \(serverId)")
+            return nil
+        }
+        return open(
+            server: server, share: share, path: path, started: started, tag: "resume"
+        )
+    }
+
     /// Opens an SMB file straight from an `smb://host/share/path` URI.
     ///
     /// Not every entry point mints a token first: a bookmarked folder card or a
@@ -1019,8 +1037,19 @@ final class SMBBridge: NSObject {
             SBMLog.log("openFromSmbUri: no saved server for \(host) (id=\(serverId ?? "nil"))")
             return nil
         }
-        SBMLog.log("openFromSmbUri \(uri) -> server \(server.name) [\(SBMLog.since(started))]")
+        return open(server: server, share: share, path: path, started: started, tag: "uri")
+    }
 
+    /// Shared connect: login + tree connect + stat on a background thread, then
+    /// publish the connection under [tag] so it can be found again.
+    private func open(
+        server: ServerMeta,
+        share: String,
+        path: String,
+        started: Date,
+        tag: String
+    ) -> SMBConnection? {
+        SBMLog.log("open(\(tag)): \(server.name) \(share)/\(path) [\(SBMLog.since(started))]")
         let password = getPassword(server.id)
         let out = ConnectionBox()
         let done = DispatchSemaphore(value: 0)
@@ -1046,17 +1075,17 @@ final class SMBBridge: NSObject {
         }
         done.wait()
         if let failure = out.failure {
-            SBMLog.log("openFromSmbUri FAILED: \(failure)")
+            SBMLog.log("open(\(tag)) FAILED: \(failure)")
             return nil
         }
         if let result = out.connection {
             let ext = (path as NSString).pathExtension
-            let token = "\(server.id)-uridirect"
+            let token = "\(server.id)-\(tag)"
             lock.lock()
             playback[token]?.close()
             playback[token] = result
             lock.unlock()
-            SBMLog.log("openFromSmbUri ok -> \(result.byteSize) bytes, token \(token).\(ext)")
+            SBMLog.log("open(\(tag)) ok -> \(result.byteSize) bytes, token \(token).\(ext)")
         }
         return out.connection
     }
