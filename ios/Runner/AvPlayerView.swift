@@ -315,6 +315,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// FRESH reader on the same socket: SMBConnection serves independent range
     /// reads, so this needs no reconnect.
     private var smbConnection: SMBConnection?
+    /// emit() runs several times a second, so state/error logging has to
+    /// remember the last line or one event fills the log with copies.
+    private var lastLoggedState: String = ""
+    private var lastLoggedError: String = ""
     /// Extension carried by the token URL, handed to the engine as a probe hint.
     private var smbFormatHint: String?
     /// Read-ahead chunk for SMB playback.
@@ -537,8 +541,23 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // currentTime afterwards always yields 0 and the reload
                     // below faithfully restarts the file from the beginning.
                     let resumeAt = self.engine?.currentTime ?? .zero
-                    SBMLog.log("selectAudioTrack: in-place attempt at \(resumeAt)s")
-                    self.engine?.selectAudioTrack(index: trackId)
+                    // SMB skips the in-place attempt entirely. The engine
+                    // cannot switch tracks on a custom ByteRangeSource: it
+                    // re-probes the container against the reader that is
+                    // already streaming, which cannot rewind. That internal
+                    // reload fails ("Demuxer: open failed (Operation not
+                    // permitted (-1))") and latches .error before our own
+                    // recovery reload ever runs. For HTTP/FTP the attempt is
+                    // harmless, so it is left in place for them.
+                    let skipInPlace = self.isSMBStream
+                    if skipInPlace {
+                        SBMLog.log(
+                            "selectAudioTrack: SMB — skipping the in-place "
+                            + "attempt, reloading directly at \(resumeAt)s")
+                    } else {
+                        SBMLog.log("selectAudioTrack: in-place attempt at \(resumeAt)s")
+                        self.engine?.selectAudioTrack(index: trackId)
+                    }
                     // Network / custom-IO sources (WebDAV, FTP/SFTP, Jellyfin
                     // direct-play over HTTP) cannot switch the audio track in
                     // place: the engine must re-probe the container, but its
@@ -566,6 +585,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             // .ready so selectAudioTrack is honored.
                             await self.waitForEngineReady(timeout: 3.0)
                             let trackId2 = self.engineAudioId(forFlatPosition: index)
+                            if skipInPlace {
+                                // First selection of this track: there was no
+                                // in-place attempt, so this one is applied on
+                                // the freshly loaded source.
+                                SBMLog.log("selectAudioTrack: applying on the reloaded source")
+                            }
                             self.engine?.selectAudioTrack(index: trackId2)
                             // Re-applying the selection makes the engine
                             // re-probe the container, which drops the playhead
@@ -1497,7 +1522,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             case .idle: st = 1
             case .loading, .seeking:
                 st = 2
-                SBMLog.log("engine state -> \(state) at \(engine.currentTime)s")
+                // De-duplicated: emit() fires many times a second and an
+                // unfiltered log was ~90% duplicate lines.
+                let line = "engine state -> \(state)"
+                if line != lastLoggedState {
+                    lastLoggedState = line
+                    SBMLog.log("\(line) at \(engine.currentTime)s")
+                }
             case .playing, .paused: st = 3
             case .ended: st = 4
             case .error(let message):
@@ -1505,14 +1536,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // Hide transient error during audio-switch window.
                     // If the engine recovers, this error is never shown.
                     st = 2
-                    SBMLog.log("engine error (SUPPRESSED during audio switch): \(message)")
+                    self.logErrorOnce("suppressed during switch: \(message)")
                 } else {
                     st = 1
                     lastError = message
                     // Always logged, even when suppressed: a transient error
                     // that recovers is exactly what hid the audio-switch
                     // failure until now.
-                    SBMLog.log("engine error at \(engine.currentTime)s (smb=\(isSMBStream)): \(message)")
+                    self.logErrorOnce("smb=\(isSMBStream): \(message)")
                 }
             }
         }
@@ -2073,6 +2104,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     }
 
     // MARK: - SMB helpers
+
+    /// Logs an engine error once per distinct message. The error state sticks,
+    /// so emit() repeats it ~10x a second and an unfiltered log filled up with
+    /// identical lines within seconds.
+    private func logErrorOnce(_ message: String) {
+        if message == lastLoggedError { return }
+        lastLoggedError = message
+        SBMLog.log("engine error: \(message)")
+    }
 
     /// `smb:<serverId>/<share>/<path>` split into its parts.
     ///

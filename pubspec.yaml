@@ -27,7 +27,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # published v0.5.0 shipped 37, or the APK is refused as a downgrade), so it is
 # pinned separately in android/app/build.gradle.kts and must be bumped by hand.
 # The two are deliberately decoupled — see the note in that file.
-version: 0.5.1+8
+version: 0.5.1+9
 
 environment:
   sdk: ^3.12.2

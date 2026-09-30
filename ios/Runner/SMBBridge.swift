@@ -515,7 +515,9 @@ final class SMBBridge: NSObject {
             await MainActor.run {
                 let sorted = box.snapshot().sorted { $0.host < $1.host }
                 SBMLog.log(
-                    "discover: \(sorted.count) host(s) in \(SBMLog.since(started)) -> "
+                    "discover: \(sorted.count) host(s) in \(SBMLog.since(started))"
+                    + (sorted.isEmpty ? " lastFailure=\(Self.lastProbeFailure)" : "")
+                    + " -> "
                     + sorted.map { "\($0.host)\(($0.hostname == $0.host ? "" : " (\($0.hostname))"))" }.joined(separator: ", "))
                 completion(sorted)
             }
@@ -548,32 +550,65 @@ final class SMBBridge: NSObject {
     }
 
     /// Non-blocking TCP connect to port 445 with a poll() timeout.
+    /// Why a probe failed, for a host the user believes is on the LAN. The
+    /// first sweep returned 0 hosts in 2 ms, which is impossible for a real
+    /// network scan, so the failure has to be before any packets move.
+    private static var lastProbeFailure: String = ""
+
     private static func port445Open(host: String, timeoutMs: Int32) -> Bool {
         var hints = addrinfo()
         hints.ai_family = AF_INET
         hints.ai_socktype = SOCK_STREAM
         hints.ai_flags = AI_NUMERICHOST
         var res: UnsafeMutablePointer<addrinfo>?
-        guard getaddrinfo(host, "445", &hints, &res) == 0, let ai = res else { return false }
+        let gai = getaddrinfo(host, "445", &hints, &res)
+        guard gai == 0, let ai = res else {
+            lastProbeFailure = "getaddrinfo(\(host))=\(gai)"
+            return false
+        }
         defer { freeaddrinfo(res) }
         let fd = socket(ai.pointee.ai_family, ai.pointee.ai_socktype, ai.pointee.ai_protocol)
-        guard fd >= 0 else { return false }
+        guard fd >= 0 else {
+            lastProbeFailure = "socket(\(host))=\(errno)"
+            return false
+        }
         defer { close(fd) }
         let flags = fcntl(fd, F_GETFL, 0)
-        guard flags >= 0, fcntl(fd, F_SETFL, flags | O_NONBLOCK) >= 0 else { return false }
+        guard flags >= 0 else {
+            lastProbeFailure = "F_GETFL(\(host))=\(errno)"
+            return false
+        }
+        guard fcntl(fd, F_SETFL, flags | O_NONBLOCK) >= 0 else {
+            lastProbeFailure = "F_SETFL(\(host))=\(errno)"
+            return false
+        }
         let rc = withUnsafePointer(to: ai.pointee.ai_addr) { ptr -> Int32 in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 Darwin.connect(fd, $0, socklen_t(ai.pointee.ai_addrlen))
             }
         }
         if rc == 0 { return true }
-        guard errno == EINPROGRESS else { return false }
+        guard errno == EINPROGRESS else {
+            lastProbeFailure = "connect(\(host)) errno=\(errno)"
+            return false
+        }
         var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
-        guard poll(&pfd, 1, timeoutMs) > 0 else { return false }
+        let pr = poll(&pfd, 1, timeoutMs)
+        guard pr > 0 else {
+            lastProbeFailure = "poll(\(host)) timeout after \(timeoutMs)ms"
+            return false
+        }
         var err: Int32 = 0
         var len = socklen_t(MemoryLayout<Int32>.size)
-        guard getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len) == 0 else { return false }
-        return err == 0
+        guard getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len) == 0 else {
+            lastProbeFailure = "getsockopt(\(host))=\(errno)"
+            return false
+        }
+        if err != 0 {
+            lastProbeFailure = "so_error(\(host))=\(err)"
+            return false
+        }
+        return true
     }
 
     /// Reverse DNS, falling back to the address itself when the LAN has no
