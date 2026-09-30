@@ -1920,6 +1920,7 @@ class _LayoutSection extends StatelessWidget {
   static String _modeLabel(LibraryViewMode m) => switch (m) {
         LibraryViewMode.poster => 'Poster',
         LibraryViewMode.compact => 'Compact',
+        LibraryViewMode.list => 'List',
       };
 
   static String _columnsLabel(int columns) =>
@@ -1940,6 +1941,8 @@ class _LayoutSection extends StatelessWidget {
                   'Full poster cards with title and subtitle',
                 LibraryViewMode.compact =>
                   'Smaller artwork and a shorter text block — fit more titles',
+                LibraryViewMode.list =>
+                  'One wide row per title with artwork on the left',
               }),
               trailing: m == store.mode
                   ? const Icon(Icons.check, size: 20)

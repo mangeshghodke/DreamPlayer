@@ -30,6 +30,8 @@ import '../services/the_tvdb_client.dart';
 import 'trial_intro_screen.dart';
 import '../services/upnp_client.dart';
 import '../services/webdav_client.dart';
+import '../utils/display_title.dart';
+import '../widgets/library_list_row.dart';
 import '../widgets/folder_card.dart';
 import '../widgets/group_poster_dialog.dart';
 import '../widgets/tv_text_field.dart';
@@ -132,11 +134,19 @@ class _HomeScreenState extends State<HomeScreen>
     if (mounted) setState(() {});
   }
 
+  /// Re-reads the opt-in pref. Called from initState *and* from [_loadLibrary]
+  /// so flipping the switch in Settings takes effect as soon as the user
+  /// returns to the Library tab, without needing an app restart.
   Future<void> _loadOtherVideosPref() async {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool('dreamplayer.otherVideos') ?? false;
     if (!mounted) return;
-    setState(() => _otherVideosEnabled = enabled);
+    if (enabled == _otherVideosEnabled) return;
+    setState(() {
+      _otherVideosEnabled = enabled;
+      // Turning it off should drop the stale index immediately.
+      if (!enabled) _scannedVideos = const [];
+    });
     if (enabled) await _scanOtherVideos();
   }
 
@@ -190,6 +200,18 @@ class _HomeScreenState extends State<HomeScreen>
           key: ValueKey('other_${v.id}'),
           video: v.toVideoItem(),
           subtitle: v.resolutionLabel.isEmpty ? null : v.resolutionLabel,
+          onTap: () => unawaited(_openTmdDetails(v)),
+        );
+      },
+      rowBuilder: (context, index) {
+        final v = videos[index];
+        final item = v.toVideoItem();
+        final meta = _metaForContinueVideo(item);
+        return LibraryListRow(
+          key: ValueKey('other_row_${v.id}'),
+          title: videoDisplayTitle(item, meta),
+          subtitle: v.resolutionLabel.isEmpty ? null : v.resolutionLabel,
+          leading: VideoRowArt(video: item, tmdbMeta: meta),
           onTap: () => unawaited(_openTmdDetails(v)),
         );
       },
@@ -263,6 +285,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadLibrary() async {
+    // The opt-in can be flipped from Settings while Home is already mounted.
+    unawaited(_loadOtherVideosPref());
     final entries = await ContinueWatchingStore.load();
     _loadLibraryFolders();
     if (mounted) {
@@ -824,6 +848,16 @@ class _HomeScreenState extends State<HomeScreen>
           .listDirectory(picked.path)
           .timeout(const Duration(seconds: 15));
     } catch (_) {}
+
+    // An unreadable folder used to look like an empty one, so the add
+    // appeared to do nothing. Say what went wrong instead.
+    final listError = FileBrowserService.instance.lastListErrorText;
+    if (listError != null && children.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(listError), duration: const Duration(seconds: 6)),
+      );
+    }
 
     // Check auto-expand pref.
     final prefs = await SharedPreferences.getInstance();
@@ -1598,6 +1632,23 @@ class _HomeScreenState extends State<HomeScreen>
                     onLongPress: () => _onGroupLongPress(group),
                   );
                 },
+                rowBuilder: (context, index) {
+                  final group = _seriesGroups[index];
+                  return LibraryListRow(
+                    key: ValueKey('folder_row_${group.metadataKey}'),
+                    title: folderDisplayTitle(
+                      folder: group.primary,
+                      meta: _metaForGroupDisplay(group),
+                      displayNameOverride: _manualForGroup(group)?.name,
+                    ),
+                    subtitle: group.folders.length > 1
+                        ? '${group.folders.length} folders'
+                        : group.primary.name,
+                    leading: FolderRowArt(meta: _metaForGroupDisplay(group)),
+                    onTap: () => _onGroupTap(group),
+                    onLongPress: () => _onGroupLongPress(group),
+                  );
+                },
               ),
             ],
             // ---- Downloaded videos ----
@@ -1935,22 +1986,38 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildDownloadedGrid(ThemeData theme) {
     final jobs = _downloadedJobs;
-    return _videoGridSliver(
-      count: jobs.length,
-      itemBuilder: (context, index) {
-        final job = jobs[index];
-        final video = VideoItem(
+    // Shared by the card and the list row so both resolve the same item.
+    VideoItem videoFor(DownloadJob job) => VideoItem(
           id: job.id,
           title: job.title,
           path: job.destPath,
           duration: Duration.zero,
           sizeBytes: job.totalBytes > 0 ? job.totalBytes : null,
         );
+    return _videoGridSliver(
+      count: jobs.length,
+      itemBuilder: (context, index) {
+        final job = jobs[index];
+        final video = videoFor(job);
         return VideoCard(
           key: ValueKey('dl_${job.id}'),
           video: video,
           subtitle: job.fileSizeLabel,
           downloaded: true,
+          onTap: () => _playDownloaded(job),
+          onLongPress: () => _confirmDeleteDownload(job),
+        );
+      },
+      rowBuilder: (context, index) {
+        final job = jobs[index];
+        final item = videoFor(job);
+        final meta = _metaForContinueVideo(item);
+        return LibraryListRow(
+          key: ValueKey('dl_row_${job.id}'),
+          title: videoDisplayTitle(item, meta),
+          subtitle: job.fileSizeLabel,
+          leading: VideoRowArt(video: item, tmdbMeta: meta),
+          trailing: const Icon(Icons.download_done, size: 18),
           onTap: () => _playDownloaded(job),
           onLongPress: () => _confirmDeleteDownload(job),
         );
@@ -1984,6 +2051,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _videoGridSliver({
     required int count,
     required Widget Function(BuildContext, int) itemBuilder,
+    Widget Function(BuildContext, int)? rowBuilder,
   }) {
     return SliverPadding(
       padding: const EdgeInsets.all(16),
@@ -1996,6 +2064,22 @@ class _HomeScreenState extends State<HomeScreen>
           final itemWidth = (width - spacing * (columns - 1)) / columns;
           final itemHeight =
               itemWidth * 9 / 16 + layout.textBlockHeight(_textBlockHeight);
+          // List view: one wide row per title. Requires a rowBuilder — the
+          // card builder alone cannot be reshaped into a row.
+          if (layout.isList) {
+            final rows = rowBuilder;
+            if (rows != null) {
+              return SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    rows,
+                    childCount: count,
+                  ),
+                ),
+              );
+            }
+          }
           return SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
@@ -2063,6 +2147,28 @@ class _HomeScreenState extends State<HomeScreen>
         onLongPress: () => _removeVideo(entry),
       );
       },
+      rowBuilder: (context, index) {
+        final group = grouped[index];
+        final entry = group.isSeries ? group.mostRecent : group.entries.first;
+        final video = entry.video;
+        final parsed = ParsedFileName.parse(video.title);
+        final continueLabel =
+            'Continue from ${_positionLabel(entry.position)}';
+        final meta = _metaForContinueVideo(video);
+        return LibraryListRow(
+          key: ValueKey('cw_row_${video.resumeKey ?? video.uri ?? video.title}'),
+          // Same resolution the poster card uses, so the two never disagree.
+          title: videoDisplayTitle(video, meta),
+          subtitle: group.isSeries
+              ? '${parsed.episodeLabel} · $continueLabel'
+              : (parsed.isEpisode
+                  ? '${parsed.episodeLabel} · $continueLabel'
+                  : continueLabel),
+          leading: VideoRowArt(video: video, tmdbMeta: meta),
+          onTap: () => _openVideo(entry),
+          onLongPress: () => _removeVideo(entry),
+        );
+      },
     );
   }
 
@@ -2070,6 +2176,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _folderGridSliver({
     required int count,
     required Widget Function(BuildContext, int) itemBuilder,
+    Widget Function(BuildContext, int)? rowBuilder,
   }) {
     return SliverPadding(
       padding: const EdgeInsets.all(16),
@@ -2082,6 +2189,20 @@ class _HomeScreenState extends State<HomeScreen>
           final itemWidth = (width - spacing * (columns - 1)) / columns;
           final itemHeight =
               itemWidth * 3 / 2 + layout.textBlockHeight(_textBlockHeight);
+          if (layout.isList) {
+            final rows = rowBuilder;
+            if (rows != null) {
+              return SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    rows,
+                    childCount: count,
+                  ),
+                ),
+              );
+            }
+          }
           return SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
