@@ -311,6 +311,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// A raw smb:// URI awaiting resolution inside the load Task.
     private var smbUri: String?
     private var smbServerId: String?
+    /// The live SMB connection backing playback. Held so a reload can build a
+    /// FRESH reader on the same socket: SMBConnection serves independent range
+    /// reads, so this needs no reconnect.
+    private var smbConnection: SMBConnection?
     /// Extension carried by the token URL, handed to the engine as a probe hint.
     private var smbFormatHint: String?
     /// Read-ahead chunk for SMB playback.
@@ -521,6 +525,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // can transiently error during screen recording or a brief
                     // codec re-init, but AVPlayer recovers on its own.
                     self.audioSwitchSuppressUntil = Date().addingTimeInterval(2.0)
+                    SBMLog.log(
+                        "selectAudioTrack: flat=\(index) -> id=\(trackId) "
+                        + "smb=\(self.isSMBStream) resumeAt=\(resumeAt)s "
+                        + "tracks=\(self.engine?.audioTracks.count ?? 0)")
                     // Capture the position BEFORE attempting the in-place
                     // switch. On a network source that attempt is what resets
                     // the playhead (the engine must re-probe the container and
@@ -528,6 +536,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // currentTime afterwards always yields 0 and the reload
                     // below faithfully restarts the file from the beginning.
                     let resumeAt = self.engine?.currentTime ?? .zero
+                    SBMLog.log("selectAudioTrack: in-place attempt at \(resumeAt)s")
                     self.engine?.selectAudioTrack(index: trackId)
                     // Network / custom-IO sources (WebDAV, FTP/SFTP, Jellyfin
                     // direct-play over HTTP) cannot switch the audio track in
@@ -561,6 +570,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             // re-probe the container, which drops the playhead
                             // a second time — put it back where it was.
                             await self.reassertPosition(resumeAt, attempts: 3)
+                            SBMLog.log("selectAudioTrack: reloaded + re-asserted")
                             self.emit()
                         }
                     }
@@ -734,6 +744,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         smbFormatHint = nil
         smbUri = nil
         smbServerId = nil
+        smbConnection = nil
         if let uri, uri.hasPrefix("dreamplayersmb://"),
            let connection = SMBBridge.shared.connection(for: uri) {
             // Must precede the plain-path branch: Dart sends `path` alongside
@@ -745,6 +756,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // reason iOS SMB felt slow). SMBIOReader also unblocks its own
             // parked read on cancel, so teardown can't stall.
             smbToken = uri
+            smbConnection = connection
             isSMBStream = true
             // Hold the socket: the browsing screen calls closeShare when it is
             // disposed, and that must not stop playback.
@@ -904,6 +916,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         )
                     }.value
                     if let connection {
+                        self.smbConnection = connection
                         self.isSMBStream = true
                         let ext = (pendingSmbUri as NSString).pathExtension
                         self.smbFormatHint = ext.isEmpty
@@ -1120,9 +1133,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         defer { reloadInFlight = false }
         guard let engine else { return }
         let activeSub = engine.activeSubtitleTrackIndex
+        SBMLog.log("reloadSession: start at \(position)s (smb=\(isSMBStream))")
         do {
             let freshSource = try await buildFreshSource()
-            guard let freshSource else { return }
+            guard let freshSource else {
+                SBMLog.log("reloadSession: buildFreshSource returned nil — aborting")
+                return
+            }
             lastSource = freshSource
              let probe = try await engine.load(source: freshSource, startPosition: position, options: lastLoadOptions)
              if let probe {
@@ -1142,8 +1159,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // `load(startPosition:)` is not honoured for network sources, so a
             // reload from a saved position still comes up at 0. Re-assert it.
             await reassertPosition(position)
+            SBMLog.log("reloadSession: done at \(position)s")
         } catch let error as CancellationError {
             // Superseded by a newer load elsewhere — not a playback failure.
+            SBMLog.log("reloadSession: cancelled (superseded)")
         } catch {
             lastError = String(describing: error)
         }
@@ -1219,6 +1238,21 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// WebDAV: new HTTP session → new BufferedSMBReader.
     /// Local file: reuses the file URL (always re-openable).
     private func buildFreshSource() async throws -> MediaSource? {
+        if let connection = smbConnection {
+            // The old reader is one-shot: after playback the ring is drained
+            // and its cursor is at the end, so reloading with it made the
+            // engine's probe read nothing ("custom source probe failed").
+            // SMBConnection serves independent range reads, so a new reader
+            // over the SAME socket starts with a fresh ring and its own
+            // prefetcher — no reconnect, no re-auth.
+            SBMLog.log(
+                "buildFreshSource: SMB — new reader on the live connection "
+                + "(\(connection.byteSize) bytes, hint=\(smbFormatHint ?? "none"))")
+            return .custom(
+                BufferedSMBReader(source: connection, chunkSize: Self.smbChunkSize),
+                formatHint: smbFormatHint
+            )
+        }
         if let ftpUri = lastFtpUri {
             let buffered = try await Task.detached(priority: .userInitiated) {
                 try await FtpClient.makeByteRangeSource(uriText: ftpUri)
@@ -1243,6 +1277,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 formatHint: ext.isEmpty ? nil : ext
             )
         }
+        SBMLog.log("buildFreshSource: reusing lastSource (local file)")
         return lastSource  // local file: always re-openable
     }
 
@@ -1422,7 +1457,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         } else {
             switch state {
             case .idle: st = 1
-            case .loading, .seeking: st = 2
+            case .loading, .seeking:
+                st = 2
+                SBMLog.log("engine state -> \(state) at \(engine.currentTime)s")
             case .playing, .paused: st = 3
             case .ended: st = 4
             case .error(let message):
@@ -1430,9 +1467,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // Hide transient error during audio-switch window.
                     // If the engine recovers, this error is never shown.
                     st = 2
+                    SBMLog.log("engine error (SUPPRESSED during audio switch): \(message)")
                 } else {
                     st = 1
                     lastError = message
+                    // Always logged, even when suppressed: a transient error
+                    // that recovers is exactly what hid the audio-switch
+                    // failure until now.
+                    SBMLog.log("engine error at \(engine.currentTime)s (smb=\(isSMBStream)): \(message)")
                 }
             }
         }
