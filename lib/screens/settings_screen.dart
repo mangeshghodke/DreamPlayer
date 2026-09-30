@@ -30,6 +30,7 @@ import '../services/the_tvdb_client.dart';
 import '../services/watched_store.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
+import '../services/accent_store.dart';
 import '../services/layout_store.dart';
 import '../widgets/tv_tile.dart';
 import 'licenses_screen.dart';
@@ -1952,15 +1953,44 @@ class _LayoutSection extends StatelessWidget {
     if (choice != null) await store.setColumns(choice);
   }
 
+  Future<void> _pickAccent(BuildContext context) async {
+    final choice = await showDialog<Accent>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Accent colour'),
+        children: [
+          for (final a in AccentStore.accents)
+            ListTile(
+              title: Text(a.label),
+              trailing: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: a.color,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white24),
+                ),
+              ),
+              onTap: () => Navigator.of(ctx).pop(a),
+            ),
+        ],
+      ),
+    );
+    if (choice != null) await AccentStore.instance.setAccent(choice);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ExpansionTile(
-      leading: const Icon(Icons.grid_view),
-      title: const Text('Layout'),
+      leading: const Icon(Icons.palette_outlined),
+      title: const Text('Appearance'),
       childrenPadding: const EdgeInsets.only(bottom: 8),
       children: [
         ListenableBuilder(
-          listenable: LayoutStore.instance,
+          listenable: Listenable.merge([
+            LayoutStore.instance,
+            AccentStore.instance,
+          ]),
           builder: (context, _) {
             final store = LayoutStore.instance;
             return Column(
@@ -1976,6 +2006,21 @@ class _LayoutSection extends StatelessWidget {
                   title: const Text('Items per row'),
                   subtitle: Text(_columnsLabel(store.columns)),
                   onTap: () => _pickColumns(context),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.palette_outlined),
+                  title: const Text('Accent colour'),
+                  subtitle: const Text('Applies to buttons, highlights and the player UI'),
+                  trailing: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: AccentStore.instance.accent.color,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white24),
+                    ),
+                  ),
+                  onTap: () => _pickAccent(context),
                 ),
               ],
             );

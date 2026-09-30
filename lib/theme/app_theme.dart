@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const Color _seed = Color(0xFF7C4DFF);
+  /// The original violet, kept as the default when no accent is chosen.
+  static const Color defaultSeed = Color(0xFF7C4DFF);
 
-  static ThemeData dark() {
+  static ThemeData dark({Color seed = defaultSeed}) {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: _seed,
+      seedColor: seed,
       brightness: Brightness.dark,
     );
 

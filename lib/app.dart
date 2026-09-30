@@ -6,6 +6,7 @@ import 'screens/home_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/settings_screen.dart';
 import 'models/video_item.dart';
+import 'services/accent_store.dart';
 import 'services/default_engine_store.dart';
 import 'services/jellyfin_client.dart';
 import 'services/language_service.dart';
@@ -80,13 +81,18 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: LanguageService.instance,
+      // Rebuilds the whole app on a locale *or* accent change, so the
+      // ColorScheme follows the stored seed.
+      listenable: Listenable.merge([
+        LanguageService.instance,
+        AccentStore.instance,
+      ]),
       builder: (context, _) {
         return MaterialApp(
           key: ValueKey('app-${LanguageService.instance.locale?.languageCode ?? 'system'}'),
           title: 'DreamPlayer',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.dark(),
+          theme: AppTheme.dark(seed: AccentStore.instance.accent.color),
           locale: LanguageService.instance.locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
