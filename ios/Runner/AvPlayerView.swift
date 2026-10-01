@@ -602,9 +602,44 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     if isNetworkSource {
                         Task { @MainActor [weak self] in
                             guard let self, self.engine != nil else { return }
+                            // Hold playback across a SESSION-START reload.
+                            //
+                            // The load carries autoplay: true, so the engine starts
+                            // the moment it is ready — while the track restore
+                            // below is still working. The viewer therefore heard
+                            // the container's default track for the second or so
+                            // the restore takes, then it jumped to the saved one.
+                            // Only session start is held: a mid-playback switch
+                            // reloads at the current position, so there is no gap
+                            // to hide and pausing there would be a visible stutter.
+                            let heldForRestore = atSessionStart
+                                && self.engine?.state == .playing
+                            if heldForRestore {
+                                SBMLog.log(
+                                    "selectAudioTrack: holding playback across the "
+                                    + "session-start restore")
+                                self.engine?.pause()
+                            }
+                            defer {
+                                if heldForRestore {
+                                    self.engine?.play()
+                                    SBMLog.log(
+                                        "selectAudioTrack: released after the "
+                                        + "session-start restore")
+                                }
+                            }
                             // Let the engine settle its in-place attempt first.
                             try? await Task.sleep(nanoseconds: 300_000_000)
                             await self.reloadSession(at: resumeAt)
+                            // The reloaded session carries autoplay too, so it can
+                            // start producing the container's default track before
+                            // the selection below lands. Re-hold, then release once
+                            // the track is applied. LoadOptions belongs to the engine
+                            // package, so it is left untouched and the hold is done
+                            // with pause/play instead.
+                            if heldForRestore, self.engine?.state == .playing {
+                                self.engine?.pause()
+                            }
                             // Wait for the freshly loaded engine to reach
                             // .ready so selectAudioTrack is honored.
                             await self.waitForEngineReady(timeout: 3.0)
