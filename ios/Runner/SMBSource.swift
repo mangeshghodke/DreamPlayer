@@ -58,10 +58,11 @@ final class SMBPlayback: @unchecked Sendable {
 
 /// `ByteRangeSource` over one open SMB file handle.
 ///
-/// The engine only needs `read(at:length:)`, so that is all this provides — the
-/// same shape libDSM exposed (`smb_fseek` + `smb_fread`), and the reason the 414
-/// line ring buffer with its window, frontier merge and parallel prefetch tasks
-/// could go.
+/// The engine only needs `read(at:length:)`, so that is all this provides. That
+/// is also why the 414-line BufferedSMBReader ring buffer — with its window,
+/// out-of-order frontier merge and parallel prefetch tasks — could go: reads are
+/// independent ranged requests at explicit offsets, so there is no shared cursor
+/// for a buffer to own.
 ///
 /// **No lock here, deliberately.** The first cut guarded `read` with
 /// `Semaphore(value: 1)` released from `defer { Task { await gate.signal() } }`,
