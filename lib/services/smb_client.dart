@@ -87,15 +87,33 @@ class SmbEntry {
 
 /// A host found on the LAN by the native subnet scan.
 class SmbDiscovered {
-  const SmbDiscovered({required this.host, required this.hostname});
+  const SmbDiscovered({
+    required this.host,
+    required this.hostname,
+    this.dialect,
+    this.serverGuid,
+  });
 
   final String host;
   final String hostname;
+
+  /// Negotiated SMB dialect as reported by the server, e.g. `SMB 3.1.1`.
+  ///
+  /// Only present once the native side completed a real SMB negotiate
+  /// (libsmb2 against IPC$), which is also what qualifies a host to appear here
+  /// at all — a bare TCP connect to 445 no longer adds a server. Android's
+  /// jcifs-ng sweep has no equivalent handshake, so it stays null there.
+  final String? dialect;
+
+  /// The server's SMB GUID — a stable identity for a host whose IP may change.
+  final String? serverGuid;
 
   factory SmbDiscovered.fromMap(Map<dynamic, dynamic> m) {
     return SmbDiscovered(
       host: (m['host'] as String?) ?? '',
       hostname: (m['hostname'] as String?) ?? '',
+      dialect: m['dialect'] as String?,
+      serverGuid: m['serverGuid'] as String?,
     );
   }
 }

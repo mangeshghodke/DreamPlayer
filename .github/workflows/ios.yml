@@ -87,6 +87,15 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
+      - name: Compile libsmb2 (static arm64 archive)
+        # Must run before any Xcode build: project.pbxproj links
+        # Runner/libsmb2/build/libsmb2.a by path, and that archive is generated
+        # rather than checked in. Kept as its own step so a compile failure here
+        # is unambiguous instead of surfacing as a wall of link errors.
+        run: |
+          chmod +x ios/libsmb2_build.sh
+          ios/libsmb2_build.sh
+
       - name: Build signed IPA
         if: ${{ inputs.upload_testflight == true || inputs.signed_build == true }}
         env:

@@ -169,7 +169,19 @@ final class SMBBridge: NSObject {
         // no mpv engine). Answered so Dart never blocks on a missing handler.
         case "discoverServers":
             discoverServers { found in
-                result(found.map { ["host": $0.host, "hostname": $0.hostname] })
+                result(found.map { entry in
+                    var row: [String: Any] = [
+                        "host": entry.host,
+                        "hostname": entry.hostname,
+                    ]
+                    if let dialect = entry.dialectLabel, !dialect.isEmpty {
+                        row["dialect"] = dialect
+                    }
+                    if let guid = entry.serverGuid, !guid.isEmpty {
+                        row["serverGuid"] = guid
+                    }
+                    return row
+                })
             }
         case "checkServer":
             result(false)
@@ -483,7 +495,11 @@ final class SMBBridge: NSObject {
         }
     }
 
-    private func discoverServers(completion: @escaping ([(host: String, hostname: String)]) -> Void) {
+    private func discoverServers(
+        completion: @escaping ([(
+            host: String, hostname: String, dialectLabel: String?, serverGuid: String?
+        )]) -> Void
+    ) {
         let started = Date()
         Task.detached(priority: .utility) {
             let box = HostBox()
@@ -515,13 +531,50 @@ final class SMBBridge: NSObject {
                         }
                     }
                 }
+            // A TCP connect only proves something is listening on 445, so the
+            // survivors get a real SMB negotiate through libsmb2: connecting to
+            // IPC$ forces the handshake and yields the negotiated dialect and
+            // the server's GUID. Cheap TCP rejection first means we only build
+            // SMB contexts for hosts that plausibly speak SMB at all.
+            let candidates = box.snapshot()
+            let identified = await withCheckedContinuation {
+                (continuation: CheckedContinuation<[LibSMB2Server], Never>) in
+                DispatchQueue.global(qos: .utility).async {
+                    continuation.resume(returning: LibSMB2.probeHosts(
+                        candidates.map(\.host),
+                        port: 445,
+                        timeout: 2,
+                        maxParallel: 12
+                    ))
+                }
+            }
+            let byHost = Dictionary(
+                uniqueKeysWithValues: identified.map { ($0.host, $0) })
+
             await MainActor.run {
-                let sorted = box.snapshot().sorted { $0.host < $1.host }
+                let sorted = candidates.compactMap { entry -> (
+                    host: String, hostname: String, dialectLabel: String?, serverGuid: String?
+                )? in
+                    // Only report hosts that completed an SMB negotiate. The old
+                    // behaviour listed anything with 445 open, which put devices
+                    // that merely bind the port into the server list.
+                    guard let info = byHost[entry.host] else { return nil }
+                    return (
+                        entry.host, entry.hostname,
+                        info.dialectLabel.isEmpty ? nil : info.dialectLabel,
+                        info.serverGuid
+                    )
+                }.sorted { $0.host < $1.host }
                 SBMLog.log(
                     "discover: \(sorted.count) host(s) in \(SBMLog.since(started))"
                     + (sorted.isEmpty ? " lastFailure=\(Self.lastProbeFailure)" : "")
                     + " -> "
-                    + sorted.map { "\($0.host)\(($0.hostname == $0.host ? "" : " (\($0.hostname))"))" }.joined(separator: ", "))
+                    + sorted.map { entry in
+                        let name = entry.hostname == entry.host
+                            ? "" : " (\(entry.hostname))"
+                        let dialect = entry.dialectLabel.map { " [\($0)]" } ?? ""
+                        return "\(entry.host)\(name)\(dialect)"
+                    }.joined(separator: ", "))
                 completion(sorted)
             }
         }

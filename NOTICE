@@ -73,6 +73,25 @@ FFmpegBuild (dynamically linked FFmpeg frameworks for AetherEngine)
   License: GNU Lesser General Public License v2.1 or later (no GPL components)
   https://github.com/superuser404notfound/FFmpegBuild
 
+libsmb2 7.0.0 (SMB2/3 client, compiled from vendored sources)
+  Copyright (C) Ronnie Sahlberg and contributors
+  License: GNU Lesser General Public License v2.1
+  https://github.com/sahlberg/libsmb2
+
+  Vendored at ios/Runner/libsmb2/: unmodified copies of upstream lib/,
+  libdcerpc/ and the public headers, plus include/apple/config.h as config.h.
+  DreamPlayer compiles them per build with ios/libsmb2_build.sh into an arm64
+  static archive and links libsmb2.a. The only file we add is shim/ios_shim.c,
+  which supplies getlogin_r() because iOS has none and libsmb2's own fallback
+  in compat.c only compiles on the console platforms it was written for.
+
+  Statically linked, so LGPL 2.1 section 6 is satisfied by this project being
+  GPLv3 (a Combined Work): the complete corresponding source is this repository
+  plus the unmodified upstream sources under ios/Runner/libsmb2/. Section 6 also
+  allows compliance for a statically linked library by conveying the Minimal
+  Corresponding Source plus the object files needed to relink against a modified
+  library; the sources are present and CI rebuilds the archive from them.
+
 SMBClient (SMB2/3 client, bundled via AetherEngineSMB for WebDAV's ByteRangeSource)
   Copyright (C) 2024 Kishikawa Katsumi
   License: MIT
