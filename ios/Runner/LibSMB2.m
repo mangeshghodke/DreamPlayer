@@ -68,23 +68,29 @@ static NSString *LibSMB2DialectLabel(uint16_t dialect) {
 
 - (nullable LibSMB2File *)openFile:(NSString *)relativePath
                               error:(NSError *_Nullable *_Nullable)error {
-  // libsmb2 wants the share-relative path in backslashes, the same shape
-  // smb2_find's wildcard takes.
-  NSString *native = [relativePath stringByReplacingOccurrencesOfString:@"/"
-                                                          withString:@"\\"];
-  // Bracket form, not dot syntax: dot syntax is only legal for a
-  // zero-argument method, and hasPrefix: takes one. `native.hasPrefix:`
-  // is a parse error, which then cascades into a bogus
-  // "hasPrefix not found on NSString *".
-  if (![native hasPrefix:@"\\"]) {
-    native = [@"\\" stringByAppendingString:native];
+  // The CREATE request's Name is relative to the tree connect, so the path must
+  // be share-relative with backslash separators and NO leading separator —
+  // libsmb2 hands the string to the server untouched. Prepending a backslash
+  // made every open fail with STATUS_INVALID_PARAMETER (0xc000000d).
+  NSString *trimmed = relativePath;
+  while ([trimmed hasPrefix:@"/"]) {
+    trimmed = [trimmed substringFromIndex:1];
   }
+  while ([trimmed hasSuffix:@"/"]) {
+    trimmed = [trimmed substringToIndex:trimmed.length - 1];
+  }
+  NSString *native = [trimmed stringByReplacingOccurrencesOfString:@"/"
+                                                       withString:@"\\"];
 
   struct smb2fh *fh = smb2_open(_ctx, native.UTF8String, O_RDONLY);
   if (fh == NULL) {
     const char *msg = smb2_get_error(_ctx);
     if (error != NULL) {
-      LibSMB2Fail(error, msg != NULL ? @(msg) : @"Could not open the file");
+      // The path is not a secret and belongs in the message: without it a
+      // failure here is indistinguishable from a permissions problem.
+      LibSMB2Fail(error, [NSString stringWithFormat:@"%@ [%@\\%@]",
+                           msg != NULL ? @(msg) : @"Could not open the file",
+                           _share, native]);
     }
     return nil;
   }

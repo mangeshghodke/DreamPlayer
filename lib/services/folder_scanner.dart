@@ -311,7 +311,10 @@ class FolderScanner {
         return LibraryFolder(
           id: id,
           name: effectiveName,
-          path: 'smb:${root.networkServerId}/$childPath',
+          // The share is part of the key: it is parsed as
+          // smb:<serverId>/<share>/<path>, and dropping it made
+          // 'Video/Movies' parse as share "Video".
+          path: 'smb:${root.networkServerId}/${root.networkShare}/$childPath',
           addedAt: DateTime.now(),
           source: LibraryFolderSource.smb,
           networkServerId: root.networkServerId,
@@ -471,7 +474,10 @@ class FolderScanner {
         return LibraryFolder(
           id: id,
           name: name,
-          path: 'smb:${root.networkServerId}/$childPath',
+          // The share is part of the key: it is parsed as
+          // smb:<serverId>/<share>/<path>, and dropping it made
+          // 'Video/Movies' parse as share "Video".
+          path: 'smb:${root.networkServerId}/${root.networkShare}/$childPath',
           addedAt: DateTime.now(),
           source: LibraryFolderSource.smb,
           networkServerId: root.networkServerId,
