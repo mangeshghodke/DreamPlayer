@@ -318,7 +318,11 @@ static long long LibDSMMillis(time_t seconds) {
     return NO;
   }
   _fileOpen = YES;
-  _preparedSize = (long long)fileSizeAtRelativePath:(path);
+  // The handle is open, so ask libDSM rather than issuing a second stat.
+  smb_stat openInfo = smb_stat_fd(_session, _fd);
+  _preparedSize = openInfo != NULL
+                      ? (long long)smb_stat_get(openInfo, SMB_STAT_SIZE)
+                      : 0;
   return YES;
 }
 
@@ -366,7 +370,7 @@ static long long LibDSMMillis(time_t seconds) {
   NSMutableString *failure = [NSMutableString string];
   int rc = smb_session_connect(s, "DREAMPLAYER", addr.s_addr, SMB_TRANSPORT_TCP);
   if (rc != 0) {
-    [failure appendString:LibDSMFriendlyError(_session, rc, host)];
+    [failure appendString:LibDSMFriendlyError(s, rc, host)];
   } else {
     BOOL wantsGuest = (user.length == 0);
     smb_session_set_creds(s,
@@ -375,13 +379,13 @@ static long long LibDSMMillis(time_t seconds) {
                           wantsGuest ? "" : (password.length ? password.UTF8String : NULL));
     rc = smb_session_login(s);
     if (rc != 0) {
-      [failure appendString:LibDSMFriendlyError(_session, rc, host)];
+      [failure appendString:LibDSMFriendlyError(s, rc, host)];
     } else {
       smb_share_list shares = NULL;
       size_t count = 0;
       rc = smb_share_get_list(s, &shares, &count);
       if (rc != 0) {
-        [failure appendString:LibDSMFriendlyError(_session, rc, host)];
+        [failure appendString:LibDSMFriendlyError(s, rc, host)];
       } else {
         NSMutableArray<NSString *> *names = [NSMutableArray array];
         for (size_t i = 0; i < count; i++) {

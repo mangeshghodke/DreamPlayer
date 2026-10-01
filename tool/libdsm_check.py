@@ -24,6 +24,30 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Objective-C/C functions the wrapper may call that are not its own helpers and
+# not libDSM. Anything else called as a bare identifier is suspicious.
+FOUNDATION = {
+    # libC
+    "inet_pton", "strlen", "strcmp", "memcpy", "memset", "free", "malloc", "abort",
+    # NSString / NSArray / NSMutableString / NSMutableArray / NSData
+    "stringWithFormat", "stringWithUTF8String", "stringWithString", "string",
+    "stringByAppendingString", "stringByReplacingOccurrencesOfString",
+    "stringByTrimmingCharactersInSet", "stringByAppendingPathComponent",
+    "characterSetWithCharactersInString", "isEqualToString", "hasPrefix",
+    "hasSuffix", "lowercaseString", "length", "dataUsingEncoding",
+    "stringByAppendingPathExtension", "initWithBytes", "copy", "getCString",
+    "appendString", "addObject", "array", "isEqual", "stringValue", "doubleValue",
+    "writeToFile", "substringFromIndex", "substringToIndex", "componentsSeparatedByString",
+    # BSD sockets, used by the reachability probe
+    "socket", "connect", "close", "fcntl", "poll", "htons", "getsockopt", "setsockopt",
+    "bind", "send", "recv", "read", "write",
+    # NSMutableData
+    "dataWithLength", "setLength", "mutableBytes", "length",
+    # libDSM statics used locally
+    "LibDSMFail", "LibDSMFindPattern", "LibDSMSharePath", "LibDSMFriendlyError",
+    "LibDSMMillis", "dispatch_async", "dispatch_get_main_queue",
+}
+
 # Declarations the wrapper calls, with the argument count each one takes.
 # Kept by hand because the C headers have no machine-readable arity metadata.
 EXPECTED_CALLS = {
@@ -43,6 +67,7 @@ EXPECTED_CALLS = {
     "smb_find": 3,
     "smb_stat_list_count": 1,
     "smb_stat_list_at": 2,
+    "smb_stat_fd": 2,
     "smb_stat_list_destroy": 1,
     "smb_stat_name": 1,
     "smb_stat_get": 2,
@@ -248,6 +273,80 @@ def main():
             os.path.exists(os.path.join(args.libdsm, "libtasn1.h")),
             "libtasn1.h must be at the libdsm root for #include <libtasn1.h> to resolve",
         )
+
+    # 9. A class method has no instance ivars. Referring to one is a compile
+    #    error ("Instance variable '_session' accessed in class method"), and it
+    #    is easy to introduce when a helper's session argument is renamed.
+    ivars = set(re.findall(r"^\s*[\w ]*?\*?(_[a-z]\w*)\s*;", code, re.M))
+    for m in re.finditer(r"^\+ \([^)]*\)[^{]*\{", code, re.M):
+        start = m.end()
+        depth = 1
+        i = start
+        while i < len(code) and depth:
+            if code[i] == "{":
+                depth += 1
+            elif code[i] == "}":
+                depth -= 1
+            i += 1
+        body = code[start:i]
+        line = code[: m.start()].count("\n") + 1
+        for ref in set(re.findall(r"(?<![A-Za-z0-9_])(_[a-z]\w*)\b", body)):
+            if ref in ivars:
+                problems.append(
+                    f"class method at line {line} touches instance ivar {ref}"
+                )
+
+    # 10. Objective-C silently accepts a message send to any selector, so a
+    #     misspelled or deleted helper only surfaces as "undeclared identifier"
+    #     in CI. Catch calls to bare identifiers that are neither defined here,
+    #     nor libDSM, nor a known Foundation/C function.
+    known = set(EXPECTED_CALLS) | set(re.findall(r"\bsmb_\w+\b", code))
+    known |= set(re.findall(r"^static\s+[\w ]*?(\w+)\s*\(", code, re.M))
+    known |= FOUNDATION
+    # 11. Argument count at each call site, not just at the declaration. A
+    #     dropped argument compiles as a silent type change in C.
+    for name in sorted(set(re.findall(r"\bsmb_\w+\s*\(", code))):
+        fn = name.split("(")[0]
+        if fn not in api or fn not in EXPECTED_CALLS:
+            continue
+        # name is "fn(" — start scanning just inside the open paren, and treat
+        # the case of an empty argument list as zero rather than one.
+        start = code.index(name) + len(fn) + 1
+        if code[start : start + 1] == ")":
+            continue
+        depth = 0
+        args = 1
+        i = start
+        while i < len(code):
+            c = code[i]
+            if c in "([{":
+                depth += 1
+            elif c in ")]}":
+                if depth == 0:
+                    break
+                depth -= 1
+            elif c == "," and depth == 0:
+                args += 1
+            i += 1
+        if args != EXPECTED_CALLS[fn]:
+            line = code[: code.index(name)].count("\n") + 1
+            problems.append(
+                f"{fn}() called with {args} argument(s) at line {line}, "
+                f"declared for {EXPECTED_CALLS[fn]}"
+            )
+
+    keywords = {
+        "if", "else", "for", "while", "do", "switch", "case", "return", "break",
+        "continue", "goto", "sizeof", "defined", "_Static_assert",
+    }
+    for name in sorted(set(re.findall(r"(?<![.\w>])([a-z][A-Za-z0-9_]*)\s*\(", code))):
+        if name in keywords:
+            continue
+        if name not in known:
+            problems.append(
+                f"{name}(...) is neither a local helper, a libDSM call, nor a known "
+                f"Foundation/C function — undeclared identifiers are a build error"
+            )
 
     if problems:
         for p in problems:
