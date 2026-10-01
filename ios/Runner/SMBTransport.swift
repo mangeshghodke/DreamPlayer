@@ -43,9 +43,11 @@ struct SMBEntry {
 /// Unwraps an `NSError` out-parameter into a message Dart can show, falling
 /// back when the callee returned nil without saying why.
 enum LibDSM {
-    static func message(_ error: NSError?, _ fallback: String) -> String {
+    // Takes `any Error` rather than NSError, because a Swift `catch` binds the
+    // thrown error as `Error`; only at runtime is it the bridged NSError.
+    static func message(_ error: Error?, _ fallback: String) -> String {
         guard let error else { return fallback }
-        let text = error.localizedDescription
+        let text = (error as NSError).localizedDescription
         return text.isEmpty ? fallback : text
     }
 }
@@ -93,23 +95,23 @@ enum SMBTransport {
         password: String?,
         domain: String?
     ) throws -> LibDSMSession {
-        // The `error:` out-parameter is passed explicitly rather than relied on
-        // as a thrown error: Swift's importer never maps `NSError **` onto
-        // `throws` for an initializer, so an failable `init` here would still
-        // demand the argument.
-        var failure: NSError?
-        guard let session = LibDSMSession(
-            host: host,
-            port: port,
-            hostname: nil,
-            share: share,
-            user: user,
-            password: password,
-            domain: domain,
-            error: &failure
-        ) else {
+        // NSError** on a nullable-returning method imports as `throws` — but
+        // only while the return stays nullable, since nil is how the ObjC side
+        // signals failure. Marking it nonnull silently disables the convention.
+        let session: LibDSMSession
+        do {
+            session = try LibDSMSession(
+                host: host,
+                port: port,
+                hostname: nil,
+                share: share,
+                user: user,
+                password: password,
+                domain: domain
+            )
+        } catch {
             throw SMBError.connect(
-                LibDSM.message(failure, "Could not connect to the SMB server"))
+                LibDSM.message(error, "Could not connect to the SMB server"))
         }
         SBMLog.log(
             "libDSM session ok \(host):\(port) share=\\(share) "
@@ -119,10 +121,7 @@ enum SMBTransport {
 
     /// Lists a directory through libDSM.
     static func libDSMList(session: LibDSMSession, path: String) throws -> [SMBEntry] {
-        var failure: NSError?
-        guard let entries = session.listDirectory(path, error: &failure) else {
-            throw SMBError.listing(LibDSM.message(failure, "Could not read that folder"))
-        }
+        let entries = try session.listDirectory(path)
         return entries.map {
             SMBEntry(
                 name: $0.name,
@@ -143,13 +142,10 @@ enum SMBTransport {
         password: String?,
         domain: String?
     ) throws -> [String] {
-        var failure: NSError?
-        guard let shares = LibDSMSession.listShares(
+        let shares = try LibDSMSession.listShares(
             onHost: host, port: port, user: user,
-            password: password, domain: domain, error: &failure
-        ) else {
-            throw SMBError.connect(LibDSM.message(failure, "Could not list shares"))
-        }
+            password: password, domain: domain
+        )
         return shares
     }
 
