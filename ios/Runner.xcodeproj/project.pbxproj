@@ -500,6 +500,18 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(SRCROOT)/Runner/libdsm",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+					"-liconv",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/Runner/libdsm",
+					"$(SRCROOT)/Runner/libdsm/bdsm",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/Runner/libdsm",
+				);
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
@@ -688,6 +700,18 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(SRCROOT)/Runner/libdsm",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+					"-liconv",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/Runner/libdsm",
+					"$(SRCROOT)/Runner/libdsm/bdsm",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/Runner/libdsm",
+				);
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -710,6 +734,18 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/Runner/libdsm",
+					"$(SRCROOT)/Runner/libdsm/bdsm",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/Runner/libdsm",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+					"-liconv",
+				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/Runner/libdsm",
 					"$(SRCROOT)/Runner/libdsm/bdsm",
