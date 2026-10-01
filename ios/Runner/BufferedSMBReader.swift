@@ -228,6 +228,15 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
         bufEof = false
         nextWritePos = position
         pendingChunks.removeAll(keepingCapacity: true)
+        // Cancel the previous generation explicitly. startPrefetchers only
+        // bumps the counter, which a prefetcher notices at its next gen check
+        // — but a prefetcher parked in ringLock.wait() would sit there until
+        // something broadcast. With four sockets and a seek that lands outside
+        // the window, the old tasks were still holding the connections while
+        // the new ones queued behind them, so the reader's window never filled
+        // and read() blocked out its 60s deadline.
+        for task in prefetchTasks { task.cancel() }
+        prefetchTasks.removeAll(keepingCapacity: true)
         // Start fresh prefetchers. Old tasks exit on next gen check.
         startPrefetchers()
         ringLock.broadcast()

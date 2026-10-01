@@ -553,8 +553,29 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // permitted (-1))") and latches .error before our own
                     // recovery reload ever runs. For HTTP/FTP the attempt is
                     // harmless, so it is left in place for them.
-                    let skipInPlace = self.isSMBStream
-                    if skipInPlace {
+                    // Two cases need no reload on SMB:
+                    //  * Dart auto-restores the saved audio track ~500 ms after
+                    //    open, at position 0, while the initial load is still
+                    //    settling — reloading there is pure cost and raced the
+                    //    load it was meant to fix.
+                    //  * A genuine mid-playback switch still needs a fresh
+                    //    reader, because the in-place attempt cannot rewind.
+                    // At the very start of a session there is nothing to
+                    // rewind: the reader is already positioned at 0, so the
+                    // in-place switch is both safe and free.
+                    let atSessionStart: Bool
+                    if case .loading = self.engine?.state {
+                        atSessionStart = true
+                    } else {
+                        atSessionStart = resumeAt <= 0.5
+                    }
+                    let skipInPlace = self.isSMBStream && !atSessionStart
+                    if atSessionStart && self.isSMBStream {
+                        SBMLog.log(
+                            "selectAudioTrack: SMB — at session start, "
+                            + "taking the track in place")
+                        self.engine?.selectAudioTrack(index: trackId)
+                    } else if skipInPlace {
                         SBMLog.log(
                             "selectAudioTrack: SMB — skipping the in-place "
                             + "attempt, reloading directly at \(resumeAt)s")
