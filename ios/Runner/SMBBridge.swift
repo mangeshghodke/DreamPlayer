@@ -17,8 +17,9 @@ import SMBClient
 /// Two distinct roles, deliberately kept separate:
 ///  * **browsing** talks to `SMBClient` directly (login / listShares /
 ///    connectShare / listDirectory);
-///  * **playback** goes through `AetherEngineSMB.SMBConnection`, a
-///    `ByteRangeSource` the engine consumes via `SMBIOReader`.
+///  * **playback** goes through `SMBPlayback` + `SMBByteRangeSource`
+///    (SMBSource.swift) — the same SMBClient, surfaced as the `ByteRangeSource`
+///    the engine reads directly.
 ///
 /// Credentials never cross to Dart: passwords live in the Keychain and Dart
 /// only ever sees a `hasPassword` boolean, mirroring `WebDAVClient`.
@@ -67,7 +68,7 @@ final class SMBBridge: NSObject {
     /// followed by any extra parallel-prefetch sockets. The extras are what
     /// makes read-ahead parallel: SMB serialises requests per connection, so
     /// one socket is one request in flight at a time.
-    private var playback: [String: [SMBConnection]] = [:]
+    private var playback: [String: SMBPlayback] = [:]
     /// Servers a live player is reading from. The browser's dispose calls
     /// closeShare, which must NOT tear the socket out from under a player that
     /// is still using it — the old build had exactly this latch and dropping it
@@ -470,7 +471,7 @@ final class SMBBridge: NSObject {
     /// A captured `var` written by concurrent task-group children is a data
     /// race even when every write holds a lock: the variable itself lives in a
     /// shared box the compiler is free to treat as non-atomic. A reference type
-    /// makes the sharing explicit. Same pattern as SMBIOReader's ReadOutcome.
+    /// makes the sharing explicit. Same pattern as PlaybackBox above.
     private final class HostBox: @unchecked Sendable {
         private let lock = NSLock()
         private var items: [(host: String, hostname: String)] = []
@@ -953,10 +954,12 @@ final class SMBBridge: NSObject {
     // MARK: - Playback
 
     /// Opens an SMB file for playback and returns the token URL the player
-    /// resolves back to the live connection.
+    /// resolves back to the live session.
     ///
-    /// The connection is held here (keyed by token) rather than re-opened per
-    /// read, so an audio-track switch does not have to rebuild the socket.
+    /// One authenticated session, one tree connect, one open file handle. The
+    /// parallel-socket scheme that fed BufferedSMBReader's prefetch tasks is gone
+    /// with it: reads are independent ranged READs, so extra sockets bought
+    /// nothing and only multiplied the logins.
     private func openShare(
         server: ServerMeta,
         share: String,
@@ -965,74 +968,45 @@ final class SMBBridge: NSObject {
     ) {
         let password = getPassword(server.id)
         Task.detached(priority: .userInitiated) {
-            var serverURL = URLComponents()
-            serverURL.scheme = "smb"
-            serverURL.host = server.host
-            if server.port > 0 && server.port != 445 {
-                serverURL.port = server.port
-            }
-            guard let url = serverURL.url else {
-                await MainActor.run { completion(nil) }
-                return
-            }
-            // Open the primary plus N-1 extra sockets CONCURRENTLY. Opening
-            // them one after another cost a full handshake each and was the
-            // slowest part of starting playback.
+            let client = server.port > 0 && server.port != 445
+                ? SMBClient(host: server.host, port: server.port)
+                : SMBClient(host: server.host)
             let cleanPath = Self.normalized(path)
-            let user = server.anonymous ? "" : server.username
-            let secret = server.anonymous ? "" : password
-            let realm = server.domain
-            let wanted = Self.prefetchConnectionCount
-
-            var opened: [SMBConnection] = []
-            var firstError: Error?
-            await withTaskGroup(of: Result<SMBConnection, any Error>.self) { group in
-                for _ in 0..<wanted {
-                    group.addTask {
-                        do {
-                            return .success(try await SMBConnection.connect(
-                                server: url, share: share, path: cleanPath,
-                                user: user, password: secret, domain: realm
-                            ))
-                        } catch {
-                            return .failure(error)
-                        }
-                    }
+            do {
+                if server.anonymous || (server.username.isEmpty && password.isEmpty) {
+                    try await client.login(username: nil, password: nil)
+                } else {
+                    try await client.login(
+                        username: server.username,
+                        password: password.isEmpty ? nil : password,
+                        domain: server.domain.isEmpty ? nil : server.domain
+                    )
                 }
-                for await outcome in group {
-                    switch outcome {
-                    case .success(let c): opened.append(c)
-                    case .failure(let e): if firstError == nil { firstError = e }
-                    }
-                }
-            }
+                try await client.connectShare(share)
+                let reader = client.fileReader(path: cleanPath)
+                let size = try await reader.fileSize
 
-            guard let primary = opened.first else {
+                let ext = (path as NSString).pathExtension
+                self.lock.lock()
+                self.tokenCounter += 1
+                let token = "\(server.id)-\(self.tokenCounter)"
+                self.playback[token]?.close()
+                self.playback[token] = SMBPlayback(
+                    client: client, reader: reader, byteSize: size)
+                self.lock.unlock()
                 await MainActor.run {
-                    SBMLog.log("openShare FAILED \(share)/\(path): \(String(describing: firstError))")
+                    let tokenURL = "dreamplayersmb://\(token).\(ext.isEmpty ? "mkv" : ext)"
+                    SBMLog.log(
+                        "openShare ok \(share)/\(path) -> \(tokenURL) (\(size) bytes)")
+                    completion(tokenURL)
+                }
+            } catch {
+                client.session.disconnect()
+                let message = Self.friendly(error, host: server.host)
+                await MainActor.run {
+                    SBMLog.log("openShare FAILED \(share)/\(path): \(message)")
                     completion(nil)
                 }
-                return
-            }
-            // Extra sockets are best-effort: one is enough to play, and a
-            // NAS that refuses a 4th session still gets a working reader.
-            if opened.count < wanted {
-                SBMLog.log(
-                    "openShare: \(opened.count)/\(wanted) sockets "
-                    + "(\(String(describing: firstError)))")
-            }
-            let ext = (path as NSString).pathExtension
-            self.lock.lock()
-            self.tokenCounter += 1
-            let token = "\(server.id)-\(self.tokenCounter)"
-            self.playback[token] = opened
-            self.lock.unlock()
-            await MainActor.run {
-                let tokenURL = "dreamplayersmb://\(token).\(ext.isEmpty ? "mkv" : ext)"
-                SBMLog.log(
-                    "openShare ok \(share)/\(path) -> \(tokenURL) "
-                    + "(\(primary.byteSize) bytes, \(opened.count) socket(s))")
-                completion(tokenURL)
             }
         }
     }
@@ -1054,7 +1028,7 @@ final class SMBBridge: NSObject {
         if playerActive.contains(serverId) { return }
         let doomed = playback.keys.filter { $0.hasPrefix("\(serverId)-") }
         for token in doomed {
-            for c in playback[token] ?? [] { c.close() }
+            playback[token]?.close()
             playback.removeValue(forKey: token)
         }
     }
@@ -1069,48 +1043,24 @@ final class SMBBridge: NSObject {
             playerActive.remove(serverId)
             let doomed = playback.keys.filter { $0.hasPrefix("\(serverId)-") }
             for token in doomed {
-                for c in playback[token] ?? [] { c.close() }
+                playback[token]?.close()
                 playback.removeValue(forKey: token)
             }
         }
         lock.unlock()
     }
 
-    /// Local error for a host we could not even build a URL for. A distinct
-    /// type because `SMBConnection.SMBError`'s memberwise initializer is
-    /// internal to AetherEngineSMB and cannot be thrown from here.
-    struct BadHost: Error, CustomStringConvertible, LocalizedError {
-        let message: String
-        var description: String { message }
-        var errorDescription: String? { message }
-    }
-
-    /// How many independent SMB sockets to open per playback session.
-    ///
-    /// SMB serialises requests per connection, so a single socket keeps exactly
-    /// one read in flight — that ceiling is why one connection felt slow on a
-    /// fast NAS. BufferedSMBReader runs `min(4, sources.count)` prefetch
-    /// tasks, so 4 is that ceiling.
-    ///
-    /// A 4-connection attempt previously "failed to play anything" (reverted in
-    /// d569489), but that was over AMSMB2/libsmb2, whose first connectShare
-    /// EPERMs on iOS — four sockets on a broken transport. The transport is now
-    /// a pure-Swift client over NWConnection, so the experiment is worth
-    /// repeating. 1 is the safe fallback if a NAS dislikes parallel sessions.
-    private static let prefetchConnectionCount = 4
-
-    /// One-shot holder for a connection opened on a background thread. A
-    /// class, not a captured `var`: the semaphore's signal/wait is the
-    /// happens-before edge, and a reference type makes the sharing explicit.
-    private final class ConnectionBox: @unchecked Sendable {
-        var connection: SMBConnection?
+    /// One-shot holder for a session opened on a background thread. A class, not
+    /// a captured `var`: the semaphore's signal/wait is the happens-before edge.
+    private final class PlaybackBox: @unchecked Sendable {
+        var playback: SMBPlayback?
         var failure: String?
     }
 
     /// Opens an SMB file from its parts. This is the path a resume takes: the
     /// stored `dreamplayersmb://` token belongs to a previous session and its
     /// connection is long gone, but `smb:<serverId>/<share>/<path>` is durable.
-    func openSmb(serverId: String, share: String, path: String) -> SMBConnection? {
+    func openSmb(serverId: String, share: String, path: String) -> SMBPlayback? {
         let started = Date()
         loadServersIfNeeded()
         lock.lock()
@@ -1133,7 +1083,7 @@ final class SMBBridge: NSObject {
     /// here means every path plays, not just the ones that went through the
     /// browser's openShare. [serverId] comes from the item's resume key
     /// (`smb:<serverId>/<share>/<path>`), with a host match as a fallback.
-    func openFromSmbUri(_ uri: String, serverId: String?) -> SMBConnection? {
+    func openFromSmbUri(_ uri: String, serverId: String?) -> SMBPlayback? {
         let started = Date()
         guard let comps = URLComponents(string: uri), let host = comps.host else {
             SBMLog.log("openFromSmbUri: unparseable \(uri)")
@@ -1164,38 +1114,40 @@ final class SMBBridge: NSObject {
         return open(server: server, share: share, path: path, started: started, tag: "uri")
     }
 
-    /// Shared connect: login + tree connect + stat on a background thread, then
-    /// publish the connection under [tag] so it can be found again.
+    /// Shared connect: login, tree connect and open the file on a background
+    /// thread, then publish the session under [tag] so it can be found again.
     private func open(
         server: ServerMeta,
         share: String,
         path: String,
         started: Date,
         tag: String
-    ) -> SMBConnection? {
+    ) -> SMBPlayback? {
         SBMLog.log("open(\(tag)): \(server.name) \(share)/\(path) [\(SBMLog.since(started))]")
         let password = getPassword(server.id)
-        let out = ConnectionBox()
+        let out = PlaybackBox()
         let done = DispatchSemaphore(value: 0)
         Task.detached(priority: .userInitiated) {
-            var serverURL = URLComponents()
-            serverURL.scheme = "smb"
-            serverURL.host = server.host
-            if server.port > 0 && server.port != 445 { serverURL.port = server.port }
+            let client = server.port > 0 && server.port != 445
+                ? SMBClient(host: server.host, port: server.port)
+                : SMBClient(host: server.host)
             do {
-                guard let url = serverURL.url else {
-                    throw BadHost(
-                        message: "Could not build an smb:// URL for \(server.host)")
+                if server.anonymous || (server.username.isEmpty && password.isEmpty) {
+                    try await client.login(username: nil, password: nil)
+                } else {
+                    try await client.login(
+                        username: server.username,
+                        password: password.isEmpty ? nil : password,
+                        domain: server.domain.isEmpty ? nil : server.domain
+                    )
                 }
-                out.connection = try await SMBConnection.connect(
-                    server: url,
-                    share: share,
-                    path: Self.normalized(path),
-                    user: server.anonymous ? "" : server.username,
-                    password: server.anonymous ? "" : password,
-                    domain: server.domain
-                )
+                try await client.connectShare(share)
+                let reader = client.fileReader(path: Self.normalized(path))
+                let size = try await reader.fileSize
+                out.playback = SMBPlayback(
+                    client: client, reader: reader, byteSize: size)
             } catch {
+                client.session.disconnect()
                 out.failure = Self.friendly(error, host: server.host)
             }
             done.signal()
@@ -1205,16 +1157,15 @@ final class SMBBridge: NSObject {
             SBMLog.log("open(\(tag)) FAILED: \(failure)")
             return nil
         }
-        if let result = out.connection {
-            let ext = (path as NSString).pathExtension
-            let token = "\(server.id)-\(tag)"
-            lock.lock()
-            for c in playback[token] ?? [] { c.close() }
-            playback[token] = [result]
-            lock.unlock()
-            SBMLog.log("open(\(tag)) ok -> \(result.byteSize) bytes, token \(token).\(ext)")
-        }
-        return out.connection
+        guard let result = out.playback else { return nil }
+        let ext = (path as NSString).pathExtension
+        let token = "\(server.id)-\(tag)"
+        lock.lock()
+        playback[token]?.close()
+        playback[token] = result
+        lock.unlock()
+        SBMLog.log("open(\(tag)) ok -> \(result.byteSize) bytes, token \(token).\(ext)")
+        return result
     }
 
     /// The saved-server id embedded in a `dreamplayersmb://` token, or "".
@@ -1226,33 +1177,25 @@ final class SMBBridge: NSObject {
         return serverId
     }
 
-    /// Every socket for a `dreamplayersmb://` token, primary first. Empty once
-    /// the session has been closed.
-    func connections(for urlString: String) -> [SMBConnection] {
-        guard urlString.hasPrefix("dreamplayersmb://") else { return [] }
+    /// The live session for a `dreamplayersmb://` token, or nil once closed.
+    func session(for urlString: String) -> SMBPlayback? {
+        guard urlString.hasPrefix("dreamplayersmb://") else { return nil }
         var token = String(urlString.dropFirst("dreamplayersmb://".count))
         if let dot = token.lastIndex(of: ".") {
             token = String(token[token.startIndex..<dot])
         }
         lock.lock()
         defer { lock.unlock() }
-        return playback[token] ?? []
+        return playback[token]
     }
 
-    /// The primary (first) socket, or nil once the session is closed.
-    func connection(for urlString: String) -> SMBConnection? {
-        connections(for: urlString).first
-    }
-
-    /// The `IOReader` the engine plays from, with read-ahead disabled by
-    /// default: `SMBIOReader` already drives a real `ByteRangeSource`, and
-    /// wrapping it in a second buffering layer only added latency.
-    func makeReader(for urlString: String) -> SMBIOReader? {
-        guard let connection = connection(for: urlString) else { return nil }
-        return SMBIOReader(
-            source: connection,
-            ownsSource: false, // the registry owns teardown via closeShare
-            discImageProbeEnabled: false
-        )
+    /// A fresh `ByteRangeSource` over the token's live handle.
+    ///
+    /// Cheap and repeatable by design: reads are independent ranged READs, so
+    /// the engine's container probe works on a reload exactly as it does on the
+    /// first open. The old one-shot ring reader was drained by then, which is
+    /// what produced "custom source probe failed".
+    func makeSource(for urlString: String) -> SMBByteRangeSource? {
+        session(for: urlString)?.makeSource()
     }
 }

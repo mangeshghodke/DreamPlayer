@@ -301,39 +301,26 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// rebuilt on replay/scrub-after-end like the WebDAV source.
     private var lastFtpUri: String?
 
-    // ---- SMB stream (see SMBBridge.openShare). The engine plays through an
-    // SMBIOReader over a live SMBConnection that SMBBridge owns. We never
-    // close that connection on a track switch: the demux thread may still be
-    // reading it, which is the race that crashed the retired AMSMB2 build.
-    // SMBBridge tears it down on closeShare instead. ----
+    // ---- SMB stream (see SMBBridge.openShare + SMBSource.swift). The engine
+    // reads through an SMBByteRangeSource over a live SMBPlayback that
+    // SMBBridge owns. We never close that session on a track switch: the demux
+    // thread may still be reading it, which is the race that crashed the retired
+    // AMSMB2 build. SMBBridge tears it down on closeShare instead. ----
     private var smbToken: String?
     private var isSMBStream = false
     /// A raw smb:// URI awaiting resolution inside the load Task.
     private var smbUri: String?
     private var smbServerId: String?
-    /// The live SMB connection backing playback. Held so a reload can build a
-    /// FRESH reader on the same socket: SMBConnection serves independent range
-    /// reads, so this needs no reconnect.
-    private var smbConnection: SMBConnection?
-    /// Every socket minted for the session. SMB serialises reads per socket,
-    /// so extra sockets are what let read-ahead run in parallel; the
-    /// multi-source BufferedSMBReader runs one prefetch task per source.
-    private var smbConnections: [SMBConnection] = []
+    /// The live SMB session backing playback. Held so a reload can build a FRESH
+    /// source over the same open handle: reads are independent ranged READs, so
+    /// this needs neither a reconnect nor a re-auth.
+    private var smbPlayback: SMBPlayback?
     /// emit() runs several times a second, so state/error logging has to
     /// remember the last line or one event fills the log with copies.
     private var lastLoggedState: String = ""
     private var lastLoggedError: String = ""
     /// Extension carried by the token URL, handed to the engine as a probe hint.
     private var smbFormatHint: String?
-    /// Read-ahead chunk for SMB playback.
-    ///
-    /// 1 MiB, not 4 MiB: SMB reads are serialised per connection, so a bigger
-    /// request does not go faster, it just makes each gap in playback longer
-    /// if one read is slow. 1 MiB is also well inside the MaxReadSize a NAS
-    /// advertises — Android's jcifs-ng path had to fall back to 256 KiB
-    /// because a larger single read drew STATUS_INVALID_PARAMETER, and
-    /// ByteRangeSource is allowed to satisfy a request with a short read.
-    private static let smbChunkSize = 1024 * 1024
     /// Lower-cased scheme of the currently-open source (e.g. "file", "http",
     /// "https", "ftp", "sftp", "dreamplayersmb", "dreamplayerwebdav"). Captured
     /// at open time so the network chip can gate between "Local" and a live
@@ -795,33 +782,26 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         smbFormatHint = nil
         smbUri = nil
         smbServerId = nil
-        smbConnection = nil
-        smbConnections = []
+        smbPlayback = nil
         let smbResume = Self.smbParts(fromResumeKey: resumeKey)
         if let uri, uri.hasPrefix("dreamplayersmb://"),
-           let connection = SMBBridge.shared.connection(for: uri) {
+           let connection = SMBBridge.shared.session(for: uri) {
             // Must precede the plain-path branch: Dart sends `path` alongside
             // `uri`, and an SMB item's path is "smb://share/file", which as a
             // file:// URL is ENOENT.
             // SMBBridge.openShare minted this token and is holding the live
-            // SMBConnection. Read-ahead matters here: without it the engine's
-            // per-read SMB round-trips starve the demux thread (the original
-            // reason iOS SMB felt slow). SMBIOReader also unblocks its own
-            // parked read on cancel, so teardown can't stall.
+            // session. One open handle answers every read, so there is no
+            // buffering layer to stall teardown on.
             smbToken = uri
-            smbConnection = connection
-            smbConnections = SMBBridge.shared.connections(for: uri)
+            smbPlayback = connection
             isSMBStream = true
-            SBMLog.log("open: \(smbConnections.count) SMB socket(s) for playback")
+            SBMLog.log("open: SMB session for playback (\(connection.byteSize) bytes)")
             // Hold the socket: the browsing screen calls closeShare when it is
             // disposed, and that must not stop playback.
             SMBBridge.shared.setPlayerActive(true, serverId: SMBBridge.shared.serverId(forToken: uri))
             let ext = Self.smbTokenExtension(uri)
             smbFormatHint = ext.isEmpty ? Self.sniffFormatFromSMB(connection) : ext
-            source = .custom(
-                BufferedSMBReader(source: connection, chunkSize: Self.smbChunkSize),
-                formatHint: smbFormatHint
-            )
+            source = .custom(connection.makeSource(), formatHint: smbFormatHint)
 
         } else if smbResume != nil
                     || uri?.lowercased().hasPrefix("smb://") == true
@@ -984,9 +964,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // token into "No such file or directory".
                     let serverId = smbServerId
                     let parts = smbResume
-                    let connection: SMBConnection? =
+                    let connection: SMBPlayback? =
                         await Task.detached(priority: .userInitiated) {
-                            if let live = SMBBridge.shared.connection(
+                            if let live = SMBBridge.shared.session(
                                 for: pendingSmbUri
                             ) {
                                 return live
@@ -1007,20 +987,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             )
                         }.value
                     if let connection {
-                        self.smbConnection = connection
-                        // openSmb stores a single socket; the browser's
-                        // openShare path is the parallel one.
-                        self.smbConnections = [connection]
+                        self.smbPlayback = connection
                         self.isSMBStream = true
                         let ext = (pendingSmbUri as NSString).pathExtension
                         self.smbFormatHint = ext.isEmpty
-                            ? Self.sniffFormatFromSMB(connection) : ext
+                            ? Self.sniffFormatFromSMB(connection.makeSource())
+                            : ext
                         source = .custom(
-                            BufferedSMBReader(
-                                sources: self.smbConnections.isEmpty
-                                    ? [connection] : self.smbConnections,
-                                chunkSize: Self.smbChunkSize
-                            ),
+                            connection.makeSource(),
                             formatHint: self.smbFormatHint
                         )
                     } else {
@@ -1334,24 +1308,16 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// WebDAV: new HTTP session → new BufferedSMBReader.
     /// Local file: reuses the file URL (always re-openable).
     private func buildFreshSource() async throws -> MediaSource? {
-        if let connection = smbConnection {
-            // The old reader is one-shot: after playback the ring is drained
-            // and its cursor is at the end, so reloading with it made the
-            // engine's probe read nothing ("custom source probe failed").
-            // SMBConnection serves independent range reads, so a new reader
-            // over the SAME socket starts with a fresh ring and its own
-            // prefetcher — no reconnect, no re-auth.
-            let sockets = smbConnections.isEmpty ? [connection] : smbConnections
+        if let playback = smbPlayback {
+            // A FRESH source over the SAME open handle. This is the whole point
+            // of the stateless reader: the old ring buffer was one-shot, drained
+            // with its cursor at EOF by the time a reload happened, so the
+            // engine's container probe read nothing ("custom source probe
+            // failed"). Ranged reads have no cursor to lose.
             SBMLog.log(
-                "buildFreshSource: SMB — new reader on \(sockets.count) live "
-                + "socket(s) (\(connection.byteSize) bytes, "
-                + "hint=\(smbFormatHint ?? "none"))")
-            return .custom(
-                BufferedSMBReader(
-                    sources: sockets, chunkSize: Self.smbChunkSize
-                ),
-                formatHint: smbFormatHint
-            )
+                "buildFreshSource: SMB — new source on the live handle "
+                + "(\(playback.byteSize) bytes, hint=\(smbFormatHint ?? "none"))")
+            return .custom(playback.makeSource(), formatHint: smbFormatHint)
         }
         if let ftpUri = lastFtpUri {
             let buffered = try await Task.detached(priority: .userInitiated) {
