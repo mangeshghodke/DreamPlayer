@@ -800,8 +800,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // disposed, and that must not stop playback.
             SMBBridge.shared.setPlayerActive(true, serverId: SMBBridge.shared.serverId(forToken: uri))
             let ext = Self.smbTokenExtension(uri)
-            smbFormatHint = ext.isEmpty ? Self.sniffFormatFromSMB(connection) : ext
-            source = .custom(connection.makeSource(), formatHint: smbFormatHint)
+            smbFormatHint = ext.isEmpty ? Self.sniffFormatFromSMB(connection.makeSource()) : ext
+            source = .custom(connection.makeReader(), formatHint: smbFormatHint)
 
         } else if smbResume != nil
                     || uri?.lowercased().hasPrefix("smb://") == true
@@ -994,7 +994,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             ? Self.sniffFormatFromSMB(connection.makeSource())
                             : ext
                         source = .custom(
-                            connection.makeSource(),
+                            connection.makeReader(),
                             formatHint: self.smbFormatHint
                         )
                     } else {
@@ -1317,7 +1317,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             SBMLog.log(
                 "buildFreshSource: SMB — new source on the live handle "
                 + "(\(playback.byteSize) bytes, hint=\(smbFormatHint ?? "none"))")
-            return .custom(playback.makeSource(), formatHint: smbFormatHint)
+            return .custom(playback.makeReader(), formatHint: smbFormatHint)
         }
         if let ftpUri = lastFtpUri {
             let buffered = try await Task.detached(priority: .userInitiated) {

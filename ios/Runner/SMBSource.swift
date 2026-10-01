@@ -31,6 +31,22 @@ final class SMBPlayback: @unchecked Sendable {
         SMBByteRangeSource(reader: reader, byteSize: byteSize)
     }
 
+    /// What `engine.load(source: .custom(...))` actually wants: the engine's
+    /// `IOReader` is a *synchronous, cursor-based* interface (`read`/`seek`),
+    /// not the async, stateless `ByteRangeSource` underneath. `SMBIOReader` is
+    /// the engine's own adapter between the two, so the transport stays ranged
+    /// reads and no buffering layer is reintroduced.
+    ///
+    /// `ownsSource: false` — SMBBridge owns the session's lifetime via
+    /// closeShare, and the engine must not close a handle it does not hold.
+    func makeReader() -> SMBIOReader {
+        SMBIOReader(
+            source: makeSource(),
+            ownsSource: false,
+            discImageProbeEnabled: false
+        )
+    }
+
     func close() {
         Task.detached(priority: .utility) { [client, reader] in
             try? await reader.close()
