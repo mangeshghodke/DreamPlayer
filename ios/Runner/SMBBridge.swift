@@ -537,6 +537,11 @@ final class SMBBridge: NSObject {
             // the server's GUID. Cheap TCP rejection first means we only build
             // SMB contexts for hosts that plausibly speak SMB at all.
             let candidates = box.snapshot()
+            SBMLog.log(
+                "discover: sweep done in \(SBMLog.since(started)) — "
+                + "\(candidates.count) host(s) answered 445: "
+                + (candidates.map(\.host).joined(separator: ", "))
+            )
             let identified = await withCheckedContinuation {
                 (continuation: CheckedContinuation<[LibSMB2Server], Never>) in
                 DispatchQueue.global(qos: .utility).async {
@@ -550,6 +555,9 @@ final class SMBBridge: NSObject {
             }
             let byHost = Dictionary(
                 uniqueKeysWithValues: identified.map { ($0.host, $0) })
+            SBMLog.log(
+                "discover: SMB identify done in \(SBMLog.since(started)) — "
+                + "\(byHost.count)/\(candidates.count) completed an SMB negotiate")
 
             await MainActor.run {
                 let sorted = candidates.compactMap { entry -> (
@@ -605,13 +613,11 @@ final class SMBBridge: NSObject {
         return result
     }
 
-    /// Non-blocking TCP connect to port 445 with a poll() timeout.
-    /// Why a probe failed, for a host the user believes is on the LAN. The
-    /// first sweep returned 0 hosts in 2 ms, which is impossible for a real
-    /// network scan, so the failure has to be before any packets move.
+    /// Why a probe failed, for a host the user believes is on the LAN.
     private static var lastProbeFailure: String = ""
-    /// One queue for every probe connection, so 24 parallel sweeps cannot
-    /// spawn 24 run-loop threads.
+
+    /// One queue for every probe connection, so a parallel sweep cannot spawn
+    /// one run-loop thread per host.
     private static let probeQueue = DispatchQueue(
         label: "app.dreamplayer.smb.probe", qos: .utility, attributes: .concurrent)
 
@@ -619,53 +625,47 @@ final class SMBBridge: NSObject {
     ///
     /// A raw BSD connect() to a LAN address returns EPERM on iOS: Local Network
     /// privacy gates it, and the denial is immediate — which is why the first
-    /// sweep reported 0 hosts in 2 ms. Network.framework is the transport the
-    /// rest of the app already uses successfully (every SMB session goes
-    /// through SMBClient's NWConnection), so the probe uses it too rather than
-    /// being refused by a gate the app has already been granted.
-    /// Races one connection attempt against a timeout, returning whether the
-    /// port answered.
+    /// sweep returned 0 hosts in 2 ms. Network.framework is the transport the
+    /// rest of the app already uses successfully, so the probe uses it too rather
+    /// than being refused by a gate the app has already been granted.
     ///
-    /// Both halves are child tasks of ONE group, per the TaskGroup rule that a
-    /// group must not be used from outside the task that created it — nesting a
-    /// second group inside a child task would capture `group` (an `inout`) in an
-    /// escaping closure. A group also waits for every child before returning,
-    /// so the winner is whichever result arrives first rather than whichever is
-    /// first in iteration order: the connection task completes on the first
-    /// state it settles, and the timer is cancelled with the group.
+    /// Is something listening on 445?
+    ///
+    /// The deadline lives *inside* the probe rather than beside it. It used to be
+    /// a second child of a task group racing the connection, which could only end
+    /// early on success: when the timer won, the loop carried on waiting for the
+    /// connection, and NWConnection sits in `.waiting` indefinitely for a
+    /// filtered or unrouted address without ever calling back. One blackholed
+    /// host in the /24 therefore hung the whole sweep — which is why discovery
+    /// never returned a single result.
     private static func port445OpenNW(host: String, timeout: TimeInterval) async -> Bool {
-        await withTaskGroup(of: ProbeOutcome.self) { group in
-            group.addTask { await Self.nwConnect(host: host) }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                lastProbeFailure = "nw(\(host)) timeout"
-                return .gaveUp
-            }
-
-            for await outcome in group {
-                if outcome == .open {
-                    // Task.sleep honours cancellation, so the timer ends at
-                    // once even though the group still awaits both children.
-                    group.cancelAll()
-                    return true
-                }
-            }
-            return false
-        }
+        await nwConnect(host: host, timeout: timeout) == .open
     }
 
-    /// One NWConnection attempt, resolving on the first settled state.
-    private static func nwConnect(host: String) async -> ProbeOutcome {
-        let open = await withCheckedContinuation {
-            (cont: CheckedContinuation<Bool, Never>) in
+    /// One NWConnection attempt with its own hard deadline.
+    ///
+    /// Always resolves within `timeout`: whichever gets there first — `.ready`,
+    /// `.failed`, `.cancelled`, or the timer — wins, and `ProbeOnce` keeps the
+    /// continuation to a single resume.
+    private static func nwConnect(host: String, timeout: TimeInterval) async -> ProbeOutcome {
+        await withCheckedContinuation {
+            (cont: CheckedContinuation<ProbeOutcome, Never>) in
             let conn = NWConnection(
                 host: NWEndpoint.Host(host), port: 445, using: .tcp)
             let once = ProbeOnce()
             let finish: (Bool) -> Void = { ok in
                 if once.claim() {
                     conn.cancel()
-                    cont.resume(returning: ok)
+                    cont.resume(returning: ok ? .open : .gaveUp)
                 }
+            }
+            DispatchQueue.global(qos: utility).asyncAfter(
+                deadline: .now() + timeout
+            ) {
+                if !once.claimed {
+                    lastProbeFailure = "nw(\(host)) timeout"
+                }
+                finish(false)
             }
             conn.stateUpdateHandler = { state in
                 switch state {
@@ -682,17 +682,7 @@ final class SMBBridge: NSObject {
             }
             conn.start(queue: probeQueue)
         }
-        return open ? .open : .gaveUp
     }
-
-
-    /// A probe's single verdict, so the group reads as a race between "the port
-    /// answered" and "we gave up" rather than two anonymous Bools.
-    private enum ProbeOutcome: Sendable, Equatable {
-        case open
-        case gaveUp
-    }
-
 
     /// One-shot guard so a probe continuation resumes exactly once, whichever
     /// of {ready, failed, cancelled, timeout} gets there first.
@@ -704,6 +694,11 @@ final class SMBBridge: NSObject {
             if done { return false }
             done = true
             return true
+        }
+        /// Already settled by another path, so a late caller has nothing to add.
+        var claimed: Bool {
+            lock.lock(); defer { lock.unlock() }
+            return done
         }
     }
 
