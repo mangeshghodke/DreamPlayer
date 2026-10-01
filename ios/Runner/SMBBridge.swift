@@ -636,7 +636,7 @@ final class SMBBridge: NSObject {
     private static func isJunkFolder(_ name: String) -> Bool {
         let lower = name.lowercased()
         if lower.hasPrefix(".") { return true }
-        for token in ["@eaDir", "#recycle", "system volume information", "\$recycle.bin"]
+        for token in ["@eaDir", "#recycle", "system volume information", "$recycle.bin"]
         where lower.contains(token) {
             return true
         }
