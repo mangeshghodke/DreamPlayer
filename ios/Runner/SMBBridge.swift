@@ -614,7 +614,26 @@ final class SMBBridge: NSObject {
     }
 
     /// Why a probe failed, for a host the user believes is on the LAN.
-    private static var lastProbeFailure: String = ""
+    ///
+    /// Written from two different queues: the state handler runs on `probeQueue`
+    /// while the probe's own deadline timer runs on a global queue. `String` is
+    /// not atomically assignable, so an unsynchronised write from both can tear
+    /// and crash, and a /24 sweep does exactly that in parallel. Same
+    /// lock-then-copy shape as HostBox below.
+    private static let probeFailureLock = NSLock()
+    private static var storedProbeFailure: String = ""
+    private static var lastProbeFailure: String {
+        get {
+            probeFailureLock.lock()
+            defer { probeFailureLock.unlock() }
+            return storedProbeFailure
+        }
+        set {
+            probeFailureLock.lock()
+            storedProbeFailure = newValue
+            probeFailureLock.unlock()
+        }
+    }
 
     /// One queue for every probe connection, so a parallel sweep cannot spawn
     /// one run-loop thread per host.
