@@ -1115,7 +1115,6 @@ final class SMBBridge: NSObject {
                     completion(tokenURL)
                 }
             } catch {
-                client.session.disconnect()
                 let message = Self.friendly(error, host: server.host)
                 await MainActor.run {
                     SBMLog.log("openShare FAILED \(share)/\(path): \(message)")
