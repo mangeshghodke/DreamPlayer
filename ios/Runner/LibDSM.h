@@ -98,6 +98,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Opens the file once so later reads need no reopen. Call after the engine has
 /// probed the container, to keep the first-play latency off the read path.
+/// Swift bridging note: Clang imports a BOOL-returning NSError** method under
+/// `swift_error(zero_result)` — a `Void` function that throws when it would
+/// have returned NO. Call it as `try session.prepareForPlayback(of: path)` and
+/// do not test the result. See tool/libdsm_check.py.
 - (BOOL)prepareForPlaybackOfRelativePath:(NSString *)path
                                   error:(NSError *_Nullable *_Nullable)error;
 

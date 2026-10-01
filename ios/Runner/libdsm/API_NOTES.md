@@ -62,6 +62,32 @@ The docs *are* still useful for the things the headers do not state:
 - **Host discovery** exists via `netbios_ns_*` (`bdsm.h` already includes
   `netbios_ns.h`), which is the route to use instead of a hand-rolled LAN scan.
 
+## How these methods appear in Swift
+
+`LibDSM.h` uses `NSError **` for every fallible call. Clang imports those as
+`throws` under one of two default conventions, documented at
+<https://clang.llvm.org/docs/AttributeReference.html> (`swift_error`):
+
+| return type | convention | imported as | throws when |
+|---|---|---|---|
+| nullable pointer | `null_result` | non-optional value | it returns `nil` |
+| `BOOL` | `zero_result` | **`Void`** | it returns `NO` |
+
+Two consequences worth knowing before editing the header:
+
+- **`null_result` is keyed off the return being nullable.** Mark the return
+  `nonnull` and the convention stops applying, so the method silently stops
+  importing as throwing. The only symptom is `Missing argument for parameter
+  'error'` at the *call site*, three CI cycles away from the cause. This is
+  exactly what happened here.
+- A `BOOL`-returning `NSError **` method loses its result in Swift. That is
+  correct and idiomatic for "did it work", but `if try prepareForPlayback(...)`
+  will not compile.
+
+`tool/libdsm_check.py` enforces both: a pointer-returning `NSError **` method
+must be declared `nullable`, and a `BOOL`-returning one must carry the
+`zero_result` note in the header.
+
 ## Session
     smb_session *smb_session_new(void);
     void  smb_session_set_creds(smb_session *, const char *domain,

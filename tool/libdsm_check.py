@@ -381,6 +381,51 @@ def main():
             f"its dependency: {sorted(archives, key=expected_order.index)}"
         )
 
+    # 13. Methods whose last parameter is NSError** import into Swift as
+    #     throwing under one of Clang's default error conventions
+    #     (https://clang.llvm.org/docs/AttributeReference.html, swift_error):
+    #       null_result — pointer return, thrown on nil, result non-optional.
+    #                    This is keyed off the return being *nullable*; mark it
+    #                    nonnull and the convention no longer applies, so the
+    #                    method silently stops being throwing and the only
+    #                    symptom is "Missing argument for parameter 'error'" at
+    #                    the call site — three CI cycles to trace back here.
+    #       zero_result — integral return, thrown on 0, imported as Void.
+    #     So a pointer-returning NSError** method must be declared nullable,
+    #     while a BOOL-returning one is correct as-is.
+    header_src = strip_noise(open(header, encoding="utf-8").read())
+    for m in re.finditer(
+        r"(?m)^([-+])\s*\(([^)]*)\)([^{;]*?error:\(NSError[^)]*\)[^;]*);",
+        header_src,
+    ):
+        kind = m.group(1)
+        ret = m.group(2).strip()
+        line = header_src[: m.start()].count("\n") + 1
+        selector = m.group(3)
+        name = re.search(r"(\w+):", selector)
+        label = f"{name.group(1) if name else '?'} ({'class' if kind == '+' else 'instance'})"
+        returns_pointer = ret.endswith("*") or "instancetype" in ret
+        if returns_pointer and "nullable" not in ret:
+            problems.append(
+                f"LibDSM.h:{line} {label} takes NSError** but returns {ret!r} "
+                f"without 'nullable'; Swift will not import it as throwing "
+                f"(swift_error null_result requires a nullable pointer return)"
+            )
+        if "BOOL" in ret:
+            # Legitimate, but Swift imports it as Void + throws-on-false, so the
+            # call site cannot test the result. Require the header to say so,
+            # otherwise the author will write `if try f(...)` and get a build
+            # failure pointing at the call site instead of the declaration.
+            # Read the raw header: strip_noise() removed the very comment this
+            # is looking for.
+            raw_header = open(header, encoding="utf-8").read()
+            if "zero_result" not in raw_header:
+                problems.append(
+                    f"LibDSM.h:{line} {label} returns BOOL with NSError**, so Swift "
+                    f"imports it as Void + throws-on-false (swift_error zero_result). "
+                    f"Document that in the header next to the declaration."
+                )
+
     if problems:
         for p in problems:
             print(f"FAIL  {p}")
