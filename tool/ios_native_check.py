@@ -23,6 +23,11 @@ Known limits, so the PASS is not over-read:
     `@implementation X { ... }` block, so it is blind in files that declare none.
   * pbxproj paths are matched by basename under ios/, not resolved through their
     enclosing group.
+  * It does not do type resolution at all, so it cannot tell our types from the
+    framework's. A deleted type used to be caught by grepping for capitalised
+    identifiers, but every import (Flutter, UIKit, AetherEngine) and every
+    framework class then reads as "undeclared" and the output is pure noise. Type
+    errors stay Xcode's job; the checks here are the ones that are exact.
 
 Usage: python3 tool/ios_native_check.py
 Exit code 0 = pass, 1 = fail.
@@ -376,6 +381,7 @@ def check_bridging_header():
         if header not in basenames:
             fail(f"{cls} is declared in {header} but that header is not imported "
                  f"by Runner-Bridging-Header.h, so Swift cannot see it")
+
 
 
 def main():

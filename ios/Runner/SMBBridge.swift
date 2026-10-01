@@ -659,7 +659,7 @@ final class SMBBridge: NSObject {
                     cont.resume(returning: ok ? .open : .gaveUp)
                 }
             }
-            DispatchQueue.global(qos: utility).asyncAfter(
+            DispatchQueue.global(qos: .utility).asyncAfter(
                 deadline: .now() + timeout
             ) {
                 if !once.claimed {
@@ -682,6 +682,13 @@ final class SMBBridge: NSObject {
             }
             conn.start(queue: probeQueue)
         }
+    }
+
+    /// A probe's single verdict, so the call site reads as "did the port answer"
+    /// rather than as two anonymous Bools racing each other.
+    private enum ProbeOutcome: Sendable, Equatable {
+        case open
+        case gaveUp
     }
 
     /// One-shot guard so a probe continuation resumes exactly once, whichever
