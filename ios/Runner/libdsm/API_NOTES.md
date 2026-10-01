@@ -33,6 +33,35 @@ it), so the Frameworks phase is ordered `libdsm.a`, `libtasn1.a`, `libiconv.a`,
 compiles against them, and GNU's `iconv.h` on the header search path would shadow
 the system `iconv.h` for the whole Runner target.
 
+## Read this before using the upstream docs
+
+<https://videolabs.github.io/libdsm/> documents **release 0.0.4** and its
+examples do not compile against the build vendored here. The differences are
+not cosmetic:
+
+| | docs (0.0.4) | vendored build |
+|---|---|---|
+| header path | `<bsdm/bdsm.h>` | `<bdsm/bdsm.h>` |
+| `smb_tree_connect` | 2 args, returns the tid | 3 args, tid via out-param |
+| `smb_fopen` | 3 args, read-only implied | 5 args, `SMB_MOD_READ` + `smb_fd*` |
+| guest flag | `session->guest` struct field | `smb_session_is_guest()` |
+
+The vendored headers are authoritative — `smb_types.h` declares
+`struct smb_session` opaque, so the old field access is impossible.
+`tool/libdsm_check.py` validates every call against those headers.
+
+The docs *are* still useful for the things the headers do not state:
+
+- **libiconv and libtasn1 are the only two dependencies.** This is why
+  `-liconv` alone is not enough — GNU libiconv's `libiconv_open` /
+  `libiconv_close` / `libiconv` are what this build actually calls.
+- **A zero tid means failure** (`tid = smb_tree_connect(...); if (!tid)`),
+  which is why the wrapper treats `_tid == 0` as an error.
+- **`smb_fopen` paths are `"\\My\\File"`** — backslash-separated with a
+  leading separator and *no* trailing wildcard, unlike `smb_find`.
+- **Host discovery** exists via `netbios_ns_*` (`bdsm.h` already includes
+  `netbios_ns.h`), which is the route to use instead of a hand-rolled LAN scan.
+
 ## Session
     smb_session *smb_session_new(void);
     void  smb_session_set_creds(smb_session *, const char *domain,
