@@ -119,9 +119,17 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
         // deadline is kept purely as a backstop so a genuinely dead connection
         // surfaces as an error instead of hanging the reader forever.
         if availableLocked() == 0 && !bufEof && !closed {
-            let deadline = Date().addingTimeInterval(60)
+            // Bounded, but no longer a single 60s wall: bail as soon as the
+            // retired generation has drained and no live prefetcher is left to
+            // fill the window. Previously a starved ring waited the FULL 60s
+            // even when there was nobody left coming, which is exactly what a
+            // seek that cancelled its own prefetchers produced.
+            let deadline = Date().addingTimeInterval(20)
+            let drainGrace = Date().addingTimeInterval(2)
             while availableLocked() == 0 && !bufEof && !closed && cancelEpoch == epoch {
                 if Date() >= deadline { break }
+                // Nothing is going to arrive if every prefetcher has exited.
+                if prefetchTasks.isEmpty && Date() >= drainGrace { break }
                 ringLock.wait(until: deadline)
             }
         }
@@ -228,14 +236,26 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
         bufEof = false
         nextWritePos = position
         pendingChunks.removeAll(keepingCapacity: true)
-        // Cancel the previous generation explicitly. startPrefetchers only
-        // bumps the counter, which a prefetcher notices at its next gen check
-        // — but a prefetcher parked in ringLock.wait() would sit there until
-        // something broadcast. With four sockets and a seek that lands outside
-        // the window, the old tasks were still holding the connections while
-        // the new ones queued behind them, so the reader's window never filled
-        // and read() blocked out its 60s deadline.
-        for task in prefetchTasks { task.cancel() }
+        // Do NOT cancel the retired prefetchers.
+        //
+        // Cancelling them was a 60-second stall, not a fix. A prefetcher
+        // blocked in `await source.read(...)` does not stop on cancel() — the
+        // await THROWS CancellationError, which lands in the catch below,
+        // sets got = -2 and takes the transient-error path (200ms sleep, then
+        // retry). Cancelling all four meant every socket was spinning on
+        // cancelled reads while the new generation queued behind them, the
+        // window never filled, and read() sat out its 60s deadline before
+        // reporting "custom source probe failed".
+        //
+        // Instead the retired generation is left to DRAIN: ringEpoch has
+        // already been bumped, so when its in-flight read returns it discards
+        // the bytes (epoch mismatch) and exits at its next gen check. The
+        // connection is only held for the remainder of one in-flight read.
+        //
+        // `prefetchTasks` is cleared in close(); the array is not drained here
+        // because the tasks are still running and deinit must not cancel them
+        // either — a reader being torn down mid-drain is fine, the socket is
+        // closed by whoever owns the SMBConnection.
         prefetchTasks.removeAll(keepingCapacity: true)
         // Start fresh prefetchers. Old tasks exit on next gen check.
         startPrefetchers()
@@ -331,6 +351,11 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
                         tmpBuf.copyMemory(from: base, byteCount: got)
                     }
                 }
+            } catch is CancellationError {
+                // A retired generation: stop, and do NOT touch nextWritePos.
+                // Falling through to the transient-error path would rewind the
+                // write cursor for a chunk this task no longer owns.
+                return
             } catch {
                 got = -2
             }

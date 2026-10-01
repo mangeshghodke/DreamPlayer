@@ -33,6 +33,7 @@ final class SMBBridge: NSObject {
 
     /// One saved server. Password lives in the Keychain under [id].
     private struct ServerMeta: Codable {
+        var isAnonymous: Bool { anonymous }
         var id: String
         var name: String
         var host: String
@@ -113,25 +114,99 @@ final class SMBBridge: NSObject {
             let id = args["id"] as? String
             invalidateListingCache(serverId: id)
             result(nil)
+        // ---- libDSM: browsing. Everything below this line uses the vendored
+        // C client, which owns its own buffering. Playback still uses the
+        // legacy path until its read path is ported, so a libDSM fault cannot
+        // also take playback down.
         case "listShares":
             withServer(args["id"] as? String, result: result) { server, reply in
-                self.listShares(server: server) { shares in
-                    reply(shares, shares == nil ? "Could not list shares" : nil)
+                self.runOffMain {
+                    do {
+                        let shares = try SMBTransport.libDSMListShares(
+                            host: server.host,
+                            port: UInt16(truncatingIfNeeded: server.port),
+                            user: server.isAnonymous ? nil : server.username,
+                            password: server.isAnonymous ? nil : self.getPassword(server.id),
+                            domain: server.domain.isEmpty ? nil : server.domain
+                        )
+                        // Dart parses shares as SmbEntry, so return entry-shaped maps.
+                        let entries: [[String: Any]] = shares.map { name in
+                            [
+                                "name": name,
+                                "path": name,
+                                "isDirectory": true,
+                                "size": 0,
+                                "modified": 0,
+                            ]
+                        }
+                        reply(entries, nil)
+                    } catch {
+                        reply(nil, (error as? SMBError)?.errorDescription
+                            ?? "Could not list shares")
+                    }
                 }
             }
         case "addShare":
             withServer(args["id"] as? String, result: result) { server, reply in
                 let share = args["share"] as? String ?? ""
-                self.addShare(server: server, share: share) { ok in
-                    reply(ok, ok ? nil : "Could not connect to share \(share)")
+                self.runOffMain {
+                    do {
+                        // Touch the file API with a no-op open to prove the
+                        // share is actually usable, not just enumerable.
+                        let session = try SMBTransport.libDSMSession(
+                            host: server.host,
+                            port: UInt16(truncatingIfNeeded: server.port),
+                            share: share,
+                            user: server.isAnonymous ? nil : server.username,
+                            password: server.isAnonymous ? nil : self.getPassword(server.id),
+                            domain: server.domain.isEmpty ? nil : server.domain
+                        )
+                        let entries = try SMBTransport.libDSMList(session: session, path: "")
+                        SBMLog.log("addShare \(share) ok (\(entries.count) entries)")
+                        reply(true, nil)
+                    } catch {
+                        reply(false, (error as? SMBError)?.errorDescription
+                            ?? "Could not connect to share \(share)")
+                    }
                 }
             }
         case "listDirectory", "listDirectoryAll":
             withServer(args["id"] as? String, result: result) { server, reply in
                 let share = args["share"] as? String ?? ""
                 let path = args["path"] as? String ?? ""
-                self.listDirectory(server: server, share: share, path: path) { entries in
-                    reply(entries, entries == nil ? "Could not read that folder" : nil)
+                // 60s listing cache, same TTL Android uses.
+                let key = ListingCacheKey(serverId: server.id, share: share, path: path)
+                self.lock.lock()
+                if let cached = self.listingCache[key], cached.isFresh {
+                    let entries = cached.entries
+                    self.lock.unlock()
+                    reply(entries, nil)
+                    return
+                }
+                self.lock.unlock()
+                self.runOffMain {
+                    do {
+                        let session = try SMBTransport.libDSMSession(
+                            host: server.host,
+                            port: UInt16(truncatingIfNeeded: server.port),
+                            share: share,
+                            user: server.isAnonymous ? nil : server.username,
+                            password: server.isAnonymous ? nil : self.getPassword(server.id),
+                            domain: server.domain.isEmpty ? nil : server.domain
+                        )
+                        let raw = try SMBTransport.libDSMList(session: session, path: path)
+                        let built = self.buildEntries(from: raw)
+                        self.lock.lock()
+                        self.listingCache[key] = CachedListing(built)
+                        self.lock.unlock()
+                        SBMLog.log(
+                            "listDirectory \(share)/\(path) -> \(built.count) entries (libDSM)")
+                        reply(built, nil)
+                    } catch {
+                        SBMLog.log("listDirectory \(share)/\(path) FAILED (libDSM): \(error)")
+                        reply(nil, (error as? SMBError)?.errorDescription
+                            ?? "Could not read that folder")
+                    }
                 }
             }
         case "fetchSizes":
@@ -171,7 +246,15 @@ final class SMBBridge: NSObject {
                 result(found.map { ["host": $0.host, "hostname": $0.hostname] })
             }
         case "checkServer":
-            result(false)
+            let host = args["host"] as? String ?? ""
+            let port = UInt16(truncatingIfNeeded: args["port"] as? Int ?? 445)
+            self.runOffMain {
+                let ok = SMBTransport.libDSMCanReach(host: host, port: port)
+                DispatchQueue.main.async {
+                    SBMLog.log("checkServer \(host):\(port) -> \(ok)")
+                    result(ok)
+                }
+            }
         case "startLoopback", "stopLoopback":
             result(nil)
         default:
@@ -457,6 +540,59 @@ final class SMBBridge: NSObject {
         } onError: { message in
             completion(false, message)
         }
+    }
+
+    /// Runs blocking work off the main actor and replies on the main actor.
+    ///
+    /// libDSM is synchronous C, so every call would freeze the UI (and freeze
+    /// it visibly — an SMB handshake is seconds). [FlutterResult] must also be
+    /// invoked on the main thread or the method channel deadlocks, which is why
+    /// this helper exists rather than ad-hoc Task blocks at each call site.
+    private func runOffMain(_ work: @escaping () -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async(execute: work)
+    }
+
+    /// Turns libDSM entries into the map shape Dart parses, including sibling
+    /// subtitle pairing — same rule the previous implementation used, so the
+    /// UI behaves identically.
+    private func buildEntries(from raw: [SMBEntry]) -> [[String: Any]] {
+        let subtitles = raw.filter { Self.isSubtitle($0.name) }
+        return raw
+            .filter { !$0.isDirectory || !Self.isJunkFolder($0.name) }
+            .filter { $0.isDirectory || !Self.isJunk($0.name) }
+            .map { file in
+                var entry: [String: Any] = [
+                    "name": file.name,
+                    "path": file.relativePath,
+                    "isDirectory": file.isDirectory,
+                    "size": file.size,
+                    "modified": file.modifiedMillis,
+                ]
+                guard !file.isDirectory else { return entry }
+                let base = Self.baseName(file.name)
+                let matches = subtitles.filter { Self.baseName($0.name) == base }
+                if !matches.isEmpty {
+                    entry["subtitlePaths"] = matches.map(\.relativePath)
+                    let preferred = matches.first {
+                        let n = $0.name.lowercased()
+                        return n.contains(".en.") || n.contains(".eng.")
+                    } ?? matches[0]
+                    entry["subtitlePath"] = preferred.relativePath
+                }
+                return entry
+            }
+    }
+
+    /// Directories are never media, but obvious clutter is hidden from browsing
+    /// so a share root reads cleanly.
+    private static func isJunkFolder(_ name: String) -> Bool {
+        let lower = name.lowercased()
+        if lower.hasPrefix(".") { return true }
+        for token in ["@eaDir", "#recycle", "system volume information", "\$recycle.bin"]
+        where lower.contains(token) {
+            return true
+        }
+        return false
     }
 
     // MARK: - LAN discovery
