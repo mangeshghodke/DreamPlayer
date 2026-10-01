@@ -251,6 +251,28 @@ def check_structure():
         for f in files:
             basenames.add(f)
     # Written by `flutter pub get` / the build, not present in the repo.
+
+    # Every compilable source on disk must actually be in a Sources phase. A file
+    # that exists, is imported by the bridging header, and even passes a symbol
+    # check still produces no code if it was never registered with the target —
+    # which only shows up as "Undefined symbol: _OBJC_CLASS_$_X" at link time.
+    compiled = set()
+    for m in re.finditer(
+        r"isa = PBXSourcesBuildPhase;.*?files = \((.*?)\);", pbx, re.S
+    ):
+        compiled |= set(re.findall(r"/\* (\S+) in Sources \*/", m.group(1)))
+    for path in native_files({".m", ".swift", ".c"}):
+        name = os.path.basename(path)
+        # Vendored C is compiled by ios/libsmb2_build.sh, not by Xcode.
+        if "libsmb2" in path:
+            continue
+        if name not in compiled:
+            fail(f"{name} is on disk but not in any PBXSourcesBuildPhase — "
+                 f"it would compile to nothing and fail at link with "
+                 f"'Undefined symbol'")
+
+    # Flutter-generated files, written by `flutter pub get`, not in the repo.
+
     generated = {"GeneratedPluginRegistrant.h", "GeneratedPluginRegistrant.m"}
     for m in re.finditer(r'path = ([A-Za-z0-9_.\-]+\.(?:swift|m|h|mm|c|a|png|plist))\b', pbx):
         name = m.group(1)

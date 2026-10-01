@@ -25,6 +25,7 @@
 		A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000E /* WebDAVClient.swift */; };
 		A1B2C3D5000000000000033 /* SMBBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000032 /* SMBBridge.swift */; };
 		A1B2C3D5000000000000061 /* SMBSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000062 /* SMBSource.swift */; };
+		A1B2C3D5000000000000071 /* LibSMB2.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000072 /* LibSMB2.m */; };
 		A1B2C3D5000000000000037 /* SBMLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000038 /* SBMLog.swift */; };
 		A1B2C3D5000000000000034 /* SMBClient in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000000000000035 /* SMBClient */; };
 		A1B2C3D50000000000000010 /* JellyfinDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */; };
@@ -87,6 +88,8 @@
 		A1B2C3D4000000000000000E /* WebDAVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClient.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000032 /* SMBBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMBBridge.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000062 /* SMBSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMBSource.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000072 /* LibSMB2.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LibSMB2.m; sourceTree = "<group>"; };
+		A1B2C3D4000000000000073 /* LibSMB2.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LibSMB2.h; sourceTree = "<group>"; };
 		A1B2C3D4000000000000038 /* SBMLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBMLog.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinDiscovery.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000011 /* CacheCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheCleaner.swift; sourceTree = "<group>"; };
@@ -184,6 +187,8 @@
 				A1B2C3D4000000000000000E /* WebDAVClient.swift */,
 				A1B2C3D4000000000000032 /* SMBBridge.swift */,
 				A1B2C3D4000000000000062 /* SMBSource.swift */,
+				A1B2C3D4000000000000072 /* LibSMB2.m */,
+				A1B2C3D4000000000000073 /* LibSMB2.h */,
 				A1B2C3D4000000000000038 /* SBMLog.swift */,
 				A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */,
 				A1B2C3D40000000000000011 /* CacheCleaner.swift */,
@@ -370,6 +375,7 @@
 				A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */,
 				A1B2C3D5000000000000033 /* SMBBridge.swift in Sources */,
 				A1B2C3D5000000000000061 /* SMBSource.swift in Sources */,
+				A1B2C3D5000000000000071 /* LibSMB2.m in Sources */,
 				A1B2C3D5000000000000037 /* SBMLog.swift in Sources */,
 				A1B2C3D50000000000000010 /* JellyfinDiscovery.swift in Sources */,
 				A1B2C3D50000000000000012 /* CacheCleaner.swift in Sources */,
