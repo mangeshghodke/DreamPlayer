@@ -961,6 +961,19 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         // Resume: continue from the last watched position when the caller asks.
         let startPosition: Double? = startMs > 0 ? Double(startMs) / 1000.0 : nil
 
+        // Armed here, BEFORE the load, and not after it. `engine.load` does not
+        // return until the container is probed, and Dart's audio-track restore
+        // arrives ~75 ms into that window — before the post-load code ran, so
+        // the pending target was still 0 and the restore's reload pinned the
+        // session to the start. Arming late made the fix a no-op on exactly the
+        // case it was written for: a resume that also has a saved non-default
+        // audio track, which is the only case that reloads at session start.
+        pendingResumeSeconds = startPosition ?? 0
+        if pendingResumeSeconds > 0 {
+            SBMLog.log("open: resume target armed at \(pendingResumeSeconds)s "
+                       + "(before load, so a session-start reload cannot discard it)")
+        }
+
         Task { @MainActor [weak self] in
             guard let self, let engine = self.engine else { return }
             do {
@@ -1112,7 +1125,6 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 // Re-assert it once the engine is actually ready so a tap on a
                 // Continue watching card lands where the viewer left off.
                 if let startPosition, startPosition > 0 {
-                    self.pendingResumeSeconds = startPosition
                     Task { @MainActor [weak self] in
                         guard let self else { return }
                         await self.reassertPosition(startPosition)
