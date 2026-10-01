@@ -52,31 +52,63 @@ static void LibDSMFail(NSError **error, NSString *message) {
 
 #pragma mark - Helpers
 
-/// Turns libDSM's C errno-ish return into something a user can act on.
+/// Turns a libDSM failure into something a user can act on.
 ///
-/// libDSM returns the negative errno from the wire, so the codes worth naming
-/// are the auth and reachability ones — the rest collapse to the numeric value
-/// rather than inventing a message we cannot stand behind.
-static NSString *LibDSMFriendlyError(int code, NSString *host) {
+/// libDSM returns DSM_ERROR_* codes from smb_defs.h (GENERIC -1, NT -2,
+/// NETWORK -3, CHARSET -4) — not errno values. For DSM_ERROR_NT the
+/// actionable detail is the NT status, which has to be read back off the
+/// session; without it every auth failure is indistinguishable from a generic
+/// one, and "wrong password" is exactly the case worth naming.
+static NSString *LibDSMFriendlyError(smb_session *session, int code,
+                                     NSString *host) {
   switch (code) {
-    case -61:  // EACCES
-    case -13:
-      return @"Login failed — check username, password and domain";
-    case -111:  // ECONNREFUSED
+    case DSM_ERROR_NETWORK:
       return [NSString stringWithFormat:@"Can't reach %@ on the SMB port", host];
-    case -110:  // ETIMEDOUT
-      return [NSString stringWithFormat:@"Timed out reaching %@", host];
-    case -113:  // EHOSTUNREACH
-      return [NSString stringWithFormat:@"%@ is unreachable", host];
-    case -101:  // ENETUNREACH
-      return @"The network is unreachable";
+    case DSM_ERROR_CHARSET:
+      return @"The server and this device disagree on filename encoding";
+    case DSM_ERROR_NT: {
+      uint32_t nt = session != NULL ? smb_session_get_nt_status(session) : 0;
+      switch (nt) {
+        case NT_STATUS_LOGON_FAILURE:
+          return @"Login failed — check username, password and domain";
+        case NT_STATUS_ACCESS_DENIED:
+          return @"Access denied — the account may lack permission for this share";
+        case NT_STATUS_SMB_BAD_TID:
+          return @"The server dropped the share connection";
+        case NT_STATUS_OBJECT_NAME_NOT_FOUND:
+        case NT_STATUS_OBJECT_PATH_NOT_FOUND:
+          return @"That folder no longer exists";
+        default:
+          return [NSString stringWithFormat:@"The server refused the request "
+                                      @"(NT status 0x%08X)", nt];
+      }
+    }
+    case DSM_ERROR_GENERIC:
+      return [NSString stringWithFormat:@"The SMB server rejected the request on %@",
+              host];
     default:
       return [NSString stringWithFormat:@"SMB error %d on %@", code, host];
   }
 }
 
-/// Share-relative path with backslashes, which is what libDSM's fopen expects.
-static NSString *LibDSMNativePath(NSString *path) {
+/// Wildcard pattern smb_find expects. Per its contract '\*' lists the share
+/// root and '\folder\*' lists a folder's contents: a bare path matches that
+/// one entry rather than its children, so the trailing '\*' is mandatory.
+static NSString *LibDSMFindPattern(NSString *path) {
+  NSString *trimmed = [path stringByTrimmingCharactersInSet:
+                       [NSCharacterSet characterSetWithCharactersInString:@"/"]];
+  if (trimmed.length == 0) {
+    return @"\\*";
+  }
+  NSString *backslashed = [trimmed stringByReplacingOccurrencesOfString:@"/"
+                                                          withString:@"\\"];
+  return [NSString stringWithFormat:@"\\%@\\*", backslashed];
+}
+
+/// Share-relative path with backslashes, which is what smb_fopen/smb_fstat
+/// want. This is a concrete path, so it deliberately carries no wildcard —
+/// see LibDSMFindPattern for the listing case.
+static NSString *LibDSMSharePath(NSString *path) {
   NSString *trimmed = [path stringByTrimmingCharactersInSet:
                        [NSCharacterSet characterSetWithCharactersInString:@"/"]];
   if (trimmed.length == 0) {
@@ -132,15 +164,13 @@ static long long LibDSMMillis(time_t seconds) {
 
   struct in_addr addr;
   if (inet_pton(AF_INET, host.UTF8String, &addr) != 1) {
-          LibDSMFail(error, [NSString stringWithFormat:@"\"%@\" is not a valid IP address", host]);
-
+    LibDSMFail(error, [NSString stringWithFormat:@"\"%@\" is not a valid IP address", host]);
     return nil;
   }
 
   _session = smb_session_new();
   if (_session == NULL) {
-          LibDSMFail(error, @"Could not allocate an SMB session");
-
+    LibDSMFail(error, @"Could not allocate an SMB session");
     return nil;
   }
 
@@ -159,8 +189,7 @@ static long long LibDSMMillis(time_t seconds) {
   int rc = smb_session_connect(_session, name.UTF8String, addr.s_addr,
                                SMB_TRANSPORT_TCP);
   if (rc != 0) {
-          LibDSMFail(error, LibDSMFriendlyError(rc, host));
-
+    LibDSMFail(error, LibDSMFriendlyError(_session, rc, host));
     smb_session_destroy(_session);
     _session = NULL;
     return nil;
@@ -177,8 +206,7 @@ static long long LibDSMMillis(time_t seconds) {
   _isGuest = (guest == 1);
 
   if (rc != 0) {
-          LibDSMFail(error, LibDSMFriendlyError(rc, host));
-
+    LibDSMFail(error, LibDSMFriendlyError(_session, rc, host));
     smb_session_destroy(_session);
     _session = NULL;
     return nil;
@@ -190,10 +218,10 @@ static long long LibDSMMillis(time_t seconds) {
 
   rc = smb_tree_connect(_session, share.UTF8String, &_tid);
   if (rc != 0 || _tid == 0) {
-          LibDSMFail(error, (rc != 0) ? LibDSMFriendlyError(rc, host)
-                         : [NSString stringWithFormat:@"Could not open share \"%@\"",
-                            share]);
-
+    LibDSMFail(error, (rc != 0)
+                       ? LibDSMFriendlyError(_session, rc, host)
+                       : [NSString stringWithFormat:@"Could not open share \"%@\"",
+                                                    share]);
     smb_session_destroy(_session);
     _session = NULL;
     return nil;
@@ -219,22 +247,18 @@ static long long LibDSMMillis(time_t seconds) {
 
 - (nullable NSArray<LibDSMEntry *> *)listDirectory:(NSString *)path
                                               error:(NSError *_Nullable *_Nullable)error {
-  NSString *pattern = LibDSMNativePath(path);
+  NSString *pattern = LibDSMFindPattern(path);
   smb_stat_list list = smb_find(_session, _tid, pattern.UTF8String);
   if (list == NULL) {
-          LibDSMFail(error, [NSString stringWithFormat:@"Could not read \"%@\"",
-                          path.length ? path : @"/"]);
-
+    LibDSMFail(error, [NSString stringWithFormat:@"Could not read \"%@\"",
+                                                path.length ? path : @"/"]);
     return nil;
   }
 
   NSMutableArray<LibDSMEntry *> *out = [NSMutableArray array];
-  // Walk by index: smb_find returns a NULL-terminated array of smb_file.
-  size_t count = 0;
-  while (smb_stat_list_at(list, count) != NULL) {
-    count++;
-  }
-
+  // smb_stat_list_count is O(1) and returns 0 for an invalid list, so this
+  // needs no sentinel probe of its own.
+  size_t count = smb_stat_list_count(list);
   for (size_t i = 0; i < count; i++) {
     smb_stat info = smb_stat_list_at(list, i);
     if (info == NULL) {
@@ -270,7 +294,7 @@ static long long LibDSMMillis(time_t seconds) {
 #pragma mark Sizes
 
 - (unsigned long long)fileSizeAtRelativePath:(NSString *)path {
-  smb_stat info = smb_fstat(_session, _tid, LibDSMNativePath(path).UTF8String);
+  smb_stat info = smb_fstat(_session, _tid, LibDSMSharePath(path).UTF8String);
   if (info == NULL) {
     return 0;
   }
@@ -286,11 +310,10 @@ static long long LibDSMMillis(time_t seconds) {
     _fd = 0;
     _fileOpen = NO;
   }
-  int rc = smb_fopen(_session, _tid, LibDSMNativePath(path).UTF8String,
+  int rc = smb_fopen(_session, _tid, LibDSMSharePath(path).UTF8String,
                      SMB_MOD_READ, &_fd);
   if (rc != 0 || _fd == 0) {
-          LibDSMFail(error, LibDSMFriendlyError(rc, _host));
-
+    LibDSMFail(error, LibDSMFriendlyError(_session, rc, _host));
     _fd = 0;
     return NO;
   }
@@ -330,22 +353,20 @@ static long long LibDSMMillis(time_t seconds) {
                                             error:(NSError *_Nullable *_Nullable)error {
   struct in_addr addr;
   if (inet_pton(AF_INET, host.UTF8String, &addr) != 1) {
-          LibDSMFail(error, [NSString stringWithFormat:@"\"%@\" is not a valid IP address", host]);
-
+    LibDSMFail(error, [NSString stringWithFormat:@"\"%@\" is not a valid IP address", host]);
     return nil;
   }
 
   smb_session *s = smb_session_new();
   if (s == NULL) {
-          LibDSMFail(error, @"Could not allocate an SMB session");
-
+    LibDSMFail(error, @"Could not allocate an SMB session");
     return nil;
   }
 
   NSMutableString *failure = [NSMutableString string];
   int rc = smb_session_connect(s, "DREAMPLAYER", addr.s_addr, SMB_TRANSPORT_TCP);
   if (rc != 0) {
-    [failure appendString:LibDSMFriendlyError(rc, host)];
+    [failure appendString:LibDSMFriendlyError(_session, rc, host)];
   } else {
     BOOL wantsGuest = (user.length == 0);
     smb_session_set_creds(s,
@@ -354,13 +375,13 @@ static long long LibDSMMillis(time_t seconds) {
                           wantsGuest ? "" : (password.length ? password.UTF8String : NULL));
     rc = smb_session_login(s);
     if (rc != 0) {
-      [failure appendString:LibDSMFriendlyError(rc, host)];
+      [failure appendString:LibDSMFriendlyError(_session, rc, host)];
     } else {
       smb_share_list shares = NULL;
       size_t count = 0;
       rc = smb_share_get_list(s, &shares, &count);
       if (rc != 0) {
-        [failure appendString:LibDSMFriendlyError(rc, host)];
+        [failure appendString:LibDSMFriendlyError(_session, rc, host)];
       } else {
         NSMutableArray<NSString *> *names = [NSMutableArray array];
         for (size_t i = 0; i < count; i++) {
@@ -376,9 +397,8 @@ static long long LibDSMMillis(time_t seconds) {
     }
   }
   smb_session_destroy(s);
-      LibDSMFail(error, failure.length ? failure : @"Could not list shares");
-
-  return nil;
+    LibDSMFail(error, failure.length ? failure : @"Could not list shares");
+    return nil;
 }
 
 + (BOOL)canReachHost:(NSString *)host port:(uint16_t)port {

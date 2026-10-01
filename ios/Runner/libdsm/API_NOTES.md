@@ -1,8 +1,20 @@
 # libDSM C API (what DreamPlayer uses)
 
-Vendored from `TOSMBClient/libdsm` (VideoLabs liBDSM). LGPLv2.1 or commercial.
-`libdsm.a` is a Mach-O universal archive: armv7, armv7s, i386, x86_64, **arm64**.
-No build step required. `libtasn1.a` is its ASN.1 dependency.
+Upstream C library: VideoLabs liBDSM, LGPLv2.1 or commercial
+(https://github.com/videolan/libdsm).
+
+The prebuilt archives are taken verbatim from the upstream project's own iOS
+distribution (`distribution/ios/libdsm/` at
+https://github.com/biezhihua/libdsm), so the headers and the binaries come from
+one build. `libdsm.a` and `libtasn1.a` are Mach-O universal archives over
+**x86_64, arm64 and arm64e**. No build step required.
+
+The distribution also ships `libiconv.a` and `libcharset.a`. They are
+deliberately **not** vendored: libdsm only calls `iconv_open`/`iconv_close`,
+which Apple's system `libiconv` provides via `-liconv`, and nothing references
+`locale_charset`, so `libcharset` is unnecessary. Bundling GNU libiconv would
+both collide with the system iconv other dependencies pull in and run into
+Apple's restrictions on shipping it.
 
 ## Session
     smb_session *smb_session_new(void);
@@ -25,7 +37,10 @@ No build step required. `libtasn1.a` is its ASN.1 dependency.
     int    smb_tree_disconnect(smb_session *, smb_tid);
 
 ## Directory listing
-    smb_stat_list smb_find(smb_session *, smb_tid, const char *pattern); // "*"
+    smb_stat_list smb_find(smb_session *, smb_tid, const char *pattern);
+    // pattern is a WILDCARD: "\\*" lists the share root, "\\folder\\*" lists a
+    // folder's contents. A bare path matches that one entry, not its children.
+    size_t smb_stat_list_count(smb_stat_list);       // 0 if the list is invalid
     smb_stat      smb_stat_list_at(smb_stat_list, size_t);
     void          smb_stat_list_destroy(smb_stat_list);
     const char   *smb_stat_name(smb_stat);

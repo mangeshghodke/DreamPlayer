@@ -32,8 +32,8 @@
 #define __BDSM_SMB_SESSION_H_
 
 
-#include "smb_defs.h"
-#include "smb_types.h"
+#include "bdsm/smb_defs.h"
+#include "bdsm/smb_types.h"
 
 /**
  * @file smb_session.h
@@ -46,7 +46,7 @@
  * call smb_session_connect, then authenticate with smb_authenticate.
  * @return A new Session object.
  */
-smb_session     *smb_session_new(void);
+smb_session     *smb_session_new();
 
 /**
  * @brief Close a session and deallocate its ressources

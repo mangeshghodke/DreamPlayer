@@ -16,7 +16,8 @@ liBDSM (libdsm) — iOS SMB2 client
 
   Copyright (c) Julien 'Lta' Ballet and VideoLabs SAS
   License: LGPL v2.1 or later (also available under a commercial licence)
-  Vendored pre-built for iOS from TimOliver/TOSMBClient
+  Vendored pre-built for iOS from the upstream project's own iOS
+  distribution (distribution/ios/libdsm at https://github.com/biezhihua/libdsm)
   https://github.com/videolan/libdsm
 
   The iOS build links libdsm.a (statically) and libtasn1.a. DreamPlayer is

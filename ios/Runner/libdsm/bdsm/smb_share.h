@@ -31,8 +31,8 @@
 #ifndef __BDSM_SMB_SHARE_H_
 #define __BDSM_SMB_SHARE_H_
 
-#include "smb_session.h"
-#include "smb_file.h"
+#include "bdsm/smb_session.h"
+#include "bdsm/smb_file.h"
 
 /**
  * @file smb_share.h
@@ -47,7 +47,7 @@
  *
  * @param[in] s The session object
  * @param[out] list A pointer to an opaque share_list object.
- * @param[out] p_count A pointer to the number of elements in the list
+ * @param[out] pointer to the number of elements in the list
  *
  * @return 0 on success or a DSM error code in case of error
  */
