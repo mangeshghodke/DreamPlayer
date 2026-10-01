@@ -128,7 +128,7 @@ final class SMBByteRangeSource: ByteRangeSource, @unchecked Sendable {
         // readable while still pinpointing a stall.
         if ms > 500 {
             SBMLog.log(
-                "smb read: offset=\(offset) len=\(requested) "
+                "smb read: offset=\(offset) len=\(length) "
                 + "got=\(data.count) in \(ms)ms (total \(stats.count) reads, "
                 + "slowest \(stats.slowestMs)ms)")
         }
