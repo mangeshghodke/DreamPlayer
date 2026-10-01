@@ -1,5 +1,9 @@
 #import "LibSMB2.h"
 
+// Both headers are required and neither includes the other: SMB2_GUID_SIZE and
+// smb2_lease_key live in smb2.h, while the smb2_* entry points live in
+// libsmb2.h. Importing only libsmb2.h fails to compile.
+#import <smb2/smb2.h>
 #import <smb2/libsmb2.h>
 
 /// SMB dialect constants, mirrored from smb2.h so the display label does not

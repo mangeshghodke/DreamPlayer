@@ -129,25 +129,87 @@ def native_files(extensions):
 # --------------------------------------------------------------------------
 # 1. Every C symbol we call must exist in the vendored headers.
 # --------------------------------------------------------------------------
-def check_c_symbols():
-    include_dirs = [
-        os.path.join(RUNNER, "libsmb2/include"),
-        os.path.join(RUNNER, "libsmb2/include/smb2"),
-    ]
-    headers = ""
-    for root in (os.path.join(RUNNER, "libsmb2/include"),):
-        for base, _dirs, files in os.walk(root):
-            for f in files:
-                if f.endswith(".h"):
-                    headers += open(os.path.join(base, f), encoding="utf-8",
-                                    errors="replace").read()
+LIBSMB2_INCLUDE = os.path.join(RUNNER, "libsmb2/include")
 
+
+def _header_closure(roots):
+    """Every header reachable from `roots` by #include <...>.
+
+    Needed because the libsmb2 public headers are not self-contained:
+    SMB2_GUID_SIZE and smb2_lease_key live in smb2/smb2.h while the smb2_*
+    entry points live in smb2/libsmb2.h, and neither includes the other. A
+    check that merely greps every vendored header would pass a file that only
+    imports one of them — which is exactly the mistake that cost a build.
+    """
+    seen = set()
+    stack = list(roots)
+    while stack:
+        rel = stack.pop()
+        if rel in seen:
+            continue
+        seen.add(rel)
+        path = os.path.join(LIBSMB2_INCLUDE, rel)
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for m in re.finditer(r"#include\s+<([^>]+)>", fh.read()):
+                stack.append(m.group(1))
+    return seen
+
+
+def check_c_symbols():
     for path in native_files({".m"}):
-        code = strip_strings(strip_noise(open(path, encoding="utf-8").read()))
-        for sym in sorted(set(re.findall(r"\b(smb2_[A-Za-z0-9_]+)\b", code))):
-            if not re.search(r"\b" + sym + r"\b", headers):
-                fail(f"{os.path.basename(path)}: {sym}() is not declared in the "
-                     f"vendored libsmb2 headers")
+        raw = open(path, encoding="utf-8").read()
+        code = strip_strings(strip_noise(raw))
+        roots = re.findall(r'#import\s+<([^>]+)>', raw)
+        libsmb2_roots = [r for r in roots if r.startswith("smb2/")]
+        if not libsmb2_roots:
+            continue
+
+        closure = _header_closure(libsmb2_roots)
+        text = ""
+        for rel in closure:
+            p = os.path.join(LIBSMB2_INCLUDE, rel)
+            if os.path.exists(p):
+                text += open(p, encoding="utf-8", errors="replace").read()
+
+        if not text.strip():
+            fail(f"{os.path.basename(path)}: imports {libsmb2_roots} but none "
+                 f"of those headers resolve under ios/Runner/libsmb2/include")
+            continue
+
+        for sym in sorted(set(re.findall(r"\b(smb2_[A-Za-z0-9_]+|SMB2_[A-Z0-9_]+)\b", code))):
+            if _is_defined(sym, text):
+                continue
+            fail(f"{os.path.basename(path)}: {sym} is not *defined* by the "
+                 f"headers this file imports ({', '.join(libsmb2_roots)}). "
+                 f"libsmb2's public headers are not self-contained: "
+                 f"<smb2/smb2.h> and <smb2/libsmb2.h> must both be imported, "
+                 f"smb2.h first. (A name merely *mentioned* in a declaration "
+                 f"does not count — SMB2_GUID_SIZE is referenced by "
+                 f"smb2_set_client_guid() but only defined in smb2.h.)")
+
+
+def _is_defined(sym, header_text):
+    """True when `sym` is actually defined, not just referenced.
+
+    A macro counts via #define, an enum constant via `NAME =`, a typedef via
+    `} NAME;`, and a function via a call-shaped declaration. Mentions inside
+    parameter lists are deliberately not enough.
+    """
+    if re.search(r"#define\s+" + re.escape(sym) + r"\b", header_text):
+        return True
+    if re.search(r"^\s*" + re.escape(sym) + r"\s*=", header_text, re.M):
+        return True
+    if re.search(r"\}\s*" + re.escape(sym) + r"\s*;", header_text):
+        return True
+    if re.search(r"\b" + re.escape(sym) + r"\s*\(", header_text):
+        return True
+    # Opaque handle types are struct tags, not typedefs: libsmb2 uses
+    # `struct smb2_context` everywhere rather than a bare smb2_context.
+    if re.search(r"\bstruct\s+" + re.escape(sym) + r"\b", header_text):
+        return True
+    return False
 
 
 # --------------------------------------------------------------------------
