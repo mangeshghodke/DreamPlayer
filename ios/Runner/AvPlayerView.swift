@@ -531,7 +531,19 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // its loopback/ByteRange reader cannot rewind), so reading
                     // currentTime afterwards always yields 0 and the reload
                     // below faithfully restarts the file from the beginning.
-                    let resumeAt = self.engine?.currentTime ?? .zero
+                    // A resumed network session reports a live playhead of ~0
+                    // until `reassertPosition` lands it, so a reload aimed at the
+                    // playhead would discard the resume. Prefer the position the
+                    // session is still trying to reach — but only while the
+                    // playhead is still at the start, so a stale target can never
+                    // yank the viewer back once playback has moved on.
+                    let livePosition = self.engine?.currentTime ?? .zero
+                    let resumeAt: Double
+                    if self.pendingResumeSeconds > 0, livePosition <= 0.5 {
+                        resumeAt = self.pendingResumeSeconds
+                    } else {
+                        resumeAt = livePosition
+                    }
                     // SMB skips the in-place attempt entirely. The engine
                     // cannot switch tracks on a custom ByteRangeSource: it
                     // re-probes the container against the reader that is
@@ -1100,6 +1112,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 // Re-assert it once the engine is actually ready so a tap on a
                 // Continue watching card lands where the viewer left off.
                 if let startPosition, startPosition > 0 {
+                    self.pendingResumeSeconds = startPosition
                     Task { @MainActor [weak self] in
                         guard let self else { return }
                         await self.reassertPosition(startPosition)
@@ -1192,6 +1205,21 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// For WebDAV custom sources the underlying IOReader is consumed and
     /// can't rewind, so we re-resolve a fresh source instead of reusing `lastSource`.
     private var reloadInFlight = false
+
+    /// Where this session is still trying to land, in seconds.
+    ///
+    /// `engine.load(startPosition:)` is ignored for network sources, so a resume
+    /// is applied asynchronously by `reassertPosition` — which sleeps ~900 ms
+    /// before its first attempt. Anything that reloads the session in that
+    /// window used to read the live playhead, still ~0, and so reload the whole
+    /// session at 0. Dart's audio-track restore fires at ~85 ms, which is
+    /// exactly that window: the reload pinned the session to the start and the
+    /// trailing `reassertPosition(0)` then returned immediately on its
+    /// `position > 2` guard, so the resume was lost outright.
+    ///
+    /// Cleared as soon as the engine is actually seen at (or past) the target,
+    /// so a later deliberate seek is never rewound by this.
+    private var pendingResumeSeconds: Double = 0
 
     private func reloadSession(at position: Double) async {
         // The Dart replay button sends seekTo(0) AND play() back-to-back; each
@@ -1287,7 +1315,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             guard let engine = self.engine else { return }
             await waitForEngineReady(timeout: 5.0)
             guard let engine = self.engine else { return }
-            guard engine.currentTime < position * 0.9 else { return }
+            guard engine.currentTime < position * 0.9 else {
+                // Landed: stop advertising a target, so a later reload uses the
+                // real playhead and a deliberate seek is not undone.
+                if pendingResumeSeconds > 0, pendingResumeSeconds <= position {
+                    pendingResumeSeconds = 0
+                }
+                return
+            }
             await engine.seek(to: position)
             // Let the seek land before deciding whether to try again.
             try? await Task.sleep(nanoseconds: settle)
