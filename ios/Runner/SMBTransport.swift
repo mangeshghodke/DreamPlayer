@@ -121,7 +121,13 @@ enum SMBTransport {
 
     /// Lists a directory through libDSM.
     static func libDSMList(session: LibDSMSession, path: String) throws -> [SMBEntry] {
-        let entries = try session.listDirectory(path)
+        let entries: [LibDSMEntry]
+        do {
+            entries = try session.listDirectory(path)
+        } catch {
+            throw SMBError.listing(
+                LibDSM.message(error, "Could not read that folder"))
+        }
         return entries.map {
             SMBEntry(
                 name: $0.name,
@@ -142,11 +148,15 @@ enum SMBTransport {
         password: String?,
         domain: String?
     ) throws -> [String] {
-        let shares = try LibDSMSession.listShares(
-            onHost: host, port: port, user: user,
-            password: password, domain: domain
-        )
-        return shares
+        do {
+            return try LibDSMSession.listShares(
+                onHost: host, port: port, user: user,
+                password: password, domain: domain
+            )
+        } catch {
+            throw SMBError.connect(
+                LibDSM.message(error, "Could not list shares"))
+        }
     }
 
     /// Reachability probe, used for the online/offline dot.

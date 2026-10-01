@@ -150,8 +150,12 @@ final class SMBBridge: NSObject {
                         }
                         reply(entries, nil)
                     } catch {
-                        reply(nil, (error as? SMBError)?.errorDescription
-                            ?? "Could not list shares")
+                        // Log before replying: an unmasked failure here is
+                        // indistinguishable from an empty share list in the UI.
+                        let message = (error as? SMBError)?.errorDescription
+                            ?? "\(error)"
+                        SBMLog.log("listShares FAILED: \(message)")
+                        reply(nil, message)
                     }
                 }
             }
@@ -212,9 +216,10 @@ final class SMBBridge: NSObject {
                             "listDirectory \(share)/\(path) -> \(built.count) entries (libDSM)")
                         reply(built, nil)
                     } catch {
-                        SBMLog.log("listDirectory \(share)/\(path) FAILED (libDSM): \(error)")
-                        reply(nil, (error as? SMBError)?.errorDescription
-                            ?? "Could not read that folder")
+                        let message = (error as? SMBError)?.errorDescription
+                            ?? "\(error)"
+                        SBMLog.log("listDirectory \(share)/\(path) FAILED (libDSM): \(message)")
+                        reply(nil, message)
                     }
                 }
             }
