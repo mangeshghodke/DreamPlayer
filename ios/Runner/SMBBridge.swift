@@ -3,31 +3,22 @@ import Flutter
 import Foundation
 import Network
 import Security
-// Legacy playback only, pending the libDSM read path. Browsing does not use it.
 import SMBClient
 
-/// In-app SMB browsing and playback for iOS, on the `dreamplayer/smb` channel.
+/// In-app SMB2/3 browsing and playback for iOS.
 ///
 /// Replaces the retired Files-app bridge, whose security-scoped bookmarks were
-/// unreliable.
+/// unreliable. The transport is the same pure-Swift `SMBClient` that
+/// `AetherEngineSMB` itself uses (MIT, speaks SMB2/3 over `NWConnection`).
+/// The previous AMSMB2/libsmb2 backend is NOT used: it failed with POSIX
+/// `EPERM` on the first `connectShare` on iOS, a known long-standing libsmb2
+/// issue, which is why in-app SMB was withdrawn in 2026-08.
 ///
-/// The pure-Swift `SMBClient` (over `NWConnection`) was tried first and
-/// removed: it works for browsing, but playback needed a read-ahead layer
-/// written on top of it, and every bug we hit lived in that layer rather than
-/// in SMB — a ring-trim `max()` that stalled every large seek, a 60s reader
-/// deadline that surfaced as "custom source probe failed", prefetcher starvation
-/// on an audio-track switch, and a per-session token that was dead by the time a
-/// resume needed it. libDSM owns its own buffering and seeking, so none of that
-/// code is needed.
-///
-/// AMSMB2/libsmb2 is NOT used either: it fails with POSIX `EPERM` on the first
-/// `connectShare` on iOS (AMSMB2 #32/#63/#64), which is why in-app SMB was
-/// withdrawn in 2026-08.
-///
-/// Two backends during the migration:
-///  * **browsing** — libDSM, via `SMBTransport` (all of it off the main actor);
-///  * **playback** — still the legacy `AetherEngineSMB.SMBConnection`, so a
-///    libDSM fault cannot take playback down in the same build.
+/// Two distinct roles, deliberately kept separate:
+///  * **browsing** talks to `SMBClient` directly (login / listShares /
+///    connectShare / listDirectory);
+///  * **playback** goes through `AetherEngineSMB.SMBConnection`, a
+///    `ByteRangeSource` the engine consumes via `SMBIOReader`.
 ///
 /// Credentials never cross to Dart: passwords live in the Keychain and Dart
 /// only ever sees a `hasPassword` boolean, mirroring `WebDAVClient`.
@@ -42,7 +33,6 @@ final class SMBBridge: NSObject {
 
     /// One saved server. Password lives in the Keychain under [id].
     private struct ServerMeta: Codable {
-        var isAnonymous: Bool { anonymous }
         var id: String
         var name: String
         var host: String
@@ -123,104 +113,25 @@ final class SMBBridge: NSObject {
             let id = args["id"] as? String
             invalidateListingCache(serverId: id)
             result(nil)
-        // ---- libDSM: browsing. Everything below this line uses the vendored
-        // C client, which owns its own buffering. Playback still uses the
-        // legacy path until its read path is ported, so a libDSM fault cannot
-        // also take playback down.
         case "listShares":
             withServer(args["id"] as? String, result: result) { server, reply in
-                self.runOffMain {
-                    do {
-                        let shares = try SMBTransport.libDSMListShares(
-                            host: server.host,
-                            port: UInt16(truncatingIfNeeded: server.port),
-                            user: server.isAnonymous ? nil : server.username,
-                            password: server.isAnonymous ? nil : self.getPassword(server.id),
-                            domain: server.domain.isEmpty ? nil : server.domain
-                        )
-                        // Dart parses shares as SmbEntry, so return entry-shaped maps.
-                        let entries: [[String: Any]] = shares.map { name in
-                            [
-                                "name": name,
-                                "path": name,
-                                "isDirectory": true,
-                                "size": 0,
-                                "modified": 0,
-                            ]
-                        }
-                        reply(entries, nil)
-                    } catch {
-                        // Log before replying: an unmasked failure here is
-                        // indistinguishable from an empty share list in the UI.
-                        let message = (error as? SMBError)?.errorDescription
-                            ?? "\(error)"
-                        SBMLog.log("listShares FAILED: \(message)")
-                        reply(nil, message)
-                    }
+                self.listShares(server: server) { shares in
+                    reply(shares, shares == nil ? "Could not list shares" : nil)
                 }
             }
         case "addShare":
             withServer(args["id"] as? String, result: result) { server, reply in
                 let share = args["share"] as? String ?? ""
-                self.runOffMain {
-                    do {
-                        // Touch the file API with a no-op open to prove the
-                        // share is actually usable, not just enumerable.
-                        let session = try SMBTransport.libDSMSession(
-                            host: server.host,
-                            port: UInt16(truncatingIfNeeded: server.port),
-                            share: share,
-                            user: server.isAnonymous ? nil : server.username,
-                            password: server.isAnonymous ? nil : self.getPassword(server.id),
-                            domain: server.domain.isEmpty ? nil : server.domain
-                        )
-                        let entries = try SMBTransport.libDSMList(session: session, path: "")
-                        SBMLog.log("addShare \(share) ok (\(entries.count) entries)")
-                        reply(true, nil)
-                    } catch {
-                        reply(false, (error as? SMBError)?.errorDescription
-                            ?? "Could not connect to share \(share)")
-                    }
+                self.addShare(server: server, share: share) { ok in
+                    reply(ok, ok ? nil : "Could not connect to share \(share)")
                 }
             }
         case "listDirectory", "listDirectoryAll":
             withServer(args["id"] as? String, result: result) { server, reply in
                 let share = args["share"] as? String ?? ""
                 let path = args["path"] as? String ?? ""
-                // 60s listing cache, same TTL Android uses.
-                let key = ListingCacheKey(serverId: server.id, share: share, path: path)
-                self.lock.lock()
-                if let cached = self.listingCache[key], cached.isFresh {
-                    let entries = cached.entries
-                    self.lock.unlock()
-                    reply(entries, nil)
-                    return
-                }
-                self.lock.unlock()
-                self.runOffMain {
-                    do {
-                        let session = try SMBTransport.libDSMSession(
-                            host: server.host,
-                            port: UInt16(truncatingIfNeeded: server.port),
-                            share: share,
-                            user: server.isAnonymous ? nil : server.username,
-                            password: server.isAnonymous ? nil : self.getPassword(server.id),
-                            domain: server.domain.isEmpty ? nil : server.domain
-                        )
-                        let raw = try SMBTransport.libDSMList(session: session, path: path)
-                        let built = self.buildEntries(from: raw)
-                        self.lock.lock()
-                        self.listingCache[key] = CachedListing(built)
-                        self.lock.unlock()
-                        SBMLog.log(
-                            "listDirectory \(share)/\(path) -> \(built.count) entries (libDSM)")
-                        reply(built, nil)
-                    } catch {
-                        let message = (error as? SMBError)?.errorDescription
-                            ?? "\(error)"
-                        SBMLog.log("listDirectory \(share)/\(path) FAILED (libDSM): \(message)")
-                        reply(nil, message)
-                    }
+                self.listDirectory(server: server, share: share, path: path) { entries in
+                    reply(entries, entries == nil ? "Could not read that folder" : nil)
                 }
             }
         case "fetchSizes":
@@ -256,21 +167,11 @@ final class SMBBridge: NSObject {
         // Android-only: LAN subnet scan, and the mpv loopback bridge (iOS has
         // no mpv engine). Answered so Dart never blocks on a missing handler.
         case "discoverServers":
-            // The LAN sweep that used to live here was removed with the rest of
-            // the pure-Swift path. Dart awaits this call, so it must still
-            // answer: an empty list renders "nothing found" immediately instead
-            // of hanging the scan button.
-            result([])
-        case "checkServer":
-            let host = args["host"] as? String ?? ""
-            let port = UInt16(truncatingIfNeeded: args["port"] as? Int ?? 445)
-            self.runOffMain {
-                let ok = SMBTransport.libDSMCanReach(host: host, port: port)
-                DispatchQueue.main.async {
-                    SBMLog.log("checkServer \(host):\(port) -> \(ok)")
-                    result(ok)
-                }
+            discoverServers { found in
+                result(found.map { ["host": $0.host, "hostname": $0.hostname] })
             }
+        case "checkServer":
+            result(false)
         case "startLoopback", "stopLoopback":
             result(nil)
         default:
@@ -558,49 +459,318 @@ final class SMBBridge: NSObject {
         }
     }
 
-    /// Runs blocking work off the main actor and replies on the main actor.
+    // MARK: - LAN discovery
+
+    /// Scans the local /24 for hosts answering on the SMB port (445).
     ///
-    /// libDSM is synchronous C, so every call would freeze the UI (and freeze
-    /// it visibly — an SMB handshake is seconds). [FlutterResult] must also be
-    /// invoked on the main thread or the method channel deadlocks, which is why
-    /// this helper exists rather than ad-hoc Task blocks at each call site.
-    private func runOffMain(_ work: @escaping () -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async(execute: work)
+    /// A subnet sweep, not NetBIOS broadcast: iOS apps get no broadcast name
+    /// service, and a reverse lookup on each hit gives the pretty name. Home
+    /// and small-office LANs are /24 in practice; a /16 would take minutes.
+    /// Shared, lock-guarded box for results produced on background threads.
+    /// A captured `var` written by concurrent task-group children is a data
+    /// race even when every write holds a lock: the variable itself lives in a
+    /// shared box the compiler is free to treat as non-atomic. A reference type
+    /// makes the sharing explicit. Same pattern as SMBIOReader's ReadOutcome.
+    private final class HostBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var items: [(host: String, hostname: String)] = []
+        func append(_ host: String, _ hostname: String) {
+            lock.lock(); items.append((host, hostname)); lock.unlock()
+        }
+        func snapshot() -> [(host: String, hostname: String)] {
+            lock.lock(); defer { lock.unlock() }; return items
+        }
     }
 
-    /// Turns libDSM entries into the map shape Dart parses, including sibling
-    /// subtitle pairing — same rule the previous implementation used, so the
-    /// UI behaves identically.
-    private func buildEntries(from raw: [SMBEntry]) -> [[String: Any]] {
-        let subtitles = raw.filter { Self.isSubtitle($0.name) }
-        return raw
-            .filter { !$0.isDirectory || !Self.isJunkFolder($0.name) }
-            .filter { $0.isDirectory || !Self.isJunk($0.name) }
-            .map { file in
-                var entry: [String: Any] = [
-                    "name": file.name,
-                    "path": file.relativePath,
-                    "isDirectory": file.isDirectory,
-                    "size": file.size,
-                    "modified": file.modifiedMillis,
-                ]
-                guard !file.isDirectory else { return entry }
-                let base = Self.baseName(file.name)
-                let matches = subtitles.filter { Self.baseName($0.name) == base }
-                if !matches.isEmpty {
-                    entry["subtitlePaths"] = matches.map(\.relativePath)
-                    let preferred = matches.first {
-                        let n = $0.name.lowercased()
-                        return n.contains(".en.") || n.contains(".eng.")
-                    } ?? matches[0]
-                    entry["subtitlePath"] = preferred.relativePath
+    private func discoverServers(completion: @escaping ([(host: String, hostname: String)]) -> Void) {
+        let started = Date()
+        Task.detached(priority: .utility) {
+            let box = HostBox()
+            guard let local = Self.localIPv4() else {
+                await MainActor.run {
+                    SBMLog.log("discover: no non-loopback IPv4 interface found")
+                    completion([])
                 }
-                return entry
+                return
             }
+            SBMLog.log("discover: sweeping \(local)/24 on port 445")
+            let prefix = local.split(separator: ".").dropLast().joined(separator: ".")
+                // A small worker pool: a serial sweep of 254 hosts at a
+                // 250ms timeout each would take a minute on a dead subnet.
+                let hosts = (1...254).map { "\(prefix).\($0)" }
+                let workers = 24
+                let chunk = max(hosts.count / workers, 1)
+                await withTaskGroup(of: Void.self) { group in
+                    var index = 0
+                    while index < hosts.count {
+                        let end = min(index + chunk, hosts.count)
+                        let slice = Array(hosts[index..<end])
+                        index = end
+                        group.addTask {
+                            for host in slice
+                            where await Self.port445OpenNW(host: host, timeout: 0.6) {
+                                box.append(host, Self.reverseName(host))
+                            }
+                        }
+                    }
+                }
+            await MainActor.run {
+                let sorted = box.snapshot().sorted { $0.host < $1.host }
+                SBMLog.log(
+                    "discover: \(sorted.count) host(s) in \(SBMLog.since(started))"
+                    + (sorted.isEmpty ? " lastFailure=\(Self.lastProbeFailure)" : "")
+                    + " -> "
+                    + sorted.map { "\($0.host)\(($0.hostname == $0.host ? "" : " (\($0.hostname))"))" }.joined(separator: ", "))
+                completion(sorted)
+            }
+        }
     }
 
-    /// Share-relative path with no leading/trailing slash and no `//` runs,
-    /// which is the form both the Dart layer and libDSM want.
+    /// First non-loopback IPv4 on an up interface, as a dotted string.
+    private static func localIPv4() -> String? {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
+        defer { freeifaddrs(ifaddr) }
+        var result: String?
+        var ptr: UnsafeMutablePointer<ifaddrs>? = first
+        while let cur = ptr {
+            let flags = Int32(cur.pointee.ifa_flags)
+            let family = cur.pointee.ifa_addr.pointee.sa_family
+            if flags & IFF_UP == IFF_UP, flags & IFF_LOOPBACK == 0, family == UInt8(AF_INET) {
+                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                let len = socklen_t(cur.pointee.ifa_addr.pointee.sa_len)
+                if getnameinfo(
+                    cur.pointee.ifa_addr, len,
+                    &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST
+                ) == 0 {
+                    result = String(cString: host)
+                }
+            }
+            ptr = cur.pointee.ifa_next
+        }
+        return result
+    }
+
+    /// Non-blocking TCP connect to port 445 with a poll() timeout.
+    /// Why a probe failed, for a host the user believes is on the LAN. The
+    /// first sweep returned 0 hosts in 2 ms, which is impossible for a real
+    /// network scan, so the failure has to be before any packets move.
+    private static var lastProbeFailure: String = ""
+    /// One queue for every probe connection, so 24 parallel sweeps cannot
+    /// spawn 24 run-loop threads.
+    private static let probeQueue = DispatchQueue(
+        label: "app.dreamplayer.smb.probe", qos: .utility, attributes: .concurrent)
+
+    /// TCP reachability over Network.framework.
+    ///
+    /// A raw BSD connect() to a LAN address returns EPERM on iOS: Local Network
+    /// privacy gates it, and the denial is immediate — which is why the first
+    /// sweep reported 0 hosts in 2 ms. Network.framework is the transport the
+    /// rest of the app already uses successfully (every SMB session goes
+    /// through SMBClient's NWConnection), so the probe uses it too rather than
+    /// being refused by a gate the app has already been granted.
+    /// Races one connection attempt against a timeout, returning whether the
+    /// port answered.
+    ///
+    /// Both halves are child tasks of ONE group, per the TaskGroup rule that a
+    /// group must not be used from outside the task that created it — nesting a
+    /// second group inside a child task would capture `group` (an `inout`) in an
+    /// escaping closure. A group also waits for every child before returning,
+    /// so the winner is whichever result arrives first rather than whichever is
+    /// first in iteration order: the connection task completes on the first
+    /// state it settles, and the timer is cancelled with the group.
+    private static func port445OpenNW(host: String, timeout: TimeInterval) async -> Bool {
+        await withTaskGroup(of: ProbeOutcome.self) { group in
+            group.addTask { await Self.nwConnect(host: host) }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                lastProbeFailure = "nw(\(host)) timeout"
+                return .gaveUp
+            }
+
+            for await outcome in group {
+                if outcome == .open {
+                    // Task.sleep honours cancellation, so the timer ends at
+                    // once even though the group still awaits both children.
+                    group.cancelAll()
+                    return true
+                }
+            }
+            return false
+        }
+    }
+
+    /// One NWConnection attempt, resolving on the first settled state.
+    private static func nwConnect(host: String) async -> ProbeOutcome {
+        let open = await withCheckedContinuation {
+            (cont: CheckedContinuation<Bool, Never>) in
+            let conn = NWConnection(
+                host: NWEndpoint.Host(host), port: 445, using: .tcp)
+            let once = ProbeOnce()
+            let finish: (Bool) -> Void = { ok in
+                if once.claim() {
+                    conn.cancel()
+                    cont.resume(returning: ok)
+                }
+            }
+            conn.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    finish(true)
+                case .failed(let error):
+                    lastProbeFailure = "nw(\(host))=\(error)"
+                    finish(false)
+                case .cancelled:
+                    finish(false)
+                default:
+                    break
+                }
+            }
+            conn.start(queue: probeQueue)
+        }
+        return open ? .open : .gaveUp
+    }
+
+
+    /// A probe's single verdict, so the group reads as a race between "the port
+    /// answered" and "we gave up" rather than two anonymous Bools.
+    private enum ProbeOutcome: Sendable, Equatable {
+        case open
+        case gaveUp
+    }
+
+
+    /// One-shot guard so a probe continuation resumes exactly once, whichever
+    /// of {ready, failed, cancelled, timeout} gets there first.
+    private final class ProbeOnce: @unchecked Sendable {
+        private let lock = NSLock()
+        private var done = false
+        func claim() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            if done { return false }
+            done = true
+            return true
+        }
+    }
+
+    /// Reverse DNS, falling back to the address itself when the LAN has no
+    /// name service (most home routers do not).
+    private static func reverseName(_ host: String) -> String {
+        var hints = addrinfo()
+        hints.ai_family = AF_INET
+        hints.ai_flags = AI_NUMERICHOST
+        var res: UnsafeMutablePointer<addrinfo>?
+        guard getaddrinfo(host, nil, &hints, &res) == 0, let ai = res else { return host }
+        defer { freeaddrinfo(res) }
+        var name = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+        if getnameinfo(
+            ai.pointee.ai_addr, socklen_t(ai.pointee.ai_addrlen),
+            &name, socklen_t(name.count), nil, 0, NI_NAMEREQD
+        ) == 0 {
+            return String(cString: name)
+        }
+        return host
+    }
+
+    // MARK: - Browsing
+
+    private func listShares(
+        server: ServerMeta,
+        completion: @escaping ([[String: Any]]?) -> Void
+    ) {
+        withClient(server) { client in
+            Task {
+                do {
+                    let shares = try await client.listShares()
+                    // Dart parses these as SmbEntry, so return entry-shaped maps.
+                    let entries = shares
+                        .filter { !$0.type.contains(.ipc) && !$0.type.contains(.printQueue) }
+                        .map { share in
+                            [
+                                "name": share.name,
+                                "path": share.name,
+                                "isDirectory": true,
+                                "size": 0,
+                                "modified": 0,
+                            ] as [String: Any]
+                        }
+                    _ = try? await client.logoff()
+                    client.session.disconnect()
+                    await MainActor.run { completion(entries) }
+                } catch {
+                    client.session.disconnect()
+                    await MainActor.run { completion(nil) }
+                }
+            }
+        } onError: { _ in
+            completion(nil)
+        }
+    }
+
+    private func addShare(
+        server: ServerMeta,
+        share: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        withClient(server) { client in
+            Task {
+                var ok = false
+                do {
+                    try await client.connectShare(share)
+                    ok = true
+                } catch {
+                    ok = false
+                }
+                _ = try? await client.logoff()
+                client.session.disconnect()
+                await MainActor.run { completion(ok) }
+            }
+        } onError: { _ in
+            completion(false)
+        }
+    }
+
+    private func listDirectory(
+        server: ServerMeta,
+        share: String,
+        path: String,
+        completion: @escaping ([[String: Any]]?) -> Void
+    ) {
+        let key = ListingCacheKey(serverId: server.id, share: share, path: path)
+        lock.lock()
+        if let cached = listingCache[key], cached.isFresh {
+            let entries = cached.entries
+            lock.unlock()
+            completion(entries)
+            return
+        }
+        lock.unlock()
+
+        withClient(server) { client in
+            Task {
+                var built: [[String: Any]]?
+                do {
+                    try await client.connectShare(share)
+                    let files = try await client.listDirectory(path: Self.normalized(path))
+                    built = self.buildEntries(files: files, share: share, path: path)
+                    self.lock.lock()
+                    self.listingCache[key] = CachedListing(built!)
+                    self.lock.unlock()
+                } catch {
+                    built = nil
+                }
+                _ = try? await client.logoff()
+                client.session.disconnect()
+                await MainActor.run { completion(built) }
+            }
+        } onError: { _ in
+            completion(nil)
+        }
+    }
+
+    /// Normalises a browse path the way the Dart side hands it over: no
+    /// leading slash, no trailing slash, no `//` runs. `SMBClient` normalises
+    /// its own input, but building the child's full path is ours.
     private static func normalized(_ path: String) -> String {
         var out = path.replacingOccurrences(of: "//", with: "/")
         while out.hasSuffix("/") { out.removeLast() }
@@ -608,21 +778,59 @@ final class SMBBridge: NSObject {
         return out
     }
 
-    /// Sibling sidecar extensions, matched against the video's own base name.
-    private static let subtitleExtensions = [
-        "srt", "ass", "ssa", "vtt", "ttml", "dfxp", "smi", "sami", "sub", "mpl2",
-        "idx", "sup",
-    ]
+    /// Sibling subtitle auto-pairing, mirroring Android: every subtitle file in
+    /// the listing is offered to Dart, and the best match for a video (same
+    /// base name, an English/default-ish tag first) is named separately.
+    private func buildEntries(
+        files: [File],
+        share: String,
+        path: String
+    ) -> [[String: Any]] {
+        let subtitles = files.filter { Self.isSubtitle($0.name) }
+        let subtitleBases = subtitles.map { Self.baseName($0.name) }
 
-    private static func isSubtitle(_ name: String) -> Bool {
-        let ext = (name as NSString).pathExtension.lowercased()
-        return subtitleExtensions.contains(ext)
+        return files
+            .filter { !$0.isHidden && !$0.isSystem }
+            .filter { $0.isDirectory || !Self.isJunk($0.name) }
+            .map { file -> [String: Any] in
+                var entry: [String: Any] = [
+                    "name": file.name,
+                    "path": Self.join(path, file.name),
+                    "isDirectory": file.isDirectory,
+                    "size": file.size,
+                    "modified": Int(file.lastWriteTime.timeIntervalSince1970 * 1000),
+                ]
+                if !file.isDirectory {
+                    let base = Self.baseName(file.name)
+                    // Index of this video's sibling subtitles, in listing order.
+                    var matches: [(index: Int, name: String)] = []
+                    for (i, sub) in subtitles.enumerated() where subtitleBases[i] == base {
+                        matches.append((i, sub.name))
+                    }
+                    if !matches.isEmpty {
+                        entry["subtitlePaths"] = matches.map {
+                            Self.join(path, $0.name)
+                        }
+                        // Best match: an English tag wins, else the first.
+                        let preferred = matches.first { entry2 in
+                            let n = entry2.name.lowercased()
+                            return n.contains(".en.") || n.contains(".eng.")
+                        } ?? matches[0]
+                        entry["subtitlePath"] = Self.join(path, preferred.name)
+                    }
+                }
+                return entry
+            }
     }
 
-    /// A file's base name with BOTH its own extension and any subtitle
-    /// extension removed, so `Movie.mkv` and `Movie.en.srt` pair up.
+    private static func join(_ path: String, _ name: String) -> String {
+        let base = normalized(path)
+        return base.isEmpty ? name : base + "/" + name
+    }
+
     private static func baseName(_ name: String) -> String {
         let lower = name.lowercased()
+        // Strip the video's own extension, then any subtitle extension.
         var base = (name as NSString).deletingPathExtension
         for ext in subtitleExtensions where lower.hasSuffix("." + ext) {
             base = (base as NSString).deletingPathExtension
@@ -631,21 +839,13 @@ final class SMBBridge: NSObject {
         return base.lowercased()
     }
 
-    private static func join(_ path: String, _ name: String) -> String {
-        let base = normalized(path)
-        return base.isEmpty ? name : base + "/" + name
-    }
+    private static let subtitleExtensions = [
+        "srt", "ass", "ssa", "vtt", "ttml", "dfxp", "smi", "sami", "sub", "mpl2", "idx", "sup",
+    ]
 
-    /// Directories are never media, but obvious clutter is hidden from browsing
-    /// so a share root reads cleanly.
-    private static func isJunkFolder(_ name: String) -> Bool {
-        let lower = name.lowercased()
-        if lower.hasPrefix(".") { return true }
-        for token in ["@eaDir", "#recycle", "system volume information", "$recycle.bin"]
-        where lower.contains(token) {
-            return true
-        }
-        return false
+    private static func isSubtitle(_ name: String) -> Bool {
+        let ext = (name as NSString).pathExtension.lowercased()
+        return subtitleExtensions.contains(ext)
     }
 
     /// Directories and non-media clutter never reach the list.
@@ -1042,5 +1242,17 @@ final class SMBBridge: NSObject {
     /// The primary (first) socket, or nil once the session is closed.
     func connection(for urlString: String) -> SMBConnection? {
         connections(for: urlString).first
+    }
+
+    /// The `IOReader` the engine plays from, with read-ahead disabled by
+    /// default: `SMBIOReader` already drives a real `ByteRangeSource`, and
+    /// wrapping it in a second buffering layer only added latency.
+    func makeReader(for urlString: String) -> SMBIOReader? {
+        guard let connection = connection(for: urlString) else { return nil }
+        return SMBIOReader(
+            source: connection,
+            ownsSource: false, // the registry owns teardown via closeShare
+            discImageProbeEnabled: false
+        )
     }
 }

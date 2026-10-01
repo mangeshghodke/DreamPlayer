@@ -25,12 +25,6 @@
 		A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000E /* WebDAVClient.swift */; };
 		A1B2C3D5000000000000033 /* SMBBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000032 /* SMBBridge.swift */; };
 		A1B2C3D5000000000000037 /* SBMLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000038 /* SBMLog.swift */; };
-		A1B2C3D500000000000003D /* LibDSM.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000003E /* LibDSM.m */; };
-		A1B2C3D5000000000000047 /* SMBTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000048 /* SMBTransport.swift */; };
-		A1B2C3D5000000000000041 /* libdsm.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000042 /* libdsm.a */; };
-		A1B2C3D5000000000000043 /* libtasn1.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000044 /* libtasn1.a */; };
-		A1B2C3D5000000000000053 /* libcharset.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000054 /* libcharset.a */; };
-		A1B2C3D5000000000000051 /* libiconv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000052 /* libiconv.a */; };
 		A1B2C3D5000000000000034 /* SMBClient in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000000000000035 /* SMBClient */; };
 		A1B2C3D50000000000000010 /* JellyfinDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */; };
 		A1B2C3D50000000000000012 /* CacheCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011 /* CacheCleaner.swift */; };
@@ -92,13 +86,6 @@
 		A1B2C3D4000000000000000E /* WebDAVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClient.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000032 /* SMBBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMBBridge.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000038 /* SBMLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBMLog.swift; sourceTree = "<group>"; };
-		A1B2C3D400000000000003E /* LibDSM.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LibDSM.m; sourceTree = "<group>"; };
-		A1B2C3D4000000000000048 /* SMBTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMBTransport.swift; sourceTree = "<group>"; };
-		A1B2C3D400000000000003F /* LibDSM.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LibDSM.h; sourceTree = "<group>"; };
-		A1B2C3D4000000000000042 /* libdsm.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libdsm.a; path = libdsm/libdsm.a; sourceTree = "<group>"; };
-		A1B2C3D4000000000000044 /* libtasn1.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libtasn1.a; path = libdsm/libtasn1.a; sourceTree = "<group>"; };
-		A1B2C3D4000000000000054 /* libcharset.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcharset.a; path = libdsm/libcharset.a; sourceTree = "<group>"; };
-		A1B2C3D4000000000000052 /* libiconv.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libiconv.a; path = libdsm/libiconv.a; sourceTree = "<group>"; };
 		A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinDiscovery.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000011 /* CacheCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheCleaner.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000017 /* MediaProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaProbe.swift; sourceTree = "<group>"; };
@@ -126,10 +113,6 @@
 				A1B2C3D40000000000000006 /* AetherEngine in Frameworks */,
 				A1B2C3D5000000000000000D /* AetherEngineSMB in Frameworks */,
 				A1B2C3D5000000000000034 /* SMBClient in Frameworks */,
-				A1B2C3D5000000000000041 /* libdsm.a in Frameworks */,
-				A1B2C3D5000000000000043 /* libtasn1.a in Frameworks */,
-				A1B2C3D5000000000000051 /* libiconv.a in Frameworks */,
-				A1B2C3D5000000000000053 /* libcharset.a in Frameworks */,
 				A1B2C3D50000000000000016 /* Citadel in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -199,13 +182,6 @@
 				A1B2C3D4000000000000000E /* WebDAVClient.swift */,
 				A1B2C3D4000000000000032 /* SMBBridge.swift */,
 				A1B2C3D4000000000000038 /* SBMLog.swift */,
-				A1B2C3D400000000000003F /* LibDSM.h */,
-				A1B2C3D400000000000003E /* LibDSM.m */,
-				A1B2C3D4000000000000048 /* SMBTransport.swift */,
-				A1B2C3D4000000000000042 /* libdsm.a */,
-				A1B2C3D4000000000000044 /* libtasn1.a */,
-				A1B2C3D4000000000000052 /* libiconv.a */,
-				A1B2C3D4000000000000054 /* libcharset.a */,
 				A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */,
 				A1B2C3D40000000000000011 /* CacheCleaner.swift */,
 				A1B2C3D40000000000000017 /* MediaProbe.swift */,
@@ -391,8 +367,6 @@
 				A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */,
 				A1B2C3D5000000000000033 /* SMBBridge.swift in Sources */,
 				A1B2C3D5000000000000037 /* SBMLog.swift in Sources */,
-				A1B2C3D500000000000003D /* LibDSM.m in Sources */,
-				A1B2C3D5000000000000047 /* SMBTransport.swift in Sources */,
 				A1B2C3D50000000000000010 /* JellyfinDiscovery.swift in Sources */,
 				A1B2C3D50000000000000012 /* CacheCleaner.swift in Sources */,
 				A1B2C3D50000000000000017 /* MediaProbe.swift in Sources */,
@@ -501,25 +475,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-					"$(SRCROOT)/Runner/libdsm/bdsm",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-ObjC",
-					"-liconv",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-					"$(SRCROOT)/Runner/libdsm/bdsm",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-				);
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
@@ -701,25 +656,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-					"$(SRCROOT)/Runner/libdsm/bdsm",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-ObjC",
-					"-liconv",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-					"$(SRCROOT)/Runner/libdsm/bdsm",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-				);
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -742,25 +678,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-					"$(SRCROOT)/Runner/libdsm/bdsm",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-ObjC",
-					"-liconv",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-					"$(SRCROOT)/Runner/libdsm/bdsm",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/Runner/libdsm",
-				);
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
