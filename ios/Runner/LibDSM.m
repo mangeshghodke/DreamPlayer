@@ -18,6 +18,17 @@
 
 #import "bdsm/bdsm.h"
 
+NSErrorDomain const LibDSMErrorDomain = @"com.dreamplayer.app.smb.libdsm";
+
+/// Assigns a ready-to-display message to an NSError out-parameter.
+static void LibDSMFail(NSError **error, NSString *message) {
+  if (error != NULL) {
+    *error = [NSError errorWithDomain:LibDSMErrorDomain
+                                 code:1
+                             userInfo:@{NSLocalizedDescriptionKey: message}];
+  }
+}
+
 #pragma mark - Entry
 
 @implementation LibDSMEntry
@@ -104,7 +115,7 @@ static long long LibDSMMillis(time_t seconds) {
                                    user:(nullable NSString *)user
                                password:(nullable NSString *)password
                                  domain:(nullable NSString *)domain
-                                 error:(NSString *_Nullable *_Nullable)error {
+                                 error:(NSError *_Nullable *)error {
   self = [super init];
   if (!self) {
     return nil;
@@ -122,17 +133,15 @@ static long long LibDSMMillis(time_t seconds) {
 
   struct in_addr addr;
   if (inet_pton(AF_INET, host.UTF8String, &addr) != 1) {
-    if (error) {
-      *error = [NSString stringWithFormat:@"\"%@\" is not a valid IP address", host];
-    }
+          LibDSMFail(error, [NSString stringWithFormat:@"\"%@\" is not a valid IP address", host]);
+
     return nil;
   }
 
   _session = smb_session_new();
   if (_session == NULL) {
-    if (error) {
-      *error = @"Could not allocate an SMB session";
-    }
+          LibDSMFail(error, @"Could not allocate an SMB session");
+
     return nil;
   }
 
@@ -151,9 +160,8 @@ static long long LibDSMMillis(time_t seconds) {
   int rc = smb_session_connect(_session, name.UTF8String, addr.s_addr,
                                SMB_TRANSPORT_TCP);
   if (rc != 0) {
-    if (error) {
-      *error = LibDSMFriendlyError(rc, host);
-    }
+          LibDSMFail(error, LibDSMFriendlyError(rc, host));
+
     smb_session_destroy(_session);
     _session = NULL;
     return nil;
@@ -170,9 +178,8 @@ static long long LibDSMMillis(time_t seconds) {
   _isGuest = (guest == 1);
 
   if (rc != 0) {
-    if (error) {
-      *error = LibDSMFriendlyError(rc, host);
-    }
+          LibDSMFail(error, LibDSMFriendlyError(rc, host));
+
     smb_session_destroy(_session);
     _session = NULL;
     return nil;
@@ -188,11 +195,10 @@ static long long LibDSMMillis(time_t seconds) {
 
   rc = smb_tree_connect(_session, share.UTF8String, &_tid);
   if (rc != 0 || _tid == 0) {
-    if (error) {
-      *error = (rc != 0) ? LibDSMFriendlyError(rc, host)
+          LibDSMFail(error, (rc != 0) ? LibDSMFriendlyError(rc, host)
                          : [NSString stringWithFormat:@"Could not open share \"%@\"",
-                            share];
-    }
+                            share]);
+
     smb_session_destroy(_session);
     _session = NULL;
     return nil;
@@ -217,14 +223,13 @@ static long long LibDSMMillis(time_t seconds) {
 #pragma mark Listing
 
 - (nullable NSArray<LibDSMEntry *> *)listDirectory:(NSString *)path
-                                              error:(NSString *_Nullable *_Nullable)error {
+                                              error:(NSError *_Nullable *)error {
   NSString *pattern = LibDSMNativePath(path);
   smb_stat_list list = smb_find(_session, _tid, pattern.UTF8String);
   if (list == NULL) {
-    if (error) {
-      *error = [NSString stringWithFormat:@"Could not read \"%@\"",
-                path.length ? path : @"/"];
-    }
+          LibDSMFail(error, [NSString stringWithFormat:@"Could not read \"%@\"",
+                          path.length ? path : @"/"]);
+
     return nil;
   }
 
@@ -280,7 +285,7 @@ static long long LibDSMMillis(time_t seconds) {
 #pragma mark Playback
 
 - (BOOL)prepareForPlaybackOfRelativePath:(NSString *)path
-                                  error:(NSString *_Nullable *_Nullable)error {
+                                  error:(NSError *_Nullable *)error {
   if (_fileOpen) {
     smb_fclose(_session, _fd);
     _fd = 0;
@@ -289,9 +294,8 @@ static long long LibDSMMillis(time_t seconds) {
   int rc = smb_fopen(_session, _tid, LibDSMNativePath(path).UTF8String,
                      SMB_MOD_READ, &_fd);
   if (rc != 0 || _fd == 0) {
-    if (error) {
-      *error = LibDSMFriendlyError(rc, _host);
-    }
+          LibDSMFail(error, LibDSMFriendlyError(rc, _host));
+
     _fd = 0;
     return NO;
   }
@@ -328,20 +332,18 @@ static long long LibDSMMillis(time_t seconds) {
                                              user:(nullable NSString *)user
                                          password:(nullable NSString *)password
                                            domain:(nullable NSString *)domain
-                                            error:(NSString *_Nullable *_Nullable)error {
+                                            error:(NSError *_Nullable *)error {
   struct in_addr addr;
   if (inet_pton(AF_INET, host.UTF8String, &addr) != 1) {
-    if (error) {
-      *error = [NSString stringWithFormat:@"\"%@\" is not a valid IP address", host];
-    }
+          LibDSMFail(error, [NSString stringWithFormat:@"\"%@\" is not a valid IP address", host]);
+
     return nil;
   }
 
   smb_session *s = smb_session_new();
   if (s == NULL) {
-    if (error) {
-      *error = @"Could not allocate an SMB session";
-    }
+          LibDSMFail(error, @"Could not allocate an SMB session");
+
     return nil;
   }
 
@@ -379,9 +381,8 @@ static long long LibDSMMillis(time_t seconds) {
     }
   }
   smb_session_destroy(s);
-  if (error) {
-    *error = failure.length ? failure : @"Could not list shares";
-  }
+      LibDSMFail(error, failure.length ? failure : @"Could not list shares");
+
   return nil;
 }
 

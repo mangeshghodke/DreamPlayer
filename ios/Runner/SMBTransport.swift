@@ -83,18 +83,25 @@ enum SMBTransport {
         password: String?,
         domain: String?
     ) throws -> LibDSMSession {
-        var failure: String?
-        guard let session = LibDSMSession(
-            host: host,
-            port: port,
-            hostname: nil,
-            share: share,
-            user: user,
-            password: password,
-            domain: domain,
-            error: &failure
-        ) else {
-            throw SMBError.connect(failure ?? "Could not connect to the SMB server")
+        // `NSError **` imports into Swift as a throwing call, so these surface
+        // as plain Swift errors rather than an out-parameter the caller has to
+        // remember to check.
+        let session: LibDSMSession
+        do {
+            session = try LibDSMSession(
+                host: host,
+                port: port,
+                hostname: nil,
+                share: share,
+                user: user,
+                password: password,
+                domain: domain
+            )
+        } catch {
+            throw SMBError.connect(
+                (error as NSError).localizedDescription
+                    .isEmpty ? "Could not connect to the SMB server"
+                             : (error as NSError).localizedDescription)
         }
         SBMLog.log(
             "libDSM session ok \(host):\(port) share=\\(share) "
@@ -104,10 +111,7 @@ enum SMBTransport {
 
     /// Lists a directory through libDSM.
     static func libDSMList(session: LibDSMSession, path: String) throws -> [SMBEntry] {
-        var failure: String?
-        guard let entries = session.listDirectory(path, error: &failure) else {
-            throw SMBError.listing(failure ?? "Could not read that folder")
-        }
+        let entries = try session.listDirectory(path)
         return entries.map {
             SMBEntry(
                 name: $0.name,
@@ -128,13 +132,10 @@ enum SMBTransport {
         password: String?,
         domain: String?
     ) throws -> [String] {
-        var failure: String?
-        guard let shares = LibDSMSession.listShares(
+        let shares = try LibDSMSession.listShares(
             onHost: host, port: port, user: user,
-            password: password, domain: domain, error: &failure
-        ) else {
-            throw SMBError.connect(failure ?? "Could not list shares")
-        }
+            password: password, domain: domain
+        )
         return shares
     }
 
