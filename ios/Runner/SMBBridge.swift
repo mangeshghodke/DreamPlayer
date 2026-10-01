@@ -407,7 +407,6 @@ final class SMBBridge: NSObject {
                 SBMLog.log("connect ok: \(server.host):\(server.port) as \(server.anonymous || server.username.isEmpty ? "guest/anon" : server.username)")
                 await MainActor.run { body(client) }
             } catch {
-                client.session.disconnect()
                 let message = Self.friendly(error, host: server.host)
                 SBMLog.log("connect FAILED \(server.host):\(server.port): \(message) raw=\(error)")
                 await MainActor.run { onError(message) }
@@ -620,13 +619,14 @@ final class SMBBridge: NSObject {
         return result
     }
 
-    /// Opens a libsmb2 handle for playback, to be preferred over the SMBClient
-    /// path for reads.
+    /// The playback transport: one libsmb2 session, tree connect and file open.
     ///
-    /// Best-effort by design: browsing and the fallback both still run on
-    /// SMBClient, so a libsmb2 failure costs throughput rather than playback.
-    /// Returns nil quietly and lets the caller log the fallback.
-    private static func openLibSMB2Playback(
+    /// Required, not best-effort. There is deliberately no SMBClient fallback
+    /// here — running both meant two negotiates, two session setups, two tree
+    /// connects and two file handles per play, with the SMBClient one never read
+    /// from, which also spent a server-side open-session slot and held the
+    /// credentials twice. Browsing still uses SMBClient directly.
+    private static func openLibSMB2(
         host: String,
         port: UInt16,
         share: String,
@@ -634,7 +634,7 @@ final class SMBBridge: NSObject {
         password: String?,
         domain: String?,
         path: String
-    ) -> (LibSMB2File, LibSMB2Session)? {
+    ) throws -> (LibSMB2File, LibSMB2Session) {
         // A nullable return plus a trailing NSError** imports into Swift as
         // `throws` with the error argument removed, so these are `try` calls
         // rather than out-parameter calls.
@@ -645,15 +645,15 @@ final class SMBBridge: NSObject {
                 domain: domain, share: share, timeout: 10)
         } catch {
             SBMLog.log("libsmb2 session failed: \(error.localizedDescription)")
-            return nil
+            throw error
         }
         let file: LibSMB2File
         do {
             file = try session.openFile(path)
         } catch {
             SBMLog.log("libsmb2 open failed: \(error.localizedDescription)")
-            session.closeSession()
-            return nil
+            session.close()
+            throw error
         }
         return (file, session)
     }
@@ -1087,25 +1087,9 @@ final class SMBBridge: NSObject {
     ) {
         let password = getPassword(server.id)
         Task.detached(priority: .userInitiated) {
-            let client = server.port > 0 && server.port != 445
-                ? SMBClient(host: server.host, port: server.port)
-                : SMBClient(host: server.host)
             let cleanPath = Self.normalized(path)
             do {
-                if server.anonymous || (server.username.isEmpty && password.isEmpty) {
-                    try await client.login(username: nil, password: nil)
-                } else {
-                    try await client.login(
-                        username: server.username,
-                        password: password.isEmpty ? nil : password,
-                        domain: server.domain.isEmpty ? nil : server.domain
-                    )
-                }
-                try await client.connectShare(share)
-                let reader = client.fileReader(path: cleanPath)
-                let size = try await reader.fileSize
-
-                let libsmb2 = Self.openLibSMB2Playback(
+                let (file, session) = try Self.openLibSMB2(
                     host: server.host,
                     port: UInt16(truncatingIfNeeded: server.port),
                     share: share,
@@ -1114,18 +1098,15 @@ final class SMBBridge: NSObject {
                     domain: server.domain.isEmpty ? nil : server.domain,
                     path: cleanPath
                 )
-                SBMLog.log(
-                    "openShare: playback transport = "
-                    + (libsmb2 != nil ? "libsmb2" : "SMBClient (libsmb2 unavailable)"))
+                let size = UInt64(max(0, file.fileSize))
+                SBMLog.log("openShare: playback transport = libsmb2")
 
                 let ext = (path as NSString).pathExtension
                 self.lock.lock()
                 self.tokenCounter += 1
                 let token = "\(server.id)-\(self.tokenCounter)"
                 self.playback[token]?.close()
-                self.playback[token] = SMBPlayback(
-                    client: client, reader: reader, byteSize: size,
-                    libsmb2File: libsmb2?.0, libsmb2Session: libsmb2?.1)
+                self.playback[token] = SMBPlayback(file: file, session: session)
                 self.lock.unlock()
                 await MainActor.run {
                     let tokenURL = "dreamplayersmb://\(token).\(ext.isEmpty ? "mkv" : ext)"
@@ -1261,23 +1242,8 @@ final class SMBBridge: NSObject {
         let out = PlaybackBox()
         let done = DispatchSemaphore(value: 0)
         Task.detached(priority: .userInitiated) {
-            let client = server.port > 0 && server.port != 445
-                ? SMBClient(host: server.host, port: server.port)
-                : SMBClient(host: server.host)
             do {
-                if server.anonymous || (server.username.isEmpty && password.isEmpty) {
-                    try await client.login(username: nil, password: nil)
-                } else {
-                    try await client.login(
-                        username: server.username,
-                        password: password.isEmpty ? nil : password,
-                        domain: server.domain.isEmpty ? nil : server.domain
-                    )
-                }
-                try await client.connectShare(share)
-                let reader = client.fileReader(path: Self.normalized(path))
-                let size = try await reader.fileSize
-                let libsmb2 = Self.openLibSMB2Playback(
+                let (file, session) = try Self.openLibSMB2(
                     host: server.host,
                     port: UInt16(truncatingIfNeeded: server.port),
                     share: share,
@@ -1286,14 +1252,9 @@ final class SMBBridge: NSObject {
                     domain: server.domain.isEmpty ? nil : server.domain,
                     path: Self.normalized(path)
                 )
-                SBMLog.log(
-                    "open(\(tag)): playback transport = "
-                    + (libsmb2 != nil ? "libsmb2" : "SMBClient (libsmb2 unavailable)"))
-                out.playback = SMBPlayback(
-                    client: client, reader: reader, byteSize: size,
-                    libsmb2File: libsmb2?.0, libsmb2Session: libsmb2?.1)
+                SBMLog.log("open(\(tag)): playback transport = libsmb2")
+                out.playback = SMBPlayback(file: file, session: session)
             } catch {
-                client.session.disconnect()
                 out.failure = Self.friendly(error, host: server.host)
             }
             done.signal()
@@ -1335,13 +1296,4 @@ final class SMBBridge: NSObject {
         return playback[token]
     }
 
-    /// A fresh `ByteRangeSource` over the token's live handle.
-    ///
-    /// Cheap and repeatable by design: reads are independent ranged READs, so
-    /// the engine's container probe works on a reload exactly as it does on the
-    /// first open. The old one-shot ring reader was drained by then, which is
-    /// what produced "custom source probe failed".
-    func makeSource(for urlString: String) -> SMBByteRangeSource? {
-        session(for: urlString)?.makeSource()
-    }
 }

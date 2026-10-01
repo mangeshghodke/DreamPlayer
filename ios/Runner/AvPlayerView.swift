@@ -800,7 +800,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // disposed, and that must not stop playback.
             SMBBridge.shared.setPlayerActive(true, serverId: SMBBridge.shared.serverId(forToken: uri))
             let ext = Self.smbTokenExtension(uri)
-            smbFormatHint = ext.isEmpty ? Self.sniffFormatFromSMB(connection.makeSource()) : ext
+            smbFormatHint = ext.isEmpty ? Self.sniffFormatFromSMB(connection.libsmb2File) : ext
             source = .custom(connection.makeReader(), formatHint: smbFormatHint)
 
         } else if smbResume != nil
@@ -991,7 +991,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         self.isSMBStream = true
                         let ext = (pendingSmbUri as NSString).pathExtension
                         self.smbFormatHint = ext.isEmpty
-                            ? Self.sniffFormatFromSMB(connection.makeSource())
+                            ? Self.sniffFormatFromSMB(connection.libsmb2File)
                             : ext
                         source = .custom(
                             connection.makeReader(),
@@ -2147,8 +2147,20 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// Guess the container for an extensionless NAS file by reading its first
     /// bytes. FFmpeg's custom-source probe fails outright on a hint-less
     /// source, so an extensionless file would otherwise never open.
+    /// libsmb2 playback variant. `readAtOffset` is already synchronous and
+    /// positional, so the head read needs no Task and no semaphore — the two
+    /// constructs `readSyncHead` needs for an async ByteRangeSource.
+    private static func sniffFormatFromSMB(_ file: LibSMB2File) -> String? {
+        sniffContainerFormat(head: file.read(atOffset: 0, length: 16))
+    }
+
     private static func sniffFormatFromSMB(_ source: ByteRangeSource) -> String? {
-        guard let head = try? readSyncHead(source) else { return nil }
+        sniffContainerFormat(head: try? readSyncHead(source))
+    }
+
+    /// Magic-byte container guess, shared by the SMB transports.
+    private static func sniffContainerFormat(head: Data?) -> String? {
+        guard let head else { return nil }
         func starts(_ bytes: [UInt8]) -> Bool {
             guard head.count >= bytes.count else { return false }
             return Array(head.prefix(bytes.count)) == bytes

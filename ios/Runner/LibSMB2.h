@@ -57,7 +57,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// probe asks for a fixed-size head even on short files.
 - (nullable NSData *)readAtOffset:(long long)offset length:(NSUInteger)length;
 
-- (void)closeFile;
+- (void)closeFile NS_SWIFT_NAME(close());
 
 @end
 
@@ -79,7 +79,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Opens a file for reading. Blocking.
 - (nullable LibSMB2File *)openFile:(NSString *)relativePath
                               error:(NSError *_Nullable *_Nullable)error;
-- (void)closeSession;
+- (void)closeSession NS_SWIFT_NAME(close());
 @end
 
 

@@ -541,6 +541,44 @@ def check_swift_foundation_imports():
                  f"but does not import Foundation")
 
 
+def check_ns_swift_name_consistency():
+    """A method renamed with NS_SWIFT_NAME must not be called by its ObjC name.
+
+    The Swift importer prunes type-name suffixes on void methods, so
+    `- (void)closeSession` arrives in Swift as `close()`. Calling `closeSession()`
+    is "value of type ... has no member", which only a compiler can catch here.
+    The names are pinned with NS_SWIFT_NAME so they cannot drift, and this rule
+    checks the Swift side actually uses the pinned name.
+    """
+    renamed = []
+    for path in native_files({".h"}):
+        text = strip_noise(open(path, encoding="utf-8").read())
+        for decl in _objc_declarations(text):
+            m = re.search(r"NS_SWIFT_NAME\s*\(\s*(\w+)", decl)
+            if not m:
+                continue
+            # The selector sits before the attribute, so cut there first: a
+            # no-argument method ends in its own name, not in ")".
+            left = decl.split("NS_SWIFT_NAME")[0].strip()
+            objc = re.search(r"(\w+)\s*:", left) or re.search(r"(\w+)$", left)
+            if not objc:
+                continue
+            objc_name, swift_name = objc.group(1), m.group(1)
+            if objc_name != swift_name:
+                renamed.append((os.path.basename(path), objc_name, swift_name))
+    if not renamed:
+        return
+
+    for path in native_files({".swift"}):
+        src = strip_noise(open(path, encoding="utf-8").read())
+        for base, objc_name, swift_name in renamed:
+            for m in re.finditer(r"\." + re.escape(objc_name) + r"\s*\(", src):
+                line = src[: m.start()].count("\n") + 1
+                fail(f"{os.path.basename(path)}:{line} calls .{objc_name}(), but "
+                     f"{base} pins that selector to NS_SWIFT_NAME({swift_name}); "
+                     f"call .{swift_name}() instead")
+
+
 def main():
     if not os.path.isdir(RUNNER):
         print(f"FAIL  {RUNNER} not found")
@@ -554,6 +592,7 @@ def main():
     check_objc_literal_terminators()
     check_objc_swift_error_bridging()
     check_swift_foundation_imports()
+    check_ns_swift_name_consistency()
 
     if problems:
         for p in problems:
