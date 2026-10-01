@@ -315,7 +315,7 @@ def main():
         if code[start : start + 1] == ")":
             continue
         depth = 0
-        args = 1
+        nargs = 1
         i = start
         while i < len(code):
             c = code[i]
@@ -326,12 +326,12 @@ def main():
                     break
                 depth -= 1
             elif c == "," and depth == 0:
-                args += 1
+                nargs += 1
             i += 1
-        if args != EXPECTED_CALLS[fn]:
+        if nargs != EXPECTED_CALLS[fn]:
             line = code[: code.index(name)].count("\n") + 1
             problems.append(
-                f"{fn}() called with {args} argument(s) at line {line}, "
+                f"{fn}() called with {nargs} argument(s) at line {line}, "
                 f"declared for {EXPECTED_CALLS[fn]}"
             )
 
@@ -339,14 +339,47 @@ def main():
         "if", "else", "for", "while", "do", "switch", "case", "return", "break",
         "continue", "goto", "sizeof", "defined", "_Static_assert",
     }
-    for name in sorted(set(re.findall(r"(?<![.\w>])([a-z][A-Za-z0-9_]*)\s*\(", code))):
-        if name in keywords:
+    for callee in sorted(set(re.findall(r"(?<![.\w>])([a-z][A-Za-z0-9_]*)\s*\(", code))):
+        if callee in keywords:
             continue
-        if name not in known:
+        if callee not in known:
             problems.append(
-                f"{name}(...) is neither a local helper, a libDSM call, nor a known "
+                f"{callee}(...) is neither a local helper, a libDSM call, nor a known "
                 f"Foundation/C function — undeclared identifiers are a build error"
             )
+
+    # 12. Every vendored archive must be wired into the link, in dependency
+    #     order. A missing one is a link-time "Undefined symbol", and static
+    #     archives must also be ordered: a dependent precedes whatever satisfies
+    #     it, otherwise the linker stops scanning before reaching the definition.
+    pbx = open(
+        os.path.join(ROOT, "ios/Runner.xcodeproj/project.pbxproj"), encoding="utf-8"
+    ).read()
+    archives = sorted(f for f in os.listdir(args.libdsm) if f.endswith(".a"))
+
+    for name in archives:
+        if f"{name} in Frameworks */," not in pbx:
+            problems.append(
+                f"{name} is vendored but not linked (add it to the Frameworks phase)"
+            )
+
+    # libdsm needs libtasn1 + libiconv; libiconv needs libcharset.
+    expected_order = ["libdsm.a", "libtasn1.a", "libiconv.a", "libcharset.a"]
+    for required in ("libiconv.a", "libcharset.a"):
+        if required not in archives:
+            problems.append(
+                f"{required} is missing — this libdsm build calls "
+                f"libiconv_open/libiconv_close/libiconv and locale_charset, which "
+                f"only these archives define (-liconv is not a substitute)"
+            )
+
+    phase_order = re.findall(r"([\w.]+\.a) in Frameworks \*/,", pbx)
+    linked = [n for n in phase_order if n in archives]
+    if len(linked) == len(archives) and linked != sorted(linked, key=expected_order.index):
+        problems.append(
+            f"static archives are linked as {linked}, but a dependent must precede "
+            f"its dependency: {sorted(archives, key=expected_order.index)}"
+        )
 
     if problems:
         for p in problems:

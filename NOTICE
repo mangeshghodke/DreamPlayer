@@ -20,7 +20,9 @@ liBDSM (libdsm) — iOS SMB2 client
   distribution (distribution/ios/libdsm at https://github.com/biezhihua/libdsm)
   https://github.com/videolan/libdsm
 
-  The iOS build links libdsm.a (statically) and libtasn1.a. DreamPlayer is
+  The iOS build links libdsm.a (statically) together with its three static
+  dependencies from the same distribution: libtasn1.a, libiconv.a and
+  libcharset.a. DreamPlayer is
   licensed GPLv3, which satisfies the "Combined Work" requirement of LGPL 2.1
   section 6: this project's complete corresponding source is this repository.
 

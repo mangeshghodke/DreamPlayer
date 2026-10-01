@@ -29,6 +29,8 @@
 		A1B2C3D5000000000000047 /* SMBTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000048 /* SMBTransport.swift */; };
 		A1B2C3D5000000000000041 /* libdsm.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000042 /* libdsm.a */; };
 		A1B2C3D5000000000000043 /* libtasn1.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000044 /* libtasn1.a */; };
+		A1B2C3D5000000000000053 /* libcharset.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000054 /* libcharset.a */; };
+		A1B2C3D5000000000000051 /* libiconv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000052 /* libiconv.a */; };
 		A1B2C3D5000000000000034 /* SMBClient in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000000000000035 /* SMBClient */; };
 		A1B2C3D50000000000000010 /* JellyfinDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */; };
 		A1B2C3D50000000000000012 /* CacheCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011 /* CacheCleaner.swift */; };
@@ -95,6 +97,8 @@
 		A1B2C3D400000000000003F /* LibDSM.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LibDSM.h; sourceTree = "<group>"; };
 		A1B2C3D4000000000000042 /* libdsm.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libdsm.a; path = libdsm/libdsm.a; sourceTree = "<group>"; };
 		A1B2C3D4000000000000044 /* libtasn1.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libtasn1.a; path = libdsm/libtasn1.a; sourceTree = "<group>"; };
+		A1B2C3D4000000000000054 /* libcharset.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcharset.a; path = libdsm/libcharset.a; sourceTree = "<group>"; };
+		A1B2C3D4000000000000052 /* libiconv.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libiconv.a; path = libdsm/libiconv.a; sourceTree = "<group>"; };
 		A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinDiscovery.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000011 /* CacheCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheCleaner.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000017 /* MediaProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaProbe.swift; sourceTree = "<group>"; };
@@ -124,6 +128,8 @@
 				A1B2C3D5000000000000034 /* SMBClient in Frameworks */,
 				A1B2C3D5000000000000041 /* libdsm.a in Frameworks */,
 				A1B2C3D5000000000000043 /* libtasn1.a in Frameworks */,
+				A1B2C3D5000000000000051 /* libiconv.a in Frameworks */,
+				A1B2C3D5000000000000053 /* libcharset.a in Frameworks */,
 				A1B2C3D50000000000000016 /* Citadel in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -198,6 +204,8 @@
 				A1B2C3D4000000000000048 /* SMBTransport.swift */,
 				A1B2C3D4000000000000042 /* libdsm.a */,
 				A1B2C3D4000000000000044 /* libtasn1.a */,
+				A1B2C3D4000000000000052 /* libiconv.a */,
+				A1B2C3D4000000000000054 /* libcharset.a */,
 				A1B2C3D4000000000000000F /* JellyfinDiscovery.swift */,
 				A1B2C3D40000000000000011 /* CacheCleaner.swift */,
 				A1B2C3D40000000000000017 /* MediaProbe.swift */,

@@ -9,12 +9,29 @@ https://github.com/biezhihua/libdsm), so the headers and the binaries come from
 one build. `libdsm.a` and `libtasn1.a` are Mach-O universal archives over
 **x86_64, arm64 and arm64e**. No build step required.
 
-The distribution also ships `libiconv.a` and `libcharset.a`. They are
-deliberately **not** vendored: libdsm only calls `iconv_open`/`iconv_close`,
-which Apple's system `libiconv` provides via `-liconv`, and nothing references
-`locale_charset`, so `libcharset` is unnecessary. Bundling GNU libiconv would
-both collide with the system iconv other dependencies pull in and run into
-Apple's restrictions on shipping it.
+All four archives it ships are vendored, because all four are needed:
+
+| archive | needed by | symbols |
+|---|---|---|
+| `libdsm.a` | — | the `smb_*` API |
+| `libtasn1.a` | `libdsm.a` | ASN.1, pulled in via `#include <libtasn1.h>` |
+| `libiconv.a` | `libdsm.a` | `libiconv_open`, `libiconv_close`, `libiconv` |
+| `libcharset.a` | `libiconv.a` | `locale_charset` |
+
+`-liconv` alone is **not** enough. Apple's system libiconv exports the plain
+`iconv_open`/`iconv_close`, while this libdsm build calls GNU's *prefixed*
+`libiconv_open`/`libiconv_close`/`libiconv`, which only `libiconv.a` provides —
+linking `-liconv` alone fails with `Undefined symbol: _libiconv_open`.
+
+Link order matters for static archives (a dependent must precede what satisfies
+it), so the Frameworks phase is ordered `libdsm.a`, `libtasn1.a`, `libiconv.a`,
+`libcharset.a`.
+
+`libtasn1.h` is the only header that must sit on the search path, because
+`bdsm/smb_types.h` does `#include <libtasn1.h>`. The distribution's `iconv.h`,
+`libcharset.h` and `localcharset.h` are deliberately **not** vendored: nothing
+compiles against them, and GNU's `iconv.h` on the header search path would shadow
+the system `iconv.h` for the whole Runner target.
 
 ## Session
     smb_session *smb_session_new(void);
