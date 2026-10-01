@@ -74,20 +74,26 @@ final class SMBPlayback: @unchecked Sendable {
 /// ring buffer used to provide.
 final class SMBByteRangeSource: ByteRangeSource, @unchecked Sendable {
     private let reader: FileReader
-    private let byteSize: UInt64
+    /// Total file length. Named `totalSize` because the protocol's own
+    /// requirement is `byteSize: Int64`.
+    private let totalSize: UInt64
     private let gate = Semaphore(value: 1)
 
     init(reader: FileReader, byteSize: UInt64) {
         self.reader = reader
-        self.byteSize = byteSize
+        self.totalSize = byteSize
     }
+
+    /// The engine asks for the size before its first read, so this cannot be
+    /// discovered lazily the way WebDAV's probe can.
+    var byteSize: Int64 { Int64(clamping: totalSize) }
 
     func read(at offset: Int64, length: Int) async throws -> Data {
         guard length > 0, offset >= 0 else { return Data() }
         // Reading at or past EOF is normal, not an error: the engine's probe
         // asks for a fixed-size head even on short files.
-        guard UInt64(offset) < byteSize else { return Data() }
-        let available = Int(min(UInt64(length), byteSize - UInt64(offset)))
+        guard UInt64(offset) < totalSize else { return Data() }
+        let available = Int(min(UInt64(length), totalSize - UInt64(offset)))
 
         await gate.wait()
         defer { Task { await gate.signal() } }
@@ -96,4 +102,8 @@ final class SMBByteRangeSource: ByteRangeSource, @unchecked Sendable {
             length: UInt32(available)
         )
     }
+
+    /// No-op on purpose: the session belongs to SMBBridge, which tears it down
+    /// via closeShare once the browser and the player have both let go.
+    func close() {}
 }
