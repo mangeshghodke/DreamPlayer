@@ -579,6 +579,169 @@ def check_ns_swift_name_consistency():
                      f"call .{swift_name}() instead")
 
 
+def check_objc_dot_syntax():
+    """`recv.selector:` is a parse error in Objective-C.
+
+    Dot syntax is only legal for a zero-argument method. Writing
+    `native.hasPrefix:@"x"` fails to parse, and the follow-on diagnostic is the
+    misleading "Property 'hasPrefix' not found on object of type 'NSString *'",
+    which sends you looking for a Foundation problem instead of a syntax one.
+    """
+    for path in native_files({".m"}):
+        for n, line in enumerate(open(path, encoding="utf-8").read().split("\n"), 1):
+            code = line.split("//")[0]
+            m = re.search(r"\b[A-Za-z_][A-Za-z0-9_]*\.[a-z][A-Za-z0-9_]*\s*:", code)
+            if m and '".*:' not in code[: m.start()]:
+                fail(f"{os.path.basename(path)}:{n} uses dot syntax with an "
+                     f"argument label (`{m.group(0).strip()}`), which is only legal "
+                     f"for a zero-argument method — use [{m.group(0).split('.')[0]} "
+                     f"{m.group(0).split('.', 1)[1]}]")
+
+
+def _blank(match):
+    """Replace a match with spaces, preserving newlines so line numbers hold."""
+    return re.sub(r"[^\n]", " ", match.group(0))
+
+
+def _blank(match):
+    """Replace a match with spaces, preserving newlines so line numbers hold."""
+    return re.sub(r"[^\n]", " ", match.group(0))
+
+
+def _blank(match):
+    """Replace a match with spaces, preserving newlines so line numbers hold."""
+    return re.sub(r"[^\n]", " ", match.group(0))
+
+
+def _skip_argument(text, i):
+    """From `i` (just after a selector piece's colon), return the next selector
+    piece's start, or the end of the message expression.
+
+    Selector pieces are separated by argument expressions, so the first piece
+    alone cannot identify the method.
+    """
+    n = len(text)
+    depth = 0
+    while i < n:
+        ch = text[i]
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            if depth == 0:
+                return i
+            depth -= 1
+        elif depth == 0:
+            if ch == ";":
+                return i
+            if re.match(r"[A-Za-z_][A-Za-z0-9_]*\s*:", text[i:]):
+                return i
+        i += 1
+    return i
+
+
+def _definition_selector(text, start):
+    """Full selector of a method definition beginning at `start`.
+
+    In a declaration the pieces are separated by parameter *types* rather than
+    expressions, so walking at paren depth zero and stopping at the body's `{` or
+    the declaration's `;` collects them all. Keying on the first piece alone is
+    not enough: `initWithContext:host:share:` and
+    `initWithContext:handle:fileSize:owner:` are different methods sharing a
+    first piece, which is exactly the collision that hid this bug.
+    """
+    i, depth, pieces, n = start, 0, [], len(text)
+    while i < n:
+        ch = text[i]
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif depth == 0:
+            if ch == "{":
+                break
+            if ch == ";":
+                break
+            m = re.match(r"([A-Za-z_][A-Za-z0-9_]*)\s*:", text[i:])
+            if m:
+                pieces.append(m.group(1) + ":")
+                nxt = _skip_argument(text, i + m.end())
+                # Always move forward: m.end() is relative to text[i:], and a
+                # backwards step here loops forever.
+                i = max(nxt, i + m.end())
+                continue
+            if pieces:
+                break
+            m = re.match(r"[A-Za-z_][A-Za-z0-9_]*", text[i:])
+            if m:
+                pieces.append(m.group(0))
+                i += m.end()
+                continue
+        i += 1
+    return "".join(pieces)
+
+
+def _call_selector(text, start):
+    """Full selector of a message send beginning at `start` (None if no-arg)."""
+    i, pieces, n = start, [], len(text)
+    while i < n:
+        ch = text[i]
+        if ch in ")]" or ch == ";":
+            break
+        if ch == "{":
+            break
+        m = re.match(r"([A-Za-z_][A-Za-z0-9_]*)\s*:", text[i:])
+        if m:
+            pieces.append(m.group(1) + ":")
+            i = max(_skip_argument(text, i + m.end()), i + m.end())
+            continue
+        if pieces:
+            break
+        break
+    return "".join(pieces) if len(pieces) > 1 else None
+
+
+def check_objc_method_order():
+    """A selector must be visible before it is used, even within one file.
+
+    Objective-C resolves selectors at the point of use, so a call that precedes
+    both the declaration and the definition gives "No visible @interface declares
+    the selector". The usual cause is a private initialiser whose only definition
+    sits below the caller; the fix is a class-extension forward declaration.
+
+    Any earlier declaration *or* definition satisfies the compiler, so this keys
+    on the earliest line a selector appears in either role and fails only when the
+    call is earlier than both.
+    """
+    for path in native_files({".m"}):
+        text = strip_noise(open(path, encoding="utf-8").read())
+        available = {}
+        for m in re.finditer(r"^\s*[-+]\s*\([^)]*\)", text, re.M):
+            sel = _definition_selector(text, m.end())
+            if not sel:
+                continue
+            line = text[: m.start()].count("\n") + 1
+            if sel not in available or line < available[sel]:
+                available[sel] = line
+        if not available:
+            continue
+
+        # Blank declaration statements (from `- (ret)name:` through the `;` or
+        # `{` that ends them) so their later selector pieces cannot be mistaken
+        # for a call. Blank selector *continuation lines* instead and this breaks:
+        # a call's arguments are laid out the same way, so `initWithContext:_ctx`
+        # followed by `handle:fh` loses exactly the pieces needed to identify it.
+        scan = re.sub(r"^[ \t]*[-+][ \t]*\([^)]*\)[^;{]*[;{]", _blank, text, flags=re.M)
+        for m in re.finditer(r"(\[\s*self|\])\s+", scan):
+            sel = _call_selector(scan, m.end())
+            if not sel or sel not in available:
+                continue
+            call_line = scan[: m.start()].count("\n") + 1
+            if call_line < available[sel]:
+                snippet = text.split("\n")[call_line - 1].strip()
+                fail(f"{os.path.basename(path)}:{call_line} calls `{sel}` but it is "
+                     f"not declared or defined until line {available[sel]} — "
+                     f"Objective-C needs a visible declaration first: {snippet[:60]}")
+
 def main():
     if not os.path.isdir(RUNNER):
         print(f"FAIL  {RUNNER} not found")
@@ -593,6 +756,8 @@ def main():
     check_objc_swift_error_bridging()
     check_swift_foundation_imports()
     check_ns_swift_name_consistency()
+    check_objc_dot_syntax()
+    check_objc_method_order()
 
     if problems:
         for p in problems:

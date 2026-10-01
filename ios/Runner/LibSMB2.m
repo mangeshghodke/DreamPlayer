@@ -7,6 +7,15 @@
 #import <smb2/smb2.h>
 #import <smb2/libsmb2.h>
 
+/// LibSMB2File's initialiser is private, but LibSMB2Session.openFile calls it
+/// from above, and Objective-C needs a visible declaration before a use.
+@interface LibSMB2File ()
+- (instancetype)initWithContext:(struct smb2_context *)context
+                          handle:(struct smb2fh *)handle
+                        fileSize:(long long)fileSize
+                          owner:(LibSMB2Session *)owner;
+@end
+
 /// SMB dialect constants, mirrored from smb2.h so the display label does not
 /// depend on the C enum being visible here.
 static NSString *const LibSMB2ErrorDomain = @"com.dreamplayer.app.smb.libsmb2";
@@ -63,7 +72,11 @@ static NSString *LibSMB2DialectLabel(uint16_t dialect) {
   // smb2_find's wildcard takes.
   NSString *native = [relativePath stringByReplacingOccurrencesOfString:@"/"
                                                           withString:@"\\"];
-  if (!native.hasPrefix:@"\\") {
+  // Bracket form, not dot syntax: dot syntax is only legal for a
+  // zero-argument method, and hasPrefix: takes one. `native.hasPrefix:`
+  // is a parse error, which then cascades into a bogus
+  // "hasPrefix not found on NSString *".
+  if (![native hasPrefix:@"\\"]) {
     native = [@"\\" stringByAppendingString:native];
   }
 
