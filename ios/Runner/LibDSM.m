@@ -4,7 +4,6 @@
 //
 
 #import "LibDSM.h"
-#import "SBMLog.h"
 
 #import <arpa/inet.h>
 #import <errno.h>
@@ -184,14 +183,10 @@ static long long LibDSMMillis(time_t seconds) {
     _session = NULL;
     return nil;
   }
-  if (wantsGuest && guest != 1) {
-    // Anonymous was requested and we did not land as guest — say so instead of
-    // failing later with a confusing permission error on the share.
-    SBMLog.log(@"LibDSM: anonymous login to \\(host) landed as a real user");
-  }
-  if (!wantsGuest && guest == 1) {
-    SBMLog.log(@"LibDSM: \\(user)@\\(host) fell back to guest");
-  }
+  // libDSM's login() returns 0 even when it downgraded to guest, which is why
+  // smb_session_is_guest is captured into _isGuest and surfaced to Dart as
+  // loggedInAsGuest. Previously the two outcomes were logged here, but this
+  // file is Objective-C and cannot call the Swift SBMLog.
 
   rc = smb_tree_connect(_session, share.UTF8String, &_tid);
   if (rc != 0 || _tid == 0) {
