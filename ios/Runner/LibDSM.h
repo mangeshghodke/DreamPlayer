@@ -54,14 +54,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param domain    May be nil.
 /// @param error     Populated on failure with a message already fit to show a
 ///                  user (the Dart layer renders it verbatim).
-- (instancetype)initWithHost:(NSString *)host
+- (nullable instancetype)initWithHost:(NSString *)host
                                   port:(uint16_t)port
                               hostname:(nullable NSString *)hostname
                                  share:(NSString *)share
                                    user:(nullable NSString *)user
                                password:(nullable NSString *)password
                                  domain:(nullable NSString *)domain
-                                 error:(NSError *_Nullable *)error
+                                 error:(NSError *_Nullable *_Nullable)error
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
@@ -71,17 +71,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Lists one directory. `path` is share-relative with forward slashes; "" is
 /// the share root. Returns nil on failure.
-- (NSArray<LibDSMEntry *> *)listDirectory:(NSString *)path
-                                              error:(NSError *_Nullable *)error;
+- (nullable NSArray<LibDSMEntry *> *)listDirectory:(NSString *)path
+                                              error:(NSError *_Nullable *_Nullable)error;
 
 /// Every share on the server, as a fresh session object (the connection is not
 /// reused because share enumeration happens before a share is chosen).
-+ (NSArray<NSString *> *)listSharesOnHost:(NSString *)host
++ (nullable NSArray<NSString *> *)listSharesOnHost:(NSString *)host
                                               port:(uint16_t)port
                                              user:(nullable NSString *)user
                                          password:(nullable NSString *)password
                                            domain:(nullable NSString *)domain
-                                            error:(NSError *_Nullable *)error;
+                                            error:(NSError *_Nullable *_Nullable)error;
 
 /// Probes reachability without authenticating. Used by the online/offline dot.
 + (BOOL)canReachHost:(NSString *)host port:(uint16_t)port;
@@ -99,7 +99,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Opens the file once so later reads need no reopen. Call after the engine has
 /// probed the container, to keep the first-play latency off the read path.
 - (BOOL)prepareForPlaybackOfRelativePath:(NSString *)path
-                                  error:(NSError *_Nullable *)error;
+                                  error:(NSError *_Nullable *_Nullable)error;
 
 /// Total size of the prepared file, valid after `prepareForPlayback…`.
 @property(nonatomic, assign, readonly) long long preparedSize;

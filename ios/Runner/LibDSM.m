@@ -114,7 +114,7 @@ static long long LibDSMMillis(time_t seconds) {
                                    user:(nullable NSString *)user
                                password:(nullable NSString *)password
                                  domain:(nullable NSString *)domain
-                                 error:(NSError *_Nullable *)error {
+                                 error:(NSError *_Nullable *_Nullable)error {
   self = [super init];
   if (!self) {
     return nil;
@@ -218,7 +218,7 @@ static long long LibDSMMillis(time_t seconds) {
 #pragma mark Listing
 
 - (nullable NSArray<LibDSMEntry *> *)listDirectory:(NSString *)path
-                                              error:(NSError *_Nullable *)error {
+                                              error:(NSError *_Nullable *_Nullable)error {
   NSString *pattern = LibDSMNativePath(path);
   smb_stat_list list = smb_find(_session, _tid, pattern.UTF8String);
   if (list == NULL) {
@@ -280,7 +280,7 @@ static long long LibDSMMillis(time_t seconds) {
 #pragma mark Playback
 
 - (BOOL)prepareForPlaybackOfRelativePath:(NSString *)path
-                                  error:(NSError *_Nullable *)error {
+                                  error:(NSError *_Nullable *_Nullable)error {
   if (_fileOpen) {
     smb_fclose(_session, _fd);
     _fd = 0;
@@ -327,7 +327,7 @@ static long long LibDSMMillis(time_t seconds) {
                                              user:(nullable NSString *)user
                                          password:(nullable NSString *)password
                                            domain:(nullable NSString *)domain
-                                            error:(NSError *_Nullable *)error {
+                                            error:(NSError *_Nullable *_Nullable)error {
   struct in_addr addr;
   if (inet_pton(AF_INET, host.UTF8String, &addr) != 1) {
           LibDSMFail(error, [NSString stringWithFormat:@"\"%@\" is not a valid IP address", host]);
