@@ -63,25 +63,46 @@ final class SMBPlayback: @unchecked Sendable {
 /// line ring buffer with its window, frontier merge and parallel prefetch tasks
 /// could go.
 ///
-/// Reads are serialised with a gate. `SMBClient.Session` is a plain class with
-/// no lock of its own, and its message-id counter is an unsynchronised `var`, so
-/// two overlapping reads could otherwise duplicate a message id. Serialising
-/// also removes the check-then-set race in `FileReader.fileProxy()`, which would
-/// otherwise open (and leak) a second handle on the first concurrent read.
-/// Reads are already sequential in practice — the demuxer probes a container by
-/// walking it — so this costs nothing, and `FileReader.read` already issues
-/// back-to-back READs to fill the requested length, which is the read-ahead the
-/// ring buffer used to provide.
+/// **No lock here, deliberately.** The first cut guarded `read` with
+/// `Semaphore(value: 1)` released from `defer { Task { await gate.signal() } }`,
+/// and it deadlocked: the engine drives `IOReader` synchronously and blocks a
+/// thread per read, so the detached signal Task could not get a cooperative-pool
+/// slot to run in. On-device symptom was exact — a reload at 0.0s (head read
+/// only) finished in 102 ms, while any read needing a *second* call hung until
+/// the 9-15s timeout, which is why non-zero seeks, resumes, and the big MKVs
+/// that must read Cues from the tail all failed.
+///
+/// A lock is also unnecessary. `SMBIOReader` is cursor-based, so the engine
+/// issues one read at a time by contract — the parallel prefetch that once
+/// needed the 4-socket scheme is gone. And `FileReader.fileProxy()`'s
+/// check-then-set race cannot bite either, because `SMBPlayback` reads
+/// `reader.fileSize` while opening, which creates the handle up front.
+/// `FileReader.read` also loops internally to fill the requested length, so
+/// read-ahead survives without any buffer of our own.
 final class SMBByteRangeSource: ByteRangeSource, @unchecked Sendable {
     private let reader: FileReader
     /// Total file length. Named `totalSize` because the protocol's own
     /// requirement is `byteSize: Int64`.
     private let totalSize: UInt64
-    private let gate = Semaphore(value: 1)
 
     init(reader: FileReader, byteSize: UInt64) {
         self.reader = reader
         self.totalSize = byteSize
+    }
+
+    /// Read counter plus the slowest read, for the device log. Cheap enough to
+    /// leave on: it only formats a string when something looks wrong.
+    private let stats = ReadStats()
+
+    private final class ReadStats: @unchecked Sendable {
+        private let lock = NSLock()
+        private(set) var count = 0
+        private(set) var slowestMs = 0
+        func record(ms: Int) {
+            lock.lock(); defer { lock.unlock() }
+            count += 1
+            if ms > slowestMs { slowestMs = ms }
+        }
     }
 
     /// The engine asks for the size before its first read, so this cannot be
@@ -93,14 +114,25 @@ final class SMBByteRangeSource: ByteRangeSource, @unchecked Sendable {
         // Reading at or past EOF is normal, not an error: the engine's probe
         // asks for a fixed-size head even on short files.
         guard UInt64(offset) < totalSize else { return Data() }
+        // Ask for exactly what was requested, clamped to EOF.
         let available = Int(min(UInt64(length), totalSize - UInt64(offset)))
 
-        await gate.wait()
-        defer { Task { await gate.signal() } }
-        return try await reader.read(
+        let began = Date()
+        let data = try await reader.read(
             offset: UInt64(offset),
             length: UInt32(available)
         )
+        let ms = Int(Date().timeIntervalSince(began) * 1000)
+        stats.record(ms: ms)
+        // Only log reads slow enough to threaten playback, so the log stays
+        // readable while still pinpointing a stall.
+        if ms > 500 {
+            SBMLog.log(
+                "smb read: offset=\(offset) len=\(requested) "
+                + "got=\(data.count) in \(ms)ms (total \(stats.count) reads, "
+                + "slowest \(stats.slowestMs)ms)")
+        }
+        return data
     }
 
     /// No-op on purpose: the session belongs to SMBBridge, which tears it down
