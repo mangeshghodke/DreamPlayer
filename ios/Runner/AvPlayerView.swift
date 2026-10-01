@@ -602,23 +602,29 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     if isNetworkSource {
                         Task { @MainActor [weak self] in
                             guard let self, self.engine != nil else { return }
-                            // Hold playback across a SESSION-START reload.
+                            // Hold playback across a SESSION-START restore.
                             //
-                            // The load carries autoplay: true, so the engine starts
-                            // the moment it is ready — while the track restore
-                            // below is still working. The viewer therefore heard
-                            // the container's default track for the second or so
-                            // the restore takes, then it jumped to the saved one.
-                            // Only session start is held: a mid-playback switch
-                            // reloads at the current position, so there is no gap
-                            // to hide and pausing there would be a visible stutter.
+                            // A custom source cannot switch tracks in place — the
+                            // engine must re-probe — so the saved track can only
+                            // be applied after a reload, and a reloaded session
+                            // autoplays the container's default track. The viewer
+                            // heard that default (Hindi) for the ~300ms before
+                            // the saved one (Marathi) landed.
+                            //
+                            // Keyed on `atSessionStart` ALONE. An earlier attempt
+                            // also required `engine.state == .playing`, which can
+                            // never be true here: the engine is in `.loading` at
+                            // this point, and that is exactly what makes
+                            // `atSessionStart` true. The condition was therefore
+                            // always false and the hold never ran.
+                            //
+                            // Mid-playback switches are untouched: they reload at
+                            // the current position, so there is no gap to hide.
                             let heldForRestore = atSessionStart
-                                && self.engine?.state == .playing
                             if heldForRestore {
                                 SBMLog.log(
                                     "selectAudioTrack: holding playback across the "
                                     + "session-start restore")
-                                self.engine?.pause()
                             }
                             defer {
                                 if heldForRestore {
@@ -630,19 +636,24 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             }
                             // Let the engine settle its in-place attempt first.
                             try? await Task.sleep(nanoseconds: 300_000_000)
-                            await self.reloadSession(at: resumeAt)
-                            // The reloaded session carries autoplay too, so it can
-                            // start producing the container's default track before
-                            // the selection below lands. Re-hold, then release once
-                            // the track is applied. LoadOptions belongs to the engine
-                            // package, so it is left untouched and the hold is done
-                            // with pause/play instead.
-                            if heldForRestore, self.engine?.state == .playing {
-                                self.engine?.pause()
-                            }
+                            // autoplay: false so the reloaded session is paused
+                            // the instant it exists; the defer above starts it once
+                            // the saved track has been applied.
+                            await self.reloadSession(
+                                at: resumeAt, autoplay: !heldForRestore)
                             // Wait for the freshly loaded engine to reach
                             // .ready so selectAudioTrack is honored.
                             await self.waitForEngineReady(timeout: 3.0)
+                            // Belt and braces: the pause issued the instant the
+                            // session was created can be dropped if the engine was
+                            // still loading. Now that it is ready it will stick, so
+                            // the default track is silent right up to the switch.
+                            if heldForRestore, self.engine?.state == .playing {
+                                self.engine?.pause()
+                                SBMLog.log(
+                                    "selectAudioTrack: re-held once the engine "
+                                    + "was ready")
+                            }
                             let trackId2 = self.engineAudioId(forFlatPosition: index)
                             if skipInPlace {
                                 // First selection of this track: there was no
@@ -1268,7 +1279,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// so a later deliberate seek is never rewound by this.
     private var pendingResumeSeconds: Double = 0
 
-    private func reloadSession(at position: Double) async {
+    /// - Parameter autoplay: when false the freshly loaded session is paused
+    ///   immediately, before any `await`, and the caller is responsible for
+    ///   starting it. Used by the session-start audio-track restore, where the
+    ///   container's default track would otherwise be audible between the
+    ///   reload completing and the saved track being applied.
+    private func reloadSession(at position: Double, autoplay: Bool = true) async {
         // The Dart replay button sends seekTo(0) AND play() back-to-back; each
         // triggers a reload here. A second engine.load supersedes the first,
         // which then throws CancellationError — so coalesce duplicates and let
@@ -1287,6 +1303,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             }
             lastSource = freshSource
              let probe = try await engine.load(source: freshSource, startPosition: position, options: lastLoadOptions)
+             if !autoplay {
+                 // Synchronous, immediately after the session exists and before
+                 // any suspension point, so the default track is audible for
+                 // milliseconds rather than the ~300ms this used to take.
+                 engine.pause()
+                 SBMLog.log("reloadSession: paused on load (autoplay: false)")
+             }
              if let probe {
                  // Same-file reload can drop DV info (startPosition load).
                  // Keep the earlier detection instead of regressing to SDR.
