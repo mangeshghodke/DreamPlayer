@@ -1,5 +1,8 @@
 #import <Foundation/Foundation.h>
 
+// Opaque libsmb2 handle; the real type comes from <smb2/smb2.h> in the .m.
+struct smb2_context;
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// One SMB server identified on the LAN.
@@ -26,6 +29,60 @@ NS_ASSUME_NONNULL_BEGIN
 /// completes a real SMB negotiate against IPC$ — the share every Windows and
 /// Samba server exposes and which normally permits anonymous access — and then
 /// reports back the negotiated dialect and the server's GUID.
+/// One open SMB file, read by explicit offset.
+///
+/// `smb2_pread` is positional: it takes the offset as an argument and keeps no
+/// cursor. That is the property the whole playback design rests on — a source
+/// built over this can be thrown away and rebuilt at any moment, and the
+/// engine's container probe then reads real bytes instead of nothing. The
+/// previous ring-buffer reader was one-shot (drained, cursor at EOF by the time a
+/// reload happened), which is what produced "custom source probe failed" on every
+/// audio-track switch and resume.
+@interface LibSMB2File : NSObject
+
+/// Opens `path` (share-relative, backslashes) for reading. Blocking.
+- (nullable instancetype)initWithContext:(struct smb2_context *)context
+                                     path:(NSString *)path
+                                    error:(NSError *_Nullable *_Nullable)error
+    NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+
+/// Total length in bytes, from `smb2_fstat` at open.
+@property(nonatomic, assign, readonly) long long fileSize;
+/// The server's `MaxReadSize`; every pread is clamped to it.
+@property(nonatomic, assign, readonly) uint32_t maxReadSize;
+
+/// Reads up to `length` bytes at `offset`, returning nil only on a real failure.
+/// A read at or past EOF returns empty data, which is normal: the engine's
+/// probe asks for a fixed-size head even on short files.
+- (nullable NSData *)readAtOffset:(long long)offset length:(NSUInteger)length;
+
+- (void)closeFile;
+
+@end
+
+/// A logged-in session with one tree connection, owning the `smb2_context`.
+///
+/// The context is not thread-safe — libsmb2 keeps its message-id counter and
+/// credit state in plain struct fields — so every read goes through the caller's
+/// lock rather than being made concurrent here.
+@interface LibSMB2Session : NSObject
+/// Takes ownership of an already-connected context. Private because a session
+/// is only ever created by LibSMB2.openSessionToHost:..., which owns the
+/// connect sequence.
+- (instancetype)initWithContext:(struct smb2_context *)context
+                           host:(NSString *)host
+                          share:(NSString *)share NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, copy, readonly) NSString *host;
+@property(nonatomic, copy, readonly) NSString *share;
+/// Opens a file for reading. Blocking.
+- (nullable LibSMB2File *)openFile:(NSString *)relativePath
+                              error:(NSError *_Nullable *_Nullable)error;
+- (void)closeSession;
+@end
+
+
 @interface LibSMB2 : NSObject
 
 /// Library version string, for the startup log. Proves the archive linked.
@@ -44,6 +101,20 @@ NS_ASSUME_NONNULL_BEGIN
 ///
 /// Bounded so a /24 does not open 254 sockets at once; the sweep is I/O bound on
 /// dropped packets, so serialising it would make a scan take minutes.
+/// A logged-in session plus a tree connection, ready to open files.
+///
+/// Split from the discovery probe because those have different lifetimes: a
+/// probe is created and destroyed per host, whereas playback holds one session
+/// for the length of the video.
++ (nullable LibSMB2Session *)openSessionToHost:(NSString *)host
+                                         port:(uint16_t)port
+                                          user:(nullable NSString *)user
+                                      password:(nullable NSString *)password
+                                        domain:(nullable NSString *)domain
+                                         share:(NSString *)share
+                                     timeout:(int)timeoutSeconds
+                                         error:(NSError *_Nullable *_Nullable)error;
+
 + (NSArray<LibSMB2Server *> *)probeHosts:(NSArray<NSString *> *)hosts
                                    port:(uint16_t)port
                                 timeout:(int)timeoutSeconds

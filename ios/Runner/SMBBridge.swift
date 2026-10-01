@@ -8,18 +8,25 @@ import SMBClient
 /// In-app SMB2/3 browsing and playback for iOS.
 ///
 /// Replaces the retired Files-app bridge, whose security-scoped bookmarks were
-/// unreliable. The transport is the same pure-Swift `SMBClient` that
-/// `AetherEngineSMB` itself uses (MIT, speaks SMB2/3 over `NWConnection`).
-/// The previous AMSMB2/libsmb2 backend is NOT used: it failed with POSIX
-/// `EPERM` on the first `connectShare` on iOS, a known long-standing libsmb2
-/// issue, which is why in-app SMB was withdrawn in 2026-08.
+/// unreliable. This started as pure-Swift `SMBClient` throughout (MIT, speaks
+/// SMB2/3 over `NWConnection`), which is why in-app SMB was withdrawn in 2026-08
+/// when it stalled. libsmb2 (LGPL 2.1, vendored under `Runner/libsmb2`) has
+/// since taken over in stages:
 ///
-/// Two distinct roles, deliberately kept separate:
-///  * **browsing** talks to `SMBClient` directly (login / listShares /
-///    connectShare / listDirectory);
-///  * **playback** goes through `SMBPlayback` + `SMBByteRangeSource`
-///    (SMBSource.swift) — the same SMBClient, surfaced as the `ByteRangeSource`
-///    the engine reads directly.
+///  * **discovery** — libsmb2, exclusively. A `/24` TCP sweep finds candidates,
+///    then a real IPC$ negotiate reports the dialect and server GUID. This is
+///    what identifies SMB 3.1.1 on the NAS; the old `EPERM`-on-first-connect
+///    failure no longer reproduces with the vendored build.
+///  * **browsing** — still `SMBClient` (login / listShares / connectShare /
+///    listDirectory). Not yet ported.
+///  * **playback** — libsmb2 via `SMBSourceReader` when a handle opens,
+///    falling back to `SMBClient` + `SMBIOReader`. See SMBSource.swift for why
+///    the engine's synchronous `IOReader` is a much better fit for `smb2_pread`
+///    than for an async ranged source.
+///
+/// Playback over libsmb2 is new in this change: the negotiate path is proven on
+/// device, but reads over a real share are not yet, so the SMBClient fallback
+/// stays until it is.
 ///
 /// Credentials never cross to Dart: passwords live in the Keychain and Dart
 /// only ever sees a `hasPassword` boolean, mirroring `WebDAVClient`.
@@ -613,6 +620,44 @@ final class SMBBridge: NSObject {
         return result
     }
 
+    /// Opens a libsmb2 handle for playback, to be preferred over the SMBClient
+    /// path for reads.
+    ///
+    /// Best-effort by design: browsing and the fallback both still run on
+    /// SMBClient, so a libsmb2 failure costs throughput rather than playback.
+    /// Returns nil quietly and lets the caller log the fallback.
+    private static func openLibSMB2Playback(
+        host: String,
+        port: UInt16,
+        share: String,
+        user: String?,
+        password: String?,
+        domain: String?,
+        path: String
+    ) -> (LibSMB2File, LibSMB2Session)? {
+        // A nullable return plus a trailing NSError** imports into Swift as
+        // `throws` with the error argument removed, so these are `try` calls
+        // rather than out-parameter calls.
+        let session: LibSMB2Session
+        do {
+            session = try LibSMB2.openSession(
+                toHost: host, port: port, user: user, password: password,
+                domain: domain, share: share, timeout: 10)
+        } catch {
+            SBMLog.log("libsmb2 session failed: \(error.localizedDescription)")
+            return nil
+        }
+        let file: LibSMB2File
+        do {
+            file = try session.openFile(path)
+        } catch {
+            SBMLog.log("libsmb2 open failed: \(error.localizedDescription)")
+            session.closeSession()
+            return nil
+        }
+        return (file, session)
+    }
+
     /// Why a probe failed, for a host the user believes is on the LAN.
     ///
     /// Written from two different queues: the state handler runs on `probeQueue`
@@ -1060,13 +1105,27 @@ final class SMBBridge: NSObject {
                 let reader = client.fileReader(path: cleanPath)
                 let size = try await reader.fileSize
 
+                let libsmb2 = Self.openLibSMB2Playback(
+                    host: server.host,
+                    port: UInt16(truncatingIfNeeded: server.port),
+                    share: share,
+                    user: server.anonymous ? nil : server.username,
+                    password: server.anonymous ? nil : password,
+                    domain: server.domain.isEmpty ? nil : server.domain,
+                    path: cleanPath
+                )
+                SBMLog.log(
+                    "openShare: playback transport = "
+                    + (libsmb2 != nil ? "libsmb2" : "SMBClient (libsmb2 unavailable)"))
+
                 let ext = (path as NSString).pathExtension
                 self.lock.lock()
                 self.tokenCounter += 1
                 let token = "\(server.id)-\(self.tokenCounter)"
                 self.playback[token]?.close()
                 self.playback[token] = SMBPlayback(
-                    client: client, reader: reader, byteSize: size)
+                    client: client, reader: reader, byteSize: size,
+                    libsmb2File: libsmb2?.0, libsmb2Session: libsmb2?.1)
                 self.lock.unlock()
                 await MainActor.run {
                     let tokenURL = "dreamplayersmb://\(token).\(ext.isEmpty ? "mkv" : ext)"
@@ -1218,8 +1277,21 @@ final class SMBBridge: NSObject {
                 try await client.connectShare(share)
                 let reader = client.fileReader(path: Self.normalized(path))
                 let size = try await reader.fileSize
+                let libsmb2 = Self.openLibSMB2Playback(
+                    host: server.host,
+                    port: UInt16(truncatingIfNeeded: server.port),
+                    share: share,
+                    user: server.anonymous ? nil : server.username,
+                    password: server.anonymous ? nil : password,
+                    domain: server.domain.isEmpty ? nil : server.domain,
+                    path: Self.normalized(path)
+                )
+                SBMLog.log(
+                    "open(\(tag)): playback transport = "
+                    + (libsmb2 != nil ? "libsmb2" : "SMBClient (libsmb2 unavailable)"))
                 out.playback = SMBPlayback(
-                    client: client, reader: reader, byteSize: size)
+                    client: client, reader: reader, byteSize: size,
+                    libsmb2File: libsmb2?.0, libsmb2Session: libsmb2?.1)
             } catch {
                 client.session.disconnect()
                 out.failure = Self.friendly(error, host: server.host)

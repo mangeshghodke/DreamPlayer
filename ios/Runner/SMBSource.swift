@@ -18,10 +18,26 @@ final class SMBPlayback: @unchecked Sendable {
     let reader: FileReader
     let byteSize: UInt64
 
-    init(client: SMBClient, reader: FileReader, byteSize: UInt64) {
+    /// The libsmb2 file handle, when one could be opened.
+    ///
+    /// Preferred over the SMBClient path for reads, because `smb2_pread` is
+    /// synchronous and positional: it drops straight into the engine's
+    /// synchronous `IOReader` with no bridging, and a re-probe only needs a fresh
+    /// cursor. The SMBClient handle is kept as the fallback so a libsmb2 failure
+    /// costs throughput, not playback.
+    let libsmb2File: LibSMB2File?
+    private let libsmb2Session: LibSMB2Session?
+
+    init(client: SMBClient,
+         reader: FileReader,
+         byteSize: UInt64,
+         libsmb2File: LibSMB2File? = nil,
+         libsmb2Session: LibSMB2Session? = nil) {
         self.client = client
         self.reader = reader
         self.byteSize = byteSize
+        self.libsmb2File = libsmb2File
+        self.libsmb2Session = libsmb2Session
     }
 
     /// A fresh `ByteRangeSource` over the *same* live handle. No reconnect and no
@@ -39,8 +55,11 @@ final class SMBPlayback: @unchecked Sendable {
     ///
     /// `ownsSource: false` — SMBBridge owns the session's lifetime via
     /// closeShare, and the engine must not close a handle it does not hold.
-    func makeReader() -> SMBIOReader {
-        SMBIOReader(
+    func makeReader() -> IOReader {
+        if let libsmb2File {
+            return SMBSourceReader(file: libsmb2File)
+        }
+        return SMBIOReader(
             source: makeSource(),
             ownsSource: false,
             discImageProbeEnabled: false
@@ -48,6 +67,8 @@ final class SMBPlayback: @unchecked Sendable {
     }
 
     func close() {
+        libsmb2File?.closeFile()
+        libsmb2Session?.closeSession()
         Task.detached(priority: .utility) { [client, reader] in
             try? await reader.close()
             try? await client.logoff()
@@ -139,4 +160,91 @@ final class SMBByteRangeSource: ByteRangeSource, @unchecked Sendable {
     /// No-op on purpose: the session belongs to SMBBridge, which tears it down
     /// via closeShare once the browser and the player have both let go.
     func close() {}
+}
+
+/// The engine's reader interface, served straight from libsmb2.
+///
+/// `IOReader` is *synchronous* and cursor-based (`read`/`seek` into a raw
+/// pointer), and `smb2_pread` is synchronous and positional. That match is the
+/// whole point of phase 2: no bridging, no `Task`, no semaphore, so the deadlock
+/// class that cost four builds on the SMBClient path cannot occur here at all.
+/// The previous `SMBByteRangeSource` had to bridge an *async* source into this
+/// synchronous interface, and the release half of that bridge is what hung.
+///
+/// One lock, shared with every reader derived from the same handle, because
+/// libsmb2's context keeps its message-id counter and credit accounting in plain
+/// struct fields with no internal locking. Holding it across a blocking `pread`
+/// is fine — the thread is doing real work, not waiting on the cooperative pool.
+final class SMBSourceReader: IOReader, @unchecked Sendable {
+    /// Shared with derived readers so the context is never entered twice.
+    private let lock: NSRecursiveLock
+    private let file: LibSMB2File
+    private var cursor: Int64 = 0
+    private var closed = false
+
+    init(file: LibSMB2File, lock: NSRecursiveLock = NSRecursiveLock()) {
+        self.file = file
+        self.lock = lock
+    }
+
+    var fileSize: Int64 { file.fileSize }
+
+    func read(_ buffer: UnsafeMutablePointer<UInt8>?, size: Int32) -> Int32 {
+        guard let buffer, size > 0 else { return 0 }
+        lock.lock()
+        defer { lock.unlock() }
+        guard !closed else { return -1 }
+
+        guard let data = file.read(atOffset: cursor, length: Int(size)) else {
+            return -1
+        }
+        if data.isEmpty {
+            return 0  // clean EOF; the engine treats 0 as end of stream
+        }
+        let count = min(data.count, Int(size))
+        data.copyBytes(to: buffer, count: count)
+        cursor += Int64(count)
+        return Int32(count)
+    }
+
+    func seek(offset: Int64, whence: Int32) -> Int64 {
+        lock.lock()
+        defer { lock.unlock() }
+        switch whence {
+        case Int32(SEEK_SET): cursor = offset
+        case Int32(SEEK_CUR): cursor += offset
+        case Int32(SEEK_END): cursor = file.fileSize + offset
+        case 65536: return file.fileSize  // AVSEEK_SIZE
+        default: return -1
+        }
+        if cursor < 0 {
+            cursor = 0
+            return -1
+        }
+        return cursor
+    }
+
+    func close() {
+        lock.lock()
+        closed = true
+        lock.unlock()
+    }
+
+    /// No-op, deliberately. The engine calls this to abandon a reader, but a
+    /// synchronous `smb2_pread` is a blocking round-trip that cannot be
+    /// interrupted; poisoning the reader here would break the engine's own
+    /// reuse of it. Teardown is `close()`, and the session is torn down by
+    /// SMBBridge once nothing is streaming.
+    func cancel() {}
+
+    /// A second reader over the *same* open handle, with its own cursor.
+    ///
+    /// This is what the engine uses when it re-probes the container, and it is
+    /// why the old ring reader failed here: it had drained its buffer and left
+    /// its cursor at EOF, so a reload handed the engine a source that read
+    /// nothing ("custom source probe failed"). `pread` is positional, so a fresh
+    /// cursor is all a re-probe needs.
+    func makeIndependentReader() -> IOReader? {
+        SMBSourceReader(file: file, lock: lock)
+    }
 }

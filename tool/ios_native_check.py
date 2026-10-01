@@ -183,7 +183,12 @@ def check_c_symbols():
                  f"of those headers resolve under ios/Runner/libsmb2/include")
             continue
 
+        # Names reached through `.` are struct members (st.smb2_size) declared
+        # inside a struct body, so a definition check would flag every access.
+        members = set(re.findall(r"\.\s*(\w+)", code))
         for sym in sorted(set(re.findall(r"\b(smb2_[A-Za-z0-9_]+|SMB2_[A-Z0-9_]+)\b", code))):
+            if sym in members:
+                continue
             if _is_defined(sym, text):
                 continue
             fail(f"{os.path.basename(path)}: {sym} is not *defined* by the "
@@ -384,6 +389,158 @@ def check_bridging_header():
 
 
 
+def check_objc_literal_terminators():
+    """Every ObjC string literal must terminate on its own line.
+
+    A literal that lost its escaping — `@"\"` written where `@"\\"` was meant —
+    swallows the rest of the line and is a hard compile error that is very easy
+    to miss by eye, and impossible to catch without a compiler here.
+    """
+    for path in native_files({".m"}):
+        for n, line in enumerate(open(path, encoding="utf-8").read().split("\n"), 1):
+            i = 0
+            quotes = 0
+            while i < len(line):
+                if line[i] == "\\":
+                    i += 2
+                    continue
+                if line[i] == '"':
+                    quotes += 1
+                i += 1
+            if quotes % 2:
+                fail(f"{os.path.basename(path)}:{n}: unterminated string literal "
+                     f"(odd number of quotes) — {line.strip()[:60]}")
+
+
+def _objc_declarations(text):
+    """Yield each top-level ObjC method declaration, without its trailing `;`.
+
+    Split on `;` at paren depth zero, so a `;` inside a parameter type cannot end
+    a declaration early. Declarations are parsed rather than regex-matched
+    because they span lines and carry parenthesised types such as
+    `(nullable NSString *)`.
+    """
+    depth = 0
+    start = 0
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == ";" and depth == 0:
+            decl = text[start:i].strip()
+            if re.match(r"^[-+]\s*\(", decl):
+                yield decl
+            start = i + 1
+
+
+
+def _split_return_type(decl):
+    """Split an ObjC declaration into (return type, remainder).
+
+    The return type is the parenthesised group right after the leading +/-, so
+    the split point is that group's matching close paren, not its open paren.
+    """
+    open_paren = decl.find("(")
+    if open_paren < 0:
+        return decl, ""
+    depth = 0
+    for i in range(open_paren, len(decl)):
+        if decl[i] == "(":
+            depth += 1
+        elif decl[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return decl[:i + 1], decl[i + 1:]
+    return decl, ""
+
+def check_objc_swift_error_bridging():
+    """An ObjC method returning `nullable` with a trailing `NSError**` imports
+    into Swift as `throws`, and the error argument disappears.
+
+    Calling it with an out-parameter gives "Extra argument 'error'"; omitting
+    `try` gives "Missing argument for parameter 'error'". Both cost a signed CI
+    build here before this rule existed, so the shape is now checked statically.
+    """
+    throwing = set()
+    for path in native_files({".h"}):
+        text = strip_noise(open(path, encoding="utf-8").read())
+        for decl in _objc_declarations(text):
+            # Written as NSError **_Nullable by some, but conventionally
+            # NSError *_Nullable *_Nullable, so match on a second star anywhere
+            # in the parameter rather than on a literal "**".
+            if not re.search(r"NSError\s*\*[^,)]*\*", decl):
+                continue
+            # Split *after* the return type. A plain partition("(") would split at
+            # the return type's own opening paren, leaving head as just "- " and
+            # putting `nullable` on the wrong side of the test.
+            head, params = _split_return_type(decl)
+            if "nullable" not in head:
+                continue  # nonnull return: the parameter stays a plain argument
+            first = re.match(r"\s*(\w+)\s*:", params)
+            if first:
+                throwing.add(first.group(1))
+    if not throwing:
+        return
+
+    swift = ""
+    for path in native_files({".swift"}):
+        swift += strip_noise(open(path, encoding="utf-8").read())
+
+    for name in sorted(throwing):
+        for m in re.finditer(r"\b" + re.escape(name) + r"\s*\(", swift):
+            line = swift[: m.start()].count("\n") + 1
+            # `try` sits before the receiver (`try session.openFile(...)`), so
+            # look back to the start of the statement rather than a fixed window.
+            stmt_start = max(
+                swift.rfind("\n", 0, m.start()),
+                swift.rfind(";", 0, m.start()),
+                swift.rfind("{", 0, m.start()),
+            )
+            has_try = "try" in swift[max(0, stmt_start + 1): m.start()]
+            depth = 1
+            i = m.end()
+            while i < len(swift) and depth:
+                if swift[i] == "(":
+                    depth += 1
+                elif swift[i] == ")":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                i += 1
+            call = swift[m.start():i + 1]
+            if re.search(r"\berror\s*:", call):
+                fail(f"{name}() returns nullable with an NSError** parameter, so "
+                     f"Swift imports it as `throws` and drops the error argument; "
+                     f"line {line} passes one: {call[:70]}")
+            elif not has_try:
+                fail(f"{name}() returns nullable with an NSError** parameter, so "
+                     f"Swift imports it as `throws`; line {line} is missing `try`")
+
+
+def check_swift_foundation_imports():
+    """Swift files that use Foundation types must import Foundation (or a
+    Darwin module that re-exports it).
+
+    `flutter analyze` only sees Dart, so a missing import here is invisible until
+    a signed CI build fails on it.
+    """
+    markers = ("NSRecursiveLock", "NSLock", "NSData", "NSMutableData", "NSError",
+               "NSString", "NSDictionary", "NSArray", "NSObject", "NSNumber")
+    for path in native_files({".swift"}):
+        src = open(path, encoding="utf-8").read()
+        # On Darwin these all re-export Foundation, so an explicit import is not
+        # required when one of them is present.
+        if re.search(r"^\s*import\s+(Foundation|UIKit|AppKit|Cocoa|Flutter)\b",
+                     src, re.M):
+            continue
+        body = strip_noise(strip_strings(src))
+        used = sorted({m for m in markers if re.search(r"\b" + m + r"\b", body)})
+        if used:
+            fail(f"{os.path.basename(path)} uses {', '.join(used)} "
+                 f"but does not import Foundation")
+
+
 def main():
     if not os.path.isdir(RUNNER):
         print(f"FAIL  {RUNNER} not found")
@@ -394,6 +551,9 @@ def main():
     check_swift_interpolation()
     check_structure()
     check_bridging_header()
+    check_objc_literal_terminators()
+    check_objc_swift_error_bridging()
+    check_swift_foundation_imports()
 
     if problems:
         for p in problems:
