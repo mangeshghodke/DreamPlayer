@@ -359,7 +359,7 @@ final class SMBBridge: NSObject {
     /// `saveServer` rebuilds a `ServerMeta` from the dialog's arguments, so it
     /// cannot be used for a field the dialog does not know about — hand-added
     /// share names would be wiped on every edit of the server.
-    private func updateServer(_ id: String, _ mutate: (inout ServerMeta) -> Void) {
+    private func updateServer(_ id: String, _ mutate: (inout ServerMeta) -> Void) {
         loadServersIfNeeded()
         lock.lock()
         defer { lock.unlock() }
@@ -414,7 +414,7 @@ final class SMBBridge: NSObject {
         }
     }
 
-    private func getPassword(_ id: String) -> String {
+    private func getPassword(_ id: String) -> String {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.keychainService,
@@ -447,7 +447,7 @@ final class SMBBridge: NSObject {
     /// state in the context, so a session cannot be reused across shares. This
     /// replaced an `SMBClient` session, which is why the browse path no longer
     /// needs that package at all.
-    private func withShareSession(
+    private func withShareSession(
         _ server: ServerMeta,
         share: String,
         password: String? = nil,
@@ -456,7 +456,7 @@ final class SMBBridge: NSObject {
         onError: @escaping @MainActor (String) -> Void
     ) {
         Task.detached(priority: .userInitiated) {
-            let secret = password ?? getPassword(server.id)
+            let secret = password ?? self.getPassword(server.id)
             do {
                 let session = try LibSMB2.openSession(
                     toHost: server.host,
@@ -488,7 +488,7 @@ final class SMBBridge: NSObject {
         timeout: Int = 10,
         _ body: @escaping (LibSMB2Session) throws -> T
     ) async throws -> T {
-        let secret = password ?? getPassword(server.id)
+        let secret = password ?? self.getPassword(server.id)
         return try await Task.detached(priority: .userInitiated) {
             let session = try LibSMB2.openSession(
                 toHost: server.host,
@@ -902,7 +902,7 @@ final class SMBBridge: NSObject {
                     forHost: server.host,
                     port: UInt16(truncatingIfNeeded: server.port),
                     user: server.anonymous ? nil : server.username,
-                    password: server.anonymous ? nil : getPassword(server.id),
+                    password: server.anonymous ? nil : self.getPassword(server.id),
                     domain: server.domain.isEmpty ? nil : server.domain,
                     extraShareNames: server.addedShares ?? [],
                     timeout: 10)
@@ -935,7 +935,7 @@ final class SMBBridge: NSObject {
                     toHost: server.host,
                     port: UInt16(truncatingIfNeeded: server.port),
                     user: server.anonymous ? nil : server.username,
-                    password: server.anonymous ? nil : getPassword(server.id),
+                    password: server.anonymous ? nil : self.getPassword(server.id),
                     domain: server.domain.isEmpty ? nil : server.domain,
                     share: share,
                     timeout: 10)
@@ -950,7 +950,7 @@ final class SMBBridge: NSObject {
                 // point of the affordance: the name has to survive so the next
                 // probe finds it again.
                 if ok, !share.isEmpty {
-                    updateServer(server.id) { meta in
+                    self.updateServer(server.id) { meta in
                         var names = meta.addedShares ?? []
                         if !names.contains(share) {
                             names.append(share)
@@ -986,7 +986,7 @@ final class SMBBridge: NSObject {
                     toHost: server.host,
                     port: UInt16(truncatingIfNeeded: server.port),
                     user: server.anonymous ? nil : server.username,
-                    password: server.anonymous ? nil : getPassword(server.id),
+                    password: server.anonymous ? nil : self.getPassword(server.id),
                     domain: server.domain.isEmpty ? nil : server.domain,
                     share: share,
                     timeout: 10)
@@ -1130,7 +1130,7 @@ final class SMBBridge: NSObject {
             completion([:])
             return
         }
-        let password = getPassword(server.id)
+        let password = self.getPassword(server.id)
         Task.detached(priority: .utility) {
             var sizes: [String: Int] = [:]
             // One session for the whole batch: each stat is a tiny query, and
@@ -1163,7 +1163,7 @@ final class SMBBridge: NSObject {
         maxBytes: Int,
         completion: @escaping (FlutterStandardTypedData?) -> Void
     ) {
-        let password = getPassword(server.id)
+        let password = self.getPassword(server.id)
         Task.detached(priority: .utility) {
             let want = maxBytes > 0 ? maxBytes : (50 * 1024 * 1024)
             // One bounded read; sidecars are small, and a single call keeps this
@@ -1177,7 +1177,7 @@ final class SMBBridge: NSObject {
                 share: share,
                 timeout: 10),
                let data = try? session.readFile(
-                atPath: Self.normalized(path), offset: 0, length: want) {
+                atPath: Self.normalized(path), offset: 0, length: UInt(want)) {
                 session.close()
                 await MainActor.run { completion(FlutterStandardTypedData(bytes: data)) }
             } else {
@@ -1201,7 +1201,7 @@ final class SMBBridge: NSObject {
         path: String,
         completion: @escaping (String?) -> Void
     ) {
-        let password = getPassword(server.id)
+        let password = self.getPassword(server.id)
         Task.detached(priority: .userInitiated) {
             let cleanPath = Self.normalized(path)
             do {
@@ -1353,7 +1353,7 @@ final class SMBBridge: NSObject {
         tag: String
     ) -> SMBPlayback? {
         SBMLog.log("open(\(tag)): \(server.name) \(share)/\(path) [\(SBMLog.since(started))]")
-        let password = getPassword(server.id)
+        let password = self.getPassword(server.id)
         let out = PlaybackBox()
         let done = DispatchSemaphore(value: 0)
         Task.detached(priority: .userInitiated) {
