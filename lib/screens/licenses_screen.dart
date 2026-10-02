@@ -21,7 +21,10 @@ const List<_LicenseEntry> _entries = [
   _LicenseEntry('FFmpeg frameworks (iOS)',
       'LGPL-2.1 or later (no GPL components)',
       'https://github.com/superuser404notfound/FFmpegBuild'),
-  _LicenseEntry('SMBClient (SMB2/3, via AetherEngineSMB for WebDAV)',
+  // Still shipped transitively: AetherEngineSMB depends on SMBClient, so the
+  // framework is in the bundle even though nothing imports it any more.
+  // Attribution is kept deliberately.
+  _LicenseEntry('SMBClient (SMB2/3, transitively via AetherEngineSMB)',
       'MIT', 'https://github.com/kishikawakatsumi/SMBClient'),
   // Required by the TheTVDB v4 API terms: the attribution used to sit under
   // every TheTVDB-sourced title's overview, which was noisy. It now lives here

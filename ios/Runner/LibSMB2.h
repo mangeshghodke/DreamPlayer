@@ -79,6 +79,34 @@ NS_ASSUME_NONNULL_BEGIN
 /// Opens a file for reading. Blocking.
 - (nullable LibSMB2File *)openFile:(NSString *)relativePath
                               error:(NSError *_Nullable *_Nullable)error;
+
+/// One directory entry, as the browser needs it.
+@interface LibSMB2Entry : NSObject
+@property(nonatomic, copy, readonly) NSString *name;
+@property(nonatomic, assign, readonly) BOOL isDirectory;
+@property(nonatomic, assign, readonly) long long size;
+/// Modification time in milliseconds since the epoch, 0 when unknown.
+@property(nonatomic, assign, readonly) long long modifiedMillis;
+@end
+
+/// Lists one directory. `relativePath` may be empty for the share root.
+/// Blocking; returns nil only on a real failure.
+- (nullable NSArray<LibSMB2Entry *> *)listDirectory:(NSString *)relativePath
+                                                error:(NSError *_Nullable *_Nullable)error;
+
+/// Size of one file, without keeping the handle. Blocking.
+- (BOOL)fileSizeAtPath:(NSString *)relativePath
+                 size:(long long *)outSize
+                error:(NSError *_Nullable *_Nullable)error;
+
+/// Reads up to `length` bytes at `offset` and closes the handle. Used for the
+/// small sidecar-subtitle fetches; video goes through LibSMB2File so the handle
+/// stays open.
+- (nullable NSData *)readFileAtPath:(NSString *)relativePath
+                              offset:(long long)offset
+                              length:(NSUInteger)length
+                               error:(NSError *_Nullable *_Nullable)error;
+
 - (void)closeSession NS_SWIFT_NAME(close());
 @end
 
@@ -114,6 +142,22 @@ NS_ASSUME_NONNULL_BEGIN
                                          share:(NSString *)share
                                      timeout:(int)timeoutSeconds
                                          error:(NSError *_Nullable *_Nullable)error;
+
+/// Share names to probe, because SMB2 has no share-enumeration call — the same
+/// limitation Android works around the same way.
++ (NSArray<NSString *> *)commonShareNames;
+
+/// Probes each common share name and returns the ones that exist, in listing
+/// order. SMB2 cannot enumerate shares, so a share with an unusual name has to
+/// be added by hand — mirrored by the existing "Add share" affordance.
++ (nullable NSArray<NSString *> *)listSharesForHost:(NSString *)host
+                                                port:(uint16_t)port
+                                                user:(nullable NSString *)user
+                                            password:(nullable NSString *)password
+                                              domain:(nullable NSString *)domain
+                                     extraShareNames:(nullable NSArray<NSString *> *)extraShareNames
+                                             timeout:(int)timeoutSeconds
+                                               error:(NSError *_Nullable *_Nullable)error;
 
 + (NSArray<LibSMB2Server *> *)probeHosts:(NSArray<NSString *> *)hosts
                                    port:(uint16_t)port

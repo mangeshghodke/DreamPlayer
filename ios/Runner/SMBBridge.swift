@@ -3,30 +3,18 @@ import Flutter
 import Foundation
 import Network
 import Security
-import SMBClient
 
-/// In-app SMB2/3 browsing and playback for iOS.
+/// In-app SMB2/3 browsing and playback for iOS, entirely on libsmb2.
 ///
-/// Replaces the retired Files-app bridge, whose security-scoped bookmarks were
-/// unreliable. This started as pure-Swift `SMBClient` throughout (MIT, speaks
-/// SMB2/3 over `NWConnection`), which is why in-app SMB was withdrawn in 2026-08
-/// when it stalled. libsmb2 (LGPL 2.1, vendored under `Runner/libsmb2`) has
-/// since taken over in stages:
+/// libsmb2 (LGPL 2.1, vendored under `Runner/libsmb2`) does everything: it
+/// connects, lists shares and directories, stats and fetches small files, and
+/// serves playback reads through a synchronous `smb2_pread` reader. The
+/// `SMBClient` package that used to drive browsing here has been removed — it
+/// was the reason browsing and playback behaved differently, and it is why the
+/// old transport needed an async-to-sync reader adaptation that deadlocked.
 ///
-///  * **discovery** — libsmb2, exclusively. A `/24` TCP sweep finds candidates,
-///    then a real IPC$ negotiate reports the dialect and server GUID. This is
-///    what identifies SMB 3.1.1 on the NAS; the old `EPERM`-on-first-connect
-///    failure no longer reproduces with the vendored build.
-///  * **browsing** — still `SMBClient` (login / listShares / connectShare /
-///    listDirectory). Not yet ported.
-///  * **playback** — libsmb2 via `SMBSourceReader` when a handle opens,
-///    falling back to `SMBClient` + `SMBIOReader`. See SMBSource.swift for why
-///    the engine's synchronous `IOReader` is a much better fit for `smb2_pread`
-///    than for an async ranged source.
-///
-/// Playback over libsmb2 is new in this change: the negotiate path is proven on
-/// device, but reads over a real share are not yet, so the SMBClient fallback
-/// stays until it is.
+/// SMB2 has no share-enumeration request, so `listShares` probes a list of
+/// common share names plus any the user added by hand, exactly as Android does.
 ///
 /// Credentials never cross to Dart: passwords live in the Keychain and Dart
 /// only ever sees a `hasPassword` boolean, mirroring `WebDAVClient`.
@@ -48,6 +36,11 @@ final class SMBBridge: NSObject {
         var username: String
         var domain: String
         var anonymous: Bool
+        /// Share names the user added by hand. SMB2 cannot enumerate shares, so
+        /// these are merged into the probe list in `listShares`. Optional so
+        /// servers saved before this field existed still decode — a synthesized
+        /// `Codable` ignores a declared default for a missing key.
+        var addedShares: [String]?
     }
 
     private struct ListingCacheKey: Hashable {
@@ -194,8 +187,10 @@ final class SMBBridge: NSObject {
             // Android answers this with a TCP connect to the SMB port. iOS
             // returned a hardcoded false, so every saved server showed a red
             // dot even when it was perfectly reachable.
-            let host = (args?["host"] as? String) ?? ""
-            let port = (args?["port"] as? NSNumber)?.uint16Value ?? 445
+            // `args` is non-optional here (the handler takes [String: Any]), so
+            // optional chaining on it does not compile.
+            let host = (args["host"] as? String) ?? ""
+            let port = (args["port"] as? NSNumber)?.uint16Value ?? 445
             guard !host.isEmpty else {
                 result(FlutterError(code: "bad_args",
                                     message: "Missing host", details: nil))
@@ -338,7 +333,10 @@ final class SMBBridge: NSObject {
             port: args["port"] as? Int ?? 445,
             username: args["username"] as? String ?? "",
             domain: args["domain"] as? String ?? "",
-            anonymous: args["anonymous"] as? Bool ?? false
+            anonymous: args["anonymous"] as? Bool ?? false,
+            // Carried over: the add/edit dialog knows nothing about them, and
+            // dropping them would silently un-list any hand-added share.
+            addedShares: servers[id]?.addedShares
         )
         lock.lock()
         servers[id] = meta
@@ -353,6 +351,23 @@ final class SMBBridge: NSObject {
         // editing; a save from the add dialog always carries the real value.
         if let password = args["password"] as? String, !password.isEmpty {
             setPassword(password, for: id)
+        }
+    }
+
+    /// Mutates one saved server in place and re-persists the set.
+    ///
+    /// `saveServer` rebuilds a `ServerMeta` from the dialog's arguments, so it
+    /// cannot be used for a field the dialog does not know about — hand-added
+    /// share names would be wiped on every edit of the server.
+    private func updateServer(_ id: String, _ mutate: (inout ServerMeta) -> Void) {
+        loadServersIfNeeded()
+        lock.lock()
+        defer { lock.unlock() }
+        guard var meta = servers[id] else { return }
+        mutate(&meta)
+        servers[id] = meta
+        if let data = try? JSONEncoder().encode(Array(servers.values)) {
+            UserDefaults.standard.set(data, forKey: Self.serversKey)
         }
     }
 
@@ -425,50 +440,67 @@ final class SMBBridge: NSObject {
 
     // MARK: - Connection
 
-    /// A logged-in `SMBClient` for one server, or a friendly error.
+    /// A connected libsmb2 session for one share, or a friendly error.
     ///
-    /// An empty username means "no explicit account": SMBClient is asked for a
-    /// guest session first and then a fully anonymous one, which is what a NAS
-    /// with a public share expects. An explicit username that fails is a real
-    /// auth error and must not silently downgrade.
-    private func withClient(
+    /// One session per call and always closed afterwards: browsing is a series
+    /// of short list/open operations, and libsmb2 keeps all of its per-connection
+    /// state in the context, so a session cannot be reused across shares. This
+    /// replaced an `SMBClient` session, which is why the browse path no longer
+    /// needs that package at all.
+    private func withShareSession(
         _ server: ServerMeta,
-        _ body: @escaping @MainActor (SMBClient) -> Void,
-        onError: @escaping @MainActor (String) -> Void
-    ) {
-        withClient(server, password: getPassword(server.id), body, onError: onError)
-    }
-
-    /// Same as `connect`, but with the password supplied by the caller — used
-    /// by testConnection, which tests credentials that are not saved yet.
-    private func withClient(
-        _ server: ServerMeta,
-        password: String,
-        _ body: @escaping @MainActor (SMBClient) -> Void,
+        share: String,
+        password: String? = nil,
+        timeout: Int = 10,
+        _ body: @escaping @MainActor (LibSMB2Session) -> Void,
         onError: @escaping @MainActor (String) -> Void
     ) {
         Task.detached(priority: .userInitiated) {
-            let client = server.port > 0 && server.port != 445
-                ? SMBClient(host: server.host, port: server.port)
-                : SMBClient(host: server.host)
+            let secret = password ?? getPassword(server.id)
             do {
-                if server.anonymous || (server.username.isEmpty && password.isEmpty) {
-                    try await client.login(username: nil, password: nil)
-                } else {
-                    try await client.login(
-                        username: server.username,
-                        password: password.isEmpty ? nil : password,
-                        domain: server.domain.isEmpty ? nil : server.domain
-                    )
-                }
-                SBMLog.log("connect ok: \(server.host):\(server.port) as \(server.anonymous || server.username.isEmpty ? "guest/anon" : server.username)")
-                await MainActor.run { body(client) }
+                let session = try LibSMB2.openSession(
+                    toHost: server.host,
+                    port: UInt16(truncatingIfNeeded: server.port),
+                    user: server.anonymous ? nil : server.username,
+                    password: server.anonymous ? nil : secret,
+                    domain: server.domain.isEmpty ? nil : server.domain,
+                    share: share,
+                    timeout: timeout)
+                SBMLog.log(
+                    "connect ok: \(server.host):\(server.port) \\(share) as "
+                    + "\(server.anonymous || server.username.isEmpty ? "guest/anon" : server.username)")
+                await MainActor.run { body(session) }
+                session.close()
             } catch {
                 let message = Self.friendly(error, host: server.host)
-                SBMLog.log("connect FAILED \(server.host):\(server.port): \(message) raw=\(error)")
+                SBMLog.log("connect FAILED \(server.host):\(server.port): \(message)")
                 await MainActor.run { onError(message) }
             }
         }
+    }
+
+    /// Opens a one-off libsmb2 session on a background thread and hands the
+    /// result back, for callers that do not want the `withShareSession` shape.
+    private func withDetachedSession<T>(
+        _ server: ServerMeta,
+        share: String,
+        password: String? = nil,
+        timeout: Int = 10,
+        _ body: @escaping (LibSMB2Session) throws -> T
+    ) async throws -> T {
+        let secret = password ?? getPassword(server.id)
+        return try await Task.detached(priority: .userInitiated) {
+            let session = try LibSMB2.openSession(
+                toHost: server.host,
+                port: UInt16(truncatingIfNeeded: server.port),
+                user: server.anonymous ? nil : server.username,
+                password: server.anonymous ? nil : secret,
+                domain: server.domain.isEmpty ? nil : server.domain,
+                share: share,
+                timeout: timeout)
+            defer { session.close() }
+            return try body(session)
+        }.value
     }
 
     private static func friendly(_ error: Error, host: String) -> String {
@@ -515,23 +547,28 @@ final class SMBBridge: NSObject {
             domain: domain,
             anonymous: anonymous
         )
-        withClient(probe, password: password) { client in
-            Task {
-                // Listing shares proves the credentials AND the tree connect,
-                // not just that the socket opened.
-                var ok = false
-                do {
-                    _ = try await client.listShares()
-                    ok = true
-                } catch {
-                    ok = false
-                }
-                _ = try? await client.logoff()
-                client.session.disconnect()
-                await MainActor.run { completion(ok, ok ? nil : "Connected, but could not list shares") }
+        Task.detached(priority: .userInitiated) {
+            // Probing for shares proves the credentials AND the tree connect,
+            // not just that the socket opened.
+            var message: String?
+            var ok = false
+            do {
+                let shares = try LibSMB2.listShares(
+                    forHost: host,
+                    port: UInt16(truncatingIfNeeded: port),
+                    user: anonymous ? nil : username,
+                    password: anonymous ? nil : password,
+                    domain: domain.isEmpty ? nil : domain,
+                    extraShareNames: nil,
+                    timeout: 10)
+                ok = shares != nil
+            } catch {
+                message = Self.friendly(error, host: host)
+                ok = false
             }
-        } onError: { message in
-            completion(false, message)
+            await MainActor.run {
+                completion(ok, ok ? nil : (message ?? "Connected, but could not list shares"))
+            }
         }
     }
 
@@ -678,11 +715,11 @@ final class SMBBridge: NSObject {
 
     /// The playback transport: one libsmb2 session, tree connect and file open.
     ///
-    /// Required, not best-effort. There is deliberately no SMBClient fallback
-    /// here — running both meant two negotiates, two session setups, two tree
-    /// connects and two file handles per play, with the SMBClient one never read
-    /// from, which also spent a server-side open-session slot and held the
-    /// credentials twice. Browsing still uses SMBClient directly.
+    /// Required, not best-effort, and there is deliberately no second session
+    /// here: running two meant two negotiates, two session setups, two tree
+    /// connects and two file handles per play, with the spare one never read
+    /// from — which also spent a server-side open-session slot and held the
+    /// credentials twice.
     private static func openLibSMB2(
         host: String,
         port: UInt16,
@@ -855,32 +892,34 @@ final class SMBBridge: NSObject {
         server: ServerMeta,
         completion: @escaping ([[String: Any]]?) -> Void
     ) {
-        withClient(server) { client in
-            Task {
-                do {
-                    let shares = try await client.listShares()
-                    // Dart parses these as SmbEntry, so return entry-shaped maps.
-                    let entries = shares
-                        .filter { !$0.type.contains(.ipc) && !$0.type.contains(.printQueue) }
-                        .map { share in
-                            [
-                                "name": share.name,
-                                "path": share.name,
-                                "isDirectory": true,
-                                "size": 0,
-                                "modified": 0,
-                            ] as [String: Any]
-                        }
-                    _ = try? await client.logoff()
-                    client.session.disconnect()
-                    await MainActor.run { completion(entries) }
-                } catch {
-                    client.session.disconnect()
-                    await MainActor.run { completion(nil) }
+        Task.detached(priority: .userInitiated) {
+            do {
+                // SMB2 has no share-enumeration request, so this probes the
+                // common names plus anything the user added by hand. The
+                // `print$`/IPC$ filter is no longer needed: hidden shares are
+                // filtered by the trailing `$` when the names are built.
+                let shares = try LibSMB2.listShares(
+                    forHost: server.host,
+                    port: UInt16(truncatingIfNeeded: server.port),
+                    user: server.anonymous ? nil : server.username,
+                    password: server.anonymous ? nil : getPassword(server.id),
+                    domain: server.domain.isEmpty ? nil : server.domain,
+                    extraShareNames: server.addedShares ?? [],
+                    timeout: 10)
+                // Dart parses these as SmbEntry, so return entry-shaped maps.
+                let entries = (shares ?? []).map { share in
+                    [
+                        "name": share,
+                        "path": share,
+                        "isDirectory": true,
+                        "size": 0,
+                        "modified": 0,
+                    ] as [String: Any]
                 }
+                await MainActor.run { completion(entries) }
+            } catch {
+                await MainActor.run { completion(nil) }
             }
-        } onError: { _ in
-            completion(nil)
         }
     }
 
@@ -889,21 +928,38 @@ final class SMBBridge: NSObject {
         share: String,
         completion: @escaping (Bool) -> Void
     ) {
-        withClient(server) { client in
-            Task {
-                var ok = false
-                do {
-                    try await client.connectShare(share)
-                    ok = true
-                } catch {
-                    ok = false
-                }
-                _ = try? await client.logoff()
-                client.session.disconnect()
-                await MainActor.run { completion(ok) }
+        Task.detached(priority: .userInitiated) {
+            var ok = false
+            do {
+                let session = try LibSMB2.openSession(
+                    toHost: server.host,
+                    port: UInt16(truncatingIfNeeded: server.port),
+                    user: server.anonymous ? nil : server.username,
+                    password: server.anonymous ? nil : getPassword(server.id),
+                    domain: server.domain.isEmpty ? nil : server.domain,
+                    share: share,
+                    timeout: 10)
+                session.close()
+                ok = true
+            } catch {
+                ok = false
             }
-        } onError: { _ in
-            completion(false)
+            await MainActor.run {
+                // Remember the name only once it is known to tree-connect, and
+                // only when it is not already on the list. This is the whole
+                // point of the affordance: the name has to survive so the next
+                // probe finds it again.
+                if ok, !share.isEmpty {
+                    updateServer(server.id) { meta in
+                        var names = meta.addedShares ?? []
+                        if !names.contains(share) {
+                            names.append(share)
+                        }
+                        meta.addedShares = names
+                    }
+                }
+                completion(ok)
+            }
         }
     }
 
@@ -923,31 +979,34 @@ final class SMBBridge: NSObject {
         }
         lock.unlock()
 
-        withClient(server) { client in
-            Task {
-                var built: [[String: Any]]?
-                do {
-                    try await client.connectShare(share)
-                    let files = try await client.listDirectory(path: Self.normalized(path))
-                    built = self.buildEntries(files: files, share: share, path: path)
+        Task.detached(priority: .userInitiated) {
+            var built: [[String: Any]]?
+            do {
+                let session = try LibSMB2.openSession(
+                    toHost: server.host,
+                    port: UInt16(truncatingIfNeeded: server.port),
+                    user: server.anonymous ? nil : server.username,
+                    password: server.anonymous ? nil : getPassword(server.id),
+                    domain: server.domain.isEmpty ? nil : server.domain,
+                    share: share,
+                    timeout: 10)
+                defer { session.close() }
+                let entries = try session.listDirectory(Self.normalized(path))
+                built = self.buildEntries(entries: entries ?? [], share: share, path: path)
+                if let built {
                     self.lock.lock()
-                    self.listingCache[key] = CachedListing(built!)
+                    self.listingCache[key] = CachedListing(built)
                     self.lock.unlock()
-                } catch {
-                    built = nil
                 }
-                _ = try? await client.logoff()
-                client.session.disconnect()
-                await MainActor.run { completion(built) }
+            } catch {
+                built = nil
             }
-        } onError: { _ in
-            completion(nil)
+            await MainActor.run { completion(built) }
         }
     }
 
     /// Normalises a browse path the way the Dart side hands it over: no
-    /// leading slash, no trailing slash, no `//` runs. `SMBClient` normalises
-    /// its own input, but building the child's full path is ours.
+    /// leading slash, no trailing slash, no `//` runs.
     private static func normalized(_ path: String) -> String {
         var out = path.replacingOccurrences(of: "//", with: "/")
         while out.hasSuffix("/") { out.removeLast() }
@@ -959,15 +1018,16 @@ final class SMBBridge: NSObject {
     /// the listing is offered to Dart, and the best match for a video (same
     /// base name, an English/default-ish tag first) is named separately.
     private func buildEntries(
-        files: [File],
+        entries: [LibSMB2Entry],
         share: String,
         path: String
     ) -> [[String: Any]] {
+        let files = entries
         let subtitles = files.filter { Self.isSubtitle($0.name) }
         let subtitleBases = subtitles.map { Self.baseName($0.name) }
 
         return files
-            .filter { !$0.isHidden && !$0.isSystem }
+            .filter { !$0.name.isEmpty }
             // `.` and `..` come back as directories, and the next line exempts
             // directories from the junk filter, so the dot-prefix rule never
             // reached them. Drop them by name first, before that exemption.
@@ -979,7 +1039,7 @@ final class SMBBridge: NSObject {
                     "path": Self.join(path, file.name),
                     "isDirectory": file.isDirectory,
                     "size": file.size,
-                    "modified": Int(file.lastWriteTime.timeIntervalSince1970 * 1000),
+                    "modified": Int(file.modifiedMillis),
                 ]
                 if !file.isDirectory {
                     let base = Self.baseName(file.name)
@@ -1073,31 +1133,25 @@ final class SMBBridge: NSObject {
         let password = getPassword(server.id)
         Task.detached(priority: .utility) {
             var sizes: [String: Int] = [:]
-            let client = server.port > 0 && server.port != 445
-                ? SMBClient(host: server.host, port: server.port)
-                : SMBClient(host: server.host)
-            do {
-                if server.anonymous || (server.username.isEmpty && password.isEmpty) {
-                    try await client.login(username: nil, password: nil)
-                } else {
-                    try await client.login(
-                        username: server.username,
-                        password: password.isEmpty ? nil : password,
-                        domain: server.domain.isEmpty ? nil : server.domain
-                    )
-                }
-                try await client.connectShare(share)
+            // One session for the whole batch: each stat is a tiny query, and
+            // re-authenticating per path would be absurd. Best effort — paths
+            // that fail simply stay absent and render as size 0.
+            if let session = try? LibSMB2.openSession(
+                toHost: server.host,
+                port: UInt16(truncatingIfNeeded: server.port),
+                user: server.anonymous ? nil : server.username,
+                password: server.anonymous ? nil : password,
+                domain: server.domain.isEmpty ? nil : server.domain,
+                share: share,
+                timeout: 10) {
                 for path in paths {
-                    let clean = Self.normalized(path)
-                    if let stat = try? await client.fileStat(path: clean) {
-                        sizes[path] = Int(stat.size)
+                    var size: Int64 = 0
+                    if (try? session.fileSize(atPath: Self.normalized(path), size: &size)) != nil {
+                        sizes[path] = Int(size)
                     }
                 }
-            } catch {
-                // Best effort: entries without a size simply stay 0.
+                session.close()
             }
-            _ = try? await client.logoff()
-            client.session.disconnect()
             await MainActor.run { completion(sizes) }
         }
     }
@@ -1111,34 +1165,24 @@ final class SMBBridge: NSObject {
     ) {
         let password = getPassword(server.id)
         Task.detached(priority: .utility) {
-            let client = server.port > 0 && server.port != 445
-                ? SMBClient(host: server.host, port: server.port)
-                : SMBClient(host: server.host)
-            do {
-                if server.anonymous || (server.username.isEmpty && password.isEmpty) {
-                    try await client.login(username: nil, password: nil)
-                } else {
-                    try await client.login(
-                        username: server.username,
-                        password: password.isEmpty ? nil : password,
-                        domain: server.domain.isEmpty ? nil : server.domain
-                    )
-                }
-                try await client.connectShare(share)
-                let reader = client.fileReader(path: Self.normalized(path))
-                let want = maxBytes > 0 ? maxBytes : (50 * 1024 * 1024)
-                // One bounded read; sidecars are small, and a single call keeps
-                // this off the reopen/track-switch critical path.
-                let data = try await reader.read(offset: 0, length: UInt32(want))
-                try? await reader.close()
-                await MainActor.run {
-                    completion(FlutterStandardTypedData(bytes: data))
-                }
-            } catch {
+            let want = maxBytes > 0 ? maxBytes : (50 * 1024 * 1024)
+            // One bounded read; sidecars are small, and a single call keeps this
+            // off the reopen/track-switch critical path.
+            if let session = try? LibSMB2.openSession(
+                toHost: server.host,
+                port: UInt16(truncatingIfNeeded: server.port),
+                user: server.anonymous ? nil : server.username,
+                password: server.anonymous ? nil : password,
+                domain: server.domain.isEmpty ? nil : server.domain,
+                share: share,
+                timeout: 10),
+               let data = try? session.readFile(
+                atPath: Self.normalized(path), offset: 0, length: want) {
+                session.close()
+                await MainActor.run { completion(FlutterStandardTypedData(bytes: data)) }
+            } else {
                 await MainActor.run { completion(nil) }
             }
-            _ = try? await client.logoff()
-            client.session.disconnect()
         }
     }
 

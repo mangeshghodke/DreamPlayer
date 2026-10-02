@@ -183,9 +183,13 @@ def check_c_symbols():
                  f"of those headers resolve under ios/Runner/libsmb2/include")
             continue
 
-        # Names reached through `.` are struct members (st.smb2_size) declared
-        # inside a struct body, so a definition check would flag every access.
-        members = set(re.findall(r"\.\s*(\w+)", code))
+        # A name reached through `.`/`->` is exempt only if it really is a struct
+        # member in the imported headers. Skipping every access would also hide a
+        # genuine typo, so the exempt set is built from the struct bodies the
+        # headers actually declare.
+        members = set()
+        for body in re.findall(r"\bstruct\s+\w*\s*\{([^{}]*)\}", text):
+            members.update(re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", body))
         for sym in sorted(set(re.findall(r"\b(smb2_[A-Za-z0-9_]+|SMB2_[A-Z0-9_]+)\b", code))):
             if sym in members:
                 continue

@@ -302,7 +302,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private var lastFtpUri: String?
 
     // ---- SMB stream (see SMBBridge.openShare + SMBSource.swift). The engine
-    // reads through an SMBByteRangeSource over a live SMBPlayback that
+    // reads through a synchronous smb2_pread reader over a live SMBPlayback that
     // SMBBridge owns. We never close that session on a track switch: the demux
     // thread may still be reading it, which is the race that crashed the retired
     // AMSMB2 build. SMBBridge tears it down on closeShare instead. ----
