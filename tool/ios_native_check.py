@@ -441,24 +441,31 @@ def _objc_declarations(text):
 
 
 def _known_limitation_note():
-    """Deliberately absent: an NSError** -> `throws` bridging check.
+    """Deliberately absent: a static check of NSError** -> `throws` bridging.
 
-    An ObjC method returning `nullable` with a trailing `NSError**` imports into
-    Swift as `throws` with the error argument removed, so both `try session
-    .openFile(path, error: &e)` and a missing `try` are compile errors. That
-    looked checkable, and it is not, for two reasons found the hard way:
+    The rule is documented (Apple, "About Imported Cocoa Error Parameters", and
+    the Swift compiler's docs/CToSwiftNameTranslation.md):
 
-      * Swift prunes trailing type words from imported selectors, so
-        `readFileAtPath:offset:length:error:` is called as
-        `readFile(atPath:offset:length:)`. Matching on the ObjC first piece
-        silently misses most real call sites.
-      * Several screens and clients define their own Swift helpers with the same
-        names (`listDirectory`, `openFile`), so even a correct name match cannot
-        tell a bridged call from a local one.
+      * The NSError out-parameter must be last (ignoring block params).
+      * The method must signal failure — BOOL/Boolean return, or a return type
+        imported as Optional.
+      * Then the error parameter is dropped and the method becomes `throws`.
+      * `swift_error(null_result)`, the default for Optional returns, makes the
+        Swift return type **non-optional**. So `nullable NSData *` + NSError**
+        imports as `throws -> Data`, never `-> Data?`.
 
-    A rule that passes when it should fail is worse than no rule, so this stays a
-    known gap. The compiler is the authority here; `buildObjcInterfaceNesting`
-    and the other checks exist because their failure modes are unambiguous.
+    Consequences this codebase depends on, and which a reviewer must check by
+    hand: `try f()` results must not be `??`-coalesced, compared to nil, or
+    `guard let`-bound; and an ObjC implementation must set the error on every
+    path that returns nil.
+
+    It is not worth automating here because the *call site* cannot be matched
+    reliably: Swift prunes trailing type words from imported selectors, so
+    `readFileAtPath:offset:length:error:` is called as `readFile(atPath:…)`, and
+    several screens define their own Swift `listDirectory`/`openFile` helpers,
+    so even a correct name match cannot distinguish a bridged call from a local
+    one. An earlier version of this rule passed when it should have failed,
+    which is worse than not having it.
     """
 
 

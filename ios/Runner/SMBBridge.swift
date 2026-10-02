@@ -561,7 +561,9 @@ final class SMBBridge: NSObject {
                     domain: domain.isEmpty ? nil : domain,
                     extraShareNames: nil,
                     timeout: 10)
-                ok = shares != nil
+                // Non-optional per the same rule; the empty case throws anyway
+                // because listSharesForHost reports "no shares found" as an error.
+                ok = !shares.isEmpty
             } catch {
                 message = Self.friendly(error, host: host)
                 ok = false
@@ -907,7 +909,11 @@ final class SMBBridge: NSObject {
                     extraShareNames: server.addedShares ?? [],
                     timeout: 10)
                 // Dart parses these as SmbEntry, so return entry-shaped maps.
-                let entries = (shares ?? []).map { share in
+                // Non-optional: an NSError** method returning nullable imports
+                // as `throws` with a non-optional result (Apple: "Swift
+                // changes the return type of the function to a nonoptional
+                // type"), so there is nothing left to coalesce.
+                let entries = shares.map { share in
                     [
                         "name": share,
                         "path": share,
@@ -992,7 +998,7 @@ final class SMBBridge: NSObject {
                     timeout: 10)
                 defer { session.close() }
                 let entries = try session.listDirectory(Self.normalized(path))
-                built = self.buildEntries(entries: entries ?? [], share: share, path: path)
+                built = self.buildEntries(entries: entries, share: share, path: path)
                 if let built {
                     self.lock.lock()
                     self.listingCache[key] = CachedListing(built)
