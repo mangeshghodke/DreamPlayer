@@ -232,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen>
           video: video,
           parentMetadataKey: card?.metadataKey,
           inheritArtworkFrom:
-              _matchingLibraryFolder(_folders, video.path)?.metadataKey,
+              _artworkAncestorKeys(_folders, video.path ?? video.uri),
         ),
       ),
     );
@@ -1384,6 +1384,28 @@ class _HomeScreenState extends State<HomeScreen>
     return best;
   }
 
+  /// Every library folder containing [path], nearest first — for an episode of
+  /// a series that is its season folder and then the show folder.
+  ///
+  /// Ordered by path length so the nearest ancestor wins, which preserves the
+  /// deliberate per-season artwork independence (issue #33): a season's pick
+  /// applies to its episodes without overriding the show's.
+  List<String> _artworkAncestorKeys(List<LibraryFolder> folders, String? path) {
+    final folder = _matchingLibraryFolder(folders, path);
+    if (folder == null) return const [];
+    final keys = <String>[];
+    if (folder.metadataKey.isNotEmpty) keys.add(folder.metadataKey);
+    for (final f in folders) {
+      if (f.id == folder.id || f.isFile) continue;
+      final fp = f.path;
+      if (fp.isEmpty) continue;
+      if (folder.path != fp && folder.path.startsWith('$fp/')) {
+        if (!keys.contains(f.metadataKey)) keys.add(f.metadataKey);
+      }
+    }
+    return keys;
+  }
+
   /// Longest library-folder path that is a prefix of [path] (a video under a
   /// bookmarked folder). Null when the file is outside the library.
   LibraryFolder? _matchingLibraryFolder(
@@ -1428,11 +1450,11 @@ class _HomeScreenState extends State<HomeScreen>
     // file has no pick of its own — otherwise the same film shows one poster on
     // its home card and another here, purely because playing it gave the file
     // its own metadata entry.
-    final parent = _matchingLibraryFolder(_folders, video.path ?? video.uri);
     final fileKey = TmdStore.identityKeyFor(video);
     final direct = TmdService.instance.metaFor(
       fileKey,
-      inheritArtworkFrom: parent?.metadataKey,
+      inheritArtworkFrom:
+          _artworkAncestorKeys(_folders, video.path ?? video.uri),
     );
     if (direct != null) return direct;
     final folder =

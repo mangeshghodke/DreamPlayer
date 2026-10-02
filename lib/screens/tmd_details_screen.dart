@@ -87,15 +87,16 @@ class TmdDetailsScreen extends StatefulWidget {
     this.folder,
     this.jellyfinInfo,
     this.parentMetadataKey,
-    this.inheritArtworkFrom,
+    this.inheritArtworkFrom = const [],
   }) : assert(video != null || folder != null);
 
-  /// Metadata key of the library folder this file sits under, used only to
-  /// inherit artwork when this file has no override of its own.
+  /// Ancestor metadata keys for this file, nearest first — its season folder
+  /// then its show folder — consulted only when this file has no override of its
+  /// own for that artwork kind.
   ///
   /// Distinct from [parentMetadataKey]: that one *is* the identity key when the
   /// screen was opened from a home card, so it must never inherit from itself.
-  final String? inheritArtworkFrom;
+  final List<String> inheritArtworkFrom;
 
   final VideoItem? video;
 
@@ -124,12 +125,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   late final String _identityKey = widget.parentMetadataKey ??
       widget.folder?.metadataKey ??
       TmdStore.identityKeyFor(widget.video!);
-  /// The folder to inherit artwork from, never the identity key itself.
-  String? get _artworkFallback =>
-      (widget.inheritArtworkFrom != null &&
-              widget.inheritArtworkFrom != _identityKey)
-          ? widget.inheritArtworkFrom
-          : null;
+  /// The ancestor chain, with the identity key itself removed so a key can
+  /// never inherit from itself.
+  List<String> get _artworkFallback => widget.inheritArtworkFrom
+      .where((k) => k.isNotEmpty && k != _identityKey)
+      .toList(growable: false);
   late final String _resumeKey = widget.folder == null
       ? (widget.video!.resumeKey ?? widget.video!.path ?? widget.video!.uri ?? '')
       : '';

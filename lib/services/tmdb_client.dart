@@ -2554,28 +2554,29 @@ class TmdService extends ChangeNotifier {
     return total > 0 ? total : null;
   }
 
-  /// [inheritArtworkFrom] is the metadata key of the library folder a file lives
-  /// under, and is consulted only when [identityKey] has no override of its own
-  /// for that kind.
+  /// [inheritArtworkFrom] is the chain of ancestor keys a file lives under,
+  /// nearest first — for a series, its season folder and then the show folder.
+  /// Each is consulted only when the key before it had no override of that kind.
   ///
-  /// Metadata already inherits folder -> file (`carryMeta`, and the
-  /// `_matchingLibraryFolder` fallback in the home screen), but artwork did not,
-  /// so the same film showed a different poster on the home card and on its
-  /// continue-watching card: the folder's override was applied to the folder key
-  /// only, and the file's own meta — which it gains the moment you play it —
-  /// shadowed it.
+  /// Metadata already inherits down the tree (`carryMeta`, and the home screen's
+  /// `_matchingLibraryFolder` fallback), but artwork did not, so the same title
+  /// showed a different poster on a home card and on its continue-watching card.
   ///
-  /// The inheritance is deliberately one-way. A folder card stands for a whole
-  /// folder, often several episodes, so a per-file pick must never propagate
-  /// upward and overwrite the folder's.
-  TmdMeta? metaFor(String identityKey, {String? inheritArtworkFrom}) {
+  /// The chain is ordered and one-way. A season keeps its own key deliberately
+  /// (issue #33), so a season's pick must not rewrite the show's, and a file's
+  /// pick must not rewrite either of its ancestors.
+  TmdMeta? metaFor(String identityKey, {List<String> inheritArtworkFrom = const []}) {
     final meta = _cache[identityKey];
     if (meta == null) return null;
-    MetaImage? pick(ArtworkKind kind) =>
-        ArtworkOverrideStore.overrideFor(identityKey, kind) ??
-        (inheritArtworkFrom == null
-            ? null
-            : ArtworkOverrideStore.overrideFor(inheritArtworkFrom, kind));
+    MetaImage? pick(ArtworkKind kind) {
+      final own = ArtworkOverrideStore.overrideFor(identityKey, kind);
+      if (own != null) return own;
+      for (final ancestor in inheritArtworkFrom) {
+        final inherited = ArtworkOverrideStore.overrideFor(ancestor, kind);
+        if (inherited != null) return inherited;
+      }
+      return null;
+    }
     final poster = pick(ArtworkKind.poster);
     final backdrop = pick(ArtworkKind.backdrop);
     if (poster == null && backdrop == null) return meta;

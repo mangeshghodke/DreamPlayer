@@ -47,7 +47,7 @@ void main() {
       await override(folderKey, ArtworkKind.backdrop, '/chosen.jpg');
 
       final inherited = TmdService.instance
-          .metaFor(fileKey, inheritArtworkFrom: folderKey);
+          .metaFor(fileKey, inheritArtworkFrom: const [folderKey]);
       expect(inherited!.movie.backdropPath, '/chosen.jpg');
       // Its own poster is untouched — nothing was overridden on the file.
       expect(inherited.movie.posterPath, '/x-poster.jpg');
@@ -58,7 +58,7 @@ void main() {
       await override(fileKey, ArtworkKind.backdrop, '/file-chosen.jpg');
 
       final meta =
-          TmdService.instance.metaFor(fileKey, inheritArtworkFrom: folderKey);
+          TmdService.instance.metaFor(fileKey, inheritArtworkFrom: const [folderKey]);
       expect(meta!.movie.backdropPath, '/file-chosen.jpg');
     });
 
@@ -67,7 +67,7 @@ void main() {
       await override(fileKey, ArtworkKind.backdrop, '/file-backdrop.jpg');
 
       final meta =
-          TmdService.instance.metaFor(fileKey, inheritArtworkFrom: folderKey);
+          TmdService.instance.metaFor(fileKey, inheritArtworkFrom: const [folderKey]);
       expect(meta!.movie.posterPath, '/folder-poster.jpg');
       expect(meta.movie.backdropPath, '/file-backdrop.jpg');
     });
@@ -90,7 +90,7 @@ void main() {
 
     test('a folder with no override leaves the file untouched', () async {
       final meta =
-          TmdService.instance.metaFor(fileKey, inheritArtworkFrom: folderKey);
+          TmdService.instance.metaFor(fileKey, inheritArtworkFrom: const [folderKey]);
       expect(meta!.movie.backdropPath, '/x-backdrop.jpg');
       expect(meta.movie.posterPath, '/x-poster.jpg');
     });
@@ -99,7 +99,7 @@ void main() {
         () async {
       await override(folderKey, ArtworkKind.poster, '/folder-poster.jpg');
       // Reading the file must not mutate the folder's entry.
-      TmdService.instance.metaFor(fileKey, inheritArtworkFrom: folderKey);
+      TmdService.instance.metaFor(fileKey, inheritArtworkFrom: const [folderKey]);
       expect(TmdService.instance.metaFor(folderKey)!.movie.posterPath,
           '/folder-poster.jpg');
     });
@@ -116,6 +116,58 @@ void main() {
       );
       expect(TmdStore.identityKeyFor(video), fileKey);
       expect(TmdStore.identityKeyFor(video), isNot(folderKey));
+    });
+  });
+
+  group('series hierarchy: file -> season -> show', () {
+    const showKey = 'folder:show';
+    const seasonKey = 'folder:show-s02';
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      ArtworkOverrideStore.resetForTest();
+      final service = TmdService.instance;
+      await service.ensureLoaded();
+      await service.clearAllResolved();
+      await service.setManualFolder(showKey, fileMeta.movie);
+      await service.setManualFolder(seasonKey, fileMeta.movie);
+      await service.setManualFolder(fileKey, fileMeta.movie);
+    });
+
+    test('a show pick reaches its episodes through the chain', () async {
+      await override(showKey, ArtworkKind.poster, '/show-poster.jpg');
+      final meta = TmdService.instance
+          .metaFor(fileKey, inheritArtworkFrom: const [seasonKey, showKey]);
+      expect(meta!.movie.posterPath, '/show-poster.jpg');
+    });
+
+    test('a season pick beats the show for its own episodes', () async {
+      await override(showKey, ArtworkKind.poster, '/show-poster.jpg');
+      await override(seasonKey, ArtworkKind.poster, '/season-poster.jpg');
+      final meta = TmdService.instance
+          .metaFor(fileKey, inheritArtworkFrom: const [seasonKey, showKey]);
+      expect(meta!.movie.posterPath, '/season-poster.jpg',
+          reason: 'issue #33: seasons keep independent artwork');
+    });
+
+    test('the chain does not override a file pick', () async {
+      await override(showKey, ArtworkKind.poster, '/show-poster.jpg');
+      await override(fileKey, ArtworkKind.poster, '/file-poster.jpg');
+      final meta = TmdService.instance
+          .metaFor(fileKey, inheritArtworkFrom: const [seasonKey, showKey]);
+      expect(meta!.movie.posterPath, '/file-poster.jpg');
+    });
+
+    test('inheritance stays one-way: the show never adopts an episode pick',
+        () async {
+      await override(fileKey, ArtworkKind.poster, '/file-poster.jpg');
+      // Reading the file must not write anything back up the chain.
+      TmdService.instance
+          .metaFor(fileKey, inheritArtworkFrom: const [seasonKey, showKey]);
+      expect(TmdService.instance.metaFor(showKey)!.movie.posterPath,
+          fileMeta.movie.posterPath);
+      expect(TmdService.instance.metaFor(seasonKey)!.movie.posterPath,
+          fileMeta.movie.posterPath);
     });
   });
 }
