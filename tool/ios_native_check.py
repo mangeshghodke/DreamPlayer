@@ -780,6 +780,32 @@ def check_objc_method_inside_implementation():
                      f"declaration\": {t[:60]}")
 
 
+def check_objc_no_reimplementation():
+    """One @implementation per class; extras must be categories.
+
+    Objective-C has no separate "@implementation for the same class in two
+    places" — a second bare `@implementation X` is "Reimplementation of class
+    'X'". Swift allows it, so a block of methods added in the wrong file or
+    section looks natural and fails to link.
+    """
+    for path in native_files({".m"}):
+        seen = {}
+        for n, line in enumerate(open(path, encoding="utf-8").read().split("\n"), 1):
+            # A trailing `{` is the ivar block: @implementation X {
+            m = re.match(r"^@implementation\s+(\w+)\s*(\([^)]*\))?\s*\{?\s*$",
+                         line.strip())
+            if not m:
+                continue
+            name = m.group(1)
+            if m.group(2):
+                continue  # a category: @implementation X (Category)
+            if name in seen:
+                fail(f"{os.path.basename(path)}:{n} re-implements '{name}', first "
+                     f"seen on line {seen[name]} — Objective-C allows only one "
+                     f"@implementation per class; use a category for extras")
+            seen[name] = n
+
+
 def main():
     if not os.path.isdir(RUNNER):
         print(f"FAIL  {RUNNER} not found")
@@ -797,6 +823,7 @@ def main():
     check_objc_method_order()
     check_objc_interface_nesting()
     check_objc_method_inside_implementation()
+    check_objc_no_reimplementation()
     check_no_control_characters()
 
     if problems:

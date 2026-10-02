@@ -16,6 +16,15 @@
                           owner:(LibSMB2Session *)owner;
 @end
 
+/// LibSMB2Session's listDirectory: builds entries, and that implementation
+/// block comes before LibSMB2Entry's, so the private initialiser has to be
+/// visible here.
+@interface LibSMB2Entry ()
+- (instancetype)initWithName:(NSString *)name
+                        stat:(const struct smb2_stat_64 *)st
+                       owner:(LibSMB2Session *)owner;
+@end
+
 /// SMB dialect constants, mirrored from smb2.h so the display label does not
 /// depend on the C enum being visible here.
 static NSString *const LibSMB2ErrorDomain = @"com.dreamplayer.app.smb.libsmb2";
@@ -45,6 +54,20 @@ static NSString *LibSMB2DialectLabel(uint16_t dialect) {
 
 
 #pragma mark - Session
+
+/// Share-relative path normalisation shared by every entry point: SMB2 paths
+/// use backslashes, are relative to the tree connect, and carry no leading
+/// separator (libsmb2 hands the string to the server untouched).
+static NSString *LibSMB2NativePath(NSString *path) {
+  NSString *trimmed = path ?: @"";
+  while ([trimmed hasPrefix:@"/"]) {
+    trimmed = [trimmed substringFromIndex:1];
+  }
+  while ([trimmed hasSuffix:@"/"]) {
+    trimmed = [trimmed substringToIndex:trimmed.length - 1];
+  }
+  return [trimmed stringByReplacingOccurrencesOfString:@"/" withString:@"\\"];
+}
 
 @implementation LibSMB2Session {
   struct smb2_context *_ctx;
@@ -117,47 +140,8 @@ static NSString *LibSMB2DialectLabel(uint16_t dialect) {
   }
 }
 
-@end
 
 #pragma mark - Browsing
-
-/// Share-relative path normalisation shared by every entry point: SMB2 paths
-/// use backslashes, are relative to the tree connect, and carry no leading
-/// separator (libsmb2 hands the string to the server untouched).
-static NSString *LibSMB2NativePath(NSString *path) {
-  NSString *trimmed = path ?: @"";
-  while ([trimmed hasPrefix:@"/"]) {
-    trimmed = [trimmed substringFromIndex:1];
-  }
-  while ([trimmed hasSuffix:@"/"]) {
-    trimmed = [trimmed substringToIndex:trimmed.length - 1];
-  }
-  return [trimmed stringByReplacingOccurrencesOfString:@"/" withString:@"\\"];
-}
-
-@implementation LibSMB2Entry {
-  LibSMB2Session *_owner;
-}
-
-- (instancetype)initWithName:(NSString *)name
-                        stat:(const struct smb2_stat_64 *)st
-                       owner:(LibSMB2Session *)owner {
-  self = [super init];
-  if (self) {
-    _name = [name copy];
-    _owner = owner;
-    _isDirectory = (st->smb2_attributes & SMB2_FILE_ATTRIBUTE_DIRECTORY) != 0;
-    _size = (long long)st->smb2_size;
-    _modifiedMillis = st->smb2_mtime > 0
-        ? (long long)st->smb2_mtime * 1000
-        : 0;
-  }
-  return self;
-}
-
-@end
-
-@implementation LibSMB2Session
 
 - (nullable NSArray<LibSMB2Entry *> *)listDirectory:(NSString *)relativePath
                                                 error:(NSError *_Nullable *_Nullable)error {
@@ -225,11 +209,33 @@ static NSString *LibSMB2NativePath(NSString *path) {
   }
   return data;
 }
+@end
+
+#pragma mark - Browsing
+
+@implementation LibSMB2Entry {
+  LibSMB2Session *_owner;
+}
+
+- (instancetype)initWithName:(NSString *)name
+                        stat:(const struct smb2_stat_64 *)st
+                       owner:(LibSMB2Session *)owner {
+  self = [super init];
+  if (self) {
+    _name = [name copy];
+    _owner = owner;
+    _isDirectory = (st->smb2_attributes & SMB2_FILE_ATTRIBUTE_DIRECTORY) != 0;
+    _size = (long long)st->smb2_size;
+    _modifiedMillis = st->smb2_mtime > 0
+        ? (long long)st->smb2_mtime * 1000
+        : 0;
+  }
+  return self;
+}
 
 @end
 
 
-#pragma mark - File
 
 @implementation LibSMB2File {
   struct smb2_context *_ctx;
