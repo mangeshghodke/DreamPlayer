@@ -1,6 +1,8 @@
 import 'package:dream_player/screens/tmd_details_screen.dart';
 import 'package:dream_player/services/artwork_override.dart';
 import 'package:dream_player/services/tmdb_client.dart';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -31,24 +33,37 @@ void main() {
     },
   );
 
-  String? poster({required int season, required bool overridden}) =>
+  String? poster({
+    required int season,
+    required bool overridden,
+    bool preferSeason = false,
+  }) =>
       detailsHeaderPosterUrl(
         meta,
         effectiveSeason: season,
         posterOverridden: overridden,
+        preferSeasonPoster: preferSeason,
       );
 
   group('detailsHeaderPosterUrl', () {
-    test('uses the season poster when a season is resolved', () {
-      expect(poster(season: 2, overridden: false),
+    test('a season page leads with the season poster', () {
+      expect(poster(season: 2, overridden: false, preferSeason: true),
           meta.seasons[2]!.posterUrl(width: 342));
     });
 
+    test('an episode never leads with the season poster', () {
+      // The reported bug: an episode's season comes from its filename, so once
+      // season data loaded the header switched to the season artwork and stopped
+      // matching the card it was opened from.
+      expect(poster(season: 2, overridden: false),
+          meta.movie.posterUrl(width: 342),
+          reason: 'preferSeasonPoster is false for an episode');
+    });
+
     test('an explicit pick beats the season poster', () {
-      // The bug: the pick is in movie.posterPath but the header showed seasons[].
-      expect(poster(season: 2, overridden: true),
+      expect(poster(season: 2, overridden: true, preferSeason: true),
           meta.movie.posterUrl(width: 342));
-      expect(poster(season: 2, overridden: true),
+      expect(poster(season: 2, overridden: true, preferSeason: true),
           isNot(meta.seasons[2]!.posterUrl(width: 342)));
     });
 
@@ -100,5 +115,16 @@ void main() {
       expect(ArtworkOverrideStore.isOverridden(seasonKey, ArtworkKind.poster),
           isFalse);
     });
+  });
+
+  test('the details screen actually routes its header through this helper', () {
+    // Regression guard: the helper was once added while the build kept its own
+    // inline expression, so the tests passed while the bug was still live.
+    final source = File('lib/screens/tmd_details_screen.dart').readAsStringSync();
+    expect(
+      RegExp(r'headerPosterUrl\s*=\s*detailsHeaderPosterUrl\(').hasMatch(source),
+      isTrue,
+      reason: 'headerPosterUrl must come from detailsHeaderPosterUrl',
+    );
   });
 }

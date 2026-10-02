@@ -129,9 +129,10 @@ String? detailsHeaderPosterUrl(
   TmdMeta meta, {
   required int effectiveSeason,
   required bool posterOverridden,
+  bool preferSeasonPoster = false,
   int width = 342,
 }) {
-  if (effectiveSeason > 0 && !posterOverridden) {
+  if (preferSeasonPoster && effectiveSeason > 0 && !posterOverridden) {
     final season = meta.seasons[effectiveSeason]?.posterUrl(width: width);
     if (season != null) return season;
   }
@@ -2165,10 +2166,17 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         _artworkFallback.any(
           (k) => ArtworkOverrideStore.isOverridden(k, ArtworkKind.poster),
         );
-    final seasonPoster = effectiveSeason > 0 && !posterOverridden
-        ? meta.seasons[effectiveSeason]?.posterUrl(width: 342)
-        : null;
-    final headerPosterUrl = seasonPoster ?? movie.posterUrl(width: 342);
+    final headerPosterUrl = detailsHeaderPosterUrl(
+      meta,
+      effectiveSeason: effectiveSeason,
+      posterOverridden: posterOverridden,
+      // Only a season PAGE leads with the season's artwork. An episode infers
+      // its season from the filename, so preferring it here made the header
+      // switch to the season poster a few seconds in — once season data landed —
+      // and stop matching the card it was opened from, which shows the show
+      // poster.
+      preferSeasonPoster: widget.folder != null,
+    );
     // When a specific season folder is open, always show the series title
     // as the main title and the season name as a subtitle below it.
     final seasonName = effectiveSeason > 0
