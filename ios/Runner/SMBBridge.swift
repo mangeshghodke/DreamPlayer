@@ -359,7 +359,7 @@ final class SMBBridge: NSObject {
     /// `saveServer` rebuilds a `ServerMeta` from the dialog's arguments, so it
     /// cannot be used for a field the dialog does not know about — hand-added
     /// share names would be wiped on every edit of the server.
-    private func updateServer(_ id: String, _ mutate: (inout ServerMeta) -> Void) {
+    private func updateServer(_ id: String, _ mutate: (inout ServerMeta) -> Void) {
         loadServersIfNeeded()
         lock.lock()
         defer { lock.unlock() }
@@ -414,7 +414,7 @@ final class SMBBridge: NSObject {
         }
     }
 
-    private func getPassword(_ id: String) -> String {
+    private func getPassword(_ id: String) -> String {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.keychainService,
@@ -447,7 +447,7 @@ final class SMBBridge: NSObject {
     /// state in the context, so a session cannot be reused across shares. This
     /// replaced an `SMBClient` session, which is why the browse path no longer
     /// needs that package at all.
-    private func withShareSession(
+    private func withShareSession(
         _ server: ServerMeta,
         share: String,
         password: String? = nil,

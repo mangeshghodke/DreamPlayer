@@ -721,6 +721,26 @@ def check_objc_interface_nesting():
                  f"the last one opened on line {opened_at} has no @end")
 
 
+def check_no_control_characters():
+    """No stray control characters in native sources.
+
+    Tab, newline and carriage return are the only ones allowed. A sentinel like
+    `\x01` left behind by a scripted edit lands inside an identifier, and Xcode
+    reports it as "Invalid character in source file" pointing at a function's
+    *declaration* line — where the file looks perfectly fine — because the damage
+    silently renamed the function so every call site stops resolving.
+    """
+    allowed = set("\t\n\r")
+    for path in native_files({".swift", ".m", ".h", ".mm"}):
+        for n, line in enumerate(open(path, encoding="utf-8").read().split("\n"), 1):
+            for ch in line:
+                if ord(ch) < 32 and ch not in allowed:
+                    fail(f"{os.path.basename(path)}:{n} contains control character "
+                         f"U+{ord(ch):04X} — strip it; inside an identifier Xcode "
+                         f"reports only 'Invalid character in source file'")
+                    break
+
+
 def main():
     if not os.path.isdir(RUNNER):
         print(f"FAIL  {RUNNER} not found")
@@ -737,6 +757,7 @@ def main():
     check_objc_dot_syntax()
     check_objc_method_order()
     check_objc_interface_nesting()
+    check_no_control_characters()
 
     if problems:
         for p in problems:
