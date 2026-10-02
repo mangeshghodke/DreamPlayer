@@ -314,9 +314,9 @@ final class SMBBridge: NSObject {
                 (meta, meta.name.isEmpty ? meta.host : meta.name)
             }
             .sorted { $0.1.localizedCaseInsensitiveCompare($1.1) == .orderedAscending }
-            .map { entry in
+            .map { entry -> [String: Any] in
                 let (meta, name) = entry
-                [
+                return [
                     "id": meta.id,
                     "name": name,
                     "host": meta.host,
