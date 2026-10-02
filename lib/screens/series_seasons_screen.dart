@@ -19,6 +19,7 @@ import '../services/resume_progress_helper.dart';
 import '../services/series_grouping.dart';
 import '../services/smb_client.dart';
 import '../services/tmdb_client.dart';
+import '../utils/episode_label.dart';
 import '../services/upnp_client.dart';
 import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
@@ -66,6 +67,10 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   Set<String> _hiddenSeasonFolderIds = {};
 
   String get _groupKey => widget.group.metadataKey;
+
+  /// The SHOW's metadata key. Episode stills are fetched under this key,
+  /// because they live in the show-level season data.
+  String get _showMetadataKey => widget.group.primary.metadataKey;
 
   static const _hiddenSeasonsPrefKey = 'dreamplayer.hiddenSeriesSeasons';
 
@@ -768,10 +773,23 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     return raw.replaceAll(RegExp(r'/+$'), '');
   }
 
+  /// The episode row data, preferring this season's OWN cached meta.
+  ///
+  /// Each season folder carries its own metadata key so seasons stay
+  /// independently changeable (issue #33), and `seasonFor` - plus the per-episode
+  /// still fetch - is cached under that folder key, not the show's. Reading only
+  /// `_meta` (the show) meant an enriched episode was fetched into one key and
+  /// read from another, so episode stills never appeared on the row.
   TmdEpisode? _episodeFor(Object e) {
     final season = _seasonOf(e);
     final ep = _episodeOf(e);
     if (ep <= 0) return null;
+    final folderKey = _folderKeyForSeason(season);
+    if (folderKey != null) {
+      final own =
+          TmdService.instance.metaFor(folderKey)?.seasons[season]?.episode(ep);
+      if (own != null) return own;
+    }
     return _meta?.seasons[season]?.episode(ep);
   }
 
@@ -1190,6 +1208,9 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                       watched:
                           _watchedKeys.contains(_resumeKeyFor(entry) ?? ''),
                       seasonNumber: s,
+                      // This season's own folder key when it has one, else the
+                      // show key (single-folder / unseasoned layouts).
+                      dataKey: _folderKeyForSeason(s) ?? _showMetadataKey,
                       episode: _episodeFor(entry),
                       onTap: () => _openEntry(entry),
                       onToggleWatched: () => _toggleWatched(entry),
@@ -1253,6 +1274,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
                       watched:
                           _watchedKeys.contains(_resumeKeyFor(entry) ?? ''),
                       seasonNumber: _seasonOf(entry),
+                      dataKey: _groupKey,
                       episode: _episodeFor(entry),
                       onTap: () => _openEntry(entry),
                       onToggleWatched: () => _toggleWatched(entry),
@@ -1539,7 +1561,7 @@ class _SeasonBadge extends StatelessWidget {
   }
 }
 
-class _EntryTile extends StatelessWidget {
+class _EntryTile extends StatefulWidget {
   const _EntryTile({
     required this.entry,
     required this.onTap,
@@ -1547,9 +1569,18 @@ class _EntryTile extends StatelessWidget {
     required this.durationMs,
     required this.watched,
     required this.seasonNumber,
+    required this.dataKey,
     this.episode,
     this.onToggleWatched,
   });
+
+  /// The metadata key this row's season data is cached under.
+  ///
+  /// Not always the show's key: each season folder carries its own so seasons
+  /// are independently changeable (issue #33), and `seasonFor` is fetched per
+  /// folder. Looking the episode up under the show key finds no season and the
+  /// still request silently no-ops - which is exactly what happened first time.
+  final String dataKey;
 
   final Object entry;
   final VoidCallback onTap;
@@ -1559,6 +1590,52 @@ class _EntryTile extends StatelessWidget {
   final int seasonNumber;
   final TmdEpisode? episode;
   final VoidCallback? onToggleWatched;
+
+
+  @override
+  State<_EntryTile> createState() => _EntryTileState();
+}
+
+class _EntryTileState extends State<_EntryTile> {
+  @override
+  void initState() {
+    super.initState();
+    // A ListView reuses row States by position, so initState alone is not
+    // enough: the season data usually lands AFTER this row is first built, so
+    // `episode` is null here and only arrives on a later rebuild.
+    _requestStill();
+  }
+
+  @override
+  void didUpdateWidget(covariant _EntryTile old) {
+    super.didUpdateWidget(old);
+    // Re-check when the episode or its season first becomes available.
+    if (old.episode == null && widget.episode != null) _requestStill();
+  }
+
+  /// TMDB's season response has no episode stills, so a cold cache shows a
+  /// placeholder where the artwork should be. Ask for this row's still as it is
+  /// built - the ListView only builds what is on screen, so this stays lazy,
+  /// and the service throttles concurrent requests.
+  void _requestStill() {
+    final episode = widget.episode;
+    if (episode == null) return; // season data not in yet; didUpdateWidget retries
+    if (episode.stills.isNotEmpty) return;
+    if (widget.dataKey.isEmpty || widget.seasonNumber <= 0) return;
+    if (episode.episodeNumber <= 0) return;
+    unawaited(
+      TmdService.instance.requestEpisodeStills(
+        widget.dataKey,
+        widget.seasonNumber,
+        episode.episodeNumber,
+      ),
+    );
+  }
+
+  TmdEpisode? get episode => widget.episode;
+  int get seasonNumber => widget.seasonNumber;
+
+  Object get entry => widget.entry;
 
   String get _name {
     if (entry is SmbEntry) return (entry as SmbEntry).name;
@@ -1591,49 +1668,51 @@ class _EntryTile extends StatelessWidget {
     return '${value.toStringAsFixed(value >= 100 ? 0 : 1)} ${units[unit]}';
   }
 
+
   @override
   Widget build(BuildContext context) {
+    final onTap = widget.onTap;
+    final resumePositionMs = widget.resumePositionMs;
+    final durationMs = widget.durationMs;
+    final watched = widget.watched;
+    final onToggleWatched = widget.onToggleWatched;
     final colorScheme = Theme.of(context).colorScheme;
     final parsed = ParsedFileName.parse(_name);
     final hasEpisode = parsed.isEpisode;
     final stillUrl = episode?.stillUrl();
     final epData = episode;
+    // Offline there is no TMDB name, and `parsed.title` is the SHOW name for
+    // "Dark.S01E05.mkv" - so every row used to read "Dark".
+    final _rowTitle = episodeRowTitle(
+      parsed: parsed,
+      fileName: _name,
+      tmdbName: epData?.nameLabel,
+    );
+    // When the title is already the code (offline), don't repeat it below.
+    final _showCodeLine = hasEpisode &&
+        parsed.season > 0 &&
+        parsed.episode > 0 &&
+        _rowTitle != episodeCode(parsed.season, parsed.episode);
     final sizeValue = _entrySize() ?? 0;
     final fileSizeLabel = sizeValue > 0 ? _sizeLabel(sizeValue) : '';
     final ratingValue = episode?.voteAverage ?? 0;
     final hasRating = ratingValue > 0;
-    final hasOverviewText = episode != null && episode!.overview.isNotEmpty;
 
+    // `!` is gone because these are now promotable locals (promoted by the
+    // null checks), where before they were widget fields.
     final double? progress = (resumePositionMs != null &&
-            resumePositionMs! > 0 &&
+            resumePositionMs > 0 &&
             durationMs != null &&
-            durationMs! > 0)
-        ? (resumePositionMs! / durationMs!).clamp(0.0, 1.0)
+            durationMs > 0)
+        ? (resumePositionMs / durationMs).clamp(0.0, 1.0)
         : null;
 
     final titleWidget = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        if (hasEpisode) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: Text(
-              'S${seasonNumber.toString().padLeft(2, '0')}E${parsed.episode.toString().padLeft(2, '0')}',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onPrimaryContainer,
-                  ),
-            ),
-          ),
-          const SizedBox(width: 6),
-        ],
         Expanded(
           child: Text(
-            epData?.nameLabel ?? (parsed.isEpisode ? parsed.title : _name),
+            _rowTitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -1648,15 +1727,14 @@ class _EntryTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (hasOverviewText)
+        if (_showCodeLine)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
-              episode!.overview,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              episodeCode(parsed.season, parsed.episode),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
           ),

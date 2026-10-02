@@ -28,24 +28,6 @@ class _Row extends StatelessWidget {
     final titleWidget = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        if (hasEpisode) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: Text(
-              'S${seasonNumber.toString().padLeft(2, '0')}'
-              'E${parsed.episode.toString().padLeft(2, '0')}',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onPrimaryContainer,
-                  ),
-            ),
-          ),
-          const SizedBox(width: 6),
-        ],
         Expanded(
           child: Text(
             epData.nameLabel,
@@ -80,6 +62,9 @@ class _Row extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2),
             child: Text(
               [
+                if (hasEpisode)
+                  'S${seasonNumber.toString().padLeft(2, '0')}'
+                  'E${parsed.episode.toString().padLeft(2, '0')}',
                 if (hasRating) ratingValue.toStringAsFixed(1),
                 if (fileSizeLabel.isNotEmpty) fileSizeLabel,
               ].join(' \u00b7 '),

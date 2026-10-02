@@ -380,9 +380,15 @@ class TmdEpisode {
   /// Still-frame file paths (no host) from the episode's `images.stills`.
   final List<String> stills;
 
-  /// Defaults to w455, the smallest TMDB still at or above the largest episode
-  /// thumbnail (168 px, issue #38). w300 rendered visibly soft when blown up.
-  String? stillUrl({int width = 455}) =>
+  /// Defaults to w500, comfortably above the largest episode thumbnail
+  /// (168 dp, issue #38) on a high-density screen.
+  ///
+  /// The width MUST be one TMDB actually serves: measured on device, a still
+  /// returns **HTTP 400** for w455 and w640 while 92/185/300/342/500/780 all
+  /// return 200 - and the documented ladder lists w455, which it then rejects.
+  /// An invalid width fails silently into `CachedImage`'s errorBuilder, so the
+  /// row shows the placeholder icon and it looks like "no artwork exists".
+  String? stillUrl({int width = 500}) =>
       metadataImageUrl(stillPath, width: width);
 
   /// Absolute URLs for every still in [stills] (wide enough for a gallery row).
@@ -2480,6 +2486,68 @@ class TmdService extends ChangeNotifier {
   /// In-flight season/episode detail fetches (dedup only; these return
   /// non-[TmdMeta] types so they can't share the [_pending] future map).
   final Set<String> _pendingDetail = {};
+
+  /// Episode stills requested by a list row, and the throttle around them.
+  ///
+  /// TMDB's `/season/{n}` response carries overviews and ratings but **not**
+  /// episode stills - those only come from the per-episode endpoint. So a
+  /// season list on a cold cache has no artwork at all, which made the
+  /// adjustable thumbnail (issue #38) enlarge a placeholder.
+  ///
+  /// Rows request their own still as they are built, and a ListView only builds
+  /// what is on screen (plus a small cache extent), so this is lazy in practice.
+  /// The throttle matters because an expanded season builds a dozen rows at
+  /// once and each would otherwise fire its own request.
+  final Set<String> _stillsQueued = {};
+  final List<void Function()> _stillsWaiting = [];
+  int _stillsInFlight = 0;
+
+  /// Ceiling on concurrent per-episode still requests.
+  static const int maxStillsInFlight = 3;
+
+  Future<void> requestEpisodeStills(
+    String identityKey,
+    int seasonNumber,
+    int episodeNumber,
+  ) async {
+    if (identityKey.isEmpty || seasonNumber <= 0 || episodeNumber <= 0) {
+      return;
+    }
+    await ensureLoaded();
+    final season = _cache[identityKey]?.seasons[seasonNumber];
+    final existing = season?.episode(episodeNumber);
+    // Nothing to gain if the still is already cached, or this title is not a TV
+    // show (episodeDetailsFor bails on both).
+    // Logged because it is the silent no-op that cost the most time here: the
+    // caller must pass the key the season data is cached under (a season
+    // FOLDER's key, not the show's), and there is no other symptom.
+    if (existing == null) {
+      debugPrint('TMDB stills: no S$seasonNumber.E$episodeNumber under '
+          '"$identityKey"');
+      return;
+    }
+    if (existing.stills.isNotEmpty) return;
+    final key = '$identityKey#s$seasonNumber.e$episodeNumber';
+    if (!_stillsQueued.add(key)) return;
+
+    final completer = Completer<void>();
+    _stillsWaiting.add(() async {
+      _stillsInFlight++;
+      try {
+        await episodeDetailsFor(identityKey, seasonNumber, episodeNumber);
+      } finally {
+        _stillsInFlight--;
+        _stillsQueued.remove(key);
+        if (!completer.isCompleted) completer.complete();
+      }
+    });
+    // Drain the queue, keeping at most [maxStillsInFlight] requests in flight.
+    while (_stillsInFlight < maxStillsInFlight && _stillsWaiting.isNotEmpty) {
+      final next = _stillsWaiting.removeAt(0);
+      next();
+    }
+    await completer.future;
+  }
   bool _loaded = false;
 
   /// Last prefetch list — used by [_staggerPrefetch] to carry resolved meta

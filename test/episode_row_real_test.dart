@@ -53,6 +53,10 @@ void main() {
                       ),
                     ],
                   ),
+                  // Two IconButtons plus a chevron. A row with this much
+                  // trailing chrome MUST declare its width, or the size check
+                  // reserves only the 48 dp default and the row overflows.
+                  trailingWidth: 120,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

@@ -71,23 +71,28 @@ void main() {
   testWidgets('grows when the window widens, shrinks when it narrows',
       (tester) async {
     await LayoutStore.instance.setThumbSize(EpisodeThumbSize.large);
-    await pump(tester, const Size(360, 800), 0);
+    // 320 dp is below the 340 dp that "large" needs (24 padding + 12 gap +
+    // 168 thumb + 8 + 48 trailing = 260, plus minTextWidth 80), so it steps
+    // down; a tablet clears it.
+    await pump(tester, const Size(320, 800), 0);
     final phone = thumbWidth(tester);
+    expect(phone, EpisodeThumbSize.medium.still.w);
     await pump(tester, const Size(1024, 768), 0);
     final tablet = thumbWidth(tester);
+    expect(tablet, EpisodeThumbSize.large.still.w);
     expect(tablet, greaterThan(phone));
     // And back again - rotation must not leave the stale size behind.
-    await pump(tester, const Size(360, 800), 0);
+    await pump(tester, const Size(320, 800), 0);
     expect(thumbWidth(tester), phone);
   });
 
   testWidgets('demotes at large text even on a roomy window', (tester) async {
     await LayoutStore.instance.setThumbSize(EpisodeThumbSize.large);
-    // 450 dp is the band where text scale is decisive: "large" fits at 1.0
-    // (450-260=190 >= 150) but not at 1.5 (190/1.5=127 < 150).
-    await pump(tester, const Size(450, 800), 0);
+    // 360 dp is the band where text scale is decisive with minTextWidth = 80:
+    // "large" fits at 1.0 (360-260=100 >= 80) but not at 1.5 (100/1.5=67 < 80).
+    await pump(tester, const Size(360, 800), 0);
     final normal = thumbWidth(tester);
-    await pump(tester, const Size(450, 800), 0, scale: 1.5);
+    await pump(tester, const Size(360, 800), 0, scale: 1.5);
     final largeText = thumbWidth(tester);
     expect(normal, EpisodeThumbSize.large.still.w);
     expect(largeText, lessThan(normal));
@@ -132,5 +137,68 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: 'w=$w');
     }
+  });
+
+  /// Measured on the OnePlus (360 dp screen): the season page's row is ~289 dp
+  /// after page margins and the TV focus wrapper. This is the width that
+  /// decides whether Medium is honoured, so it is pinned here.
+  group('at the real in-page row width (289dp)', () {
+    Future<void> pump289(WidgetTester tester, EpisodeThumbSize size) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(360, 800);
+      addTearDown(tester.view.reset);
+      await LayoutStore.instance.setThumbSize(size);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 289,
+                child: ListView(
+                  children: [
+                    EpisodeRow(
+                      thumbBuilder: (s) =>
+                          EpisodeStillThumb(stillUrl: 's', size: s),
+                      title: const Text('Tarnished Cities'),
+                      subtitle: const Text('S01E05 - 8.5 - 439 MB'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.check_circle_outline),
+                        onPressed: () {},
+                      ),
+                      onTap: () {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('small is 64x40', (tester) async {
+      await pump289(tester, EpisodeThumbSize.small);
+      final g = tester.getSize(find.byKey(kEpisodeThumbBoxKey));
+      expect(g.width, 64);
+      expect(g.height, 40);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('medium is 112x63 - visibly different from small',
+        (tester) async {
+      await pump289(tester, EpisodeThumbSize.medium);
+      final g = tester.getSize(find.byKey(kEpisodeThumbBoxKey));
+      expect(g.width, 112);
+      expect(g.height, 63);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('large steps down to medium here, no overflow', (tester) async {
+      await pump289(tester, EpisodeThumbSize.large);
+      final g = tester.getSize(find.byKey(kEpisodeThumbBoxKey));
+      expect(g.width, 112);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

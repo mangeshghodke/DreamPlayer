@@ -148,23 +148,31 @@ void main() {
       expect(large.height, greaterThan(medium.height));
     });
 
-    testWidgets('a narrow phone demotes large one step so text survives',
-        (tester) async {
-      const phone = Size(390, 844);
+    testWidgets('large is honoured when the row is wide enough', (tester) async {
+      // 390 - (168 thumb + 12 gap + 24 padding + 8 + 48 trailing) = 130 dp of
+      // text, which clears minTextWidth (110) now that the badge and rating sit
+      // on the metadata line instead of competing inside the title row.
       await pumpRow(
         tester,
         size: EpisodeThumbSize.large,
-        surface: phone,
+        surface: const Size(390, 844),
       );
-      // 390 - (168 thumb + 12 gap + 24 padding) = 186 < 200, so large demotes
-      // to medium - one step, not straight to small.
+      final got = tester.getSize(find.byKey(kEpisodeThumbBoxKey));
+      expect(got.width, EpisodeThumbSize.large.still.w);
+    });
+
+    testWidgets('a narrow phone still demotes rather than overflow',
+        (tester) async {
+      // Below 340 dp there is not enough left for the text, so large steps
+      // down to medium rather than overflowing.
+      await pumpRow(
+        tester,
+        size: EpisodeThumbSize.large,
+        surface: const Size(320, 844),
+      );
       final got = tester.getSize(find.byKey(kEpisodeThumbBoxKey));
       expect(got.width, EpisodeThumbSize.medium.still.w);
-      expect(got.height, EpisodeThumbSize.medium.still.h);
-
-      // And the text column it leaves is at least the documented minimum.
-      const overhead = 112 + 12 + 24;
-      expect(390 - overhead, greaterThanOrEqualTo(200));
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('medium is still honoured on a normal phone', (tester) async {

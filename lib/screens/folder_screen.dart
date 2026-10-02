@@ -11,6 +11,7 @@ import '../services/resume_progress_helper.dart';
 import '../services/smb_client.dart';
 import '../services/simkl_client.dart';
 import '../services/tmdb_client.dart';
+import '../utils/episode_label.dart';
 import '../services/upnp_client.dart';
 import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
@@ -2383,7 +2384,13 @@ class _FolderTile extends StatelessWidget {
         ? (resumePositionMs! / durationMs!).clamp(0.0, 1.0)
         : null;
 
-    final hasOverviewText = episode != null && episode!.overview.isNotEmpty;
+    // Offline there is no TMDB name, and `parsed.title` is the SHOW name for
+    // "Dark.S01E05.mkv" - so every row used to read "Dark".
+    final _rowTitle = episodeRowTitle(
+      parsed: parsed,
+      fileName: entry.name,
+      tmdbName: episode?.nameLabel,
+    );
     final fileSizeLabel = _sizeLabel(effectiveSize ?? entry.size);
     final hasFileSize = fileSizeLabel.isNotEmpty;
     final ratingValue = episode?.voteAverage ?? 0;
@@ -2411,7 +2418,7 @@ class _FolderTile extends StatelessWidget {
         ],
         Expanded(
           child: Text(
-            episode?.nameLabel ?? parsed.title,
+            _rowTitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -2443,18 +2450,6 @@ class _FolderTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (hasOverviewText)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              episode!.overview,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ),
         if (hasFileSize)
           Padding(
             padding: const EdgeInsets.only(top: 2),

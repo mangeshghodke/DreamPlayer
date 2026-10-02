@@ -252,10 +252,22 @@ class EpisodeRow extends StatelessWidget {
   /// demoted the thumbnail on rows that had room to spare.
   static const double defaultTrailingWidth = 48;
 
-  /// Narrowest text column accepted before demoting the thumbnail. Sized for
-  /// the row's rigid content - the SxxExx badge - plus a few characters of
-  /// real title.
-  static const double minTextWidth = 150;
+  /// Narrowest text column accepted before demoting the thumbnail.
+  ///
+  /// Sized for a readable run of title characters, NOT for the SxxExx badge:
+  /// the badge moved to the metadata line (issue #38), because with the badge
+  /// and the rating both in the title row there was no width for a bigger
+  /// thumbnail on a 360dp phone - Medium silently demoted back to Small, so
+  /// the setting did nothing.
+  ///
+  /// 80 dp is measured, not guessed: the season page's row is ~289 dp wide on a
+  /// 360 dp phone once the page margins and the TV focus wrapper are removed,
+  /// so a 112 dp thumbnail leaves ~85 dp. That fits roughly ten characters of
+  /// title, and the SxxExy badge and rating sit on the metadata line below, so
+  /// the episode stays identifiable when the title truncates. Set this higher
+  /// and Medium silently demotes back to Small - which is exactly what happened
+  /// before, making the setting look broken.
+  static const double minTextWidth = 80;
 
   /// Whether a thumbnail of [size] leaves enough room for the text.
   ///
