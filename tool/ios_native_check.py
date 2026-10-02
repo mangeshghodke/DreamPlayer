@@ -301,6 +301,16 @@ def check_swift_interpolation():
                 line = code[: m.start()].count("\n") + 1
                 fail(f"{os.path.basename(path)}:{line}: interpolation references "
                      f"\\({name}), which appears nowhere else in the file")
+        # A doubled backslash before "(" is a literal backslash plus a
+        # parenthesised name, not an interpolation. It compiles cleanly and only
+        # shows up as garbled log output, and it is what a shell heredoc does to
+        # an interpolation when the escaping is written twice.
+        for m in re.finditer(r"\\\\\(", code):
+            line = code[: m.start()].count("\n") + 1
+            snippet = code[m.start():m.start() + 30].split("\n")[0]
+            fail(f"{os.path.basename(path)}:{line}: `\\\\(` is an escaped "
+                 f"backslash followed by a literal name, not an interpolation — "
+                 f"the log will print the name instead of its value: {snippet}")
 
 
 # --------------------------------------------------------------------------

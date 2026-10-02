@@ -451,7 +451,7 @@ final class SMBBridge: NSObject {
         _ server: ServerMeta,
         share: String,
         password: String? = nil,
-        timeout: Int = 10,
+        timeout: Int32 = 10,
         _ body: @escaping @MainActor (LibSMB2Session) -> Void,
         onError: @escaping @MainActor (String) -> Void
     ) {
@@ -467,7 +467,7 @@ final class SMBBridge: NSObject {
                     share: share,
                     timeout: timeout)
                 SBMLog.log(
-                    "connect ok: \(server.host):\(server.port) \\(share) as "
+                    "connect ok: \(server.host):\(server.port) \(share) as "
                     + "\(server.anonymous || server.username.isEmpty ? "guest/anon" : server.username)")
                 await MainActor.run { body(session) }
                 session.close()
@@ -485,7 +485,7 @@ final class SMBBridge: NSObject {
         _ server: ServerMeta,
         share: String,
         password: String? = nil,
-        timeout: Int = 10,
+        timeout: Int32 = 10,
         _ body: @escaping (LibSMB2Session) throws -> T
     ) async throws -> T {
         let secret = password ?? self.getPassword(server.id)
