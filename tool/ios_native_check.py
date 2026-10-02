@@ -751,6 +751,35 @@ def check_no_control_characters():
                     break
 
 
+def check_objc_method_inside_implementation():
+    """Every ObjC method must sit inside an @implementation or @interface block.
+
+    A definition outside one is "Missing context for method declaration", and a
+    stray `@end` is "`@end` must appear in an Objective-C context". This is easy
+    to produce by inserting a block of methods in the wrong place — a browse
+    section appended after a class's `@end`, for instance — and the reported
+    line is the method itself, which gives no hint that the *enclosing* block is
+    the problem.
+    """
+    for path in native_files({".m"}):
+        inside = False
+        for n, line in enumerate(open(path, encoding="utf-8").read().split("\n"), 1):
+            t = line.strip()
+            # Both are valid context: a class extension in a .m legitimately
+            # declares private initialisers between @interface and @end.
+            if t.startswith("@implementation") or t.startswith("@interface"):
+                inside = True
+                continue
+            if t.startswith("@end"):
+                inside = False
+                continue
+            if not inside and re.match(r"^[-+]\s*\(", t):
+                fail(f"{os.path.basename(path)}:{n} defines a method outside any "
+                     f"@implementation/@end (or @interface) pair — \"Missing "
+                     f"context for method "
+                     f"declaration\": {t[:60]}")
+
+
 def main():
     if not os.path.isdir(RUNNER):
         print(f"FAIL  {RUNNER} not found")
@@ -767,6 +796,7 @@ def main():
     check_objc_dot_syntax()
     check_objc_method_order()
     check_objc_interface_nesting()
+    check_objc_method_inside_implementation()
     check_no_control_characters()
 
     if problems:

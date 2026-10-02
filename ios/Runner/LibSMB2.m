@@ -157,6 +157,8 @@ static NSString *LibSMB2NativePath(NSString *path) {
 
 @end
 
+@implementation LibSMB2Session
+
 - (nullable NSArray<LibSMB2Entry *> *)listDirectory:(NSString *)relativePath
                                                 error:(NSError *_Nullable *_Nullable)error {
   NSString *native = LibSMB2NativePath(relativePath);
@@ -224,75 +226,8 @@ static NSString *LibSMB2NativePath(NSString *path) {
   return data;
 }
 
-+ (NSArray<NSString *> *)commonShareNames {
-  // SMB2 has no share-enumeration request, so the list is a probe. Mirrors
-  // COMMON_SHARES in SMBClient.kt so both platforms behave the same.
-  static NSArray<NSString *> *names;
-  static dispatch_once_t once;
-  dispatch_once(&once, ^{
-    names = @[
-      @"videos", @"video", @"movies", @"movie", @"tv", @"tvshows", @"series",
-      @"media", @"downloads", @"download", @"public", @"share", @"shares",
-      @"shared", @"files", @"home", @"homes", @"music", @"photos", @"photo",
-      @"Documents", @"Desktop",
-    ];
-  });
-  return names;
-}
+@end
 
-+ (nullable NSArray<NSString *> *)listSharesForHost:(NSString *)host
-                                               port:(uint16_t)port
-                                               user:(nullable NSString *)user
-                                           password:(nullable NSString *)password
-                                             domain:(nullable NSString *)domain
-                                    extraShareNames:(nullable NSArray<NSString *> *)extraShareNames
-                                            timeout:(int)timeoutSeconds
-                                              error:(NSError *_Nullable *_Nullable)error {
-  NSMutableArray<NSString *> *found = [NSMutableArray array];
-  NSMutableArray<NSString *> *candidates = [NSMutableArray array];
-  [candidates addObjectsFromArray:[self commonShareNames]];
-  if (extraShareNames.count > 0) {
-    [candidates addObjectsFromArray:extraShareNames];
-  }
-
-  NSString *server = port == 445
-      ? host
-      : [NSString stringWithFormat:@"%@:%hu", host, port];
-
-  for (NSString *share in candidates) {
-    // One context per probe: a share that fails to tree-connect must not poison
-    // the socket for the next candidate.
-    struct smb2_context *ctx = smb2_init_context();
-    if (ctx == NULL) {
-      continue;
-    }
-    smb2_set_timeout(ctx, timeoutSeconds);
-    smb2_set_version(ctx, SMB2_VERSION_ANY);
-    smb2_set_seal(ctx, 0);
-    smb2_set_security_mode(ctx, SMB2_NEGOTIATE_SIGNING_ENABLED);
-    BOOL wantsGuest = (user.length == 0);
-    smb2_set_user(ctx, wantsGuest ? "guest" : user.UTF8String);
-    smb2_set_password(ctx, wantsGuest ? "" : (password.length ? password.UTF8String : ""));
-    if (domain.length) {
-      smb2_set_domain(ctx, domain.UTF8String);
-    }
-    smb2_set_workstation(ctx, "DreamPlayer");
-    if (smb2_connect_share(ctx, server.UTF8String, share.UTF8String,
-                           wantsGuest ? NULL : user.UTF8String) == 0) {
-      [found addObject:share];
-    }
-    smb2_destroy_context(ctx);
-  }
-
-  if (found.count == 0) {
-    // Matches Android: a credentials problem must not look like "no shares".
-    LibSMB2Fail(error, @"No shares found. Check the username, password and "
-                       @"domain, then add the share by hand if it has an "
-                       @"unusual name.");
-    return nil;
-  }
-  return found;
-}
 
 #pragma mark - File
 
@@ -539,4 +474,76 @@ static NSString *LibSMB2NativePath(NSString *path) {
   return found;
 }
 
+
+#pragma mark - Browsing
+
++ (NSArray<NSString *> *)commonShareNames {
+  // SMB2 has no share-enumeration request, so the list is a probe. Mirrors
+  // COMMON_SHARES in SMBClient.kt so both platforms behave the same.
+  static NSArray<NSString *> *names;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    names = @[
+      @"videos", @"video", @"movies", @"movie", @"tv", @"tvshows", @"series",
+      @"media", @"downloads", @"download", @"public", @"share", @"shares",
+      @"shared", @"files", @"home", @"homes", @"music", @"photos", @"photo",
+      @"Documents", @"Desktop",
+    ];
+  });
+  return names;
+}
+
++ (nullable NSArray<NSString *> *)listSharesForHost:(NSString *)host
+                                               port:(uint16_t)port
+                                               user:(nullable NSString *)user
+                                           password:(nullable NSString *)password
+                                             domain:(nullable NSString *)domain
+                                    extraShareNames:(nullable NSArray<NSString *> *)extraShareNames
+                                            timeout:(int)timeoutSeconds
+                                              error:(NSError *_Nullable *_Nullable)error {
+  NSMutableArray<NSString *> *found = [NSMutableArray array];
+  NSMutableArray<NSString *> *candidates = [NSMutableArray array];
+  [candidates addObjectsFromArray:[self commonShareNames]];
+  if (extraShareNames.count > 0) {
+    [candidates addObjectsFromArray:extraShareNames];
+  }
+
+  NSString *server = port == 445
+      ? host
+      : [NSString stringWithFormat:@"%@:%hu", host, port];
+
+  for (NSString *share in candidates) {
+    // One context per probe: a share that fails to tree-connect must not poison
+    // the socket for the next candidate.
+    struct smb2_context *ctx = smb2_init_context();
+    if (ctx == NULL) {
+      continue;
+    }
+    smb2_set_timeout(ctx, timeoutSeconds);
+    smb2_set_version(ctx, SMB2_VERSION_ANY);
+    smb2_set_seal(ctx, 0);
+    smb2_set_security_mode(ctx, SMB2_NEGOTIATE_SIGNING_ENABLED);
+    BOOL wantsGuest = (user.length == 0);
+    smb2_set_user(ctx, wantsGuest ? "guest" : user.UTF8String);
+    smb2_set_password(ctx, wantsGuest ? "" : (password.length ? password.UTF8String : ""));
+    if (domain.length) {
+      smb2_set_domain(ctx, domain.UTF8String);
+    }
+    smb2_set_workstation(ctx, "DreamPlayer");
+    if (smb2_connect_share(ctx, server.UTF8String, share.UTF8String,
+                           wantsGuest ? NULL : user.UTF8String) == 0) {
+      [found addObject:share];
+    }
+    smb2_destroy_context(ctx);
+  }
+
+  if (found.count == 0) {
+    // Matches Android: a credentials problem must not look like "no shares".
+    LibSMB2Fail(error, @"No shares found. Check the username, password and "
+                       @"domain, then add the share by hand if it has an "
+                       @"unusual name.");
+    return nil;
+  }
+  return found;
+}
 @end
