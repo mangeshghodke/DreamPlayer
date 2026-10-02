@@ -307,11 +307,18 @@ final class SMBBridge: NSObject {
         let list = Array(servers.values)
         lock.unlock()
         return list
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-            .map { meta in
+            // Servers saved before the write-time fallback keep an empty name, so
+            // resolve it on the way out too — otherwise the list shows a blank
+            // row until every server is deleted and re-entered.
+            .map { meta -> (ServerMeta, String) in
+                (meta, meta.name.isEmpty ? meta.host : meta.name)
+            }
+            .sorted { $0.1.localizedCaseInsensitiveCompare($1.1) == .orderedAscending }
+            .map { entry in
+                let (meta, name) = entry
                 [
                     "id": meta.id,
-                    "name": meta.name,
+                    "name": name,
                     "host": meta.host,
                     "port": meta.port,
                     "username": meta.username,
@@ -326,10 +333,18 @@ final class SMBBridge: NSObject {
 
     private func saveServer(_ args: [String: Any]) {
         let id = (args["id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? UUID().uuidString
+        let host = (args["host"] as? String ?? "").trimmingCharacters(in: .whitespaces)
+        // An unnamed server falls back to its address, matching Android
+        // (`SMBClient.kt`: `if (name.isNullOrEmpty()) host else name`). Without
+        // this the iOS server list showed a blank row for every server added
+        // without a name, while Android showed the IP. Whitespace-only names are
+        // treated as empty here too, which Android gets from `trim()`.
+        let typedName = (args["name"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let meta = ServerMeta(
             id: id,
-            name: args["name"] as? String ?? "",
-            host: args["host"] as? String ?? "",
+            name: (typedName?.isEmpty == false ? typedName : nil) ?? host,
+            host: host,
             port: args["port"] as? Int ?? 445,
             username: args["username"] as? String ?? "",
             domain: args["domain"] as? String ?? "",
