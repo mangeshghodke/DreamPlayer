@@ -1,0 +1,53 @@
+# App Store Connect — "What's New"
+
+Paste-ready release notes for the **What's New** field in App Store Connect
+(App Store Connect → your app → the version → *What’s New*).
+
+- One section per version, newest first.
+- Plain language, no jargon, no internal filenames, no bug numbers. The App
+  Review guidelines expect release notes a user can act on.
+- **Hard limit: 4000 characters.** Each block below is well under that; the
+  character count is noted per version so you can check after editing.
+- Anything you are unsure of shipping should be left out — you cannot walk a
+  note back once the build is live.
+
+---
+
+## 0.5.1 (build 24)
+
+In-app SMB for iPhone and iPad. Connect to a NAS or any SMB share from inside
+the app instead of bouncing out to the system file picker: add a server,
+browse its shares and folders, pin a folder to your home screen, and play
+straight from the browser.
+
+Also new:
+• LAN server discovery — DreamPlayer sweeps your network for reachable SMB
+  servers and shows each one's SMB version, so you can tell what you are
+  looking at before connecting.
+• Reachability dots — a saved server shows green when it is online and red when
+  it is not. Previously the indicator was always red on iPhone and iPad.
+• Cleaner folder listings — Samba's "print$" printer share and the "." and ".."
+  parent-directory entries no longer clutter the file list.
+
+Fixed:
+• Opening a file from an SMB share could fail the first time with "could not
+  open the file". This is resolved.
+• Bookmarked SMB folders could reconnect to the wrong share, which prevented
+  resuming files inside them. If a folder still misbehaves, remove it from your
+  home screen and add it again.
+• Resuming a video that had a non-default audio track selected started from the
+  beginning. Resume now lands where you left off.
+• Resuming a video no longer plays a moment of the default audio track before
+  switching to the one you chose.
+
+---
+
+## How to use this file
+
+1. Copy the block for the version you are submitting.
+2. Paste it into the *What's New* field.
+3. Start a new section at the top for the next version.
+
+Keep the "Fixed" items phrased from the user's point of view ("opening a file
+could fail") rather than as a changelog entry ("fixed the SMB open path"). Users
+do not know or care which path is broken, only what they saw.

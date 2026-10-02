@@ -3,6 +3,42 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.5.1
+
+### Added
+
+- **In-app SMB on iPhone and iPad** — the "Network shares" tile opens a real
+  in-app SMB browser again instead of bouncing to the system file picker. Add a
+  server, browse its shares, pin a folder to Home, and play straight from the
+  browser. Works on both platforms now; iOS support had been withdrawn in an
+  earlier release because the old implementation was slow and could crash when
+  switching audio tracks.
+- **LAN SMB server discovery** — a subnet sweep finds reachable servers and a
+  real protocol handshake reports each one's SMB version and identifier, so the
+  list shows what a server actually is instead of a bare IP. Verified against a
+  NAS negotiating SMB 3.1.1.
+- **Green status dots for saved servers** — a saved server now shows green when
+  it is reachable and red when it is not. On iOS the indicator was permanently
+  red regardless of the server's state.
+- **Resume keeps working when you switch audio track** — resuming a file whose
+  saved audio track is not the container's default no longer starts from the
+  beginning, and no longer plays a second of the wrong language first. The saved
+  track and the saved position now survive the internal reload together.
+
+### Fixed
+
+- **Opening a file from an SMB share could fail on the first attempt** — the
+  share-relative path handed to the server carried an extra leading separator,
+  which the server rejected as an invalid parameter. Every open failed with
+  "could not open the file"; opening now works, and the error message names the
+  share and path it tried so a genuine permissions problem is distinguishable.
+- **Bookmarked SMB folders reconnected to the wrong share** — a folder saved to
+  the home grid recorded its path without the share name, so a folder inside
+  "Video/Movies" was treated as being on a share named "Video". Files in those
+  folders could not be resumed until the folder was re-bookmarked.
+- **"print$", "." and ".." showing up in SMB folder listings** — Samba's printer
+  share and the two parent-directory entries are now filtered out.
+
 ## 0.5.0
 
 ### Added

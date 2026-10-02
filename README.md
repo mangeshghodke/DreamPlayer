@@ -24,7 +24,7 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 
 - Free, no ads, no account required
 - Requires **iOS / iPadOS 17.0** or later
-- Play your own files: local storage, Files-app folders, WebDAV, FTP/SFTP, Jellyfin, DLNA, and Files-app "Open with" hand-offs from SMB/NAS shares
+- Play your own files: local storage, Files-app folders, **in-app SMB/NAS on iPhone and iPad**, WebDAV, FTP/SFTP, Jellyfin, DLNA, and "Open with" hand-offs from other apps
 - Full Dolby Vision (P7/P8/P9) / HDR10 / HDR10+ / HLG support on capable iPad and iPhone panels, plus lossless audio (DTS-HD, TrueHD, E-AC3, FLAC) — DV Profile 4 is Android-only
 - Android builds remain free on the [Releases](https://github.com/mangeshghodke/DreamPlayer/releases) page
 
@@ -129,7 +129,7 @@ Each thumbnail is linked — click any image to open it full size.
 - **OpenSubtitles** — search/download from CC (5/day anon, 20/day free login); Nova-based language catalog (full names, 3-letter `eng/fre/pob/zho`, `zh-CN/zh-TW`) for reading + download prefs + text encoding (CP1250…CP949)
 
 ### Network Playback
-- **SMB / NAS** — in-app SMB browser on Android; CX Explorer "Open with" handoff; cold starts fill the ring buffer before the first read and skip Matroska end-of-file cue seeks so large MKVs open fast
+- **SMB / NAS** — in-app SMB browser on **both** iOS and Android: add a server, browse its shares, pin a folder to Home, and play. A subnet sweep finds servers on the LAN and reports each one's SMB version; saved servers show a green/red reachability dot. Playback reads go straight to the share, and resume plus the saved audio track both survive reopening. CX Explorer "Open with" handoff also works
 - **WebDAV** — browse and stream from WebDAV servers on both platforms
 - **Jellyfin / Emby** — browse libraries, direct-play with auto-discovery
 - **FTP / SFTP** — browse and stream from FTP servers and SSH/SFTP file hosts
@@ -273,6 +273,8 @@ decoding, and a stable 4K 60 fps picture on a phone.**
 | **AetherEngine 6.38.x** | iOS / iPad | Native iOS playback built on AVPlayer + FFmpeg demux/decode. The AetherPlayerView exposes a `videoFormat` for `.hdr10 / .hdr10Plus / .dolbyVision`, the engine reads the container, FFmpeg fills in what AVPlayer can't (DTS / DTS-HD / TrueHD, MKV / WebM / TS / AVI containers), and the engine routes bitstream-audio over HDMI. | The only path that combines AVPlayer's hardware HDR / DV fast path on the panel with FFmpeg's container / codec coverage for non-Apple formats. iOS has no ExoPlayer port. |
 | **nextlib `media3ext`** | Android (FFmpeg audio) | The Android FFmpeg extension that adds `FfmpegAudioRenderer` for DTS / DTS-HD / TrueHD / FLAC. Wired into `DreamRenderersFactory` AFTER the stock audio renderer, so it acts as a fallback for the lossless codecs. | The same FFmpeg integration Nova Video Player uses. Video stays on hardware `MediaCodecVideoRenderer`; audio falls back to FFmpeg for the formats the OS can't decode. |
 | **Citadel (SwiftNIO SSH)** | iOS / iPad SFTP | Native SFTP client used by the FTP browser for SFTP playback (`FtpByteRangeSource`). | The only maintained Swift SSH client that compiles cleanly on iOS 17. |
+| **libsmb2** | iOS / iPad SMB | The C SMB 2/3 library behind LAN discovery and **all** SMB playback on iOS. Discovery does a subnet sweep plus a real IPC$ handshake to report dialect and server GUID; playback serves the engine through a synchronous `smb2_pread` reader — no async-to-sync bridging, so the deadlock class the old iOS transport hit cannot recur. Vendored under `ios/Runner/libsmb2`, compiled by `ios/libsmb2_build.sh`. LGPL 2.1. |
+| **SMBClient** | iOS / iPad SMB browsing | Pure-Swift SMB 2/3 client over `NWConnection` (MIT), used for the share/folder browser while playback moved to libsmb2. |
 | **jcifs-ng** | Android SMB | The Java SMB 2/3 client used by the in-app SMB browser + `SmbDataSource` (custom ExoPlayer `DataSource` that streams from the share). | Nova's and CX Explorer's SMB library; measured ~75 MB/s vs ~4–6 MB/s for smbj on the NAS. |
 | **Media3 / DefaultHttpDataSource + OkHttp** | Android HTTP(S) | Standard Media3 HTTP source (with a custom trust-all OkHttp client for self-signed WebDAV). | Reuses Media3's mature HTTP implementation; the self-signed client is opt-in per server. |
 | **WebDAVByteRangeSource** (in `AetherEngineSMB`) | iOS / iPad WebDAV | A `ByteRangeSource` that serves every engine read as an independent HTTP `Range` request with the `Authorization` header, on a permissive or default-trust session. Wrapped in `BufferedSMBReader` for read-ahead. | AetherEngine's own HTTP stack can't carry auth headers or bypass TLS validation; this is the cleanest bridge between the WebDAV client and the engine. |
