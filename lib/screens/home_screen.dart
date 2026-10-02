@@ -221,12 +221,18 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _openTmdDetails(LibraryVideo v) async {
     if (!mounted) return;
     // Open the details page first; Play launches the player from there.
+    final video = v.toVideoItem();
+    // One film, one identity key. A library file card and the continue-watching
+    // entry are two views of the same file, so they must resolve to the same key
+    // or an artwork pick made on one never appears on the other.
+    final card = _matchingLibraryFileCard(video);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TmdDetailsScreen(
-          video: v.toVideoItem(),
+          video: video,
+          parentMetadataKey: card?.metadataKey,
           inheritArtworkFrom:
-              _matchingLibraryFolder(_folders, v.toVideoItem().path)?.metadataKey,
+              _matchingLibraryFolder(_folders, video.path)?.metadataKey,
         ),
       ),
     );
@@ -1345,6 +1351,37 @@ class _HomeScreenState extends State<HomeScreen>
         // Network failures are non-fatal; the card just stays a placeholder.
       }
     }
+  }
+
+  /// The library file card for this exact file, if the bookmarked folder was
+  /// expanded into one card per file.
+  ///
+  /// Distinct from [_matchingLibraryFolder], which deliberately skips file
+  /// entries and therefore returns the enclosing *folder*. This one is what a
+  /// continue-watching entry has to agree with: an expanded SMB folder gives
+  /// every file its own card keyed `folder:<id>`, and the details page reached
+  /// from that card uses that key as its identity. Opening the same film from
+  /// Continue Watching has to use the same key or the two surfaces keep separate
+  /// artwork — and separate metadata — for one film.
+  LibraryFolder? _matchingLibraryFileCard(VideoItem video) {
+    // resumeKey first: a continue-watching entry restored from storage can have
+    // a null path and uri, and for a network source the resume key is the only
+    // stable identifier. A scanned file entry stores exactly that key as `path`.
+    final keys = <String>{};
+    final resumeKey = video.resumeKey;
+    if (resumeKey != null && resumeKey.isNotEmpty) keys.add(resumeKey);
+    final path = video.path ?? video.uri;
+    if (path != null && path.isNotEmpty) keys.add(path);
+    if (keys.isEmpty) return null;
+
+    LibraryFolder? best;
+    for (final f in _folders) {
+      if (!f.isFile) continue;
+      if (keys.contains(f.path)) {
+        if (best == null || f.path.length > best.path.length) best = f;
+      }
+    }
+    return best;
   }
 
   /// Longest library-folder path that is a prefix of [path] (a video under a
