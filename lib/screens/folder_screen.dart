@@ -2386,7 +2386,7 @@ class _FolderTile extends StatelessWidget {
 
     // Offline there is no TMDB name, and `parsed.title` is the SHOW name for
     // "Dark.S01E05.mkv" - so every row used to read "Dark".
-    final _rowTitle = episodeRowTitle(
+    final rowTitle = episodeRowTitle(
       parsed: parsed,
       fileName: entry.name,
       tmdbName: episode?.nameLabel,
@@ -2418,7 +2418,7 @@ class _FolderTile extends StatelessWidget {
         ],
         Expanded(
           child: Text(
-            _rowTitle,
+            rowTitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(

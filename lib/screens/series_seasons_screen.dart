@@ -1683,16 +1683,16 @@ class _EntryTileState extends State<_EntryTile> {
     final epData = episode;
     // Offline there is no TMDB name, and `parsed.title` is the SHOW name for
     // "Dark.S01E05.mkv" - so every row used to read "Dark".
-    final _rowTitle = episodeRowTitle(
+    final rowTitle = episodeRowTitle(
       parsed: parsed,
       fileName: _name,
       tmdbName: epData?.nameLabel,
     );
     // When the title is already the code (offline), don't repeat it below.
-    final _showCodeLine = hasEpisode &&
+    final showCodeLine = hasEpisode &&
         parsed.season > 0 &&
         parsed.episode > 0 &&
-        _rowTitle != episodeCode(parsed.season, parsed.episode);
+        rowTitle != episodeCode(parsed.season, parsed.episode);
     final sizeValue = _entrySize() ?? 0;
     final fileSizeLabel = sizeValue > 0 ? _sizeLabel(sizeValue) : '';
     final ratingValue = episode?.voteAverage ?? 0;
@@ -1712,7 +1712,7 @@ class _EntryTileState extends State<_EntryTile> {
       children: [
         Expanded(
           child: Text(
-            _rowTitle,
+            rowTitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -1727,7 +1727,7 @@ class _EntryTileState extends State<_EntryTile> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_showCodeLine)
+        if (showCodeLine)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
@@ -1741,14 +1741,30 @@ class _EntryTileState extends State<_EntryTile> {
         if (hasRating || fileSizeLabel.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              [
-                if (hasRating) ratingValue.toStringAsFixed(1),
-                if (fileSizeLabel.isNotEmpty) fileSizeLabel,
-              ].join(' \u00b7 '),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+            // The star moves WITH the rating instead of staying behind in the
+            // title row, so it reads as a rating wherever the number sits -
+            // matching the folder and SMB rows, which pair the two.
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasRating) ...[
+                  const Icon(Icons.star, size: 13, color: Colors.amber),
+                  const SizedBox(width: 3),
+                ],
+                Flexible(
+                  child: Text(
+                    [
+                      if (hasRating) ratingValue.toStringAsFixed(1),
+                      if (fileSizeLabel.isNotEmpty) fileSizeLabel,
+                    ].join(' \u00b7 '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                   ),
+                ),
+              ],
             ),
           ),
         if (progress != null)
