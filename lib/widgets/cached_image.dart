@@ -15,6 +15,7 @@ class CachedImage extends StatefulWidget {
     this.width,
     this.height,
     this.fit,
+    this.alignment,
     this.errorBuilder,
     this.loadingBuilder,
   });
@@ -23,6 +24,9 @@ class CachedImage extends StatefulWidget {
   final double? width;
   final double? height;
   final BoxFit? fit;
+  /// Where the image sits inside its box when `fit` crops. Defaults to the
+  /// Image widget's own centre alignment.
+  final AlignmentGeometry? alignment;
   final ImageErrorWidgetBuilder? errorBuilder;
   final Widget Function(BuildContext, Widget, ImageChunkEvent?)? loadingBuilder;
 
@@ -114,6 +118,7 @@ class _CachedImageState extends State<CachedImage> {
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
+        alignment: widget.alignment ?? Alignment.center,
         errorBuilder: widget.errorBuilder,
       );
     }
@@ -123,6 +128,7 @@ class _CachedImageState extends State<CachedImage> {
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
+        alignment: widget.alignment ?? Alignment.center,
         errorBuilder: (context, error, stack) {
           // Bytes are present but undecodable — mark it and fall back to a
           // network fetch of the same URL rather than showing the caller

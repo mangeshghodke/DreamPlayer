@@ -10,6 +10,7 @@ import '../services/file_browser.dart';
 import '../services/ftp_client.dart';
 import 'artwork_picker_sheet.dart';
 import '../widgets/cached_image.dart';
+import '../widgets/collapsing_backdrop.dart';
 import '../widgets/thetvdb_attribution.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
@@ -2162,13 +2163,13 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         if (_useHero)
           SliverAppBar(
             pinned: true,
-            expandedHeight: 200,
+            expandedHeight: backdropExpandedHeight(context),
             title: AnimatedOpacity(
               opacity: _heroCollapsed ? 1 : 0,
               duration: const Duration(milliseconds: 200),
               child: Text(movie.title),
             ),
-            flexibleSpace: _CollapsingBackdrop(
+            flexibleSpace: CollapsingBackdrop(
               backdrop: movie.backdropUrl(),
               collapsed: _heroCollapsed,
             ),
@@ -4149,43 +4150,6 @@ class _SeasonFolderCard extends StatelessWidget {
                 color: colorScheme.onPrimaryContainer,
               ),
       ),
-    );
-  }
-}
-
-/// A flexible space that shows a clean backdrop when expanded,
-/// A flexible space that shows a clean backdrop when expanded and fades it
-/// out as the app bar collapses. The title lives in the real app-bar slot so
-/// it aligns with the back button in every orientation.
-class _CollapsingBackdrop extends StatelessWidget {
-  const _CollapsingBackdrop({
-    required this.backdrop,
-    required this.collapsed,
-  });
-
-  final String? backdrop;
-  final bool collapsed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (backdrop != null)
-          AnimatedOpacity(
-            opacity: collapsed ? 0 : 1,
-            duration: const Duration(milliseconds: 200),
-            child: CachedImage(
-              backdrop!,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
-                  Container(color: theme.colorScheme.surfaceContainerHighest),
-            ),
-          )
-        else
-          Container(color: theme.colorScheme.surfaceContainerHighest),
-      ],
     );
   }
 }

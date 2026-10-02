@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../widgets/cached_image.dart';
+import '../widgets/collapsing_backdrop.dart';
 import '../services/manual_groups.dart';
 import '../services/network_video_resolver.dart';
 import '../services/tmdb_client.dart';
@@ -212,13 +213,13 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
         slivers: [
           SliverAppBar(
             pinned: true,
-            expandedHeight: 220,
+            expandedHeight: backdropExpandedHeight(context),
             title: AnimatedOpacity(
               opacity: _collapsed ? 1 : 0,
               duration: const Duration(milliseconds: 200),
               child: Text(displayTitle),
             ),
-            flexibleSpace: _CollapsingBackdrop(
+            flexibleSpace: CollapsingBackdrop(
               backdrop: backdrop,
               collapsed: _collapsed,
             ),
@@ -714,41 +715,6 @@ class _TrailersRow extends StatelessWidget {
   }
 }
 
-/// A flexible space that shows a clean backdrop when expanded and fades it
-/// out as the app bar collapses — mirrors `_CollapsingBackdrop` in
-/// series_seasons_screen.dart.
-class _CollapsingBackdrop extends StatelessWidget {
-  const _CollapsingBackdrop({
-    required this.backdrop,
-    required this.collapsed,
-  });
-
-  final String? backdrop;
-  final bool collapsed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (backdrop != null)
-          AnimatedOpacity(
-            opacity: collapsed ? 0 : 1,
-            duration: const Duration(milliseconds: 200),
-            child: CachedImage(
-              backdrop!,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
-                  Container(color: theme.colorScheme.surfaceContainerHighest),
-            ),
-          )
-        else
-          Container(color: theme.colorScheme.surfaceContainerHighest),
-      ],
-    );
-  }
-}
 
 class _MovieGroupCard extends StatelessWidget {
   const _MovieGroupCard({

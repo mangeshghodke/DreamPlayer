@@ -61,6 +61,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+/// One directory entry, as the browser needs it.
+@interface LibSMB2Entry : NSObject
+@property(nonatomic, copy, readonly) NSString *name;
+@property(nonatomic, assign, readonly) BOOL isDirectory;
+@property(nonatomic, assign, readonly) long long size;
+/// Modification time in milliseconds since the epoch, 0 when unknown.
+@property(nonatomic, assign, readonly) long long modifiedMillis;
+@end
+
 /// A logged-in session with one tree connection, owning the `smb2_context`.
 ///
 /// The context is not thread-safe — libsmb2 keeps its message-id counter and
@@ -79,15 +88,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// Opens a file for reading. Blocking.
 - (nullable LibSMB2File *)openFile:(NSString *)relativePath
                               error:(NSError *_Nullable *_Nullable)error;
-
-/// One directory entry, as the browser needs it.
-@interface LibSMB2Entry : NSObject
-@property(nonatomic, copy, readonly) NSString *name;
-@property(nonatomic, assign, readonly) BOOL isDirectory;
-@property(nonatomic, assign, readonly) long long size;
-/// Modification time in milliseconds since the epoch, 0 when unknown.
-@property(nonatomic, assign, readonly) long long modifiedMillis;
-@end
 
 /// Lists one directory. `relativePath` may be empty for the share root.
 /// Blocking; returns nil only on a real failure.

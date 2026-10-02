@@ -439,87 +439,27 @@ def _objc_declarations(text):
 
 
 
-def _split_return_type(decl):
-    """Split an ObjC declaration into (return type, remainder).
 
-    The return type is the parenthesised group right after the leading +/-, so
-    the split point is that group's matching close paren, not its open paren.
+def _known_limitation_note():
+    """Deliberately absent: an NSError** -> `throws` bridging check.
+
+    An ObjC method returning `nullable` with a trailing `NSError**` imports into
+    Swift as `throws` with the error argument removed, so both `try session
+    .openFile(path, error: &e)` and a missing `try` are compile errors. That
+    looked checkable, and it is not, for two reasons found the hard way:
+
+      * Swift prunes trailing type words from imported selectors, so
+        `readFileAtPath:offset:length:error:` is called as
+        `readFile(atPath:offset:length:)`. Matching on the ObjC first piece
+        silently misses most real call sites.
+      * Several screens and clients define their own Swift helpers with the same
+        names (`listDirectory`, `openFile`), so even a correct name match cannot
+        tell a bridged call from a local one.
+
+    A rule that passes when it should fail is worse than no rule, so this stays a
+    known gap. The compiler is the authority here; `buildObjcInterfaceNesting`
+    and the other checks exist because their failure modes are unambiguous.
     """
-    open_paren = decl.find("(")
-    if open_paren < 0:
-        return decl, ""
-    depth = 0
-    for i in range(open_paren, len(decl)):
-        if decl[i] == "(":
-            depth += 1
-        elif decl[i] == ")":
-            depth -= 1
-            if depth == 0:
-                return decl[:i + 1], decl[i + 1:]
-    return decl, ""
-
-def check_objc_swift_error_bridging():
-    """An ObjC method returning `nullable` with a trailing `NSError**` imports
-    into Swift as `throws`, and the error argument disappears.
-
-    Calling it with an out-parameter gives "Extra argument 'error'"; omitting
-    `try` gives "Missing argument for parameter 'error'". Both cost a signed CI
-    build here before this rule existed, so the shape is now checked statically.
-    """
-    throwing = set()
-    for path in native_files({".h"}):
-        text = strip_noise(open(path, encoding="utf-8").read())
-        for decl in _objc_declarations(text):
-            # Written as NSError **_Nullable by some, but conventionally
-            # NSError *_Nullable *_Nullable, so match on a second star anywhere
-            # in the parameter rather than on a literal "**".
-            if not re.search(r"NSError\s*\*[^,)]*\*", decl):
-                continue
-            # Split *after* the return type. A plain partition("(") would split at
-            # the return type's own opening paren, leaving head as just "- " and
-            # putting `nullable` on the wrong side of the test.
-            head, params = _split_return_type(decl)
-            if "nullable" not in head:
-                continue  # nonnull return: the parameter stays a plain argument
-            first = re.match(r"\s*(\w+)\s*:", params)
-            if first:
-                throwing.add(first.group(1))
-    if not throwing:
-        return
-
-    swift = ""
-    for path in native_files({".swift"}):
-        swift += strip_noise(open(path, encoding="utf-8").read())
-
-    for name in sorted(throwing):
-        for m in re.finditer(r"\b" + re.escape(name) + r"\s*\(", swift):
-            line = swift[: m.start()].count("\n") + 1
-            # `try` sits before the receiver (`try session.openFile(...)`), so
-            # look back to the start of the statement rather than a fixed window.
-            stmt_start = max(
-                swift.rfind("\n", 0, m.start()),
-                swift.rfind(";", 0, m.start()),
-                swift.rfind("{", 0, m.start()),
-            )
-            has_try = "try" in swift[max(0, stmt_start + 1): m.start()]
-            depth = 1
-            i = m.end()
-            while i < len(swift) and depth:
-                if swift[i] == "(":
-                    depth += 1
-                elif swift[i] == ")":
-                    depth -= 1
-                    if depth == 0:
-                        break
-                i += 1
-            call = swift[m.start():i + 1]
-            if re.search(r"\berror\s*:", call):
-                fail(f"{name}() returns nullable with an NSError** parameter, so "
-                     f"Swift imports it as `throws` and drops the error argument; "
-                     f"line {line} passes one: {call[:70]}")
-            elif not has_try:
-                fail(f"{name}() returns nullable with an NSError** parameter, so "
-                     f"Swift imports it as `throws`; line {line} is missing `try`")
 
 
 def check_swift_foundation_imports():
@@ -746,6 +686,34 @@ def check_objc_method_order():
                      f"not declared or defined until line {available[sel]} — "
                      f"Objective-C needs a visible declaration first: {snippet[:60]}")
 
+def check_objc_interface_nesting():
+    """An `@interface` may not be nested inside another one.
+
+    Objective-C has no nested types, so a second `@interface` opened before the
+    first one's `@end` silently produces a malformed header. The symptom is
+    `SwiftGeneratePch failed`, because the bridging header is compiled as
+    Objective-C before any of our .m files are even parsed — which gives no file
+    and no line to work from.
+    """
+    for path in native_files({".h"}):
+        depth = 0
+        opened_at = 0
+        for n, line in enumerate(open(path, encoding="utf-8").read().split("\n"), 1):
+            t = line.strip()
+            if t.startswith("@interface"):
+                if depth > 0:
+                    fail(f"{os.path.basename(path)}:{n} opens @interface inside "
+                         f"the one started on line {opened_at} — Objective-C has "
+                         f"no nested types: {t[:50]}")
+                depth += 1
+                opened_at = n
+            elif t.startswith("@end"):
+                depth = max(0, depth - 1)
+        if depth != 0:
+            fail(f"{os.path.basename(path)}: {depth} unterminated @interface — "
+                 f"the last one opened on line {opened_at} has no @end")
+
+
 def main():
     if not os.path.isdir(RUNNER):
         print(f"FAIL  {RUNNER} not found")
@@ -757,11 +725,11 @@ def main():
     check_structure()
     check_bridging_header()
     check_objc_literal_terminators()
-    check_objc_swift_error_bridging()
     check_swift_foundation_imports()
     check_ns_swift_name_consistency()
     check_objc_dot_syntax()
     check_objc_method_order()
+    check_objc_interface_nesting()
 
     if problems:
         for p in problems:

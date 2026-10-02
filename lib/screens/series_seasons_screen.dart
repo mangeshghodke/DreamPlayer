@@ -7,6 +7,7 @@ import 'artwork_picker_sheet.dart';
 import '../widgets/thetvdb_attribution.dart';
 import '../services/artwork_override.dart';
 import '../widgets/cached_image.dart';
+import '../widgets/collapsing_backdrop.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/video_item.dart';
@@ -786,7 +787,6 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tv = isTvMode(context);
     final backdrop = _meta?.movie.backdropUrl();
     final displayTitle = _meta?.movie.title.isNotEmpty == true
         ? _meta!.movie.title
@@ -797,7 +797,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         slivers: [
           SliverAppBar(
             pinned: true,
-            expandedHeight: tv ? 200 : 220,
+            expandedHeight: backdropExpandedHeight(context),
             // Title uses the real toolbar slot so it aligns with the back
             // button in every orientation; it's only visible once collapsed.
             title: AnimatedOpacity(
@@ -805,7 +805,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
               duration: const Duration(milliseconds: 200),
               child: Text(displayTitle),
             ),
-            flexibleSpace: _CollapsingBackdrop(
+            flexibleSpace: CollapsingBackdrop(
               backdrop: backdrop,
               collapsed: _collapsed,
             ),
@@ -2195,42 +2195,6 @@ class _CastRow extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// A flexible space that shows a clean backdrop when expanded and fades it
-/// out as the app bar collapses. The title lives in the real app-bar slot so
-/// it aligns with the back button in every orientation.
-class _CollapsingBackdrop extends StatelessWidget {
-  const _CollapsingBackdrop({
-    required this.backdrop,
-    required this.collapsed,
-  });
-
-  final String? backdrop;
-  final bool collapsed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (backdrop != null)
-          AnimatedOpacity(
-            opacity: collapsed ? 0 : 1,
-            duration: const Duration(milliseconds: 200),
-            child: CachedImage(
-              backdrop!,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
-                  Container(color: theme.colorScheme.surfaceContainerHighest),
-            ),
-          )
-        else
-          Container(color: theme.colorScheme.surfaceContainerHighest),
-      ],
     );
   }
 }
