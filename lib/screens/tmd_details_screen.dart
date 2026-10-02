@@ -118,6 +118,26 @@ class TmdDetailsScreen extends StatefulWidget {
   State<TmdDetailsScreen> createState() => _TmdDetailsScreenState();
 }
 
+/// Poster for the details-page header.
+///
+/// Prefers the season's poster when a specific season is resolved — that is the
+/// whole point of `folderSeason` posters — unless the user has explicitly chosen
+/// one. `withArtwork` patches the movie's and the details' poster but not
+/// `seasons[]`, so without this a pick made from the ⋮ menu updated the home
+/// card and left this header on the season's own artwork.
+String? detailsHeaderPosterUrl(
+  TmdMeta meta, {
+  required int effectiveSeason,
+  required bool posterOverridden,
+  int width = 342,
+}) {
+  if (effectiveSeason > 0 && !posterOverridden) {
+    final season = meta.seasons[effectiveSeason]?.posterUrl(width: width);
+    if (season != null) return season;
+  }
+  return meta.movie.posterUrl(width: width);
+}
+
 class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   static final _epPattern = RegExp(
       r'\b(?:S\d{1,2}E\d{1,2}|\d{1,2}x\d{1,3}|E(?:P)?\d{1,3})\b|\[(\d{1,3})\]',
@@ -2130,8 +2150,22 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         : null;
     final infoVideo = widget.video ?? folderMovie;
 
-    // Prefer season poster when a specific season is resolved, else series poster.
-    final seasonPoster = effectiveSeason > 0
+    // Prefer season poster when a specific season is resolved, else series poster
+    // — but never over a poster the user actually chose.
+    //
+    // `withArtwork` patches the movie's and the details' poster, not
+    // `seasons[]`, so preferring the season poster here meant a pick made from
+    // the ⋮ menu updated the home card and left this header on the season's
+    // artwork. An explicit pick has to win; the per-season rows further down keep
+    // showing their own posters either way.
+    final posterOverridden = ArtworkOverrideStore.isOverridden(
+          _identityKey,
+          ArtworkKind.poster,
+        ) ||
+        _artworkFallback.any(
+          (k) => ArtworkOverrideStore.isOverridden(k, ArtworkKind.poster),
+        );
+    final seasonPoster = effectiveSeason > 0 && !posterOverridden
         ? meta.seasons[effectiveSeason]?.posterUrl(width: 342)
         : null;
     final headerPosterUrl = seasonPoster ?? movie.posterUrl(width: 342);
