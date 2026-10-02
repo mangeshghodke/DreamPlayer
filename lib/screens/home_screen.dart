@@ -223,7 +223,11 @@ class _HomeScreenState extends State<HomeScreen>
     // Open the details page first; Play launches the player from there.
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TmdDetailsScreen(video: v.toVideoItem()),
+        builder: (_) => TmdDetailsScreen(
+          video: v.toVideoItem(),
+          inheritArtworkFrom:
+              _matchingLibraryFolder(_folders, v.toVideoItem().path)?.metadataKey,
+        ),
       ),
     );
     // A play may have moved the resume position — refresh on return.
@@ -1383,7 +1387,16 @@ class _HomeScreenState extends State<HomeScreen>
   /// parent library folder's key (poster-card result) so the grid can paint
   /// before/without a per-file resolve.
   TmdMeta? _metaForContinueVideo(VideoItem video) {
-    final direct = TmdService.instance.metaFor(TmdStore.identityKeyFor(video));
+    // The folder this file lives under, so artwork inherits from it when the
+    // file has no pick of its own — otherwise the same film shows one poster on
+    // its home card and another here, purely because playing it gave the file
+    // its own metadata entry.
+    final parent = _matchingLibraryFolder(_folders, video.path ?? video.uri);
+    final fileKey = TmdStore.identityKeyFor(video);
+    final direct = TmdService.instance.metaFor(
+      fileKey,
+      inheritArtworkFrom: parent?.metadataKey,
+    );
     if (direct != null) return direct;
     final folder =
         _matchingLibraryFolder(_folders, video.path ?? video.uri);

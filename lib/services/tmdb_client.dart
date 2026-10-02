@@ -2554,17 +2554,30 @@ class TmdService extends ChangeNotifier {
     return total > 0 ? total : null;
   }
 
-  TmdMeta? metaFor(String identityKey) {
+  /// [inheritArtworkFrom] is the metadata key of the library folder a file lives
+  /// under, and is consulted only when [identityKey] has no override of its own
+  /// for that kind.
+  ///
+  /// Metadata already inherits folder -> file (`carryMeta`, and the
+  /// `_matchingLibraryFolder` fallback in the home screen), but artwork did not,
+  /// so the same film showed a different poster on the home card and on its
+  /// continue-watching card: the folder's override was applied to the folder key
+  /// only, and the file's own meta — which it gains the moment you play it —
+  /// shadowed it.
+  ///
+  /// The inheritance is deliberately one-way. A folder card stands for a whole
+  /// folder, often several episodes, so a per-file pick must never propagate
+  /// upward and overwrite the folder's.
+  TmdMeta? metaFor(String identityKey, {String? inheritArtworkFrom}) {
     final meta = _cache[identityKey];
     if (meta == null) return null;
-    final poster = ArtworkOverrideStore.overrideFor(
-      identityKey,
-      ArtworkKind.poster,
-    );
-    final backdrop = ArtworkOverrideStore.overrideFor(
-      identityKey,
-      ArtworkKind.backdrop,
-    );
+    MetaImage? pick(ArtworkKind kind) =>
+        ArtworkOverrideStore.overrideFor(identityKey, kind) ??
+        (inheritArtworkFrom == null
+            ? null
+            : ArtworkOverrideStore.overrideFor(inheritArtworkFrom, kind));
+    final poster = pick(ArtworkKind.poster);
+    final backdrop = pick(ArtworkKind.backdrop);
     if (poster == null && backdrop == null) return meta;
     return meta.withArtwork(
       posterPath: poster?.url,

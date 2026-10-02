@@ -87,7 +87,15 @@ class TmdDetailsScreen extends StatefulWidget {
     this.folder,
     this.jellyfinInfo,
     this.parentMetadataKey,
+    this.inheritArtworkFrom,
   }) : assert(video != null || folder != null);
+
+  /// Metadata key of the library folder this file sits under, used only to
+  /// inherit artwork when this file has no override of its own.
+  ///
+  /// Distinct from [parentMetadataKey]: that one *is* the identity key when the
+  /// screen was opened from a home card, so it must never inherit from itself.
+  final String? inheritArtworkFrom;
 
   final VideoItem? video;
 
@@ -116,6 +124,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   late final String _identityKey = widget.parentMetadataKey ??
       widget.folder?.metadataKey ??
       TmdStore.identityKeyFor(widget.video!);
+  /// The folder to inherit artwork from, never the identity key itself.
+  String? get _artworkFallback =>
+      (widget.inheritArtworkFrom != null &&
+              widget.inheritArtworkFrom != _identityKey)
+          ? widget.inheritArtworkFrom
+          : null;
   late final String _resumeKey = widget.folder == null
       ? (widget.video!.resumeKey ?? widget.video!.path ?? widget.video!.uri ?? '')
       : '';
@@ -276,7 +290,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   void _onServiceChanged() {
     if (!mounted) return;
-    final meta = _service.metaFor(_identityKey);
+    final meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
     setState(() {
       _meta = meta;
       _details = meta?.details;
@@ -591,7 +605,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     await _service.ensureLoaded();
     if (!mounted) return;
     setState(() {
-      _meta = _service.metaFor(_identityKey);
+      _meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
       _details = _meta?.details;
       _loading = _meta == null;
     });
@@ -632,7 +646,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         );
       } catch (_) {}
       if (!mounted) return;
-      final resolved = _service.metaFor(_identityKey);
+      final resolved = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
       if (resolved != null) {
         setState(() {
           _meta = resolved;
@@ -654,11 +668,11 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       if (!mounted) return;
       // File-level search can miss (e.g. "FINALE 01" → 0 TMDB hits).
       // Fall back to the same library-folder meta the home poster cards use.
-      if (_service.metaFor(_identityKey) == null) {
+      if (_service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback) == null) {
         await _inheritLibraryFolderMeta();
       }
       if (!mounted) return;
-      final resolved = _service.metaFor(_identityKey);
+      final resolved = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
       if (resolved != null) {
         setState(() {
           _meta = resolved;
@@ -982,7 +996,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// Pulls the full details and the per-episode season data (TV shows only).
   /// Season numbers to fetch come from the files actually present.
   Future<void> _loadDetailsAndSeasons() async {
-    final meta = _service.metaFor(_identityKey);
+    final meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
     if (meta == null) return;
     final details = await _service.detailsFor(_identityKey);
     if (mounted) setState(() => _details = details);
@@ -1000,7 +1014,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     // rebuild must happen here too to avoid a stale _meta when the last
     // seasonFor finishes and the widget is already idle.
     if (mounted) {
-      final freshMeta = _service.metaFor(_identityKey) ?? meta;
+      final freshMeta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback) ?? meta;
       setState(() => _meta = freshMeta);
     }
     // Single episode (video mode, not a folder): enrich it with its own cast
@@ -1253,7 +1267,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       // The screen renders the cached _meta, but artwork overrides are applied
       // inside metaFor() - so re-read through it, or the pick appears to do
       // nothing here (it only showed up later, from Home).
-      setState(() => _meta = _service.metaFor(_identityKey) ?? _meta);
+      setState(() => _meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback) ?? _meta);
     }
   }
 
@@ -1313,7 +1327,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       );
     }
     if (!mounted) return;
-    final meta = _service.metaFor(_identityKey);
+    final meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
     setState(() => _meta = meta);
     await _loadDetailsAndSeasons();
   }
@@ -1627,7 +1641,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       return;
     }
     final video = _toVideoItem(entry);
-    final meta = _service.metaFor(_identityKey);
+    final meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
     final videoKey = TmdStore.identityKeyFor(video);
     final parsed = ParsedFileName.parse(entry.name);
     final isEpisode = parsed.isEpisode || _epPattern.hasMatch(entry.name);
@@ -1794,7 +1808,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
     if (!item.isPlayable) return;
     final video = _jellyfin.videoItem(server, item);
-    final meta = _service.metaFor(_identityKey);
+    final meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
     final videoKey = TmdStore.identityKeyFor(video);
     final isEpisode = item.type == 'Episode' ||
         (item.parentIndexNumber != null && item.indexNumber != null);
