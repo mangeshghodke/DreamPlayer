@@ -24,6 +24,15 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   saved audio track is not the container's default no longer starts from the
   beginning, and no longer plays a second of the wrong language first. The saved
   track and the saved position now survive the internal reload together.
+- **One poster for a film, everywhere** — changing a poster or backdrop now
+  applies everywhere the same title appears: the SMB browser page, the home card
+  and Continue Watching. Previously the same film had a separate artwork slot on
+  each surface, so a pick showed up in one place only. Series inherit down the
+  chain, so a show or season pick reaches its episodes while seasons stay free to
+  differ from each other.
+- **Unnamed SMB servers show their address** — matching Android, a server saved
+  without a name is listed as its IP instead of a blank row. Existing servers
+  with a blank name are corrected on the app's next launch.
 
 ### Fixed
 
@@ -38,6 +47,9 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   folders could not be resumed until the folder was re-bookmarked.
 - **"print$", "." and ".." showing up in SMB folder listings** — Samba's printer
   share and the two parent-directory entries are now filtered out.
+- **Movie and series artwork on tablets** — the backdrop behind a title's header
+  now shows the whole image in portrait on any screen size, instead of a thin
+  cropped strip on a tablet. Landscape is still slightly cropped, as before.
 
 ## 0.5.0
 

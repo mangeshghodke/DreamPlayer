@@ -13,7 +13,7 @@ Paste-ready release notes for the **What's New** field in App Store Connect
 
 ---
 
-## 0.5.1 (build 24)
+## 0.5.1 (build 25)
 
 In-app SMB for iPhone and iPad. Connect to a NAS or any SMB share from inside
 the app instead of bouncing out to the system file picker: add a server,
@@ -26,8 +26,20 @@ Also new:
   looking at before connecting.
 • Reachability dots — a saved server shows green when it is online and red when
   it is not. Previously the indicator was always red on iPhone and iPad.
+• Remembered share names — a share with an unusual name can be added by hand once
+  and will still be found the next time you open the server.
 • Cleaner folder listings — Samba's "print$" printer share and the "." and ".."
   parent-directory entries no longer clutter the file list.
+• Server named for you — add a server without typing a name and it is listed as
+  its IP address, as on Android.
+
+Artwork, everywhere:
+• One poster per film — change a poster or backdrop once and it now shows
+  everywhere that title appears: the SMB page, the home card and Continue
+  Watching. For series, a show or season pick reaches its episodes, while
+  different seasons can still have their own artwork.
+• Full artwork on iPad — a title's header image now shows the whole picture in
+  portrait on any screen size, rather than a narrow cropped strip on a tablet.
 
 Fixed:
 • Opening a file from an SMB share could fail the first time with "could not
@@ -39,6 +51,8 @@ Fixed:
   beginning. Resume now lands where you left off.
 • Resuming a video no longer plays a moment of the default audio track before
   switching to the one you chose.
+• Series artwork no longer changes a few seconds after opening an episode, which
+  left it out of step with the card it was opened from.
 
 ---
 

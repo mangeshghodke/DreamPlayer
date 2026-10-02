@@ -378,7 +378,7 @@ A video player app supporting:
 | Framework | Flutter (stable, 3.44.x) | Cross-platform, single codebase |
 | Playback engine (Android) | **ExoPlayer / Media3** (native, in hybrid-composition PlatformView) | HDR/DV passthrough-capable; working (`c2.qti.dv.decoder`). Hybrid composition (`PlatformViewLink`) keeps the video SurfaceView on the physical display — the stock `AndroidView` is virtual-display/texture and flattens HDR. |
 | Playback engine (iOS/iPad) | **AetherEngine** (native, in PlatformView) | `AvPlayerView.swift` + `AetherEngine` SPM dep; FFmpeg demux/decode + native AVPlayer path for DV/HDR; cues drawn by host `SubtitleOverlayView`. |
-| SMB (iPad) | **`SMBClient` for browsing + `libsmb2` 7.0.0 for discovery & playback** | In-app SMB returned on iOS in 0.5.1 (2026-10) after AMSMB2 was retired in 2026-08. Browsing is still pure-Swift `SMBClient`; **libsmb2** (vendored under `Runner/libsmb2`, built by `ios/libsmb2_build.sh`) does the LAN discovery sweep and is the *only* playback transport, feeding the engine through a synchronous `smb2_pread` `IOReader`. `AetherEngineSMB` still ships for WebDAV's `ByteRangeSource`. |
+| SMB (iPad) | **`libsmb2` 7.0.0 for everything** | In-app SMB returned on iOS in 0.5.1 (2026-10) after AMSMB2 was retired in 2026-08. `SMBClient` drove browsing at first, then was removed too: **libsmb2 now does browsing, share listing, discovery, stat, sidecar fetch and playback** (vendored under `Runner/libsmb2`, built by `ios/libsmb2_build.sh`). Playback feeds the engine through a synchronous `smb2_pread` `IOReader`. The `SMBClient` package still arrives transitively via `AetherEngineSMB` and stays credited in the licences screen. |
 | Android audio decode | Media3 `FFmpegAudioRenderer` (ffmpeg extension) | DTS, DTS-HD, E-AC3, AC3, TrueHD — same bundled-FFmpeg approach Nova uses. |
 | Reference architecture | **Nova Video Player** (`nova-video-player/aos-AVP`) | See "Playback research notes". |
 | Metadata providers | **TMDB primary + optional TheTVDB v4** | TMDB remains the default resolver; TheTVDB can be a configured fallback or explicit Fix Match/Group Poster choice. Provider-qualified metadata is cached in the existing store; credentials use Android Keystore-backed preferences / iOS Keychain. SIMKL remains TMDB-only. |
@@ -618,7 +618,9 @@ Play files from LAN/NAS SMB shares in-app, mirroring the existing file-browser p
 
 ### iOS in-app SMB on libsmb2 (2026-10, 0.5.1) — architecture
 
-**Browsing** is still pure-Swift `kishikawakatsumi/SMBClient` (MIT, over `NWConnection`), reached through the unchanged `dreamplayer/smb` channel. **Discovery and playback are libsmb2** (LGPL 2.1), vendored under `ios/Runner/libsmb2/` and compiled by `ios/libsmb2_build.sh` (61 translation units → an arm64 `libsmb2.a` that `OTHER_LDFLAGS` links). `ios.yml` runs that compile as a step before the signed IPA, so a vendored-source break fails early and cheaply.
+**Everything is libsmb2** (LGPL 2.1), vendored under `ios/Runner/libsmb2/` and compiled by `ios/libsmb2_build.sh` (61 translation units → an arm64 `libsmb2.a` that `OTHER_LDFLAGS` links). `ios.yml` runs that compile as a step before the signed IPA, so a vendored-source break fails early and cheaply. It went in three steps: discovery first, then playback, then browsing — `SMBClient` was deleted at the last step and is now only a transitive dependency of `AetherEngineSMB`.
+
+**Browsing** (`LibSMB2Session.listDirectory` → `smb2_opendir`/`smb2_readdir`, directory bit from `smb2_attributes`), **share listing** (`listSharesForHost`) and **stat/byte fetches** (`fileSizeAtPath`, `readFileAtPath`) are all libsmb2 too. SMB2 has **no share-enumeration request**, so the share list probes the same common names Android uses (`COMMON_SHARES`) plus any the user added by hand — identical to Android, and the reason `addShare` now persists the name it was given instead of discarding it.
 
 - **Discovery (phase 1)** — `LibSMB2.probeHosts` does a `/24` TCP sweep (Network.framework, with a hard per-probe deadline inside `nwConnect`), then a real IPC$ negotiate per candidate to report the **dialect** and **server GUID**. This is what identifies SMB 3.1.1 on the NAS. Verified on-device.
 - **Playback (phase 2)** — `SMBSourceReader: IOReader` serves the engine's synchronous `read`/`seek` straight from `smb2_pread`. This is the whole point: `IOReader` is cursor-based and `pread` is positional/synchronous, so there is **no bridging, no `Task`, no semaphore and no ring buffer**. The previous SMBClient path adapted an *async* ranged source into that synchronous interface and the release half of that adaptation is what deadlocked. `makeIndependentReader` returns a second cursor over the same open handle — a positional re-probe just needs a fresh cursor, where the old ring reader had already drained itself to EOF.
@@ -628,6 +630,13 @@ Play files from LAN/NAS SMB shares in-app, mirroring the existing file-browser p
 - **Resume-key shape (same day)**: `FolderScanner` wrote the SMB resume key as `smb:<serverId>/<path>` while the `videoUri` beside it included the share. The native side reads the **first segment as the share**, so `Video/Movies/…` silently reconnected to a share literally named `Video` — a wrong target that never reports itself as such. Both sites now include `networkShare`; `test/smb_resume_key_test.dart` pins that the key round-trips to the real share and that `path` and `videoUri` agree.
 - **Status dot**: `checkServer` had been `result(false)` on iOS, so every saved server showed red. Now a non-blocking `connect(2)` + `poll` with a 1.5 s cap, matching Android's `isPortOpen`, replying on the main thread (a `FlutterResult` invoked off it deadlocks the method channel).
 - **Listing hygiene**: `print$` is filtered by the trailing `$` (the share-`type` filter misses it on some servers), and `.`/`..` are dropped **by name before** the directory exemption in `isJunk` — they arrive as directories, and `isDirectory || !isJunk` let them past the dot-prefix rule.
+
+#### iOS SMB browsing parity and small fixes (0.5.1+25)
+
+- **`addShare` now remembers the name.** It documented itself as remembering an unusual share name but only tested connectivity and threw the name away, so the affordance never worked on iOS. Names are stored per server in `ServerMeta.addedShares`, and `saveServer` carries them through so editing a server no longer wipes them (the dialog knows nothing about them). `addedShares` is **optional** so servers saved before the field existed still decode — a synthesized `Codable` ignores a declared default for a missing key, which is why a non-optional list would have silently dropped every saved server.
+- **Status dot** is a non-blocking `connect(2)` + `poll` with a 1.5 s cap, matching Android's `isPortOpen`, replying on the main thread (a `FlutterResult` invoked off it deadlocks the method channel).
+- **Listing hygiene**: `print$` is filtered by the trailing `$` (the share-`type` filter misses it on some servers), and `.`/`..` are dropped **by name before** the directory exemption in `isJunk` — they arrive as directories, and `isDirectory || !isJunk` let them past the dot-prefix rule.
+- **Unnamed server shows its address**, matching Android's `if (name.isNullOrEmpty()) host else name`. Applied on write *and* on read in `allServers`, so servers saved before the fix stop showing a blank row without being deleted and re-entered. Whitespace-only names count as empty, which Android gets from `trim()`.
 
 #### iOS SMB resume + audio-track interaction (three bugs, one root pattern)
 
@@ -641,8 +650,9 @@ All three were "the saved audio track silently destroyed the saved position", an
 
 **Architecture**
 - New native module per platform exposing a MethodChannel (same shape as `FileBrowser.kt` / `dreamplayer/files`):
-  - Android: `SMBClient.kt` — channel `dreamplayer/smb`
-  - iOS/iPad: **removed** (was `SMBClient.swift` — same channel)
+  - Android: `SMBClient.kt` (jcifs-ng) — channel `dreamplayer/smb`
+  - iOS/iPad: `SMBBridge.swift`, which serves the same channel and is backed by
+    libsmb2 rather than a separate Swift SMB client
 - Dart: `lib/services/smb_client.dart` (models + channel wrapper) + `lib/screens/smb_screen.dart` (server list → shares → folders → tap video → `PlayerScreen`).
 - Playback passes an `smb://` URI through the existing `uri` path in `VideoItem` (like the "Open with" flow).
 
@@ -875,6 +885,32 @@ is unknown until tested. Also note Apple's Control Center only shows the
 spatial icon for `AVPlayer` / `AVSampleBufferAudioRenderer` playback, and
 AirPods settings can read "Spatial Audio Not Playing" even while spatial
 audio is in fact active — do not treat either as a failure signal.
+
+### Artwork identity across surfaces (0.5.1+25) — read this before adding a surface
+
+Artwork overrides are keyed by metadata identity, and for a long time one film had
+**three** keys at once, so a poster picked in one place never appeared in another
+while resume — stored against `resumeKey` — looked correctly synced the whole
+time. That asymmetry is what made it look like a rendering bug.
+
+| Surface | Key |
+|---|---|
+| Home **file** card | the file's `resumeKey` |
+| Continue Watching | the file's `resumeKey` |
+| SMB/WebDAV/FTP browse → details | the file's `resumeKey` |
+| Home **folder** / series card | `folder:<id>` |
+| Season card | `folder:<seasonFolderId>` (independent, issue #33) |
+
+Two rules hold it together:
+
+1. **A file's identity is its resume key.** `LibraryFolder.metadataKey` returns `path` when `isFile`, and `NetworkVideoResolver` already puts exactly that string on the `VideoItem` it resolves from the entry's `path`. A real folder keeps `folder:<id>` — it has no resume key, and its card stands for the whole folder. Nothing branches on the `folder:` prefix.
+2. **Artwork inherits down an ancestor chain, one way.** `TmdService.metaFor(key, inheritArtworkFrom: [...])` takes the chain nearest-first (for an episode: its season folder, then the show folder) and consults each only when nothing nearer has a pick of that kind. Per *kind*, so a poster pick does not drag the backdrop along with it. It never writes back up: an episode's pick does not reach its season or the show, because seasons keep independent keys precisely so they can differ (issue #33). A consequence worth remembering: an episode's season is parsed from its **filename**, so anything season-keyed must not treat a file as a season page.
+
+**The trap to avoid.** `withArtwork` patches `movie` and `details` but **never `seasons[]`**. So any header that prefers `meta.seasons[n].posterUrl` silently ignores the user's pick. That is why `detailsHeaderPosterUrl` takes `preferSeasonPoster`, which is true only for a season *page* (`widget.folder != null`) and false for an episode. When changing artwork resolution, render from `movie.posterUrl` — that is what `posterUrlOf`, and therefore every card, uses.
+
+### Backdrop hero is width-derived (0.5.1+25)
+
+`CollapsingBackdrop` + `backdropExpandedHeight` in `lib/widgets/collapsing_backdrop.dart`, shared by the details, series-seasons and group screens. It used to be duplicated byte-identically in all three and hardcoded to 200–220 px, which is why tablets showed a thin cropped strip: a 16:9 backdrop at a **fixed** height shows proportionally less of the image as the screen widens. At 200 px a 390-wide phone still fits the full width, while a 1024-wide iPad shows barely a third of the image's height. The height is now `width * 9 / 16` clamped to 200..62% of the viewport height — full image in portrait on any device, slightly cropped in landscape — and `alignment: Alignment(0, -0.25)` biases upward when it does crop, because the subject in movie artwork sits above centre.
 
 ### Player feature backlog (prioritized 2026-09)
 
@@ -1420,19 +1456,38 @@ adb shell dumpsys SurfaceFlinger | grep -a activeMode                           
 Two gates stand in for the compiler:
 
 ```bash
-python3 tool/ios_native_check.py   # import/header closure, C symbol definitions,
-                                   # ObjC declaration-vs-implementation, selector
-                                   # ordering, dot-syntax, unterminated literals,
-                                   # NSError** throws bridging, NS_SWIFT_NAME,
-                                   # Foundation imports, pbxproj shape
+python3 tool/ios_native_check.py   # C symbols, ObjC declaration-vs-implementation,
+                                   # class-method ivars, nested @interface, one
+                                   # @implementation per class, methods outside
+                                   # any block, selector defined after use, dot
+                                   # syntax with an argument label, unterminated
+                                   # ObjC literals, control characters, NS_SWIFT_NAME
+                                   # consistency, Swift Foundation imports,
+                                   # interpolation shapes, pbxproj shape
 bash ios/libsmb2_build.sh          # compile the vendored libsmb2 arm64 archive
 ```
 
-`tool/ios_native_check.py` cannot typecheck Swift. **Do not treat it as a
-substitute for a build, and do not skip asserting in `smb_debug.log` that a new
-log line actually appeared** — several fixes in this project looked correct and
-silently did nothing because a condition could never be true at that point in
-the lifecycle.
+**Do not treat it as a substitute for a build — it cannot typecheck Swift.** But
+do run it: every structural Objective-C mistake made while porting the SMB browse
+path (a nested `@interface`, methods left outside any `@implementation`, a second
+`@implementation` of one class, a stray `U+0001` inside a function name) cost a
+signed build before its rule existed, and all of them are now caught in
+milliseconds. Each rule was proven by injecting the fault and confirming the
+failure.
+
+Two limitations are recorded in the file itself and are **deliberately not
+checked**: the `NSError**` → `throws` bridge (Swift prunes trailing type words, so
+`readFileAtPath:…error:` is called as `readFile(atPath:…)`, and several screens
+define their own `listDirectory`/`openFile` helpers, so no name-based match is
+reliable), and Swift name resolution generally.
+
+**Also do not skip asserting in `smb_debug.log` that a new log line actually
+appeared.** Two iOS fixes this cycle looked correct, had passing tests, and did
+nothing at all: one armed a resume target *after* the load returned when the
+racing audio-track restore arrived 75 ms *into* it, and one gated on
+`engine.state == .playing` in a branch that can only ever be reached while
+`.loading`. A rule that cries wolf is worse than no rule, which is why two
+candidate checks were deleted rather than shipped — see the notes in the file.
 
 ## Display & smoothness (native refresh rate)
 
@@ -1507,6 +1562,7 @@ lib/
     video_card.dart             # library card with HDR/audio badges
     folder_card.dart            # library folder card (TMDB poster or gradient placeholder + TV/Movie badge)
     cached_image.dart           # CachedImage — disk-cached TMDB image with fade-in (wraps ImageCacheService)
+    collapsing_backdrop.dart    # CollapsingBackdrop + backdropExpandedHeight: width-derived hero height, shared by 3 screens
     format_chip.dart            # colored codec/HDR chip
     tv_tile.dart                # shared focus-glow wrapper for TV list items
     tv_overscan.dart            # overscan safe-area padding (36px sides, 20px top/bottom)
@@ -1528,7 +1584,7 @@ android/app/src/main/kotlin/com/dreamplayer/app/
   MainActivity.kt               # registers platform views (exo + mpv_player) + "Open with" intent handling + routes pip/snapshot/stop calls between ExoPlayerView and PipManager based on which engine is active
 ios/Runner/
   LibSMB2.h / LibSMB2.m         # libsmb2 wrapper: LAN sweep + IPC$ identify (LibSMB2Server), plus LibSMB2Session/LibSMB2File for playback (smb2_open/fstat/pread). CREATE Name is share-relative with NO leading separator
-  SMBBridge.swift               # in-app SMB browsing on pure-Swift SMBClient; libsmb2 discovery + playback sessions; status probe; junk filtering
+  SMBBridge.swift               # in-app SMB browsing, share listing, discovery and playback, all on libsmb2; status probe; junk filtering; unnamed-server name falls back to the host
   SMBSource.swift               # SMBPlayback (libsmb2-only: one session/one handle) + SMBSourceReader: IOReader over smb2_pread; SMBByteRangeSource/SMBIOReader retained unwired
   AvPlayerView.swift            # AetherEngine platform view + channels (same contract as ExoPlayerView.kt); host SubtitleOverlayView; WebDAV http(s) streams with headers/self-signed via WebDAVByteRangeSource; SMB playback + pendingResumeSeconds/reloadSession(at:autoplay:)
   BufferedSMBReader.swift       # read-ahead sliding-window IOReader (32 MiB) for WebDAV playback
@@ -1560,6 +1616,11 @@ test/
   the_tvdb_client_test.dart     # TheTVDB v4 auth, mapping, pagination, season handling, secure store
   metadata_provider_test.dart   # provider-qualified metadata cache serialization
   smb_resume_key_test.dart      # SMB resume key round-trips to the real share; path and videoUri agree
+  backdrop_height_test.dart     # backdrop hero is width-derived and viewport-capped
+  artwork_inheritance_test.dart # folder->file artwork inheritance, per-kind, one-way
+  continue_watching_identity_test.dart # continue watching resolves to the file card's key
+  library_file_identity_test.dart  # a file entry's metadataKey is its resume key
+  details_header_poster_test.dart   # an explicit poster pick beats the season poster
 ```
 
 ## Workflow for the user (no Mac)
