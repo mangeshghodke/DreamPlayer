@@ -1962,9 +1962,10 @@ class _SmbEpisodeTile extends StatelessWidget {
     // Was `Image.network`; EpisodeStillThumb goes through CachedImage, so this
     // row now shares the permanent disk image cache with every other screen.
     final tile = EpisodeRow(
-      thumb: EpisodeStillThumb(
+      thumbBuilder: (size) => EpisodeStillThumb(
         stillUrl: stillUrl,
         fallbackIcon: _episodeIcon(colorScheme, parsed),
+        size: size,
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

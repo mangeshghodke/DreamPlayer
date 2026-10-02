@@ -42,9 +42,9 @@ void main() {
           body: ListView(
             children: [
               EpisodeRow(
-                thumb: usePoster
-                    ? const EpisodePosterThumb(posterUrl: 'p')
-                    : const EpisodeStillThumb(stillUrl: 's'),
+                thumbBuilder: (size) => usePoster
+                    ? EpisodePosterThumb(posterUrl: 'p', size: size)
+                    : EpisodeStillThumb(stillUrl: 's', size: size),
                 title: const Text('S02E04 · The Name Of The Episode'),
                 subtitle: const Text('9.8 · 1.4 GB · Resume at 12:29'),
                 progress: const LinearProgressIndicator(value: 0.4),
@@ -197,7 +197,8 @@ void main() {
             body: ListView(
               children: [
                 EpisodeRow(
-                  thumb: const EpisodeStillThumb(stillUrl: null),
+                  thumbBuilder: (size) =>
+                      EpisodeStillThumb(stillUrl: null, size: size),
                   title: const Text('No still'),
                   onTap: () {},
                 ),
@@ -232,7 +233,8 @@ void main() {
             body: ListView(
               children: [
                 EpisodeRow(
-                  thumb: const EpisodeStillThumb(stillUrl: 's'),
+                  thumbBuilder: (size) =>
+                      EpisodeStillThumb(stillUrl: 's', size: size),
                   title: const Text('Episode'),
                   onTap: () => taps++,
                 ),
@@ -257,7 +259,8 @@ void main() {
             body: ListView(
               children: [
                 EpisodeRow(
-                  thumb: const EpisodeStillThumb(stillUrl: 's'),
+                  thumbBuilder: (size) =>
+                      EpisodeStillThumb(stillUrl: 's', size: size),
                   title: const Text('Episode'),
                   enabled: false,
                   onTap: () => taps++,
@@ -283,7 +286,8 @@ void main() {
             body: ListView(
               children: [
                 EpisodeRow(
-                  thumb: const EpisodeStillThumb(stillUrl: 's'),
+                  thumbBuilder: (size) =>
+                      EpisodeStillThumb(stillUrl: 's', size: size),
                   title: const Text('Episode'),
                   onTap: () => taps++,
                   onLongPress: () => longs++,

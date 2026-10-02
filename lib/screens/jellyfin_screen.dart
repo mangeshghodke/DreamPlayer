@@ -858,9 +858,10 @@ class _JellyfinTile extends StatelessWidget {
     );
 
     return EpisodeRow(
-      thumb: EpisodeStillThumb(
+      thumbBuilder: (size) => EpisodeStillThumb(
       stillUrl: stillUrl,
       posterUrl: posterUrl,
+      size: size,
     ),
       title: titleWidget,
       subtitle: subtitleWidget,

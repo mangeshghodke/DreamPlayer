@@ -536,9 +536,14 @@ class _FileTile extends StatelessWidget {
     );
 
     return EpisodeRow(
-      thumb: EpisodePosterThumb(posterUrl: posterUrl),
+      thumbBuilder: (size) => EpisodePosterThumb(
+        posterUrl: posterUrl,
+        size: size,
+      ),
       title: titleWidget,
       subtitle: subtitleWidget,
+      // Two IconButtons (watch + remove).
+      trailingWidth: 96,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

@@ -3956,7 +3956,10 @@ class _FolderEntryTile extends StatelessWidget {
     );
 
     return EpisodeRow(
-      thumb: EpisodePosterThumb(posterUrl: posterUrl),
+      thumbBuilder: (size) => EpisodePosterThumb(
+        posterUrl: posterUrl,
+        size: size,
+      ),
       title: titleWidget,
       subtitle: subtitleWidget,
       trailing: Row(
@@ -4058,7 +4061,10 @@ class _JellyfinEntryTile extends StatelessWidget {
           );
 
     return EpisodeRow(
-      thumb: EpisodePosterThumb(posterUrl: posterUrl),
+      thumbBuilder: (size) => EpisodePosterThumb(
+        posterUrl: posterUrl,
+        size: size,
+      ),
       title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitleWidget,
       trailing: Row(

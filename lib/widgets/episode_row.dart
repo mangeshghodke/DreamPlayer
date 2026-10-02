@@ -81,32 +81,13 @@ class EpisodeStillThumb extends StatelessWidget {
   /// does not silently change what the row looks like.
   final Widget? fallbackIcon;
 
-  /// Clamps the chosen size so the thumbnail never crowds out the text on a
-  /// narrow phone. The feature is aimed at tablets; a 168 px still on a 320 dp
-  /// screen would leave ~120 dp for title, subtitle and progress.
-  EpisodeThumbSize _effective(BuildContext context) {
-    final s = size ?? LayoutStore.instance.thumbSize;
-    final width = MediaQuery.sizeOf(context).width;
-    // Everything the row spends on anything that is NOT the text column:
-    // the thumbnail, the 12px gap, and 12px of padding on each side.
-    final overhead = s.still.w + _gap + _hPadding * 2;
-    final forText = width - overhead;
-    if (forText >= minTextWidth) return s;
-    // Only ever demote one step, so "large" on a 390dp phone lands on medium
-    // (or small) rather than jumping straight past the user's intent.
-    return switch (s) {
-      EpisodeThumbSize.large => EpisodeThumbSize.medium,
-      EpisodeThumbSize.medium => EpisodeThumbSize.small,
-      EpisodeThumbSize.small => EpisodeThumbSize.small,
-    };
-  }
-
-  /// Narrowest text column we will render before demoting the thumbnail.
-  static const double minTextWidth = 200;
-
-  /// Must match the gap and padding in [EpisodeRow.build].
-  static const double _gap = 12;
-  static const double _hPadding = 12;
+  /// When null, honours [LayoutStore] as-is. [EpisodeRow] passes the size it
+  /// resolved from its OWN layout constraints; the old version asked
+  /// `MediaQuery` for the whole screen width, which cannot know how wide the
+  /// row actually is inside padding, a split-screen pane or a narrower
+  /// container - so it failed to demote and overflowed.
+  EpisodeThumbSize get _chosen =>
+      size ?? LayoutStore.instance.thumbSize;
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +99,7 @@ class EpisodeStillThumb extends StatelessWidget {
     return ListenableBuilder(
       listenable: LayoutStore.instance,
       builder: (context, _) {
-        final s = _effective(context);
+        final s = _chosen;
         final icon = fallbackIcon ??
             Icon(
               Icons.movie_outlined,
@@ -221,10 +202,11 @@ class EpisodeRow extends StatelessWidget {
   const EpisodeRow({
     super.key,
     required this.title,
-    this.thumb,
+    this.thumbBuilder,
     this.subtitle,
     this.progress,
     this.trailing,
+    this.trailingWidth,
     this.onTap,
     this.onLongPress,
     this.enabled = true,
@@ -232,9 +214,11 @@ class EpisodeRow extends StatelessWidget {
 
   final Widget title;
 
-  /// Thumbnail slot. Prefer [EpisodeStillThumb] / [EpisodePosterThumb] so the
-  /// size preference is honoured.
-  final Widget? thumb;
+  /// Builds the thumbnail at the size this row resolved for its own width.
+  ///
+  /// A builder, not a widget: the size is only known after layout, and a
+  /// widget built by the caller could not be told about it.
+  final Widget Function(EpisodeThumbSize size)? thumbBuilder;
 
   final Widget? subtitle;
 
@@ -242,16 +226,88 @@ class EpisodeRow extends StatelessWidget {
   final Widget? progress;
 
   final Widget? trailing;
+
+  /// Width to reserve for [trailing] when deciding the thumbnail size.
+  /// Defaults to [defaultTrailingWidth]; pass a larger value for rows with
+  /// extra buttons or a chevron.
+  final double? trailingWidth;
+
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final bool enabled;
 
+  /// Horizontal padding on each side of a row.
+  static const double hPadding = 12;
+  static const double vPadding = 8;
+
+  /// Gap between the thumbnail and the text column.
+  static const double gap = 12;
+
+  /// Gap before the trailing slot.
+  static const double trailingGap = 8;
+
+  /// Default width assumed for [trailing]: the common case is a single
+  /// watch-toggle IconButton at 48 dp. Rows with more chrome pass
+  /// [trailingWidth] explicitly, because a blanket worst-case reserve
+  /// demoted the thumbnail on rows that had room to spare.
+  static const double defaultTrailingWidth = 48;
+
+  /// Narrowest text column accepted before demoting the thumbnail. Sized for
+  /// the row's rigid content - the SxxExx badge - plus a few characters of
+  /// real title.
+  static const double minTextWidth = 150;
+
+  /// Whether a thumbnail of [size] leaves enough room for the text.
+  ///
+  /// [textScale] divides the space available to the text because the row's
+  /// content - badge, title, subtitle - grows with the user's font size: the
+  /// same dp width holds fewer characters at 1.3x.
+  static bool fits(
+    double availableWidth,
+    EpisodeThumbSize size, {
+    required double textScale,
+    required double trailingWidth,
+  }) {
+    var spent = hPadding * 2 + gap + size.still.w;
+    if (trailingWidth > 0) spent += trailingGap + trailingWidth;
+    final scale = textScale <= 0 ? 1.0 : textScale;
+    return (availableWidth - spent) / scale >= minTextWidth;
+  }
+
+  /// Steps the stored size down until it fits, never below
+  /// [EpisodeThumbSize.small]. One step at a time so "large" degrades to
+  /// "medium" before "small".
+  static EpisodeThumbSize resolve(
+    double availableWidth, {
+    required double textScale,
+    required double trailingWidth,
+  }) {
+    var size = LayoutStore.instance.thumbSize;
+    while (size != EpisodeThumbSize.small &&
+        !fits(availableWidth, size,
+            textScale: textScale, trailingWidth: trailingWidth)) {
+      size = size == EpisodeThumbSize.large
+          ? EpisodeThumbSize.medium
+          : EpisodeThumbSize.small;
+    }
+    return size;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Rebuild every row when the layout preference changes.
+    // Rebuild every row when the layout preference changes, and on every
+    // relayout - rotation, split screen, a resized pane.
     return ListenableBuilder(
       listenable: LayoutStore.instance,
       builder: (context, _) {
+        return LayoutBuilder(
+          builder: (context, constraints) => _build(context, constraints),
+        );
+      },
+    );
+  }
+
+  Widget _build(BuildContext context, BoxConstraints constraints) {
         final theme = Theme.of(context);
         // Note: `ListTileThemeData` has no titleColor/subtitleColor (those are
         // `ListTile` constructor props), so the text block takes its colours
@@ -259,6 +315,16 @@ class EpisodeRow extends StatelessWidget {
         final titleColor = theme.textTheme.titleMedium?.color;
         final subtitleColor = theme.textTheme.bodyMedium?.color;
         final disabled = theme.disabledColor;
+
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final size = resolve(
+          constraints.maxWidth.isFinite ? constraints.maxWidth : 0,
+          textScale: textScale,
+          trailingWidth: trailing == null
+              ? 0
+              : (trailingWidth ?? defaultTrailingWidth),
+        );
+        final thumb = thumbBuilder?.call(size);
 
         final text = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,25 +365,22 @@ class EpisodeRow extends StatelessWidget {
               onTap: enabled ? onTap : null,
               onLongPress: enabled ? onLongPress : null,
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight:
-                      LayoutStore.instance.thumbSize.rowMinHeight,
-                ),
+                constraints: BoxConstraints(minHeight: size.rowMinHeight),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: EpisodeThumbGeometry.vPadding,
+                    horizontal: hPadding,
+                    vertical: vPadding,
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       if (thumb != null) ...[
-                        thumb!,
-                        const SizedBox(width: 12),
+                        thumb,
+                        const SizedBox(width: gap),
                       ],
                       Expanded(child: text),
                       if (trailing != null) ...[
-                        const SizedBox(width: 8),
+                        const SizedBox(width: trailingGap),
                         trailing!,
                       ],
                     ],
@@ -327,7 +390,5 @@ class EpisodeRow extends StatelessWidget {
             ),
           ),
         );
-      },
-    );
   }
 }

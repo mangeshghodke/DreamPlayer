@@ -1641,18 +1641,6 @@ class _EntryTile extends StatelessWidget {
                 ),
           ),
         ),
-        if (hasRating) ...[
-          const SizedBox(width: 6),
-          const Icon(Icons.star, size: 13, color: Colors.amber),
-          const SizedBox(width: 2),
-          Text(
-            ratingValue.toStringAsFixed(1),
-            style: TextStyle(
-              fontSize: 11,
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
       ],
     );
 
@@ -1672,11 +1660,14 @@ class _EntryTile extends StatelessWidget {
                   ),
             ),
           ),
-        if (fileSizeLabel.isNotEmpty)
+        if (hasRating || fileSizeLabel.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
-              fileSizeLabel,
+              [
+                if (hasRating) ratingValue.toStringAsFixed(1),
+                if (fileSizeLabel.isNotEmpty) fileSizeLabel,
+              ].join(' \u00b7 '),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -1699,8 +1690,9 @@ class _EntryTile extends StatelessWidget {
     );
 
     return EpisodeRow(
-      thumb: EpisodeStillThumb(
+      thumbBuilder: (size) => EpisodeStillThumb(
       stillUrl: stillUrl,
+      size: size,
     ),
       title: titleWidget,
       subtitle: subtitleWidget,

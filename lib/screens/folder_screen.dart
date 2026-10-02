@@ -2286,9 +2286,14 @@ class _JellyfinFolderTile extends StatelessWidget {
     );
 
     return EpisodeRow(
-      thumb: EpisodePosterThumb(posterUrl: posterUrl),
+      thumbBuilder: (size) => EpisodePosterThumb(
+        posterUrl: posterUrl,
+        size: size,
+      ),
       title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitleWidget,
+      // IconButton + chevron.
+      trailingWidth: 72,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2477,8 +2482,9 @@ class _FolderTile extends StatelessWidget {
     );
 
     return EpisodeRow(
-      thumb: EpisodeStillThumb(
+      thumbBuilder: (size) => EpisodeStillThumb(
       stillUrl: stillUrl,
+      size: size,
     ),
       title: titleWidget,
       subtitle: subtitleWidget,
