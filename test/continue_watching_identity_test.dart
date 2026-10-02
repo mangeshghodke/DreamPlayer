@@ -73,8 +73,10 @@ void main() {
       final found = matching([folderCard('p1', 'smb:server1/Downloads/Video/Movies'), card], video);
       expect(found, isNotNull);
       expect(found!.metadataKey, card.metadataKey);
-      // The point of the fix: both surfaces now resolve to ONE key.
-      expect(found.metadataKey, isNot(TmdStore.identityKeyFor(video)));
+      // A file entry keys on its resume key, so the card and the
+      // continue-watching entry are the same slot — which is what makes a pick
+      // on one surface show up on the other.
+      expect(found.metadataKey, TmdStore.identityKeyFor(video));
     });
 
     test('a folder entry is never mistaken for the file card', () {
@@ -104,16 +106,15 @@ void main() {
       expect(matching([other], video), isNull);
     });
 
-    test('the three identities are genuinely distinct', () {
+    test('the file card and continue watching are now one slot', () {
       final card = fileCard('smb_server1_abc');
       final parent = folderCard('p1', 'smb:server1/Downloads/Video/Movies');
-      final keys = {
-        card.metadataKey,
-        TmdStore.identityKeyFor(video),
-        parent.metadataKey,
-      };
-      expect(keys.length, 3,
-          reason: 'three slots for one film is the bug that was fixed');
+      // Was three distinct keys; a file entry keys on its resume key, so the
+      // card and the continue-watching entry collapsed into one and only the
+      // enclosing folder remains separate.
+      expect(card.metadataKey, TmdStore.identityKeyFor(video));
+      expect(parent.metadataKey, isNot(card.metadataKey));
+      expect({card.metadataKey, parent.metadataKey}.length, 2);
     });
   });
 }

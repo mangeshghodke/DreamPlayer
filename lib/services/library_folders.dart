@@ -112,7 +112,21 @@ class LibraryFolder {
 
   /// Stable identity for TMDB metadata (`folder:<id>` in TmdStore) — the
   /// `folder:` prefix keeps it clear of per-video identity keys.
-  String get metadataKey => 'folder:$id';
+  /// Metadata identity for this entry.
+  ///
+  /// A FILE entry's identity is its canonical resume key — the very string
+  /// [NetworkVideoResolver] puts on the VideoItem it resolves from `path`. That
+  /// makes every surface that shows the file agree on a single slot: the home
+  /// card, the browser's details page, and Continue Watching.
+  ///
+  /// It used to be `folder:<id>` for both kinds, which gave one film two or
+  /// three separate slots: a poster picked from the SMB browser never reached the
+  /// home card, and picking it on the home card never reached Continue Watching.
+  ///
+  /// A real FOLDER keeps `folder:<id>` — a folder has no resume key, its id is
+  /// stable across scans, and a folder card stands for the whole folder rather
+  /// than any one file.
+  String get metadataKey => isFile ? path : 'folder:$id';
 
   Map<String, dynamic> toJson() => {
         'id': id,
