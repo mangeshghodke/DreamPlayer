@@ -12,25 +12,47 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   or Large, applied identically across the season screen, local folder, SMB,
   WebDAV, Jellyfin, FTP, UPnP/DLNA, file-browser and details screens. Thumbnail
   and text share one row, so the picture is left and the title, rating, file
-  size and playback progress sit to its right. Large is tuned for tablets;
-  on a narrow phone it steps down one level automatically rather than squeezing
-  the text into a sliver. The default (Small) is exactly what every screen
-  already rendered, so nothing moves until you pick something.
+  size and playback progress sit to its right.
+- **Per-episode artwork on season lists** — TMDB's season endpoint returns
+  overviews and ratings but **not** stills, so an episode's artwork only
+  existed if you had already opened that episode's own page. Rows now fetch
+  their still on demand, at most 3 at a time, and download the image as soon as
+  the path is known so it is on screen rather than fetched as you scroll.
+- **Readable titles without a connection** — offline there is no metadata, and
+  the fallback was the *show* name, so every episode in a season listed as the
+  same title. Rows now fall back to the episode number (`S01E05`), then the file
+  name, so a season stays scannable with no network.
 
 ### Changed
 
-- Episode rows are now one shared widget instead of nine copies. TMDB episode
-  stills are requested at a higher resolution (and posters with them) so the
-  larger sizes stay sharp instead of looking upscaled.
-- The SMB episode row's thumbnails now go through the same permanent disk image
-  cache as every other screen, instead of re-fetching over the network each time
-  the list is opened.
+- Episode rows are one shared widget instead of nine copies, and they now size
+  themselves from the space the row actually has — so they adapt to rotation,
+  split screen, a resized pane, the user's font size, and tablets.
+- Titles may wrap to two lines instead of being cut to one, so a long episode
+  name shows more of itself.
+- The `SxxEyy` badge and the star rating moved off the title row onto the
+  metadata line beside the file size. The season row reads
+  `Tarnished Cities` / `S01E05` / `★ 8.5 · 439 MB`.
+- The watched tick moved to the right of the row, out of the title's way.
+- The SMB episode row's thumbnails now use the same permanent disk image cache
+  as every other screen instead of re-fetching over the network.
 
 ### Fixed
 
-- A row no longer resizes itself as an image loads. Thumbnails previously
-  collapsed to nothing until their artwork arrived, which made the list jump
-  while scrolling.
+- **No thumbnails at all, on any screen.** Requesting stills at width `455`
+  returns **HTTP 400** from TMDB — `455` and `640` are rejected while
+  `92/185/300/342/500/780` all succeed — so every episode still failed
+  silently into the placeholder icon and looked like artwork that did not
+  exist. Now `500`.
+- **Medium and Large overflowed the row** on a phone. The size check reserved a
+  flat amount for the text, but the badge and rating inside the title row needed
+  most of it, so the row ran out of width. Both moved to the metadata line.
+- **Medium and Large silently did nothing** on a narrow phone: the row is
+  narrower than the screen, and the size check was using the *screen* width, so
+  it never stepped the thumbnail down. The check now measures the row.
+- A row no longer resizes itself as an image loads — thumbnails previously
+  collapsed to nothing until their artwork arrived, making the list jump while
+  scrolling.
 
 ## 0.5.1
 

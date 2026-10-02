@@ -13,6 +13,33 @@ Paste-ready release notes for the **What's New** field in App Store Connect
 
 ---
 
+## 0.5.1 (build 25+36)
+
+Bigger, clearer episode lists.
+
+New:
+• Choose your episode thumbnail size — Small, Medium or Large — in Settings.
+  It applies everywhere episodes and videos are listed, and picks the largest
+  size that still leaves the title readable, so it adapts to your screen and
+  to tablets.
+• Real artwork for each episode. Episode images were only available if you had
+  already opened that episode's own page; now they load on their own.
+• Episode titles that work offline. Without a connection every episode in a
+  season used to show the same show name; they now show the episode number, so
+  a season stays readable with no internet.
+
+Improved:
+• Episode titles can wrap to two lines instead of being cut off, and the
+  season number, star rating and file size sit together on one line.
+• Watched ticks moved to the right of each row, out of the title's way.
+• Episode artwork now loads as soon as it is known rather than as you scroll,
+  and is reused from the on-device cache afterwards — so it appears immediately
+  and works offline.
+
+Fixed:
+• Episode thumbnails could be missing altogether on some titles.
+• Medium and Large sizes could squeeze a row too tightly on a phone.
+
 ## 0.5.1 (build 25)
 
 In-app SMB for iPhone and iPad. Connect to a NAS or any SMB share from inside

@@ -12,6 +12,16 @@ A video player app supporting:
 
 ## Current status
 
+- **Episode rows rebuilt (issue #38, 0.5.1+25, user-verified)**: one shared
+  `EpisodeRow` replaces 9 copies of the row across the season, folder, SMB,
+  WebDAV, Jellyfin, FTP, UPnP, file-browser and details screens, with a
+  Small/Medium/Large setting (Settings -> Layout -> Episode thumbnails) that is
+  **responsive** - resolved from the row's own `LayoutBuilder` constraints, so
+  it adapts to rotation, split screen, font scale and tablets. Per-episode TMDB
+  stills are now fetched lazily (throttled 3 at a time) **and** prefetched,
+  because the season endpoint carries no stills. Offline titles fall back to
+  `S01E05` instead of the show name. See the roadmap section for the five traps
+  (the 56px `ListTile` leading cap in particular).
 - App **UI skeleton** done (library, player, settings; dark theme).
 - **iOS signed build + TestFlight upload working (2026-09-19)**: `ios.yml` workflow builds, signs, and uploads to App Store Connect via `flutter build ipa` + `ios/signing_setup.py`. Bundle ID: `com.dreamplayer.app`. First TestFlight build (0.4.7) uploaded successfully.
 - **HDR / codec on-screen display** done (Dolby Vision, HDR10+, HDR10, SDR; E-AC3, DTS-HD, TrueHD, AAC, ...).
@@ -886,6 +896,92 @@ spatial icon for `AVPlayer` / `AVSampleBufferAudioRenderer` playback, and
 AirPods settings can read "Spatial Audio Not Playing" even while spatial
 audio is in fact active — do not treat either as a failure signal.
 
+### Episode rows (issue #38, 0.5.1+25) — read this before touching a row
+
+Episode/video rows are **one widget**: `lib/widgets/episode_row.dart`
+(`EpisodeRow` + `EpisodeStillThumb` / `EpisodePosterThumb`), used by
+`series_seasons`, `folder` (x2), `smb`, `webdav`, `jellyfin`, `ftp`, `upnp`,
+`file_browser` and `tmd_details`. Before this there were **9 copies** of a
+`48x72` `_Poster` plus 7 copies of a `64x40` still block. Size preference:
+`EpisodeThumbSize.small|medium|large` in `LayoutStore` (third segment of the
+`dreamplayer.layout` key; 2-segment values still load).
+
+**Five traps that each cost a shipped bug — all verified by tests now:**
+
+1. **`ListTile` caps `leading` at 56 px, and `ListTileTheme.minTileHeight` does
+   NOT lift that cap** (`maxIconHeightConstraint` is hardcoded). The old rows
+   asked for `48x72` and really rendered `48x56`. Any row whose thumbnail must
+   exceed 56 px tall has to leave `ListTile` — which is why `EpisodeRow` is a
+   `Row`. Keep the TV focus chrome by using the public `TvFocusWrap` (extracted
+   from `TvTile`); do not re-add a `ListTile`.
+2. **Size the row from the ROW's constraints, never `MediaQuery`.** The row is
+   narrower than the screen (measured: ~289 dp on a 360 dp phone inside the
+   season page), so a `MediaQuery`-based check silently refused to step down and
+   Medium/Large did nothing. `EpisodeRow` uses `LayoutBuilder` + `thumbBuilder`.
+3. **The title's own rigid children eat the text column.** `SxxEyy` badge and
+   the star rating originally lived in the title `Row`, needing ~170 dp of the
+   space the check was assuming was all for the title — the row overflowed by
+   15 px (45 px at 1.3x text). Both now sit on the metadata line
+   (`S01E05` / `★ 8.5 · 439 MB`). `minTextWidth = 80` is derived from the
+   measured width; raising it makes Medium/Large silently demote.
+4. **A thumbnail must listen to `LayoutStore` ITSELF.** Callers construct the
+   thumb and pass it in, so a row-driven rebuild hands back an identical `const`
+   widget that Flutter short-circuits — the thumb never resizes. Each thumb
+   wraps itself in a `ListenableBuilder`.
+5. **`CachedImage` returns `SizedBox.shrink()` while loading.** Thumbnails must
+   pin their box or rows collapse and jump while scrolling.
+
+**TMDB still widths are NOT the documented ladder.** Measured on device: a still
+returns **HTTP 400** for `w455` and `w640`, while `92/185/300/342/500/780` all
+return 200 — and TMDB's docs list `w455`. An invalid width fails silently into
+`CachedImage`'s `errorBuilder`, so it looks like "no artwork exists". Always
+verify a new width with `adb shell curl -o /dev/null -w '%{http_code}'` on a
+real still path. Current: `stillUrl()` = w500, `posterUrlOf` = w300.
+**Cache key is the whole URL incl. width**, so a width change orphans the old
+entries (only clearable via Settings → cache).
+
+### Episode stills: fetched lazily, then prefetched
+
+TMDB's `/tv/{id}/season/{n}` returns overviews + ratings but **no stills** —
+those only come from the per-episode endpoint. So `TmdService.requestEpisodeStills`
+fetches them, deduped by the existing `_pendingDetail` set, persisted via the
+existing `episodeDetailsFor`, throttled to `maxStillsInFlight = 3` (an expanded
+season builds a dozen rows at once), and then **prefetches the image bytes** so
+artwork is on screen rather than pulled as the row scrolls into view. Only the
+FIRST still is prefetched (the one the row shows); the details gallery
+lazy-loads as before.
+
+**Three separate silent no-ops had to be fixed before it worked at all:**
+- the key must be the **season folder's** key (`_folderKeyForSeason(s)`), not
+  the show's — `seasonFor` is cached per folder (issue #33), so the show key has
+  no season and the lookup finds nothing;
+- `initState` alone is not enough — season data lands *after* the row is first
+  built and a `ListView` reuses row `State`s by position, so `didUpdateWidget`
+  re-checks when `episode` first becomes non-null;
+- `_episodeFor` read `_meta` (the show) while the enrichment was written to the
+  season folder's key, so the row never saw what it had just fetched.
+
+### Offline episode titles
+
+`lib/utils/episode_label.dart`: TMDB name → `S01E05` → file name. The old
+fallback was `ParsedFileName.title`, which for `Dark.S01E05.mkv` is the **show**
+name, so offline every episode in a season listed as "Dark".
+`titleIsEpisodeCode` stops the row then repeating `S01E05 / S01E05`.
+Unit-tested in `test/episode_label_test.dart`.
+
+### Image caching (posters, backdrops, stills, cast)
+
+`ImageCacheService` is a **permanent disk cache** at
+`<app documents>/image_cache/<hash>-<tail>.img`; memory → disk → network, and
+it survives restarts. Every screen renders through `CachedImage`, which calls
+`getCached` then `fetch` (so a prefetch in flight is deduped, not
+double-downloaded). Toggle + live byte count + clear in Settings.
+
+Known characteristics, not bugs: **no size cap or eviction** (only manual
+clear), and poster/backdrop/cast are prefetched on resolve while per-episode
+stills are prefetched per row as they are discovered. Embedded cover art
+(MKV/MP4 artwork) is a separate cache, `ThumbnailStore`, local-only by design.
+
 ### Artwork identity across surfaces (0.5.1+25) — read this before adding a surface
 
 Artwork overrides are keyed by metadata identity, and for a long time one film had
@@ -1567,6 +1663,7 @@ lib/
     tv_tile.dart                # shared focus-glow wrapper for TV list items
     tv_overscan.dart            # overscan safe-area padding (36px sides, 20px top/bottom)
     tv_text_field.dart          # TV-friendly TextField with skipTraversal inner node
+    episode_row.dart            # shared episode/file row + still & poster thumbs (issue #38)
 android/app/src/main/kotlin/com/dreamplayer/app/
   ExoPlayerView.kt              # native PlayerView platform view + channels (open/play/seek/tracks/subtitles) + OkHttp permissive DataSource for self-signed WebDAV
   SubtitleFormats.kt            # extension->MIME map, sibling auto-pairing, charset detection, UTF-8 re-encode
@@ -1621,6 +1718,11 @@ test/
   continue_watching_identity_test.dart # continue watching resolves to the file card's key
   library_file_identity_test.dart  # a file entry's metadataKey is its resume key
   details_header_poster_test.dart   # an explicit poster pick beats the season poster
+  episode_label_test.dart         # offline episode title fallbacks (TMDB name -> S01E05 -> file name)
+  episode_row_test.dart           # shared EpisodeRow: sizes, tap/long-press, icon fallback, no overflow
+  episode_row_series_test.dart    # the REAL season-row title/subtitle widgets at phone widths
+  episode_row_responsive_test.dart # size follows the ROW width; rotation, font scale, no overflow
+  episode_row_real_test.dart      # real trailing chrome (2 IconButtons + chevron) declares its width
 ```
 
 ## Workflow for the user (no Mac)

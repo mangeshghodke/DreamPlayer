@@ -1713,7 +1713,7 @@ class _EntryTileState extends State<_EntryTile> {
         Expanded(
           child: Text(
             rowTitle,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,

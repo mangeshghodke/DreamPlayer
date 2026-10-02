@@ -2001,7 +2001,7 @@ class _SmbEpisodeTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   rowTitle,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w500,

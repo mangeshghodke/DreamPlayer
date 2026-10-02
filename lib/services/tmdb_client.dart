@@ -2535,6 +2535,7 @@ class TmdService extends ChangeNotifier {
       _stillsInFlight++;
       try {
         await episodeDetailsFor(identityKey, seasonNumber, episodeNumber);
+        _prefetchStills(identityKey, seasonNumber, episodeNumber);
       } finally {
         _stillsInFlight--;
         _stillsQueued.remove(key);
@@ -2547,6 +2548,37 @@ class TmdService extends ChangeNotifier {
       next();
     }
     await completer.future;
+  }
+
+  /// Download the still a row will actually render, the moment its path is
+  /// known.
+  ///
+  /// The metadata fetch and the image fetch are separate round-trips: without
+  /// this the row rendered first and pulled the bytes lazily as it scrolled
+  /// into view, so artwork appeared late and only for rows you happened to
+  /// reach. Fetching it here means it is on disk (and in memory) by the time
+  /// the row rebuilds with the new episode.
+  ///
+  /// Only the FIRST still, because that is the one the row shows - prefetching
+  /// a whole episode's gallery would mean ~10 images per episode for something
+  /// the list never displays. The gallery on the details screen still lazy-loads
+  /// as before.
+  ///
+  /// The URL comes from [TmdEpisode.stillUrl] so it matches the row's URL
+  /// exactly; the cache key is the whole URL, so a width mismatch here would
+  /// prefetch a file the row never asks for.
+  void _prefetchStills(
+    String identityKey,
+    int seasonNumber,
+    int episodeNumber,
+  ) {
+    if (!ImageCacheService.instance.enabled) return;
+    final episode = _cache[identityKey]?.seasons[seasonNumber]
+        ?.episode(episodeNumber);
+    final url = episode?.stillUrl();
+    if (url == null || url.isEmpty) return;
+    ImageCacheService.instance.prefetchImages(stillUrls: [url]);
+    debugPrint('TMDB stills S$seasonNumber.E$episodeNumber: prefetched $url');
   }
   bool _loaded = false;
 

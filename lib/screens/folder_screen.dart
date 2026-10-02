@@ -2293,11 +2293,16 @@ class _JellyfinFolderTile extends StatelessWidget {
       ),
       title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitleWidget,
-      // IconButton + chevron.
-      trailingWidth: 72,
+      // IconButton + chevron, plus the watched tick when shown.
+      trailingWidth: watched ? 96 : 72,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (watched)
+            const Padding(
+              padding: EdgeInsets.only(right: 2),
+              child: Icon(Icons.check_circle, color: Colors.green, size: 18),
+            ),
           IconButton(
             tooltip: watched ? 'Mark as unwatched' : 'Mark as watched',
             icon: Icon(
@@ -2419,7 +2424,7 @@ class _FolderTile extends StatelessWidget {
         Expanded(
           child: Text(
             rowTitle,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,
@@ -2438,11 +2443,6 @@ class _FolderTile extends StatelessWidget {
             ),
           ),
         ],
-        if (watched)
-          const Padding(
-            padding: EdgeInsets.only(left: 6),
-            child: Icon(Icons.check_circle, color: Colors.green, size: 18),
-          ),
       ],
     );
 
