@@ -191,12 +191,69 @@ final class SMBBridge: NSObject {
                 })
             }
         case "checkServer":
-            result(false)
+            // Android answers this with a TCP connect to the SMB port. iOS
+            // returned a hardcoded false, so every saved server showed a red
+            // dot even when it was perfectly reachable.
+            let host = (args?["host"] as? String) ?? ""
+            let port = (args?["port"] as? NSNumber)?.uint16Value ?? 445
+            guard !host.isEmpty else {
+                result(FlutterError(code: "bad_args",
+                                    message: "Missing host", details: nil))
+                return
+            }
+            let probe = DispatchQueue(label: "app.dreamplayer.smb2.status",
+                                      qos: .utility)
+            probe.async {
+                let open = Self.isPortOpen(host: host, port: port, timeout: 1.5)
+                // A FlutterResult invoked off the main thread deadlocks the
+                // method channel, so hop back before replying.
+                DispatchQueue.main.async { result(open) }
+            }
         case "startLoopback", "stopLoopback":
             result(nil)
         default:
             result(FlutterMethodNotImplemented)
         }
+    }
+
+    /// TCP reachability probe, matching Android's `isPortOpen` (1.5 s cap).
+    ///
+    /// BSD sockets rather than Network.framework: this only needs `connect(2)`,
+    /// and the non-blocking-connect-then-poll shape is the one FtpClient and
+    /// UpnpClient already use successfully here.
+    private static func isPortOpen(host: String, port: UInt16, timeout: TimeInterval) -> Bool {
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        // inet_pton, not inet_addr: the latter returns INADDR_NONE for a name it
+        // cannot parse, which would silently probe 255.255.255.255.
+        guard inet_pton(AF_INET, host, &addr.sin_addr) == 1 else { return false }
+        let addrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+
+        let flags = fcntl(fd, F_GETFL, 0)
+        _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+
+        let inProgress: Bool = withUnsafePointer(to: &addr) { ptr in
+            let sock = UnsafeRawPointer(ptr).assumingMemoryBound(to: sockaddr.self)
+            if connect(fd, sock, addrLen) == 0 { return false }  // connected outright
+            return errno == EINPROGRESS
+        }
+        guard inProgress else { return false }
+
+        // One wedged host must not hold up every other server's dot.
+        var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+        guard poll(&pfd, 1, Int32(timeout * 1000)) > 0 else { return false }
+        var soerr: Int32 = 0
+        var len = socklen_t(MemoryLayout<Int32>.size)
+        guard getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &len) == 0 else {
+            return false
+        }
+        return soerr == 0
     }
 
     /// Resolves a saved server and hands it to [body], replying exactly once.
@@ -911,6 +968,10 @@ final class SMBBridge: NSObject {
 
         return files
             .filter { !$0.isHidden && !$0.isSystem }
+            // `.` and `..` come back as directories, and the next line exempts
+            // directories from the junk filter, so the dot-prefix rule never
+            // reached them. Drop them by name first, before that exemption.
+            .filter { Self.isDotEntry($0.name) == false }
             .filter { $0.isDirectory || !Self.isJunk($0.name) }
             .map { file -> [String: Any] in
                 var entry: [String: Any] = [
@@ -969,6 +1030,17 @@ final class SMBBridge: NSObject {
     }
 
     /// Directories and non-media clutter never reach the list.
+    /// `.`, `..` and friends. Checked by name because they are reported as
+    /// directories and would otherwise survive every directory-shaped exemption.
+    private static func isDotEntry(_ name: String) -> Bool {
+        if name == "." || name == ".." { return true }
+        // A Samba administrative share: print$, IPC$, admin$, homes$ … The
+        // share `type` filter in listShares does not catch these reliably —
+        // print$ in particular arrives tagged like a normal disk share on some
+        // servers — so the trailing `$` is the dependable signal.
+        return name.hasSuffix("$")
+    }
+
     private static func isJunk(_ name: String) -> Bool {
         if isSubtitle(name) { return true }
         let lower = name.lowercased()
