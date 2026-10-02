@@ -19,7 +19,9 @@ String? metadataImageUrl(String? value, {int width = 780}) {
 }
 
 /// The poster URL for a cached meta, or null when there is no poster.
-String? posterUrlOf(TmdMeta? meta) => meta?.movie.posterUrl(width: 185);
+/// w185 was sized for a 48 px thumbnail. Episode rows can now show a 96 px
+/// poster (issue #38), so ask for w300 and stay sharp.
+String? posterUrlOf(TmdMeta? meta) => meta?.movie.posterUrl(width: 300);
 
 List<String> _stringList(dynamic value) {
   if (value is! List) return const [];
@@ -378,7 +380,9 @@ class TmdEpisode {
   /// Still-frame file paths (no host) from the episode's `images.stills`.
   final List<String> stills;
 
-  String? stillUrl({int width = 300}) =>
+  /// Defaults to w455, the smallest TMDB still at or above the largest episode
+  /// thumbnail (168 px, issue #38). w300 rendered visibly soft when blown up.
+  String? stillUrl({int width = 455}) =>
       metadataImageUrl(stillPath, width: width);
 
   /// Absolute URLs for every still in [stills] (wide enough for a gallery row).

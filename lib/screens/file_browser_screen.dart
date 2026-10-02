@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
@@ -9,6 +8,7 @@ import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
 import '../utils/file_info_extractor.dart';
 import '../widgets/tv_overscan.dart';
+import '../widgets/episode_row.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
 import '../l10n/app_localizations.dart';
@@ -381,26 +381,6 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   }
 }
 
-class _Poster extends StatelessWidget {
-  const _Poster({required this.posterUrl});
-  final String posterUrl;
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: CachedImage(
-        posterUrl,
-        width: 48,
-        height: 72,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Icon(
-          Icons.play_circle_outline,
-          color: Theme.of(context).colorScheme.secondary,
-        ),
-      ),
-    );
-  }
-}
 
 class _FileTile extends StatelessWidget {
   const _FileTile({
@@ -555,13 +535,8 @@ class _FileTile extends StatelessWidget {
       ],
     );
 
-    return TvTile(
-      leading: posterUrl != null
-          ? _Poster(posterUrl: posterUrl)
-          : Icon(
-              parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
-              color: colorScheme.secondary,
-            ),
+    return EpisodeRow(
+      thumb: EpisodePosterThumb(posterUrl: posterUrl),
       title: titleWidget,
       subtitle: subtitleWidget,
       trailing: Row(

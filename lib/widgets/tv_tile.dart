@@ -50,7 +50,7 @@ class TvTile extends StatelessWidget {
         onLongPress: enabled ? onLongPress : null,
       );
     }
-    return _TvFocusTile(
+    return TvFocusWrap(
       onTap: enabled ? onTap : null,
       onLongPress: enabled ? onLongPress : null,
       child: ListTile(
@@ -73,8 +73,14 @@ class TvTile extends StatelessWidget {
 /// proven 500 ms hold used by `FolderCard`: a short press activates, a hold
 /// fires the secondary action, and key auto-repeat is swallowed so
 /// `ActivateIntent` cannot fire the primary action mid-hold.
-class _TvFocusTile extends StatefulWidget {
-  const _TvFocusTile({
+///
+/// Public (rather than private to this file) because `EpisodeRow` (issue #38)
+/// is a custom row that cannot use [ListTile] — its leading is capped at 56 px
+/// by `maxIconHeightConstraint` — and must keep exactly this focus chrome,
+/// which is the only thing making D-pad focus visible on TV.
+class TvFocusWrap extends StatefulWidget {
+  const TvFocusWrap({
+    super.key,
     required this.child,
     this.onTap,
     this.onLongPress,
@@ -85,10 +91,10 @@ class _TvFocusTile extends StatefulWidget {
   final VoidCallback? onLongPress;
 
   @override
-  State<_TvFocusTile> createState() => _TvFocusTileState();
+  State<TvFocusWrap> createState() => TvFocusWrapState();
 }
 
-class _TvFocusTileState extends State<_TvFocusTile> {
+class TvFocusWrapState extends State<TvFocusWrap> {
   Timer? _holdTimer;
   bool _longPressFired = false;
 

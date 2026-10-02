@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
@@ -11,6 +10,7 @@ import '../services/watched_store.dart';
 import '../utils/file_info_extractor.dart';
 import '../utils/tv_helper.dart';
 import '../widgets/tv_overscan.dart';
+import '../widgets/episode_row.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
 import '../l10n/app_localizations.dart';
@@ -715,27 +715,11 @@ parsed.isEpisode
                                 ],
                               );
 
-                              return TvTile(
-                                leading: stillUrl != null
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: CachedImage(
-                                          stillUrl,
-                                          width: 64,
-                                          height: 40,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, _, _) => Icon(
-                                            parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
-                                            color: colorScheme.secondary,
-                                          ),
-                                        ),
-                                      )
-                                    : posterUrl != null
-                                        ? _Poster(posterUrl: posterUrl)
-                                        : Icon(
-                                            parsed.isEpisode ? Icons.movie_outlined : Icons.play_circle_outline,
-                                            color: colorScheme.secondary,
-                                          ),
+                              return EpisodeRow(
+                                thumb: EpisodeStillThumb(
+                                stillUrl: stillUrl,
+                                posterUrl: posterUrl,
+                              ),
                                 title: titleWidget,
                                 subtitle: subtitleWidget,
                                 trailing: Row(
@@ -775,26 +759,6 @@ parsed.isEpisode
   }
 }
 
-class _Poster extends StatelessWidget {
-  const _Poster({required this.posterUrl});
-  final String posterUrl;
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: CachedImage(
-        posterUrl,
-        width: 48,
-        height: 72,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Icon(
-          Icons.movie_outlined,
-          color: Theme.of(context).colorScheme.secondary,
-        ),
-      ),
-    );
-  }
-}
 
 class _UpnpCrumb {
   const _UpnpCrumb({required this.id, required this.name});

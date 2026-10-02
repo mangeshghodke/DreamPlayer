@@ -25,7 +25,7 @@ import '../services/webdav_client.dart';
 import '../utils/season_group.dart' as sg;
 import '../utils/tv_helper.dart';
 import '../widgets/tmdb_fix_match_dialog.dart';
-import '../widgets/tv_tile.dart';
+import '../widgets/episode_row.dart';
 import 'tmd_details_screen.dart';
 
 /// Flux-style "all seasons" view for a [SeriesGroup] (one or more library
@@ -1698,25 +1698,10 @@ class _EntryTile extends StatelessWidget {
       ],
     );
 
-    return TvTile(
-      leading: stillUrl != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: CachedImage(
-                stillUrl,
-                width: 64,
-                height: 40,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Icon(
-                  Icons.movie_outlined,
-                  color: colorScheme.secondary,
-                ),
-              ),
-            )
-          : Icon(
-              Icons.movie_outlined,
-              color: colorScheme.secondary,
-            ),
+    return EpisodeRow(
+      thumb: EpisodeStillThumb(
+      stillUrl: stillUrl,
+    ),
       title: titleWidget,
       subtitle: subtitleWidget,
       trailing: onToggleWatched != null

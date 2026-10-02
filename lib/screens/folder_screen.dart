@@ -20,6 +20,7 @@ import '../utils/season_group.dart' as sg;
 import '../widgets/season_progress_ring.dart';
 import '../widgets/tmdb_fix_match_dialog.dart';
 import '../widgets/tv_overscan.dart';
+import '../widgets/episode_row.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
 
@@ -2284,15 +2285,8 @@ class _JellyfinFolderTile extends StatelessWidget {
       ],
     );
 
-    return TvTile(
-      leading: posterUrl != null
-          ? _Poster(posterUrl: posterUrl)
-          : Icon(
-              item.seasonLabel.isNotEmpty
-                  ? Icons.movie_outlined
-                  : Icons.play_circle_outline,
-              color: colorScheme.secondary,
-            ),
+    return EpisodeRow(
+      thumb: EpisodePosterThumb(posterUrl: posterUrl),
       title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitleWidget,
       trailing: Row(
@@ -2482,22 +2476,10 @@ class _FolderTile extends StatelessWidget {
       ],
     );
 
-    return TvTile(
-      leading: stillUrl != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: CachedImage(
-                stillUrl,
-                width: 64,
-                height: 40,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Icon(
-                  Icons.movie_outlined,
-                  color: colorScheme.secondary,
-                ),
-              ),
-            )
-          : Icon(Icons.movie_outlined, color: colorScheme.secondary),
+    return EpisodeRow(
+      thumb: EpisodeStillThumb(
+      stillUrl: stillUrl,
+    ),
       title: titleWidget,
       subtitle: subtitleWidget,
       onTap: onTap,
@@ -2907,29 +2889,6 @@ Widget _posterFallback(ColorScheme colorScheme) {
   );
 }
 
-/// A small 48×72 rounded poster thumbnail for a file row.
-class _Poster extends StatelessWidget {
-  const _Poster({required this.posterUrl});
-
-  final String posterUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: CachedImage(
-        posterUrl,
-        width: 48,
-        height: 72,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Icon(
-          Icons.play_circle_outline,
-          color: Theme.of(context).colorScheme.secondary,
-        ),
-      ),
-    );
-  }
-}
 
 /// Poster card for a season subfolder. Shows the TMDB season poster (or a
 /// gradient placeholder) + season name.

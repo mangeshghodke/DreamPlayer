@@ -15,6 +15,7 @@ import '../widgets/season_progress_ring.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_text_field.dart';
+import '../widgets/episode_row.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
 
@@ -1958,19 +1959,13 @@ class _SmbEpisodeTile extends StatelessWidget {
     final parsed = ParsedFileName.parse(entry.name);
     final stillUrl = episode?.stillUrl();
 
-    final tile = TvTile(
-      leading: stillUrl != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.network(
-                stillUrl,
-                width: 64,
-                height: 40,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _episodeIcon(colorScheme, parsed),
-              ),
-            )
-          : _episodeIcon(colorScheme, parsed),
+    // Was `Image.network`; EpisodeStillThumb goes through CachedImage, so this
+    // row now shares the permanent disk image cache with every other screen.
+    final tile = EpisodeRow(
+      thumb: EpisodeStillThumb(
+        stillUrl: stillUrl,
+        fallbackIcon: _episodeIcon(colorScheme, parsed),
+      ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,

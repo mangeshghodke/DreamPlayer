@@ -35,7 +35,53 @@ void main() {
       final store = await LayoutStore.load();
       await store.setMode(LibraryViewMode.compact);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('dreamplayer.layout'), 'compact:0');
+      // Third segment is the episode thumbnail size (issue #38).
+      expect(prefs.getString('dreamplayer.layout'), 'compact:0:small');
+    });
+
+    group('episode thumbnail size (issue #38)', () {
+      test('defaults to small so existing installs look unchanged', () async {
+        final store = await LayoutStore.load();
+        expect(store.thumbSize, EpisodeThumbSize.small);
+      });
+
+      test('round-trips every size through prefs', () async {
+        for (final s in EpisodeThumbSize.values) {
+          final store = await LayoutStore.load();
+          await store.setThumbSize(s);
+          expect(store.thumbSize, s);
+          expect((await LayoutStore.load()).thumbSize, s);
+        }
+      });
+
+      test('shares one key with mode and columns', () async {
+        final store = await LayoutStore.load();
+        await store.setMode(LibraryViewMode.list);
+        await store.setColumns(4);
+        await store.setThumbSize(EpisodeThumbSize.large);
+        final reloaded = await LayoutStore.load();
+        expect(reloaded.mode, LibraryViewMode.list);
+        expect(reloaded.columns, 4);
+        expect(reloaded.thumbSize, EpisodeThumbSize.large);
+      });
+
+      test('a value written before issue #38 (2 segments) still loads', () async {
+        SharedPreferences.setMockInitialValues(
+          {'dreamplayer.layout': 'compact:6'},
+        );
+        final store = await LayoutStore.load();
+        expect(store.mode, LibraryViewMode.compact);
+        expect(store.columns, 6);
+        expect(store.thumbSize, EpisodeThumbSize.small);
+      });
+
+      test('an unknown segment falls back to small', () async {
+        SharedPreferences.setMockInitialValues(
+          {'dreamplayer.layout': 'poster:0:enormous'},
+        );
+        final store = await LayoutStore.load();
+        expect(store.thumbSize, EpisodeThumbSize.small);
+      });
     });
 
     test('list mode is always one column, ignoring the override', () async {

@@ -24,7 +24,34 @@ enum LibraryViewMode {
       };
 }
 
-/// Persists the library layout preference (issue #34, items 6).
+/// How large the thumbnail at the left of an episode / file row is
+/// (issue #38, items 1-3).
+///
+/// Deliberately kept as a bare enum with no Flutter geometry here, so this
+/// store stays pure Dart and unit-testable. The pixel sizes live in
+/// `EpisodeThumbGeometry` (lib/widgets/episode_row.dart), which is the widget
+/// layer's business.
+enum EpisodeThumbSize {
+  /// Today's effective size. Note the old `_Poster` asked for 48x72 but
+  /// `ListTile` clamped `leading` to 56 px tall, so `small` reproduces the
+  /// size users actually saw rather than the size the code claimed.
+  small('small'),
+
+  medium('medium'),
+  large('large');
+
+  const EpisodeThumbSize(this.value);
+  final String value;
+
+  static EpisodeThumbSize fromString(String? s) => switch (s) {
+        'medium' => EpisodeThumbSize.medium,
+        'large' => EpisodeThumbSize.large,
+        _ => EpisodeThumbSize.small,
+      };
+}
+
+/// Persists the library layout preference (issue #34, items 6) and the
+/// episode-row thumbnail size (issue #38, items 1-3).
 ///
 /// Defaults preserve the current behaviour exactly: poster mode and an
 /// automatic column count derived from the available width.
@@ -41,8 +68,12 @@ class LayoutStore extends ChangeNotifier {
 
   LibraryViewMode _mode = LibraryViewMode.poster;
   int _columns = 0; // 0 = automatic
+  EpisodeThumbSize _thumbSize = EpisodeThumbSize.small;
 
   LibraryViewMode get mode => _mode;
+
+  /// Thumbnail size for episode/file rows.
+  EpisodeThumbSize get thumbSize => _thumbSize;
 
   /// 0 means "automatic" — derive the column count from the width.
   int get columns => _columns;
@@ -54,15 +85,21 @@ class LayoutStore extends ChangeNotifier {
     // correct on a cold start and makes the store untestable.
     store._mode = LibraryViewMode.poster;
     store._columns = 0;
+    store._thumbSize = EpisodeThumbSize.small;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_prefsKey);
       if (raw == null) return store;
-      // Stored as "mode:columns" so both settings share one key.
+      // Stored as "mode:columns:thumb" so all settings share one key. The
+      // thumb segment is optional, so a value written before issue #38 landed
+      // (only two segments) still loads and keeps the default.
       final parts = raw.split(':');
       store._mode = LibraryViewMode.fromString(parts.first);
       store._columns = (parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0)
           .clamp(0, maxColumns);
+      store._thumbSize = EpisodeThumbSize.fromString(
+        parts.length > 2 ? parts[2] : null,
+      );
     } catch (_) {
       // A corrupt/absent pref must never stop the library rendering.
     }
@@ -85,13 +122,23 @@ class LayoutStore extends ChangeNotifier {
     await _persist();
   }
 
+  Future<void> setThumbSize(EpisodeThumbSize size) async {
+    if (_thumbSize == size) return;
+    _thumbSize = size;
+    notifyListeners();
+    await _persist();
+  }
+
   Future<void> _persist() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       // `value`, not the enum itself: '\$mode' would serialise as
       // "LibraryViewMode.compact", which fromString() never matches, so the
       // setting silently reverted to poster on every load.
-      await prefs.setString(_prefsKey, '${_mode.value}:$_columns');
+      await prefs.setString(
+        _prefsKey,
+        '${_mode.value}:$_columns:${_thumbSize.value}',
+      );
     } catch (_) {
       // Non-fatal: the in-memory value still applies for this session.
     }

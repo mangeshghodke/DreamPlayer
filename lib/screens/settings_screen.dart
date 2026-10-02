@@ -1958,6 +1958,42 @@ class _LayoutSection extends StatelessWidget {
   static String _columnsLabel(int columns) =>
       columns <= 0 ? 'Automatic' : '$columns per row';
 
+  static String _thumbSizeLabel(EpisodeThumbSize s) => switch (s) {
+        EpisodeThumbSize.small => 'Small',
+        EpisodeThumbSize.medium => 'Medium',
+        EpisodeThumbSize.large => 'Large',
+      };
+
+  /// Episode-row thumbnail size (issue #38, item 3). Rows pick this up live,
+  /// so no screen needs rebuilding and there is nothing to "apply".
+  Future<void> _pickThumbSize(BuildContext context) async {
+    final store = LayoutStore.instance;
+    final choice = await showDialog<EpisodeThumbSize>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Episode thumbnails'),
+        children: [
+          for (final s in EpisodeThumbSize.values)
+            ListTile(
+              title: Text(_thumbSizeLabel(s)),
+              subtitle: Text(switch (s) {
+                EpisodeThumbSize.small => 'Current size — densest list',
+                EpisodeThumbSize.medium => 'Bigger artwork, still compact',
+                EpisodeThumbSize.large =>
+                  'Best on tablets — automatically reduced on narrow phones',
+              }),
+              trailing:
+                  s == store.thumbSize ? const Icon(Icons.check, size: 20) : null,
+              onTap: () => Navigator.of(ctx).pop(s),
+            ),
+        ],
+      ),
+    );
+    // The section is already wrapped in a ListenableBuilder on LayoutStore, so
+    // the subtitle label updates itself.
+    if (choice != null) await store.setThumbSize(choice);
+  }
+
   Future<void> _pickMode(BuildContext context) async {
     final store = LayoutStore.instance;
     final choice = await showDialog<LibraryViewMode>(
@@ -2075,6 +2111,14 @@ class _LayoutSection extends StatelessWidget {
                   title: const Text('Library view'),
                   subtitle: Text(_modeLabel(store.mode)),
                   onTap: () => _pickMode(context),
+                ),
+                TvTile(
+                  leading: const Icon(Icons.photo_size_select_large),
+                  title: const Text('Episode thumbnails'),
+                  subtitle: Text(
+                    _thumbSizeLabel(LayoutStore.instance.thumbSize),
+                  ),
+                  onTap: () => _pickThumbSize(context),
                 ),
                 TvTile(
                   leading: const Icon(Icons.grid_on),

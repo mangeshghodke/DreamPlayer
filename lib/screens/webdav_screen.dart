@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
@@ -13,6 +12,7 @@ import '../utils/file_info_extractor.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/tv_text_field.dart';
+import '../widgets/episode_row.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
 import '../l10n/app_localizations.dart';
@@ -839,31 +839,11 @@ class _WebDavTile extends StatelessWidget {
       ],
     );
 
-    return TvTile(
-      leading: stillUrl != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: CachedImage(
-                stillUrl,
-                width: 64,
-                height: 40,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Icon(
-                  parsed.isEpisode
-                      ? Icons.movie_outlined
-                      : Icons.play_circle_outline,
-                  color: colorScheme.secondary,
-                ),
-              ),
-            )
-          : posterUrl != null
-              ? _Poster(posterUrl: posterUrl)
-              : Icon(
-                  parsed.isEpisode
-                      ? Icons.movie_outlined
-                      : Icons.play_circle_outline,
-                  color: colorScheme.secondary,
-                ),
+    return EpisodeRow(
+      thumb: EpisodeStillThumb(
+      stillUrl: stillUrl,
+      posterUrl: posterUrl,
+    ),
       title: titleWidget,
       subtitle: subtitleWidget,
       trailing: Row(
@@ -887,29 +867,6 @@ class _WebDavTile extends StatelessWidget {
   }
 }
 
-/// A small 48×72 rounded poster thumbnail for a file row.
-class _Poster extends StatelessWidget {
-  const _Poster({required this.posterUrl});
-
-  final String posterUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: CachedImage(
-        posterUrl,
-        width: 48,
-        height: 72,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Icon(
-          Icons.play_circle_outline,
-          color: Theme.of(context).colorScheme.secondary,
-        ),
-      ),
-    );
-  }
-}
 
 class _ServerFormDialog extends StatefulWidget {
   const _ServerFormDialog({this.existing, this.onSave});

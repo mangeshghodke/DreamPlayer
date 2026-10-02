@@ -3,6 +3,35 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.5.1+25
+
+### Added
+
+- **Adjustable episode-row thumbnails** (issue #38) — episode and file rows now
+  honour a **Settings → Layout → Episode thumbnails** choice of Small, Medium
+  or Large, applied identically across the season screen, local folder, SMB,
+  WebDAV, Jellyfin, FTP, UPnP/DLNA, file-browser and details screens. Thumbnail
+  and text share one row, so the picture is left and the title, rating, file
+  size and playback progress sit to its right. Large is tuned for tablets;
+  on a narrow phone it steps down one level automatically rather than squeezing
+  the text into a sliver. The default (Small) is exactly what every screen
+  already rendered, so nothing moves until you pick something.
+
+### Changed
+
+- Episode rows are now one shared widget instead of nine copies. TMDB episode
+  stills are requested at a higher resolution (and posters with them) so the
+  larger sizes stay sharp instead of looking upscaled.
+- The SMB episode row's thumbnails now go through the same permanent disk image
+  cache as every other screen, instead of re-fetching over the network each time
+  the list is opened.
+
+### Fixed
+
+- A row no longer resizes itself as an image loads. Thumbnails previously
+  collapsed to nothing until their artwork arrived, which made the list jump
+  while scrolling.
+
 ## 0.5.1
 
 ### Added
