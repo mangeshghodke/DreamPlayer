@@ -942,6 +942,18 @@ abstract class AppLocalizations {
   /// **'Support'**
   String get settingsSupport;
 
+  /// Toggle for mpv surround-to-stereo downmix normalization
+  ///
+  /// In en, this message translates to:
+  /// **'Normalize MPV downmix'**
+  String get settingsMpvNormalizeDownmix;
+
+  /// MPV downmix normalization subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Scales 5.1/7.1 audio down when MPV mixes it to stereo, avoiding distortion but playing quieter than the Media3 engine'**
+  String get settingsMpvNormalizeDownmixDesc;
+
   /// Toggle for swipe brightness/volume
   ///
   /// In en, this message translates to:

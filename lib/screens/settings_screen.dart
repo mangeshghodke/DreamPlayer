@@ -25,6 +25,7 @@ import '../services/subtitle_encodings.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
 import '../services/support_links.dart';
+import '../services/mpv_downmix_store.dart';
 import '../services/tone_map_store.dart';
 import '../config/simkl_keys.dart';
 import '../services/simkl_client.dart';
@@ -55,6 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _cleared = false;
   bool _passthrough = false;
   bool _swipeGestures = true;
+  bool _mpvNormalizeDownmix = false;
   bool _pipEnabled = true;
   bool _autoPlayNext = false;
   DecoderMode _decoderMode = DecoderMode.auto;
@@ -100,6 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadDefaultEngine();
     unawaited(_loadOtherVideos());
     _loadToneMapMode();
+    _loadMpvDownmix();
     _loadAudioFilters();
     _loadSimkl();
     _loadOpensubtitles();
@@ -195,6 +198,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final engine = await DefaultEngineStore.load();
       if (mounted) setState(() => _defaultEngine = engine);
+    } catch (_) {}
+  }
+
+  Future<void> _loadMpvDownmix() async {
+    try {
+      final value = await MpvDownmixStore.load();
+      if (mounted) setState(() => _mpvNormalizeDownmix = value);
     } catch (_) {}
   }
 
@@ -930,6 +940,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: Text(AppLocalizations.of(context).settingsPlayer),
                 childrenPadding: const EdgeInsets.only(bottom: 8),
                 children: [
+                  // MPV only: this is an mpv engine property. Defaults off so
+                  // the two Android engines play at the same level (issue #37).
+                  if (defaultTargetPlatform == TargetPlatform.android)
+                    SwitchListTile(
+                      secondary: const Icon(Icons.surround_sound),
+                      title: Text(AppLocalizations.of(context)
+                          .settingsMpvNormalizeDownmix),
+                      subtitle: Text(AppLocalizations.of(context)
+                          .settingsMpvNormalizeDownmixDesc),
+                      value: _mpvNormalizeDownmix,
+                      onChanged: (value) async {
+                        await MpvDownmixStore.save(value);
+                        if (!mounted) return;
+                        setState(() => _mpvNormalizeDownmix = value);
+                        // Applied on the next MPV open; there is no handle on a
+                        // player screen that is not currently pushed, and
+                        // re-reading it per open is what _configureMpvAudio does
+                        // anyway.
+                      },
+                    ),
                   SwitchListTile(
                     secondary: const Icon(Icons.swipe),
                     title: Text(AppLocalizations.of(context).settingsSwipeGestures),

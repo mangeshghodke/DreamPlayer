@@ -32,6 +32,7 @@ import '../services/watched_store.dart';
 import '../services/sidecar_subtitle_service.dart';
 import '../services/mpv_pip.dart';
 import '../services/mpv_surface_view.dart';
+import '../services/mpv_downmix_store.dart';
 import '../services/tone_map_store.dart';
 import '../services/subtitle_style.dart';
 import '../services/downloaded_subtitles_store.dart';
@@ -1529,19 +1530,51 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (e) {
       debugPrint('mpv: subtitle config unavailable: $e');
     }
-    // Audio improvements (from mpv-config community presets):
+    // Audio configuration:
     // - volume-max=200: allow volume boost up to 200%.
     // - audio-pitch-correction=yes: maintain pitch when speed changes
     //   (no chipmunk voices at 1.5x/2x).
-    // - audio-normalize-downmix=yes: better stereo downmix from 5.1/7.1
-    //   (multichannel audio sounds balanced on phone speakers/BT earbuds).
+    // - audio-normalize-downmix: OFF by default, which is also mpv's default.
+    //   It used to be forced on here for a "balanced" 5.1/7.1 downmix, but it
+    //   scales the output down and made the MPV engine noticeably quieter than
+    //   Media3 for the same file — issue #37. mpv's manual says of the enabled
+    //   case that "the output might be too silent", and its maintainer moved to
+    //   `no` because users reported the downmix being too quiet. Now a setting
+    //   (Settings -> Player), so clipping-sensitive downmixes remain available.
     try {
+      final normalizeDownmix = await MpvDownmixStore.load();
       await platform.setProperty('volume-max', '200');
       await platform.setProperty('audio-pitch-correction', 'yes');
-      await platform.setProperty('audio-normalize-downmix', 'yes');
-      debugPrint('mpv: audio configured (volume-max=200, pitch-correction, normalize-downmix)');
+      await platform.setProperty(
+        'audio-normalize-downmix',
+        normalizeDownmix ? 'yes' : 'no',
+      );
+      debugPrint('mpv: audio configured (volume-max=200, pitch-correction, '
+          'normalize-downmix=${normalizeDownmix ? 'yes' : 'no'})');
     } catch (e) {
       debugPrint('mpv: audio config unavailable: $e');
+    }
+  }
+
+  /// Re-applies just the downmix normalisation, so changing the setting does
+  /// not require reopening the file. Called from Settings on return.
+  Future<void> applyMpvDownmixSetting() async {
+    final player = _mpvPlayer;
+    if (player == null || _mpvFailed) return;
+    try {
+      await player.handle;
+      final platform = player.platform;
+      // setProperty only exists on the native implementation, not the
+      // PlatformPlayer interface.
+      if (platform is! NativePlayer) return;
+      final normalize = await MpvDownmixStore.load();
+      await platform.setProperty(
+        'audio-normalize-downmix',
+        normalize ? 'yes' : 'no',
+      );
+      debugPrint('mpv: audio-normalize-downmix -> ${normalize ? 'yes' : 'no'}');
+    } catch (e) {
+      debugPrint('mpv: downmix setting failed: $e');
     }
   }
 
