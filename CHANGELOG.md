@@ -3,7 +3,7 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
-## 0.5.1+25
+## 0.5.1
 
 ### Added
 
@@ -22,6 +22,33 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   the fallback was the *show* name, so every episode in a season listed as the
   same title. Rows now fall back to the episode number (`S01E05`), then the file
   name, so a season stays scannable with no network.
+
+- **In-app SMB on iPhone and iPad** — the "Network shares" tile opens a real
+  in-app SMB browser again instead of bouncing to the system file picker. Add a
+  server, browse its shares, pin a folder to Home, and play straight from the
+  browser. Works on both platforms now; iOS support had been withdrawn in an
+  earlier release because the old implementation was slow and could crash when
+  switching audio tracks.
+- **LAN SMB server discovery** — a subnet sweep finds reachable servers and a
+  real protocol handshake reports each one's SMB version and identifier, so the
+  list shows what a server actually is instead of a bare IP. Verified against a
+  NAS negotiating SMB 3.1.1.
+- **Green status dots for saved servers** — a saved server now shows green when
+  it is reachable and red when it is not. On iOS the indicator was permanently
+  red regardless of the server's state.
+- **Resume keeps working when you switch audio track** — resuming a file whose
+  saved audio track is not the container's default no longer starts from the
+  beginning, and no longer plays a second of the wrong language first. The saved
+  track and the saved position now survive the internal reload together.
+- **One poster for a film, everywhere** — changing a poster or backdrop now
+  applies everywhere the same title appears: the SMB browser page, the home card
+  and Continue Watching. Previously the same film had a separate artwork slot on
+  each surface, so a pick showed up in one place only. Series inherit down the
+  chain, so a show or season pick reaches its episodes while seasons stay free to
+  differ from each other.
+- **Unnamed SMB servers show their address** — matching Android, a server saved
+  without a name is listed as its IP instead of a blank row. Existing servers
+  with a blank name are corrected on the app's next launch.
 
 ### Changed
 
@@ -64,39 +91,6 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 - A row no longer resizes itself as an image loads — thumbnails previously
   collapsed to nothing until their artwork arrived, making the list jump while
   scrolling.
-
-## 0.5.1
-
-### Added
-
-- **In-app SMB on iPhone and iPad** — the "Network shares" tile opens a real
-  in-app SMB browser again instead of bouncing to the system file picker. Add a
-  server, browse its shares, pin a folder to Home, and play straight from the
-  browser. Works on both platforms now; iOS support had been withdrawn in an
-  earlier release because the old implementation was slow and could crash when
-  switching audio tracks.
-- **LAN SMB server discovery** — a subnet sweep finds reachable servers and a
-  real protocol handshake reports each one's SMB version and identifier, so the
-  list shows what a server actually is instead of a bare IP. Verified against a
-  NAS negotiating SMB 3.1.1.
-- **Green status dots for saved servers** — a saved server now shows green when
-  it is reachable and red when it is not. On iOS the indicator was permanently
-  red regardless of the server's state.
-- **Resume keeps working when you switch audio track** — resuming a file whose
-  saved audio track is not the container's default no longer starts from the
-  beginning, and no longer plays a second of the wrong language first. The saved
-  track and the saved position now survive the internal reload together.
-- **One poster for a film, everywhere** — changing a poster or backdrop now
-  applies everywhere the same title appears: the SMB browser page, the home card
-  and Continue Watching. Previously the same film had a separate artwork slot on
-  each surface, so a pick showed up in one place only. Series inherit down the
-  chain, so a show or season pick reaches its episodes while seasons stay free to
-  differ from each other.
-- **Unnamed SMB servers show their address** — matching Android, a server saved
-  without a name is listed as its IP instead of a blank row. Existing servers
-  with a blank name are corrected on the app's next launch.
-
-### Fixed
 
 - **Opening a file from an SMB share could fail on the first attempt** — the
   share-relative path handed to the server carried an extra leading separator,

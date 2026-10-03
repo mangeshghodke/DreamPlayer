@@ -13,7 +13,7 @@ Paste-ready release notes for the **What's New** field in App Store Connect
 
 ---
 
-## 0.5.1 (build 25+36)
+## 0.5.1 (build 26)
 
 Bigger, clearer episode lists.
 
@@ -39,8 +39,6 @@ Improved:
 Fixed:
 • Episode thumbnails could be missing altogether on some titles.
 • Medium and Large sizes could squeeze a row too tightly on a phone.
-
-## 0.5.1 (build 25)
 
 In-app SMB for iPhone and iPad. Connect to a NAS or any SMB share from inside
 the app instead of bouncing out to the system file picker: add a server,
