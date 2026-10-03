@@ -274,6 +274,7 @@ class _SmbScreenState extends State<SmbScreen> {
         }
       }
       await LibraryFoldersStore.bulkAdd(expanded);
+      await LibraryFoldersStore.saveScanRoot(folder);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

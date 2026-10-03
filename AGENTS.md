@@ -982,6 +982,63 @@ clear), and poster/backdrop/cast are prefetched on resolve while per-episode
 stills are prefetched per row as they are discovered. Embedded cover art
 (MKV/MP4 artwork) is a separate cache, `ThumbnailStore`, local-only by design.
 
+### Library rescan on refresh (issue #39, 0.5.1+25) — read this before touching the scanner
+
+The home grid was a **one-time snapshot**: `FolderScanner` ran only inside the
+three bookmark flows (`home_screen.dart:974` local, `smb_screen.dart:256`,
+`webdav_screen.dart:409`), never on refresh. Pull-to-refresh re-read the
+persisted prefs, which by definition cannot contain files that were never
+scanned, so it could never fix the staleness it appeared to promise. Fixed by
+`lib/services/local_library_rescan.dart`, called from `_refreshHome`.
+
+**Scope is deliberately LOCAL (`LibraryFolderSource.files`) only.** A network
+source costs one round-trip per subfolder (50 folders ≈ 5-10 s on a LAN), so a
+rescan on every pull would stall; network folders are refreshed by re-opening
+them (`FolderScreen._load` always re-lists — that path was never stale).
+
+**Four traps, each of which was a real bug found by the tests:**
+
+1. **Ids must be carried over, never regenerated.** A matched entry keeps its
+   **existing `id` and `addedAt`** (`copyWith(id:, addedAt:)`). `metadataKey` is
+   `folder:<id>` for a folder, and scanner ids embed `String.hashCode`, which
+   carries no cross-version guarantee — a regenerated id silently orphans that
+   folder's cached TMDB metadata and artwork overrides, so every refresh would
+   drop the poster off the grid. Matching is by `scanIdentityOf` (source + path),
+   never by id.
+2. **An unreadable directory must never read as "empty".** `FolderScanner` now
+   counts `failedDirs` (a listing that threw — unmounted SD card, revoked
+   permission). If `failedDirs > 0`, OR a root with children scans to empty,
+   the plan runs with `allowRemovals: false`: additions apply, **nothing is
+   removed**. Strays are pruned by the next clean scan. Deletion is the
+   destructive half; losing a library to a card-reader glitch is not acceptable.
+3. **The scan root is not in the store.** All three bookmark flows REMOVE the
+   parent and keep only children tagged `parentId`, so there was no seed to
+   rescan from. Fixed going forward by `LibraryFoldersStore.saveScanRoot`
+   (`dreamplayer.libraryScanRoots`). For pre-existing installs,
+   `LocalLibraryRescan.reconstructRoot` recovers the root as the **longest
+   common directory prefix of the children's paths** (bookmark "Movies" →
+   children `tree:X/House`, `tree:X/Dune` → root `tree:X`; bookmark "House"
+   directly → `tree:X/House`). Two sub-traps: the reconstruction only earns
+   removal rights when it yields a real display name (children sitting directly
+   in `tree:X` give an unnamed seed → add-only), and an unnamed reconstruction is
+   deliberately **not persisted** — freezing it would make the next refresh trust
+   it for removals, the exact thing it was too unsure to allow.
+4. **Scan roots are pruned by `remove()`, never by the rescan.** In the rescan,
+   "root with no children left" is indistinguishable from "the user emptied the
+   folder on purpose", and dropping the seed there would make files added later
+   undiscoverable. `LibraryFoldersStore.remove` knows the intent, so that is
+   where `_pruneUnreferencedRoots` runs (and `clearAll` clears roots outright).
+
+`LibraryFoldersStore.applyDiff` exists so a refresh is **one** prefs write and
+**one** `changes.notify()`: upserts replace matching ids **in place** (a refresh
+must not reshuffle the grid), new ids append, and the DANGER half —
+`bulkAdd` — is never called from the rescan because its insert-at-0 would float
+every rescanned folder to the top. `sameContentAs` keeps unchanged entries out
+of the write entirely.
+
+`test/local_library_rescan_test.dart` (21 tests) pins all of it, including both
+reconstruction shapes, the add-only fallback, and id/`addedAt` preservation.
+
 ### Artwork identity across surfaces (0.5.1+25) — read this before adding a surface
 
 Artwork overrides are keyed by metadata identity, and for a long time one film had
@@ -1624,6 +1681,7 @@ lib/
   services/the_tvdb_client.dart    # optional TheTVDB v4 client, provider mapping, pagination, and secure credential channel
   services/library_folders.dart    # user-added library folders (LibraryFolder model + LibraryFoldersStore, prefs dreamplayer.libraryFolders; LibraryFolderSource.files|jellyfin|smb|webdav|ftp|upnp)
   services/folder_scanner.dart     # deep recursive folder scanner (up to 5 levels, all 6 sources; leaf-vs-container logic)
+  services/local_library_rescan.dart # local-only rescan on pull-to-refresh (issue #39): add/remove cards when files change on device
   services/webdav_client.dart     # WebDAV channel wrapper + WebDavServer model (channel dreamplayer/webdav)
   services/thumbnail_store.dart   # embedded cover-art cache for video cards (memory+disk, local sources only)
   services/image_cache_service.dart # offline TMDB image cache (posters/backdrops/stills/profiles, disk + memory, prefetch on resolve)
@@ -1718,6 +1776,7 @@ test/
   continue_watching_identity_test.dart # continue watching resolves to the file card's key
   library_file_identity_test.dart  # a file entry's metadataKey is its resume key
   details_header_poster_test.dart   # an explicit poster pick beats the season poster
+  local_library_rescan_test.dart   # issue #39 rescan: id preservation, add-only fallback, root reconstruction, applyDiff ordering
   episode_label_test.dart         # offline episode title fallbacks (TMDB name -> S01E05 -> file name)
   episode_row_test.dart           # shared EpisodeRow: sizes, tap/long-press, icon fallback, no overflow
   episode_row_series_test.dart    # the REAL season-row title/subtitle widgets at phone widths

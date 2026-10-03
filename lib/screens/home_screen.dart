@@ -17,6 +17,7 @@ import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
 import '../services/layout_store.dart';
 import '../services/library_folders.dart';
+import '../services/local_library_rescan.dart';
 import '../services/manual_groups.dart';
 import '../services/native_media_scanner.dart';
 import '../services/default_engine_store.dart';
@@ -665,6 +666,18 @@ class _HomeScreenState extends State<HomeScreen>
     final entries = await ContinueWatchingStore.load();
     if (!mounted) return;
     setState(() => _entries = entries);
+    // Issue #39: the library grid was a snapshot of the device tree taken when
+    // a folder was bookmarked, so anything added or deleted outside the app
+    // stayed invisible until the folder was removed and re-added — even though
+    // pull-to-refresh looked like it should cover it. Local folders only: a
+    // network source costs a round-trip per subfolder, and a refresh that
+    // stalls for seconds on a NAS is worse than the staleness it fixes.
+    if (!_inTests) {
+      final rescan = await const LocalLibraryRescan().run();
+      if (rescan.changed > 0) {
+        debugPrint('Home refresh: local rescan $rescan');
+      }
+    }
     var folders = await LibraryFoldersStore.load();
     // Purge legacy Jellyfin/FTP/DLNA bookmarks (now browse-only).
     final stale = folders.where((f) =>
@@ -989,6 +1002,10 @@ class _HomeScreenState extends State<HomeScreen>
           }
         }
         await LibraryFoldersStore.bulkAdd(expanded);
+        // Remember what was scanned. The parent is dropped from the library
+        // above, so without this the rescan on pull-to-refresh (issue #39) has
+        // no seed and can only guess the root back from the children.
+        await LibraryFoldersStore.saveScanRoot(rootFolder);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('"${picked.name}" expanded into ${expanded.length} items')),

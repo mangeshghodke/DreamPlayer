@@ -39,6 +39,17 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
+- **The library now notices files you added or deleted on the device.** When
+  you bookmarked a folder, its contents were scanned once and the home grid kept
+  showing that snapshot — anything you later added, moved or deleted stayed
+  invisible until you removed the folder from the library and added it again
+  (issue #39). Pulling down to refresh now re-scans folders on this device:
+  new videos appear as new cards, deleted ones disappear, and a resized or
+  renamed file updates in place. This covers on-device storage only — network
+  shares (SMB / WebDAV / FTP / DLNA) are intentionally left alone, because each
+  subfolder there is a separate network round-trip and a refresh that stalls
+  for seconds is worse than the staleness it fixes.
+
 - **No thumbnails at all, on any screen.** Requesting stills at width `455`
   returns **HTTP 400** from TMDB — `455` and `640` are rejected while
   `92/185/300/342/500/780` all succeed — so every episode still failed

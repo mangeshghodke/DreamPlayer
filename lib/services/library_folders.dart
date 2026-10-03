@@ -179,6 +179,64 @@ class LibraryFolder {
       videoSizeBytes: (json['videoSizeBytes'] as num?)?.toInt(),
     );
   }
+
+  /// Copy with overrides. A rescan must be able to keep an entry's `id` and
+  /// `addedAt` while refreshing everything else — `metadataKey` is
+  /// `folder:<id>` for a folder, so a regenerated id silently orphans that
+  /// folder's cached TMDB metadata and artwork overrides.
+  LibraryFolder copyWith({
+    String? id,
+    String? name,
+    String? path,
+    DateTime? addedAt,
+    LibraryFolderSource? source,
+    String? jellyfinServerUrl,
+    String? jellyfinItemId,
+    String? networkServerId,
+    String? networkShare,
+    String? networkPath,
+    String? networkLabel,
+    int? yearHint,
+    bool? isFile,
+    String? parentId,
+    String? videoPath,
+    String? videoUri,
+    int? videoSizeBytes,
+  }) {
+    return LibraryFolder(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      path: path ?? this.path,
+      addedAt: addedAt ?? this.addedAt,
+      source: source ?? this.source,
+      jellyfinServerUrl: jellyfinServerUrl ?? this.jellyfinServerUrl,
+      jellyfinItemId: jellyfinItemId ?? this.jellyfinItemId,
+      networkServerId: networkServerId ?? this.networkServerId,
+      networkShare: networkShare ?? this.networkShare,
+      networkPath: networkPath ?? this.networkPath,
+      networkLabel: networkLabel ?? this.networkLabel,
+      yearHint: yearHint ?? this.yearHint,
+      isFile: isFile ?? this.isFile,
+      parentId: parentId ?? this.parentId,
+      videoPath: videoPath ?? this.videoPath,
+      videoUri: videoUri ?? this.videoUri,
+      videoSizeBytes: videoSizeBytes ?? this.videoSizeBytes,
+    );
+  }
+
+  /// Whether two entries describe the same thing on disk, ignoring the fields
+  /// that are bookkeeping rather than content ([id], [addedAt]).
+  ///
+  /// Used by the rescan to tell "this folder is unchanged" from "this folder
+  /// was renamed or resized", so only real changes are written back.
+  bool sameContentAs(LibraryFolder other) =>
+      other.name == name &&
+      other.path == path &&
+      other.isFile == isFile &&
+      other.videoPath == videoPath &&
+      other.videoSizeBytes == videoSizeBytes &&
+      other.source == source &&
+      other.parentId == parentId;
 }
 
 /// Persists the user's library folders (shared_preferences JSON), most recently
@@ -225,6 +283,12 @@ class LibraryFoldersStore {
       _prefsKey,
       jsonEncode(all.map((f) => f.toJson()).toList()),
     );
+    // Removing the last card of an expanded folder forgets its scan root too.
+    // Deliberately NOT done by [applyDiff]: there "no children left" is
+    // indistinguishable from "the user emptied the folder", and dropping the
+    // seed would make files added later undiscoverable. Here the removal is an
+    // explicit user action, so the intent is known.
+    await _pruneUnreferencedRoots(all);
     changes.notify();
   }
 
@@ -269,6 +333,40 @@ class LibraryFoldersStore {
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_prefsKey);
+    await prefs.remove(_scanRootsKey);
+    changes.notify();
+  }
+
+  /// Applies a rescan diff in ONE prefs write: [upserts] replace entries with
+  /// the same id **in place** (so a refresh never reshuffles the grid),
+  /// [upserts] with an unknown id are appended, and [removeIds] are dropped.
+  ///
+  /// One write and one [changes] notify on purpose — calling [bulkAdd] and
+  /// [remove] per entry would make the home grid rebuild once per folder, and
+  /// `bulkAdd`'s insert-at-0 would float every rescanned folder to the top.
+  static Future<void> applyDiff({
+    required List<LibraryFolder> upserts,
+    required List<String> removeIds,
+  }) async {
+    if (upserts.isEmpty && removeIds.isEmpty) return;
+    final all = await load();
+    if (removeIds.isNotEmpty) {
+      final gone = removeIds.toSet();
+      all.removeWhere((f) => gone.contains(f.id));
+    }
+    for (final folder in upserts) {
+      final index = all.indexWhere((f) => f.id == folder.id);
+      if (index >= 0) {
+        all[index] = folder;
+      } else {
+        all.add(folder);
+      }
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _prefsKey,
+      jsonEncode(all.map((f) => f.toJson()).toList()),
+    );
     changes.notify();
   }
 
@@ -276,5 +374,77 @@ class LibraryFoldersStore {
   static Future<bool> isAutoExpandEnabled() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('dreamplayer.autoExpandFolders') ?? true;
+  }
+
+  // ── Scan roots ────────────────────────────────────────────────────────
+  //
+  // When a folder is bookmarked and expanded, the parent is REMOVED from the
+  // library and only its children are kept (each tagged `parentId`). That
+  // left no record of what had been scanned, so a rescan had no seed — the
+  // grid could only ever show the snapshot taken at bookmark time (issue #39).
+  // These persist the root so a later rescan knows where to look.
+
+  static const String _scanRootsKey = 'dreamplayer.libraryScanRoots';
+
+  /// Scan roots keyed by [LibraryFolder.id] (which is also the children's
+  /// `parentId`).
+  static Future<Map<String, LibraryFolder>> loadScanRoots() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_scanRootsKey);
+    if (raw == null || raw.isEmpty) return <String, LibraryFolder>{};
+    try {
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      return map.map(
+        (key, value) => MapEntry(
+          key,
+          LibraryFolder.fromJson(value as Map<String, dynamic>),
+        ),
+      );
+    } catch (_) {
+      return <String, LibraryFolder>{};
+    }
+  }
+
+  static Future<void> saveScanRoot(LibraryFolder root) async {
+    final roots = await loadScanRoots();
+    roots[root.id] = root;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _scanRootsKey,
+      jsonEncode(roots.map((key, value) => MapEntry(key, value.toJson()))),
+    );
+  }
+
+  static Future<void> removeScanRoot(String id) async {
+    final roots = await loadScanRoots();
+    if (roots.remove(id) == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _scanRootsKey,
+      jsonEncode(roots.map((key, value) => MapEntry(key, value.toJson()))),
+    );
+  }
+
+  /// Drops scan roots whose id no longer appears as a `parentId` in the
+  /// library, so the record cannot outlive the entries it describes.
+  static Future<void> pruneScanRoots() async {
+    await _pruneUnreferencedRoots(await load());
+  }
+
+  static Future<void> _pruneUnreferencedRoots(
+    List<LibraryFolder> remaining,
+  ) async {
+    final live = {for (final f in remaining) if (f.parentId != null) f.parentId!};
+    final roots = await loadScanRoots();
+    final stale = roots.keys.where((id) => !live.contains(id)).toList();
+    if (stale.isEmpty) return;
+    for (final id in stale) {
+      roots.remove(id);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _scanRootsKey,
+      jsonEncode(roots.map((key, value) => MapEntry(key, value.toJson()))),
+    );
   }
 }

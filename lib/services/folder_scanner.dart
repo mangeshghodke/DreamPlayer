@@ -54,6 +54,12 @@ class FolderScanner {
   /// Number of directories scanned so far (for progress reporting).
   int scannedDirs = 0;
 
+  /// Number of directories whose listing FAILED — unreachable share, revoked
+  /// permission, unmounted SD card. Zero does not mean "empty": a rescan that
+  /// treats an unreadable directory as an empty one deletes the library, so
+  /// callers gate their destructive half on this (see `LocalLibraryRescan`).
+  int failedDirs = 0;
+
   /// Scans [folder] recursively and returns all discovered subfolders and
   /// video files as a flat list of [LibraryFolder] entries ready for
   /// [LibraryFoldersStore.bulkAdd].
@@ -67,6 +73,7 @@ class FolderScanner {
   Future<List<LibraryFolder>> scan(LibraryFolder folder) async {
     cancel = false;
     scannedDirs = 0;
+    failedDirs = 0;
     final results = <LibraryFolder>[];
     await _scanRecursive(folder, folder, 0, results);
     return results;
@@ -88,6 +95,8 @@ class FolderScanner {
       children = await _listDirectory(current);
     } catch (_) {
       // Network source unreachable or permission denied — skip, don't kill scan.
+      // Counted so a rescan can tell "empty" from "could not read".
+      failedDirs++;
       return;
     }
 

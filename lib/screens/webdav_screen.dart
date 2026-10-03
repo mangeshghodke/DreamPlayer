@@ -419,6 +419,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
           }
         }
         await LibraryFoldersStore.bulkAdd(expanded);
+        await LibraryFoldersStore.saveScanRoot(rootFolder);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Bookmarked $folderName to Home — ${expanded.length} items (WebDAV · ${server.name})')),
