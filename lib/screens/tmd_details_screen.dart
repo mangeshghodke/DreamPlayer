@@ -22,6 +22,7 @@ import '../services/resume_store.dart';
 import '../services/default_engine_store.dart';
 import '../services/simkl_client.dart';
 import '../services/smb_client.dart';
+import '../services/app_debug_log.dart';
 import '../services/tmdb_client.dart';
 import '../services/watched_store.dart';
 import '../services/download_manager.dart';
@@ -634,21 +635,21 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   Future<void> _load() async {
     _openWatch.start();
     await _service.ensureLoaded();
-    debugPrint('TMD-OPEN: ensureLoaded took ${_openWatch.elapsedMilliseconds}ms');
+    AppDebugLog.mark('TMD-OPEN: ensureLoaded took ${_openWatch.elapsedMilliseconds}ms');
     if (!mounted) return;
     setState(() {
       _meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
       _details = _meta?.details;
       _loading = _meta == null;
     });
-    debugPrint(
+    AppDebugLog.mark(
       'TMD-OPEN: first paint of cached state at ${_openWatch.elapsedMilliseconds}ms '
       '(cached=${_meta != null})',
     );
     // First frame AFTER this build settles — the number that matches what the
     // user perceives as "the screen finally appeared".
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      debugPrint('TMD-OPEN: first frame at ${_openWatch.elapsedMilliseconds}ms');
+      AppDebugLog.mark('TMD-OPEN: first frame at ${_openWatch.elapsedMilliseconds}ms');
     });
     _loadResume();
     if (widget.folder != null) {
@@ -1040,7 +1041,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
     if (meta == null) return;
     final details = await _service.detailsFor(_identityKey);
-    debugPrint('TMD-OPEN: detailsFor took ${_openWatch.elapsedMilliseconds}ms total');
+    AppDebugLog.mark(
+      'TMD-OPEN: detailsFor took ${_openWatch.elapsedMilliseconds}ms total',
+    );
     if (mounted) setState(() => _details = details);
     if (meta.movie.kind != TmdKind.tv) return;
     // Season names first so _seasonsNeeded can map roman-numeral / titled
@@ -1049,7 +1052,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     if (!mounted) return;
     for (final season in _seasonsNeeded()) {
       await _service.seasonFor(_identityKey, season);
-      debugPrint(
+      AppDebugLog.mark(
         'TMD-OPEN: season $season at ${_openWatch.elapsedMilliseconds}ms total',
       );
       if (!mounted) return;

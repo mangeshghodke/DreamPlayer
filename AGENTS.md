@@ -1082,6 +1082,30 @@ wants "no touch focus ring" should copy that split instead of trying to suppress
 the decoration.
 
 
+### Reading logs off the iPad: there is no Mac in the loop (2026-10-04)
+
+**The device console is NOT an option** — the user has no Mac, so `debugPrint`
+output from a TestFlight build is unreachable. The only channel that actually
+reaches them is a file they can pull in **Files -> On My iPad -> DreamPlayer**,
+which is how `smb_debug.log` has always worked (`ios/Runner/SBMLog.swift` writes
+it to the Documents root).
+
+So `lib/services/app_debug_log.dart` mirrors that: `AppDebugLog.mark()` does a
+`debugPrint` **and** appends to `app_debug.log` in the same Documents root, next
+to `smb_debug.log` and `iap_debug.log`. Design points that matter:
+
+- **Fire-and-forget, never awaited.** `mark()` returns `void` and appends through
+  an internal `Future` chain, so a diagnostics aid can never block the UI path —
+  the very failure mode being debugged.
+- **Off under `flutter test`** (`Platform.environment['FLUTTER_TEST']`), so unit
+  tests do no filesystem work.
+- **Capped at 256 KiB**, truncating in place and keeping the newest half: the
+  markers being read are always the recent ones.
+
+**Use this for any timing/trace work that has to come back from a TestFlight
+build.** A `debugPrint`-only marker is effectively invisible here, which is
+exactly how build 28's `TMD-OPEN` markers came to nothing.
+
 ### TmdStore writes: why the iPad froze solid on a details screen (2026-10-04)
 
 **Symptom (iOS/SMB):** tapping an episode or movie in the SMB browser froze the
@@ -1918,6 +1942,7 @@ test/
   library_file_identity_test.dart  # a file entry's metadataKey is its resume key
   details_header_poster_test.dart   # an explicit poster pick beats the season poster
   chapter_nav_test.dart           # issue #40 chapter jump: grace window, null-at-end (no wrap), duplicate starts
+  app_debug_log_test.dart         # Dart-side log is inert under flutter_test and never throws
   tmd_store_persist_test.dart      # TmdStore writes coalesce; nothing lost mid-write (iOS freeze fix)
   local_library_rescan_test.dart   # issue #39 rescan: id preservation, add-only fallback, root reconstruction, applyDiff ordering
   episode_label_test.dart         # offline episode title fallbacks (TMDB name -> S01E05 -> file name)
