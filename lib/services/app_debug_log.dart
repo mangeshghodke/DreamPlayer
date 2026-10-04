@@ -36,6 +36,13 @@ class AppDebugLog {
   static File? _file;
   static Future<void> _queue = Future<void>.value();
 
+  /// Set when the last append failed. The very first append happens at boot,
+  /// where a plugin channel may not be registered yet — so instead of losing
+  /// the line forever, forget the cached File and let the NEXT mark retry. This
+  /// was the real reason build 29 produced no file at all: the boot write threw,
+  /// the error was swallowed, and every later write inherited the failure.
+  static bool _lastAppendFailed = false;
+
   static String _stamp() {
     final now = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
@@ -47,8 +54,13 @@ class AppDebugLog {
   static void mark(String message) {
     if (!enabled) return;
     debugPrint(message);
-    final line = '$_stamp  $message\n';
-    _queue = _queue.then((_) => _append(line)).catchError((Object _) {});
+    // ${_stamp()} — NOT $_stamp, which interpolates the tear-off and writes
+    // "Closure: () => String from Function '_stamp'" into the file instead of
+    // a timestamp.
+    final line = '${_stamp()}  $message\n';
+    _queue = _queue.then((_) => _append(line)).catchError((Object _) {
+      _lastAppendFailed = true;
+    });
   }
 
   static Future<void> _append(String line) async {
@@ -59,6 +71,13 @@ class AppDebugLog {
         file = File('${dir.path}/app_debug.log');
         _file = file;
       }
+      if (_lastAppendFailed) {
+        // Last time we failed before a File was ever created, so make sure this
+        // one really lands — a log that silently stops is worse than none.
+        await file.writeAsString(line, mode: FileMode.append, flush: true);
+        _lastAppendFailed = false;
+        return;
+      }
       if (await file.length() > _maxBytes) {
         // Keep the tail: the newest markers are the ones being read.
         final bytes = await file.readAsBytes();
@@ -66,8 +85,15 @@ class AppDebugLog {
         await file.writeAsBytes(trimmed, flush: false);
       }
       await file.writeAsString(line, mode: FileMode.append, flush: false);
-    } catch (_) {
-      // A diagnostics aid must never be the thing that breaks a screen.
+    } catch (e) {
+      // A diagnostics aid must never be the thing that breaks a screen — but
+      // do say so once, or a broken writer is indistinguishable from a screen
+      // that simply never logged anything (which is exactly how build 29's
+      // missing file went unnoticed).
+      _file = null;
+      _lastAppendFailed = true;
+      debugPrint('AppDebugLog: append failed (${e.runtimeType}) — will retry '
+          'on the next mark');
     }
   }
 

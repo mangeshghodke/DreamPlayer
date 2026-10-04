@@ -1106,6 +1106,27 @@ to `smb_debug.log` and `iap_debug.log`. Design points that matter:
 build.** A `debugPrint`-only marker is effectively invisible here, which is
 exactly how build 28's `TMD-OPEN` markers came to nothing.
 
+**Three bugs lived in that logger before it produced a single readable line**,
+all found by checking the FILE rather than trusting the code:
+
+1. `'$_stamp  $message'` interpolates the **tear-off**, not the result — every
+   line was `Closure: () => String from Function '_stamp'`. It must be
+   `${_stamp()}`. Grepping the log for a marker still *found* the message
+   (appended after the garbage), so this would have shipped as "logging works".
+2. The boot line awaited `PackageInfo.fromPlatform()` before the first write. At
+   boot a plugin channel may not be registered, the write threw, and the error
+   was swallowed — so the file never appeared and the failure looked like
+   "the markers never fired". The boot mark is now plugin-free, and
+   `_append` forgets its cached `File` on failure so the **next** mark retries.
+3. Failures are now reported once via `debugPrint` instead of vanishing. A
+   silently broken log is worse than no log: "no file" then reads as "nothing
+   happened" rather than "the writer is broken".
+
+Verified on Android (the bug is in shared Dart, so that is the fast check) by
+`run-as … cat app_flutter/app_debug.log` — note Android maps
+`getApplicationDocumentsDirectory()` to `app_flutter/`, NOT `files/`, which is
+where I first looked and wrongly concluded the writer was broken on both.
+
 ### TmdStore writes: why the iPad froze solid on a details screen (2026-10-04)
 
 **Symptom (iOS/SMB):** tapping an episode or movie in the SMB browser froze the
