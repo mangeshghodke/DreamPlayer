@@ -1558,7 +1558,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     //   (Settings -> Player), so clipping-sensitive downmixes remain available.
     try {
       final normalizeDownmix = await MpvDownmixStore.load();
-      await platform.setProperty('volume-max', '200');
+      // Ceiling for _applyMpvVolume to work against; it raises this further
+      // when the user's boost needs more headroom than 200%.
+      await platform.setProperty('volume-max', '400');
       await platform.setProperty('audio-pitch-correction', 'yes');
       await platform.setProperty(
         'audio-normalize-downmix',
@@ -2200,6 +2202,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Apply the user's subtitle styling (size, color, background, outline,
       // vertical position) so settings carry over from Media3 to mpv.
       await _applyMpvSubtitleStyle(player);
+      // Volume Boost / Night Mode on EVERY open, not only when the slider moves
+      // — see _applyMpvVolume. Skipping this is what made MPV start quieter
+      // than Media3 on a fresh file (issue #41).
+      await _applyMpvVolume();
       // 4. Now play — the Surface is attached and the decoder pipeline is
       //    correctly configured for this file.
       await player.play();
@@ -2870,14 +2876,40 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Applies the persisted volume-boost / night-mode combination to the mpv
   /// engine's own volume mixer (the native Media3 LoudnessEnhancer path only
   /// exists in the main engine; mpv's volume property is the nearest proxy).
+  /// Applies the user's Volume Boost / Night Mode to whichever engine is live.
+  ///
+  /// Media3 gets a real `LoudnessEnhancer` on the AudioTrack session
+  /// (1.0-3.0x mapped to 0-1500mB). mpv only has its software `volume`, so
+  /// this is the equivalent — and it has to be pushed on EVERY open, not just
+  /// when the slider moves. Two ways it made MPV quieter than Media3 (issue
+  /// #41), both invisible to the user because the device volume never changes:
+  ///
+  /// 1. It used to be called only from the boost slider's `onChangeEnd`. A fresh
+  ///    play started MPV at volume 100 while Media3 came up boosted, so the
+  ///    engines only matched until the user touched the setting once.
+  /// 2. The old fixed clamp of 130 meant a 2x/3x boost could never be reached,
+  ///    and mpv refuses `volume` above `volume-max` anyway — so the ceiling is
+  ///    now raised to fit whatever the boost asks for.
   Future<void> _applyMpvVolume() async {
     final p = _mpvPlayer;
     if (p == null) return;
     var vol = 100.0;
     if (_audioBoost > 1.01) vol *= _audioBoost;
     if (_nightMode) vol *= 1.6; // +400mB lift approximated as gain
-    vol = vol.clamp(0.0, 130.0).toDouble();
+    vol = vol.clamp(0.0, 400.0).toDouble();
+    final platform = p.platform;
+    if (platform is NativePlayer) {
+      try {
+        // Must precede setVolume: mpv clamps to volume-max, which the static
+        // config sets too low for a 3x boost plus night mode.
+        await platform.setProperty('volume-max', '${vol.ceil()}');
+      } catch (_) {}
+    }
     await p.setVolume(vol);
+    debugPrint(
+      'mpv: volume -> ${vol.toStringAsFixed(0)} '
+      '(boost=${_audioBoost.toStringAsFixed(1)}${_nightMode ? ', night' : ''})',
+    );
   }
 
   /// Applies a picker-chosen [VideoFitMode] to whichever engine is live; mpv
