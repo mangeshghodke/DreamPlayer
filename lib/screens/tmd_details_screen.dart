@@ -651,6 +651,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AppDebugLog.mark('TMD-OPEN: first frame at ${_openWatch.elapsedMilliseconds}ms');
     });
+    AppDebugLog.mark(
+      'TMD-OPEN: _load past first setState at ${_openWatch.elapsedMilliseconds}ms '
+      '(mode=${widget.video != null ? 'video' : 'folder'})',
+    );
     _loadResume();
     if (widget.folder != null) {
       await _loadFolderEntries();
@@ -1046,11 +1050,28 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     );
     if (mounted) setState(() => _details = details);
     if (meta.movie.kind != TmdKind.tv) return;
+    // The 30s freeze starts somewhere between here and the first frame, and the
+    // season markers never arrived — so bracket EVERY await from here on
+    // rather than after the fact. A marker that prints tells us the step
+    // completed; the first one that DOESN'T print is the blocker.
+    AppDebugLog.mark(
+      'TMD-OPEN: seasonNameMapFor -> start at ${_openWatch.elapsedMilliseconds}ms',
+    );
     // Season names first so _seasonsNeeded can map roman-numeral / titled
     // season subfolders ("Strike the Blood II") onto their TMDB season number.
     _seasonNameMap = await _service.seasonNameMapFor(_identityKey);
+    AppDebugLog.mark(
+      'TMD-OPEN: seasonNameMapFor done at ${_openWatch.elapsedMilliseconds}ms',
+    );
     if (!mounted) return;
-    for (final season in _seasonsNeeded()) {
+    final needed = _seasonsNeeded();
+    AppDebugLog.mark(
+      'TMD-OPEN: seasons needed = $needed at ${_openWatch.elapsedMilliseconds}ms',
+    );
+    for (final season in needed) {
+      AppDebugLog.mark(
+        'TMD-OPEN: seasonFor($season) start at ${_openWatch.elapsedMilliseconds}ms',
+      );
       await _service.seasonFor(_identityKey, season);
       AppDebugLog.mark(
         'TMD-OPEN: season $season at ${_openWatch.elapsedMilliseconds}ms total',

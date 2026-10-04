@@ -84,7 +84,11 @@ class AppDebugLog {
         final trimmed = bytes.sublist(bytes.length - _maxBytes ~/ 2);
         await file.writeAsBytes(trimmed, flush: false);
       }
-      await file.writeAsString(line, mode: FileMode.append, flush: false);
+      // flush EVERY line. These files are a few KB, and the whole point is to
+      // survive exactly the failure we are chasing: with flush:false the tail
+      // of the log is lost when the watchdog kills the app mid-investigation,
+      // which is precisely when the missing lines matter most.
+      await file.writeAsString(line, mode: FileMode.append, flush: true);
     } catch (e) {
       // A diagnostics aid must never be the thing that breaks a screen — but
       // do say so once, or a broken writer is indistinguishable from a screen
