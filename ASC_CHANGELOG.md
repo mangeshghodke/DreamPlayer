@@ -13,32 +13,27 @@ Paste-ready release notes for the **What's New** field in App Store Connect
 
 ---
 
-## 0.5.1 (build 26)
+## 0.5.1 (build 27)
 
-Bigger, clearer episode lists.
+Chapter navigation, made visible. Files that carry chapter markers — anime
+openings, endings and previews are the common case — now show a tick on the
+seekbar at every boundary, so you can see where they are instead of hunting.
 
 New:
-• Choose your episode thumbnail size — Small, Medium or Large — in Settings.
-  It applies everywhere episodes and videos are listed, and picks the largest
-  size that still leaves the title readable, so it adapts to your screen and
-  to tablets.
-• Real artwork for each episode. Episode images were only available if you had
-  already opened that episode's own page; now they load on their own.
-• Episode titles that work offline. Without a connection every episode in a
-  season used to show the same show name; they now show the episode number, so
-  a season stays readable with no internet.
+• Previous/next chapter buttons either side of play. The previous button
+  restarts the chapter you are in when you are more than three seconds into it
+  and steps back when you are not, so pressing it twice walks back rather than
+  sticking — the same as a CD player.
+• Double-tapping the seekbar jumps to the next chapter.
+• Each jump names the chapter it landed on ("Next chapter · Opening").
 
-Improved:
-• Episode titles can wrap to two lines instead of being cut off, and the
-  season number, star rating and file size sit together on one line.
-• Watched ticks moved to the right of each row, out of the title's way.
-• Episode artwork now loads as soon as it is known rather than as you scroll,
-  and is reused from the on-device cache afterwards — so it appears immediately
-  and works offline.
+The buttons appear only for files that actually have chapters.
 
-Fixed:
-• Episode thumbnails could be missing altogether on some titles.
-• Medium and Large sizes could squeeze a row too tightly on a phone.
+Also fixed:
+• Opening a title's details screen could freeze the app for several seconds —
+  the loading spinner stopped moving and the app stopped responding. It was
+  most noticeable on a large library, when opening a title from a network
+  share. Playback itself was never affected.
 
 In-app SMB for iPhone and iPad. Connect to a NAS or any SMB share from inside
 the app instead of bouncing out to the system file picker: add a server,

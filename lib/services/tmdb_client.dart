@@ -2370,57 +2370,136 @@ class TmdStore {
   static String identityKeyFor(VideoItem video) =>
       video.resumeKey ?? video.path ?? video.uri ?? '';
 
+  /// Decoded metadata, kept in memory after the first read.
+  ///
+  /// THE WHOLE POINT: opening a details screen writes metadata several times in
+  /// a row (carryMeta, resolve, seasonFor, then one save per episode still).
+  /// Each of those used to re-read the ENTIRE cache, mutate one key and
+  /// re-encode the whole thing — megabytes of `jsonDecode` + `jsonEncode` on
+  /// the UI isolate, per write. On iOS that string also lives in NSUserDefaults,
+  /// where writing something that large is slow in its own right. The visible
+  /// symptom was the player/browser freezing solid (the spinner stopped
+  /// animating, because the UI isolate was blocked rather than waiting) for
+  /// several seconds whenever an SMB title's details screen opened — for movies
+  /// and episodes alike, while playback itself stayed fast because it writes no
+  /// metadata.
+  ///
+  /// Now: read once, mutate in memory, and let [_schedulePersist] collapse a
+  /// burst of writes into ONE encode + ONE prefs write.
+  static Map<String, TmdMeta>? _memo;
+
+  /// Coalescing window for persistence. Long enough to swallow a details
+  /// screen's burst of saves, short enough that nothing is meaningfully lost if
+  /// the process dies (metadata is a cache — it re-fetches).
+  static const Duration _persistDelay = Duration(milliseconds: 600);
+
+  static Timer? _persistTimer;
+  static Future<void>? _persistInFlight;
+  static bool _dirtyWhileWriting = false;
+
+  /// Forces the next [_schedulePersist] to encode synchronously in the caller's
+  /// turn. Only for the rare caller that must not return before the write.
+  static Future<void> flush() async {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    if (!_dirtyWhileWriting && _persistInFlight == null) return;
+    await _persistNow();
+  }
+
   static Future<Map<String, TmdMeta>> loadAll() async {
+    final memo = _memo;
+    if (memo != null) return Map<String, TmdMeta>.of(memo);
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_prefsKey);
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final json = jsonDecode(raw) as Map<String, dynamic>;
-      final result = <String, TmdMeta>{};
-      for (final entry in json.entries) {
-        try {
-          result[entry.key] = TmdMeta.fromJson(
-            (entry.value as Map).cast<String, dynamic>(),
-          );
-        } catch (_) {}
+    final result = <String, TmdMeta>{};
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final json = jsonDecode(raw) as Map<String, dynamic>;
+        for (final entry in json.entries) {
+          try {
+            result[entry.key] = TmdMeta.fromJson(
+              (entry.value as Map).cast<String, dynamic>(),
+            );
+          } catch (_) {}
+        }
+      } catch (_) {
+        // Corrupt blob: start clean rather than wedging every screen.
       }
-      return result;
-    } catch (_) {
-      return {};
     }
+    _memo = result;
+    return Map<String, TmdMeta>.of(result);
   }
 
   static Future<void> save(String identityKey, TmdMeta meta) async {
     if (identityKey.isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
     final all = await loadAll();
     all[identityKey] = meta;
-    await prefs.setString(
-      _prefsKey,
-      jsonEncode(all.map((k, v) => MapEntry(k, v.toJson()))),
-    );
+    _memo = all;
     changes.notify();
+    _schedulePersist();
+  }
+
+  static void _schedulePersist() {
+    _dirtyWhileWriting = true;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(_persistDelay, () {
+      _persistTimer = null;
+      unawaited(_persistNow());
+    });
+  }
+
+  static Future<void> _persistNow() async {
+    // Serialise writers: a second save during an in-flight write re-arms the
+    // flag and is picked up by the follow-up pass below.
+    while (_persistInFlight != null) {
+      await _persistInFlight;
+    }
+    final memo = _memo;
+    if (memo == null) {
+      _dirtyWhileWriting = false;
+      return;
+    }
+    _dirtyWhileWriting = false;
+    final blob = jsonEncode(memo.map((k, v) => MapEntry(k, v.toJson())));
+    // Only when it is big enough to matter: this blob is encoded on the UI
+    // isolate and handed to NSUserDefaults on iOS, so its size is the single
+    // number that explains a slow or blocked details screen.
+    if (blob.length > 100000) {
+      debugPrint('TmdStore: persisting ${memo.length} entries / ${blob.length} chars');
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final write = prefs.setString(_prefsKey, blob);
+    _persistInFlight = write;
+    try {
+      await write;
+    } finally {
+      _persistInFlight = null;
+    }
+    // Anything mutated while we were encoding needs its own pass.
+    if (_dirtyWhileWriting) {
+      _dirtyWhileWriting = false;
+      _schedulePersist();
+    }
   }
 
   /// Wipes the whole persisted cache. Used when the metadata provider changes,
   /// so titles don't keep the previous provider's match.
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
+    _memo = <String, TmdMeta>{};
+    _persistTimer?.cancel();
+    _persistTimer = null;
     await prefs.remove(_prefsKey);
     changes.notify();
   }
 
   static Future<void> remove(String identityKey) async {
     if (identityKey.isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
     final all = await loadAll();
-    if (all.remove(identityKey) != null) {
-      await prefs.setString(
-        _prefsKey,
-        jsonEncode(all.map((k, v) => MapEntry(k, v.toJson()))),
-      );
-      changes.notify();
-    }
+    if (all.remove(identityKey) == null) return;
+    _memo = all;
+    changes.notify();
+    await flush();
   }
 
   // ── Suppression list (user "Remove info" intent) ─────────────────────────

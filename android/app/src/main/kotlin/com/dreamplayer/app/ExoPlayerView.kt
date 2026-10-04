@@ -1032,9 +1032,10 @@ class ExoPlayerView(
         // first frame arrived from a partial buffer.
         val gen = pendingProbesGeneration
         handler.postDelayed({
+            // Chapters are NOT here — open() already fired them so the
+            // markers show up with the first frame instead of 2-3s later.
             probeHdr10Plus(path, uri, headers, gen)
             probeHdr10(path, uri, headers, gen)
-            probeChapters(path, uri, headers, selfSigned, gen)
         }, 400)
     }
 
@@ -1069,14 +1070,29 @@ class ExoPlayerView(
         allowSelfSigned: Boolean = false,
         generation: Int = openGeneration,
     ) {
-        val isLocal = !path.isNullOrEmpty()
-        val isSmb = !uri.isNullOrEmpty() && uri!!.startsWith("smb://", ignoreCase = true)
-        val base = uri?.substringBefore('?')?.lowercase() ?: ""
-        val isHttp = !isLocal && !isSmb && uri != null &&
-            (uri.startsWith("http://", ignoreCase = true) ||
-                uri.startsWith("https://", ignoreCase = true))
-        val isFtp = !uri.isNullOrEmpty() && (uri!!.startsWith("ftp://", ignoreCase = true) ||
-            uri.startsWith("sftp://", ignoreCase = true))
+        // WHICH FIELD CARRIES THE SOURCE — read this before touching the
+        // scheme logic.
+        //
+        // Dart passes an `smb://` URL in `path` and leaves `uri` null, so
+        // `isLocal = path != null` classified every SMB file as a LOCAL file:
+        // the local parser opened a RandomAccessFile on "smb://..." (always
+        // fails) and the smb/ftp/http branches below were all skipped because
+        // they only ever looked at `uri`. That is why chapters worked on local
+        // files and silently returned 0 for SMB, on any engine.
+        //
+        // So: resolve the source from whichever field has it, and decide the
+        // scheme from THAT. A `path` with a remote scheme is not a local path.
+        val sourceUri: String? = when {
+            !uri.isNullOrEmpty() -> uri
+            !path.isNullOrEmpty() -> path
+            else -> null
+        }
+        val scheme = sourceUri?.substringBefore(':')?.lowercase()
+        val isSmb = scheme == "smb"
+        val isFtp = scheme == "ftp" || scheme == "sftp"
+        val isHttp = scheme == "http" || scheme == "https"
+        val isLocal = !path.isNullOrEmpty() && !isSmb && !isFtp && !isHttp
+        val base = sourceUri?.substringBefore('?')?.lowercase() ?: ""
         val isHttpMkv = isHttp && (base.endsWith(".mkv") || base.endsWith(".mka") ||
             base.endsWith(".mk3d") || base.endsWith(".webm"))
         val isHttpMp4 = isHttp && (base.endsWith(".mp4") || base.endsWith(".mov") ||
@@ -1086,7 +1102,7 @@ class ExoPlayerView(
         val isLocalMkv = isLocal && (pathExt == "mkv" || pathExt == "mka" || pathExt == "mk3d" || pathExt == "webm")
         val isLocalMp4 = isLocal && (pathExt == "mp4" || pathExt == "mov" || pathExt == "m4v" ||
             pathExt == "m4a" || pathExt == "m4b" || pathExt == "3gp")
-        val smbExt = uri?.substringBefore('?')?.substringAfterLast('.', "")?.lowercase() ?: ""
+        val smbExt = sourceUri?.substringBefore('?')?.substringAfterLast('.', "")?.lowercase() ?: ""
         val isSmbMkv = isSmb && (smbExt == "mkv" || smbExt == "mka" || smbExt == "mk3d" || smbExt == "webm")
         val isSmbMp4 = isSmb && (smbExt == "mp4" || smbExt == "mov" || smbExt == "m4v" ||
             smbExt == "m4a" || smbExt == "m4b" || smbExt == "3gp")
@@ -1095,6 +1111,10 @@ class ExoPlayerView(
         val isFtpMp4 = isFtp && (base.endsWith(".mp4") || base.endsWith(".mov") ||
             base.endsWith(".m4v") || base.endsWith(".m4a") || base.endsWith(".m4b") ||
             base.endsWith(".3gp"))
+        Log.i(
+            "MkvChapters",
+            "probe: local=$isLocal($path) smb=$isSmb ftp=$isFtp http=$isHttp source=$sourceUri",
+        )
         if (!isLocal && !isSmb && !isFtp && !isHttpMkv && !isHttpMp4) {
             // Unknown remote scheme (e.g. content://) — still probe local-like files
             // when a path is available, otherwise nothing to read.
@@ -1108,35 +1128,35 @@ class ExoPlayerView(
                     isLocalMp4 || isSmbMp4 || isHttpMp4 || isFtpMp4 -> {
                         val mp4: List<Mp4Chapters.Chapter> = when {
                             isLocal -> Mp4Chapters.parse(path!!)
-                            isSmb -> Mp4Chapters.parseSmb(uri!!, activity)
-                            isFtp -> Mp4Chapters.parseFtp(uri!!, activity)
-                            else -> Mp4Chapters.parseHttp(uri!!, headers, allowSelfSigned)
+                            isSmb -> Mp4Chapters.parseSmb(sourceUri!!, activity)
+                            isFtp -> Mp4Chapters.parseFtp(sourceUri!!, activity)
+                            else -> Mp4Chapters.parseHttp(sourceUri!!, headers, allowSelfSigned)
                         }
                         if (mp4.isNotEmpty()) mp4.map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
                         else {
                             // Fallback to MKV parser for mislabelled files.
                             when {
                                 isLocal -> MkvChapters.parse(path!!)
-                                isSmb -> MkvChapters.parseSmb(uri!!, activity)
-                                isFtp -> MkvChapters.parseFtp(uri!!, activity)
-                                else -> MkvChapters.parseHttp(uri!!, headers, allowSelfSigned)
+                                isSmb -> MkvChapters.parseSmb(sourceUri!!, activity)
+                                isFtp -> MkvChapters.parseFtp(sourceUri!!, activity)
+                                else -> MkvChapters.parseHttp(sourceUri!!, headers, allowSelfSigned)
                             }
                         }
                     }
                     isLocalMkv || isSmbMkv || isHttpMkv || isFtpMkv -> {
                         val mkv = when {
                             isLocal -> MkvChapters.parse(path!!)
-                            isSmb -> MkvChapters.parseSmb(uri!!, activity)
-                            isFtp -> MkvChapters.parseFtp(uri!!, activity)
-                            else -> MkvChapters.parseHttp(uri!!, headers, allowSelfSigned)
+                            isSmb -> MkvChapters.parseSmb(sourceUri!!, activity)
+                            isFtp -> MkvChapters.parseFtp(sourceUri!!, activity)
+                            else -> MkvChapters.parseHttp(sourceUri!!, headers, allowSelfSigned)
                         }
                         if (mkv.isNotEmpty()) mkv
                         else {
                             val mp4: List<Mp4Chapters.Chapter> = when {
                                 isLocal -> Mp4Chapters.parse(path!!)
-                                isSmb -> Mp4Chapters.parseSmb(uri!!, activity)
-                                isFtp -> Mp4Chapters.parseFtp(uri!!, activity)
-                                else -> Mp4Chapters.parseHttp(uri!!, headers, allowSelfSigned)
+                                isSmb -> Mp4Chapters.parseSmb(sourceUri!!, activity)
+                                isFtp -> Mp4Chapters.parseFtp(sourceUri!!, activity)
+                                else -> Mp4Chapters.parseHttp(sourceUri!!, headers, allowSelfSigned)
                             }
                             mp4.map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
                         }
@@ -1148,27 +1168,29 @@ class ExoPlayerView(
                         else Mp4Chapters.parse(path).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
                     }
                     isSmb -> {
-                        val mkv = MkvChapters.parseSmb(uri!!, activity)
+                        val mkv = MkvChapters.parseSmb(sourceUri!!, activity)
                         if (mkv.isNotEmpty()) mkv
-                        else Mp4Chapters.parseSmb(uri, activity).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
+                        else Mp4Chapters.parseSmb(sourceUri, activity).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
                     }
                     isFtp -> {
                         // Extension-less remote file — try MKV then MP4.
-                        val mkv = MkvChapters.parseFtp(uri!!, activity)
+                        val mkv = MkvChapters.parseFtp(sourceUri!!, activity)
                         if (mkv.isNotEmpty()) mkv
-                        else Mp4Chapters.parseFtp(uri, activity).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
+                        else Mp4Chapters.parseFtp(sourceUri, activity).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
                     }
                     else -> {
-                        val mkv = MkvChapters.parseHttp(uri!!, headers, allowSelfSigned)
+                        val mkv = MkvChapters.parseHttp(sourceUri!!, headers, allowSelfSigned)
                         if (mkv.isNotEmpty()) mkv
-                        else Mp4Chapters.parseHttp(uri, headers, allowSelfSigned).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
+                        else Mp4Chapters.parseHttp(sourceUri, headers, allowSelfSigned).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
                     }
                 }
+                Log.i("MkvChapters", "probe result: ${parsed.size} chapters")
                 if (parsed.isNotEmpty()) {
                     chapters = parsed
                     handler.post { emit() }
                 }
-            } catch (_: Throwable) {
+            } catch (e: Throwable) {
+                Log.i("MkvChapters", "probe threw ${e.javaClass.simpleName}: ${e.message}")
                 // Best-effort; never let it affect playback.
             }
         }.apply { isDaemon = true }.start()
@@ -1469,14 +1491,30 @@ class ExoPlayerView(
                     // (MediaExtractor + chapter walk) that raced the ring fill
                     // and made SMB startup take far longer than MPV's single
                     // SmbHttpProxy stream. Local files still probe immediately.
-                    val remoteProbe = !uri.isNullOrEmpty() && (
-                        uri!!.startsWith("smb://", ignoreCase = true) ||
-                            uri!!.startsWith("http://", ignoreCase = true) ||
-                            uri!!.startsWith("https://", ignoreCase = true) ||
-                            uri!!.startsWith("ftp://", ignoreCase = true) ||
-                            uri!!.startsWith("sftp://", ignoreCase = true)
-                    )
+                    // Same trap as probeChapters: SMB arrives in `path`, not
+                    // `uri`. Testing only `uri` made remoteProbe false for
+                    // every SMB file, so its probes fired at prepare() instead
+                    // of being deferred to STATE_READY — the extra SMB sessions
+                    // this deferral exists to avoid.
+                    val probeSource = when {
+                        !uri.isNullOrEmpty() -> uri
+                        !path.isNullOrEmpty() -> path
+                        else -> null
+                    }
+                    val remoteProbe = probeSource?.startsWith("smb://", ignoreCase = true) == true ||
+                        probeSource?.startsWith("http://", ignoreCase = true) == true ||
+                        probeSource?.startsWith("https://", ignoreCase = true) == true ||
+                        probeSource?.startsWith("ftp://", ignoreCase = true) == true ||
+                        probeSource?.startsWith("sftp://", ignoreCase = true) == true
                     if (remoteProbe) {
+                        // Chapters run IMMEDIATELY even for remote sources: the
+                        // deferral below exists because the HDR probes open
+                        // several MediaExtractor/sample sessions and raced the
+                        // ring fill, but the chapter walk is one seekable
+                        // session and a few KB. Parking it meant the seekbar
+                        // markers and the chapter buttons only appeared 2-3s
+                        // after playback started, which read as "broken".
+                        probeChapters(path, uri, headers, allowSelfSigned)
                         pendingProbes = Triple(path, uri, headers)
                         pendingProbesSelfSigned = allowSelfSigned
                         pendingProbesGeneration = openGeneration

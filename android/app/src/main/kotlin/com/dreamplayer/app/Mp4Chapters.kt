@@ -33,6 +33,10 @@ internal object Mp4Chapters {
         val endMs: Long?,
     )
 
+    /// Head/tail windows for a remote probe — see [SparseReader].
+    private const val HEAD_RANGE_BYTES = 8L * 1024 * 1024
+    private const val TAIL_RANGE_BYTES = 8L * 1024 * 1024
+
     private const val MAX_CHAPTERS = 999
     private const val MAX_BOX_HEADER = 16
 
@@ -74,8 +78,8 @@ internal object Mp4Chapters {
         allowSelfSigned: Boolean,
     ): List<Chapter> {
         return try {
-            val bytes = fetchHttpHeader(url, headers, allowSelfSigned) ?: return emptyList()
-            doParse(ByteArrayReader(bytes))
+            val reader = fetchHttpRanges(url, headers, allowSelfSigned) ?: return emptyList()
+            doParse(reader)
         } catch (e: Exception) {
             Log.i("Mp4Chapters", "parseHttp failed (${e.javaClass.simpleName}: ${e.message})")
             emptyList()
@@ -107,20 +111,97 @@ internal object Mp4Chapters {
         }
     }
 
-    private fun fetchHttpHeader(
+    /// Head AND tail windows over a remote file, with the middle missing.
+    ///
+    /// MP4 keeps `moov` (which carries the Nero chapter list) at the END of the
+    /// file unless it was written "fast start", so a single `Range: bytes=0-8M`
+    /// read missed chapters on exactly the files that have them. The box walk
+    /// seeks from box to box and never touches the gap.
+    private class HttpSegment(val start: Long, val data: ByteArray)
+
+    private class SparseReader(
+        private val segments: List<HttpSegment>,
+        private val totalSize: Long,
+    ) : SeekableReader {
+        private var p = 0L
+
+        private fun locate(pos: Long): Pair<HttpSegment, Int>? {
+            for (segment in segments) {
+                if (pos >= segment.start && pos < segment.start + segment.data.size) {
+                    return segment to (pos - segment.start).toInt()
+                }
+            }
+            return null
+        }
+
+        override fun read(): Int {
+            val hit = locate(p) ?: return -1
+            p++
+            return hit.first.data[hit.second].toInt() and 0xFF
+        }
+
+        override fun readFully(buf: ByteArray) {
+            val hit = locate(p) ?: throw EOFException()
+            val segment = hit.first
+            val offset = hit.second
+            if (offset + buf.size > segment.data.size) throw EOFException()
+            System.arraycopy(segment.data, offset, buf, 0, buf.size)
+            p += buf.size
+        }
+
+        override fun seek(pos: Long) {
+            p = pos.coerceIn(0, totalSize)
+        }
+
+        override fun pos(): Long = p
+
+        // MP4's box walk needs the real file size (it walks to EOF looking for
+        // `moov`), which is exactly what the Content-Range total gives us.
+        override fun length(): Long = totalSize
+    }
+
+    private class HttpRange(val data: ByteArray, val totalSize: Long)
+
+    private fun fetchHttpRanges(
         url: String,
         headers: Map<String, String>,
         allowSelfSigned: Boolean,
-    ): ByteArray? {
+    ): SeekableReader? {
         val client = if (allowSelfSigned) permissiveClient else standardClient
-        val reqBuilder = Request.Builder().url(url).header("Range", "bytes=0-8388607")
+        val head = requestRange(url, headers, client, 0, HEAD_RANGE_BYTES - 1) ?: return null
+        val total = head.totalSize
+        if (total <= 0L || head.data.size.toLong() >= total) return ByteArrayReader(head.data)
+        val segments = mutableListOf(HttpSegment(0L, head.data))
+        val tailStart = (total - TAIL_RANGE_BYTES).coerceAtLeast(head.data.size.toLong())
+        requestRange(url, headers, client, tailStart, total - 1)?.let { tail ->
+            if (tail.data.isNotEmpty()) segments.add(HttpSegment(tailStart, tail.data))
+        }
+        return SparseReader(segments, total)
+    }
+
+    private fun requestRange(
+        url: String,
+        headers: Map<String, String>,
+        client: OkHttpClient,
+        from: Long,
+        to: Long,
+    ): HttpRange? {
+        val reqBuilder = Request.Builder().url(url).header("Range", "bytes=$from-$to")
         for ((k, v) in headers) reqBuilder.header(k, v)
         val resp = client.newCall(reqBuilder.build()).execute()
         try {
             if (!resp.isSuccessful && resp.code != 206) return null
             val body = resp.body ?: return null
             val bytes = body.bytes()
-            return if (bytes.size > 8 * 1024 * 1024) bytes.copyOf(8 * 1024 * 1024) else bytes
+            val capped = if (bytes.size > HEAD_RANGE_BYTES) bytes.copyOf(HEAD_RANGE_BYTES.toInt()) else bytes
+            var total = 0L
+            resp.header("Content-Range")?.let { cr ->
+                val slash = cr.lastIndexOf('/')
+                if (slash >= 0 && cr.length > slash + 1) {
+                    total = cr.substring(slash + 1).trim().toLongOrNull() ?: 0L
+                }
+            }
+            return HttpRange(capped, total)
         } finally {
             resp.close()
         }

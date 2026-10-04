@@ -5,8 +5,38 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ## 0.5.1
 
+### Fixed
+
+- **Opening a title's details screen could freeze the app on iPhone and iPad.**
+  Every metadata write re-read and re-encoded the entire cached TMDB store, so
+  opening a details screen — which saves several times in a row — did megabytes
+  of JSON work on the UI thread and then wrote a very large blob to system
+  storage. On a large library the app stopped responding for several seconds
+  (the spinner froze rather than spun) before the details screen appeared.
+  Metadata is now kept in memory and written once per burst instead of once per
+  change. Movies and episodes were both affected; playback was not.
+
 ### Added
 
+- **Chapter markers on the seekbar, and ⏮ / ⏭ buttons beside play/pause**
+  (issue #40) — files that carry chapter markers (anime openings, endings and
+  previews are the common case) now show a tick on the seekbar at every
+  boundary, so you can see where they are instead of guessing, and two buttons
+  either side of play/pause jump straight to the previous or next chapter. The
+  previous button restarts the chapter you are in when you are more than three
+  seconds into it, and only steps back when you are not — the same behaviour as
+  a CD player, so pressing it twice walks back rather than sticking. A short
+  label ("Next chapter · Opening") confirms each jump. Double-tapping the
+  seekbar jumps to the next chapter. The buttons appear only for files that
+  actually have chapters, on both phone and tablet and on TV, and appear as soon
+  as playback starts rather than a few seconds later.
+- **Chapters now work on network shares and on the MPV engine** (issue #40) —
+  previously the markers and buttons only ever appeared for local files on the
+  default engine. Two causes: chapter parsing belonged to the native Media3
+  player, so the MPV engine had none at all, and network probing could only read
+  a file's first 8 MB while chapters live at the *end* of a Matroska file (and of
+  a non-fast-start MP4). Both are fixed, so SMB, WebDAV, Jellyfin, FTP and
+  DLNA behave like local storage.
 - **Adjustable episode-row thumbnails** (issue #38) — episode and file rows now
   honour a **Settings → Layout → Episode thumbnails** choice of Small, Medium
   or Large, applied identically across the season screen, local folder, SMB,

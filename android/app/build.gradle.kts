@@ -70,7 +70,7 @@ android {
         // published release.
         //
         // Last published: 0.5.0 -> versionCode 37.
-        versionCode = 40
+        versionCode = 41
         versionName = flutter.versionName
     }
 

@@ -39,6 +39,7 @@ import '../services/downloaded_subtitles_store.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/open_intent.dart';
 import '../services/download_manager.dart';
+import '../utils/chapter_nav.dart';
 import '../utils/mpv_audio_select.dart';
 import 'download_screen.dart';
 import '../services/subtitle_languages.dart';
@@ -264,6 +265,16 @@ class _PlayerScreenState extends State<PlayerScreen>
   final FocusNode _playPauseFocusNode = FocusNode();
 
   Timer? _hideTimer;
+
+  /// Transient "Next chapter · Opening" confirmation, shown by the chapter
+  /// buttons and by a double-tap on the seekbar (issue #40).
+  String? _chapterToast;
+  Timer? _chapterToastTimer;
+
+  /// Bumped per open so a slow MPV chapter poll from the previous file cannot
+  /// land on this one.
+  int _mpvChapterProbeToken = 0;
+
   bool? _lastLandscape;
   static const Duration _autoHideAfter = Duration(milliseconds: 3500);
 
@@ -619,6 +630,10 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _openCurrent() async {
     final video = _current;
+    // A chapter toast from the previous file must not linger into this one.
+    _dismissChapterToast();
+    // Invalidate any in-flight MPV chapter poll for the previous file.
+    _mpvChapterProbeToken++;
     // A new video means a previous software-decode fallback was for the last
     // file only — restore the user's original decoder mode now.
     await _restoreDecoderOverride();
@@ -2199,6 +2214,86 @@ class _PlayerScreenState extends State<PlayerScreen>
     // **external > embedded always** priority: the first `isDefault` track
     // gets selected, the rest are still reachable from the CC sheet.
     await _attachMpvExternalSubtitles(player);
+    await _loadMpvChapters(player);
+  }
+
+  /// Reads mpv's own `chapter-list` into [_chapters].
+  ///
+  /// Without this, chapters were a Media3-only feature: the native parser
+  /// ([MkvChapters]/[Mp4Chapters]) lives in the ExoPlayer platform view, so
+  /// playing the SAME file with the MPV engine showed no seekbar markers and no
+  /// chapter buttons — the feature appeared to be "local files only" because
+  /// that happened to be how it was being tested.
+  ///
+  /// POLLING, not a single read: mpv only populates `chapter-list` once the file
+  /// is demuxed, which is after `open()` returns — and on a network source
+  /// (SMB's loopback proxy, WebDAV, Jellyfin) it is well after that. A
+  /// one-shot read therefore always came back empty, which is why MPV showed
+  /// nothing on local files either.
+  ///
+  /// mpv has no `chapter-list/count` (and `getProperty` cannot stringify a node
+  /// array), so [_probeMpvChapters] walks indices until a read is empty or
+  /// throws — the same shape as the DEFAULT-audio probe for `track-list/<n>`.
+  Future<void> _loadMpvChapters(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer || _inTests) return;
+    final token = ++_mpvChapterProbeToken;
+    final deadline = DateTime.now().add(const Duration(seconds: 12));
+    var attempts = 0;
+    while (DateTime.now().isBefore(deadline)) {
+      if (!mounted || token != _mpvChapterProbeToken) return;
+      attempts++;
+      final found = await _probeMpvChapters(platform, attempts);
+      if (found.length > 1) {
+        debugPrint(
+          'mpv: ${found.length} chapters after $attempts probe(s) — '
+          '${found.map((c) => c.title).join(' / ')}',
+        );
+        if (mounted && token == _mpvChapterProbeToken) {
+          setState(() => _chapters = found);
+        }
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    debugPrint('mpv: no chapters for "${_current.title}" after $attempts probes');
+  }
+
+  /// One pass over `chapter-list/<n>/…`, returning what mpv has so far.
+  Future<List<ExoChapter>> _probeMpvChapters(
+    NativePlayer platform,
+    int attempt,
+  ) async {
+    final found = <ExoChapter>[];
+    try {
+      for (var i = 0; i < 99; i++) {
+        String title;
+        String time;
+        try {
+          title = await platform.getProperty('chapter-list/$i/title');
+          time = await platform.getProperty('chapter-list/$i/time');
+        } catch (_) {
+          break; // no such index — past the last chapter
+        }
+        final seconds = double.tryParse(time.trim());
+        if (seconds == null || seconds < 0) {
+          if (attempt == 1) {
+            debugPrint('mpv: chapter-list/$i/time unreadable ("$time")');
+          }
+          break;
+        }
+        final clean = title.trim();
+        found.add(
+          ExoChapter(
+            title: clean.isEmpty ? 'Chapter ${i + 1}' : clean,
+            startMs: (seconds * 1000).round(),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('mpv: chapter probe failed: $e');
+    }
+    return found;
   }
 
   /// Adds the video's resolved external subtitles to mpv via `sub-add`. Each
@@ -3652,6 +3747,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _swipeOverlayTimer?.cancel();
     _singleTapTimer?.cancel();
     _dtSeekTimer?.cancel();
+    _chapterToastTimer?.cancel();
     // Put the user's original decoder mode back if we forced software for the
     // current file's hardware-decoder failure.
     unawaited(_restoreDecoderOverride());
@@ -6185,6 +6281,95 @@ class _PlayerScreenState extends State<PlayerScreen>
     _showControls();
   }
 
+  /// Chapter jump (issue #40). The target comes from [ChapterNav] rather than a
+  /// tracked index, so it stays correct after a resume, an external bookmark
+  /// jump, or a seek that did not come from these buttons.
+  void _gotoChapter(ExoChapter chapter, String verb) {
+    if (_touchLocked) return;
+    final target = Duration(milliseconds: chapter.startMs);
+    final wasCompleted = _completed;
+    _completed = false;
+    _seekBackend(target);
+    if (wasCompleted) {
+      // Seeking off the end must restart playback, or the replay icon stays up
+      // and the video never starts (same rule as _onSeekEnd).
+      final mpv = _mpvPlayer;
+      if (_mpvReady && mpv != null) {
+        unawaited(mpv.play());
+      } else {
+        _exo?.play();
+      }
+    }
+    _showChapterToast('$verb · ${chapter.title}');
+    _showControls();
+  }
+
+  void _gotoNextChapter() {
+    final chapter = ChapterNav.next(_chapters, _position.inMilliseconds);
+    if (chapter == null) return;
+    _gotoChapter(chapter, 'Next chapter');
+  }
+
+  void _gotoPreviousChapter() {
+    final positionMs = _position.inMilliseconds;
+    final chapter = ChapterNav.previous(_chapters, positionMs);
+    if (chapter == null) return;
+    // Past its grace window the previous button restarts the chapter playing
+    // rather than going back one, so the toast says what actually happened.
+    final current = ChapterNav.current(_chapters, positionMs);
+    final restartsCurrent = current != null && chapter.startMs == current.startMs;
+    _gotoChapter(chapter, restartsCurrent ? 'Restart chapter' : 'Previous chapter');
+  }
+
+  /// One chapter-jump button.
+  ///
+  /// On TV this is a [_TvControlButton] so the D-pad gets its focus ring.
+  /// On touch it is a **plain icon, not wrapped in [_TvControlButton] at
+  /// all**: suppressing the ring's decoration was not enough, because a
+  /// transient glow kept flashing on one button or the other — the ring is
+  /// drawn inside a Focus/AnimatedContainer, and Material's own focus/ink
+  /// behaviour around a freshly inserted (or newly focused) button still
+  /// painted a disc for a frame. Removing the whole widget from the touch path
+  /// is the only way to make it impossible rather than merely unlikely.
+  Widget _chapterButton({
+    required Icon icon,
+    required VoidCallback onPressed,
+  }) {
+    final enabled = _backendReady && !_inPip;
+    if (_isTv) {
+      return _TvControlButton(
+        onPressed: enabled ? onPressed : null,
+        iconSize: 40,
+        icon: icon,
+        color: Colors.white,
+        onFocusChange: (_) => _showControls(),
+      );
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? onPressed : null,
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: IconTheme.merge(
+          data: IconThemeData(
+            size: 40,
+            color: enabled ? Colors.white : Colors.white24,
+          ),
+          child: icon,
+        ),
+      ),
+    );
+  }
+
+  void _showChapterToast(String message) {
+    _hideTimer?.cancel();
+    setState(() => _chapterToast = message);
+    _chapterToastTimer?.cancel();
+    _chapterToastTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted) setState(() => _chapterToast = null);
+    });
+  }
+
   void _onSeekStart(double value) {
     if (_touchLocked) return;
     _dragging = true;
@@ -6218,6 +6403,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     _dragging = false;
     _dragValue = value;
     _showControls();
+  }
+
+  void _dismissChapterToast() {
+    _chapterToastTimer?.cancel();
+    if (_chapterToast != null && mounted) setState(() => _chapterToast = null);
   }
 
   void _toggleTouchLock() {
@@ -7199,6 +7389,20 @@ class _PlayerScreenState extends State<PlayerScreen>
                         ),
                         SizedBox(width: 8),
                       ],
+                      // Chapter jump, beside play/pause on every platform
+                      // (issue #40). Only when the file actually has chapters,
+                      // so nothing else changes. They sit INSIDE the pill
+                      // rather than in the bottom bar because the pill is
+                      // already the "big transport" cluster, and a viewer
+                      // skipping an opening is looking at the video, not at
+                      // the chrome down below.
+                      if (_chapters.length > 1) ...[
+                        _chapterButton(
+                          icon: const Icon(Icons.skip_previous),
+                          onPressed: _gotoPreviousChapter,
+                        ),
+                        SizedBox(width: 8),
+                      ],
                       _TvControlButton(
                         focusNode: _playPauseFocusNode,
                         onPressed: !_backendReady ? null : _togglePlayPause,
@@ -7227,11 +7431,45 @@ class _PlayerScreenState extends State<PlayerScreen>
                           onFocusChange: (_) => _showControls(),
                         ),
                       ],
+                      if (_chapters.length > 1) ...[
+                        SizedBox(width: 8),
+                        _chapterButton(
+                          icon: const Icon(Icons.skip_next),
+                          onPressed: _gotoNextChapter,
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
             ),
+              // Chapter jump confirmation. Anchored above the bottom bar so it
+              // never covers the seekbar markers the user just clicked.
+              if (_chapterToast != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: MediaQuery.sizeOf(context).height * 0.22,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _chapterToast!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             AnimatedSlide(
               duration: const Duration(milliseconds: 200),
               offset: _controlsVisible ? Offset.zero : const Offset(0, 1),
@@ -7293,6 +7531,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 onChanged: _onSeekUpdate,
                                 onChangeEnd: _onSeekEnd,
                                 onFocusChange: (_) => _showControls(),
+                                chapters: _chapters,
+                                onDoubleTap: _gotoNextChapter,
                               ),
                               Row(
                                 mainAxisAlignment:
@@ -7615,10 +7855,12 @@ class _BufferedSeekBar extends StatefulWidget {
     required this.value,
     required this.max,
     required this.bufferedMs,
+    this.chapters = const [],
     this.onChangeStart,
     this.onChanged,
     this.onChangeEnd,
     this.onFocusChange,
+    this.onDoubleTap,
   });
 
   final double value;
@@ -7628,6 +7870,10 @@ class _BufferedSeekBar extends StatefulWidget {
   final ValueChanged<double>? onChanged;
   final ValueChanged<double>? onChangeEnd;
   final ValueChanged<bool>? onFocusChange;
+
+  /// Chapter markers drawn on the track, and the target of a double-tap.
+  final List<ExoChapter> chapters;
+  final VoidCallback? onDoubleTap;
 
   @override
   State<_BufferedSeekBar> createState() => _BufferedSeekBarState();
@@ -7738,6 +7984,11 @@ class _BufferedSeekBarState extends State<_BufferedSeekBar> {
             onHorizontalDragUpdate: (details) => _handleTouchUpdate(details.localPosition, totalWidth),
             onHorizontalDragEnd: (_) => _handleTouchEnd(),
             onHorizontalDragCancel: () => _handleTouchEnd(),
+            // Chapter jump lives on a DOUBLE-tap of the bar, not on the
+            // horizontal swipe: that swipe is ±90s scrub, and quietly changing
+            // what a gesture means would break it for every video with no
+            // chapters at all.
+            onDoubleTap: widget.chapters.length > 1 ? widget.onDoubleTap : null,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               height: _touchHeight,
@@ -7796,6 +8047,22 @@ class _BufferedSeekBarState extends State<_BufferedSeekBar> {
                       ),
                     ),
                   ),
+                  // Chapter markers, above the track and below the thumb so
+                  // they read against both the played and unplayed halves.
+                  if (widget.chapters.length > 1)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _ChapterTickPainter(
+                            chapters: widget.chapters,
+                            max: _clampedMax,
+                            horizontalPadding: _horizontalPadding,
+                            trackWidth: trackWidth,
+                            centerY: _touchHeight / 2,
+                          ),
+                        ),
+                      ),
+                    ),
                   // Thumb circle (with glow when dragging)
                   Positioned(
                     top: (_touchHeight - currentThumbRadius * 2) / 2,
@@ -8016,3 +8283,69 @@ class _TvControlButtonState extends State<_TvControlButton> {
 /// pip mode (the parent gates the widget out so the floating window shows
 /// only the video). When the speed is still loading (the player hasn't
 
+
+/// Draws one tick per chapter marker on the seekbar track.
+///
+/// Issue #40: chapters were already parsed and listed in the overflow sheet,
+/// but nothing on the bar itself showed where they were, so the only way to
+/// reach them was to open a menu and read the list.
+class _ChapterTickPainter extends CustomPainter {
+  _ChapterTickPainter({
+    required this.chapters,
+    required this.max,
+    required this.horizontalPadding,
+    required this.trackWidth,
+    required this.centerY,
+  });
+
+  final List<ExoChapter> chapters;
+  final double max;
+  final double horizontalPadding;
+  final double trackWidth;
+  final double centerY;
+
+  /// Tall enough to read against the 4px track, short enough not to look like
+  /// a second thumb.
+  static const double _halfHeight = 7;
+  static const double _width = 2;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (chapters.isEmpty || max <= 0 || trackWidth <= 0) return;
+    // White would vanish into the white active fill, so each tick carries a
+    // dark edge underneath: one mark has to work on both halves of the bar.
+    final light = Paint()
+      ..color = Colors.white.withValues(alpha: 0.9)
+      ..strokeWidth = _width
+      ..strokeCap = StrokeCap.round;
+    final dark = Paint()
+      ..color = Colors.black.withValues(alpha: 0.45)
+      ..strokeWidth = _width + 2
+      ..strokeCap = StrokeCap.round;
+
+    for (final chapter in chapters) {
+      final fraction = (chapter.startMs / max).clamp(0.0, 1.0);
+      // Skip 0: a marker at the very start sits on the bar's left edge and
+      // reads as a rendering glitch rather than a boundary.
+      if (fraction <= 0.0) continue;
+      final x = horizontalPadding + fraction * trackWidth;
+      if (x >= horizontalPadding + trackWidth) continue;
+      canvas.drawLine(
+        Offset(x, centerY - _halfHeight),
+        Offset(x, centerY + _halfHeight),
+        dark,
+      );
+      canvas.drawLine(
+        Offset(x, centerY - _halfHeight),
+        Offset(x, centerY + _halfHeight),
+        light,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ChapterTickPainter old) =>
+      old.max != max ||
+      old.trackWidth != trackWidth ||
+      !listEquals(old.chapters, chapters);
+}

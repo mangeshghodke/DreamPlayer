@@ -982,6 +982,146 @@ clear), and poster/backdrop/cast are prefetched on resolve while per-episode
 stills are prefetched per row as they are discovered. Embedded cover art
 (MKV/MP4 artwork) is a separate cache, `ThumbnailStore`, local-only by design.
 
+### Chapter navigation (issue #40, 0.5.1+26) — read this before touching the seekbar
+
+Chapters were **already parsed on both platforms** long before #40 asked for
+navigation: `MkvChapters.kt`/`.swift` (EBML EditionEntry/ChapterAtom) AND
+`Mp4Chapters.kt`/`.swift` (Nero `moov/udta/chpl`), read for local files via
+`RafReader`; Jellyfin supplies `Item.Chapters` (ticks/10000 ms) server-side.
+They reached Dart as `VideoItem.chapters` / `ExoChapter` and were only ever
+listed in the ⋮ overflow sheet. **AGENTS.md's old claim that "MP4 chapter
+tracks not parsed yet" was stale** — both platforms have had it.
+
+What #40 actually needed was **presentation**, and all three asks were
+deliberately scoped:
+
+- **Seekbar ticks** — `_ChapterTickPainter` (end of `player_screen.dart`),
+  inserted between the active fill and the thumb so a mark reads against both
+  the played and unplayed halves. Each tick is drawn TWICE: a `Colors.black`
+  4px line under a `Colors.white` 2px one. White alone disappears into the
+  white active fill, which is the whole reason the first version was invisible
+  on the played side. A tick at fraction 0 is skipped — it sits on the bar's
+  left edge and reads as a rendering glitch.
+- **Buttons beside play/pause** — inside the centre pill, not the bottom bar,
+  because the pill is already the big-transport cluster and a viewer skipping
+  an opening is looking at the video. Shown only when `_chapters.length > 1`,
+  on phone, tablet and TV alike. Gated on `_inPip` like every other control.
+- **The gesture is a DOUBLE-TAP on the bar, deliberately not the horizontal
+  swipe.** That swipe is ±90 s scrub (`±90 s per screen width`); silently
+  changing what it means would break it for every video with no chapters.
+  A double-tap is unambiguous and costs the existing gesture nothing.
+
+**Chapters were Media3-ONLY for one full release cycle — the "local files only"
+trap.** Two independent causes, both found after the reporter said SMB showed
+nothing:
+
+1. **The parsers live in `ExoPlayerView`.** `MkvChapters.kt`/`Mp4Chapters.kt`
+   are called from `probeChapters`, which only the Media3 platform view runs. The
+   MPV engine therefore had NO chapters for ANY source, while Media3 had them
+   for local files — so "works on local, not on network" was really "works on
+   whichever engine I happened to use". `_loadMpvChapters` now reads mpv's own
+   `chapter-list/<n>/title|time` after every `player.open`. mpv has no
+   `chapter-list/count` and `getProperty` cannot stringify a node array, so it
+   walks indices until a read is empty or throws — the same shape as the
+   existing `track-list/<n>/default` DEFAULT-audio probe.
+2. **`parseHttp` could only see the FIRST 8 MiB** (`Range: bytes=0-8388607`).
+   Matroska keeps Chapters at the END of the segment, and MP4 keeps `moov` at the
+   end unless the file was written "fast start" — so every HTTP source
+   (WebDAV / Jellyfin / UPnP-DLNA) silently found nothing. Both parsers now use
+   `fetchHttpRanges`: an 8 MiB head **plus** an 8 MiB tail, joined by a
+   `SparseReader` that serves either window and EOFs in the gap. The box/EBML
+   walks never touch the gap — they start at the header/SeekHead and seek
+   straight to the element they want. Total size comes from the `Content-Range`
+   header of the head request; a server that ignores Range and streams the whole
+   body falls back to the old head-only behaviour.
+
+   SMB/FTP were always fine here: `openSmbFile` resolves the saved credentials
+   via `SmbStore.resolve` and wraps a real `SmbRandomAccessFile`, which seeks.
+   `probeChapters` now logs its inputs and the result under the `MkvChapters`
+   tag, so the next "it didn't show" is answerable from logcat instead of guesswork.
+
+**The previous-chapter grace window is the whole UX of the button.** Past 3 s
+into a chapter, "previous" restarts THAT chapter; inside 3 s it steps back one.
+So pressing twice walks backwards instead of sticking — the CD-player
+behaviour. The toast says which of the two happened ("Restart chapter" vs
+"Previous chapter") by comparing the target's `startMs` against
+`ChapterNav.current`, because the arithmetic alone can't tell you afterwards.
+
+All of it is pure arithmetic in **`lib/utils/chapter_nav.dart`** (`indexAt` /
+`next` / `previous` / `current`), unit-tested in `test/chapter_nav_test.dart`
+(17 tests) against a real VCB-Studio shape: Opening / Part A / Part B /
+Ending. Two decisions worth keeping: `next` returns **null** at the last
+chapter rather than wrapping to the first (a next button that jumps you back
+to the opening is how you lose an hour), and `indexAt` resolves duplicate
+starts to the **last** marker so `next` can never land on the chapter already
+playing. The ±10 s buttons are TV-only; the chapter buttons are NOT, because a
+D-pad has no double-tap gesture.
+
+**The chapter buttons are NOT `_TvControlButton`s on touch — and that took three attempts.** The ring is drawn inside a Focus + AnimatedContainer wrapping an `IconButton` that never shrinks below its 48px minimum, so around the 40px skip glyphs it rendered a ~63px glowing disc that read as a halo, and it appeared at all on a phone because tapping a button gives it focus. What was tried, in order:
+
+1. `hugIcon` + `focusScale` to shrink the ring to hug the glyph. The user asked
+   for the glow gone entirely, so this was reverted rather than left as unused
+   API — and it was only ever cosmetic anyway.
+2. `ringless` on `_TvControlButton`, suppressing the decoration, the glow and
+   the focus scale. **Not enough**: `_TvControlButton` wraps its `IconButton`
+   in a `Focus`, but the `IconButton` creates its OWN internal `FocusNode`, and
+   Material paints its focus overlay on *that* node. The two cannot be merged —
+   a `FocusNode` may only be attached to one `Focus`.
+3. Rendering a ringless button as a plain `GestureDetector` + `IconTheme.merge`
+   instead of an `IconButton`. That removed the flash on Media3, but with MPV a
+   glow still flashed on one button or the other for a frame (MPV's chapters
+   arrive *late*, so the buttons are inserted into the tree while the screen is
+   already live).
+
+So the chapter buttons now take a **platform split** in `_chapterButton`: TV
+gets a real `_TvControlButton` (a D-pad with no visible focus target is worse
+than an oversized ring), and touch gets a bare tappable `Icon` with no
+`Focus`, no `AnimatedContainer` and no `IconButton` anywhere in the subtree —
+which makes the glow impossible rather than merely unlikely. Anything else that
+wants "no touch focus ring" should copy that split instead of trying to suppress
+the decoration.
+
+
+### TmdStore writes: why the iPad froze solid on a details screen (2026-10-04)
+
+**Symptom (iOS/SMB):** tapping an episode or movie in the SMB browser froze the
+app **solid** — the spinner stopped animating, so it was not "slow", the UI
+isolate was *blocked* — for several seconds, then the TMDB details screen
+appeared. Movies and episodes alike. Playback itself opened fast, which is the
+clue: playback writes no metadata.
+
+**Cause:** `TmdStore.save()` did `loadAll()` → mutate one key → `jsonEncode` the
+**entire** cache → `prefs.setString`. So every write paid a full `jsonDecode` of
+the whole store *plus* a full re-encode, **on the UI isolate**, and on iOS the
+blob also lives in NSUserDefaults where a multi-MB string is slow to write.
+Opening a details screen saves several times in a row (`carryMeta`, `resolve`,
+`seasonFor`, then one per episode still), so it was N full decodes + N full
+encodes + N huge writes.
+
+**Fix:** `_memo` holds the decoded store after the first read; `save()` mutates
+memory, notifies, and calls `_schedulePersist()` — a 600 ms debounce that
+collapses a burst into ONE encode + ONE write. `_persistNow` serialises writers
+and re-arms if something changed mid-encode, so nothing is lost.
+`TmdStore.flush()` forces the write for callers that must not return first
+(`remove`). `TmdService._cache` and `TmdStore._memo` cannot diverge because every
+`TmdStore.save` is preceded by `_cache[key] = meta`.
+
+**Read the symptom correctly:** a *spinning* spinner means awaiting; a *frozen*
+one means blocked. That distinction is what pointed at a synchronous CPU cost
+rather than a slow channel — and `openShare` was never the suspect, because it
+already runs in a `Task.detached` and replies on `MainActor`
+(`ios/Runner/SMBBridge.swift`), which the log confirms (~136 ms).
+
+**Not a candidate, despite looking like one:** the repeated `listDirectory` calls
+for the same bookmarked folders in `smb_debug.log` are the home screen re-listing
+network folders, not part of the freeze.
+
+`test/tmd_store_persist_test.dart` (5 tests) pins it: a burst is NOT written
+immediately, `flush` persists all of it, an entry saved *during* a write is not
+dropped, `remove` deletes one entry and persists, `clearAll` empties both memory
+and disk. A `debugPrint` reports the blob size when it exceeds 100 000 chars —
+that single number is what to look for in a device log if this ever regresses.
+
 ### Library rescan on refresh (issue #39, 0.5.1+25) — read this before touching the scanner
 
 The home grid was a **one-time snapshot**: `FolderScanner` ran only inside the
@@ -1682,6 +1822,7 @@ lib/
   services/library_folders.dart    # user-added library folders (LibraryFolder model + LibraryFoldersStore, prefs dreamplayer.libraryFolders; LibraryFolderSource.files|jellyfin|smb|webdav|ftp|upnp)
   services/folder_scanner.dart     # deep recursive folder scanner (up to 5 levels, all 6 sources; leaf-vs-container logic)
   services/local_library_rescan.dart # local-only rescan on pull-to-refresh (issue #39): add/remove cards when files change on device
+  utils/chapter_nav.dart         # pure chapter-jump arithmetic (indexAt/next/previous/current) + grace window
   services/webdav_client.dart     # WebDAV channel wrapper + WebDavServer model (channel dreamplayer/webdav)
   services/thumbnail_store.dart   # embedded cover-art cache for video cards (memory+disk, local sources only)
   services/image_cache_service.dart # offline TMDB image cache (posters/backdrops/stills/profiles, disk + memory, prefetch on resolve)
@@ -1776,6 +1917,8 @@ test/
   continue_watching_identity_test.dart # continue watching resolves to the file card's key
   library_file_identity_test.dart  # a file entry's metadataKey is its resume key
   details_header_poster_test.dart   # an explicit poster pick beats the season poster
+  chapter_nav_test.dart           # issue #40 chapter jump: grace window, null-at-end (no wrap), duplicate starts
+  tmd_store_persist_test.dart      # TmdStore writes coalesce; nothing lost mid-write (iOS freeze fix)
   local_library_rescan_test.dart   # issue #39 rescan: id preservation, add-only fallback, root reconstruction, applyDiff ordering
   episode_label_test.dart         # offline episode title fallbacks (TMDB name -> S01E05 -> file name)
   episode_row_test.dart           # shared EpisodeRow: sizes, tap/long-press, icon fallback, no overflow

@@ -34,6 +34,11 @@ internal object MkvChapters {
     )
 
     // EBML element IDs used here.
+    /// Head and tail windows for a remote chapter probe. 8 MiB each: the head
+    /// carries the EBML header + SeekHead, the tail the Chapters element.
+    private const val HEAD_RANGE_BYTES = 8L * 1024 * 1024
+    private const val TAIL_RANGE_BYTES = 8L * 1024 * 1024
+
     private const val ID_EBML_HEADER = 0x1A45DFA3L
     private const val ID_SEGMENT = 0x18538067L
     private const val ID_SEEKHEAD = 0x114D9B74L
@@ -97,29 +102,121 @@ internal object MkvChapters {
         allowSelfSigned: Boolean,
     ): List<Chapter> {
         return try {
-            val bytes = fetchHttpHeader(url, headers, allowSelfSigned) ?: return emptyList()
-            doParse(ByteArrayReader(bytes))
+            val reader = fetchHttpRanges(url, headers, allowSelfSigned) ?: return emptyList()
+            doParse(reader)
         } catch (e: Exception) {
             Log.i("MkvChapters", "parseHttp failed (${e.javaClass.simpleName}: ${e.message})")
             emptyList()
         }
     }
 
-    private fun fetchHttpHeader(
+    /// One contiguous `[start, start + data.size)` window of the remote file.
+    private class HttpSegment(val start: Long, val data: ByteArray)
+
+    /**
+     * A reader over the head AND the tail of a remote file, with the middle
+     * missing.
+     *
+     * Matroska keeps the Chapters element at the END of the segment, so the
+     * old single `Range: bytes=0-8M` read found chapters in exactly the files
+     * that do not have them — which is why chapters appeared for local files
+     * and never for WebDAV / Jellyfin / UPnP. The EBML walk never touches the
+     * gap: it starts at the Segment header, reads the SeekHead, then seeks
+     * straight to the Chapters element, which is what the tail window is for.
+     */
+    private class SparseReader(
+        private val segments: List<HttpSegment>,
+        private val totalSize: Long,
+    ) : SeekableReader {
+        private var p = 0L
+
+        private fun locate(pos: Long): Pair<HttpSegment, Int>? {
+            for (segment in segments) {
+                if (pos >= segment.start && pos < segment.start + segment.data.size) {
+                    return segment to (pos - segment.start).toInt()
+                }
+            }
+            return null
+        }
+
+        override fun read(): Int {
+            val hit = locate(p) ?: return -1
+            p++
+            return hit.first.data[hit.second].toInt() and 0xFF
+        }
+
+        override fun readFully(buf: ByteArray) {
+            val hit = locate(p) ?: throw EOFException()
+            val segment = hit.first
+            val offset = hit.second
+            if (offset + buf.size > segment.data.size) throw EOFException()
+            System.arraycopy(segment.data, offset, buf, 0, buf.size)
+            p += buf.size
+        }
+
+        override fun seek(pos: Long) {
+            p = pos.coerceIn(0, totalSize)
+        }
+
+        override fun pos(): Long = p
+    }
+
+    private fun fetchHttpRanges(
         url: String,
         headers: Map<String, String>,
         allowSelfSigned: Boolean,
-    ): ByteArray? {
+    ): SeekableReader? {
         val client = if (allowSelfSigned) permissiveClient else standardClient
-        val reqBuilder = Request.Builder().url(url).header("Range", "bytes=0-8388607")
+
+        val head = requestRange(url, headers, client, 0, HEAD_RANGE_BYTES - 1) ?: return null
+        val total = head.totalSize
+        // A server that ignored Range and streamed the whole body leaves us
+        // with no way to know where the end is — same behaviour as before.
+        if (total <= 0L || head.data.size.toLong() >= total) {
+            return ByteArrayReader(head.data)
+        }
+
+        val segments = mutableListOf(HttpSegment(0L, head.data))
+        val tailStart = (total - TAIL_RANGE_BYTES).coerceAtLeast(head.data.size.toLong())
+        requestRange(url, headers, client, tailStart, total - 1)?.let { tail ->
+            if (tail.data.isNotEmpty()) segments.add(HttpSegment(tailStart, tail.data))
+        }
+        return SparseReader(segments, total)
+    }
+
+    private class HttpRange(val data: ByteArray, val totalSize: Long)
+
+    private fun requestRange(
+        url: String,
+        headers: Map<String, String>,
+        client: OkHttpClient,
+        from: Long,
+        to: Long,
+    ): HttpRange? {
+        val reqBuilder = Request.Builder().url(url).header("Range", "bytes=$from-$to")
         for ((k, v) in headers) reqBuilder.header(k, v)
         val resp = client.newCall(reqBuilder.build()).execute()
         try {
             if (!resp.isSuccessful && resp.code != 206) return null
             val body = resp.body ?: return null
-            // Cap at 8 MiB even if server ignores Range and sends the whole file.
+            // Cap the window even if the server ignores Range and sends the
+            // whole file — a 40 GB "range" would OOM.
             val bytes = body.bytes()
-            return if (bytes.size > 8 * 1024 * 1024) bytes.copyOf(8 * 1024 * 1024) else bytes
+            val capped = if (bytes.size > HEAD_RANGE_BYTES) {
+                bytes.copyOf(HEAD_RANGE_BYTES.toInt())
+            } else {
+                bytes
+            }
+            // `Content-Range: bytes 0-8388607/123456789` is the only place a
+            // ranged GET reveals the real file size.
+            var total = 0L
+            resp.header("Content-Range")?.let { cr ->
+                val slash = cr.lastIndexOf('/')
+                if (slash >= 0 && cr.length > slash + 1) {
+                    total = cr.substring(slash + 1).trim().toLongOrNull() ?: 0L
+                }
+            }
+            return HttpRange(capped, total)
         } finally {
             resp.close()
         }
