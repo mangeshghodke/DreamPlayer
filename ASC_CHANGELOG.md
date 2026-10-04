@@ -13,7 +13,7 @@ Paste-ready release notes for the **What's New** field in App Store Connect
 
 ---
 
-## 0.5.1 (build 27)
+## 0.5.1 (build 28)
 
 Chapter navigation, made visible. Files that carry chapter markers — anime
 openings, endings and previews are the common case — now show a tick on the

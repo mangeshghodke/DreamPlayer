@@ -275,6 +275,14 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   MediaProbeResult? _probe;
   bool _probing = false;
+
+  /// Times the open path. Issue #41-class reports ("the first details screen
+  /// hangs, every one after it is instant") are indistinguishable from the SMB
+  /// log alone, which only sees the SMB channel — and `openShare` turned out to
+  /// be 169ms cold / 57ms warm, i.e. innocent. These markers make the Dart side
+  /// (metadata resolve, image cache, probe) measurable from the device console
+  /// instead of inferred. All prefixed `TMD-OPEN` so one grep finds them.
+  final Stopwatch _openWatch = Stopwatch();
   DefaultEngine _defaultEngine = DefaultEngine.ask;
   bool _defaultEngineLoaded = false;
   final ScrollController _scrollController = ScrollController();
@@ -624,12 +632,23 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   }
 
   Future<void> _load() async {
+    _openWatch.start();
     await _service.ensureLoaded();
+    debugPrint('TMD-OPEN: ensureLoaded took ${_openWatch.elapsedMilliseconds}ms');
     if (!mounted) return;
     setState(() {
       _meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
       _details = _meta?.details;
       _loading = _meta == null;
+    });
+    debugPrint(
+      'TMD-OPEN: first paint of cached state at ${_openWatch.elapsedMilliseconds}ms '
+      '(cached=${_meta != null})',
+    );
+    // First frame AFTER this build settles — the number that matches what the
+    // user perceives as "the screen finally appeared".
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      debugPrint('TMD-OPEN: first frame at ${_openWatch.elapsedMilliseconds}ms');
     });
     _loadResume();
     if (widget.folder != null) {
@@ -1021,6 +1040,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final meta = _service.metaFor(_identityKey, inheritArtworkFrom: _artworkFallback);
     if (meta == null) return;
     final details = await _service.detailsFor(_identityKey);
+    debugPrint('TMD-OPEN: detailsFor took ${_openWatch.elapsedMilliseconds}ms total');
     if (mounted) setState(() => _details = details);
     if (meta.movie.kind != TmdKind.tv) return;
     // Season names first so _seasonsNeeded can map roman-numeral / titled
@@ -1029,6 +1049,9 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     if (!mounted) return;
     for (final season in _seasonsNeeded()) {
       await _service.seasonFor(_identityKey, season);
+      debugPrint(
+        'TMD-OPEN: season $season at ${_openWatch.elapsedMilliseconds}ms total',
+      );
       if (!mounted) return;
     }
     // Re-read meta from cache — seasonFor may have enriched it with poster
