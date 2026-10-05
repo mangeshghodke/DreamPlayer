@@ -482,14 +482,37 @@ String formatLiveAudioLabel({
 }
 
 /// Maps raw pixel dimensions to a friendly resolution label (4K, 2K, 1080p,
-/// etc.) for the player chip and info sheet. Uses the larger dimension so
-/// ultrawide or non-standard aspect ratios still get the right bucket.
+/// etc.) for the player chip, the info sheet and the file-info card.
+///
+/// **Single source of truth.** [MediaProbeResult.resolutionLabel] used to carry
+/// its own, looser thresholds, so the details card called the very same file 4K
+/// while the player's resolution chip called it 2K.
+///
+/// Classifies on BOTH edges, not just the long one. A `maxDim >= 3840` test
+/// alone is wrong for the single most common shape of a 2160p release: the
+/// 2.39:1 scope crop. Real examples — 3832x1600, 3840x1600, 3840x1608,
+/// 4096x1716 — all carry a long edge a hair under 3840 (3832 is the classic
+/// one) purely to save bits, and every one of them is 4K. Hence the second
+/// clause: a UHD-class long edge paired with a >= 1400px short edge is 4K
+/// regardless. Symmetrically, 2K accepts DCI's 2048x1080 rather than only
+/// >= 2560.
 String friendlyResolution(int width, int height) {
-  final maxDim = width > height ? width : height;
-  if (maxDim >= 3840) return '4K';
-  if (maxDim >= 2560) return '2K';
-  if (maxDim >= 1920) return '1080p';
-  if (maxDim >= 1280) return '720p';
-  if (maxDim >= 720) return '480p';
-  return '${maxDim}p';
+  if (width <= 0 || height <= 0) {
+    final known = width > 0 ? width : height;
+    return '${known > 0 ? known : 0}p';
+  }
+  final longEdge = width > height ? width : height;
+  final shortEdge = width > height ? height : width;
+  // 8K first — 4320p / 7680x4320.
+  if (longEdge >= 7000) return '8K';
+  // 4K: exact UHD long edge, OR a UHD-class crop (see the doc comment).
+  if (longEdge >= 3840 || (longEdge >= 3000 && shortEdge >= 1400)) {
+    return '4K';
+  }
+  // 2K: 2560x1440 and DCI 2048x1080.
+  if (longEdge >= 2048 && shortEdge >= 1000) return '2K';
+  if (longEdge >= 1920) return '1080p';
+  if (longEdge >= 1280) return '720p';
+  if (longEdge >= 720) return '480p';
+  return '${longEdge}p';
 }

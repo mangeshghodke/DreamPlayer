@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../utils/codec_info.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -26,14 +27,11 @@ class MediaProbeResult {
   final int? fps;
   final int? bitrate;
 
+  /// Delegates to [friendlyResolution] so the file-info card and the player's
+  /// resolution chip can never disagree about the same file.
   String? get resolutionLabel {
     if (width == null || height == null) return null;
-    final w = width!;
-    final h = height!;
-    if (w >= 3800 || h >= 2100) return '4K';
-    if (w >= 1900 || h >= 1000) return '1080p';
-    if (w >= 1200 || h >= 700) return '720p';
-    return '${w}x$h';
+    return friendlyResolution(width!, height!);
   }
 
   factory MediaProbeResult.fromMap(Map<dynamic, dynamic> m) {
