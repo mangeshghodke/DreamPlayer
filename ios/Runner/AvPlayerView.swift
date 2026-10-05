@@ -1078,10 +1078,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         // probe. `pread` is positional, so the walk's one seek
                         // to the SeekHead offset lands on the byte instead of
                         // streaming there — no head+tail guessing needed.
-                        if let probeReader =
-                            connection.makeIndependentReader() as? SMBSourceReader {
-                            self.chapterSmbReader = probeReader.makeChapterReader()
-                        }
+                        self.chapterSmbReader = connection.makeChapterReader()
                         source = .custom(
                             connection.makeReader(),
                             formatHint: self.smbFormatHint

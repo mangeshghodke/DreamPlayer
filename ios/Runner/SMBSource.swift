@@ -29,6 +29,18 @@ final class SMBPlayback: @unchecked Sendable {
     let libsmb2File: LibSMB2File
     private let libsmb2Session: LibSMB2Session
 
+    /// Shared by EVERY reader handed out for this handle.
+    ///
+    /// libsmb2's context keeps its message-id counter and credit accounting in
+    /// plain struct fields with no internal locking, so two readers on one
+    /// context must never be in it at the same time. This used to be created
+    /// per-reader inside `SMBSourceReader.init`, which was fine while playback
+    /// only ever made one reader — but the chapter probe needs a second cursor,
+    /// and two cursors with two locks is exactly the race that corrupts the
+    /// context. `makeIndependentReader()` already shared the lock; now every
+    /// path does.
+    private let lock = NSRecursiveLock()
+
     init(file: LibSMB2File, session: LibSMB2Session) {
         self.libsmb2File = file
         self.libsmb2Session = session
@@ -38,7 +50,20 @@ final class SMBPlayback: @unchecked Sendable {
 
     /// A fresh reader over the live handle for `engine.load(source: .custom(...))`.
     func makeReader() -> IOReader {
-        SMBSourceReader(file: libsmb2File)
+        SMBSourceReader(file: libsmb2File, lock: lock)
+    }
+
+    /// A chapter reader over the SAME handle, on its own cursor.
+    ///
+    /// Mirrors [makeReader] so callers never have to know that
+    /// `makeIndependentReader` lives on `SMBSourceReader` rather than here —
+    /// which is exactly the mistake the first chapter build made
+    /// ("SMBPlayback has no member 'makeIndependentReader'"). `pread` is
+    /// positional, so the chapter walk's one seek to the SeekHead offset lands
+    /// on the byte instead of streaming there, and the extra cursor shares the
+    /// handle's recursive lock like every other reader derived from it.
+    func makeChapterReader() -> ChapterCursorReader {
+        SMBSourceReader(file: libsmb2File, lock: lock).makeChapterReader()
     }
 
     func close() {
