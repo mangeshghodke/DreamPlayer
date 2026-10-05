@@ -5,6 +5,7 @@ import '../models/video_item.dart';
 import '../services/folder_scanner.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
+import '../services/tmdb_prefetch_queue.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
@@ -76,8 +77,12 @@ class _WebDavScreenState extends State<WebDavScreen> {
     _loadServers();
   }
 
+  /// Bounds + defers the speculative per-entry lookups on folder open.
+  final TmdbPrefetchQueue _prefetchQueue = TmdbPrefetchQueue();
+
   @override
   void dispose() {
+    _prefetchQueue.dispose();
     TmdService.instance.removeListener(_onMetadataChanged);
     super.dispose();
   }
@@ -196,21 +201,28 @@ class _WebDavScreenState extends State<WebDavScreen> {
     await _loadDirectory(_path);
   }
 
-  /// Best-effort TMDB prefetch for the current folder's video files.
+  /// Best-effort TMDB prefetch for the current folder's video files.  ///
+  /// Bounded + deferred, and cancelled on folder change. This used to fire one
+  /// lookup per listed entry, unbounded and immediately, which starved the
+  /// raster pipeline hard enough on iOS to delay the NEXT screen's first frame
+  /// by up to 60s (see [TmdbPrefetchQueue]).
   void _prefetchTmdbMeta(List<WebDavEntry> entries) {
     final server = _browsing;
     if (server == null) return;
     final service = TmdService.instance;
+    _prefetchQueue.reset();
+    final gen = _prefetchQueue.generation;
     for (final entry in entries) {
       if (entry.isDirectory) continue;
-      service.resolve(VideoItem(
+      final video = VideoItem(
         id: 'webdav_${server.id}${entry.path}',
         title: entry.name,
         uri: '',
         resumeKey: 'webdav_${server.id}${entry.path}',
         duration: Duration.zero,
         sizeBytes: entry.size,
-      )).catchError((_) => null as TmdMeta?);
+      );
+      _prefetchQueue.add(gen, () async => service.resolve(video));
     }
   }
 

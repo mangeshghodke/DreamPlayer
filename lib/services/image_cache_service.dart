@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -16,6 +17,52 @@ class ImageCacheService {
   static const String _prefetchPrefsKey = 'dreamplayer.imageCachePrefetched';
 
   final Map<String, Uint8List?> _memory = {};
+
+  /// Caps simultaneous artwork downloads.
+  ///
+  /// Every metadata resolve fans poster + backdrop + stills + cast profiles out
+  /// through `prefetchImages`, and one folder listing (or a home-screen pass)
+  /// can resolve dozens of entries at once. Unbounded, that produced hundreds
+  /// of simultaneous downloads — each on its OWN `HttpClient`, i.e. its own TCP
+  /// + TLS handshake, each ending in an fsync'd write. On iOS that starved the
+  /// raster pipeline hard enough to delay the *next* screen's first frame by up
+  /// to 60 s (symptom: the details screen's spinner turning for a minute with
+  /// its metadata already cached and ready).
+  ///
+  /// Four is plenty: artwork is speculative, and a browser full of posters
+  /// looks identical whether it fills in over 200 ms or 2 s.
+  static const int maxConcurrentDownloads = 4;
+
+  HttpClient? _httpClient;
+  final List<Completer<void>> _downloadQueue = [];
+  int _downloading = 0;
+
+  /// One client for the whole app, so downloads reuse pooled connections
+  /// instead of handshaking a fresh TLS session per image.
+  HttpClient get _http =>
+      _httpClient ??= HttpClient()
+        ..connectionTimeout = const Duration(seconds: 15)
+        ..idleTimeout = const Duration(seconds: 30)
+        ..maxConnectionsPerHost = maxConcurrentDownloads * 2;
+
+  /// Runs [body] once a download slot is free, then hands the slot to the next
+  /// waiter without idling it.
+  Future<T> _throttled<T>(Future<T> Function() body) async {
+    if (_downloading >= maxConcurrentDownloads) {
+      final gate = Completer<void>();
+      _downloadQueue.add(gate);
+      await gate.future;
+    }
+    _downloading++;
+    try {
+      return await body();
+    } finally {
+      _downloading--;
+      if (_downloadQueue.isNotEmpty) {
+        _downloadQueue.removeAt(0).complete();
+      }
+    }
+  }
   final Map<String, Future<Uint8List?>> _inFlight = {};
   Directory? _cacheDir;
   bool _enabled = true;
@@ -118,7 +165,9 @@ class ImageCacheService {
 
   Future<Uint8List?> _fetchAndStore(String url) async {
     try {
-      final bytes = await _download(url).timeout(const Duration(seconds: 15));
+      final bytes = await _throttled(
+        () => _download(url).timeout(const Duration(seconds: 20)),
+      );
       _memory[url] = bytes;
       if (bytes != null && bytes.isNotEmpty) {
         try {
@@ -134,9 +183,9 @@ class ImageCacheService {
     }
   }
 
-  static Future<Uint8List?> _download(String url) async {
+  Future<Uint8List?> _download(String url) async {
     try {
-      final client = HttpClient();
+      final client = _http;
       try {
         final request = await client.getUrl(Uri.parse(url)).timeout(
               const Duration(seconds: 15),
@@ -152,8 +201,8 @@ class ImageCacheService {
           return builder.toBytes();
         }
         return null;
-      } finally {
-        client.close();
+      } catch (_) {
+        return null;
       }
     } catch (_) {
       return null;
@@ -210,6 +259,8 @@ class ImageCacheService {
     _memory.clear();
     _inFlight.clear();
     _cacheDir = null;
+    _httpClient?.close(force: true);
+    _httpClient = null;
     return freed;
   }
 

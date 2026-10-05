@@ -1167,6 +1167,65 @@ dropped, `remove` deletes one entry and persists, `clearAll` empties both memory
 and disk. A `debugPrint` reports the blob size when it exceeds 100 000 chars —
 that single number is what to look for in a device log if this ever regresses.
 
+### First-frame stall on the details screen (iOS) — the artwork fan-out
+
+**Symptom:** tapping a file in the SMB browser froze the TMDB details screen for
+30–60 s with its spinner turning, then the page appeared. Reopening the same
+file took 24 ms. Sometimes the app was killed after going Home.
+
+**Measured, build 31 (`app_debug.log`), cold *and* established installs:**
+
+| Open | Metadata ready | First post-frame callback |
+|---|---|---|
+| Subhedar, upgraded install | 2 ms (cached) | **60 117 ms** |
+| same file, reopened ×5 | 2 ms | 37 / 26 / 26 / 24 ms |
+| House S02E05 (TV) | 108 ms | 154 ms |
+| Subhedar, **after uninstall + reinstall** | 5 ms | **14 ms** |
+
+Read that table before theorising. Three things it settles:
+
+1. **The metadata path is innocent.** `ensureLoaded` 3–9 ms, `detailsFor` 2–275 ms,
+   always. Nothing in TMDB or `TmdStore` takes a minute.
+2. **A fresh install is the FAST case (9–14 ms).** "Cold cache" is not the
+   trigger — the stall only ever happened on an *upgraded* install, tapped ~11 s
+   after launch, i.e. while the home screen's own metadata pass was still
+   running. An empty `TmdStore` with nothing to prefetch cannot fan out.
+3. **It is a starved frame pipeline, not a slow await.** The post-frame callback
+   was registered at 2 ms and fired 60 s later, so the app produced *no frame at
+   all* for a minute — whatever the async work was doing, it was competing for
+   the frame budget.
+
+**Cause: unbounded speculative artwork fan-out.** `prefetchImages` fires poster +
+backdrop + every still + every cast profile with no concurrency limit, and each
+download built its **own `HttpClient`** (a fresh TCP + TLS handshake) and ended
+in an **fsync'd** `writeAsBytes(flush: true)`. One folder listing resolves an
+entry per row and a home-screen pass resolves every bookmarked folder, so a
+single user action could start hundreds of those at once.
+
+**Fixes (build 32):**
+- `ImageCacheService`: `maxConcurrentDownloads = 4`, a slot queue that hands the
+  slot straight to the next waiter, and **one shared `HttpClient`** for the app
+  (pooled connections) instead of one per image.
+- `TmdbPrefetchQueue` (new): the four network browsers (SMB / WebDAV / FTP /
+  UPnP) used to fire one `resolve()` per listed row, unbounded and immediately,
+  the moment `listDirectory` returned. Now bounded at 3, deferred past the
+  current frame, and generation-guarded so a folder you navigated away from
+  cannot repaint the current one. Unit-tested in
+  `test/tmdb_prefetch_queue_test.dart`.
+- `TmdDetailsScreen` now logs `FrameTiming` build/raster for the first 6 frames,
+  so a recurrence says whether the tree or the raster thread is the one being
+  starved.
+
+**Traps worth keeping:**
+- The user-visible symptom (60 s) and the actual cause (an unbounded burst fired
+  11 s earlier, from a *different* screen) are only connected by the
+  established-vs-fresh install comparison. Always reproduce on the *upgraded*
+  install before concluding a cache is to blame.
+- Metadata prefetch is load-bearing: it is what makes a tap a cache hit instead
+  of a spinner. Bound it, never delete it.
+- `_download` being `static` is what hid the per-download `HttpClient`; the fix
+  made it an instance method so it can share the pooled client.
+
 ### Library rescan on refresh (issue #39, 0.5.1+25) — read this before touching the scanner
 
 The home grid was a **one-time snapshot**: `FolderScanner` ran only inside the

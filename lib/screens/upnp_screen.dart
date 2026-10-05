@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/video_item.dart';
 import '../services/jellyfin_client.dart';
 import '../services/tmdb_client.dart';
+import '../services/tmdb_prefetch_queue.dart';
 import '../services/upnp_client.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
@@ -54,8 +55,12 @@ class _UpnpScreenState extends State<UpnpScreen> {
     _discover();
   }
 
+  /// Bounds + defers the speculative per-entry lookups on folder open.
+  final TmdbPrefetchQueue _prefetchQueue = TmdbPrefetchQueue();
+
   @override
   void dispose() {
+    _prefetchQueue.dispose();
     TmdService.instance.removeListener(_onTmdbChanged);
     super.dispose();
   }
@@ -150,19 +155,26 @@ class _UpnpScreenState extends State<UpnpScreen> {
 
   // DLNA is browsed directly (no Home bookmark) — add-to-library removed per user request.
 
-  /// Best-effort TMDB prefetch for the current folder's video files.
+  /// Best-effort TMDB prefetch for the current folder's video files.  ///
+  /// Bounded + deferred, and cancelled on folder change. This used to fire one
+  /// lookup per listed entry, unbounded and immediately, which starved the
+  /// raster pipeline hard enough on iOS to delay the NEXT screen's first frame
+  /// by up to 60s (see [TmdbPrefetchQueue]).
   void _prefetchTmdbMeta(List<UpnpEntry> entries) {
     final service = TmdService.instance;
+    _prefetchQueue.reset();
+    final gen = _prefetchQueue.generation;
     for (final entry in entries) {
       if (entry.isDirectory || entry.url == null) continue;
-      service.resolve(VideoItem(
+      final video = VideoItem(
         id: _identityKey(entry),
         title: entry.name,
         uri: entry.url!,
         resumeKey: _identityKey(entry),
         duration: Duration.zero,
         sizeBytes: entry.size,
-      )).catchError((_) => null as TmdMeta?);
+      );
+      _prefetchQueue.add(gen, () async => service.resolve(video));
     }
   }
 

@@ -8,6 +8,8 @@ import '../services/resume_progress_helper.dart';
 import '../services/simkl_client.dart';
 import '../services/smb_client.dart';
 import '../services/tmdb_client.dart';
+import '../services/tmdb_prefetch_queue.dart';
+import '../services/app_debug_log.dart';
 import '../utils/episode_label.dart';
 import '../services/watched_store.dart';
 import '../utils/file_info_extractor.dart';
@@ -47,6 +49,9 @@ class _SmbScreenState extends State<SmbScreen> {
   String _path = '';
   List<SmbEntry> _entries = const [];
   final Map<String, TmdMeta?> _tmdbMeta = {};
+  /// Bounds + defers the speculative per-entry lookups on folder open.
+  final TmdbPrefetchQueue _prefetchQueue = TmdbPrefetchQueue();
+
   bool _loading = true;
   String? _error;
 
@@ -92,6 +97,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
   @override
   void dispose() {
+    _prefetchQueue.dispose();
     TmdService.instance.removeListener(_onMetadataChanged);
     final server = _browsing;
     if (server != null) {
@@ -424,37 +430,48 @@ class _SmbScreenState extends State<SmbScreen> {
     final server = _browsing;
     if (server == null) return;
     final service = TmdService.instance;
+    // New folder: drop whatever the previous one queued. Every task below is
+    // generation-guarded, so a slow lookup from the folder the user just left
+    // can never repaint this one.
+    _prefetchQueue.reset();
+    final gen = _prefetchQueue.generation;
     for (final entry in entries) {
       if (_tmdbMeta.containsKey(entry.path)) continue;
       _tmdbMeta[entry.path] = null; // placeholder to avoid duplicate requests
+      final path = entry.path;
       if (entry.isDirectory) {
         // A folder ("Movies", "Downloads", a show's season dir) is its own
         // card, so resolve it like a library folder and give it a poster
         // instead of listing it as a bare row.
-        final folderKey = 'folder:smb:${server.id}/$_share/${entry.path}';
-        service.resolveFolder(folderKey, entry.name).then((meta) {
-          if (!mounted) return;
-          setState(() {
-            _tmdbMeta[entry.path] = meta;
-          });
-        }).catchError((_) {});
+        final folderKey = 'folder:smb:${server.id}/$_share/$path';
+        _prefetchQueue.add(gen, () async {
+          if (!mounted || gen != _prefetchQueue.generation) return;
+          final meta = await service.resolveFolder(folderKey, entry.name);
+          if (!mounted || gen != _prefetchQueue.generation) return;
+          setState(() => _tmdbMeta[path] = meta);
+        });
         continue;
       }
-      final key = 'smb:${server.id}/$_share/${entry.path}';
-      service.resolve(VideoItem(
+      final key = 'smb:${server.id}/$_share/$path';
+      final video = VideoItem(
         id: 'smb:$key',
         title: entry.name,
         uri: '',
         resumeKey: key,
         duration: Duration.zero,
         sizeBytes: entry.size,
-      )).then((meta) {
-        if (!mounted) return;
-        setState(() {
-          _tmdbMeta[entry.path] = meta;
-        });
-      }).catchError((_) {});
+      );
+      _prefetchQueue.add(gen, () async {
+        if (!mounted || gen != _prefetchQueue.generation) return;
+        final meta = await service.resolve(video);
+        if (!mounted || gen != _prefetchQueue.generation) return;
+        setState(() => _tmdbMeta[path] = meta);
+      });
     }
+    AppDebugLog.mark(
+      'TMDB-PREFETCH: queued ${_prefetchQueue.pendingCount} lookups '
+      'for ${entries.length} entries',
+    );
   }
 
   /// Detects whether the current folder is a TV series folder (≥1 files with

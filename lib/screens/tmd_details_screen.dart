@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:url_launcher/url_launcher.dart';
@@ -632,8 +633,33 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
   }
 
+  /// How many frames of build/raster timing we still want to log.
+  int _timingFramesLeft = 6;
+
+  /// Logs build + raster duration for the first few frames after open.
+  ///
+  /// The 60s iOS stall happened with metadata already cached and the
+  /// post-frame callback simply not firing, which means the pipeline was
+  /// starved rather than merely slow. Timing separates the two cases: a huge
+  /// `build` points at this widget tree, a huge `raster` at too much
+  /// concurrent image work behind it.
+  void _logFrameTimings(List<FrameTiming> timings) {
+    if (_timingFramesLeft <= 0) return;
+    for (final t in timings) {
+      if (_timingFramesLeft <= 0) break;
+      _timingFramesLeft--;
+      AppDebugLog.mark(
+        'TMD-OPEN: frame build=${(t.buildDuration.inMicroseconds / 1000).toStringAsFixed(1)}ms '
+        'raster=${(t.rasterDuration.inMicroseconds / 1000).toStringAsFixed(1)}ms '
+        'total=${(t.totalSpan.inMicroseconds / 1000).toStringAsFixed(1)}ms '
+        'at ${_openWatch.elapsedMilliseconds}ms',
+      );
+    }
+  }
+
   Future<void> _load() async {
     _openWatch.start();
+    SchedulerBinding.instance.addTimingsCallback(_logFrameTimings);
     await _service.ensureLoaded();
     AppDebugLog.mark('TMD-OPEN: ensureLoaded took ${_openWatch.elapsedMilliseconds}ms');
     if (!mounted) return;
