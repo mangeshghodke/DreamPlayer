@@ -37,6 +37,36 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      # Every published APK must be signed with the SAME certificate. Android
+      # refuses an update whose signer differs from the installed one
+      # (INSTALL_FAILED_UPDATE_INCOMPATIBLE), so a per-run key silently breaks
+      # updates for every user. Before this step the release buildType fell back
+      # to the runner's throwaway debug key, which meant NO two GitHub releases
+      # could ever be installed over one another -- every release since v0.4.7
+      # required a manual uninstall (issue #43).
+      - name: Restore release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::UPLOAD_KEYSTORE_BASE64 is not set. Refusing to publish an APK signed with the runner's throwaway debug key -- that breaks updates for every user (issue #43)."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          # Paths must match build.gradle.kts exactly: key.properties is read
+          # from the ROOT project dir, and storeFile is resolved against the
+          # APP module dir.
+          cat > android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
       - name: Build universal release APK
         run: flutter build apk --release --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
 
@@ -51,6 +81,38 @@ jobs:
           mv app-arm64-v8a-release.apk "DreamPlayer-${VERSION}-arm64-v8a.apk"
           mv app-armeabi-v7a-release.apk "DreamPlayer-${VERSION}-armeabi-v7a.apk"
           mv app-x86_64-release.apk "DreamPlayer-${VERSION}-x86_64.apk"
+
+
+      # Guards the regression that caused #43 at the source: assert the APKs we
+      # are about to publish carry DreamPlayer's release certificate and not a
+      # debug one. Cheap, and it fails the release instead of silently shipping
+      # an uninstallable update.
+      - name: Verify APK signing certificate
+        run: |
+          set -euo pipefail
+          # Colon-less uppercase hex. apksigner prints "SHA-256 digest:
+          # <hex>" with NO separators, so compare in that normalised form --
+          # a colon'd literal here silently never matches and would fail every
+          # single release.
+          EXPECTED="2FF29762E3621B29F2ED8C5059143E4F3AAE107FD5BFAE6456BAF60C4CD52D5F"
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          shopt -s nullglob
+          APKS=(build/app/outputs/flutter-apk/*.apk)
+          if [ ${#APKS[@]} -eq 0 ]; then
+            echo "::error::No APKs found to verify"
+            exit 1
+          fi
+          for apk in "${APKS[@]}"; do
+            CERT="$("$BT/apksigner" verify --print-certs "$apk" \
+              | grep -i 'SHA-256 digest' | head -1 \
+              | sed 's/.*digest://' | tr -d '[:space:]:' | tr 'a-f' 'A-F')"
+            echo "$(basename "$apk") signer SHA-256: $CERT"
+            if [ -z "$CERT" ] || [ "$CERT" != "$EXPECTED" ]; then
+              echo "::error::$(basename "$apk") is NOT signed with the DreamPlayer release key (got ${CERT:-<none>}). Users would have to uninstall to update (issue #43)."
+              exit 1
+            fi
+          done
+          echo "All APKs signed with the DreamPlayer release certificate."
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4

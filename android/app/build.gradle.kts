@@ -65,11 +65,24 @@ android {
         //     shipped 37.
         //
         // Keeping them in one pubspec value would force the iOS build number
-        // to 38 just to keep Android upgradeable. So Android's versionCode is
-        // pinned here and must be bumped BY HAND, always above the last
-        // published release.
+        // just to keep Android upgradeable. So Android's versionCode is pinned
+        // here and must be bumped BY HAND, always above the last published
+        // release.
         //
-        // Last published: 0.5.0 -> versionCode 37.
+        // The SHIPPED number is not this value verbatim. `flutter build apk
+        // --split-per-abi` applies Flutter's per-ABI scheme
+        // (FlutterPlugin.kt: `abiVersionCode * 1000 + base`, ARCH_ARM64 -> 2),
+        // so as of v0.5.1 the published codes are:
+        //     universal 40   |   arm64-v8a 2040
+        // Read the real one off an APK with:
+        //     aapt2 dump badging <apk> | grep versionCode
+        //
+        // TRAP: because arm64 (2000+base) always beats universal (base), a user
+        // who installed the arm64 split APK CANNOT later install a universal
+        // build -- Android reads the lower code as a downgrade and refuses.
+        // Pick one flavour per user and stay on it (issue #43).
+        //
+        // Last published: v0.5.1 -> universal 40 / arm64 2040.
         versionCode = 41
         versionName = flutter.versionName
     }
