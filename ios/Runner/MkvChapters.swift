@@ -39,7 +39,7 @@ enum MkvChapters {
     static func parse(path: String) -> [Chapter] {
         guard let fh = FileHandle(forReadingAtPath: path) else { return [] }
         defer { try? fh.close() }
-        let r = FileReader(handle: fh)
+        let r = ChapterFileReader(handle: fh)
         do {
             return try doParse(r)
         } catch {
@@ -49,48 +49,38 @@ enum MkvChapters {
 
     /// Convenience for the event map (`[[String:Any]]`).
     static func parseMaps(path: String) -> [[String: Any]] {
-        parse(path: path).map { c in
+        toMaps(parse(path: path))
+    }
+
+
+    /// Remote probe: the head and (optionally) the tail of a file already held
+    /// in memory by `ChapterProbe`. Both parsers expose the same entry point so
+    /// the probe can dispatch on container without duplicating the walk.
+    ///
+    /// `tail` is nil when the whole file fit inside `head`, which is then just
+    /// the old single-window behaviour.
+    static func parseMaps(head: Data, tail: Data?, totalSize: UInt64) -> [[String: Any]] {
+        toMaps((try? doParse(ChapterWindowReader(head: head, tail: tail, total: totalSize))) ?? [])
+    }
+
+    /// Parses from an already-built reader. Used for in-app SMB, where
+    /// `smb2_pread` is positional: one seek lands exactly where the SeekHead
+    /// points, so there is no gap to model and no tail to guess at.
+    static func parseMaps(reader: ChapterSeekable) -> [[String: Any]] {
+        toMaps((try? doParse(reader)) ?? [])
+    }
+
+    private static func toMaps(_ chapters: [Chapter]) -> [[String: Any]] {
+        chapters.map { c in
             var m: [String: Any] = ["title": c.title, "startMs": c.startMs]
             if let e = c.endMs { m["endMs"] = e }
             return m
         }
     }
 
-    // MARK: - Seekable abstraction
-
-    private protocol SeekableReader {
-        func readByte() throws -> Int
-        func readFully(int count: Int) throws -> Data
-        func seek(to pos: UInt64) throws
-        var position: UInt64 { get }
-    }
-
-    private final class FileReader: SeekableReader {
-        let handle: FileHandle
-        private var pos: UInt64 = 0
-        init(handle: FileHandle) { self.handle = handle }
-        func readByte() throws -> Int {
-            let data = try handle.read(upToCount: 1) ?? Data()
-            if data.isEmpty { return -1 }
-            pos += 1
-            return Int(data[0])
-        }
-        func readFully(int count: Int) throws -> Data {
-            let data = try handle.read(upToCount: count) ?? Data()
-            if data.count < count { throw NSError(domain: "MkvChapters", code: 1) }
-            pos += UInt64(count)
-            return data
-        }
-        func seek(to newPos: UInt64) throws {
-            try handle.seek(toOffset: newPos)
-            pos = newPos
-        }
-        var position: UInt64 { pos }
-    }
-
     // MARK: - Parser
 
-    private static func doParse(_ r: SeekableReader) throws -> [Chapter] {
+    private static func doParse(_ r: ChapterSeekable) throws -> [Chapter] {
         guard try readId(r) == idEbmlHeader else { return [] }
         guard let headerSize = try readSize(r), headerSize >= 0, headerSize <= maxHeaderBytes else { return [] }
         try r.seek(to: r.position + UInt64(headerSize))
@@ -127,7 +117,7 @@ enum MkvChapters {
         return out
     }
 
-    private static func findChaptersInSeekHead(_ r: SeekableReader, endPos: UInt64, segmentDataStart: UInt64) throws -> Int64? {
+    private static func findChaptersInSeekHead(_ r: ChapterSeekable, endPos: UInt64, segmentDataStart: UInt64) throws -> Int64? {
         while r.position < endPos {
             guard let id = try readId(r) else { return nil }
             guard let size = try readSize(r) else { return nil }
@@ -157,7 +147,7 @@ enum MkvChapters {
         return nil
     }
 
-    private static func parseContainer(_ r: SeekableReader, endPos: UInt64, out: inout [Chapter], editions: Bool) throws {
+    private static func parseContainer(_ r: ChapterSeekable, endPos: UInt64, out: inout [Chapter], editions: Bool) throws {
         while r.position < endPos, out.count < maxChapters {
             guard let id = try readId(r) else { return }
             guard let size = try readSize(r) else { return }
@@ -172,7 +162,7 @@ enum MkvChapters {
         }
     }
 
-    private static func parseAtom(_ r: SeekableReader, endPos: UInt64, out: inout [Chapter]) throws {
+    private static func parseAtom(_ r: ChapterSeekable, endPos: UInt64, out: inout [Chapter]) throws {
         var startNs: Int64 = -1
         var endNs: Int64 = -1
         var title: String?
@@ -200,7 +190,7 @@ enum MkvChapters {
         }
     }
 
-    private static func readDisplayTitle(_ r: SeekableReader, endPos: UInt64) throws -> String? {
+    private static func readDisplayTitle(_ r: ChapterSeekable, endPos: UInt64) throws -> String? {
         while r.position < endPos {
             guard let id = try readId(r) else { return nil }
             guard let size = try readSize(r) else { return nil }
@@ -227,7 +217,7 @@ enum MkvChapters {
 
     // MARK: - EBML vint
 
-    private static func readId(_ r: SeekableReader) throws -> UInt64? {
+    private static func readId(_ r: ChapterSeekable) throws -> UInt64? {
         let first = try r.readByte()
         if first < 0 { return nil }
         let len = countLength(first)
@@ -241,7 +231,7 @@ enum MkvChapters {
         return v
     }
 
-    private static func readSize(_ r: SeekableReader) throws -> Int64? {
+    private static func readSize(_ r: ChapterSeekable) throws -> Int64? {
         let first = try r.readByte()
         if first < 0 { return nil }
         let len = countLength(first)
@@ -256,7 +246,7 @@ enum MkvChapters {
         return v == unknown ? -1 : Int64(v)
     }
 
-    private static func readUInt(_ r: SeekableReader, length: Int) throws -> UInt64 {
+    private static func readUInt(_ r: ChapterSeekable, length: Int) throws -> UInt64 {
         var v: UInt64 = 0
         for _ in 0..<length {
             let b = try r.readByte()

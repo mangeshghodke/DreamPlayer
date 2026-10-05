@@ -293,6 +293,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// the error is never shown.  Cleared on the next non-audio event.
     private var audioSwitchSuppressUntil: Date = .distantPast
 
+    // ---- Chapter probe sources. ----
+    // The chapter parsers are synchronous, but every streaming source here is
+    // async (`ByteRangeSource`) or a live cursor (SMB `pread`). So we retain the
+    // reader that playback is already using and read the chapter windows
+    // through it after load, rather than opening a second connection.
+    private var chapterByteSource: ByteRangeSource?
+    private var chapterSmbReader: ChapterCursorReader?
+
     // ---- Last-opened source (needed to reload when the engine parks in .ended). ----
     private var lastSource: MediaSource?
     private var lastLoadOptions = LoadOptions()
@@ -946,6 +954,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          }
          lastWebDAVInfo = nil
          lastFtpUri = nil
+         chapterByteSource = nil
+         chapterSmbReader = nil
          chapters = []
          subtitleOverlay.clear()
          invalidatePipController()
@@ -1064,6 +1074,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         self.smbFormatHint = ext.isEmpty
                             ? Self.sniffFormatFromSMB(connection.libsmb2File)
                             : ext
+                        // A second cursor on the SAME handle for the chapter
+                        // probe. `pread` is positional, so the walk's one seek
+                        // to the SeekHead offset lands on the byte instead of
+                        // streaming there — no head+tail guessing needed.
+                        if let probeReader =
+                            connection.makeIndependentReader() as? SMBSourceReader {
+                            self.chapterSmbReader = probeReader.makeChapterReader()
+                        }
                         source = .custom(
                             connection.makeReader(),
                             formatHint: self.smbFormatHint
@@ -1081,6 +1099,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         try await FtpClient.makeByteRangeSource(uriText: pendingFtpUri)
                     }.value
                     let ext = URL(string: pendingFtpUri)?.pathExtension.lowercased() ?? ""
+                    self.chapterByteSource = buffered
                     source = .custom(
                         buffered,
                         formatHint: ext.isEmpty ? nil : ext
@@ -1097,6 +1116,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         )
                     }.value
                     let ext = webURL.pathExtension.lowercased()
+                    self.chapterByteSource = byteSource
                     source = .custom(
                         BufferedSMBReader(source: byteSource),
                         formatHint: ext.isEmpty ? nil : ext
@@ -1243,6 +1263,75 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                                     }
                                     self.emit()
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Remote chapter probe (in-app SMB / WebDAV / FTP / plain HTTP).
+                //
+                // The block above only reads a `FileHandle`, so before this
+                // existed chapters were a local-files-only feature on iOS while
+                // Android had them everywhere. Two shapes, picked by what the
+                // source already gave us:
+                //
+                //   * SMB — a positional `pread` cursor, so the walk just seeks.
+                //   * Everything else — two 8 MiB ranged reads (head + tail),
+                //     because Matroska keeps `Chapters` at the end of the
+                //     segment and MP4 keeps `moov` there.
+                //
+                // Best-effort and strictly after playback has started: chapters
+                // are an enhancement, so nothing here may delay or fail the
+                // load. Off the main actor because the reads are network I/O.
+                if localURL == nil || !(localURL?.isFileURL ?? false) {
+                    let ext = (smbFormatHint ?? localURL?.pathExtension ?? "")
+                        .lowercased()
+                    let isChapterContainer = ChapterProbe.mkvExtensions.contains(ext)
+                        || ChapterProbe.mp4Extensions.contains(ext)
+                    if isChapterContainer {
+                        let cursor = self.chapterSmbReader
+                        let byteSource = self.chapterByteSource
+                        let plainHTTP: URL? = {
+                            guard cursor == nil, byteSource == nil,
+                                  let u = localURL,
+                                  let scheme = u.scheme?.lowercased(),
+                                  scheme == "http" || scheme == "https"
+                            else { return nil }
+                            return u
+                        }()
+                        Task.detached(priority: .utility) { [weak self] in
+                            var maps: [[String: Any]] = []
+                            if let cursor {
+                                maps = ChapterProbe.probe(cursor: cursor, ext: ext)
+                            } else if let byteSource {
+                                maps = await ChapterProbe.probe(
+                                    byteSource: byteSource, ext: ext
+                                )
+                            } else if let plainHTTP {
+                                // Jellyfin direct-play / UPnP / Play URL go
+                                // straight to the engine's own HTTP stack, so
+                                // there is no reader to borrow. Build a
+                                // probe-only one; playback is untouched, and
+                                // this is skipped entirely for any container
+                                // that cannot hold chapters.
+                                let probeSource = try? WebDAVClient.shared
+                                    .makeByteRangeSource(
+                                        url: plainHTTP,
+                                        headers: [:],
+                                        allowSelfSigned: false
+                                    )
+                                if let probeSource {
+                                    maps = await ChapterProbe.probe(
+                                        byteSource: probeSource, ext: ext
+                                    )
+                                }
+                            }
+                            guard !maps.isEmpty else { return }
+                            await MainActor.run {
+                                guard let self else { return }
+                                // A newer open may have reset state meanwhile.
+                                self.chapters = maps
+                                self.emit()
                             }
                         }
                     }

@@ -1082,6 +1082,58 @@ wants "no touch focus ring" should copy that split instead of trying to suppress
 the decoration.
 
 
+### iOS chapter parity — chapters were local-files-only (0.5.1+35)
+
+The chapter UI (#40) is shared Dart and was never platform-gated, so iOS looked
+complete. It wasn't: **both Swift parsers took a local `FileHandle` path**, so
+chapters only ever populated on local files, Files-app shares and Jellyfin.
+In-app SMB, WebDAV, FTP/SFTP and UPnP silently showed none — Android had them on
+every source. Same "whichever source you happened to use" trap #40 hit on
+Android, one platform over.
+
+**The fix reuses what iOS already had instead of porting Android's HTTP code.**
+Every streaming source is handed to the engine as a reader that can fetch an
+arbitrary byte range (`ByteRangeSource`, from `AetherEngineSMB`) or as a live
+positional cursor (in-app SMB's `IOReader` over `smb2_pread`). So:
+
+- `ios/Runner/ChapterReader.swift` (new) — the reader abstraction, **once**.
+  It used to be duplicated verbatim as a `private protocol SeekableReader` +
+  `FileReader` in both parsers, and the copies had already drifted: MP4's
+  carried an extra `length` member (it bounds the `moov` scan) that MKV's
+  lacked. Three implementations:
+  - `ChapterFileReader` — local / Files-app (behaviour identical to the old
+    per-parser copies).
+  - `ChapterWindowReader` — the head **and** tail of a remote file with the
+    middle missing, ported from Android's `SparseReader`. Needed because
+    Matroska keeps `Chapters` at the end of the segment and MP4 keeps `moov`
+    there, so a head-only read finds chapters only in files that lack them.
+  - `ChapterCursorReader` — wraps a synchronous cursor via closures, so this
+    file needs **no framework import** and the parsers stay framework-free.
+- `ios/Runner/ChapterProbe.swift` (new) — 8 MiB head + 8 MiB tail through the
+  retained `ByteRangeSource` (matching Android's `HEAD_RANGE_BYTES` /
+  `TAIL_RANGE_BYTES`), dispatched to the MKV or MP4 parser by extension.
+- `SMBSourceReader.makeChapterReader()` — a **second cursor on the same
+  handle** for in-app SMB. `pread` is positional, so the walk's single seek to
+  the SeekHead offset lands on the byte: no head+tail guessing at all.
+- `AvPlayerView` retains the reader playback is already using
+  (`chapterByteSource` / `chapterSmbReader`) instead of opening a second
+  connection, and probes **after** load, off the main actor, best-effort.
+
+**Traps worth keeping:**
+
+- **Chapters are cleared only in `open()`**, never in `reloadSession` /
+  `buildFreshSource`. Adding the clear to the reload path would wipe chapters
+  permanently, since only `open()` re-probes.
+- Plain `http(s)` sources (UPnP / Play URL / unauthenticated Jellyfin) reach the
+  engine's own HTTP stack, so there is no reader to borrow. A probe-only
+  `ByteRangeSource` is built for them — but only for chapter-capable
+  containers, and only via `try?`, because it carries no auth headers. An
+  authenticated Jellyfin URL takes the WebDAV branch instead and *does* get
+  probed with its real headers.
+- Both new files must be registered in `project.pbxproj` or they compile to
+  nothing and fail at link with `Undefined symbol`. `tool/ios_native_check.py`
+  catches exactly this.
+
 ### Reading logs off the iPad: there is no Mac in the loop (2026-10-04)
 
 **The device console is NOT an option** — the user has no Mac, so `debugPrint`

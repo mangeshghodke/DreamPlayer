@@ -24,7 +24,7 @@ enum Mp4Chapters {
     static func parse(path: String) -> [Chapter] {
         guard let fh = FileHandle(forReadingAtPath: path) else { return [] }
         defer { try? fh.close() }
-        let r = FileReader(handle: fh)
+        let r = ChapterFileReader(handle: fh)
         do {
             return try doParse(r)
         } catch {
@@ -33,63 +33,38 @@ enum Mp4Chapters {
     }
 
     static func parseMaps(path: String) -> [[String: Any]] {
-        parse(path: path).map { c in
+        toMaps(parse(path: path))
+    }
+
+
+    /// Remote probe: the head and (optionally) the tail of a file already held
+    /// in memory by `ChapterProbe`. Both parsers expose the same entry point so
+    /// the probe can dispatch on container without duplicating the walk.
+    ///
+    /// `tail` is nil when the whole file fit inside `head`, which is then just
+    /// the old single-window behaviour.
+    static func parseMaps(head: Data, tail: Data?, totalSize: UInt64) -> [[String: Any]] {
+        toMaps((try? doParse(ChapterWindowReader(head: head, tail: tail, total: totalSize))) ?? [])
+    }
+
+    /// Parses from an already-built reader. Used for in-app SMB, where
+    /// `smb2_pread` is positional: one seek lands exactly where the SeekHead
+    /// points, so there is no gap to model and no tail to guess at.
+    static func parseMaps(reader: ChapterSeekable) -> [[String: Any]] {
+        toMaps((try? doParse(reader)) ?? [])
+    }
+
+    private static func toMaps(_ chapters: [Chapter]) -> [[String: Any]] {
+        chapters.map { c in
             var m: [String: Any] = ["title": c.title, "startMs": c.startMs]
             if let e = c.endMs { m["endMs"] = e }
             return m
         }
     }
 
-    // MARK: - Seekable abstraction
-
-    private protocol SeekableReader {
-        func readByte() throws -> Int
-        func readFully(int count: Int) throws -> Data
-        func seek(to pos: UInt64) throws
-        var position: UInt64 { get }
-        var length: UInt64 { get }
-    }
-
-    private final class FileReader: SeekableReader {
-        let handle: FileHandle
-        private var pos: UInt64 = 0
-        private let fileLength: UInt64
-        init(handle: FileHandle) {
-            self.handle = handle
-            // `seekToEnd` is deprecated but still works; `seekToEndOfFile` is older.
-            // Prefer `FileHandle` extensions that don't throw on Linux.
-            var len: UInt64 = UInt64.max
-            do {
-                let cur = try handle.offset()
-                let end = try handle.seekToEnd()
-                try handle.seek(toOffset: cur)
-                len = end
-            } catch { len = UInt64.max }
-            fileLength = len
-        }
-        func readByte() throws -> Int {
-            let data = try handle.read(upToCount: 1) ?? Data()
-            if data.isEmpty { return -1 }
-            pos += 1
-            return Int(data[0])
-        }
-        func readFully(int count: Int) throws -> Data {
-            let data = try handle.read(upToCount: count) ?? Data()
-            if data.count < count { throw NSError(domain: "Mp4Chapters", code: 1) }
-            pos += UInt64(count)
-            return data
-        }
-        func seek(to newPos: UInt64) throws {
-            try handle.seek(toOffset: newPos)
-            pos = newPos
-        }
-        var position: UInt64 { pos }
-        var length: UInt64 { fileLength }
-    }
-
     // MARK: - Parser
 
-    private static func doParse(_ r: SeekableReader) throws -> [Chapter] {
+    private static func doParse(_ r: ChapterSeekable) throws -> [Chapter] {
         let fileSize = r.length
         guard let moov = try findBox(r, target: "moov", start: 0, end: fileSize) else { return [] }
         let udta = try findBox(r, target: "udta", start: moov.0, end: moov.1)
@@ -106,7 +81,7 @@ enum Mp4Chapters {
         return out
     }
 
-    private static func findBox(_ r: SeekableReader, target: String, start: UInt64, end: UInt64) throws -> (UInt64, UInt64)? {
+    private static func findBox(_ r: ChapterSeekable, target: String, start: UInt64, end: UInt64) throws -> (UInt64, UInt64)? {
         let targetBytes = Array(target.utf8)
         guard targetBytes.count == 4 else { return nil }
         var pos = start
@@ -140,7 +115,7 @@ enum Mp4Chapters {
         return nil
     }
 
-    private static func parseChpl(_ r: SeekableReader, start: UInt64, end: UInt64) throws -> [Chapter] {
+    private static func parseChpl(_ r: ChapterSeekable, start: UInt64, end: UInt64) throws -> [Chapter] {
         let payloadSize = Int64(end) - Int64(start)
         if payloadSize < 5 { return [] }
         try r.seek(to: start)
@@ -191,7 +166,7 @@ enum Mp4Chapters {
         return best ?? []
     }
 
-    private static func tryParseEntries(_ r: SeekableReader, count: Int, boxEnd: UInt64) throws -> [Chapter]? {
+    private static func tryParseEntries(_ r: ChapterSeekable, count: Int, boxEnd: UInt64) throws -> [Chapter]? {
         if count <= 0 || count > maxChapters { return nil }
         var out: [Chapter] = []
         for i in 0..<count {

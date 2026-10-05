@@ -117,6 +117,35 @@ final class SMBSourceReader: IOReader, @unchecked Sendable {
         lock.unlock()
     }
 
+    /// A chapter reader over the SAME open handle, on its own cursor.
+    ///
+    /// `makeIndependentReader()` below is the engine's re-probe reader; this is
+    /// the chapter probe's equivalent. It runs after playback has started, so a
+    /// second cursor is exactly the right tool: `pread` is positional, so the
+    /// chapter walk's single seek to the SeekHead offset lands on the byte
+    /// rather than streaming there. Cheaper and simpler than the head+tail
+    /// windows a ranged HTTP source needs.
+    func makeChapterReader() -> ChapterCursorReader {
+        ChapterCursorReader(
+            total: UInt64(max(0, fileSize)),
+            seekTo: { offset in
+                self.seek(offset: Int64(offset), whence: Int32(SEEK_SET)) >= 0
+            },
+            readBytes: { count in
+                guard count > 0 else { return nil }
+                var buffer = [UInt8](repeating: 0, count: count)
+                let read = buffer.withUnsafeMutableBytes { raw in
+                    self.read(
+                        raw.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        size: Int32(count)
+                    )
+                }
+                guard read > 0 else { return nil }
+                return Array(buffer[0 ..< Int(read)])
+            }
+        )
+    }
+
     /// No-op, deliberately. The engine calls this to abandon a reader, but a
     /// synchronous `smb2_pread` is a blocking round-trip that cannot be
     /// interrupted; poisoning the reader here would break the engine's own
