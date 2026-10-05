@@ -41,6 +41,7 @@ import '../services/open_intent.dart';
 import '../services/download_manager.dart';
 import '../utils/chapter_nav.dart';
 import '../utils/mpv_audio_select.dart';
+import '../utils/mpv_volume.dart';
 import 'download_screen.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
@@ -2890,25 +2891,28 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// 2. The old fixed clamp of 130 meant a 2x/3x boost could never be reached,
   ///    and mpv refuses `volume` above `volume-max` anyway — so the ceiling is
   ///    now raised to fit whatever the boost asks for.
-  Future<void> _applyMpvVolume() async {
+  Future<void> _applyMpvVolume({double? baseFraction}) async {
     final p = _mpvPlayer;
     if (p == null) return;
-    var vol = 100.0;
-    if (_audioBoost > 1.01) vol *= _audioBoost;
-    if (_nightMode) vol *= 1.6; // +400mB lift approximated as gain
-    vol = vol.clamp(0.0, 400.0).toDouble();
+    final vol = mpvVolumePercent(
+      baseFraction: baseFraction ?? 1.0,
+      audioBoost: _audioBoost,
+      nightMode: _nightMode,
+    );
     final platform = p.platform;
     if (platform is NativePlayer) {
       try {
-        // Must precede setVolume: mpv clamps to volume-max, which the static
-        // config sets too low for a 3x boost plus night mode.
-        await platform.setProperty('volume-max', '${vol.ceil()}');
+        // Must precede setVolume: mpv clamps volume to volume-max. Fixed at the
+        // ceiling rather than tracking `vol` — a moving ceiling would clamp the
+        // volume gesture the moment it pushed past the last boosted value.
+        await platform.setProperty('volume-max', '${kMpvVolumeMax.round()}');
       } catch (_) {}
     }
     await p.setVolume(vol);
     debugPrint(
       'mpv: volume -> ${vol.toStringAsFixed(0)} '
-      '(boost=${_audioBoost.toStringAsFixed(1)}${_nightMode ? ', night' : ''})',
+      '(base=${((baseFraction ?? 1.0) * 100).toStringAsFixed(0)}%, '
+      'boost=${_audioBoost.toStringAsFixed(1)}${_nightMode ? ', night' : ''})',
     );
   }
 
@@ -4067,9 +4071,14 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (_mpvReady) {
         // System volume on the mpv fallback too — same UX as Media3.
         unawaited(SystemControls.instance.setSystemVolume(next));
-        // Keep mpv's own mixer in sync so the engine's volume doesn't drift
-        // if the user navigates away and the app forgets the gesture state.
-        unawaited(_mpvPlayer?.setVolume(next * 100));
+        // Keep mpv's own mixer in sync so the engine's volume doesn't drift if
+        // the user navigates away and the app forgets the gesture state.
+        //
+        // Issue #41: this used to write `next * 100` — the RAW system volume —
+        // straight into mpv, discarding the boost and night-mode gain, so the
+        // audio went quiet the instant the user dragged volume. mpv has no
+        // separate gain stage, so the multiplier has to ride along here too.
+        unawaited(_applyMpvVolume(baseFraction: next));
       } else {
         _exo?.setSystemVolume(next);
       }
