@@ -1216,11 +1216,20 @@ single user action could start hundreds of those at once.
   so a recurrence says whether the tree or the raster thread is the one being
   starved.
 
+**Verified on-device (build 34, 2026-10-06):** a folder containing many files
+*and* subfolders — the heavy-load case the small 12–15 entry test folders could
+not reproduce — opens its details screen with no stall. Root cause confirmed, not
+just mitigated.
+
 **Traps worth keeping:**
 - The user-visible symptom (60 s) and the actual cause (an unbounded burst fired
   11 s earlier, from a *different* screen) are only connected by the
   established-vs-fresh install comparison. Always reproduce on the *upgraded*
   install before concluding a cache is to blame.
+- A passing test on a *small* folder proves very little here. The first two
+  verification folders held only 12–15 entries and read as a clean fix while
+  nothing had actually been exercised; the real folder with many entries and
+  subfolders is what closed it.
 - Metadata prefetch is load-bearing: it is what makes a tap a cache hit instead
   of a spinner. Bound it, never delete it.
 - `_download` being `static` is what hid the per-download `HttpClient`; the fix
