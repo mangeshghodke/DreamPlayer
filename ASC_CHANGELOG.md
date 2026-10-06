@@ -11,9 +11,17 @@ Paste-ready release notes for the **What's New** field in App Store Connect
 - Anything you are unsure of shipping should be left out — you cannot walk a
   note back once the build is live.
 
+Character counts are kept in a table here rather than inside a version block, so
+that copying a block for App Store Connect can never pick up a stray note:
+
+| Version | Build | Characters (limit 4000) |
+|---|---|---|
+| 0.5.1 | 36 | 3848 |
+
 ---
 
 ## 0.5.1 (build 36)
+
 
 Chapter navigation, made visible. Files that carry chapter markers — anime
 openings, endings and previews are the common case — now show a tick on the
@@ -27,13 +35,13 @@ New:
 • Double-tapping the seekbar jumps to the next chapter.
 • Each jump names the chapter it landed on ("Next chapter · Opening").
 
-The buttons appear only for files that actually have chapters.
+The buttons appear only for files that actually have chapters. Plenty of films
+have no chapter data at all, and those show nothing, as before.
 
-Also fixed:
-• Opening a title's details screen could freeze the app for several seconds —
-  the loading spinner stopped moving and the app stopped responding. It was
-  most noticeable on a large library, when opening a title from a network
-  share. Playback itself was never affected.
+• Chapters now work on network shares. Previously they only appeared for videos
+  stored on the device, so a film on your NAS showed no markers and no buttons at
+  all even though the very same file played with chapters from local storage.
+  SMB, WebDAV and FTP sources all behave like local storage now.
 
 In-app SMB for iPhone and iPad. Connect to a NAS or any SMB share from inside
 the app instead of bouncing out to the system file picker: add a server,
@@ -62,6 +70,14 @@ Artwork, everywhere:
   portrait on any screen size, rather than a narrow cropped strip on a tablet.
 
 Fixed:
+• Opening a title's details screen could leave the app unresponsive for up to a
+  minute — the loading spinner stopped dead and touches did nothing — before the
+  page finally appeared. It was worst on a large library, and most likely when
+  opening a title you had not opened before. Playback itself was never affected.
+• 4K films were sometimes labelled "2K". Many 2160p releases are trimmed to a
+  wide cinematic shape to save space, which leaves the picture a couple of pixels
+  under the usual 4K width; those are correctly shown as 4K now. The resolution
+  shown on a title's details page and in the player now always agree.
 • Opening a file from an SMB share could fail the first time with "could not
   open the file". This is resolved.
 • Bookmarked SMB folders could reconnect to the wrong share, which prevented

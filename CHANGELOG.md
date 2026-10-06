@@ -8,13 +8,23 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 ### Fixed
 
 - **Opening a title's details screen could freeze the app on iPhone and iPad.**
-  Every metadata write re-read and re-encoded the entire cached TMDB store, so
-  opening a details screen — which saves several times in a row — did megabytes
-  of JSON work on the UI thread and then wrote a very large blob to system
-  storage. On a large library the app stopped responding for several seconds
-  (the spinner froze rather than spun) before the details screen appeared.
-  Metadata is now kept in memory and written once per burst instead of once per
-  change. Movies and episodes were both affected; playback was not.
+  The page had its metadata ready in 2 ms and still produced **no frame at all**
+  for up to a minute — the spinner froze rather than spun, and touches did
+  nothing. Cause: unbounded speculative artwork fan-out. Every metadata lookup
+  fires poster + backdrop + all stills + every cast profile with no concurrency
+  limit, and each download built its own `HttpClient` (a fresh TCP + TLS
+  handshake) and ended in an fsync'd write. Opening a folder resolves a row per
+  entry and the home screen resolves every bookmarked folder, so one tap could
+  start hundreds at once and starve the raster pipeline. Artwork downloads are
+  now capped at 4 concurrent over one shared `HttpClient`, and the browsers'
+  per-entry prefetch is bounded, deferred and cancelled on navigation.
+  A genuine but *separate* inefficiency was fixed alongside it: `TmdStore`
+  re-read and re-encoded the entire cache on every write. That was worth fixing
+  and it is fixed, but instrumentation later proved it was **not** this symptom.
+  Notably the stall only ever hit an *upgraded* install — a fresh install with
+  empty caches is the fast case — which is what pointed away from the cache and
+  at the unbounded burst. Movies and episodes were both affected; playback was
+  not.
 
 ### Added
 
@@ -37,6 +47,18 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   a file's first 8 MB while chapters live at the *end* of a Matroska file (and of
   a non-fast-start MP4). Both are fixed, so SMB, WebDAV, Jellyfin, FTP and
   DLNA behave like local storage.
+- **Chapters on network shares and in-app SMB on iPhone and iPad** — the same
+  feature had a *third*, platform-specific gap: both Swift parsers took a local
+  `FileHandle`, so on iOS chapters only ever populated for on-device files and
+  Jellyfin, and every other source silently showed nothing even though the UI
+  was shared and looked complete. iOS now reads chapters through the byte-range
+  reader each streaming source already provides, so SMB, WebDAV and FTP/SFTP
+  behave like local storage. Verified on-device over in-app SMB.
+  Two bugs had to be cleared first, both of which produced a feature that looked
+  like it did nothing: the container walk pulls **one byte at a time** and neither
+  underlying cursor buffers, so a 40-chapter file became thousands of single-byte
+  SMB round trips; and the reader was being created in the wrong one of `open()`'s
+  two SMB branches, on a path that a later per-open reset then cleared anyway.
 - **Adjustable episode-row thumbnails** (issue #38) — episode and file rows now
   honour a **Settings → Layout → Episode thumbnails** choice of Small, Medium
   or Large, applied identically across the season screen, local folder, SMB,
@@ -185,6 +207,27 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
+- **4K films were labelled "2K"** — `friendlyResolution` required a long edge of
+  3840 px for 4K, but cropping a 2160p release to a 2.39:1 cinematic shape to
+  save bits is extremely common, and leaves the picture a couple of pixels under
+  that: a real Spider-Man rip measures **3832x1600** and was being reported as
+  2K. Classification now considers both edges, so a UHD-class long edge paired
+  with a >= 1400 px short edge counts as 4K regardless (`3832x1600`, `3840x1600`,
+  `3840x1608`, `4096x1716` are all 4K), while a portrait `1440x2560` frame stays
+  2K. 8K is checked first so `7680x4320` cannot be caught by the new clause, and
+  2K now also accepts DCI's `2048x1080`. The tell was two implementations
+  disagreeing: the details card used a looser threshold and said 4K while the
+  player's chip said 2K for the same file. Both now delegate to one
+  `friendlyResolution`, so they cannot drift apart again.
+- **Swiping the volume slider cancelled Volume Boost in the MPV engine**
+  (issue #41) — the reporter's diagnosis was exact. MPV has no separate gain
+  stage the way Media3 gets Android's `LoudnessEnhancer`, so boost and night
+  mode are staged purely by scaling MPV's single `volume` property. The gesture
+  wrote the raw system volume straight into it, so a 3x boost (volume 300) became
+  60 the instant the user dragged the slider. The multiplier is now applied by
+  every writer of MPV's volume through one shared calculation, and `volume-max`
+  is pinned to a fixed ceiling rather than tracking the current value — which
+  also removes a silent clamp when a gesture pushed past the last boosted value.
 - **Existing purchases now survive an app update (iOS)** — a customer who had
   already subscribed or bought the lifetime unlock was **locked out after
   updating the app**: the paywall appeared on previously-unlocked features and
