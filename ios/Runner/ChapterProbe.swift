@@ -1,4 +1,5 @@
 import Foundation
+import AetherEngine
 import AetherEngineSMB
 
 /// Fetches container chapters for sources that are **not** local files.
@@ -29,6 +30,47 @@ enum ChapterProbe {
     static let mkvExtensions: Set<String> = ["mkv", "mka", "mks", "webm", "mk3d"]
     /// Extensions whose chapters live in an MP4 `moov/udta/chpl` box.
     static let mp4Extensions: Set<String> = ["mp4", "mov", "m4v", "m4b", "3gp"]
+
+    /// Wraps an engine cursor (`IOReader`) as a chapter reader.
+    ///
+    /// Needed for FTP/SFTP, which reach the engine as a `BufferedSMBReader`
+    /// (a cursor with a read-ahead ring) rather than a `ByteRangeSource`. The
+    /// caller must pass a reader it is NOT already streaming from — seeking the
+    /// engine's live reader would drag playback's position along with it —
+    /// which is what `makeIndependentReader()` exists for.
+    ///
+    /// Size comes from `AVSEEK_SIZE` (whence 65536): `BufferedSMBReader.fileSize`
+    /// is private, and that seek is the only public door to it. It returns
+    /// before moving the cursor, so querying it is free of side effects.
+    static func cursorReader(_ source: IOReader) -> ChapterCursorReader {
+        // `var` deliberately, not `let`. `ByteRangeSource` is provably
+        // non-mutating (BufferedSMBReader holds `[ByteRangeSource]` in a `let`
+        // and calls `read` on it), but nothing in the tree proves the same for
+        // `IOReader` -- both are implemented only by final classes with a
+        // `close()`, which is not conclusive. A `var` is correct either way; a
+        // `let` fails the build only if the requirement turns out to be
+        // `mutating`. Worst case here is one "never mutated" warning.
+        var reader = source
+        let size = reader.seek(offset: 0, whence: 65536)
+        return ChapterCursorReader(
+            total: size > 0 ? UInt64(size) : UInt64.max,
+            seekTo: { offset in
+                reader.seek(offset: Int64(offset), whence: Int32(SEEK_SET)) >= 0
+            },
+            readBytes: { count in
+                guard count > 0 else { return nil }
+                var buffer = [UInt8](repeating: 0, count: count)
+                let read = buffer.withUnsafeMutableBytes { raw in
+                    reader.read(
+                        raw.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        size: Int32(count)
+                    )
+                }
+                guard read > 0 else { return nil }
+                return Array(buffer[0 ..< Int(read)])
+            }
+        )
+    }
 
     /// Parses from a seekable byte-range source: WebDAV, FTP/SFTP, plain HTTP.
     ///

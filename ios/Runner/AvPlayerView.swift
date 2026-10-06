@@ -298,8 +298,11 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     // async (`ByteRangeSource`) or a live cursor (SMB `pread`). So we retain the
     // reader that playback is already using and read the chapter windows
     // through it after load, rather than opening a second connection.
+    /// WebDAV only — that source really is a `ByteRangeSource`. FTP/SFTP
+    /// arrives as a `BufferedSMBReader` cursor and in-app SMB as an
+    /// `IOReader`, so both use [chapterCursor] instead.
     private var chapterByteSource: ByteRangeSource?
-    private var chapterSmbReader: ChapterCursorReader?
+    private var chapterCursor: ChapterCursorReader?
 
     // ---- Last-opened source (needed to reload when the engine parks in .ended). ----
     private var lastSource: MediaSource?
@@ -955,7 +958,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          lastWebDAVInfo = nil
          lastFtpUri = nil
          chapterByteSource = nil
-         chapterSmbReader = nil
+         chapterCursor = nil
          chapters = []
          subtitleOverlay.clear()
          invalidatePipController()
@@ -1078,7 +1081,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         // probe. `pread` is positional, so the walk's one seek
                         // to the SeekHead offset lands on the byte instead of
                         // streaming there — no head+tail guessing needed.
-                        self.chapterSmbReader = connection.makeChapterReader()
+                        self.chapterCursor = connection.makeChapterReader()
                         source = .custom(
                             connection.makeReader(),
                             formatHint: self.smbFormatHint
@@ -1096,7 +1099,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         try await FtpClient.makeByteRangeSource(uriText: pendingFtpUri)
                     }.value
                     let ext = URL(string: pendingFtpUri)?.pathExtension.lowercased() ?? ""
-                    self.chapterByteSource = buffered
+                    // The probe needs its OWN cursor. `buffered` is the instance
+                    // the engine is streaming from, and seeking it would drag
+                    // playback's position around with it. `makeIndependentReader`
+                    // shares the underlying stateless byte source (every read is
+                    // an independent HTTP Range) and hands back a fresh cursor.
+                    if let probeReader = buffered.makeIndependentReader() {
+                        self.chapterCursor = ChapterProbe.cursorReader(probeReader)
+                    }
                     source = .custom(
                         buffered,
                         formatHint: ext.isEmpty ? nil : ext
@@ -1286,7 +1296,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     let isChapterContainer = ChapterProbe.mkvExtensions.contains(ext)
                         || ChapterProbe.mp4Extensions.contains(ext)
                     if isChapterContainer {
-                        let cursor = self.chapterSmbReader
+                        let cursor = self.chapterCursor
                         let byteSource = self.chapterByteSource
                         let plainHTTP: URL? = {
                             guard cursor == nil, byteSource == nil,
