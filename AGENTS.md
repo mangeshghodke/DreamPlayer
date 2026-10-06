@@ -1160,6 +1160,11 @@ yes/no, cursor/byteSource present). After burning three builds guessing at Swift
 that had no feedback channel, the gate logs are the point: the next report is
 answered from the log rather than another hypothesis.
 
+**Verified on-device (build 36, 2026-10-06):** chapters, seekbar ticks and the
+previous/next buttons now appear over **in-app SMB** on the iPad — the source
+that was silently broken. Local storage worked all along, which is what made the
+split so informative.
+
 **Traps worth keeping:**
 
 - **Chapters are cleared only in `open()`**, never in `reloadSession` /
