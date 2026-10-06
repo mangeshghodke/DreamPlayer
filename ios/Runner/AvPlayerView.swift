@@ -1275,6 +1275,30 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     }
                 }
 
+                // Chapter reader for in-app SMB.
+                //
+                // Deliberly derived HERE, after the per-open reset, rather than
+                // where the source is built. Two things made the earlier attempt
+                // a no-op on the very path that matters:
+                //
+                //   * `open()` runs its "reset per-open state" block AFTER the
+                //     source branch, so a `chapterCursor` assigned in the branch
+                //     was cleared before the probe ever looked at it.
+                //   * Tapping a file in the SMB browser arrives as a
+                //     `dreamplayersmb://` token and is served by the EARLY token
+                //     branch, which never went near the `smb://` branch the
+                //     assignment lived in.
+                //
+                // `smbPlayback` is set by both paths and is not reset, so this
+                // single line covers the token path, the `smb://` resume path,
+                // and any future one — and shares the handle's recursive lock,
+                // so the probe never enters the libsmb2 context concurrently
+                // with playback.
+                if chapterCursor == nil, chapterByteSource == nil,
+                   let playback = smbPlayback {
+                    chapterCursor = playback.makeChapterReader()
+                }
+
                 // Remote chapter probe (in-app SMB / WebDAV / FTP / plain HTTP).
                 //
                 // The block above only reads a `FileHandle`, so before this

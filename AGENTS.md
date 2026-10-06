@@ -1129,6 +1129,25 @@ that never finished before anyone looked. `ChapterCursorReader` now holds a 64 K
 window, which collapses that to a couple of reads, and [seek] deliberately does
 **not** invalidate the buffer so a seek back inside the window is free.
 
+**And the second no-op, which the diagnostic log found in one line.** The
+chapter reader was being assigned in the *wrong SMB branch*. `open()` has two:
+an early `dreamplayersmb://` **token** branch (set inline, used when you tap a
+file in the SMB browser) and a later `smb://` resume branch (built inside the load
+`Task`, because resolving it is a blocking handshake). The assignment was only in
+the second, so the first path never had one. Worse, the early branch sits
+*before* the "reset per-open state" block, so an assignment there is cleared
+before the probe looks at it. Both facts were invisible until the probe logged
+its own gate:
+
+    chapters: remote gate ext=mkv container=true cursor=false byteSource=false
+
+`ext` right, container right, reader absent — which is a completely different
+failure from "the reader was too slow", and would never have been found by
+reading the parser. The fix derives the reader once, *after* the reset, from
+`smbPlayback` (set by both branches and never cleared), with the existing
+per-branch assignment kept as the primary. **When a feature silently does
+nothing, log the decision, not just the result.**
+
 Diagnosing this needed the local mount, not the device:
 `ffprobe -show_chapters` proved the files *do* have chapters (Subhedar 40,
 Spider-Man 12, Billu 2 — and two files with 0, which is why "no chapters" is
