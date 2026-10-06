@@ -1119,6 +1119,28 @@ positional cursor (in-app SMB's `IOReader` over `smb2_pread`). So:
   (`chapterByteSource` / `chapterSmbReader`) instead of opening a second
   connection, and probes **after** load, off the main actor, best-effort.
 
+**The bug that shipped a feature that looked like it did nothing.** The first
+version worked but produced *no chapters, ever*, on SMB. Cause: the container
+walks are byte-at-a-time (`readId` / `readSize` / `readUInt` each pull a single
+byte via `readByte()`), and neither underlying cursor buffers — `SMBSourceReader.read`
+is a bare `smb2_pread` per call. So an unbuffered adapter turned a 40-chapter
+file into *thousands* of single-byte SMB round trips: minutes of background work
+that never finished before anyone looked. `ChapterCursorReader` now holds a 64 KiB
+window, which collapses that to a couple of reads, and [seek] deliberately does
+**not** invalidate the buffer so a seek back inside the window is free.
+
+Diagnosing this needed the local mount, not the device:
+`ffprobe -show_chapters` proved the files *do* have chapters (Subhedar 40,
+Spider-Man 12, Billu 2 — and two files with 0, which is why "no chapters" is
+sometimes correct). **Check the file before assuming the code is wrong.** A movie
+rip with no Chapters element shows nothing on any platform, and that is not a bug.
+
+Every probe entry point now `SBMLog.log`s its outcome (`chapters: ...`) into
+`smb_debug.log`, including the gate decision in `AvPlayerView` (`ext=`, container
+yes/no, cursor/byteSource present). After burning three builds guessing at Swift
+that had no feedback channel, the gate logs are the point: the next report is
+answered from the log rather than another hypothesis.
+
 **Traps worth keeping:**
 
 - **Chapters are cleared only in `open()`**, never in `reloadSession` /

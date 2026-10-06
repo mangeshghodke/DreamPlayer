@@ -1295,6 +1295,11 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         .lowercased()
                     let isChapterContainer = ChapterProbe.mkvExtensions.contains(ext)
                         || ChapterProbe.mp4Extensions.contains(ext)
+                    SBMLog.log(
+                        "chapters: remote gate ext=\(ext) container=\(isChapterContainer) "
+                        + "cursor=\(self.chapterCursor != nil) "
+                        + "byteSource=\(self.chapterByteSource != nil)"
+                    )
                     if isChapterContainer {
                         let cursor = self.chapterCursor
                         let byteSource = self.chapterByteSource

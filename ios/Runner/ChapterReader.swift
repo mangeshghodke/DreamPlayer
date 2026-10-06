@@ -144,16 +144,38 @@ final class ChapterWindowReader: ChapterSeekable {
 }
 
 /// Wraps a **synchronous cursor** that already exists — in-app SMB's
-/// `SMBSourceReader`, which is an `IOReader` over `smb2_pread`.
+/// `SMBSourceReader`, and FTP/SFTP's `BufferedSMBReader`.
 ///
-/// Used instead of head+tail windows because `pread` is positional: one seek
-/// lands exactly where the SeekHead points, so there is no gap to model and no
-/// need to guess where the tail is.
+/// Used instead of head+tail windows because those cursors seek natively:
+/// one seek lands exactly where the SeekHead points, so there is no gap to
+/// model and no need to guess where the tail is.
+///
+/// ## Why this buffers (this is the whole difference between working and not)
+///
+/// The container walks are byte-at-a-time: `readId`, `readSize` and `readUInt`
+/// each pull a **single** byte through `readByte()`. Neither underlying cursor
+/// buffers for us — `SMBSourceReader.read` is a bare `smb2_pread` per call — so
+/// an unbuffered adapter turns a 40-chapter file into *thousands* of single-byte
+/// SMB round trips. On a LAN that is minutes of background work, which is exactly
+/// how the first build shipped a feature that looked like it did nothing at all.
+///
+/// A 64 KiB window collapses that to a handful of reads: fill near the Segment
+/// header, let the walk consume it, seek to the Chapters offset, fill again.
+/// Seeks *within* the window are free, which is why [seek] deliberately does not
+/// invalidate the buffer — `buffered(_:)` re-fills only when the target falls
+/// outside what is already held.
 final class ChapterCursorReader: ChapterSeekable {
     private let seekTo: (UInt64) -> Bool
     private let readBytes: (Int) -> [UInt8]?
     private let total: UInt64
     private var pos: UInt64 = 0
+
+    /// Large enough to hold every chapter title block in one fetch, small
+    /// enough that a seek never drags megabytes over the wire.
+    private static let windowBytes = 64 * 1024
+
+    private var buffer: [UInt8] = []
+    private var bufferStart: UInt64 = 0
 
     init(total: UInt64, seekTo: @escaping (UInt64) -> Bool, readBytes: @escaping (Int) -> [UInt8]?) {
         self.total = total
@@ -161,25 +183,58 @@ final class ChapterCursorReader: ChapterSeekable {
         self.readBytes = readBytes
     }
 
+    /// True when [count] bytes at [pos] are already in hand, filling the window
+    /// if not. Returns false when the read cannot be satisfied from a window.
+    private func buffered(_ count: Int) -> Bool {
+        let held = bufferStart + UInt64(buffer.count)
+        if pos >= bufferStart, pos + UInt64(count) <= held {
+            return true
+        }
+        // A request wider than the window goes straight to the cursor instead of
+        // evicting what we already hold — `readFully` handles that path.
+        guard count <= ChapterCursorReader.windowBytes, seekTo(pos) else {
+            return false
+        }
+        guard let bytes = readBytes(ChapterCursorReader.windowBytes), !bytes.isEmpty else {
+            buffer.removeAll(keepingCapacity: true)
+            bufferStart = pos
+            return false
+        }
+        buffer = bytes
+        bufferStart = pos
+        return UInt64(buffer.count) >= UInt64(count)
+    }
+
     func readByte() throws -> Int {
-        guard let byte = readBytes(1)?.first else { return -1 }
+        guard buffered(1) else { return -1 }
+        let offset = Int(pos - bufferStart)
         pos += 1
-        return Int(byte)
+        return Int(buffer[offset])
     }
 
     func readFully(int count: Int) throws -> Data {
-        guard let bytes = readBytes(count), bytes.count >= count else {
+        guard count > 0 else { return Data() }
+        if buffered(count) {
+            let offset = Int(pos - bufferStart)
+            pos += UInt64(count)
+            return Data(buffer[offset ..< offset + count])
+        }
+        // Wider than the window: bypass it rather than thrash.
+        guard seekTo(pos) else {
             throw NSError(domain: "ChapterReader", code: 4)
+        }
+        guard let bytes = readBytes(count), bytes.count >= count else {
+            throw NSError(domain: "ChapterReader", code: 5)
         }
         pos += UInt64(count)
         return Data(bytes)
     }
 
+    /// Positions the cursor. Deliberately does NOT drop the buffer: a seek back
+    /// inside the held window costs nothing, and the next read re-fills only if
+    /// the target is genuinely outside it.
     func seek(to newPos: UInt64) throws {
-        guard seekTo(newPos) else {
-            throw NSError(domain: "ChapterReader", code: 5)
-        }
-        pos = newPos
+        pos = min(newPos, total)
     }
 
     var position: UInt64 { pos }

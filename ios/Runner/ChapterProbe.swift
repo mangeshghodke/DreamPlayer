@@ -106,7 +106,14 @@ enum ChapterProbe {
         } else {
             SBMLog.log("chapters: tail read failed for .\(ext) — parsing head only")
         }
-        return parse(head: head, tail: tail, total: totalU, ext: ext)
+        let began = Date()
+        let maps = parse(head: head, tail: tail, total: totalU, ext: ext)
+        SBMLog.log(
+            "chapters: ranged probe .\(ext) -> \(maps.count) chapters in "
+            + "\(Int(Date().timeIntervalSince(began) * 1000))ms "
+            + "(head \(head.count)B, tail \(tail?.count ?? 0)B, total \(totalU))"
+        )
+        return maps
     }
 
     /// Parses from a synchronous, *positional* cursor — in-app SMB, where
@@ -114,9 +121,22 @@ enum ChapterProbe {
     /// model and no tail to guess at, so this skips the window dance entirely.
     static func probe(cursor: ChapterSeekable, ext: String) -> [[String: Any]] {
         let ext = ext.lowercased()
-        if mkvExtensions.contains(ext) { return MkvChapters.parseMaps(reader: cursor) }
-        if mp4Extensions.contains(ext) { return Mp4Chapters.parseMaps(reader: cursor) }
-        return []
+        guard mkvExtensions.contains(ext) || mp4Extensions.contains(ext) else {
+            SBMLog.log("chapters: cursor probe skipped, ext=\(ext) is not a chapter container")
+            return []
+        }
+        let began = Date()
+        let maps: [[String: Any]]
+        if mkvExtensions.contains(ext) {
+            maps = MkvChapters.parseMaps(reader: cursor)
+        } else {
+            maps = Mp4Chapters.parseMaps(reader: cursor)
+        }
+        let ms = Int(Date().timeIntervalSince(began) * 1000)
+        SBMLog.log(
+            "chapters: cursor probe .\(ext) -> \(maps.count) chapters in \(ms)ms"
+        )
+        return maps
     }
 
     /// Dispatches on container. Unknown extensions are skipped rather than
