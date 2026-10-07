@@ -1579,10 +1579,18 @@ So adding mpv back would re-break **the thing the user came here for** (real DV 
 iOS-ONLY monetization; **Android is explicitly excluded and stays 100% free**
 (no Google Play Billing — sideload distribution; Entitlements returns
 `advanced = true` on Android, no HDR meter, no paywall). User is buying the
-$99/yr Apple Developer Program; the paywall goes live once the account + ASC
-products exist. Everything ships behind `--dart-define=PAYWALL_ENABLED=true`;
-with the define OFF (shipped releases today) the app is byte-for-byte what it
-is now — all free, no meter, no paywall.
+$99/yr Apple Developer Program. **The paywall is LIVE** (verified 2026-10-06:
+all three products approved and purchasable in ASC), and this is deliberate, not
+an oversight.
+
+**The paywall is ON in every signed build — the `paywall` workflow input is a
+red herring.** `ios/signing_setup.py` hardcodes `--dart-define=PAYWALL_ENABLED=true`
+in its `flutter build ipa` argv, so it ignores the input entirely. Only the
+*unsigned* path (`ios.yml`, `upload_testflight == false && signed_build == false`)
+passes `--dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}`. Every
+TestFlight upload and the App Store release therefore ship with it enabled. Do
+not "fix" the script by removing that define without a deliberate decision —
+earlier notes here claimed releases were all-free, which was wrong about reality.
 
 **LOCKED MODEL (2026-09-09, user-approved)**:
 - **Three product tiers** in App Store Connect (iOS):
@@ -1600,19 +1608,32 @@ is now — all free, no meter, no paywall.
   Subscriptions are Apple-ID-bound → reinstall/restore is automatic (subs
   auto-restore; lifetime via a mandatory **Restore Purchases** button).
 - **NO free-trial period** configured on any subscription. The discovery
-  mechanism is instead a **7-day free trial of the whole app**: the trial starts
-  on the first launch where the paywall is relevant (real PAYWALL_ENABLED builds
-  on iOS, or the debug "simulate free user" build on Android) and runs on the
-  **wall clock** (persisted `dreamplayer.trialStartedAt`; `trialActive` =
-  now - start < 7 days). While the trial is active every gate passes
-  (`isEntitled = isAdvanced || trialActive` — no per-playback meter, nothing to
-  reset on seek/resume, which is why the fragile 30-min playback-countdown was
-  dropped 2026-09). At trial end, gates fire normally for non-subscribers.
-  The Keychain (`trialStartedAt`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`,
-  NOT synchronizable) → survives restart AND reinstall on the same device
-  (anti free-trial-abuse) is the deferred native-iOS implementation; today the
-  start time is in SharedPreferences (per-session/device, testable on Android
-  via the two debug toggles).
+  mechanism is instead a **7-day free trial of the whole app**, and it is
+  **opt-in, never automatic**: `home_screen._showTrialIntroIfNeeded()` pushes
+  `TrialIntroScreen` once per install (guarded by `dreamplayer.trialIntroShown`),
+  whose button calls `showPaywall()`, and only the paywall's *Start 7-day trial*
+  button invokes `Entitlements.startTrial()`. Nothing starts the trial on
+  launch. A user who never opts in stays gated from the first run — including
+  HDR playback, which is the harshest default in the map and worth re-checking
+  as a product decision. Once started it is pure **wall clock** (persisted
+  `dreamplayer.trialStartedAt`; `trialActive` = now - start < 7 days) and while
+  active every gate passes (`isEntitled = isAdvanced || trialActive` — no
+  per-playback meter, nothing to reset on seek/resume, which is why the fragile
+  30-min playback-countdown was dropped 2026-09). At trial end, gates fire
+  normally for non-subscribers.
+  The native side is **implemented and live**, not deferred:
+  `ios/Runner/TrialStore.swift` (channel `dreamplayer/trial`) mirrors
+  `lib/services/trial_store.dart`. `_loadTrialStart()` reads SharedPreferences
+  first (so pre-existing installs keep their value and get backfilled into the
+  Keychain) and falls back to the Keychain on a fresh/reinstalled app.
+  Correct Keychain attributes — earlier notes here had these backwards:
+  `kSecAttrAccessibleAfterFirstUnlock` (**not** `...ThisDeviceOnly`) **and**
+  `kSecAttrSynchronizable: true` (**not** unsynchronizable). The sync is
+  deliberate: without it, buying a new phone and restoring a backup would hand
+  out a fresh 7-day trial. Builds before the sync shipped a device-local item
+  under the same service/account, which is invisible to a synchronizable query,
+  so `read()` reads it explicitly and re-writes it as synced — otherwise every
+  existing user would keep a device-only marker forever.
 - **Paywall sheet** (list-based, `ListTile`/`_TvListTile`): three products
   with live StoreKit prices, Buy → Apple sheet → entitlement flips → paywall
   closes instantly (no restart). Restore Purchases button mandatory.
@@ -1738,9 +1759,20 @@ now be written behind `PAYWALL_ENABLED`.
 - `.storekit` configuration file for local/CI without money; sandbox testers
   + TestFlight for production products.
 
-**Order of ops when account clears**: agreements/bank/tax -> Small Business
-Program -> create 3 products (₹199 / ₹1,499 / ₹4,999) -> Entitlements + paywall
-(1–2 days) -> gates + Restore button -> sandbox verify -> submit.
+**Order of ops — DONE (verified live 2026-10-06)**: agreements/bank/tax ->
+Small Business Program -> create 3 products (₹199 / ₹1,499 / ₹4,999) ->
+Entitlements + paywall -> gates + Restore button -> submit. All three products
+are approved and purchasable, and the paywall is enabled in the shipped build.
+
+**Reading App Store Connect redownloads** (observed: 6, on the live build):
+redownloads are the expected signature of this design, not a broken paywall. The
+trial is opt-in and the Keychain deliberately survives reinstall, so a user who
+is gated and uninstalls to try to reset the trial gets nothing and churns
+instead. The entitlement logic itself audits clean: one `checkGate` chokepoint,
+Android immune via two independent guards, restore-at-launch so subscribers are
+never locked out after an update, and `isEntitledTransaction` checking
+revocation *before* expiry. The signal worth watching instead is refunds and
+reviews mentioning "locked"/"paywall" — redownloads alone are weak evidence.
 
 ### Competitor-gap roadmap, phased (2026-08)
 
