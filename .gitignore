@@ -53,3 +53,13 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/build
+
+# Live API credentials — NEVER commit these. jwt.txt/login.json held a real
+# TheTVDB JWT (apikey + account id, valid to ~2026-10-28) and were tracked from
+# commit 5fd77c3 in a PUBLIC repo. They are stored in the Android Keystore /
+# iOS Keychain at runtime instead (TheTvdbCredentialStore), so nothing in the
+# build needs them here.
+jwt.txt
+login.json
+*.jwt
+*.auth.json
