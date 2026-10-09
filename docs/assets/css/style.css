@@ -1,0 +1,840 @@
+/* ==========================================================================
+   DreamPlayer — website styles
+   Palette lifted verbatim from lib/theme/app_theme.dart:
+     seed/primary  #7C4DFF   scaffold #0E0E11   card #16161A
+     raised        #1C1C21   divider   #232329   muted #8A8A93
+   ========================================================================== */
+
+:root {
+  --bg: #0e0e11;
+  --bg-alt: #0a0a0d;
+  --card: #16161a;
+  --raised: #1c1c21;
+  --line: #232329;
+  --line-soft: #1b1b20;
+
+  --violet: #7c4dff;
+  --violet-soft: #a684ff;
+  --violet-dim: rgba(124, 77, 255, 0.14);
+
+  --text: #f4f4f6;
+  --text-dim: #b9b9c2;
+  --muted: #8a8a93;
+
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --blue: #60a5fa;
+
+  --radius: 14px;
+  --radius-lg: 22px;
+  --maxw: 1160px;
+
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* --------------------------------------------------------------- reset -- */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+img { max-width: 100%; display: block; }
+a { color: var(--violet-soft); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+h1, h2, h3, h4 {
+  margin: 0 0 0.5em;
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+  font-weight: 800;
+}
+
+h1 { font-size: clamp(2.3rem, 5.2vw, 3.9rem); }
+h2 { font-size: clamp(1.75rem, 3.4vw, 2.6rem); }
+h3 { font-size: 1.16rem; font-weight: 700; letter-spacing: -0.01em; }
+
+p { margin: 0 0 1.1em; }
+
+.wrap {
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.section { padding: 104px 0; }
+.section--alt { background: var(--bg-alt); }
+
+.eyebrow {
+  display: inline-block;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--violet-soft);
+  margin-bottom: 14px;
+}
+
+.lede {
+  font-size: 1.12rem;
+  color: var(--text-dim);
+  max-width: 62ch;
+}
+
+.section__head { max-width: 66ch; margin-bottom: 52px; }
+
+/* ------------------------------------------------------------ backdrop -- */
+
+/* The soft violet bloom behind the hero — mirrors the app's accent glow. */
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -30% -10% auto -10%;
+  height: 780px;
+  background: radial-gradient(
+      58% 52% at 50% 44%,
+      rgba(124, 77, 255, 0.3) 0%,
+      rgba(124, 77, 255, 0.1) 45%,
+      transparent 72%
+    );
+  filter: blur(28px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Faint grid, the way a player timeline reads as "engineered". */
+.grid-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 62px 62px;
+  mask-image: radial-gradient(72% 60% at 50% 34%, #000 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(72% 60% at 50% 34%, #000 0%, transparent 78%);
+}
+
+/* ---------------------------------------------------------------- nav -- */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: rgba(14, 14, 17, 0.72);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.25s var(--ease), background 0.25s var(--ease);
+}
+
+.nav.is-stuck {
+  border-bottom-color: var(--line);
+  background: rgba(10, 10, 13, 0.9);
+}
+
+.nav__inner {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  height: 70px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-weight: 800;
+  font-size: 1.06rem;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.brand:hover { text-decoration: none; }
+.brand img { width: 32px; height: 32px; border-radius: 8px; }
+
+/* The nav lockup reads at a larger optical weight than the footer, so the mark
+   scales with the wordmark instead of floating small in a 70px row. */
+.nav .brand { gap: 12px; font-size: 1.14rem; }
+.nav .brand img { width: 40px; height: 40px; border-radius: 10px; }
+
+.nav__links {
+  display: flex;
+  gap: 26px;
+  margin-left: auto;
+  font-size: 0.93rem;
+}
+
+.nav__links a {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.nav__links a:hover { color: var(--text); text-decoration: none; }
+
+.nav__toggle {
+  display: none;
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  width: 40px;
+  height: 40px;
+  color: var(--text);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+/* -------------------------------------------------------------- button -- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 13px 24px;
+  border-radius: 11px;
+  font-weight: 650;
+  font-size: 0.96rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.18s var(--ease), background 0.18s var(--ease),
+    border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  white-space: nowrap;
+}
+
+.btn:hover { text-decoration: none; transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+
+.btn--primary {
+  background: var(--violet);
+  color: #fff;
+  box-shadow: 0 8px 26px -8px rgba(124, 77, 255, 0.7);
+}
+.btn--primary:hover { background: #8a5fff; }
+
+.btn--ghost {
+  border-color: var(--line);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.02);
+}
+.btn--ghost:hover { border-color: #3a3a42; background: rgba(255, 255, 255, 0.05); }
+
+.btn--lg { padding: 15px 30px; font-size: 1.02rem; }
+.btn--block { width: 100%; }
+
+/* --------------------------------------------------------------- hero -- */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 92px 0 104px;
+}
+
+.hero__inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+  gap: 60px;
+  align-items: center;
+}
+
+.hero__title { margin-bottom: 20px; }
+
+.hero__title .accent {
+  background: linear-gradient(96deg, var(--violet-soft), #d0b8ff 60%, var(--violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero__sub {
+  font-size: 1.16rem;
+  color: var(--text-dim);
+  max-width: 54ch;
+  margin-bottom: 30px;
+}
+
+.hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 13px;
+  margin-bottom: 26px;
+}
+
+.hero__note {
+  font-size: 0.88rem;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.hero__note span { display: inline-flex; align-items: center; gap: 7px; }
+.hero__note svg { width: 15px; height: 15px; color: var(--green); flex: none; }
+
+/* Phone frame around the hero shot — screenshot only, no fake hardware. */
+.hero__shot {
+  position: relative;
+  justify-self: end;
+  width: 100%;
+  max-width: 330px;
+}
+
+.hero__shot img {
+  width: 100%;
+  border-radius: 26px;
+  border: 1px solid var(--line);
+  box-shadow: 0 34px 70px -26px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(124, 77, 255, 0.14);
+}
+
+.hero__shot::after {
+  content: "";
+  position: absolute;
+  inset: -14% -22%;
+  background: radial-gradient(50% 46% at 50% 46%, rgba(124, 77, 255, 0.26), transparent 70%);
+  filter: blur(34px);
+  z-index: -1;
+}
+
+/* Floating live-format chips, straight out of the player's top bar. */
+.chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  background: rgba(22, 22, 26, 0.94);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 26px -12px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+}
+
+.chip--dv { color: #c9b3ff; border-color: rgba(124, 77, 255, 0.42); }
+.chip--au { color: #86efac; border-color: rgba(74, 222, 128, 0.32); }
+
+.hero__shot .chip--dv { top: 15%; left: -34px; animation: float 7s ease-in-out infinite; }
+.hero__shot .chip--au { bottom: 17%; right: -30px; animation: float 7s ease-in-out infinite 1.4s; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+
+/* --------------------------------------------------------------- strip -- */
+
+.strip { border-block: 1px solid var(--line); background: var(--bg-alt); }
+.strip__inner {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line);
+}
+.strip__item {
+  background: var(--bg-alt);
+  padding: 26px 20px;
+  text-align: center;
+}
+.strip__item strong {
+  display: block;
+  font-size: 1.42rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 2px;
+}
+.strip__item span { font-size: 0.85rem; color: var(--muted); }
+
+/* --------------------------------------------------------------- cards -- */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 22px;
+}
+
+.card {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 30px 28px;
+  overflow: hidden;
+  transition: border-color 0.22s var(--ease), transform 0.22s var(--ease);
+}
+
+.card:hover { border-color: #35353d; transform: translateY(-3px); }
+
+/* Accent hairline that lights up on hover — the app's focus accent. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--violet), transparent);
+  opacity: 0;
+  transition: opacity 0.22s var(--ease);
+}
+.card:hover::before { opacity: 1; }
+
+.card__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--violet-dim);
+  border: 1px solid rgba(124, 77, 255, 0.28);
+  color: var(--violet-soft);
+  margin-bottom: 17px;
+}
+.card__icon svg { width: 21px; height: 21px; }
+
+.card p { color: var(--text-dim); font-size: 0.96rem; margin: 0; }
+.card h3 { margin-bottom: 8px; }
+
+.card__tag {
+  display: inline-block;
+  margin-top: 15px;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------- sources -- */
+
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 11px;
+  max-width: 780px;
+}
+
+.source {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  font-size: 0.9rem;
+  font-weight: 550;
+  color: var(--text-dim);
+}
+.source svg { width: 15px; height: 15px; color: var(--violet-soft); flex: none; }
+
+/* --------------------------------------------------------------- codec -- */
+
+.codec {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.codec__cell { background: var(--card); padding: 22px 20px; }
+.codec__cell dt {
+  font-size: 0.74rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.codec__cell dd { margin: 0; font-weight: 650; font-size: 0.98rem; }
+
+/* --------------------------------------------------------------- truth -- */
+
+.callout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--violet);
+  border-radius: var(--radius);
+  padding: 26px 28px;
+}
+.callout svg { width: 22px; height: 22px; color: var(--violet-soft); margin-top: 3px; }
+.callout h3 { margin-bottom: 7px; }
+.callout p { color: var(--text-dim); margin: 0; font-size: 0.97rem; }
+
+/* ---------------------------------------------------------- screenshots -- */
+
+.tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  margin-bottom: 34px;
+}
+
+.tab {
+  padding: 9px 20px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.91rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+.tab:hover { color: var(--text); }
+.tab.is-active { background: var(--violet); color: #fff; }
+
+.panel { display: none; }
+.panel.is-active { display: block; }
+
+.shots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+
+.shot {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  overflow: hidden;
+  cursor: zoom-in;
+  /* <button> does not inherit these from the page; without the reset the
+     caption renders in the UA button font and colour. */
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  transition: transform 0.22s var(--ease), border-color 0.22s var(--ease);
+}
+.shot:hover { transform: translateY(-4px); border-color: #35353d; }
+.shot:hover img { transform: scale(1.03); }
+.shot:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+.shot img {
+  width: 100%;
+  height: auto;
+  transition: transform 0.35s var(--ease);
+}
+/* Must be block: it is a <span>, and an inline box ignores vertical padding
+   and the border-top, so the caption would collapse over the image. */
+.shot__cap {
+  display: block;
+  padding: 12px 15px;
+  font-size: 0.84rem;
+  color: var(--muted);
+  border-top: 1px solid var(--line-soft);
+  text-align: left;
+}
+
+/* Landscape iPad shot gets its own full-width row. */
+.shots--wide { grid-template-columns: minmax(0, 1fr); margin-top: 18px; }
+.shots--wide .shot { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; }
+.shots--wide .shot img { border-radius: 0; }
+.shots--wide .shot__cap { border-top: 0; border-left: 1px solid var(--line-soft); padding: 26px 30px; font-size: 0.95rem; }
+
+/* ------------------------------------------------------------ lightbox -- */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(6, 6, 9, 0.93);
+  backdrop-filter: blur(8px);
+}
+.lightbox.is-open { display: flex; }
+.lightbox img {
+  max-width: 100%;
+  max-height: 88vh;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+.lightbox__close {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------- pricing -- */
+
+.plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  gap: 20px;
+  /* stretch, not start: every card takes the height of the tallest one. */
+  align-items: stretch;
+}
+
+/* Flex column so the CTA can be pinned to a shared baseline via margin-top:auto. */
+.plan {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 28px 26px;
+}
+.plan--hi { border-color: rgba(124, 77, 255, 0.5); box-shadow: 0 20px 50px -30px rgba(124, 77, 255, 0.6); }
+
+/* Fixed height, not intrinsic: two of the four cards carry a platform badge and
+   two would otherwise start their price lower than the rest. Reserving the row
+   keeps every name, price and rule on the same line across the row. */
+.plan__badge {
+  display: block;
+  height: 18px;
+  line-height: 18px;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--violet-soft);
+  margin-bottom: 14px;
+}
+.plan__name { font-weight: 700; font-size: 1.05rem; margin-bottom: 4px; }
+.plan__price {
+  font-size: 2.15rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 3px;
+}
+.plan__price small { font-size: 0.86rem; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+/* flex:1 absorbs the leftover height, so descriptions of different lengths
+   still leave every CTA sitting on one shared baseline. */
+.plan__desc {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 0 0 20px;
+  flex: 1 1 auto;
+}
+
+.plan .btn { margin-top: auto; }
+
+/* ----------------------------------------------------------------- faq -- */
+
+.faq { max-width: 800px; }
+
+.faq details {
+  border-bottom: 1px solid var(--line);
+  padding: 4px 0;
+}
+
+.faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0;
+  font-weight: 650;
+  font-size: 1.03rem;
+  cursor: pointer;
+  list-style: none;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: "+";
+  font-size: 1.4rem;
+  font-weight: 400;
+  color: var(--muted);
+  flex: none;
+  transition: transform 0.2s var(--ease);
+}
+.faq details[open] summary::after { transform: rotate(45deg); }
+
+.faq details p {
+  padding: 0 44px 22px 0;
+  color: var(--text-dim);
+  font-size: 0.97rem;
+  margin: 0;
+}
+
+/* ----------------------------------------------------------------- cta -- */
+
+.cta {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  border-top: 1px solid var(--line);
+}
+.cta::before {
+  content: "";
+  position: absolute;
+  inset: auto -10% -70% -10%;
+  height: 520px;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(124, 77, 255, 0.26), transparent 70%);
+  filter: blur(30px);
+  pointer-events: none;
+}
+.cta > * { position: relative; }
+.cta .hero__cta { justify-content: center; }
+.cta p { color: var(--text-dim); }
+
+/* -------------------------------------------------------------- footer -- */
+
+.footer { border-top: 1px solid var(--line); padding: 54px 0; background: var(--bg-alt); }
+
+.footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  font-size: 0.9rem;
+}
+.footer__links a { color: var(--muted); }
+.footer__links a:hover { color: var(--text); }
+
+.footer__legal { font-size: 0.82rem; color: var(--muted); margin: 14px 0 0; }
+
+/* -------------------------------------------------------------- reveal -- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+}
+.reveal.is-in { opacity: 1; transform: none; }
+
+/* --------------------------------------------------------- responsive -- */
+
+/* Breakpoints, in the order they bite:
+     980px  nav collapses + hero stacks   (portrait tablets, landscape phones)
+     860px  hero was still 2-up above this; tablets keep the shot larger
+     760px  real phone: tighter padding, full-width CTAs, 2-up shots
+     600px  floating chips tuck inside the canvas instead of hanging off it
+     460px  shots go 1-up, where a 2.2:1 phone shot stops being legible
+
+   The nav collapses at 980 rather than 720 on purpose: seven inline links plus
+   the lockup need ~830px, so a 844px landscape phone overflowed the row. */
+
+@media (max-width: 980px) {
+  .nav__toggle { display: inline-flex; }
+  .nav__links {
+    position: absolute;
+    top: 70px;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    gap: 0;
+    padding: 8px 24px 18px;
+    background: rgba(10, 10, 13, 0.98);
+    border-bottom: 1px solid var(--line);
+    display: none;
+  }
+  .nav__links.is-open { display: flex; }
+  .nav__links a { padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+
+  .shots { grid-template-columns: repeat(2, 1fr); }
+  .strip__inner { grid-template-columns: repeat(2, 1fr); }
+  .shots--wide .shot { grid-template-columns: 1fr; }
+  .shots--wide .shot__cap { border-left: 0; border-top: 1px solid var(--line-soft); }
+}
+
+@media (max-width: 860px) {
+  .hero__inner { grid-template-columns: 1fr; gap: 52px; }
+  /* Wider than the old 300px: on a portrait tablet a 300px shot stranded in a
+     768px column reads as an accident rather than a choice. */
+  .hero__shot { justify-self: center; max-width: 360px; }
+  .hero__shot .chip--dv { left: -18px; }
+  .hero__shot .chip--au { right: -14px; }
+}
+
+@media (max-width: 760px) {
+  body { font-size: 16px; }
+  .section { padding: 72px 0; }
+  .hero { padding: 60px 0 76px; }
+
+  .shots { gap: 12px; }
+  .shot__cap { padding: 10px 12px; font-size: 0.78rem; }
+  .callout { grid-template-columns: 1fr; gap: 12px; padding: 22px; }
+  .hero__cta .btn { flex: 1 1 100%; }
+  .footer__inner { flex-direction: column; }
+
+  /* Comfortable touch targets — .tab was 36px, under the 44px guideline. */
+  .tab { padding: 12px 18px; }
+  .faq summary { padding: 22px 0; }
+}
+
+/* The chips hang outside the screenshot on purpose. body has overflow-x hidden,
+   so past this width they were being clipped, not just tight — pull them in. */
+@media (max-width: 600px) {
+  .chip { font-size: 0.7rem; padding: 6px 11px; }
+  .hero__shot .chip--dv { top: 10%; left: 4px; }
+  .hero__shot .chip--au { bottom: 12%; right: 4px; }
+}
+
+@media (max-width: 460px) {
+  .shots { grid-template-columns: 1fr; }
+  .strip__item { padding: 22px 14px; }
+  .strip__item strong { font-size: 1.24rem; }
+  .hero__cta { gap: 11px; }
+}
+
+/* Landscape phone: short viewport, so the hero must not eat the whole screen. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .hero { padding: 44px 0 56px; }
+  .hero__title { font-size: clamp(1.9rem, 4.4vw, 2.5rem); }
+  .section { padding: 56px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}

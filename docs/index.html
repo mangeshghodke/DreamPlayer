@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DreamPlayer — Real Dolby Vision, lossless audio, and your NAS built in</title>
+<meta name="description" content="A cross-platform video player for Android, Android TV, iPhone and iPad. True Dolby Vision and HDR passthrough, lossless DTS-HD/TrueHD/E-AC3/FLAC, and in-app SMB so your NAS works without a third-party app. No ads, no account.">
+<meta property="og:title" content="DreamPlayer — Real Dolby Vision. Every codec. Your NAS built in.">
+<meta property="og:description" content="True Dolby Vision passthrough, lossless audio, and SMB built into the app. Android, Android TV, iPhone and iPad.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="assets/img/ipad-player.jpg">
+<meta name="theme-color" content="#0E0E11">
+<link rel="icon" href="assets/img/icon.png">
+<link rel="apple-touch-icon" href="assets/img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<!-- ============================================================== nav -->
+<header class="nav" id="nav">
+  <div class="wrap nav__inner">
+    <a class="brand" href="#top">
+      <img src="assets/img/icon.png" alt="">
+      DreamPlayer
+    </a>
+
+    <button class="nav__toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M3 6h18M3 12h18M3 18h18"/>
+      </svg>
+    </button>
+
+    <nav class="nav__links" id="navLinks">
+      <a href="#why">Why</a>
+      <a href="#sources">Sources</a>
+      <a href="#codecs">Codecs</a>
+      <a href="#screens">Screens</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/mangeshghodke/DreamPlayer/releases">Android APK</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============================================================= hero -->
+<section class="hero">
+  <div class="grid-lines" aria-hidden="true"></div>
+  <div class="wrap hero__inner">
+    <div>
+      <h1 class="hero__title">Real Dolby Vision.<br>Every codec.<br><span class="accent">Your NAS built in.</span></h1>
+
+      <p class="hero__sub">
+        Most players decode Dolby Vision down to SDR before it ever reaches your screen.
+        DreamPlayer hands the raw signal to the display — on Android, iPhone and iPad.
+        And SMB talks to your NAS directly, so you don't need a second app just to browse it.
+      </p>
+
+      <div class="hero__cta">
+        <a class="btn btn--primary btn--lg" href="https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.7c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.3 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.2 2.9-2.3.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.6-1-2.6-3.7zM14.2 5.9c.6-.8 1-1.9.9-3-.9 0-2 .6-2.7 1.4-.6.7-1.1 1.8-.9 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>
+          Download on the App Store
+        </a>
+        <a class="btn btn--ghost btn--lg" href="https://github.com/mangeshghodke/DreamPlayer/releases">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+          Android APK
+        </a>
+      </div>
+
+      <div class="hero__note">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> No ads</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> No account</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Android is free forever</span>
+      </div>
+    </div>
+
+    <div class="hero__shot">
+      <span class="chip chip--dv">Dolby Vision P7</span>
+      <img src="assets/img/android-player.jpg" fetchpriority="high" alt="DreamPlayer playing a Dolby Vision P7 title with TRUE-HD 7.1 audio, showing live format indicators">
+      <span class="chip chip--au">TRUE-HD 7.1</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ strip -->
+<section class="strip">
+  <div class="wrap">
+    <div class="strip__inner">
+      <div class="strip__item"><strong>10</strong><span>source types, built in</span></div>
+      <div class="strip__item"><strong>P7 / P8 / P9</strong><span>Dolby Vision profiles</span></div>
+      <div class="strip__item"><strong>4</strong><span>platforms incl. Android TV</span></div>
+      <div class="strip__item"><strong>0</strong><span>ads, accounts or tracking</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== why -->
+<section class="section" id="why">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <span class="eyebrow">Why DreamPlayer</span>
+      <h2>The difference is what reaches your screen</h2>
+      <p class="lede">
+        Two things decide whether a player is actually good: whether the picture
+        stays HDR all the way to the panel, and whether you can reach your files
+        without installing anything else.
+      </p>
+    </div>
+
+    <div class="cards">
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></div>
+        <h3>HDR that stays HDR</h3>
+        <p>
+          Video is rendered into a real hardware surface, so Dolby Vision P7/P8/P9,
+          HDR10, HDR10+ and HLG reach the display as PQ/BT.2020 instead of being
+          tone-mapped to SDR in software. On panels that support it, you get the
+          highlights the file actually has.
+        </p>
+        <span class="card__tag">Media3 · AetherEngine · SurfaceView</span>
+      </article>
+
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01M6 17h.01"/></svg></div>
+        <h3>Your NAS, inside the app</h3>
+        <p>
+          SMB is built in on every platform, including iPhone and iPad. Browse shares,
+          open a file, seek instantly, and keep playing when the network wobbles —
+          no companion SMB utility, no separate login.
+        </p>
+        <span class="card__tag">SMB 3.1.1 · libsmb2 · jcifs-ng</span>
+      </article>
+
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+        <h3>Lossless, not downmixed</h3>
+        <p>
+          DTS-HD Master Audio, TrueHD, E-AC3, AC3 and 24-bit multichannel FLAC are
+          decoded properly — and passed through bit-for-bit over HDMI when the
+          receiver can take it. Atmos and DTS:X included.
+        </p>
+        <span class="card__tag">FFmpeg audio · AudioTrack passthrough</span>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================== sources -->
+<section class="section section--alt" id="sources">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <span class="eyebrow">Sources</span>
+      <h2>Everything you already own</h2>
+      <p class="lede">
+        Point it at a folder, a share, a server or a link. DreamPlayer keeps one
+        library and one player regardless of where the bytes come from.
+      </p>
+    </div>
+
+    <div class="sources reveal">
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 002-2V8a2 2 0 00-2-2h-7.9a2 2 0 01-1.7-.9L9.9 3.9A2 2 0 008.2 3H4a2 2 0 00-2 2v13c0 1.1.9 2 2 2z"/></svg> Local storage</span>
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/></svg> SMB / NAS</span>
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18a15 15 0 010-18z"/></svg> WebDAV</span>
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg> FTP / SFTP</span>
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg> Jellyfin</span>
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/></svg> DLNA / UPnP</span>
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg> Files app</span>
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg> Open with</span>
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/></svg> HTTP / stream URL</span>
+      <span class="source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg> Downloaded files</span>
+    </div>
+
+    <div class="callout reveal" style="margin-top:38px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <div>
+        <h3>No streaming-service DRM</h3>
+        <p>
+          DreamPlayer plays files you have the right to play — yours, your NAS, your
+          Jellyfin. It does not and will not decrypt Netflix or other Widevine/FairPlay
+          streams. That is a deliberate line, not a missing feature.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================== codecs -->
+<section class="section" id="codecs">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <span class="eyebrow">Picture &amp; sound</span>
+      <h2>Hardware first, software as backup</h2>
+      <p class="lede">
+        Native decoders handle the mainstream formats at full rate. If a chip
+        misreports its own capabilities, a bundled FFmpeg path takes over instead of
+        failing.
+      </p>
+    </div>
+
+    <dl class="codec reveal">
+      <div class="codec__cell"><dt>Video</dt><dd>HEVC · H.264 · AV1 · VP9 · MPEG-2</dd></div>
+      <div class="codec__cell"><dt>HDR</dt><dd>Dolby Vision · HDR10+ · HDR10 · HLG</dd></div>
+      <div class="codec__cell"><dt>Lossless audio</dt><dd>DTS-HD MA · TrueHD · FLAC</dd></div>
+      <div class="codec__cell"><dt>Surround</dt><dd>E-AC3 · AC3 · DTS · Atmos · DTS:X</dd></div>
+      <div class="codec__cell"><dt>Containers</dt><dd>MKV · MP4 · TS · WebM · AVI · VOB</dd></div>
+      <div class="codec__cell"><dt>Subtitles</dt><dd>PGS · VTT · ASS/SSA · SRT · TTML · more</dd></div>
+    </dl>
+
+    <div class="cards" style="margin-top:22px">
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 5-7"/></svg></div>
+        <h3>Live format readout</h3>
+        <p>See the real codec, resolution, HDR format and audio layout of whatever is playing — not what the filename claimed.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></div>
+        <h3>Chapters &amp; A–B loop</h3>
+        <p>Chapter markers are parsed from MKV and MP4 and drawn on the seek bar, so you can jump straight to the good part.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+        <h3>Background audio</h3>
+        <p>Keep playing with the screen off or the app in the background, with lock-screen and headset controls that actually respond.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M12 15v3M8 21h8"/></svg></div>
+        <h3>Picture-in-picture</h3>
+        <p>Float playback over other apps on Android, iPhone and iPad, with working transport controls.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.7-6.3 4.7L8 14 2 9.4h7.6z"/></svg></div>
+        <h3>Metadata that looks right</h3>
+        <p>Posters, overviews, cast and episode stills from TMDB, with TheTVDB as an optional second provider when you need it.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg></div>
+        <h3>Android TV</h3>
+        <p>A real ten-foot experience with D-pad navigation — verified on Fire TV Stick 4K with Dolby Vision and Atmos passthrough to the panel.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= screenshots -->
+<section class="section section--alt" id="screens">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <span class="eyebrow">Screens</span>
+      <h2>Look inside</h2>
+      <p class="lede">Real captures from real devices — tap any one to enlarge.</p>
+    </div>
+
+    <div class="tabs reveal" role="tablist">
+      <button class="tab is-active" data-tab="android" role="tab" aria-selected="true">Android</button>
+      <button class="tab" data-tab="ios" role="tab" aria-selected="false">iPhone &amp; iPad</button>
+    </div>
+
+    <div class="panel is-active" id="android">
+      <div class="shots">
+        <button class="shot" data-full="assets/img/android-library.jpg">
+          <img loading="lazy" decoding="async" src="assets/img/android-library.jpg" alt="Android library showing films pulled from an SMB share, with source and year badges">
+          <span class="shot__cap">Library from your NAS</span>
+        </button>
+        <button class="shot" data-full="assets/img/android-details.jpg">
+          <img loading="lazy" decoding="async" src="assets/img/android-details.jpg" alt="Details page with backdrop art, rating, overview and download option">
+          <span class="shot__cap">Details &amp; download</span>
+        </button>
+        <button class="shot" data-full="assets/img/android-player.jpg">
+          <img loading="lazy" decoding="async" src="assets/img/android-player.jpg" alt="Player showing Dolby Vision and TRUE-HD indicators with spatial audio active">
+          <span class="shot__cap">Dolby Vision playback</span>
+        </button>
+        <button class="shot" data-full="assets/img/android-settings.jpg">
+          <img loading="lazy" decoding="async" src="assets/img/android-settings.jpg" alt="Settings screen with player and metadata options">
+          <span class="shot__cap">Settings</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="panel" id="ios">
+      <div class="shots">
+        <button class="shot" data-full="assets/img/ipad-library.jpg">
+          <img loading="lazy" decoding="async" src="assets/img/ipad-library.jpg" alt="iPad library grid with poster artwork per title">
+          <span class="shot__cap">iPad library</span>
+        </button>
+        <button class="shot" data-full="assets/img/ipad-details.jpg">
+          <img loading="lazy" decoding="async" src="assets/img/ipad-details.jpg" alt="iPad details page with backdrop hero, cast row and trailers">
+          <span class="shot__cap">Details page</span>
+        </button>
+        <button class="shot" data-full="assets/img/ipad-player.jpg">
+          <img loading="lazy" decoding="async" src="assets/img/ipad-player.jpg" alt="iPad player showing Dolby Vision P7 and TRUE-HD 7.1 format chips">
+          <span class="shot__cap">Dolby Vision P7</span>
+        </button>
+        <button class="shot" data-full="assets/img/ipad-settings.jpg">
+          <img loading="lazy" decoding="async" src="assets/img/ipad-settings.jpg" alt="iPad settings screen">
+          <span class="shot__cap">Settings</span>
+        </button>
+      </div>
+
+      <div class="shots--wide">
+        <button class="shot" data-full="assets/img/ipad-library-landscape.jpg">
+          <img loading="lazy" decoding="async" src="assets/img/ipad-library-landscape.jpg" alt="iPad library in landscape showing the poster grid with per-title artwork">
+          <span class="shot__cap">
+            <strong>Landscape on iPad</strong><br>
+            The library stays a grid rather than a list, and every tile carries its own
+            artwork and source badge — so a 400-item NAS folder is still browsable.
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================== pricing -->
+<section class="section" id="pricing">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <span class="eyebrow">Pricing</span>
+      <h2>Free on Android. One-time-friendly on iOS.</h2>
+      <p class="lede">
+        Android is free forever — no purchase, no account, nothing to unlock.
+        iOS is a one-off app purchase with a subscription option, because Apple
+        requires in-app purchase for anything unlocked in the app.
+      </p>
+    </div>
+
+    <div class="plans">
+      <div class="plan reveal">
+        <span class="plan__badge">Android · Android TV</span>
+        <div class="plan__name">Free forever</div>
+        <div class="plan__price">₹0</div>
+        <p class="plan__desc">Every feature, including HDR passthrough, lossless audio and SMB. Paid builds on GitHub Releases.</p>
+        <a class="btn btn--ghost btn--block" href="https://github.com/mangeshghodke/DreamPlayer/releases">Get the APK</a>
+      </div>
+
+      <div class="plan plan--hi reveal">
+        <span class="plan__badge">iPhone &amp; iPad</span>
+        <div class="plan__name">Monthly</div>
+        <div class="plan__price">₹199 <small>/ month</small></div>
+        <p class="plan__desc">Everything unlocked while active. Cancel any time.</p>
+        <a class="btn btn--primary btn--block" href="https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889">App Store</a>
+      </div>
+
+      <div class="plan reveal">
+        <span class="plan__badge">iPhone &amp; iPad</span>
+        <div class="plan__name">Yearly</div>
+        <div class="plan__price">₹1,499 <small>/ year</small></div>
+        <p class="plan__desc">The cheapest way to keep it.</p>
+        <a class="btn btn--ghost btn--block" href="https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889">App Store</a>
+      </div>
+
+      <div class="plan reveal">
+        <span class="plan__badge">iPhone &amp; iPad</span>
+        <div class="plan__name">Lifetime</div>
+        <div class="plan__price">₹4,999</div>
+        <p class="plan__desc">Buy once. No subscription, ever.</p>
+        <a class="btn btn--ghost btn--block" href="https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889">App Store</a>
+      </div>
+    </div>
+
+    <div class="callout reveal" style="margin-top:34px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+      <div>
+        <h3>Seven days to try everything</h3>
+        <p>
+          On iOS you can start a free seven-day trial of the full app from the
+          purchase screen — opt-in, never automatic. It is a single unlock, not a
+          per-playback meter, and it does not restart when you seek or come back later.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== faq -->
+<section class="section section--alt" id="faq">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <span class="eyebrow">FAQ</span>
+      <h2>Straight answers</h2>
+    </div>
+
+    <div class="faq reveal">
+      <details>
+        <summary>Does it really do true Dolby Vision, or tone-map it?</summary>
+        <p>
+          On Android, playback runs through Media3 into a hardware surface, so Dolby
+          Vision and HDR10 signals are handed to the display rather than converted to
+          SDR in software. On iOS, playback uses the native AVPlayer path for the same
+          reason. On a panel without Dolby Vision, P7/P8 profiles play as HDR10 HEVC —
+          which is what those base layers are — instead of failing.
+        </p>
+      </details>
+
+      <details>
+        <summary>Do I need a separate SMB app on iPhone or iPad?</summary>
+        <p>No. DreamPlayer speaks SMB itself on every platform, so your NAS is browsable and playable without installing anything else.</p>
+      </details>
+
+      <details>
+        <summary>Can it play Netflix, Prime Video or other streaming services?</summary>
+        <p>
+          No, and that is intentional. Those streams are DRM-protected and DreamPlayer
+          does not implement Widevine or FairPlay. It plays files you own or have rights to.
+        </p>
+      </details>
+
+      <details>
+        <summary>Which subtitles are supported?</summary>
+        <p>
+          Embedded tracks in the file, plus every subtitle sitting next to it — SRT,
+          ASS/SSA, WebVTT, TTML, SAMI, MicroDVD, MPL2, SubViewer, PGS and DVB bitmap
+          ones. Sidecars are matched to the video automatically, and OpenSubtitles
+          search is built in for when they are not.
+        </p>
+      </details>
+
+      <details>
+        <summary>Does it work on a TV?</summary>
+        <p>
+          Yes — Android TV is supported, including Fire TV Stick 4K, with full
+          Dolby Vision and audio passthrough to the panel and soundbar. The app is the
+          same build as the phone.
+        </p>
+      </details>
+
+      <details>
+        <summary>Is there any account or tracking?</summary>
+        <p>No. There is no sign-in, no analytics and no advertising SDK. Your library, history and metadata stay on your device.</p>
+      </details>
+
+      <details>
+        <summary>Why is it free on Android but paid on iOS?</summary>
+        <p>
+          Android builds are published on GitHub Releases and cost nothing. On iOS,
+          Apple requires in-app purchase for anything unlocked inside the app, so the
+          optional features are sold there. The Android build is never gated.
+        </p>
+      </details>
+
+      <details>
+        <summary>Is it open source?</summary>
+        <p>
+          Yes, GPLv3. The source is on GitHub, and issues and pull requests are welcome —
+          including the ones that turn out to be hardware quirks nobody else has hit yet.
+        </p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== cta -->
+<section class="section cta">
+  <div class="wrap">
+    <h2>Point it at your library</h2>
+    <p class="lede" style="margin:0 auto 30px">
+      Free on Android and Android TV. On the App Store for iPhone and iPad.
+    </p>
+    <div class="hero__cta">
+      <a class="btn btn--primary btn--lg" href="https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.7c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.3 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.2 2.9-2.3.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.6-1-2.6-3.7zM14.2 5.9c.6-.8 1-1.9.9-3-.9 0-2 .6-2.7 1.4-.6.7-1.1 1.8-.9 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>
+          Download on the App Store
+        </a>
+        <a class="btn btn--ghost btn--lg" href="https://github.com/mangeshghodke/DreamPlayer/releases">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+          Android APK
+        </a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- =========================================================== footer -->
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <div>
+      <a class="brand" href="#top">
+        <img src="assets/img/icon.png" alt="">
+        DreamPlayer
+      </a>
+      <p class="footer__legal">
+        Cross-platform player for Android, Android TV, iPhone and iPad.<br>
+        Not affiliated with Dolby, DTS or any streaming service.
+      </p>
+    </div>
+
+    <nav class="footer__links">
+      <a href="https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889">App Store</a>
+      <a href="https://github.com/mangeshghodke/DreamPlayer">Source code</a>
+      <a href="https://github.com/mangeshghodke/DreamPlayer/releases">Android releases</a>
+      <a href="https://github.com/mangeshghodke/DreamPlayer/issues">Report an issue</a>
+      <a href="https://github.com/sponsors/mangeshghodke/">Sponsor</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+    </nav>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot viewer">
+  <button class="lightbox__close" id="lightboxClose" aria-label="Close">&times;</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>
