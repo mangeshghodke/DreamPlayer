@@ -1,60 +1,233 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy Policy — DreamPlayer</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.6; }
-  h1 { font-size: 1.8em; }
-  h2 { font-size: 1.3em; margin-top: 1.5em; }
-  p, li { font-size: 0.95em; }
-  ul { padding-left: 1.5em; }
-  .date { color: #666; font-size: 0.9em; }
-</style>
+<meta name="description" content="How DreamPlayer handles your data. No accounts, no analytics, no advertising — and exactly what leaves your device when you choose to use an optional third-party service.">
+<meta name="theme-color" content="#0E0E11">
+<link rel="icon" href="assets/img/icon.png">
+<link rel="apple-touch-icon" href="assets/img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
-<h1>Privacy Policy</h1>
-<p class="date">Last updated: September 20, 2026</p>
 
-<h2>1. Introduction</h2>
-<p>DreamPlayer ("the App") is committed to protecting your privacy. This Privacy Policy explains what information we collect, how we use it, and your choices regarding that information.</p>
+<header class="nav" id="nav">
+  <div class="wrap nav__inner">
+    <a class="brand" href="index.html">
+      <img src="assets/img/icon.png" alt="">
+      DreamPlayer
+    </a>
 
-<h2>2. Information We Collect</h2>
-<p><strong>We do not collect, store, or transmit any personal data to our servers.</strong> The App runs entirely on your device.</p>
-<p>The App may access the following on your device:</p>
-<ul>
-  <li><strong>Video and audio files</strong> — only when you explicitly choose to play them.</li>
-  <li><strong>Network server credentials</strong> (WebDAV, Jellyfin, SMB, FTP) — stored locally on your device in encrypted form. Never transmitted to us.</li>
-  <li><strong>Purchase history</strong> — managed entirely by Apple through the App Store. We do not have access to your payment information.</li>
-</ul>
+    <button class="nav__toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M3 6h18M3 12h18M3 18h18"/>
+      </svg>
+    </button>
 
-<h2>3. Third-Party Services</h2>
-<p>The App optionally connects to these third-party services <strong>only when you choose to use them</strong>:</p>
-<ul>
-  <li><strong>TMDB (The Movie Database)</strong> — fetches movie/TV metadata (posters, ratings, cast). Only your TMDB API key (entered by you) and the search query are sent. No personal data is shared.</li>
-  <li><strong>OpenSubtitles</strong> — searches for and downloads subtitle files. Only the video filename/hash and your OpenSubtitles credentials (if provided) are sent.</li>
-  <li><strong>Your personal media servers</strong> (WebDAV, Jellyfin, SMB, FTP, DLNA) — the App connects directly to servers you configure. No data passes through our systems.</li>
-</ul>
-<p>These services have their own privacy policies. We encourage you to review them.</p>
+    <nav class="nav__links" id="navLinks">
+      <a href="index.html#why">Why</a>
+      <a href="index.html#sources">Sources</a>
+      <a href="index.html#codecs">Codecs</a>
+      <a href="index.html#pricing">Pricing</a>
+      <a href="index.html#faq">FAQ</a>
+      <a href="index.html">Home</a>
+    </nav>
+  </div>
+</header>
 
-<h2>4. Data Storage</h2>
-<ul>
-  <li>All app data (settings, bookmarks, server credentials, playback history) is stored locally on your device using iOS standard storage mechanisms (UserDefaults, Keychain, sandbox file system).</li>
-  <li>No data is uploaded to external servers by the App.</li>
-  <li>Server credentials are stored in the iOS Keychain with <code>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</code> protection.</li>
-</ul>
+<main>
 
-<h2>5. In-App Purchases</h2>
-<p>All purchases are processed by Apple through the App Store. We do not collect, store, or have access to your credit card information, Apple ID credentials, or payment details. Apple's privacy policy applies to all transactions: <a href="https://www.apple.com/legal/privacy/">https://www.apple.com/legal/privacy/</a></p>
+<section class="legal-hero">
+  <div class="wrap">
+    <span class="eyebrow">Legal</span>
+    <h1>Privacy Policy</h1>
+    <p class="legal-date">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      Last updated: 20 September 2026
+    </p>
+  </div>
+</section>
 
-<h2>6. Children's Privacy</h2>
-<p>The App is not directed at children under 13 and does not knowingly collect personal information from children.</p>
+<section class="legal-body">
+  <div class="wrap legal-wrap">
 
-<h2>7. Changes to This Policy</h2>
-<p>We may update this Privacy Policy from time to time. Changes will be posted on this page with an updated "Last updated" date.</p>
+    <div class="legal-toc">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#introduction">Introduction</a></li>
+        <li><a href="#collect">Information we collect</a></li>
+        <li><a href="#third-party">Third-party services</a></li>
+        <li><a href="#storage">Data storage</a></li>
+        <li><a href="#purchases">In-app purchases</a></li>
+        <li><a href="#children">Children's privacy</a></li>
+        <li><a href="#changes">Changes to this policy</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ol>
+    </div>
 
-<h2>8. Contact</h2>
-<p>For questions about this Privacy Policy, contact us at: <a href="mailto:ghodke.mangesh2@gmail.com">ghodke.mangesh2@gmail.com</a></p>
+    <div class="legal-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <p>
+        <strong>The short version.</strong> DreamPlayer has no servers, so it has
+        nowhere to send your data to. There is no account, no analytics and no
+        advertising SDK. Everything stays on your device unless you explicitly
+        turn on an optional third-party service, in which case that service
+        receives only what it needs to answer your request.
+      </p>
+    </div>
+
+    <h2 id="introduction">1. Introduction</h2>
+    <p>
+      DreamPlayer ("the App") is committed to protecting your privacy. This Privacy
+      Policy explains what information the App handles, how it is used, and the
+      choices available to you.
+    </p>
+
+    <h2 id="collect">2. Information we collect</h2>
+    <p>
+      <strong>We do not collect, store, or transmit any personal data to our own
+      servers.</strong> The App has no backend. It runs entirely on your device.
+    </p>
+    <p>The App accesses the following on your device:</p>
+    <ul>
+      <li>
+        <strong>Video and audio files</strong> — only when you explicitly choose to
+        play them. Files are read locally or streamed from a server you configured;
+        they are never uploaded anywhere.
+      </li>
+      <li>
+        <strong>Network server credentials</strong> (WebDAV, Jellyfin, SMB, FTP/SFTP,
+        TheTVDB) — stored locally in encrypted form. Never transmitted to us.
+      </li>
+      <li>
+        <strong>Playback history, bookmarks and settings</strong> — stored locally and
+        used only to resume where you left off and to build your library.
+      </li>
+      <li>
+        <strong>Purchase status</strong> — managed entirely by Apple through the App
+        Store. We never see your payment information or Apple ID credentials.
+      </li>
+    </ul>
+
+    <h2 id="third-party">3. Third-party services</h2>
+    <p>
+      The App can optionally connect to the following services, and
+      <strong>only when you choose to use them</strong>. Each is off until you
+      configure it.
+    </p>
+    <ul>
+      <li>
+        <strong>TMDB (The Movie Database)</strong> — fetches film and series metadata
+        (posters, ratings, cast, episode stills). Only your TMDB API key, which you
+        enter yourself, and the search terms are sent. No personal data is shared.
+      </li>
+      <li>
+        <strong>TheTVDB</strong> — an optional second metadata provider, used as a
+        fallback or when you select it explicitly. Your TheTVDB API key and PIN are
+        stored in the device keystore or keychain and are sent only to TheTVDB in
+        order to authenticate your requests.
+      </li>
+      <li>
+        <strong>OpenSubtitles</strong> — searches for and downloads subtitle files.
+        Only the video filename or hash, and your OpenSubtitles credentials if you
+        choose to sign in, are sent.
+      </li>
+      <li>
+        <strong>Your own media servers</strong> (WebDAV, Jellyfin, SMB, FTP/SFTP,
+        DLNA) — the App connects directly to the servers you configure. Your media
+        never passes through any system of ours.
+      </li>
+      <li>
+        <strong>Android TV / Google Cast-style discovery</strong> — local network
+        probes are used to discover Jellyfin and DLNA servers on your own LAN. These
+        stay on your network.
+      </li>
+    </ul>
+    <p>
+      These services have their own privacy policies, and we encourage you to review
+      them. We do not control how they handle data once it reaches them.
+    </p>
+
+    <h2 id="storage">4. Data storage</h2>
+    <ul>
+      <li>
+        <strong>iOS / iPadOS:</strong> all app data is stored locally using standard
+        iOS mechanisms — the app sandbox for files, <code>UserDefaults</code> for
+        preferences, and the Keychain for credentials. Server credentials are written
+        with <code>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</code>, so they do
+        not leave the device and are unavailable until the device has been unlocked
+        once after boot.
+      </li>
+      <li>
+        <strong>Android:</strong> preferences are stored in app-private storage.
+        Credentials are held in <code>EncryptedSharedPreferences</code>, backed by an
+        AES-256-GCM master key held in the Android Keystore, and the app's backup
+        configuration excludes the credential store.
+      </li>
+      <li>
+        <strong>No data is uploaded to external servers by the App</strong> other than
+        the explicit third-party requests described in section 3.
+      </li>
+    </ul>
+
+    <h2 id="purchases">5. In-app purchases</h2>
+    <p>
+      All purchases are processed by Apple through the App Store. We do not collect,
+      store, or have access to your credit card information, Apple ID credentials, or
+      payment details. Apple's privacy policy applies to all transactions:
+      <a href="https://www.apple.com/legal/privacy/">apple.com/legal/privacy</a>.
+    </p>
+
+    <h2 id="children">6. Children's privacy</h2>
+    <p>
+      The App is not directed at children under 13 and does not knowingly collect
+      personal information from children.
+    </p>
+
+    <h2 id="changes">7. Changes to this policy</h2>
+    <p>
+      We may update this Privacy Policy from time to time. Changes will be posted on
+      this page with an updated "Last updated" date.
+    </p>
+
+    <h2 id="contact">8. Contact</h2>
+    <p>
+      For questions about this Privacy Policy, contact us at
+      <a href="mailto:ghodke.mangesh2@gmail.com">ghodke.mangesh2@gmail.com</a>.
+    </p>
+
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <div>
+      <a class="brand" href="index.html">
+        <img src="assets/img/icon.png" alt="">
+        DreamPlayer
+      </a>
+      <p class="footer__legal">
+        Cross-platform player for Android, Android TV, iPhone and iPad.<br>
+        Not affiliated with Dolby, DTS or any streaming service.
+      </p>
+    </div>
+
+    <nav class="footer__links">
+      <a href="index.html">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="https://github.com/mangeshghodke/DreamPlayer">Source code</a>
+      <a href="https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889">App Store</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="assets/js/main.js"></script>
 </body>
 </html>

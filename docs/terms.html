@@ -1,64 +1,241 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Terms of Use — DreamPlayer</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.6; }
-  h1 { font-size: 1.8em; }
-  h2 { font-size: 1.3em; margin-top: 1.5em; }
-  p, li { font-size: 0.95em; }
-  ul { padding-left: 1.5em; }
-  .date { color: #666; font-size: 0.9em; }
-</style>
+<meta name="description" content="The terms that apply when you download or use DreamPlayer, including subscriptions, the opt-in free trial, and your responsibilities as a user.">
+<meta name="theme-color" content="#0E0E11">
+<link rel="icon" href="assets/img/icon.png">
+<link rel="apple-touch-icon" href="assets/img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
-<h1>Terms of Use</h1>
-<p class="date">Last updated: September 20, 2026</p>
 
-<h2>1. Acceptance of Terms</h2>
-<p>By downloading, installing, or using DreamPlayer ("the App"), you agree to be bound by these Terms of Use. If you do not agree, do not use the App.</p>
+<header class="nav" id="nav">
+  <div class="wrap nav__inner">
+    <a class="brand" href="index.html">
+      <img src="assets/img/icon.png" alt="">
+      DreamPlayer
+    </a>
 
-<h2>2. Description of Service</h2>
-<p>DreamPlayer is a cross-platform video player application that plays video and audio files in various formats. The App may include free features and optional premium features available through in-app purchases or subscriptions.</p>
+    <button class="nav__toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M3 6h18M3 12h18M3 18h18"/>
+      </svg>
+    </button>
 
-<h2>3. In-App Purchases and Subscriptions</h2>
-<p>The App offers the following premium options:</p>
-<ul>
-  <li><strong>Premium Monthly</strong> — auto-renewing subscription, billed monthly.</li>
-  <li><strong>Premium Yearly</strong> — auto-renewing subscription, billed annually.</li>
-  <li><strong>Premium Lifetime</strong> — one-time purchase for permanent access to premium features.</li>
-</ul>
-<p>Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. Payment is charged to your Apple ID account at confirmation of purchase. You can manage and cancel subscriptions in your Apple ID Account Settings.</p>
+    <nav class="nav__links" id="navLinks">
+      <a href="index.html#why">Why</a>
+      <a href="index.html#sources">Sources</a>
+      <a href="index.html#codecs">Codecs</a>
+      <a href="index.html#pricing">Pricing</a>
+      <a href="index.html#faq">FAQ</a>
+      <a href="index.html">Home</a>
+    </nav>
+  </div>
+</header>
 
-<h2>4. Free Trial</h2>
-<p>New users may be offered a free trial period. The trial begins on first launch and lasts 7 days. At the end of the trial, you will be charged the subscription price unless you cancel before the trial ends. You can cancel at any time through your Apple ID Account Settings.</p>
+<main>
 
-<h2>5. User Responsibilities</h2>
-<p>You are responsible for:</p>
-<ul>
-  <li>Ensuring you have the legal right to view any content you play through the App.</li>
-  <li>Maintaining the confidentiality of any account credentials you use with the App.</li>
-  <li>Using the App in compliance with all applicable laws and regulations.</li>
-</ul>
+<section class="legal-hero">
+  <div class="wrap">
+    <span class="eyebrow">Legal</span>
+    <h1>Terms of Use</h1>
+    <p class="legal-date">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      Last updated: 20 September 2026
+    </p>
+  </div>
+</section>
 
-<h2>6. Intellectual Property</h2>
-<p>The App, including its design, code, and features, is owned by the developer and protected by copyright and other intellectual property laws. You may not copy, modify, distribute, or reverse-engineer the App.</p>
+<section class="legal-body">
+  <div class="wrap legal-wrap">
 
-<h2>7. Third-Party Services</h2>
-<p>The App may connect to third-party services (e.g., TMDB for metadata, OpenSubtitles for subtitle search, your personal media servers). Your use of these services is subject to their respective terms of service. We are not responsible for the availability, content, or practices of third-party services.</p>
+    <div class="legal-toc">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#acceptance">Acceptance of terms</a></li>
+        <li><a href="#service">Description of service</a></li>
+        <li><a href="#purchases">In-app purchases &amp; subscriptions</a></li>
+        <li><a href="#trial">Free trial</a></li>
+        <li><a href="#responsibilities">User responsibilities</a></li>
+        <li><a href="#ip">Intellectual property</a></li>
+        <li><a href="#third-party">Third-party services</a></li>
+        <li><a href="#warranty">Disclaimer of warranties</a></li>
+        <li><a href="#liability">Limitation of liability</a></li>
+        <li><a href="#changes">Changes to terms</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ol>
+    </div>
 
-<h2>8. Disclaimer of Warranties</h2>
-<p>The App is provided "as is" and "as available" without warranties of any kind, either express or implied. We do not warrant that the App will be error-free, uninterrupted, or compatible with all devices and formats.</p>
+    <h2 id="acceptance">1. Acceptance of terms</h2>
+    <p>
+      By downloading, installing, or using DreamPlayer ("the App"), you agree to be
+      bound by these Terms of Use. If you do not agree with them, do not use the App.
+    </p>
 
-<h2>9. Limitation of Liability</h2>
-<p>To the maximum extent permitted by law, we shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the App.</p>
+    <h2 id="service">2. Description of service</h2>
+    <p>
+      DreamPlayer is a cross-platform video player application that plays video and
+      audio files from your local device and from network sources you configure,
+      including SMB shares, WebDAV, FTP/SFTP, Jellyfin and DLNA/UPnP servers. The App
+      is free to download. Certain features are unlocked through an in-app purchase
+      or subscription on iOS; on Android every feature is available at no cost.
+    </p>
+    <p>
+      The App is a media player only. It does not provide, license, or host any
+      content, and it does not implement DRM for third-party streaming services.
+    </p>
 
-<h2>10. Changes to Terms</h2>
-<p>We may update these Terms of Use from time to time. Continued use of the App after changes constitutes acceptance of the new terms.</p>
+    <h2 id="purchases">3. In-app purchases and subscriptions</h2>
+    <p>On iOS, the App offers the following premium options:</p>
+    <ul>
+      <li><strong>Monthly</strong> — an auto-renewing subscription, billed monthly.</li>
+      <li><strong>Yearly</strong> — an auto-renewing subscription, billed annually.</li>
+      <li><strong>Lifetime</strong> — a one-time purchase for permanent access.</li>
+    </ul>
+    <p>
+      Subscriptions renew automatically unless auto-renew is turned off at least 24
+      hours before the end of the current period. Payment is charged to your Apple ID
+      account when the purchase is confirmed. You can manage or cancel a subscription
+      at any time in your Apple ID Account Settings, and cancelling stops renewal
+      without refunding the current period.
+    </p>
+    <p>
+      Prices are set by Apple and may vary by region and currency. Any change to
+      pricing applies to future renewals, not to a period you have already paid for.
+    </p>
+    <p>
+      On Android, all features are included at no charge and there is nothing to
+      purchase, subscribe to, or unlock.
+    </p>
 
-<h2>11. Contact</h2>
-<p>For questions about these Terms, contact us at: <a href="mailto:ghodke.mangesh2@gmail.com">ghodke.mangesh2@gmail.com</a></p>
+    <h2 id="trial">4. Free trial</h2>
+    <div class="legal-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <p>
+        The free trial is <strong>opt-in only</strong>. It does not start on its own,
+        and installing or launching the App does not start it. It begins only when
+        you choose to start it from the purchase screen.
+      </p>
+    </div>
+    <p>
+      Where offered, the trial unlocks all premium features for seven days from the
+      moment you start it, measured in elapsed wall-clock time. It is a single unlock
+      rather than a per-playback allowance: it does not reset when you seek, pause, or
+      return to the App later, and leaving the App does not pause it.
+    </p>
+    <p>
+      <strong>The trial does not convert into a paid subscription.</strong> When the
+      seven days end, the premium features return to their locked state unless you
+      have separately purchased or subscribed. No charge is made automatically at the
+      end of the trial, and no purchase is made on your behalf. To keep access after
+      the trial, purchase a subscription or the lifetime option yourself.
+    </p>
+    <p>
+      Because the trial never begins without your action, it cannot start and expire
+      unnoticed. If you want to end it early, simply do not purchase.
+    </p>
+
+    <h2 id="responsibilities">5. User responsibilities</h2>
+    <p>You are responsible for:</p>
+    <ul>
+      <li>
+        Ensuring you have the legal right to view any content you play through the
+        App. DreamPlayer does not verify or license your media.
+      </li>
+      <li>
+        Maintaining the confidentiality of any credentials you use with the App,
+        including server logins and third-party API keys.
+      </li>
+      <li>
+        Using the App in compliance with all applicable laws and regulations,
+        including those governing the copying and distribution of media.
+      </li>
+    </ul>
+
+    <h2 id="ip">6. Intellectual property</h2>
+    <p>
+      The App, including its design, code, and features, is owned by the developer and
+      protected by copyright and other intellectual property laws. DreamPlayer is
+      released under the GNU General Public License v3.0; where that licence grants
+      rights to the source code, those terms apply. You may not otherwise copy,
+      modify, distribute, or reverse-engineer the App, except where such an action is
+      permitted by law.
+    </p>
+
+    <h2 id="third-party">7. Third-party services</h2>
+    <p>
+      The App may connect to third-party services you choose to enable, such as TMDB
+      or TheTVDB for metadata, OpenSubtitles for subtitle search, and your own media
+      servers. Your use of those services is governed by their respective terms and
+      privacy policies. We are not responsible for their availability, content, or
+      practices.
+    </p>
+
+    <h2 id="warranty">8. Disclaimer of warranties</h2>
+    <p>
+      The App is provided "as is" and "as available" without warranties of any kind,
+      either express or implied. We do not warrant that the App will be error-free,
+      uninterrupted, or compatible with every device, display, or file format.
+    </p>
+    <p>
+      High dynamic range and surround sound features depend on your display,
+      receiver, and the source content. Device and panel capabilities vary.
+    </p>
+
+    <h2 id="liability">9. Limitation of liability</h2>
+    <p>
+      To the maximum extent permitted by law, we shall not be liable for any
+      indirect, incidental, special, consequential, or punitive damages arising from
+      your use of the App, nor for any loss of data, media, or network availability.
+    </p>
+
+    <h2 id="changes">10. Changes to these terms</h2>
+    <p>
+      We may update these Terms of Use from time to time. Continued use of the App
+      after a change is posted constitutes acceptance of the new terms. Changes do not
+      affect purchases or subscriptions made before they took effect.
+    </p>
+
+    <h2 id="contact">11. Contact</h2>
+    <p>
+      For questions about these Terms, contact us at
+      <a href="mailto:ghodke.mangesh2@gmail.com">ghodke.mangesh2@gmail.com</a>.
+    </p>
+
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <div>
+      <a class="brand" href="index.html">
+        <img src="assets/img/icon.png" alt="">
+        DreamPlayer
+      </a>
+      <p class="footer__legal">
+        Cross-platform player for Android, Android TV, iPhone and iPad.<br>
+        Not affiliated with Dolby, DTS or any streaming service.
+      </p>
+    </div>
+
+    <nav class="footer__links">
+      <a href="index.html">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="https://github.com/mangeshghodke/DreamPlayer">Source code</a>
+      <a href="https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889">App Store</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="assets/js/main.js"></script>
 </body>
 </html>

@@ -738,6 +738,127 @@ p { margin: 0 0 1.1em; }
 
 .footer__legal { font-size: 0.82rem; color: var(--muted); margin: 14px 0 0; }
 
+/* ------------------------------------------------------------- legal --
+   Privacy + Terms. They link this same stylesheet rather than carrying their
+   own <style> block, so the palette can never drift away from the site. */
+
+.legal-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 76px 0 52px;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-hero::before {
+  content: "";
+  position: absolute;
+  inset: -70% -10% auto -10%;
+  height: 560px;
+  background: radial-gradient(52% 50% at 50% 50%, rgba(124, 77, 255, 0.22), transparent 72%);
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+.legal-hero > * { position: relative; }
+.legal-hero h1 { margin-bottom: 12px; }
+
+.legal-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
+}
+.legal-date svg { width: 14px; height: 14px; flex: none; }
+
+.legal-body { padding: 52px 0 96px; }
+
+/* Measure is capped well below the site grid: legal text wants ~72ch, and
+   stretching it to 1160px makes the eye lose the line on the return sweep. */
+.legal-wrap { max-width: 780px; }
+
+.legal-toc {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  margin-bottom: 48px;
+}
+.legal-toc h2 {
+  font-size: 0.76rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.legal-toc ol {
+  margin: 0;
+  padding-left: 20px;
+  columns: 2;
+  column-gap: 34px;
+  font-size: 0.93rem;
+}
+.legal-toc li { margin-bottom: 6px; break-inside: avoid; }
+.legal-toc a { color: var(--text-dim); }
+.legal-toc a:hover { color: var(--violet-soft); }
+
+.legal-body h2 {
+  font-size: 1.34rem;
+  margin: 48px 0 14px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line-soft);
+  letter-spacing: -0.015em;
+}
+.legal-body h2:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+
+.legal-body h3 { font-size: 1.02rem; margin: 28px 0 10px; }
+.legal-body p { color: var(--text-dim); }
+.legal-body strong { color: var(--text); font-weight: 650; }
+
+.legal-body ul { padding-left: 22px; margin: 0 0 1.1em; }
+.legal-body li { color: var(--text-dim); margin-bottom: 9px; }
+.legal-body li::marker { color: var(--violet-soft); }
+
+.legal-body code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.legal-body a { text-decoration: underline; text-underline-offset: 2px; }
+
+.legal-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--violet);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin: 0 0 34px;
+}
+.legal-note svg { width: 19px; height: 19px; color: var(--violet-soft); margin-top: 3px; }
+.legal-note p { margin: 0; font-size: 0.94rem; }
+
+.legal-foot {
+  border-top: 1px solid var(--line);
+  padding: 26px 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.legal-foot a { color: var(--text-dim); margin-left: 20px; }
+.legal-foot a:first-of-type { margin-left: 0; }
+
+
 /* -------------------------------------------------------------- reveal -- */
 
 .reveal {
@@ -805,6 +926,15 @@ p { margin: 0 0 1.1em; }
   /* Comfortable touch targets — .tab was 36px, under the 44px guideline. */
   .tab { padding: 12px 18px; }
   .faq summary { padding: 22px 0; }
+
+  .legal-hero { padding: 52px 0 40px; }
+  .legal-body { padding: 38px 0 72px; }
+  .legal-toc { padding: 18px 20px; margin-bottom: 38px; }
+  .legal-toc ol { columns: 1; }
+  .legal-body h2 { font-size: 1.18rem; margin-top: 38px; padding-top: 20px; }
+  .legal-note { grid-template-columns: 1fr; gap: 10px; padding: 18px; }
+  .legal-foot { padding: 22px 0; }
+  .legal-foot a { display: inline-block; margin: 8px 0 0; }
 }
 
 /* The chips hang outside the screenshot on purpose. body has overflow-x hidden,
