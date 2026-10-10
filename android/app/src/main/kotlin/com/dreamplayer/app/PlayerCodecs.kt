@@ -81,6 +81,25 @@ object PlayerCodecs {
         return prefs.getString("flutter.dreamplayer.decoderMode", null) ?: "auto"
     }
 
+    /**
+     * Whether Media3 should decode audio with the bundled FFmpeg extension
+     * instead of the platform MediaCodec decoders (issue #41).
+     *
+     * The libmpv engine decodes every track with `ad: ffmpeg`, so with this on
+     * both engines run audio through the same libavcodec and the only
+     * remaining difference is the sink.
+     *
+     * Opt-in rather than the default for two reasons:
+     *  * TV/HDMI passthrough must win. The passthrough branch below is checked
+     *    BEFORE this one, so bitstream output is unaffected when enabled.
+     *  * FFmpeg audio is software decode. It is cheap for audio, but it is
+     *    still a behaviour change for a path that currently works.
+     */
+    fun ffmpegAudioEnabled(context: Context): Boolean =
+        context.getSharedPreferences(
+            "FlutterSharedPreferences", Context.MODE_PRIVATE,
+        ).getBoolean("flutter.dreamplayer.ffmpegAudio", false)
+
     private fun isSoftwareVideoDecoder(name: String): Boolean {
         val n = name.lowercase()
         return n.contains("google") || n.contains("ffmpeg") || n.startsWith("c2.android.")
@@ -93,6 +112,7 @@ object PlayerCodecs {
             // for passthrough (HDMI may be plugged/unplugged between files).
             val modeLive = decoderMode(context)
             val passthroughLive = passthroughEnabled(context)
+            val ffmpegAudioLive = ffmpegAudioEnabled(context)
             val isVideo = mimeType?.startsWith("video/") == true
             fun filterByMode(list: List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo>): List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> = when (modeLive) {
                 "hw" -> list.filterNot { isSoftwareVideoDecoder(it.name) }
@@ -106,7 +126,15 @@ object PlayerCodecs {
                 mimeType == MimeTypes.AUDIO_FLAC -> emptyList()
                 // Passthrough: return empty for compressed surround formats so
                 // DefaultAudioSink routes them to AudioTrack passthrough mode.
+                // Checked BEFORE the FFmpeg-audio branch on purpose: on a TV
+                // this must stay a raw bitstream, not get decoded to PCM.
                 passthroughLive && isPassthroughFormat(mimeType) -> emptyList()
+                // Match the libmpv engine: no platform decoder for audio, so
+                // Media3 falls through to FfmpegAudioRenderer (the nextlib
+                // extension appended in DreamRenderersFactory). One decoder for
+                // both engines, which is the only way to compare their levels
+                // meaningfully (issue #41).
+                ffmpegAudioLive && !isVideo -> emptyList()
                 mimeType == MimeTypes.AUDIO_E_AC3 || mimeType == MimeTypes.AUDIO_E_AC3_JOC ->
                     MediaCodecSelector.DEFAULT.getDecoderInfos(
                         mimeType,

@@ -69,6 +69,13 @@ Future<bool> areSwipeGesturesEnabled() async {
 /// SharedPreferences key for the picture-in-picture auto-entry toggle.
 const kPipEnabledKey = 'dreamplayer.pipEnabled';
 
+/// SharedPreferences key for "Match MPV audio (FFmpeg)" (issue #41).
+///
+/// Read natively by `PlayerCodecs.ffmpegAudioEnabled()` via the
+/// `flutter.`-prefixed mirror of this key, so a change takes effect on the next
+/// `open()` without recreating the player view.
+const kFfmpegAudioKey = 'dreamplayer.ffmpegAudio';
+
 /// Whether leaving the app while a video plays auto-enters picture-in-
 /// picture. Default true. Only the automatic HOME/recents entry respects
 /// this — the player ⋮-sheet row is an explicit user action and always

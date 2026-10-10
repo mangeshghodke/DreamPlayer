@@ -64,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   DefaultEngine _defaultEngine = DefaultEngine.ask;
   ToneMapMode _toneMapMode = ToneMapMode.sdr;
   double _audioBoost = 1.0;
+  bool _ffmpegAudio = false;
   bool _nightMode = false;
   bool _simklConnected = false;
   DateTime? _simklLastSync;
@@ -579,10 +580,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final boost = await PlaybackBoostStore.load();
       final night = await NightModeStore.load();
+      final ffmpegAudio =
+          (await SharedPreferences.getInstance()).getBool(kFfmpegAudioKey) ??
+          false;
       if (mounted) {
         setState(() {
           _audioBoost = boost;
           _nightMode = night;
+          _ffmpegAudio = ffmpegAudio;
         });
       }
     } catch (_) {}
@@ -1260,6 +1265,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   if (defaultTargetPlatform == TargetPlatform.android) ...[
+                    // Issue #41. The libmpv engine decodes every track with
+                    // libavcodec (`ad: ffmpeg`); Media3 normally prefers the
+                    // platform MediaCodec decoders. Two different decoders means
+                    // two different loudness for the same file, which is what
+                    // made the engines sound mismatched. Turning this on routes
+                    // Media3's audio through the same FFmpeg extension so there
+                    // is one decoder for both.
+                    //
+                    // TV/HDMI passthrough still wins: the passthrough branch in
+                    // PlayerCodecs.kt is checked before this one, so bitstream
+                    // output is untouched when it is enabled.
+                    SwitchListTile(
+                      secondary: const Icon(Icons.graphic_eq),
+                      title: const Text('Match MPV audio (FFmpeg)'),
+                      subtitle: const Text(
+                        'Decode audio with the same FFmpeg as the MPV engine, '
+                        'so both sound identical',
+                      ),
+                      value: _ffmpegAudio,
+                      onChanged: (v) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool(kFfmpegAudioKey, v);
+                        if (mounted) setState(() => _ffmpegAudio = v);
+                      },
+                    ),
                     TvTile(
                       leading: const Icon(Icons.volume_up),
                       title: Text(AppLocalizations.of(context).settingsVolumeBoost),
