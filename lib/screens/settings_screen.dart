@@ -2204,7 +2204,12 @@ class _LayoutSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ExpansionTile(
+    // Material 3's ExpansionTile paints its bottom divider from the ambient
+    // dividerColor, which left a stray rule under this section. The section
+    // header and the surrounding spacing already separate it, so drop it.
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
       leading: const Icon(Icons.palette_outlined),
       title: const Text('Appearance'),
       childrenPadding: const EdgeInsets.only(bottom: 8),
@@ -2291,6 +2296,7 @@ class _LayoutSection extends StatelessWidget {
           },
         ),
       ],
+      ),
     );
   }
 }
