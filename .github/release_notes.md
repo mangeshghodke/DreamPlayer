@@ -64,9 +64,26 @@ an existing copy.
 
 ## Playing videos from your NAS / SMB share
 
-DreamPlayer plays NAS files through the Files app's built-in SMB support and "Open with"
+DreamPlayer has a **built-in SMB browser on Android and iPhone/iPad** — add your
+NAS once and browse it like any other folder. Nothing is downloaded to your device;
+videos stream straight off the share, with seeking, resume, subtitles and the
+audio-track picker all working as they do for local files.
 
-- **iPhone/iPad:** Files → **⋯ → Connect to Server** → enter `smb://<address>` → browse to a video → long-press → **Share → Open in "DreamPlayer"**. Prefer a folder? Bookmark it once: home **+** → **Add folder to library** → your NAS folder.
-- **Android:** CX Explorer → **Open with → DreamPlayer** (streams over CX's local HTTP proxy).
+1. **Home → + → Network sources → SMB** (on iOS this used to be labelled "Network shares").
+2. Tap **+** and enter the server **Host** (`192.168.1.50` or `nas.local`, no
+   `smb://`), **Port** `445`, and your **Username** / **Password** — or leave the
+   credentials blank if your NAS allows Guest. **Test**, then **Save**.
+3. Tap the server → pick a share → browse → tap a video.
 
-Full walkthrough: **[SMB / NAS playback tutorial](docs/tutorials/play-smb-nas-videos.md)**.
+Not sure of the address? The **discover** button on the server list sweeps your
+subnet and reports which machines actually answered, plus their SMB version.
+Saved servers show a green dot when reachable.
+
+**Home → + → Network sources** also has in-app browsers for **WebDAV, FTP/SFTP,
+Jellyfin** and **DLNA/UPnP**. DLNA auto-discovers servers, so a NAS that exposes
+it needs no configuration at all.
+
+Pin a folder you watch often with the **bookmark** button in the app bar — it
+becomes a card on Home with its artwork, expandable into seasons.
+
+Full walkthrough: **[SMB / NAS playback tutorial](docs/tutorials/play-smb-nas-videos.md)**

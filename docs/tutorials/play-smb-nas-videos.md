@@ -1,100 +1,126 @@
 # Playing SMB / NAS videos with DreamPlayer
 
-**Video walkthrough (iOS):** [YouTube Short](https://youtube.com/shorts/a7oR1yxGz2o)
+DreamPlayer has a **built-in SMB browser on both Android and iPhone/iPad**. Add your
+NAS once and browse it like any other folder — no third-party file manager, no
+"Open with" hand-off, and nothing is copied or downloaded to your device. Videos
+stream directly from the share, so seeking, resume, subtitles and the audio-track
+picker all behave exactly as they do for a local file.
 
-DreamPlayer has no in-app SMB browser anymore (it was removed in 2026-08 — it was slow and didn't
- play every video). Instead, NAS playback goes
- through the **Files app's built-in SMB support** and DreamPlayer's **"Open with"** / file-browser
- integration. Videos play exactly like any other file DreamPlayer receives — HDR/codec chips,
- subtitle picker, resume, everything works.
+The same home **+** menu also has in-app browsers for **WebDAV, FTP/SFTP, Jellyfin**
+and **DLNA/UPnP**, so most NAS setups never need the system file picker at all.
 
-## On iPhone / iPad
+## 1. Add your NAS
 
-### Option A — connect your NAS in the Files app, then "Open with"
+On **Android and iPhone/iPad** the steps are identical:
 
-1. **Connect the NAS in Files:**
+1. On the Home screen, tap **+**.
+2. Expand **Network sources** and tap **SMB** (on iOS this used to be labelled
+   "Network shares").
+3. On the server list, tap **+** (or the **Add server** button) and fill in:
 
-   <img src="images/1.%20connect_to_server.png" alt="Connect to Server in the Files app" width="360" align="center"/>
+   | Field | Notes |
+   |---|---|
+   | **Name** | Anything you like — shown in the list. Leave blank and your address is used. |
+   | **Host** | `192.168.1.50` or a hostname like `nas.local`. Don't include `smb://`. |
+   | **Port** | `445` is right for almost every NAS. |
+   | **Username** | Your NAS account. Leave both blank to connect as **Guest**. |
+   | **Password** | Stored in the Android Keystore / iOS Keychain — never in plain text, and never sent to us. |
 
-   - Open the **Files** app → **Browse** (sidebar) → tap the **⋯** menu at the top → **Connect to Server**.
-   - Enter your server address, e.g. `smb://192.168.1.50` or `smb://nas.local`.
-   - Pick **Registered User** (your NAS username/password) or **Guest**, tap **Next**, and the
-     share appears in the Files sidebar under **Locations**.
-2. **Browse to a video** inside the share. SMB streams are lazy — Files only downloads what it
-   needs, so you can browse a huge library without copying it.
-3. **Long-press the video → Share → Open in "DreamPlayer"** (or **Copy to** → **DreamPlayer**).
-   DreamPlayer appears in the share sheet for all video containers (mkv, ts, m2ts, webm, wmv,
-   flv, mpg… plus the standard video/* types).
-4. Playback starts immediately; tap **⋮ / audio** during playback to switch audio tracks.
+4. Tap **Test** to confirm the connection, then **Save**.
 
-> Tip: for a *folder* of episodes, use **Option B** once and the folder stays bookmarked.
+Your credentials are saved per server, so you only ever type them once.
 
-### Option B — bookmark the NAS folder in DreamPlayer's file browser
+### Finding the address automatically
 
-If you play from the same NAS folder often, bookmark it once:
+If you don't know the NAS address, tap the **search/discover** button on the server
+list. DreamPlayer sweeps your local subnet for machines answering on port 445 and
+performs a real protocol handshake against each, so the entries it shows are ones
+it has actually spoken to. Tap a result to fill the dialog in for you. The dialog
+also reports each server's SMB version (e.g. **SMB 3.1.1**) and identifier.
 
-1. Do **Option A step 1** (connect the server in Files — see the first image above).
+Saved servers show a **status dot** — green when reachable, red when not.
 
-2. Open **DreamPlayer → Folder icon (top-right)**:
+## 2. Browse and play
 
-   <img src="images/2.%20open_app_and_click_folder_icon.png" alt="Open DreamPlayer and tap the folder icon" width="360" align="center"/>
+1. Tap your server → pick a **share** → navigate folders. Folders are listed before
+   files, sorted by name, with sizes shown.
+2. Tap a video. Its details page loads (poster, overview, cast and trailers when the
+   title is matched by TMDB) and **Play** streams it straight off the NAS.
+3. Back returns you to the same folder, so you can pick the next episode.
 
-3. Tap **Pick a folder**:
+Nothing is buffered to storage first, so a large library browses instantly and
+leaves your device storage alone.
 
-   <img src="images/3.%20click_pick_folder.png" alt="Tap Pick a folder" width="360" align="center"/>
+## 3. Keep a folder on your Home screen
 
-4. In the system folder picker, navigate into the connected **server** under Locations:
+If you watch the same show or film folder regularly, pin it once:
 
-   <img src="images/4.%20select_connected_server.png" alt="Select the connected server" width="360" align="center"/>
+1. Navigate to the folder you want.
+2. Tap the **bookmark** button in the app bar.
+3. The folder becomes a card on Home, with its TMDB artwork, expandable into
+   individual season cards.
 
-5. Pick the video folder and tap **Open**. DreamPlayer bookmarks it (security-scoped, kept
-   across launches):
+Pull-to-refresh on Home re-reads local folders, so files you add later show up.
 
-   <img src="images/5.%20choose_folder_click_open.png" alt="Choose the folder and tap Open" width="360" align="center"/>
+## What works over SMB
 
-6. The folder now appears at the top of the file browser — browse and play any video in it, no
-   per-file share sheet needed:
+Everything the player does for a local file:
 
-   <img src="images/6.%20play_file.png" alt="Browse and play any video in the bookmarked folder" width="360" align="center"/>
+- **Full seeking**, with a resume position remembered per file.
+- **Subtitles** — any `.srt`/`.ass`/`.vtt`/`.ttml`/`.smi`/`.sub`/`.mpl2` sitting in
+  the same folder is detected and offered automatically.
+- **Play next episode** within the folder.
+- **Watched ticks** per file, and the ability to bookmark a title as watched.
+- **Download to device** when you want an offline copy (player **⋮** menu →
+  *Download to device*).
+- Full codec support — DTS, DTS-HD, TrueHD, E-AC3 and Dolby Vision, same as local.
 
-> Bookmarked folders keep their access across launches (iOS security-scoped bookmarks are stored
-> in UserDefaults). Remove a bookmark with the **×** beside it at the browser root.
+> **Note:** VobSub (`.idx`/`.sub`) bitmap subtitles are not offered on the native
+> engine — use **Play with MPV** for those on Android. See the subtitles section
+> of the README.
 
-### Option C — WebDAV / FTP servers (via a third-party client)
+## Other ways in
 
-The Files app's **"Connect to Server" is SMB only** — it cannot connect to WebDAV or FTP servers
-natively. For those, use a third-party client and hand the file to DreamPlayer:
+### WebDAV, FTP/SFTP, Jellyfin, DLNA
 
-1. Install a WebDAV client such as **[Documents by Readdle](https://apps.apple.com/app/documents-file-manager-docs/id364901807)** (free),
-   **WebDAV Nav+**, or **FE File Explorer**, and connect it to your server (e.g.
-   `https://my-nas.local/dav`, username + password).
-2. Browse to a video in the client. SMB/WebDAV streams are lazy, so you can browse a huge
-   library without copying it.
-3. **Long-press the video → Share → Open in "DreamPlayer"** (or **Open with → DreamPlayer**).
-   DreamPlayer appears in the share sheet for all video containers (mkv, ts, m2ts, webm, wmv,
-   flv, mpg… plus the standard video/* types).
-4. Playback starts immediately; tap **⋮ / audio** during playback to switch audio tracks.
+All reachable from **Home → + → Network sources**. They behave the same way: add
+the server, browse, play. **DLNA** additionally auto-discovers players and servers
+on the network, so a NAS that exposes DLNA needs no configuration at all.
 
-> Tip: in **Documents by Readdle**, enable **"Use as Storage Provider"** for the WebDAV
-> connection — the server then also appears in the Files app under **Locations**, so you can
-> browse it from Files too (still hand the video to DreamPlayer via Share → Open in).
+### iOS: the Files app still works
 
-## On Android (CX Explorer → "Open with")
+If your NAS is already connected in the **Files** app, you can still hand a file
+over: **Files → ⋯ → Connect to Server**, browse to the video, then
+**Long-press → Share → Open in "DreamPlayer"**. DreamPlayer registers for all video
+containers, including ones iOS has no built-in type for (`.mkv`, `.ts`, `.m2ts`,
+`.webm`, `.wmv`, `.flv`, `.mpg`, `.vob` and more).
 
-Android has no in-app SMB browser either. The supported NAS path:
+You can also bookmark a Files-app folder once via **Home → + → Internal storage →
+Pick a folder** — useful for a physical USB drive or SD card, which is a different
+capability from an SMB share.
 
-1. In **CX Explorer**, connect to the SMB share and browse to a video.
-2. **Tap the video → Open with → DreamPlayer.** CX streams the file over a local HTTP proxy
-   (`http://127.0.0.1:<port>/SMB/...`); DreamPlayer plays it at full speed (4K HEVC verified
-   at 60 fps, 0 dropped frames). Tap the **audio** button to switch tracks.
+### Android: CX Explorer still works
+
+**CX Explorer → tap a video → Open with → DreamPlayer** continues to work. CX
+streams over its own local HTTP proxy and DreamPlayer plays it at full speed
+(4K HEVC verified at 60 fps, 0 dropped frames).
 
 ## Troubleshooting
 
-- **DreamPlayer doesn't appear in the share sheet / Open-with list:** on iOS ensure the video
-  file hasn't been renamed to a non-video extension (`.mkv` needs the sidebar picker, which Files
-  shows for known containers; for unusual containers check "Copy to" as well).
-- **Video opens but shows a spinner:** on iOS the first open of a large NAS file may stage some
-  data through Files; give it a few seconds. If it persists, the Wi-Fi link can't sustain the
-  bitrate — lower-bitrate or network-side fixes apply.
-- **Bookmarked folder disappears after an iPad restart:** iOS security-scoped bookmarks can expire
-  if the app wasn't opened for a long time; re-pick the folder once.
+- **Server not found, or the dot is red:** check the address and that the phone is
+  on the same network and subnet. Some routers enable client isolation, which blocks
+  device-to-device traffic — that's a router setting, not an app one. Port `445`
+  must be reachable, not just `139`.
+- **"Permission denied":** SMB2/3 needs a real account. Guest access has to be
+  enabled on the NAS itself; leave username and password blank only if it is.
+- **Test fails but the share is definitely up:** some NAS setups refuse a bare tree
+  connect to `IPC$`. Try the share name directly, or re-test while another client
+  is connected to rule out a per-user session limit.
+- **Video opens but stalls:** the share streams in real time, so the Wi-Fi link has
+  to sustain the file's bitrate. On 5 GHz or a wired connection; look for a
+  red "Transcoding"-style warning or heavy buffering on a weak link.
+- **Playback is smooth but seeking jumps:** expected on a slow link — a seek has to
+  reach the server and re-open the stream at the new offset.
+- **iPad: bookmarked folder disappears after a long break:** security-scoped
+  bookmarks can expire if the app hasn't been opened; re-pick the folder once.
+  In-app SMB servers are unaffected — they re-authenticate from the Keychain.
