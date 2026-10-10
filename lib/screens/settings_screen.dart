@@ -956,26 +956,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: Text(AppLocalizations.of(context).settingsPlayer),
                 childrenPadding: const EdgeInsets.only(bottom: 8),
                 children: [
-                  // MPV only: this is an mpv engine property. Defaults off so
-                  // the two Android engines play at the same level (issue #37).
-                  if (defaultTargetPlatform == TargetPlatform.android)
-                    SwitchListTile(
-                      secondary: const Icon(Icons.surround_sound),
-                      title: Text(AppLocalizations.of(context)
-                          .settingsMpvNormalizeDownmix),
-                      subtitle: Text(AppLocalizations.of(context)
-                          .settingsMpvNormalizeDownmixDesc),
-                      value: _mpvNormalizeDownmix,
-                      onChanged: (value) async {
-                        await MpvDownmixStore.save(value);
-                        if (!mounted) return;
-                        setState(() => _mpvNormalizeDownmix = value);
-                        // Applied on the next MPV open; there is no handle on a
-                        // player screen that is not currently pushed, and
-                        // re-reading it per open is what _configureMpvAudio does
-                        // anyway.
-                      },
-                    ),
                   SwitchListTile(
                     secondary: const Icon(Icons.swipe),
                     title: Text(AppLocalizations.of(context).settingsSwipeGestures),
@@ -1175,10 +1155,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                   if (_badgeEnabled)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16),
-                      child: Column(
-                        children: [
+                    // The badge list is long and rarely changed, so it is
+                    // collapsed behind a chevron instead of always open -- it
+                    // used to push every control below it down the page.
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        dividerColor: Colors.transparent,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 16),
+                        child: ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          childrenPadding: const EdgeInsets.only(bottom: 8),
+                          title: Text(
+                            AppLocalizations.of(context).settingsBadgeOptions,
+                          ),
+                          children: [
                           Padding(
                             padding: const EdgeInsets.fromLTRB(40, 8, 16, 4),
                             child: Align(
@@ -1277,100 +1269,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-                  if (defaultTargetPlatform == TargetPlatform.android) ...[
-                    // Issue #41. The libmpv engine decodes every track with
-                    // libavcodec (`ad: ffmpeg`); Media3 normally prefers the
-                    // platform MediaCodec decoders. Two different decoders means
-                    // two different loudness for the same file, which is what
-                    // made the engines sound mismatched. Turning this on routes
-                    // Media3's audio through the same FFmpeg extension so there
-                    // is one decoder for both.
-                    //
-                    // TV/HDMI passthrough still wins: the passthrough branch in
-                    // PlayerCodecs.kt is checked before this one, so bitstream
-                    // output is untouched when it is enabled.
-                    if (_showMedia3Settings)
-                      SwitchListTile(
-                      secondary: const Icon(Icons.graphic_eq),
-                      title: const Text('Match MPV audio (FFmpeg)'),
-                      subtitle: const Text(
-                        'Decode audio with the same FFmpeg as the MPV engine, '
-                        'so both sound identical',
-                      ),
-                      value: _ffmpegAudio,
-                      onChanged: (v) async {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setBool(kFfmpegAudioKey, v);
-                        if (mounted) setState(() => _ffmpegAudio = v);
-                      },
-                    ),
-                    TvTile(
-                      leading: const Icon(Icons.volume_up),
-                      title: Text(AppLocalizations.of(context).settingsVolumeBoost),
-                      subtitle: Text(
-                        _audioBoost > 1.01
-                            ? '${_audioBoost.toStringAsFixed(1)}× (LoudnessEnhancer)'
-                            : 'Off — 1.0×',
-                      ),
-                      onTap: () async {
-                        double temp = _audioBoost;
-                        final picked = await showDialog<double>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text(AppLocalizations.of(context).playerVolumeBoostTitle),
-                            content: StatefulBuilder(
-                              builder: (context, setD) => Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Slider(
-                                    value: temp.clamp(1.0, 3.0),
-                                    min: 1.0,
-                                    max: 3.0,
-                                    divisions: 20,
-                                    label: '${temp.toStringAsFixed(1)}×',
-                                    onChanged: (v) => setD(
-                                      () =>
-                                          temp = double.parse(v.toStringAsFixed(1)),
-                                    ),
-                                  ),
-                                  Text(
-                                    '${temp.toStringAsFixed(1)}×',
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: Text(AppLocalizations.of(context).commonCancel),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, temp),
-              child: Text(AppLocalizations.of(context).commonSave),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (picked != null) {
-                          await PlaybackBoostStore.save(picked);
-                          if (mounted) setState(() => _audioBoost = picked);
-                        }
-                      },
-                    ),
-                    SwitchListTile(
-                      secondary: const Icon(Icons.nights_stay),
-                      title: Text(AppLocalizations.of(context).settingsNightMode),
-                      subtitle: Text(
-                        AppLocalizations.of(context).settingsNightModeDesc,
-                      ),
-                      value: _nightMode,
-                      onChanged: (value) async {
-                        await NightModeStore.save(value);
-                        if (mounted) setState(() => _nightMode = value);
-                      },
-                    ),
-                  ],
+                  ),
                 ],
               ),
             // === Audio (Android only) ===
@@ -1380,6 +1279,120 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: Text(AppLocalizations.of(context).settingsAudio),
                 childrenPadding: const EdgeInsets.only(bottom: 8),
                 children: [
+                  // === Volume Boost / Night Mode (both engines) ===
+                  // MPV only: an mpv engine property. Defaults off so the two
+                  // Android engines play at the same level (issue #37).
+                  if (_showMpvSettings)
+                    SwitchListTile(
+                      secondary: const Icon(Icons.surround_sound),
+                      title: Text(AppLocalizations.of(context)
+                          .settingsMpvNormalizeDownmix),
+                      subtitle: Text(AppLocalizations.of(context)
+                          .settingsMpvNormalizeDownmixDesc),
+                      value: _mpvNormalizeDownmix,
+                      onChanged: (value) async {
+                        await MpvDownmixStore.save(value);
+                        if (!mounted) return;
+                        setState(() => _mpvNormalizeDownmix = value);
+                        // Applied on the next MPV open; there is no handle on a
+                        // player screen that is not currently pushed, and
+                        // re-reading it per open is what _configureMpvAudio does
+                        // anyway.
+                      },
+                    ),
+                  // Issue #41. The libmpv engine decodes every track with
+                  // libavcodec (`ad: ffmpeg`); Media3 normally prefers the
+                  // platform MediaCodec decoders. Two different decoders means
+                  // two different loudness for the same file, which is what
+                  // made the engines sound mismatched. Turning this on routes
+                  // Media3's audio through the same FFmpeg extension so there
+                  // is one decoder for both.
+                  //
+                  // TV/HDMI passthrough still wins: the passthrough branch in
+                  // PlayerCodecs.kt is checked before this one, so bitstream
+                  // output is untouched when it is enabled.
+                  if (_showMedia3Settings)
+                    SwitchListTile(
+                    secondary: const Icon(Icons.graphic_eq),
+                    title: const Text('Match MPV audio (FFmpeg)'),
+                    subtitle: const Text(
+                      'Decode audio with the same FFmpeg as the MPV engine, '
+                      'so both sound identical',
+                    ),
+                    value: _ffmpegAudio,
+                    onChanged: (v) async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool(kFfmpegAudioKey, v);
+                      if (mounted) setState(() => _ffmpegAudio = v);
+                    },
+                  ),
+                  TvTile(
+                    leading: const Icon(Icons.volume_up),
+                    title: Text(AppLocalizations.of(context).settingsVolumeBoost),
+                    subtitle: Text(
+                      _audioBoost > 1.01
+                          ? '${_audioBoost.toStringAsFixed(1)}× (LoudnessEnhancer)'
+                          : 'Off — 1.0×',
+                    ),
+                    onTap: () async {
+                      double temp = _audioBoost;
+                      final picked = await showDialog<double>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text(AppLocalizations.of(context).playerVolumeBoostTitle),
+                          content: StatefulBuilder(
+                            builder: (context, setD) => Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Slider(
+                                  value: temp.clamp(1.0, 3.0),
+                                  min: 1.0,
+                                  max: 3.0,
+                                  divisions: 20,
+                                  label: '${temp.toStringAsFixed(1)}×',
+                                  onChanged: (v) => setD(
+                                    () =>
+                                        temp = double.parse(v.toStringAsFixed(1)),
+                                  ),
+                                ),
+                                Text(
+                                  '${temp.toStringAsFixed(1)}×',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text(AppLocalizations.of(context).commonCancel),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, temp),
+            child: Text(AppLocalizations.of(context).commonSave),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (picked != null) {
+                        await PlaybackBoostStore.save(picked);
+                        if (mounted) setState(() => _audioBoost = picked);
+                      }
+                    },
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.nights_stay),
+                    title: Text(AppLocalizations.of(context).settingsNightMode),
+                    subtitle: Text(
+                      AppLocalizations.of(context).settingsNightModeDesc,
+                    ),
+                    value: _nightMode,
+                    onChanged: (value) async {
+                      await NightModeStore.save(value);
+                      if (mounted) setState(() => _nightMode = value);
+                    },
+                  ),
+                  // === HDMI passthrough (TV) ===
                   SwitchListTile(
                     secondary: const Icon(Icons.surround_sound),
                     title: Text(AppLocalizations.of(context).settingsAudioPassthrough),
