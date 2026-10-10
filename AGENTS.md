@@ -617,6 +617,37 @@ Two more rules:
   disabled-components list survives an APK update, so it has to be undone in
   code) and re-enables the default alias if somehow none is enabled.
 
+### iOS alternate icons — Guideline 4.6, and never hand-edit Info.plist
+
+iOS uses `UIApplication.setAlternateIconName()` and is boring, but two rules
+are easy to get wrong and both fail **silently** (no exception, the icon simply
+never changes).
+
+**App Store Guideline 4.6 permits exactly this pattern**, with four conditions
+that must all hold: the change is **user-initiated**, the app **offers a way to
+revert to the original icon**, every variant **relates to the app's content**,
+and it is **not** used for dynamic/automatic/serial changes (e.g. weather or
+calendar icons). Guideline 2.3.8 additionally requires the alternate icons stay
+"similar" to the primary so they do not create confusion. Our four recolours plus
+the wordmark-less logo all satisfy this — same brand mark, no disguise.
+
+**Do NOT hand-write `CFBundleIcons` / `CFBundleAlternateIcons` into
+`Info.plist`.** Apple's docs are explicit: "modify their related build settings.
+Don't edit or remove these keys manually." The asset catalog compiler *generates*
+those keys at build time and overwrites them, so a hand-edited block is silently
+discarded and `setAlternateIconName()` then does nothing. The alternates are
+declared in `project.pbxproj` instead:
+
+```
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconMark AppIconRed AppIconGreen AppIconCyan";
+ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+```
+
+on all three Runner configs (Debug/Release/Profile). `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS`
+is required or the alternate sets are not emitted into the built
+`Info.plist` at all. This is unverifiable without a Mac — `ios_native_check.py`
+only validates pbxproj shape — so the first iOS build must be checked on device.
+
 **Do not "simplify" this into toggling MainActivity's launcher filter.** That is
 the exact change that bricked it. If you touch this, read the manifest comment
 block above the aliases first.
