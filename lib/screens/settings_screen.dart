@@ -704,6 +704,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// Which engine-specific settings are worth showing.
+  ///
+  /// "Auto" and "Ask every time" can both land on either engine, so every
+  /// engine option stays visible in those modes. They only disappear once the
+  /// user has actually pinned one engine in Player -> Default playback engine,
+  /// at which point the other engine's knobs are dead settings.
+  bool get _flexibleEngine => _defaultEngine.allowFallback;
+  bool get _showMpvSettings => _flexibleEngine || _defaultEngine == DefaultEngine.mpv;
+  bool get _showMedia3Settings => _flexibleEngine || _defaultEngine == DefaultEngine.media3;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1042,7 +1052,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         }
                       },
                     ),
-                  if (defaultTargetPlatform == TargetPlatform.android)
+                  if (defaultTargetPlatform == TargetPlatform.android &&
+                      _showMpvSettings)
                     ListTile(
                       leading: const Icon(Icons.palette_outlined),
                       title: Text(AppLocalizations.of(context).settingsToneMapMode),
@@ -1097,7 +1108,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (mounted) setState(() => _autoPlayNext = value);
                     },
                   ),
-                  if (defaultTargetPlatform == TargetPlatform.android)
+                  if (defaultTargetPlatform == TargetPlatform.android &&
+                      _showMedia3Settings)
                     TvTile(
                       leading: const Icon(Icons.memory),
                       title: Text(AppLocalizations.of(context).settingsVideoDecoder),
@@ -1232,7 +1244,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ),
                           ),
-                          if (defaultTargetPlatform == TargetPlatform.android)
+                          if (defaultTargetPlatform == TargetPlatform.android &&
+                              _showMedia3Settings)
                             _BadgeToggle(
                               icon: Icons.spatial_audio,
                               label: 'Spatial audio',
@@ -1276,7 +1289,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     // TV/HDMI passthrough still wins: the passthrough branch in
                     // PlayerCodecs.kt is checked before this one, so bitstream
                     // output is untouched when it is enabled.
-                    SwitchListTile(
+                    if (_showMedia3Settings)
+                      SwitchListTile(
                       secondary: const Icon(Icons.graphic_eq),
                       title: const Text('Match MPV audio (FFmpeg)'),
                       subtitle: const Text(
