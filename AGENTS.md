@@ -580,7 +580,58 @@ A video player app supporting:
 - **Player overlay** shows HDR format + video/audio codec + resolution chips; library cards show an HDR badge + audio codec label.
   - **DV dedup**: for Dolby Vision the purple HDR chip already says "Dolby Vision", so the redundant video-codec chip is suppressed (no "Dolby Vision" twice).
   - **Chip layout**: landscape puts back button + title + chips in one `Wrap` on the same row; portrait shows title row, then chips `Wrap` below.
-- **Player controls**: top bar (back + title) and a slim bottom bar (time + seekbar + audio/CC/aspect/fullscreen) auto-hide after 3 s of playback (tap toggles them; kept visible while paused/buffering/dragging). **Center transport**: `replay_10` / big play-pause / `forward_10` float in a dark rounded pill in the middle of the screen, fading with the other controls. The bottom bar's background is a gradient mirroring the top bar (transparent → `black` 0.72), so both bars read at the same opacity. The player screen is **always immersive** (no system UI toggling during rotation — that fights the rotation animation and makes the video jitter); the bottom fullscreen button just forces landscape/portrait. Top-bar fullscreen button removed. **Play-pause ring highlight on touch devices** (2026-08): `_TvControlButton` gained `alwaysShowRing` — when set, the button always renders its ring highlight (border + glow) even without keyboard/remote focus. The center play-pause button uses `alwaysShowRing: !_isTv` so the ring is visible on phones/tablets without a D-pad. On TV the D-pad focus handles it as before.
+### Fullscreen button was a no-op (issue #45) — the Flutter orientation bitmask
+
+Reported as "tapping it does absolutely nothing", on every file and both
+engines. The button, the handler and the manifest were all fine — the bug was
+in *which* Dart list was handed to `SystemChrome.setPreferredOrientations`.
+
+Flutter packs the requested orientations into a bitmask and passes the result
+to `Activity.setRequestedOrientation()` (engine
+`PlatformChannel.java`, `decodeOrientations`). The mapping is not the obvious
+one:
+
+| Dart list | bitmask | Android constant |
+|---|---|---|
+| `[landscapeLeft, landscapeRight]` | `0x0a` | `SCREEN_ORIENTATION_USER_LANDSCAPE` |
+| `DeviceOrientation.values` (all 4) | `0x0f` | `SCREEN_ORIENTATION_FULL_USER` |
+| `[landscapeLeft]` | `0x02` | `SCREEN_ORIENTATION_LANDSCAPE` |
+| `[portraitUp]` | `0x01` | `SCREEN_ORIENTATION_PORTRAIT` |
+
+**Asking for both landscape orientations, or all four, decodes to a `USER*`
+constant.** AOSP's `DisplayRotation.rotationForOrientation` only consults the
+sensor for the `USER*` family while `mUserRotationMode == USER_ROTATION_FREE`;
+`LANDSCAPE` / `PORTRAIT` / `REVERSE_*` are exempted from the lock branch below
+it. So the old toggle — enter with `[landscapeLeft, landscapeRight]`, leave
+with `DeviceOrientation.values` — was `USER_LANDSCAPE` then `FULL_USER`, and
+**both halves silently did nothing whenever the user had rotation locked**,
+which is a very common setting. That is why the report said "absolutely
+nothing" rather than "only one direction".
+
+The fix requests the single forced constant in each direction. Android still
+picks which of the two landscape rotations to use from the sensor, so this
+does not hard-code landscape-left. `dispose()` still restores
+`DeviceOrientation.values` on purpose — handing control back to the system is
+correct there; only the toggle needs to be forceful.
+
+**Verified on-device (OnePlus CPH2573) with `accelerometer_rotation=0`
+(i.e. rotation locked), the condition the old code could never pass:**
+portrait → `ROTATION_90` → back to `ROTATION_0`.
+
+`test/screen_orientation_test.dart` ports the engine's bitmask decoder and
+asserts the requested masks land in the forced set, *and* asserts the old
+inputs produce `0x0a`/`0x0f` — so if Flutter ever changes the decoder, the test
+says so instead of silently meaning nothing.
+
+**Two things that wasted time here, worth not repeating:**
+- `MainActivity` locking orientation, a `screenOrientation` manifest entry, or
+  a swallowed permission were all considered and all ruled out by reading the
+  manifest. The manifest sets **no** `screenOrientation`, so runtime
+  `setRequestedOrientation` is honored fully.
+- Verifying this needs the device's rotation lock in its **failed** state.
+  Tapping once with rotation unlocked "works" and proves nothing.
+
+- **Player controls**: top bar (back + title) and a slim bottom bar (time + seekbar + audio/CC/aspect/fullscreen) auto-hide after 3 s of playback (tap toggles them; kept visible while paused/buffering/dragging). **Center transport**: `replay_10` / big play-pause / `forward_10` float in a dark rounded pill in the middle of the screen, fading with the other controls. The bottom bar's background is a gradient mirroring the top bar (transparent → `black` 0.72), so both bars read at the same opacity. The player screen is **always immersive** (no system UI toggling during rotation — that fights the rotation animation and makes the video jitter); the bottom fullscreen button just forces landscape/portrait. **That button must request a SINGLE orientation per direction** (`fullscreenOrientations` in `lib/utils/screen_orientation.dart`) — see "Fullscreen button was a no-op" below. Top-bar fullscreen button removed. **Play-pause ring highlight on touch devices** (2026-08): `_TvControlButton` gained `alwaysShowRing` — when set, the button always renders its ring highlight (border + glow) even without keyboard/remote focus. The center play-pause button uses `alwaysShowRing: !_isTv` so the ring is visible on phones/tablets without a D-pad. On TV the D-pad focus handles it as before.
 - **Aspect / fit-mode picker** (`VideoFitMode` in `exo_player.dart`): the bottom bar's `tune` button opens an "Aspect ratio" sheet with five modes — Fit, Crop to screen, Stretch to screen, 16:9, 4:3 — scrollable and height-capped so it can't overflow in landscape. Choice applies to the native surface (`setResizeMode`) and persists via `FitModeStore` (`dreamplayer.fitMode`), re-applied on every open. Android: `applyFitMode` maps to Media3 `AspectRatioFrameLayout` — Crop to screen = `RESIZE_MODE_ZOOM`, Stretch to screen = `RESIZE_MODE_FILL`, fixed ratios (16:9 / 4:3) = a forced aspect box + zoom-crop (`ForcedAspectPlayerView.forcedAspect`). iOS: `AvPlayerView.setResizeMode` maps to the `AVPlayerLayer.videoGravity` found in the AetherPlayerView hierarchy (fit=`resizeAspect`, crop + fixed ratios=`resizeAspectFill`, stretch=`resize`); fixed ratios are approximations — exact boxes need the engine's own layout hooks, revisit on-device on the iPad.
 - **Audio track selection** (mute button replaced): the bottom bar's first button opens an "Audio tracks" bottom sheet listing every audio track from the native Media3 `currentTracks` (language · codec · channels · bitrate), with the active track check-marked. Picking a track calls `setAudioTrack` → native `TrackSelectionParameters` override → `onTracksChanged` re-emits → the top-bar audio chip (live codec + channel count) updates automatically. Native plumbing in `android/.../ExoPlayerView.kt` (`buildAudioTracks`, `selectAudioTrack`), pushed on every event as `audioTracks`/`selectedAudioTrack`; Dart model `ExoAudioTrack` in `lib/services/exo_player.dart`. Verified on-device: Sonic (DTS-HD MA + FLAC) switches DTS-HD → FLAC and the chip follows. **Default + resume (2026-09)**: MPV pins the container DEFAULT track on open and both engines restore the last pick on resume — see "MPV default audio track + resume restore" above.
   - **Full track names**: the sheet prefers the container-provided track `label` (e.g. `DTS-HD MA 5.1`, `Commentary`) and appends the channel count unless the name already carries it; otherwise it composes `languageName(lang) · codec · channels`. `ExoAudioTrack` gained a `label` field; ISO-639 codes map to full English names via `languageName()` in `codec_info.dart`.

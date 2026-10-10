@@ -40,6 +40,7 @@ import '../services/opensubtitles_client.dart';
 import '../services/open_intent.dart';
 import '../services/download_manager.dart';
 import '../utils/chapter_nav.dart';
+import '../utils/screen_orientation.dart';
 import '../utils/mpv_audio_select.dart';
 import '../utils/mpv_volume.dart';
 import 'download_screen.dart';
@@ -4171,15 +4172,15 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _toggleFullscreen() async {
     if (_touchLocked) return;
-    final landscape = !_fullscreen;
-    if (landscape) {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-    } else {
-      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    }
+    final enter = !_fullscreen;
+    // Requests a SINGLE orientation per direction on purpose — see
+    // fullscreenOrientations. Asking for both landscape (or all four) values
+    // decodes to a `USER*` ActivityInfo constant, which Android honours only
+    // while the user has rotation UNlocked. With rotation locked the button was
+    // a no-op in both directions (issue #45).
+    await SystemChrome.setPreferredOrientations(
+      fullscreenOrientations(enter: enter),
+    );
     _showControls();
   }
 

@@ -21,6 +21,19 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   to MicroDVD — a *text* parser — so a binary VobSub payload was fed to a text
   parser. A `.sub` with a sibling `.idx` is now treated as the pair's payload
   rather than its own track.
+- **The fullscreen button did nothing (issue #45).** Tapping it (or locking
+  rotation) left the orientation exactly as it was, on every file and both
+  engines. The button, its handler and the manifest were all correct; the bug
+  was in which list was passed to `SystemChrome.setPreferredOrientations`.
+  Flutter packs the requested orientations into a bitmask before handing them
+  to `Activity.setRequestedOrientation()`: asking for *both* landscape
+  orientations decodes to `SCREEN_ORIENTATION_USER_LANDSCAPE`, and asking for
+  all four decodes to `SCREEN_ORIENTATION_FULL_USER`. Android honours those
+  `USER*` constants only while rotation is **unlocked** — with the common
+  rotation lock enabled, both halves of the toggle were silently ignored. The
+  button now requests a single forced constant per direction
+  (`SCREEN_ORIENTATION_LANDSCAPE` / `SCREEN_ORIENTATION_PORTRAIT`), which the
+  platform does not defer to the rotation lock.
 - **VobSub subtitles rendered at double size on 4K video (libmpv engine).**
   `sub-scale-with-window` was `yes`, which makes mpv scale subtitles against the
   subtitle file's own canvas instead of the video. A 1920x1080 VobSub on a
