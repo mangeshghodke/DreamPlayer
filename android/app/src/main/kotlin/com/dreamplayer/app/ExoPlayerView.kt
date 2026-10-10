@@ -1265,9 +1265,14 @@ class ExoPlayerView(
                         } else {
                             Log.i("ExoPlayerView", "Decoder mode unchanged: $currentMode, no player recreation.")
                         }
-                        val path = call.argument<String>("path")
-                    val uri = call.argument<String>("uri")
-                    val subtitleUri = call.argument<String>("subtitleUri")
+                      val path = call.argument<String>("path")
+                      val uri = call.argument<String>("uri")
+                      val subtitleUri = call.argument<String>("subtitleUri")
+                      // Drop any VobSub index left over from a previous file. It is
+                      // only ever populated by buildSideloadSubtitleConfig below, and
+                      // a stale one would silently pair the wrong descriptor with the
+                      // next file's payload.
+                      VobSubInitializationData.clear()
                     val startMs = call.argument<Number>("startPositionMs")?.toLong() ?: 0L
                     // HTTP request headers for this media item (e.g. WebDAV
                     // Basic auth). Media3 removed per-MediaItem headers; they
@@ -1357,6 +1362,12 @@ class ExoPlayerView(
                             } else {
                                 listOf(File(subtitleUri))
                             }
+                            android.util.Log.i(
+                                "DreamSub",
+                                "OPEN path=$path subtitleUri=$subtitleUri " +
+                                    "paired=${paired.map { it.name }} " +
+                                    "local=${localCandidates.map { it.name }}",
+                            )
                             // External subtitles from the server (e.g. Jellyfin
                             // DeliveryUrl). These are remote HTTP URLs.
                             val rawExternalSubs =
@@ -1381,35 +1392,23 @@ class ExoPlayerView(
                                     )
                                     .build()
                             } ?: emptyList()
+
                             // Local subtitles (siblings or explicit local subtitleUri).
-                            val localConfigs = localCandidates.mapIndexed { i, sub ->
-                                val originalUri = android.net.Uri.fromFile(sub)
-                                val utf8Uri = SubtitleFormats.toUtf8(activity, originalUri)
-                                val name = sub.name
-                                val language = SubtitleFormats.languageFromFileName(name)
-                                MediaItem.SubtitleConfiguration.Builder(utf8Uri)
-                                    .setMimeType(SubtitleFormats.mimeTypeFor(name))
-                                    .setLanguage(language)
-                                    .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
-                                    .setLabel(SubtitleFormats.labelFromFileName(name))
-                                    .setSelectionFlags(
+                            val localConfigs = localCandidates.mapIndexedNotNull { i, sub ->
+                                buildSideloadSubtitleConfig(activity, Uri.fromFile(sub), sub.name)
+                                    ?.setSelectionFlags(
                                         if (i == 0) C.SELECTION_FLAG_DEFAULT else 0,
                                     )
-                                    .build()
+                                    ?.build()
                             }
                             // SAF tree subtitles (bookmarked folders, Shield/Galaxy SAF).
-                            val treeConfigs = treeSubtitleEntries.mapIndexed { i, (uri, name) ->
-                                val utf8Uri = SubtitleFormats.toUtf8(activity, uri)
-                                val language = SubtitleFormats.languageFromFileName(name)
-                                MediaItem.SubtitleConfiguration.Builder(utf8Uri)
-                                    .setMimeType(SubtitleFormats.mimeTypeFor(name))
-                                    .setLanguage(language)
-                                    .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
-                                    .setLabel(SubtitleFormats.labelFromFileName(name))
-                                    .setSelectionFlags(
+                            val treeConfigs = treeSubtitleEntries.mapIndexedNotNull { i, entry ->
+                                val (uri, name) = entry
+                                buildSideloadSubtitleConfig(activity, uri, name)
+                                    ?.setSelectionFlags(
                                         if (i == 0) C.SELECTION_FLAG_DEFAULT else 0,
                                     )
-                                    .build()
+                                    ?.build()
                             }
                             // Remote explicit subtitleUri (smb://, http://, content://, file://).
                             val remoteExplicitConfig = if (!subtitleUri.isNullOrEmpty() &&
@@ -1794,6 +1793,60 @@ class ExoPlayerView(
     /// Turns text (subtitle) rendering on/off. Works for both embedded
     /// container tracks (PGS/DVB/CEA/SRT in MKV/MP4) and sideloaded sidecar
     /// subtitles — Media3 surfaces both as text track groups.
+    /// Builds a configuration for a sideloaded subtitle.
+    ///
+    /// VobSub is a two-file format: `Name.idx` is the descriptor (timings,
+    /// palette, canvas size) and `Name.sub` is the raw MPEG-PS bitmap payload.
+    /// Media3 wants the payload as the sample URI, `application/vobsub` as the
+    /// MIME, and the `.idx` out-of-band — it cannot ride in
+    /// `SubtitleConfiguration` in 1.10.x, so it goes via
+    /// [VobSubInitializationData] for [DreamSubtitleParserFactory] to pick up.
+    ///
+    /// Everything else is normalised to UTF-8 first. [SubtitleFormats.toUtf8]
+    /// now refuses binary and oversized input, which is what OOM-killed the app
+    /// when a 19 MB VobSub `.sub` was decoded as CP1252 (issue #44).
+    /// Builds a configuration for a sideloaded subtitle, or null when the file
+    /// is one this engine cannot play.
+    ///
+    /// **VobSub is declined on the Media3 engine on purpose.** A `.idx`/`.sub`
+    /// pair is a valid subtitle, but Media3's `VobsubParser` only accepts
+    /// Matroska `S_VOBSUB` framing (a bare run of DVD subtitle packets). A
+    /// sidecar `.sub` is a whole MPEG-Program-Stream with each cue fragmented
+    /// across several PES frames, and the parser contract has no way to feed
+    /// those packets in. Emitting the track anyway produced a track that is
+    /// selectable but permanently blank, which is worse than not offering it.
+    ///
+    /// The libmpv engine renders these correctly (see the reporter's own report
+    /// on issue #44), so declining here sends those users where it works. No
+    /// other engine-level player handles them either: nextplayer whitelists
+    /// srt/ssa/ass/vtt/ttml, Nova uses its own FFmpeg core, and Just Player
+    /// types `.idx` as SubRip and shows nothing.
+    ///
+    /// Everything else is normalised to UTF-8 first. [SubtitleFormats.toUtf8]
+    /// refuses binary and oversized input, which is what OOM-killed the app when
+    /// a 19 MB VobSub `.sub` was charset-decoded as CP1252.
+    private fun buildSideloadSubtitleConfig(
+        context: Context,
+        uri: Uri,
+        name: String,
+    ): MediaItem.SubtitleConfiguration.Builder? {
+        if (SubtitleFormats.isVobSubIndex(name)) {
+            android.util.Log.i(
+                "DreamSub",
+                "declining VobSub sidecar on Media3 (idx=$name); play on the MPV engine",
+            )
+            return null
+        }
+
+        val mime = SubtitleFormats.mimeTypeFor(name)
+        val normalised = SubtitleFormats.toUtf8(context, uri)
+        return MediaItem.SubtitleConfiguration.Builder(normalised)
+            .setMimeType(mime)
+            .setLanguage(SubtitleFormats.languageFromFileName(name))
+            .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
+            .setLabel(SubtitleFormats.labelFromFileName(name))
+    }
+
     private fun setSubtitles(on: Boolean) {
         subtitleOn = on
         val builder = player.trackSelectionParameters.buildUpon()

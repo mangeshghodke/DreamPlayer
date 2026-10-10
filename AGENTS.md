@@ -591,11 +591,93 @@ A video player app supporting:
   - **Sibling auto-pairing** (`android/.../SubtitleFormats.kt` `findSiblingSubtitles`): on open, scans the video's folder and attaches **every** subtitle file as a Media3 `SubtitleConfiguration` (exact-filename-prefix match wins; ordered best-match first). The best match carries `SELECTION_FLAG_DEFAULT` so it's auto-selected; all others remain selectable in the picker. An explicitly passed `subtitleUri` still wins over pairing.
   - **`open()` path fix**: `lib/services/exo_player.dart` `open()` now sends `path` even when a `uri` is present — intent-opened files were dropping the path, so sibling pairing never fired. Verified on-device.
   - **Formats**: SRT, SSA/ASS, WebVTT, TTML/DFXP, SAMI (`.smi`), MicroDVD (`.sub`), MPL2 (`.mpl2`), SubViewer (auto-detected inside `.sub`). `SubtitleFormats` maps extension → MIME (incl. custom `application/x-sami`, `application/x-microdvd`, `application/x-mpl2`).
-  - **Custom parsers** (`android/.../DreamSubtitleParserFactory.kt`): Media3's stock `DefaultSubtitleParserFactory` lacks SAMI/MicroDVD/MPL2/SubViewer, so `DreamSubtitleParserFactory` adds `SamiParser` and `FrameSubParser` (MicroDVD/MPL2/SubViewer modes) and delegates everything else (SubRip, SSA, WebVTT, TTML, PGS, VobSub, DVB, TX3G, CEA) to the default. Wired into both `DefaultMediaSourceFactory` and `DefaultExtractorsFactory` so the `SubtitleExtractor` picks it up.
+  - **Custom parsers** (`android/.../DreamSubtitleParserFactory.kt`): Media3's stock `DefaultSubtitleParserFactory` lacks SAMI/MicroDVD/MPL2/SubViewer, so `DreamSubtitleParserFactory` adds `SamiParser` and `FrameSubParser` (MicroDVD/MPL2/SubViewer modes) and delegates everything else (SubRip, SSA, WebVTT, TTML, PGS, DVB, TX3G, CEA) to the default. Sidecar **VobSub is declined** here and not offered on this engine — see "VobSub sidecars" below for why, and for the two integrations that were tried and must not be retried. Wired into both `DefaultMediaSourceFactory` and `DefaultExtractorsFactory` so the `SubtitleExtractor` picks it up.
   - **Charset handling**: Media3's text parsers decode UTF-8 only; `SubtitleFormats.toUtf8` detects BOM/strict-UTF-8 vs CP1252 and re-encodes non-UTF-8 sidecars to a cache file so legacy `.srt` files don't render as mojibake. `decodeToString` strips UTF-8 BOM for the custom parsers.
   - **Subtitle picker** (`lib/screens/player_screen.dart`): the bottom bar's CC button opens a sheet listing every subtitle track from native `currentTracks` (embedded container tracks + sideloaded files) plus Off. Labels append the format so sibling files read uniquely (`House.S02E04.eng · SRT`, `House.S02E04 · WebVTT`). Picking a track calls `selectSubtitleTrack` → native `TrackSelectionParameters` override; `selectedSubtitleTrack` re-emits → the CC button reflects the real selection.
   - **Note**: sibling auto-pairing needs `MANAGE_EXTERNAL_STORAGE` — without it, `listFiles()` only sees MediaStore-indexed files (SRT/TTML/SMI) and `.ass`/`.vtt`/`.sub`/`.mpl2` are silently skipped. Every `flutter install` re-revokes All Files Access on Android; re-grant via `adb shell am start -a android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION` (can't be granted via `adb shell pm grant` — this device blocks it).
    - Verified on-device (`House.S02E04` MKV + 7 sidecar formats): embedded PGS + all 7 sidecars attach, best-match `.eng.srt` auto-selected.
+
+### VobSub (`.idx`/`.sub`) sidecars — OOM crash fixed, decode declined on Media3 (issue #44)
+
+**Read this before touching `.sub` handling.** The format is genuinely
+ambiguous, and every wrong assumption here has already cost a shipped bug.
+
+**The crash (fixed).** A reported, valid, verified-in-sync 19 MB pair OOM-killed
+the app on open. `SubtitleFormats.toUtf8()` runs on the platform thread during
+`open()` and was doing `readAllBytes()` → `InputStream.readBytes()` with **no
+size cap**, then a strict UTF-8 decode (which throws on binary → falls back to
+CP1252), then `String(bytes, cp1252)`, then a re-encode. That is ~150-250 MB of
+transient allocation for one 19 MB subtitle, on the main thread. It also wrote a
+`dreamplayer_sub_*.utf8` file to `cacheDir` per conversion and **never deleted
+them**. Fixed by bounding the sniff three ways — a 64 KB prefix read instead of
+the whole file, a 1 MB size cap, and rejecting binary outright — plus
+`pruneUtf8Cache()`. This guard matters for *every* format, not just VobSub.
+
+**The routing bugs (fixed).** `.idx` was not in `SUBTITLE_EXTENSIONS` at all, so
+`mimeTypeFor` fell through to `application/x-subrip`. And `.sub` mapped
+**unconditionally** to `MIME_MICRODVD` — a *text* parser — while a VobSub `.sub`
+is raw MPEG-Program-Stream. A binary payload was being fed to a text parser. Now
+`.idx` maps to `MimeTypes.APPLICATION_VOBSUB`, and `isVobSubPayload()` drops a
+`.sub` that has a sibling `.idx` so the pair is one track, not two. A lone `.sub`
+stays MicroDVD/SubViewer, unchanged.
+
+**The decode (declined, deliberately).** Media3's `VobsubParser` is a *good*
+decoder — muxing this VobSub into an MKV and playing it produced a correct cue.
+It only accepts Matroska `S_VOBSUB` framing, where block data is already a bare
+run of DVD subtitle packets. A sidecar `.sub` is a whole MPEG-PS file with each
+cue fragmented across several PES frames, and there is no route to feed those in:
+`MediaItem.SubtitleConfiguration` in 1.10.x has **no `initializationData` field**
+(verified against `media3-common-1.10.1`), and there is no VobSub
+`SubtitleExtractor`. So `buildSideloadSubtitleConfig` **returns null for `.idx`
+on the Media3 engine** and the track is not offered. **Play with MPV** renders it.
+
+**Do not retry either of these two integrations — both were tried and are recorded
+so they are not re-attempted blind:**
+
+1. *Eager decode.* Feeding all 2737 packets inside the single `parse()` call
+   Media3 makes for a sidecar. All packets recovered, but `VobsubParser` threw
+   >16k `Unrecognized command` warnings and **the video stopped playing** while
+   the track was selected. `SubtitleParser` is a *streaming* contract.
+2. *Lazy decode from the position tick.* Structurally impossible through
+   `SubtitleParser`: the `output` consumer is only valid **for the duration of
+   the `parse()` call**, so cues decoded later have no path to Media3's renderer.
+
+Doing this properly needs a different integration (feeding Media3's subtitle
+sample queue directly, or rendering cues ourselves) — a real project, not a patch.
+A dead player or a runaway decoder is exactly what #44 was filed about.
+
+**The demux IS done and validated** (`VobSubPayloadExtractor.kt`, retained for
+that future work): byte-identical to ffmpeg's own vobsub demuxer on the reporter's
+file, agreeing on **2736 of 2737 cues**. Three non-obvious format details, each of
+which cost real time:
+- MPEG-2 pack headers are a **fixed 14 bytes with no stuffing field**. Reading one
+  gave a 248-byte skip that derailed the entire walk.
+- The **first** PES fragment of a cue carries a 9-byte header (PTS + substream id);
+  **continuations carry 4**. And `PES_packet_length` covers the *whole* packet
+  including its header — the payload is `length - headerLen`.
+- The `.idx` timestamp's 4th field is **milliseconds, not frames**. Read as frames
+  at 25fps it makes cue 1 jump *backwards* (23:774 → 53.96s, then 27:194 → 34.76s),
+  which no subtitle track can do.
+Cue boundaries come from the `.idx` `filepos:` table (hex), and each DVD packet
+carries its own total length in its first two bytes — the same `AV_RB16(buf)` that
+`dvdsubdec.c` reads.
+
+**A trap worth knowing: this cannot be unit-tested off-device.** `VobsubParser`
+builds an `android.graphics.Bitmap`, which the stub `android.jar` in local JVM
+unit tests cannot supply, so it yields zero cues in `gradle test` **even for bytes
+it decodes correctly on hardware**. Assert byte-equality against ffmpeg instead;
+verify rendering on a device.
+
+**No other engine-level player supports sidecar VobSub**, which is why declining is
+the honest answer: nextplayer whitelists `srt/ssa/ass/vtt/ttml`, Nova uses its own
+FFmpeg C core with no Media3 sidecar subtitles at all, and Just Player types `.idx`
+as SubRip and **silently shows a blank track**. Media3 1.10.1 → 1.11.1 changes
+nothing here; every VobSub entry in the release notes is a container-track fix.
+
+**Also fixed while chasing this** (`player_screen.dart`): mpv's
+`sub-scale-with-window` was `yes`, which scales subtitles against the subtitle
+file's own canvas rather than the video — so a 1920x1080 VobSub on a 3840x2160 4K
+video drew at 2x and covered half the picture. It is now `no`.
    - **OpenSubtitles online search (2026-08)**: CC sheet → "Search online subtitles…" (`lib/screens/opensubtitles_sheet.dart` + `lib/services/opensubtitles_client.dart`) via `api.opensubtitles.com` REST. Search `GET /api/v1/subtitles?query=&languages=&moviehash=` (hash = OpenSubtitles 64-bit first+last 64 KiB via `opensubtitlesHashForFile` when local path available, ordered by `download_count` desc). Download `POST /api/v1/download {file_id}` with `Api-Key` alone = **5/day/IP anonymous**, plus `Authorization: Bearer <JWT>` after `POST /login` = **20/day free** (VIP more); `403` quota → login dialog then retry. Link fetched via `fetchBytes` (retry on `SocketException` RST with `persistentConnection=false`, `c6f616c`), saved persistently to `getApplicationSupportDirectory()/opensubs/<resumeKey>/<fileName>` via `DownloadedSubtitlesStore` (`dreamplayer.downloadedSubs` JSON) and applied mid-playback by copying `_current` with `subtitleUri` and `await _reopenAt(pos)`. Downloaded section appears **at top of CC sheet before embedded tracks** (Nova-style) per-video, re-selectable without re-downloading. Settings → Subtitles → **OpenSubtitles** tile shows login state / remaining downloads and handles sign-in/out (token `dreamplayer.opensubtitlesToken` persisted 23h). Key via `--dart-define=OPENSUBTITLES_API_KEY` (`lib/config/opensubtitles_api_key.dart`, gitignored `.env` like TMDB).
 - **File browser (CX-Explorer style)** (`lib/screens/file_browser_screen.dart`): browse storage in-app and play any video without importing. **Back goes up one folder at a time** — only a folder whose path IS a root returns to the roots list; any other folder loads its parent (even when the parent is itself a root), so back from a folder inside a root lands on that root's contents, not on "Browse files". Reached from the home **+** button → "Internal storage" (the root list no longer shows a "Pick a folder" tile — adding folders lives on the home **+** menu's "Add folder to library"). Android side (`android/.../FileBrowser.kt`, channel `dreamplayer/files`): `hasAllFilesAccess` / `openAllFilesAccessSettings` / `getStorageRoots` (internal + SD card) / `listDirectory` (folders then video files, sorted, with sizes) / `pickFolder` (launches `ACTION_OPEN_DOCUMENT_TREE`, persistable URI grants stored in SharedPreferences as `dreamplayer.folderBookmarks`, result delivered via `MainActivity.onActivityResult` → `FileBrowser.onFolderPicked`) / `pickLibraryFolder` (same picker, but stores the tree under a library-only `libfolder.<uuid>` key so it never becomes a file-browser root) / `removeBookmark` / `removeLibraryBookmark`. Bookmarked trees are appended to `getStorageRoots` with a `bookmarkId` and are listed through `DocumentFile` via synthetic paths `tree:<id>` / `tree:<id>/<relative>` (directory entries keep the synthetic path for back-navigation; video entries carry their `content://` document URI so `file_browser_screen.dart` passes it as `VideoItem.uri`, like the "Open with" flow). Requires **`MANAGE_EXTERNAL_STORAGE`** (All Files Access) on Android 11+ — the screen shows a "Grant access" button that opens the system settings and re-checks on app resume (the folder picker works without it, but browsing does not). iOS side (`ios/Runner/FileBrowser.swift`): sandboxed, so the root list is a virtual **"Files"** entry (`isFilesHome: true`, synthetic path `dreamplayer/files-home`) that opens the **system document picker** — the real Files-app home (iCloud Drive, On My iPad, Downloads, other providers); picking a video imports it (`importFile` → bookmark stored in `dreamplayer.importedVideos`, re-granted later via `resolveImportedPath`) and plays it. Below it: the app's Documents folder plus **bookmarked folders picked via the system document picker** (`pickFolder` → `UIDocumentPickerViewController` for `.folder`, `removeBookmark`) — security-scoped bookmarks stored in UserDefaults keep picked folders (iCloud Drive, On My iPad, other providers) readable across launches, so videos outside the sandbox are browsed/played in-app without touching the Files app. The Dart screen shows a "Pick a folder" tile + per-bookmark remove at the root on **both** platforms (subtitle text is platform-specific). Tapping a video builds a `VideoItem` and pushes `PlayerScreen`. Verified on-device (Android): Internal storage → Download → video → Dolby Vision People plays with live HDR/codec chips.
 - **"Open with" / file-explorer integration** (`AndroidManifest.xml` `ACTION_VIEW` intent-filters for `content`/`file` schemes + video MIME types incl. `video/*`, matroska, mpeg, ts, avi, wmv, octet-stream): tapping a video anywhere on the device now offers DreamPlayer. `MainActivity` resolves the intent (file path or `content://` URI + display name via `OpenableColumns`) and forwards it over the `dreamplayer/intent` channel (`getInitialIntent` on launch / `open` on `onNewIntent`); `lib/services/open_intent.dart` turns it into a `VideoItem` and pushes `PlayerScreen` via a global `appNavigatorKey` in `lib/app.dart`. `VideoItem` gained an optional `uri` (content URIs) with `path` now nullable; `ExoPlayerView` opens a raw URI when no path is available. Verified on-device: "Open with" chooser lists DreamPlayer and launches Dolby Vision playback.
@@ -2115,7 +2197,8 @@ lib/
     episode_row.dart            # shared episode/file row + still & poster thumbs (issue #38)
 android/app/src/main/kotlin/com/dreamplayer/app/
   ExoPlayerView.kt              # native PlayerView platform view + channels (open/play/seek/tracks/subtitles) + OkHttp permissive DataSource for self-signed WebDAV
-  SubtitleFormats.kt            # extension->MIME map, sibling auto-pairing, charset detection, UTF-8 re-encode
+  SubtitleFormats.kt            # extension->MIME map, sibling auto-pairing, VobSub pair detection, bounded charset sniff, UTF-8 re-encode
+  VobSubPayloadExtractor.kt      # MPEG-PS demux for sidecar .idx/.sub -> DVD subtitle packets (validated vs ffmpeg)
   DreamSubtitleParserFactory.kt # SAMI/MicroDVD/MPL2/SubViewer parsers + default delegate
   FileBrowser.kt                # device storage browsing channel (roots/listing/folder bookmarks; no thumbnails)
   WebDAVClient.kt               # WebDAV browse/test channel; encrypted password storage; friendly errors

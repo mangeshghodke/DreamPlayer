@@ -1276,7 +1276,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       'audio-channels': 'auto',
       'sub-use-margins': 'no',
       'sub-font-provider': 'none',
-      'sub-scale-with-window': 'yes',
+      // Must stay 'no'. With 'yes' mpv scales subtitles against the subtitle
+        // file's own canvas rather than the video, so a 1920x1080 VobSub on a
+        // 3840x2160 4K video renders at 2x and swallows half the picture
+        // (issue #44). With 'no', sub-scale is relative to video height.
+        'sub-scale-with-window': 'no',
       'hwdec-codecs': 'h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1',
     };
 

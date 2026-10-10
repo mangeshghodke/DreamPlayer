@@ -124,6 +124,13 @@ Each thumbnail is linked — click any image to open it full size.
   `setSubtitleTrack` (default), so mpv's track-list mirrors the Media3 path
   and the CC sheet shows every track by real filename.
 - Supports SRT, SSA/ASS, WebVTT, TTML, SAMI, MicroDVD, MPL2, SubViewer
+- **VobSub (`.idx` + `.sub`) bitmap subtitles play on the libmpv engine.** These
+  are a two-file pair and are *not* offered on the native Media3 engine: ExoPlayer's
+  `VobsubParser` only accepts Matroska `S_VOBSUB` framing, so a sidecar pair has
+  nowhere to be fed from. Use **Play with MPV** for these — it renders them
+  correctly. No other engine-level player supports them either (nextplayer
+  whitelists `srt/ssa/ass/vtt/ttml`, Nova uses its own FFmpeg core, Just Player
+  silently shows a blank track).
 - Full track picker with Off option; subtitles are anchored to the video, not the screen
 - **Appearance settings** — size, color, background, outline, and sync delay with live preview (in the player's ⋮ menu; delay live on Android via `DelayingParser` + reopen)
 - **OpenSubtitles** — search/download from CC (5/day anon, 20/day free login); Nova-based language catalog (full names, 3-letter `eng/fre/pob/zho`, `zh-CN/zh-TW`) for reading + download prefs + text encoding (CP1250…CP949)

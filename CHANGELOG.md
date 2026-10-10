@@ -7,6 +7,26 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
+- **Opening a title with a VobSub (`.idx`/`.sub`) subtitle crash-killed the app.**
+  Reported in issue #44 with a valid, verified-in-sync 19 MB pair. Cause:
+  `SubtitleFormats.toUtf8()` ran on the platform thread during `open()` and called
+  `readBytes()` on the whole sidecar with **no size cap**, then charset-detected it,
+  built a String and re-encoded it — roughly 150-250 MB of transient allocation for
+  one 19 MB bitmap subtitle, on the main thread. The same call also left a
+  `dreamplayer_sub_*.utf8` cache file behind on every conversion and never cleaned
+  it up. Sniffing is now bounded three ways (prefix read, size cap, binary
+  rejected outright), and stale cache files are pruned.
+  Two related routing bugs fixed at the same time: `.idx` was not recognised as a
+  subtitle at all and fell through to SubRip, while `.sub` mapped **unconditionally**
+  to MicroDVD — a *text* parser — so a binary VobSub payload was fed to a text
+  parser. A `.sub` with a sibling `.idx` is now treated as the pair's payload
+  rather than its own track.
+- **VobSub subtitles rendered at double size on 4K video (libmpv engine).**
+  `sub-scale-with-window` was `yes`, which makes mpv scale subtitles against the
+  subtitle file's own canvas instead of the video. A 1920x1080 VobSub on a
+  3840x2160 4K video therefore drew at 2x and covered half the picture. Now `no`,
+  so subtitle size is relative to video height as expected.
+
 - **Opening a title's details screen could freeze the app on iPhone and iPad.**
   The page had its metadata ready in 2 ms and still produced **no frame at all**
   for up to a minute — the spinner froze rather than spun, and touches did

@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.extractor.text.CuesWithTiming
 import androidx.media3.extractor.text.DefaultSubtitleParserFactory
 import androidx.media3.extractor.text.SubtitleParser
+import androidx.media3.extractor.text.vobsub.VobsubParser
 import com.google.common.collect.ImmutableList
 import java.util.regex.Pattern
 
@@ -22,6 +23,118 @@ object SubtitleTiming {
     @Volatile var delayUs: Long = 0L
 }
 
+/// Carries the VobSub `.idx` descriptor from `open()` to
+/// [DreamSubtitleParserFactory.create].
+///
+/// Media3's `VobsubParser` is built as `new VobsubParser(format.initializationData)`,
+/// and in-container VobSub (MKV `S_VOBSUB`) gets that data from the container's
+/// `CodecPrivate`. A *sidecar* pair has no CodecPrivate, and
+/// `MediaItem.SubtitleConfiguration` in 1.10.x has no `initializationData` field
+/// to hand it over through (verified against `media3-common-1.10.1`). There is
+/// also no VobSub `SubtitleExtractor`, so nothing else can supply it either.
+///
+/// So we pass it out-of-band: `open()` reads the `.idx` (a ~120 KB text file)
+/// and stashes it here before `setMediaItem`, and `create()` builds the stock
+/// `VobsubParser` from it. That keeps Media3's own well-tested bitmap decoder
+/// instead of reimplementing DVD subtitle RLE/CLUT decoding here.
+///
+/// Reset on every `open()` so a stale index from a previous file can never be
+/// paired with the next one.
+@UnstableApi
+object VobSubInitializationData {
+    @Volatile
+    var sections: List<ByteArray>? = null
+
+    fun set(idx: ByteArray?) {
+        sections = idx?.let { ImmutableList.of(it) }
+    }
+
+    fun clear() {
+        sections = null
+    }
+}
+
+/// Placeholder for a sidecar VobSub track on the Media3 engine.
+///
+/// **Deliberately renders nothing.** What is proven, and what is not:
+///
+/// * Media3's `VobsubParser` is a good decoder. Muxing this exact VobSub into
+///   an MKV and playing it produces a correct cue.
+/// * It only accepts Matroska `S_VOBSUB` framing -- a bare run of DVD subtitle
+///   packets. A sidecar `.sub` is a whole MPEG-Program-Stream with each cue
+///   fragmented across several PES frames, so the raw bytes decode to nothing.
+/// * [VobSubPayloadExtractor] performs that demux correctly: byte-identical to
+///   ffmpeg's own vobsub demuxer on the reporter's file (2736 of 2737 cues).
+///
+/// Two integrations of that demux were attempted and both are recorded here so
+/// neither is retried blind:
+///
+///  1. Emitting every cue inside the single `parse()` call Media3 makes for a
+///     sidecar. All 2737 packets recovered, but >16k `Unrecognized command`
+///     warnings and the video stopped playing while the track was selected.
+///  2. Decoding lazily from the player position tick. `SubtitleParser` is a
+///     *pull* contract: Media3 calls `parse()` and we emit through the `output`
+///     consumer, which is only valid for the duration of that call. Cues decoded
+///     later, outside it, have no route to Media3's renderer, so this can never
+///     display anything.
+///
+/// Doing this properly needs a different integration than a `SubtitleParser` --
+/// feeding Media3's subtitle sample queue directly, or rendering cues ourselves.
+/// That is a real piece of work, not a patch, and a half-wired version is worse
+/// than none: a dead player or a runaway decoder is exactly what issue #44 was
+/// filed about.
+///
+/// Users with a sidecar VobSub can play it on the libmpv engine, which renders
+/// it (positioned per the file's own `align:` directive).
+@UnstableApi
+private class UnsupportedVobSubSidecarParser(
+    private val idxBytes: Int,
+) : SubtitleParser {
+
+    override fun getCueReplacementBehavior(): Int =
+        Format.CUE_REPLACEMENT_BEHAVIOR_MERGE
+
+    override fun parse(
+        data: ByteArray,
+        offset: Int,
+        length: Int,
+        outputOptions: SubtitleParser.OutputOptions,
+        output: Consumer<CuesWithTiming>,
+    ) {
+        android.util.Log.w(
+            "DreamSub",
+            "sidecar VobSub not decoded on Media3 (idx=$idxBytes bytes, " +
+                "payload=$length bytes); use the MPV engine for this track",
+        )
+    }
+}
+
+/// Emits nothing.
+///
+/// Used when a `application/vobsub` track arrives without its `.idx`. The
+/// alternative — letting the parser fail on a missing descriptor, or letting a
+/// text parser chew the binary `.sub` — is what crashed the player on issue
+/// #44. A blank subtitle track is the safe degradation.
+@UnstableApi
+private class EmptySubtitleParser : SubtitleParser {
+    override fun getCueReplacementBehavior(): Int =
+        Format.CUE_REPLACEMENT_BEHAVIOR_MERGE
+
+    override fun parse(
+        data: ByteArray,
+        offset: Int,
+        length: Int,
+        outputOptions: SubtitleParser.OutputOptions,
+        output: Consumer<CuesWithTiming>,
+    ) {
+        android.util.Log.w(
+            "DreamSub",
+            "vobsub track had no .idx descriptor; dropping ${length} bytes " +
+                "(a blank subtitle track beats a crash)",
+        )
+    }
+}
+
 /// Media3's stock [DefaultSubtitleParserFactory] handles SubRip, SSA/ASS,
 /// WebVTT, TTML, TX3G, PGS, VobSub and DVB — but not the classic text formats
 /// SAMI (`.smi`), MicroDVD (`.sub`), MPL2 (`.mpl2`) or SubViewer (time-based
@@ -29,6 +142,9 @@ object SubtitleTiming {
 /// default one, so sideloaded subtitle configs carrying
 /// [SubtitleFormats.MIME_SAMI] / [SubtitleFormats.MIME_MICRODVD] /
 /// [SubtitleFormats.MIME_MPL2] resolve to our parsers.
+///
+/// VobSub is the one format the stock factory *does* support but cannot be
+/// reached with: see [VobSubInitializationData].
 ///
 /// Wire it via `DefaultMediaSourceFactory(context, extractorsFactory,
 /// DreamSubtitleParserFactory())` (and on `DefaultExtractorsFactory`) so the
@@ -43,6 +159,7 @@ class DreamSubtitleParserFactory(
             SubtitleFormats.MIME_SAMI,
             SubtitleFormats.MIME_MICRODVD,
             SubtitleFormats.MIME_MPL2,
+            SubtitleFormats.MIME_VOBSUB,
             -> true
             else -> delegate.supportsFormat(format)
         }
@@ -53,6 +170,7 @@ class DreamSubtitleParserFactory(
             SubtitleFormats.MIME_SAMI -> SamiParser.CUE_REPLACEMENT_BEHAVIOR
             SubtitleFormats.MIME_MICRODVD, SubtitleFormats.MIME_MPL2 ->
                 FrameSubParser.CUE_REPLACEMENT_BEHAVIOR
+            SubtitleFormats.MIME_VOBSUB -> VobsubParser.CUE_REPLACEMENT_BEHAVIOR
             else -> delegate.getCueReplacementBehavior(format)
         }
     }
@@ -62,6 +180,16 @@ class DreamSubtitleParserFactory(
             SubtitleFormats.MIME_SAMI -> SamiParser()
             SubtitleFormats.MIME_MICRODVD -> FrameSubParser(FrameSubParser.Mode.MICRODVD)
             SubtitleFormats.MIME_MPL2 -> FrameSubParser(FrameSubParser.Mode.MPL2)
+            SubtitleFormats.MIME_VOBSUB -> {
+                val idx = VobSubInitializationData.sections
+                android.util.Log.i(
+                    "DreamSub",
+                    "create vobsub: idxSections=${idx?.size ?: -1} " +
+                        "bytes=${idx?.firstOrNull()?.size ?: -1}",
+                )
+                if (idx.isNullOrEmpty()) EmptySubtitleParser()
+                else UnsupportedVobSubSidecarParser(idx.first().size)
+            }
             else -> delegate.create(format)
         }
         return if (SubtitleTiming.delayUs == 0L) base else DelayingParser(base)

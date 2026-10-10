@@ -48,6 +48,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // JVM unit tests for the pure subtitle-format logic (issue #44). These are
+    // plain JUnit, no Robolectric: they exercise SubtitleFormats' format
+    // sniffing and VobSub pairing against real VobSub bytes.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     defaultConfig {
         applicationId = "com.dreamplayer.app"
         // You can update the following values to match your application needs.
@@ -147,6 +154,10 @@ dependencies {
     // Prebuilt Media3 FFmpeg extension (GPLv3): software decode for
     // DTS/DTS-HD, TrueHD/MLP, E-AC3, AC3 where MediaCodec has no decoder.
     implementation("io.github.anilbeesetti:nextlib-media3ext:1.10.1-0.13.0")
+
+    // SubtitleFormats format-sniffing tests (issue #44). JUnit only -- the
+    // logic under test is pure and needs no Android runtime.
+    testImplementation("junit:junit:4.13.2")
     // SMB2/3 client (jcifs-ng) — Nova and CX File Explorer's SMB library;
     // measured ~75 MB/s on the real NAS vs ~4-6 MB/s for smbj.
     // jcifs-ng 2.1.10's ASN.1 SPNEGO parsing requires BouncyCastle 1.78+
