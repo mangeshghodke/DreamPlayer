@@ -3,6 +3,17 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## Unreleased
+
+### Added
+
+- **Choose the app icon (issue #23).** Settings → Appearance → **App icon** now
+  offers five launcher icons: the original logo + wordmark, the logo on its own,
+  and the logo recoloured red, green or cyan. The logo-only option exists
+  because Android already prints the app name under the icon, so the wordmark is
+  redundant there. Works on Android and iPhone/iPad; hidden on TV, which has no
+  launcher.
+
 ## 0.5.2
 
 ### Fixed

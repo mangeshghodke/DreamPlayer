@@ -46,12 +46,6 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-                <!-- Appear on Android TV / Fire TV launchers too. -->
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
-            </intent-filter>
             <!-- Open video files from file explorers / "Open with" menus.
                  Two broad filters (content + file) with every common video/
                  audio container MIME. File managers assign container MIMEs that
@@ -90,6 +84,311 @@
                 <data android:mimeType="application/octet-stream"/>
             </intent-filter>
         </activity>
+        <!-- Launcher icon aliases (issue #23).
+             ===================================================================
+             DO NOT disable MainActivity. Every alias below has
+             android:targetActivity=".MainActivity", and an alias whose target
+             is disabled CANNOT BE LAUNCHED: it just makes the icon dead,
+             which is exactly what happened the first time this was written.
+             That is why MainActivity carries no MAIN/LAUNCHER filter either:
+             it stays permanently enabled (so it is a valid target, and so
+             "Open with" always resolves) while the visible launcher icon is
+             owned entirely by whichever alias is enabled.
+             Exactly one alias is enabled at a time, and IconSwitcher enables
+             the new one BEFORE disabling the others, so an interrupted toggle
+             can never leave zero launcher entries. ensureLaunchable() also
+             re-enables the default alias on every launch as a backstop.
+             =================================================================== -->
+        <activity-alias
+            android:name=".MainActivityAltDefault"
+            android:targetActivity=".MainActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:icon="@mipmap/ic_launcher">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <!-- Appear on Android TV / Fire TV launchers too. -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme=""/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:scheme="http"/>
+                <data android:scheme="https"/>
+                <data android:mimeType="video/*"/>
+                <data android:mimeType="audio/*"/>
+                <data android:mimeType="application/x-matroska"/>
+                <data android:mimeType="application/matroska"/>
+                <data android:mimeType="video/x-matroska"/>
+                <data android:mimeType="audio/x-matroska"/>
+                <data android:mimeType="application/mpeg"/>
+                <data android:mimeType="video/mpeg"/>
+                <data android:mimeType="video/mp2t"/>
+                <data android:mimeType="video/x-mp2t"/>
+                <data android:mimeType="video/x-msvideo"/>
+                <data android:mimeType="video/x-ms-wmv"/>
+                <data android:mimeType="video/x-ms-asf"/>
+                <data android:mimeType="video/quicktime"/>
+                <data android:mimeType="video/x-m4v"/>
+                <data android:mimeType="video/x-flv"/>
+                <data android:mimeType="application/vnd.apple.mpegurl"/>
+                <data android:mimeType="application/x-mpegurl"/>
+                <data android:mimeType="application/vnd.rn-realmedia"/>
+                <data android:mimeType="application/x-shockwave-flash"/>
+                <data android:mimeType="audio/octet-stream"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+        </activity-alias>
+        <!-- Alternate launcher icons (issue #23). Each is the same activity
+             with a different android:icon, toggled by IconSwitcher.kt.
+
+             They carry a FULL copy of MainActivity's intent filters, because
+             setComponentEnabledSetting() disables the entire component, not
+             just its launcher entry, so whichever one is enabled must still be
+             able to receive "Open with" intents.
+
+             All four are declared enabled="false" so a fresh install shows
+             exactly one icon. IconSwitcher enables the chosen one BEFORE
+             disabling the others, so there is never a moment with no launchable
+             component, and ensureLaunchable() repairs an interrupted toggle on
+             the next launch. -->
+
+        <activity-alias
+            android:name=".MainActivityAltMark"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:icon="@mipmap/ic_launcher_mark">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme=""/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:scheme="http"/>
+                <data android:scheme="https"/>
+                <data android:mimeType="video/*"/>
+                <data android:mimeType="audio/*"/>
+                <data android:mimeType="application/x-matroska"/>
+                <data android:mimeType="application/matroska"/>
+                <data android:mimeType="video/x-matroska"/>
+                <data android:mimeType="audio/x-matroska"/>
+                <data android:mimeType="application/mpeg"/>
+                <data android:mimeType="video/mpeg"/>
+                <data android:mimeType="video/mp2t"/>
+                <data android:mimeType="video/x-mp2t"/>
+                <data android:mimeType="video/x-msvideo"/>
+                <data android:mimeType="video/x-ms-wmv"/>
+                <data android:mimeType="video/x-ms-asf"/>
+                <data android:mimeType="video/quicktime"/>
+                <data android:mimeType="video/x-m4v"/>
+                <data android:mimeType="video/x-flv"/>
+                <data android:mimeType="application/vnd.apple.mpegurl"/>
+                <data android:mimeType="application/x-mpegurl"/>
+                <data android:mimeType="application/vnd.rn-realmedia"/>
+                <data android:mimeType="application/x-shockwave-flash"/>
+                <data android:mimeType="audio/octet-stream"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityAltRed"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:icon="@mipmap/ic_launcher_red">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme=""/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:scheme="http"/>
+                <data android:scheme="https"/>
+                <data android:mimeType="video/*"/>
+                <data android:mimeType="audio/*"/>
+                <data android:mimeType="application/x-matroska"/>
+                <data android:mimeType="application/matroska"/>
+                <data android:mimeType="video/x-matroska"/>
+                <data android:mimeType="audio/x-matroska"/>
+                <data android:mimeType="application/mpeg"/>
+                <data android:mimeType="video/mpeg"/>
+                <data android:mimeType="video/mp2t"/>
+                <data android:mimeType="video/x-mp2t"/>
+                <data android:mimeType="video/x-msvideo"/>
+                <data android:mimeType="video/x-ms-wmv"/>
+                <data android:mimeType="video/x-ms-asf"/>
+                <data android:mimeType="video/quicktime"/>
+                <data android:mimeType="video/x-m4v"/>
+                <data android:mimeType="video/x-flv"/>
+                <data android:mimeType="application/vnd.apple.mpegurl"/>
+                <data android:mimeType="application/x-mpegurl"/>
+                <data android:mimeType="application/vnd.rn-realmedia"/>
+                <data android:mimeType="application/x-shockwave-flash"/>
+                <data android:mimeType="audio/octet-stream"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityAltGreen"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:icon="@mipmap/ic_launcher_green">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme=""/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:scheme="http"/>
+                <data android:scheme="https"/>
+                <data android:mimeType="video/*"/>
+                <data android:mimeType="audio/*"/>
+                <data android:mimeType="application/x-matroska"/>
+                <data android:mimeType="application/matroska"/>
+                <data android:mimeType="video/x-matroska"/>
+                <data android:mimeType="audio/x-matroska"/>
+                <data android:mimeType="application/mpeg"/>
+                <data android:mimeType="video/mpeg"/>
+                <data android:mimeType="video/mp2t"/>
+                <data android:mimeType="video/x-mp2t"/>
+                <data android:mimeType="video/x-msvideo"/>
+                <data android:mimeType="video/x-ms-wmv"/>
+                <data android:mimeType="video/x-ms-asf"/>
+                <data android:mimeType="video/quicktime"/>
+                <data android:mimeType="video/x-m4v"/>
+                <data android:mimeType="video/x-flv"/>
+                <data android:mimeType="application/vnd.apple.mpegurl"/>
+                <data android:mimeType="application/x-mpegurl"/>
+                <data android:mimeType="application/vnd.rn-realmedia"/>
+                <data android:mimeType="application/x-shockwave-flash"/>
+                <data android:mimeType="audio/octet-stream"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityAltCyan"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:icon="@mipmap/ic_launcher_cyan">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme=""/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:scheme="http"/>
+                <data android:scheme="https"/>
+                <data android:mimeType="video/*"/>
+                <data android:mimeType="audio/*"/>
+                <data android:mimeType="application/x-matroska"/>
+                <data android:mimeType="application/matroska"/>
+                <data android:mimeType="video/x-matroska"/>
+                <data android:mimeType="audio/x-matroska"/>
+                <data android:mimeType="application/mpeg"/>
+                <data android:mimeType="video/mpeg"/>
+                <data android:mimeType="video/mp2t"/>
+                <data android:mimeType="video/x-mp2t"/>
+                <data android:mimeType="video/x-msvideo"/>
+                <data android:mimeType="video/x-ms-wmv"/>
+                <data android:mimeType="video/x-ms-asf"/>
+                <data android:mimeType="video/quicktime"/>
+                <data android:mimeType="video/x-m4v"/>
+                <data android:mimeType="video/x-flv"/>
+                <data android:mimeType="application/vnd.apple.mpegurl"/>
+                <data android:mimeType="application/x-mpegurl"/>
+                <data android:mimeType="application/vnd.rn-realmedia"/>
+                <data android:mimeType="application/x-shockwave-flash"/>
+                <data android:mimeType="audio/octet-stream"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+        </activity-alias>
         <!-- Background playback keepalive: hosts the MediaStyle notification;
              the player itself lives in the platform view inside MainActivity. -->
         <service

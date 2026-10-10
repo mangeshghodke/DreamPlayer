@@ -87,6 +87,7 @@ import Network
     UpnpClient.register(with: messenger)
     MediaProbe.register(with: messenger)
     DownloadClient.register(with: messenger)
+    IconSwitcher.configure(with: messenger)
     TrialStore.register(with: messenger)
   }
 }

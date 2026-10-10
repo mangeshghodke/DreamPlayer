@@ -580,6 +580,47 @@ A video player app supporting:
 - **Player overlay** shows HDR format + video/audio codec + resolution chips; library cards show an HDR badge + audio codec label.
   - **DV dedup**: for Dolby Vision the purple HDR chip already says "Dolby Vision", so the redundant video-codec chip is suppressed (no "Dolby Vision" twice).
   - **Chip layout**: landscape puts back button + title + chips in one `Wrap` on the same row; portrait shows title row, then chips `Wrap` below.
+### App icon switching (issue #23) — the alias rule that bricks the app
+
+Settings → Appearance → App icon switches between five launcher icons (default,
+logo-only, red, green, cyan) via `IconSwitcher.kt` + `IconSwitcher.swift`.
+iOS uses `setAlternateIconName` and is boring. **Android is not, and one rule is
+load-bearing.**
+
+**NEVER disable `MainActivity`.** Each variant is an `<activity-alias>` with
+`android:targetActivity=".MainActivity"`. An alias whose target is disabled
+**cannot be launched**: the icon stays on the launcher but tapping it opens
+**App info** instead of the app. This is not theoretical — the first version
+disabled it, shipped in a debug build, and bricked the launcher on the user's
+phone. `pm enable`/`pm unhide` are blocked by the OEM on that device and adb
+cannot run as root, so recovery was only possible from inside the app.
+
+The structure that works, and why each part is required:
+
+| Component | Enabled? | Carries | Why |
+|---|---|---|---|
+| `MainActivity` | **always** | VIEW filters only | Valid alias target; "Open with" handler. Never a toggle target. |
+| `MainActivityAltDefault` | one of the aliases, on by default | MAIN/LAUNCHER + LEANBACK + VIEW | The default icon. An alias is needed because `MainActivity` has no launcher filter. |
+| `…AltMark/Red/Green/Cyan` | exactly one enabled at a time | MAIN/LAUNCHER + LEANBACK + VIEW | The alternates. |
+
+Because `MainActivity` has no `MAIN`/`LAUNCHER` filter, disabling it would also
+remove the second icon — which is what made the first attempt look reasonable
+right up until it bricked. Every alias carries a **full copy** of the intent
+filters, so "Open with" keeps resolving regardless of which is enabled.
+
+Two more rules:
+
+- **Enable the new alias BEFORE disabling the others.** A brief moment with two
+  icons is harmless; a moment with none is unrecoverable without adb.
+- **`ensureLaunchable()` runs on every launch** and does two repairs: re-enables
+  `MainActivity` (for installs that ran the broken build — PackageManager's
+  disabled-components list survives an APK update, so it has to be undone in
+  code) and re-enables the default alias if somehow none is enabled.
+
+**Do not "simplify" this into toggling MainActivity's launcher filter.** That is
+the exact change that bricked it. If you touch this, read the manifest comment
+block above the aliases first.
+
 ### Android releases are updatable — the two guards that protect it (issue #43)
 
 An update fails in exactly two ways on Android: the **signer differs**, or the

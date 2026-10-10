@@ -26,6 +26,7 @@ import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
 import '../services/support_links.dart';
 import '../services/mpv_downmix_store.dart';
+import '../services/app_icon_service.dart';
 import '../services/tone_map_store.dart';
 import '../config/simkl_keys.dart';
 import '../services/simkl_client.dart';
@@ -1001,8 +1002,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             content: RadioGroup<DefaultEngine>(
                               groupValue: _defaultEngine,
                               onChanged: (v) => Navigator.pop(ctx, v),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
+                              child: _ScrollableRadioList(
                                 children: DefaultEngine.values.map((e) {
                                   final subtitle = switch (e) {
                                     DefaultEngine.auto =>
@@ -1050,8 +1050,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             content: RadioGroup<ToneMapMode>(
                               groupValue: _toneMapMode,
                               onChanged: (v) => Navigator.pop(ctx, v),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
+                              child: _ScrollableRadioList(
                                 children: ToneMapMode.values.map((m) {
                                   final subtitle = switch (m) {
                                     ToneMapMode.sdr =>
@@ -2090,6 +2089,62 @@ class _LayoutSection extends StatelessWidget {
     if (choice != null) await AccentStore.instance.setAccent(choice);
   }
 
+  /// Icon picker (issue #23). Uses a bottom sheet rather than a dialog: the
+  /// list is five entries with previews, which is comfortable in a sheet and
+  /// avoids another height-constrained Column.
+  Future<void> _pickAppIcon(BuildContext context) async {
+    final svc = AppIconService.instance;
+    final picked = await showModalBottomSheet<AppIconStyle>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final style in AppIconStyle.values)
+                TvTile(
+                  leading: SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: Image.asset(
+                      switch (style) {
+                        AppIconStyle.defaultIcon => 'assets/app_icon_dark.png',
+                        AppIconStyle.markOnly => 'assets/app_icon_mark.png',
+                        AppIconStyle.red => 'assets/app_icon_mark_red.png',
+                        AppIconStyle.green => 'assets/app_icon_mark_green.png',
+                        AppIconStyle.cyan => 'assets/app_icon_mark_cyan.png',
+                      },
+                      width: 34,
+                      height: 34,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  title: Text(style.label),
+                  subtitle: Text(style.description),
+                  trailing: svc.style == style
+                      ? const Icon(Icons.check, size: 20)
+                      : null,
+                  onTap: () => Navigator.pop(sheetCtx, style),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null || picked == svc.style) return;
+    final ok = await svc.apply(picked);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Icon updated to ${picked.label}. Your launcher may take a moment to refresh it.'
+              : 'Could not change the icon on this device.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ExpansionTile(
@@ -2157,6 +2212,23 @@ class _LayoutSection extends StatelessWidget {
                   ),
                   onTap: () => _pickAccent(context),
                 ),
+                // Launcher icon (issue #23). Android-only in practice: the
+                // toggle needs an activity-alias, and TV has no launcher.
+                if (defaultTargetPlatform != TargetPlatform.iOS &&
+                    !isTvMode(context))
+                  ListenableBuilder(
+                    listenable: AppIconService.instance,
+                    builder: (context, _) {
+                      final style = AppIconService.instance.style;
+                      return TvTile(
+                        leading: const Icon(Icons.apps),
+                        title: const Text('App icon'),
+                        subtitle: Text(style.description),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _pickAppIcon(context),
+                      );
+                    },
+                  ),
               ],
             );
           },
@@ -2270,6 +2342,41 @@ class _FontPickerSheetState extends State<_FontPickerSheet> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Scrollable body for an option dialog's radio list.
+///
+/// A plain `Column(mainAxisSize: MainAxisSize.min)` is unbounded inside an
+/// `AlertDialog`. Four `RadioListTile`s that each carry a title *and* a
+/// description are around 410 px, but a landscape phone only gives the dialog
+/// roughly 230 px -- so it overflowed the bottom (148 px on a 2400x1080
+/// viewport, and still 28 px in portrait, which is why this was easy to miss).
+///
+/// The height cap also stops the dialog stretching edge-to-edge on a tablet,
+/// while leaving short lists completely untouched.
+///
+/// Note this only applies to `AlertDialog`. The decoder chooser uses
+/// `SimpleDialog`, which already scrolls its own children.
+class _ScrollableRadioList extends StatelessWidget {
+  const _ScrollableRadioList({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    // Plain scroll view, deliberately WITHOUT a ConstrainedBox height cap.
+    // Capping the child instead makes the Column overflow its own constraint
+    // (a Column that wants 292 px inside a 180 px box still overflows) rather
+    // than growing and scrolling. The scroll view is already bounded by the
+    // AlertDialog's Flexible, so it just needs room to be taller than the
+    // viewport and scroll within it.
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
       ),
     );
   }

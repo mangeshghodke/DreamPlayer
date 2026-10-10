@@ -90,6 +90,14 @@ flutter:
   uses-material-design: true
   assets:
     - assets/anime4k/
+    # App icon variants shown in the preview list (issue #23). The shipped
+    # launcher bitmaps are generated from these; they are listed here so the
+    # settings picker can render a real preview rather than a colour swatch.
+    - assets/app_icon_dark.png
+    - assets/app_icon_mark.png
+    - assets/app_icon_mark_red.png
+    - assets/app_icon_mark_green.png
+    - assets/app_icon_mark_cyan.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

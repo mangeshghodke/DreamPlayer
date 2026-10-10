@@ -113,6 +113,15 @@ class MainActivity : FlutterActivity() {
         FtpClient(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FtpClient.CHANNEL),
         )
+        IconSwitcher(this).also { switcher ->
+            // Repair an interrupted toggle before the UI can even ask. Cheap,
+            // idempotent, and the only thing standing between a bad state and
+            // an app nobody can launch.
+            switcher.ensureLaunchable()
+            switcher.configure(
+                MethodChannel(flutterEngine.dartExecutor.binaryMessenger, IconSwitcher.CHANNEL),
+            )
+        }
         PipManager(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PipManager.CHANNEL),
         )
