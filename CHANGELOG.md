@@ -3,6 +3,90 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.5.2
+
+### Fixed
+
+- **The fullscreen button did nothing (issue #45).** Tapping it left the
+  orientation exactly as it was, on every file and with both engines. The
+  button, its handler and the manifest were all correct — the bug was in which
+  list was passed to `SystemChrome.setPreferredOrientations`. Flutter packs
+  the requested orientations into a bitmask before handing them to
+  `Activity.setRequestedOrientation()`: asking for *both* landscape
+  orientations decodes to `SCREEN_ORIENTATION_USER_LANDSCAPE`, and asking for
+  all four decodes to `SCREEN_ORIENTATION_FULL_USER`. Android honours those
+  `USER*` constants only while rotation is **unlocked** — with the common
+  rotation lock enabled, both halves of the toggle were silently ignored. The
+  button now requests a single forced constant per direction
+  (`SCREEN_ORIENTATION_LANDSCAPE` / `SCREEN_ORIENTATION_PORTRAIT`), which the
+  platform does not defer to the rotation lock. Verified on-device with
+  `accelerometer_rotation=0` — the condition the old code could never pass.
+- **Opening a title with a VobSub (`.idx`/`.sub`) subtitle crash-killed the
+  app (issue #44).** `SubtitleFormats.toUtf8()` ran on the platform thread
+  during `open()` and read the **entire** sidecar with no size cap, then
+  charset-detected it, built a String and re-encoded it — roughly 150-250 MB
+  of transient allocation for one 19 MB bitmap subtitle. Bounded three ways
+  now: a 64 KB sniff prefix, a 1 MB size cap, and binary content rejected
+  outright. Two routing bugs fixed alongside — `.idx` was not recognised as a
+  subtitle at all and fell through to SubRip, and `.sub` mapped
+  *unconditionally* to MicroDVD, a **text** parser, while a VobSub `.sub` is
+  raw MPEG-Program-Stream.
+- **VobSub subtitles rendered at double size on 4K video (libmpv engine).**
+  `sub-scale-with-window` was `yes`, which scales subtitles against the
+  subtitle file's own canvas instead of the video. A 1920x1080 VobSub on a
+  3840x2160 video drew at 2x and covered half the picture. Now `no`.
+- **MPV swipe-volume wiped the Volume Boost setting (issue #41).** The gesture
+  wrote an absolute system volume straight back over the boosted value on
+  every swipe. Boost is now re-applied on every open and after the gesture.
+- **2.39:1 2160p files were labelled 2K instead of 4K.**
+- **Chapters now work on every source and engine, not just local files.**
+  On Android, MPV had none for any source while Media3 had them for local
+  files; on iOS both parsers took a local-`FileHandle` path, so in-app SMB,
+  WebDAV, FTP/SFTP and UPnP silently showed nothing. Both platforms now read
+  chapters through the reader playback is already using. Several real bugs
+  behind this: the chapter walk is byte-at-a-time and the cursor wasn't
+  buffered (minutes of single-byte SMB round trips), it was assigned in the
+  wrong SMB branch so the probe never found it, and FTP needs a cursor rather
+  than a byte-range source.
+- **Opening a title's details screen could freeze the app on iPhone and iPad.**
+  Unbounded speculative artwork fan-out — no concurrency limit, one `HttpClient`
+  per image and an fsync'd write each — starved the raster pipeline so the page
+  produced no frame at all for up to a minute. Downloads are capped at 4
+  concurrent over one shared `HttpClient`, and the browsers' per-entry prefetch
+  is bounded, deferred and cancelled on navigation. `TmdStore` also no longer
+  re-encodes its entire cache on every write.
+- **`app_debug.log` wrote an unreadable line.** The timestamp interpolated the
+  tear-off of `_stamp` instead of calling it, so every line began
+  `Closure: () => String from Function '_stamp'`.
+
+### Security
+
+- **Committed TheTVDB credentials were removed from the repository.** A JWT had
+  been tracked in the tree. If you configured TheTVDB, rotate that token — it
+  must be treated as exposed regardless of the history rewrite.
+
+### Upgrading
+
+**From 0.5.2 onward, every release installs straight over the previous one — no
+uninstall.** All builds are signed with DreamPlayer's permanent upload
+certificate (`CN=DreamPlayer`, SHA-256 `2FF29762…52D5F`) and carry a strictly
+increasing `versionCode`, and the release workflow now *fails* if either is not
+true.
+
+**Users on 0.5.1 or earlier must uninstall once.** Every release published before
+this was signed by the GitHub Actions runner's throwaway debug key
+(`CN=Android Debug`) — a different key on every run, none of them retained. The
+v0.5.1 APK in particular carries `16A557C0…059343B`. That key no longer exists
+and cannot be reproduced, so Android cannot accept a differently-signed update
+(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`). There is no workaround for those specific
+versions; it is a one-time uninstall, after which updates are seamless forever.
+
+Download the **same architecture** you used last time (same file name) and tap
+the new APK over the old one. Switching between an architecture-specific build
+and the universal build looks like a downgrade to Android and is rejected; that
+is not a broken update, just the wrong file. Full details are in the release
+notes.
+
 ## 0.5.1
 
 ### Fixed

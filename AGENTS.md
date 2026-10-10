@@ -580,6 +580,60 @@ A video player app supporting:
 - **Player overlay** shows HDR format + video/audio codec + resolution chips; library cards show an HDR badge + audio codec label.
   - **DV dedup**: for Dolby Vision the purple HDR chip already says "Dolby Vision", so the redundant video-codec chip is suppressed (no "Dolby Vision" twice).
   - **Chip layout**: landscape puts back button + title + chips in one `Wrap` on the same row; portrait shows title row, then chips `Wrap` below.
+### Android releases are updatable — the two guards that protect it (issue #43)
+
+An update fails in exactly two ways on Android: the **signer differs**, or the
+**versionCode did not increase**. Either one makes the install fail with
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE` / `_VERSION_DOWNGRADE`, and the user's only
+way out is to uninstall — losing settings, logins and resume positions. Both are
+now enforced by the release workflow, so neither can regress silently.
+
+**1. Signing.** `release.yml` restores the upload keystore from the
+`UPLOAD_KEYSTORE_*` secrets and **hard-fails** if they are absent (this is the
+step that was missing before — it silently fell back to the runner's throwaway
+debug key). A second step then asserts every built APK's `apksigner` SHA-256
+equals `2FF29762…52D5F`. `apksigner` prints the digest **colon-less**, so the
+expected value is stored colon-less and both sides are normalised — a colon'd
+literal never matches and would fail every release.
+
+**2. versionCode.** This is pinned **by hand** in `android/app/build.gradle.kts`
+(`versionCode = 41`), because it cannot come from pubspec's `+N` — that value is
+also the iOS `CFBundleVersion`, which has different rules. Nothing in Gradle
+would catch a forgotten bump, so `release.yml` reads the pinned value and
+compares it against **the previous git tag's**, failing the release if it did not
+go up. That comparison needs `fetch-depth: 0` on the checkout (step 3).
+
+**The history, so it is not re-investigated:** every release published up to and
+including **v0.5.1** was signed by the GitHub Actions runner's throwaway debug
+key — a *different* key each run, none retained. Verified directly off the
+published artifacts:
+
+| APK | Certificate |
+|---|---|
+| v0.5.1 (published) | `CN=Android Debug`, `16A557C0…059343B` |
+| 0.5.2 (this tree) | `CN=DreamPlayer`, `2FF29762…52D5F` |
+
+That key is gone and cannot be regenerated, so users on v0.5.1 or earlier must
+uninstall **once**. This is unavoidable, not a bug to fix — the key simply does
+not exist anymore. From 0.5.2 onward the `CN=DreamPlayer` key is permanent (it is
+in the repo secrets *and* in the local `android/app/upload-keystore.jks`), and
+updates are seamless forever. The release notes say this plainly instead of
+leaving users to discover it as a failed install.
+
+**The flavour trap (still true, now documented for users).** `--split-per-abi`
+applies Flutter's `abiVersionCode * 1000 + base` scheme, so arm64-v8a ships
+~2000 while universal ships the bare base. A user who installed an arm64 split
+**cannot** later install a universal build — the lower code reads as a
+downgrade. It is not a regression and there is no clean fix short of shipping a
+single flavour; the release notes tell people to grab the same file name they
+used last time, and recommend universal only for *fresh* installs (universal is
+the safe starting point, because universal → split is an increase but not the
+reverse).
+
+**Before tagging a release**, check the three numbers agree:
+`pubspec.yaml` version, the `versionCode` in `build.gradle.kts`, and that the
+`versionCode` is greater than the previous tag's.
+
 ### Fullscreen button was a no-op (issue #45) — the Flutter orientation bitmask
 
 Reported as "tapping it does absolutely nothing", on every file and both

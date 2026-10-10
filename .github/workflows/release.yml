@@ -25,6 +25,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history + tags. The versionCode guard below compares this
+          # commit's pinned versionCode against the PREVIOUS TAG's, so it needs
+          # `git describe` / `git show <tag>:<path>` to resolve.
+          fetch-depth: 0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -113,6 +118,57 @@ jobs:
             fi
           done
           echo "All APKs signed with the DreamPlayer release certificate."
+
+      # The other half of issue #43, and the half that is NOT already
+      # automated. versionCode is pinned BY HAND in android/app/build.gradle.kts
+      # (it cannot come from pubspec's "+N", which also drives the iOS build
+      # number). Android refuses an APK whose versionCode is not greater than
+      # the installed one, so a forgotten bump means every user has to
+      # uninstall before they can install the release. Nothing else in this
+      # workflow would notice, so assert it here.
+      - name: Verify versionCode increases over the previous release
+        run: |
+          set -euo pipefail
+          extract_code() {
+            grep -oE 'versionCode[[:space:]]*=[[:space:]]*[0-9]+' "$1" \
+              | grep -oE '[0-9]+' | head -1 || true
+          }
+          CURRENT="$(extract_code android/app/build.gradle.kts)"
+          if [ -z "$CURRENT" ]; then
+            echo "::error::Could not read versionCode from android/app/build.gradle.kts"
+            exit 1
+          fi
+          PREV_TAG="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)"
+          PREV=""
+          if [ -n "$PREV_TAG" ]; then
+            PREV="$(git show "$PREV_TAG:android/app/build.gradle.kts" 2>/dev/null \
+              | grep -oE 'versionCode[[:space:]]*=[[:space:]]*[0-9]+' \
+              | grep -oE '[0-9]+' | head -1 || true)"
+          fi
+          echo "versionCode: previous ${PREV:-<none>} (${PREV_TAG:-no prior tag}) -> current $CURRENT"
+          if [ -n "$PREV" ] && [ "$CURRENT" -le "$PREV" ]; then
+            echo "::error::versionCode $CURRENT is not greater than $PREV (from $PREV_TAG). Android refuses a non-increasing versionCode, so every existing install would have to be uninstalled first (issue #43). Bump versionCode in android/app/build.gradle.kts."
+            exit 1
+          fi
+
+          # Report what the release actually ships. Flutter's split-per-abi
+          # multiplies by 1000 (abiVersionCode * 1000 + base, ARM64 -> 2), so
+          # the split APKs carry far higher codes than universal. Updating in
+          # place is fine, but it does mean a user who installs a split APK can
+          # never afterwards move to universal -- so universal is the safe
+          # download to recommend.
+          AAPT="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1 || true)"
+          shopt -s nullglob
+          apks=(build/app/outputs/flutter-apk/*.apk)
+          if [ -n "$AAPT" ] && [ -x "$AAPT" ] && [ ${#apks[@]} -gt 0 ]; then
+            for apk in "${apks[@]}"; do
+              code="$("$AAPT" dump badging "$apk" \
+                | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -1)"
+              echo "  $(basename "$apk"): versionCode=$code"
+            done
+          else
+            echo "  No built APKs to report (or aapt2 unavailable)."
+          fi
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
