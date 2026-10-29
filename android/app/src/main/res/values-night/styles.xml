@@ -12,9 +12,7 @@
          running.
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
-    <style name="NormalTheme" parent="Theme.AppCompat.NoActionBar">
+    <style name="NormalTheme" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">?android:colorBackground</item>
-        <!-- Dark MediaRouter theme for the Cast route dialog; see values/. -->
-        <item name="mediaRouteTheme">@style/Theme.MediaRouter</item>
     </style>
 </resources>

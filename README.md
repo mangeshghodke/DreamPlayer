@@ -189,7 +189,6 @@ Each thumbnail is linked — click any image to open it full size.
 - **Swipe gestures** — swipe left side for brightness, right side for system volume (phones/tablets, togglable in Settings)
 - Aspect ratio picker: Fit, Crop, Stretch, 16:9, 4:3 (persists per video)
 - **Chapters** — previous/next chapter buttons beside the transport (press previous twice to walk back, not just restart the current one) and ticks on the seekbar, on both engines and on local, SMB, WebDAV, FTP, UPnP and Jellyfin sources
-- **Play on TV (Android)** — one sheet in the player's top bar for every way out to a big screen: **Google Cast** (the system route picker — genuine Chromecast / Google-TV receivers on the same Wi-Fi), **DLNA/UPnP TVs** (AVTransport play/pause/seek with the position polled back), and a **DreamPlayer receiver** (another DreamPlayer on the network, e.g. the Fire TV Stick, answers a broadcast and plays the file there). Local playback pauses while casting. TVs without a Cast receiver (e.g. Hisense on VIDAA, which pairs with YouTube directly via DIAL instead) honestly stay absent rather than showing an empty list
 - **AirPlay (iOS)** — the real system AirPlay picker is embedded in the player top bar; video goes out on the native AVPlayer path, while FFmpeg-backed containers (MKV/TS/AVI) can send audio only
 - **Keyboard shortcuts (non-TV)** — `K` / Space play-pause, `J` / `L` seek ∓10 s, `F` fullscreen; left/right seek while the controls are hidden
 - **Playback speed** 0.25×–2× with refresh-rate matching on Android

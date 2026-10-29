@@ -30,7 +30,6 @@ import '../services/tmdb_client.dart';
 import '../services/the_tvdb_client.dart';
 import 'trial_intro_screen.dart';
 import '../services/upnp_client.dart';
-import '../services/dream_cast_client.dart';
 import '../services/webdav_client.dart';
 import '../utils/display_title.dart';
 import '../widgets/library_list_row.dart';
@@ -133,24 +132,7 @@ class _HomeScreenState extends State<HomeScreen>
       unawaited(requestStartupPermissions(context));
       _showTrialIntroIfNeeded();
       unawaited(_maybeCheckForUpdates());
-      // A TV runs the DreamCast receiver so phones can send video to it.
-      unawaited(_enableDreamCastReceiverIfTv());
     });
-  }
-
-  /// DreamCast receiver auto-enable: TVs/sticks are receive targets, phones
-  /// are senders. The service answers the LAN discovery broadcast and opens
-  /// pushed videos through the normal intent pipeline.
-  Future<void> _enableDreamCastReceiverIfTv() async {
-    try {
-      final supported = await DreamCastClient.isReceiverDevice();
-      if (!mounted) return;
-      if (supported) {
-        await DreamCastClient.setReceiverEnabled(true);
-      }
-    } catch (_) {
-      // Best-effort — the receiver is just an extra affordance.
-    }
   }
 
   /// Android sideload builds: ask GitHub Releases for a newer APK at most once

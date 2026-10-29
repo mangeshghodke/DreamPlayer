@@ -11,16 +11,12 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.WindowManager
-import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
-/// FlutterFragmentActivity (not FlutterActivity) because androidx.mediarouter's
-/// MediaRouteButton opens the cast route picker through a DialogFragment, which
-/// requires a FragmentActivity host: plain FlutterActivity crashes with
-/// "The activity must be a subclass of FragmentActivity" on the first tap.
-class MainActivity : FlutterFragmentActivity() {
+class MainActivity : FlutterActivity() {
 
     private var intentChannel: MethodChannel? = null
     private var systemChannel: MethodChannel? = null
@@ -93,12 +89,6 @@ class MainActivity : FlutterFragmentActivity() {
             "dreamplayer/mpv_player",
             MpvSurfaceViewFactory(this, flutterEngine.dartExecutor.binaryMessenger),
         )
-        // Google Cast route picker button (MediaRouteButton in a platform view).
-        flutterEngine.platformViewsController.registry.registerViewFactory(
-            "dreamplayer/cast_button",
-            CastButtonViewFactory(this, flutterEngine.dartExecutor.binaryMessenger),
-        )
-        CastManager(this).attach(flutterEngine.dartExecutor.binaryMessenger)
         fileBrowser = FileBrowser(this)
         fileBrowser!!.configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FileBrowser.CHANNEL),
@@ -114,9 +104,6 @@ class MainActivity : FlutterFragmentActivity() {
         )
         MulticastLockManager(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dreamplayer/multicast"),
-        )
-        DreamCast(this).configure(
-            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DreamCast.CHANNEL),
         )
         SMBClient(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SMBClient.CHANNEL),
@@ -353,8 +340,8 @@ class MainActivity : FlutterFragmentActivity() {
             }
             else -> {
                 payload["uri"] = data.toString()
-                // DreamCast receiver / external senders pass a title that
-                // says more than the URL path can (query params, tokens).
+                // An external sender can pass a title that says more than
+                // the URL path can (query params, tokens).
                 payload["title"] =
                     intent.getStringExtra("dp_title") ?: data.lastPathSegment
             }

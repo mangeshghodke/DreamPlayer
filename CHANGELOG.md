@@ -63,23 +63,14 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   speakers — use at your own risk", and swiping the brightness past 80%
   flashes "Brightness above 80% drains the battery faster". Each warning
   appears once, at the moment you cross the line, and never blocks playback.
-- **Play on TV — unified send menu in the player (Android).** The top-bar cast
-  button now opens one "Play on TV" sheet with every way DreamPlayer can put a
-  video somewhere bigger:
-  - **Chromecast / Google TV…** — the system Cast picker for genuine Chromecast
-    receivers (only offered when the source is a direct http(s) URL the
-    receiver can fetch).
-  - **DLNA TVs** — any smart TV that advertises a UPnP MediaRenderer (Hisense
-    VIDAA included) gets picked up automatically and takes the video over
-    AVTransport metadata; local playback pauses while the TV plays it, and the
-    sheet can stop the session.
-  - **DreamPlayer on another device** — a DreamPlayer install on the same
-    network (for example on a Fire TV Stick) acts as a receiver: it appears in
-    the sheet and opens the pushed video through its own player, with its
-    decoder, HUD and subtitle support intact. The receiver is enabled
-    automatically on TV devices.
-  Sources the TV can't reach honestly stay local and are told so, instead of a
-  cast that loads nothing.
+### Removed
+
+- **All "Play on TV" casting removed (Android).** The sheet offered Google
+  Cast, DLNA TVs, and a DreamPlayer receiver — none can load a phone-local
+  file (local path, SMB, loopback proxy), so they only ever produced a
+  spinner. Making it work needs a sender-side LAN media server, which the
+  app does not have. DLNA/UPnP **browsing** (playing *from* a DLNA media
+  server) is untouched and still works.
 
 ### Changed
 

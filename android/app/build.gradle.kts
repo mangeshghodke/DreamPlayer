@@ -181,10 +181,4 @@ dependencies {
     // WebDAV/SMB pattern: browsing + streaming DataSource (FtpDataSource).
     implementation("commons-net:commons-net:3.11.1")
     implementation("com.jcraft:jsch:0.1.55")
-    // Cast (step 4 of the GPU rendering + Cast plan), per the SDK setup
-    // guide (developers.google.com/cast/docs/android_sender): appcompat +
-    // mediarouter + play-services-cast-framework. The DEFAULT Media Receiver
-    // (CC1AD845) is used, so no Cast Console app registration is needed.
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.gms:play-services-cast-framework:22.3.1")
 }
