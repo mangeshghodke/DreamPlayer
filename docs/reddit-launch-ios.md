@@ -12,7 +12,7 @@ time (so the trial survives a reinstall) — the trial itself, and the Dolby
 Vision / HDR gate, are unchanged.
 
 App Store link (use this, it's already live):
-`https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889`
+`https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889`
 
 Every draft: link at the end (not the title), transparent that you're the
 developer, honest limitations, and **honest about the trial** — which is also
@@ -214,7 +214,7 @@ HDR10 / HDR10+ / HLG playback, playback speed, A-B loop, sleep timer, subtitle
 appearance settings, online subtitle search, and download to device. Android is
 free in full.
 
-App Store: https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889
+App Store: https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889
 
 **Developer / contact**
 Mangesh Ghodke — source, issues and contact via the GitHub repo linked below.
@@ -270,7 +270,7 @@ the more complete Apple product (Apple TV, Mac, Chromecast, iCloud sync,
 Blu-ray folder support). DreamPlayer is iPhone/iPad, runs on iOS 17 rather than
 18, is open source, and is roughly half Infuse's lifetime price.
 
-https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889
+https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889
 
 Feedback welcome, especially from devices I haven't tested against.
 ```
@@ -315,7 +315,7 @@ source, is about half Infuse's lifetime price, and its trial actually includes
 Dolby Vision. nPlayer at $4.99 once is also very good value if you don't need
 DV.
 
-https://apps.apple.com/in/app/dreamplayer-video-player/id6813066889
+https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889
 
 Would really like feedback from people with iPads I haven't been able to test on.
 ```
