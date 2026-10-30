@@ -887,6 +887,60 @@ def check_ios27_readiness():
         fail("SceneDelegate.swift does not subclass FlutterSceneDelegate")
 
 
+def check_apple_protocol_conformances():
+    """Apple's Swift protocols have exact signatures; a near-miss is a build error.
+
+    `AVPictureInPictureSampleBufferPlaybackDelegate` cost a full CI cycle
+    (build 60 failed to compile): the skip completion was written as
+    `(Bool) -> Void` where Apple declares `() -> Void`, and the required
+    `didTransitionToRenderSize` method was missing entirely. Neither is
+    visible from Linux — the conformance simply is not satisfied, and the
+    compiler says so with one line that names neither cause.
+
+    The required members and their exact shapes are pinned here, because they
+    are documented and stable:
+
+      pictureInPictureController(_:setPlaying:)
+      pictureInPictureController(_:skipByInterval:completion:)   // () -> Void
+      pictureInPictureController(_:didTransitionToRenderSize:)
+      pictureInPictureControllerTimeRangeForPlayback(_:)
+      pictureInPictureControllerIsPlaybackPaused(_:)
+    """
+    for path in native_files((".swift",)):
+        text = open(path, encoding="utf-8").read()
+        if "AVPictureInPictureSampleBufferPlaybackDelegate" not in text:
+            continue
+        rel = os.path.relpath(path, ROOT)
+        if ": AVPictureInPictureSampleBufferPlaybackDelegate" not in text:
+            fail(f"{rel}: mentions AVPictureInPictureSampleBufferPlaybackDelegate "
+                 "but declares no conformance to it")
+            continue
+        if "setPlaying playing: Bool" not in text:
+            fail(f"{rel}: the sample-buffer PiP delegate is missing "
+                 "pictureInPictureController(_:setPlaying:) with 'playing: Bool'")
+        # The completion is `() -> Void` — a `(Bool) -> Void` version does not
+        # satisfy the protocol and fails to compile.
+        skip = re.search(
+            r"skipByInterval\s+skipInterval:\s*CMTime,\s*\n?\s*"
+            r"completion\w*\s+completion:\s*@escaping\s*\(([^)]*)\)\s*->\s*Void",
+            text)
+        if not skip:
+            fail(f"{rel}: the sample-buffer PiP delegate has no "
+                 "skipByInterval(_:completion:) member")
+        elif skip.group(1).strip():
+            fail(f"{rel}: skipByInterval's completion must be '() -> Void' "
+                 f"(Apple's protocol), not '({skip.group(1).strip()}) -> Void'")
+        if "didTransitionToRenderSize" not in text:
+            fail(f"{rel}: the sample-buffer PiP delegate is missing the "
+                 "required pictureInPictureController(_:didTransitionToRenderSize:)")
+        if "pictureInPictureControllerTimeRangeForPlayback" not in text:
+            fail(f"{rel}: the sample-buffer PiP delegate is missing "
+                 "pictureInPictureControllerTimeRangeForPlayback(_:)")
+        if "pictureInPictureControllerIsPlaybackPaused" not in text:
+            fail(f"{rel}: the sample-buffer PiP delegate is missing "
+                 "pictureInPictureControllerIsPlaybackPaused(_:)")
+
+
 def main():
     if not os.path.isdir(RUNNER):
         print(f"FAIL  {RUNNER} not found")
@@ -907,6 +961,7 @@ def main():
     check_objc_no_reimplementation()
     check_no_control_characters()
     check_ios27_readiness()
+    check_apple_protocol_conformances()
 
     if problems:
         for p in problems:

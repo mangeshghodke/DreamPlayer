@@ -4,6 +4,7 @@ import AetherEngine
 import AetherEngineSMB
 import Combine
 import CoreText
+import CoreVideo
 import Flutter
 import MediaPlayer
 import UIKit
@@ -3032,18 +3033,24 @@ extension AvPlayerView: AVPictureInPictureSampleBufferPlaybackDelegate {
         softwarePiPSource?.setPlaying(playing)
     }
 
+    /// Apple's signature is `completion: @escaping () -> Void` — there is no
+    /// Bool result. The first version of this used `(Bool) -> Void`, which
+    /// does not satisfy the protocol at all.
     func pictureInPictureController(
         _ pictureInPictureController: AVPictureInPictureController,
         skipByInterval skipInterval: CMTime,
-        completionHandler completion: @escaping (Bool) -> Void
+        completion completion: @escaping () -> Void
     ) {
-        guard let source = softwarePiPSource else {
-            completion(false)
-            return
-        }
-        source.skip(by: skipInterval.seconds)
-        completion(true)
+        softwarePiPSource?.skip(by: skipInterval.seconds)
+        completion()
     }
+
+    /// Required by the protocol: the PiP window's render size changed.
+    /// Nothing to do — the engine's display layer owns the video size.
+    func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        didTransitionToRenderSize newRenderSize: CMVideoDimensions
+    ) {}
 
     func pictureInPictureControllerTimeRangeForPlayback(
         _ pictureInPictureController: AVPictureInPictureController
