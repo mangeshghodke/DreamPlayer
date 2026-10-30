@@ -30,6 +30,7 @@ jobs:
           import json
           import os
           import time
+          import urllib.error
           import urllib.request
 
           import jwt
@@ -38,6 +39,21 @@ jobs:
           key_id = os.environ["ASC_API_KEY_ID"]
           issuer = os.environ["ASC_ISSUER_ID"]
           wanted_build = os.environ.get("ASC_BUILD", "").strip()
+
+          headers = None
+
+          def get(path):
+              req = urllib.request.Request(
+                  "https://api.appstoreconnect.apple.com" + path,
+                  headers=headers,
+              )
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      return json.load(resp)
+              except urllib.error.HTTPError as err:
+                  body = err.read().decode("utf-8", "replace")
+                  print(f"HTTP {err.code} on {path}:\n{body[:1500]}")
+                  raise
 
           token = jwt.encode(
               {
@@ -50,14 +66,6 @@ jobs:
               headers={"kid": key_id},
           )
           headers = {"Authorization": "Bearer " + token}
-
-          def get(path):
-              req = urllib.request.Request(
-                  "https://api.appstoreconnect.apple.com" + path,
-                  headers=headers,
-              )
-              with urllib.request.urlopen(req) as resp:
-                  return json.load(resp)
 
           apps = get("/v1/apps?filter%5BbundleId%5D=com.dreamplayer.app")
           if not apps["data"]:
