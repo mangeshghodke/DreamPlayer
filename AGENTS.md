@@ -2856,6 +2856,13 @@ earlier notes here claimed releases were all-free, which was wrong about reality
 - **Paywall sheet** (list-based, `ListTile`/`_TvListTile`): three products
   with live StoreKit prices, Buy → Apple sheet → entitlement flips → paywall
   closes instantly (no restart). Restore Purchases button mandatory.
+  - **Product descriptions (`ASC_IAP_SUBMISSION.md`)**: paste-ready App Store
+    Connect text for the three products + subscription group + review notes.
+    The paywall's ⓘ "What's included" popover and the trial screen are the
+    app-side mirrors of that list — when a gated feature is added
+    (spatial audio drifted this way in 0.5.5), update BOTH the popover and the
+    ASC text in the same commit, or the purchase description promises less
+    than the paywall claims.
 - **Debug toggles (Settings → General, `kDebugMode` only, Android test path)**:
   (1) "Debug: simulate free user" — forces `isAdvanced=false` + paywall active
   on Android (starts the trial lazily on first flip); (2) "Debug: simulate

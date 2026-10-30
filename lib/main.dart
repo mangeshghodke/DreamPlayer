@@ -19,6 +19,7 @@ import 'services/metadata_provider_adapter.dart';
 import 'services/r18dev_adapter.dart';
 import 'services/layout_store.dart';
 import 'services/font_store.dart';
+import 'services/libsmb2_object_code.dart';
 import 'utils/tv_helper.dart';
 
 Future<void> main() async {
@@ -37,6 +38,12 @@ Future<void> main() async {
   unawaited(AppIconService.instance.load());
   unawaited(DownloadManager.instance.init());
   unawaited(ImageCacheService.instance.init());
+  // libsmb2 is LGPL-2.1 and is linked statically into the iOS app, so its
+  // object code has to accompany the app (LGPL-2.1 section 6(a)). Copy it into
+  // the Documents directory at startup so it is reachable through the Files
+  // app even if the user never opens the licenses screen. Fire-and-forget:
+  // it is a legal formality, not something the UI waits for.
+  unawaited(LibSmb2ObjectCode.install());
   // StoreKit entitlement + 7-day trial state (iOS-only monetization; Android
   // stays permanently advanced — see Entitlements). Safe to run everywhere.
   unawaited(Entitlements.instance.init());

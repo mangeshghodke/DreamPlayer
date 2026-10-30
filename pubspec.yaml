@@ -107,6 +107,11 @@ flutter:
     # the native renderers. Licences are OFL 1.1, one file per family.
     - assets/fonts/
     - assets/fonts/licenses/
+    # libsmb2's object code, packaged by ios/libsmb2_build.sh. libsmb2 is
+    # LGPL-2.1 and linked statically into the iOS app, so LGPL-2.1 section 6(a)
+    # requires the object code to accompany the app. The zip is generated at
+    # build time (see assets/libsmb2-objects/README.md).
+    - assets/libsmb2-objects/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

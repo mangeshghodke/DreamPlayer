@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../services/libsmb2_object_code.dart';
 
 class _LicenseEntry {
   const _LicenseEntry(this.name, this.license, this.url);
@@ -21,6 +24,11 @@ const List<_LicenseEntry> _entries = [
   _LicenseEntry('FFmpeg frameworks (iOS)',
       'LGPL-2.1 or later (no GPL components)',
       'https://github.com/superuser404notfound/FFmpegBuild'),
+  // Linked statically on iOS and as a separate shared library on Android, so
+  // LGPL-2.1 section 6 has to be honoured for it: the sources and the object
+  // code ship with the app (see "libsmb2 source and object code" below).
+  _LicenseEntry('libsmb2 (SMB2/3 client)', 'GNU LGPL v2.1',
+      'https://github.com/sahlberg/libsmb2'),
   // Still shipped transitively: AetherEngineSMB depends on SMBClient, so the
   // framework is in the bundle even though nothing imports it any more.
   // Attribution is kept deliberately.
@@ -106,6 +114,8 @@ class LicensesScreen extends StatelessWidget {
               onTap: () => _openUrl(context,
                   'https://github.com/mangeshghodke/DreamPlayer'),
             ),
+            const Divider(),
+            const _LibSmb2ObjectCodeSection(),
           ],
         ),
       ),
@@ -115,6 +125,97 @@ class LicensesScreen extends StatelessWidget {
   void _openUrl(BuildContext context, String url) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(url)),
+    );
+  }
+}
+
+/// libsmb2 is LGPL-2.1 and is linked statically into the iOS app, so the
+/// license requires the library's object code to accompany the app: the user
+/// must be able to modify libsmb2 and relink. This section says where that
+/// material is, and copies the path so it can be pasted into the Files app.
+class _LibSmb2ObjectCodeSection extends StatefulWidget {
+  const _LibSmb2ObjectCodeSection();
+
+  @override
+  State<_LibSmb2ObjectCodeSection> createState() =>
+      _LibSmb2ObjectCodeSectionState();
+}
+
+class _LibSmb2ObjectCodeSectionState
+    extends State<_LibSmb2ObjectCodeSection> {
+  LibSmb2ObjectCode? _state;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final state = await LibSmb2ObjectCode.install();
+    if (!mounted) return;
+    setState(() => _state = state);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final state = _state;
+    final path = state?.path;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'libsmb2 source and object code',
+            style: theme.textTheme.titleMedium,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            'libsmb2 is licensed under the GNU Lesser General Public License '
+            'v2.1. On iOS it is linked into this app, so LGPL-2.1 section '
+            '6(a) requires its object code to accompany the app, so that you '
+            'can modify libsmb2 and relink it. The archive holds the compiled '
+            'object files, the complete libsmb2 sources, the license and '
+            'instructions for relinking.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        if (path == null)
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('libsmb2-objects.zip'),
+            subtitle: Text(state?.reason ??
+                'Preparing the archive…'),
+          )
+        else
+          ListTile(
+            leading: const Icon(Icons.archive_outlined),
+            title: const Text('libsmb2-objects.zip'),
+            subtitle: Text(path),
+            trailing: IconButton(
+              icon: const Icon(Icons.copy),
+              tooltip: 'Copy the path',
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: path));
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        'Path copied. In the Files app, open "On My iPad" → '
+                        'DreamPlayer.'),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }

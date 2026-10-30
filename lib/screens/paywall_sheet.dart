@@ -36,6 +36,7 @@ Future<bool> showPaywall(BuildContext context) async {
 const _kFeatures = [
   'Dolby Vision & HDR10+ playback',
   'HDR10 & HLG passthrough',
+  'Spatial audio (AirPods Pro & compatible devices)',
   'Subtitle styling (size, color, outline, delay)',
   'Playback speed control (0.25×–2×)',
   'A-B loop',
