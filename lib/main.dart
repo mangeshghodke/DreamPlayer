@@ -8,6 +8,7 @@ import 'services/avdb_adapter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'services/app_debug_log.dart';
+import 'services/crash_log.dart';
 import 'services/app_icon_service.dart';
 import 'services/browser_view_store.dart';
 import 'services/display_refresh_rate.dart';
@@ -24,6 +25,10 @@ import 'utils/tv_helper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Crash log FIRST: uncaught Dart errors land in dreamplayer_crash.log
+  // (the "App crashed?" note shares it). Nothing else depends on it, so
+  // install before the async startup chain.
+  CrashLog.install();
   await useNativeDisplayRefreshRate();
   unawaited(initTvMode());
   unawaited(LanguageService.instance.init());

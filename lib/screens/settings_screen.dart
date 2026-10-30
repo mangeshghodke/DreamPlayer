@@ -36,6 +36,7 @@ import '../services/mpv_interpolation_store.dart';
 import '../services/app_icon_service.dart';
 import '../services/app_updater.dart';
 import '../widgets/update_dialog.dart';
+import '../widgets/crash_report_note.dart';
 import '../services/tone_map_store.dart';
 import '../config/simkl_keys.dart';
 import '../services/simkl_client.dart';
@@ -2176,6 +2177,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+            // "App crashed?" — iOS only: hands the handful of debug logs the
+            // app already writes, whatever exists, out to support via the
+            // share sheet (mailto: cannot carry attachments); Android has
+            // no ASC crash reports to answer.
+            if (CrashReportNote.isSupported) const CrashReportNote(),
             // Restore Purchases — always visible when paywall is effective.
             // Opens the paywall sheet so the user can see which product is
             // active and explicitly tap Restore there.
