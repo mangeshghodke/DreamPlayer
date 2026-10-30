@@ -37,7 +37,12 @@ import sys
 import zipfile
 from pathlib import Path
 
-ASSET_ENTRY = "Payload/Runner.app/flutter_assets/assets/libsmb2-objects/libsmb2-objects.zip"
+# On iOS every Flutter asset lives inside the App.framework bundle:
+#   Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/...
+# (assets at the app-bundle root is the ANDROID layout). So match on the
+# flutter_assets suffix rather than one absolute path -- the first version of
+# this check hardcoded the Android path and failed a real, correct IPA.
+ASSET_SUFFIX = "flutter_assets/assets/libsmb2-objects/libsmb2-objects.zip"
 
 # Everything the license and the relinking instructions need.
 REQUIRED_ENTRIES = (
@@ -65,16 +70,16 @@ def check_ipa(ipa: Path) -> list[str]:
             if not matches:
                 problems.append(
                     f"{ipa}: no libsmb2 object-code archive in the bundle "
-                    f"(looked for {ASSET_ENTRY}) -- ios/libsmb2_build.sh must "
+                    f"(looked for *{ASSET_SUFFIX}) -- ios/libsmb2_build.sh must "
                     f"run before the Flutter build, and pubspec.yaml must "
                     f"declare assets/libsmb2-objects/"
                 )
                 return problems
             entry = matches[0]
-            if entry != ASSET_ENTRY:
+            if not entry.endswith(ASSET_SUFFIX):
                 problems.append(
-                    f"{ipa}: object-code archive is at {entry}, expected "
-                    f"{ASSET_ENTRY}"
+                    f"{ipa}: object-code archive is at {entry}, expected it "
+                    f"under *{ASSET_SUFFIX}"
                 )
             data = bundle.read(entry)
             if len(data) < 100000:
