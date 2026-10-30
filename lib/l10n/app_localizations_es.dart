@@ -601,6 +601,13 @@ class AppLocalizationsEs extends AppLocalizations {
       'Compress dynamic range for quiet listening';
 
   @override
+  String get settingsSpatialAudio => 'Audio espacial';
+
+  @override
+  String get settingsSpatialAudioDesc =>
+      'Premium — sonido espacial en AirPods Pro y otros dispositivos compatibles';
+
+  @override
   String get settingsVideoDecoder => 'Video decoder';
 
   @override

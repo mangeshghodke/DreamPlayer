@@ -1224,6 +1224,18 @@ abstract class AppLocalizations {
   /// **'Compresses quiet audio'**
   String get settingsNightModeDesc;
 
+  /// Spatial audio section title
+  ///
+  /// In en, this message translates to:
+  /// **'Spatial audio'**
+  String get settingsSpatialAudio;
+
+  /// Spatial audio subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Premium — spatial sound on AirPods Pro and other compatible devices'**
+  String get settingsSpatialAudioDesc;
+
   /// Decoder picker label
   ///
   /// In en, this message translates to:

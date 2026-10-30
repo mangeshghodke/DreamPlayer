@@ -26,6 +26,7 @@ import '../l10n/app_localizations.dart';
 import '../services/language_service.dart';
 import '../services/metadata_provider_adapter.dart';
 import '../services/opensubtitles_client.dart';
+import '../services/spatial_audio_store.dart';
 import '../services/subtitle_encodings.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
@@ -78,6 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       MpvInterpolationFilter.oversample;
   bool _volumeBoostEnabled = false;
   bool _nightMode = false;
+  bool _spatialAudio = false;
   bool _simklConnected = false;
   DateTime? _simklLastSync;
   String? _osUsername;
@@ -562,6 +564,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// guaranteed no-op there (iOS-only monetization).
   Future<bool> _settingsGate() => settingsGate(context);
 
+  /// Spatial audio is a paid feature: a free user who turns it on gets the
+  /// paywall instead of the feature. An entitled user (paying or in-trial)
+  /// gets it straight away.
+  Future<bool> _spatialAudioGate() async {
+    final ent = Entitlements.instance;
+    if (spatialAudioMayBeEnabled(
+      advanced: ent.isEntitled,
+      paywallActive: ent.effectivePaywallEnabled,
+    )) {
+      return true;
+    }
+    return await showPaywall(context);
+  }
+
   Future<void> _loadTmdbKey() async {
     // Read only the user's SAVED key from prefs — NOT effectiveApiKey(),
     // which falls through to the compile-time TMDB_API_KEY define (injected
@@ -914,10 +930,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final night = await NightModeStore.load();
       final boostEnabled = await VolumeBoostToggleStore.load();
+      final spatial = await SpatialAudioStore.effectiveEnabled();
       if (mounted) {
         setState(() {
           _nightMode = night;
           _volumeBoostEnabled = boostEnabled;
+          _spatialAudio = spatial;
         });
       }
     } catch (_) {}
@@ -1659,17 +1677,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
-            // === Audio (Android only) ===
-            if (defaultTargetPlatform == TargetPlatform.android)
+            // === Audio ===
+            // Android has the engine-level audio DSP (downmix, boost, night
+            // mode, HDMI passthrough); iOS has the spatial-audio opt-in.
+            // Gate the ROW, never the section — a blanket platform gate on a
+            // section silently takes every later row with it.
+            if (defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS)
               ExpansionTile(
                 leading: const Icon(Icons.surround_sound),
                 title: Text(AppLocalizations.of(context).settingsAudio),
                 childrenPadding: const EdgeInsets.only(bottom: 8),
                 children: [
+                  // === Spatial audio (iOS, premium) ===
+                  // Apple's system spatialization is a paid feature: the
+                  // switch defaults OFF and turning it on for a free user
+                  // opens the paywall. The native side reads the same pref
+                  // and opts the item (or the audio session) in or out.
+                  if (defaultTargetPlatform == TargetPlatform.iOS)
+                    SwitchListTile(
+                      secondary: const Icon(Icons.spatial_audio),
+                      title: Text(
+                          AppLocalizations.of(context).settingsSpatialAudio),
+                      subtitle: Text(AppLocalizations.of(context)
+                          .settingsSpatialAudioDesc),
+                      value: _spatialAudio,
+                      onChanged: (value) async {
+                        if (value) {
+                          final allowed = await _spatialAudioGate();
+                          if (!allowed) return;
+                        }
+                        await SpatialAudioStore.save(value);
+                        if (!mounted) return;
+                        setState(() => _spatialAudio = value);
+                      },
+                    ),
                   // === Volume Boost / Night Mode (both engines) ===
                   // MPV only: an mpv engine property. Defaults off so the two
                   // Android engines play at the same level (issue #37).
-                  if (_showMpvSettings)
+                  if (defaultTargetPlatform == TargetPlatform.android &&
+                      _showMpvSettings)
                     SwitchListTile(
                       secondary: const Icon(Icons.surround_sound),
                       title: Text(AppLocalizations.of(context)
@@ -1689,46 +1736,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   // Volume boost is a swipe gesture rather than a value of its own;
                   // see `lib/utils/mpv_volume.dart` and `_applySwipeValue`.
-                  SwitchListTile(
-                    secondary: const Icon(Icons.volume_up),
-                    title: Text(
-                      AppLocalizations.of(context).settingsVolumeBoost,
+                  if (defaultTargetPlatform == TargetPlatform.android)
+                    SwitchListTile(
+                      secondary: const Icon(Icons.volume_up),
+                      title: Text(
+                        AppLocalizations.of(context).settingsVolumeBoost,
+                      ),
+                      subtitle: const Text('Swipe past 100% for up to 200%'),
+                      value: _volumeBoostEnabled,
+                      onChanged: (v) async {
+                        await VolumeBoostToggleStore.save(v);
+                        if (mounted) setState(() => _volumeBoostEnabled = v);
+                      },
                     ),
-                    subtitle: const Text('Swipe past 100% for up to 200%'),
-                    value: _volumeBoostEnabled,
-                    onChanged: (v) async {
-                      await VolumeBoostToggleStore.save(v);
-                      if (mounted) setState(() => _volumeBoostEnabled = v);
-                    },
-                  ),
-                  SwitchListTile(
-                    secondary: const Icon(Icons.nights_stay),
-                    title: Text(AppLocalizations.of(context).settingsNightMode),
-                    subtitle: Text(
-                      AppLocalizations.of(context).settingsNightModeDesc,
+                  if (defaultTargetPlatform == TargetPlatform.android)
+                    SwitchListTile(
+                      secondary: const Icon(Icons.nights_stay),
+                      title: Text(AppLocalizations.of(context).settingsNightMode),
+                      subtitle: Text(
+                        AppLocalizations.of(context).settingsNightModeDesc,
+                      ),
+                      value: _nightMode,
+                      onChanged: (value) async {
+                        await NightModeStore.save(value);
+                        if (mounted) setState(() => _nightMode = value);
+                      },
                     ),
-                    value: _nightMode,
-                    onChanged: (value) async {
-                      await NightModeStore.save(value);
-                      if (mounted) setState(() => _nightMode = value);
-                    },
-                  ),
                   // === HDMI passthrough (TV) ===
-                  SwitchListTile(
-                    secondary: const Icon(Icons.surround_sound),
-                    title: Text(AppLocalizations.of(context).settingsAudioPassthrough),
-                    subtitle: Text(
-                      _passthrough
-                          ? 'Auto — passthrough when HDMI detected'
-                          : 'Off — decode to PCM (default)',
+                  if (defaultTargetPlatform == TargetPlatform.android)
+                    SwitchListTile(
+                      secondary: const Icon(Icons.surround_sound),
+                      title: Text(AppLocalizations.of(context).settingsAudioPassthrough),
+                      subtitle: Text(
+                        _passthrough
+                            ? 'Auto — passthrough when HDMI detected'
+                            : 'Off — decode to PCM (default)',
+                      ),
+                      value: _passthrough,
+                      onChanged: (value) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool(kAudioPassthroughKey, value);
+                        if (mounted) setState(() => _passthrough = value);
+                      },
                     ),
-                    value: _passthrough,
-                    onChanged: (value) async {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.setBool(kAudioPassthroughKey, value);
-                      if (mounted) setState(() => _passthrough = value);
-                    },
-                  ),
                 ],
               ),
             // === Subtitles ===

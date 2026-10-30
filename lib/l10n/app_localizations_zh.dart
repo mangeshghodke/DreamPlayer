@@ -592,6 +592,12 @@ class AppLocalizationsZh extends AppLocalizations {
       'Compress dynamic range for quiet listening';
 
   @override
+  String get settingsSpatialAudio => '空间音频';
+
+  @override
+  String get settingsSpatialAudioDesc => '高级功能 — 在 AirPods Pro 及其他兼容设备上获得空间音效';
+
+  @override
   String get settingsVideoDecoder => 'Video decoder';
 
   @override

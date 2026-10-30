@@ -761,6 +761,14 @@
   "@settingsNightModeDesc": {
     "description": "Night mode subtitle"
   },
+  "settingsSpatialAudio": "空间音频",
+  "@settingsSpatialAudio": {
+    "description": "Spatial audio section title"
+  },
+  "settingsSpatialAudioDesc": "高级功能 — 在 AirPods Pro 及其他兼容设备上获得空间音效",
+  "@settingsSpatialAudioDesc": {
+    "description": "Spatial audio subtitle"
+  },
   "settingsVideoDecoder": "Video decoder",
   "@settingsVideoDecoder": {
     "description": "Decoder picker label"

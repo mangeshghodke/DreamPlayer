@@ -16,9 +16,46 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.4 | 56 | 1766 |
-| 0.5.2 | 51 | 1547 |
+| 0.5.5 | 60 | 1644 |
+| 0.5.4 | 56 | 1756 |
+| 0.5.2 | 51 | 1549 |
 | 0.5.1 | 36 | 3833 |
+
+A count is the length of the text you would paste — the block from its "New:"
+or "Fixed:" line down to its last character, including the final newline — so
+it can be reproduced with a plain character count after any edit.
+
+---
+
+## 0.5.5 (build 60)
+
+New:
+• List or Grid in the network browsers. The three-dot menu at the top right of
+  the SMB, WebDAV, FTP, DLNA and Jellyfin browsers now has a View entry: List
+  for the familiar rows, Grid for tiles with artwork — folders, films and
+  episode stills. The choice applies to every network browser at once, takes
+  effect straight away and is remembered.
+• A second optional catalogue for titles the main one does not carry. It needs
+  no account, key or sign-in. Switch it on in Settings → Metadata and films are
+  matched from the catalogue code in the file name. What it brings is the same
+  as any other match: poster, cast, release date, studio and genres.
+• The Get info, Fix match and Group poster dialogs now search that optional
+  catalogue too, alongside the ones already built in. They previously knew
+  only about the main catalogue, so a key-less setup was told to add a key by
+  the very dialog that could have done the job.
+• A warning when the screen is pushed past 80% brightness, saying that it
+  drains the battery faster. It appears once, at the moment you cross the line,
+  and never blocks playback.
+
+Fixed:
+• Picking a match from the optional catalogue could load the wrong film. The
+  poster and description were fetched from the main catalogue instead, which
+  answered with an unrelated title. The details now come from the catalogue
+  that matched.
+• A catalogue code written without its separator found nothing. The
+  separator-less spelling is now tried as well, so both forms work.
+• Some titles showed stray characters in their original name, because the
+  optional catalogue leaves them in the text it returns.
 
 ---
 

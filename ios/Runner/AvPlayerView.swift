@@ -568,6 +568,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private var artworkTask: URLSessionDataTask?
     /// Remote-command target tokens, removed in deinit.
     private var remoteCommandTokens: [Any] = []
+    /// Notification observer tokens, removed in deinit.
+    private var notificationTokens: [NSObjectProtocol] = []
 
     deinit {
         artworkTask?.cancel()
@@ -580,6 +582,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             cc.skipForwardCommand.removeTarget(token)
             cc.skipBackwardCommand.removeTarget(token)
         }
+        for token in notificationTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
@@ -591,6 +596,82 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         savedVolume = effective
         emit()
     }
+
+    /// Whether the premium spatial-audio opt-in is on.
+    ///
+    /// Written by the Dart store (`dreamplayer.spatialAudio`);
+    /// shared_preferences prefixes its keys with `flutter.` on iOS. Default
+    /// OFF — spatial audio is a paid feature, so a free user never has it on.
+    private var spatialAudioEnabled: Bool {
+        UserDefaults.standard.object(forKey: "flutter.dreamplayer.spatialAudio") as? Bool ?? false
+    }
+
+    /// Whether the current route is spatializing. The system owns that setting
+    /// (Control Center / AirPods); the app can only opt in or out.
+    private var routeSpatialAudioActive: Bool {
+        AVAudioSession.sharedInstance().currentRoute.outputs.first?.isSpatialAudioEnabled ?? false
+    }
+
+    /// Opt the playback in or out of Apple's system spatialization.
+    ///
+    /// The enforcement is per pipeline, and the pipeline decides which lever
+    /// exists.
+    ///
+    /// **Native AVPlayer path** — exact: the item's
+    /// `allowedAudioSpatializationFormats` is the opt-in, and an empty set
+    /// disables spatialization WITHOUT downmixing, so 5.1/7.1 survives.
+    ///
+    /// **Software path** — the engine's renderer opts itself into
+    /// `.multichannel` inside an internal `AudioOutput` the host cannot
+    /// reach, so the audio session is the only lever: a session without
+    /// multichannel support cannot spatialize, so it is asked for stereo.
+    /// That costs 5.1/7.1 on that route — the documented price of the gate.
+    ///
+    /// The session is NEVER touched on the native path, because a session
+    /// without multichannel support would downmix the native path too and
+    /// there is no way to lift that back once the session is active.
+    ///
+    /// `setSupportsMultichannelContent` is an XPC round-trip to mediaserverd
+    /// and must not run on the main thread while the session is active, so it
+    /// goes off-main — the engine declares its own pair the same way.
+    ///
+    /// Returns true when something was applied, so the caller only re-emits
+    /// on a real change.
+    @discardableResult
+    private func applySpatialAudio(force: Bool = false) -> Bool {
+        let enabled = spatialAudioEnabled
+        if !force, lastSpatialAudioApplied == enabled {
+            return false
+        }
+        lastSpatialAudioApplied = enabled
+
+        if let item = findPlayerLayer()?.player?.currentItem {
+            item.allowedAudioSpatializationFormats = enabled ? .multichannel : []
+            return true
+        }
+
+        // The engine publishes its software bridge once the session owns its
+        // display layer, which is the only reliable "this is the software
+        // path" signal. Without it the pipeline is unknown (nothing loaded
+        // yet), and guessing would risk downmixing the native path.
+        guard engine?.softwarePiPSource != nil else { return false }
+        let wantsMultichannel = enabled || !routeSpatialAudioActive
+        Task.detached(priority: .userInitiated) {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setSupportsMultichannelContent(wantsMultichannel)
+        }
+        return true
+    }
+
+    /// The chip state: the feature is engaged only when the premium opt-in is
+    /// on AND the route is actually spatializing.
+    private var spatialAudioState: String {
+        (spatialAudioEnabled && routeSpatialAudioActive) ? "on" : ""
+    }
+
+    /// The last spatial-audio opt-in that was applied, so a defaults change
+    /// that did not touch it does not trigger another session round trip.
+    private var lastSpatialAudioApplied: Bool?
 
     
 
@@ -621,27 +702,63 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         setupRemoteCommands()
         eventChannel.setStreamHandler(self)
         // Keep the pip auto-inline flag in sync when the Settings toggle
-        // changes while a player is alive.
-        NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self else { return }
-            self.pipController?.canStartPictureInPictureAutomaticallyFromInline =
-                Self.pipSettingEnabled()
-            // If the toggle was just turned off and a controller already
-            // exists, keep it (manual pip still works via the system UI);
-            // auto-inline is what the toggle gates. If turned off before
-            // open, ensurePipController simply won't create one.
-        }
+        // changes while a player is alive. The token is kept so deinit can
+        // remove it — an unremoved block observer accumulates one entry per
+        // player view for the whole session.
+        notificationTokens.append(
+            NotificationCenter.default.addObserver(
+                forName: UserDefaults.didChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.pipController?.canStartPictureInPictureAutomaticallyFromInline =
+                    Self.pipSettingEnabled()
+                // If the toggle was just turned off and a controller already
+                // exists, keep it (manual pip still works via the system UI);
+                // auto-inline is what the toggle gates. If turned off before
+                // open, ensurePipController simply won't create one.
+                // The spatial-audio opt-in lives in the same defaults store.
+                if self.applySpatialAudio() {
+                    self.emit()
+                }
+            }
+        )
+
+        // The system owns the spatialization setting (Control Center / AirPods)
+        // and the route can change under the player (AirPods connected, dock
+        // plugged in), so the opt-in is re-applied and re-reported on both.
+        notificationTokens.append(
+            NotificationCenter.default.addObserver(
+                forName: AVAudioSession.routeChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.applySpatialAudio(force: true)
+                self.emit()
+            }
+        )
+        notificationTokens.append(
+            NotificationCenter.default.addObserver(
+                forName: AVAudioSession.spatialPlaybackCapabilitiesChangedNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.applySpatialAudio(force: true)
+                self.emit()
+            }
+        )
 
         // Track background/foreground transitions so play() can reload
         // instead of calling play() on a potentially dead source.
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didEnterBackgroundNotification,
-            object: nil, queue: .main
-        ) { [weak self] _ in self?.needsReloadAfterBackground = true }
+        notificationTokens.append(
+            NotificationCenter.default.addObserver(
+                forName: UIApplication.didEnterBackgroundNotification,
+                object: nil, queue: .main
+            ) { [weak self] _ in self?.needsReloadAfterBackground = true }
+        )
 
         methodChannel.setMethodCallHandler { [weak self] call, result in
             Task { @MainActor in
@@ -910,8 +1027,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     self.applySpeed(min(max(speed, 0.25), 4.0))
                     result(nil)
                 case "enterPip":
-                    self.ensurePipController()
-                    self.pipController?.startPictureInPicture()
+                    self.startPip()
                     result(nil)
                 case "setBrightness":
                     let brightness = (args?["brightness"] as? NSNumber)?.floatValue ?? 0.5
@@ -1393,7 +1509,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 // Fresh AVPlayer instance after load — re-apply the saved rate.
                 self.applySpeed(self.pendingSpeed)
                 // Fresh player layer too — (re)arm picture-in-picture.
-                self.ensurePipController()
+                self.ensureAnyPipController()
+                // The engine re-declares its audio session on every load, so
+                // the spatial-audio opt-in has to be re-applied here too.
+                self.applySpatialAudio(force: true)
                 // Reset any pinch-zoom from a previous session.
                 self.setZoom(1.0)
                 // Resume is not reliable from the load parameter alone on every
@@ -1921,11 +2040,23 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
     // MARK: - Picture-in-picture
 
-    /// Floating-video controller over the engine's `AVPlayerLayer`. Only the
-    /// native AVPlayer path supports it (local files / Apple containers) — the
-    /// FFmpeg custom-source path has no AVPlayerLayer, so [ensurePipController]
-    /// leaves the controller nil and "enterPip" is a harmless no-op there.
+    /// Floating-video controller over the engine's `AVPlayerLayer`. The engine
+    /// routes by codec, not by source: HEVC and progressive H.264 take the
+    /// native AVPlayer path, while AV1/VP9/VP8/MPEG-2/VC-1 and interlaced
+    /// H.264 take the software path. A software session has no AVPlayerLayer,
+    /// so it gets a sample-buffer controller over the engine's
+    /// `AVSampleBufferDisplayLayer` instead — see [softwarePipController].
     private var pipController: AVPictureInPictureController?
+
+    /// Sample-buffer picture-in-picture for the engine's software path. The
+    /// engine publishes the display layer plus the transport answers
+    /// (`timeRange`, `isPaused`, `setPlaying`, `skip`) through
+    /// `softwarePiPSource`; the host owns AVKit.
+    private var softwarePipController: AVPictureInPictureController?
+
+    /// The engine's software-path bridge, captured when the sample-buffer
+    /// controller is armed. Read by the playback delegate.
+    private var softwarePiPSource: SoftwarePiPSource?
 
     /// Mirrored into the event map so Dart hides its overlay controls while
     /// the video floats.
@@ -1956,10 +2087,49 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         pipController = controller
     }
 
+    /// Arm the sample-buffer controller for the engine's software path. The
+    /// engine publishes `softwarePiPSource` once the session owns its display
+    /// layer, so this is only meaningful after a load has settled.
+    private func ensureSoftwarePipController() {
+        guard softwarePipController == nil,
+              Self.pipSettingEnabled(),
+              AVPictureInPictureController.isPictureInPictureSupported(),
+              let source = engine?.softwarePiPSource else { return }
+        let content = AVPictureInPictureController.ContentSource(
+            sampleBufferDisplayLayer: source.layer,
+            playbackDelegate: self
+        )
+        // `init(contentSource:)` is NOT failable (unlike `init?(playerLayer:)`).
+        let controller = AVPictureInPictureController(contentSource: content)
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        controller.delegate = self
+        softwarePipController = controller
+        softwarePiPSource = source
+    }
+
+    /// Arm whichever controller matches the pipeline the engine picked.
+    private func ensureAnyPipController() {
+        ensurePipController()
+        ensureSoftwarePipController()
+    }
+
+    /// Start picture-in-picture on whichever pipeline is live.
+    private func startPip() {
+        ensureAnyPipController()
+        if let controller = pipController {
+            controller.startPictureInPicture()
+        } else if let controller = softwarePipController {
+            controller.startPictureInPicture()
+        }
+    }
+
     /// The engine builds a fresh player per load; drop any controller bound to
     /// the previous layer so the next open re-arms against the live one.
     private func invalidatePipController() {
         pipController = nil
+        softwarePipController = nil
+        softwarePiPSource = nil
+        engine?.pictureInPictureActive = false
         if inPip {
             inPip = false
             emit()
@@ -2177,6 +2347,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             "chapters": chapters,
             "audioBoost": audioBoost,
             "nightMode": nightModeEnabled,
+            "spatialAudio": spatialAudioState,
             "inPip": inPip,
             "error": lastError ?? "",
             "sourceScheme": currentSourceScheme,
@@ -2814,6 +2985,10 @@ extension AvPlayerView: AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerWillStart(
         _ pictureInPictureController: AVPictureInPictureController
     ) {
+        // The engine keeps the pipeline (and, on the software path, the video
+        // decode) alive across the background transition only while this is
+        // set — the PiP window needs frames.
+        engine?.pictureInPictureActive = true
         inPip = true
         emit()
     }
@@ -2821,11 +2996,12 @@ extension AvPlayerView: AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerDidStop(
         _ pictureInPictureController: AVPictureInPictureController
     ) {
+        engine?.pictureInPictureActive = false
         inPip = false
         emit()
         // Re-arm defensively (no-op when the controller is still bound to a
         // live layer) so the next HOME swipe floats again.
-        ensurePipController()
+        ensureAnyPipController()
     }
 
     /// User tapped the restore button on the pip window — the layer is back
@@ -2839,6 +3015,47 @@ extension AvPlayerView: AVPictureInPictureControllerDelegate {
         restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
     ) {
         completionHandler(true)
+    }
+}
+
+// MARK: - PictureInPictureSampleBufferPlaybackDelegate
+
+/// Transport answers for the engine's software path. The PiP window renders
+/// only the sample-buffer layer, so the system's play/pause and skip buttons
+/// have to be answered here; every answer comes from the engine's own bridge
+/// (`SoftwarePiPSource`), which knows the enqueued frames' time axis.
+extension AvPlayerView: AVPictureInPictureSampleBufferPlaybackDelegate {
+    func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        setPlaying playing: Bool
+    ) {
+        softwarePiPSource?.setPlaying(playing)
+    }
+
+    func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        skipByInterval skipInterval: CMTime,
+        completionHandler completion: @escaping (Bool) -> Void
+    ) {
+        guard let source = softwarePiPSource else {
+            completion(false)
+            return
+        }
+        source.skip(by: skipInterval.seconds)
+        completion(true)
+    }
+
+    func pictureInPictureControllerTimeRangeForPlayback(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) -> CMTimeRange {
+        softwarePiPSource?.timeRange()
+            ?? CMTimeRange(start: .zero, duration: .positiveInfinity)
+    }
+
+    func pictureInPictureControllerIsPlaybackPaused(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) -> Bool {
+        softwarePiPSource?.isPaused ?? true
     }
 }
 

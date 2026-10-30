@@ -797,7 +797,8 @@ A video player app supporting:
 
 - **Picture-in-Picture (2026-08-26, user-requested — supersedes the 2026-08-22 rejection)**:
   - **Android**: manifest `android:supportsPictureInPicture="true"` on `MainActivity`; **auto-enter** on HOME/recents while playing (`onUserLeaveHint` → `ExoPlayerView.enterPipIfPlaying`, aspect from `videoSize` clamped 0.42–2.39 → `Rational(n,1000)`); **⋮-sheet row** (explicit entry). **Settings toggle** "Picture-in-picture" (Player section, Android-only, pref `dreamplayer.pipEnabled`, default ON) gates **only auto-entry** — `enterPipInternal(auto)` reads the pref natively (`flutter.dreamplayer.pipEnabled` from `FlutterSharedPreferences`) because the decision happens in `onUserLeaveHint` before Dart could weigh in; the ⋮ row is an explicit user action and ignores the toggle. With PiP off, leaving the app **keeps background audio playing** (user decision — the toggle controls the floating window only; swipe-app-away still pause+stops). Pip window shows ONLY the video: every reveal path gated on `_inPip` (`_showControls`, `_syncControlsForPlaybackState`, gestures, TV key-reveal) and the format chips are transient (next bullet), so nothing leaks into the window. **Dismissal-pause gotcha**: swiping the pip away delivers `onStop` while the system STILL reports `isInPictureInPictureMode=true`, so a `currentlyInPip` guard skips the pause and audio plays on invisibly — `onActivityStopped()` instead pauses whenever the `pipSeen` latch is set (set in `onPipModeChanged(true)`, cleared ONLY in `onResumed()` = expand-back). Tap on the pip body = expand to fullscreen (standard). Verified on-device: HOME → pip playing clean (no chips/bars), swipe-dismiss → `state=PAUSED`.
-  - **iOS** (`AvPlayerView.swift`): `AVPictureInPictureController(playerLayer:)` (`canStartPictureInPictureAutomaticallyFromInline = true`), `enterPip` channel case, `AVPictureInPictureControllerDelegate` emits `inPip` + restores on expand; native-AVPlayer path only (the FFmpeg custom-source path has no `AVPlayerLayer` → no pip there). **Second-swipe fix (2026-08, `4d11555`)**: `restoreUserInterfaceForPictureInPictureStop` no longer nils `pipController` — it stays valid while its `AVPlayerLayer` is alive; `DidStop` re-arms via `ensurePipController` so HOME floats again.
+  - **iOS** (`AvPlayerView.swift`): `AVPictureInPictureController(playerLayer:)` (`canStartPictureInPictureAutomaticallyFromInline = true`), `enterPip` channel case, `AVPictureInPictureControllerDelegate` emits `inPip` + restores on expand. **Second-swipe fix (2026-08, `4d11555`)**: `restoreUserInterfaceForPictureInPictureStop` no longer nils `pipController` — it stays valid while its `AVPlayerLayer` is alive; `DidStop` re-arms via `ensurePipController` so HOME floats again.
+  - **iOS software path — sample-buffer PiP (2026-10-30)**: the engine routes by **CODEC, not by source type** — HEVC and progressive H.264 take the native AVPlayer path, while AV1/VP9/VP8/MPEG-2/VC-1 and interlaced H.264 take the software path (which has no `AVPlayerLayer`, so the player-layer controller had nothing to attach to and PiP was a silent no-op there). The software path now gets its own `AVPictureInPictureController(contentSource: .init(sampleBufferDisplayLayer: playbackDelegate:))` over the engine's published `softwarePiPSource.layer`, with the transport answered through `AVPictureInPictureSampleBufferPlaybackDelegate` (`setPlaying` → `SoftwarePiPSource.setPlaying`, skip → `skip(by:)`, `timeRange()`, `isPaused`). **The engine's `pictureInPictureActive` flag is host-set and load-bearing** — it keeps the pipeline (and the video decode) alive across the background transition, so it is set in `pictureInPictureControllerWillStart` and cleared in `DidStop`. The two controllers are mutually exclusive in practice: `findPlayerLayer()` is nil on the software path, so only one is ever armed. **The engine's route-sharing policy matters here**: on iOS it declares `.default` (tvOS declares `.longFormAudio`, which pins `AVPictureInPictureController.isPictureInPicturePossible` to false for any host-built controller) — so iOS is the platform where a host-built PiP controller is allowed at all.
   - **Stale-build gotcha**: a failed gradle build leaves the PREVIOUS apk in `build/…` — `adb install -r` then installs old code and "fixed" behavior looks broken/random. After any failed build, compare APK mtime vs `adb shell dumpsys package com.dreamplayer.app | grep lastUpdateTime` before testing.
 
 - **Embedded cover-art thumbnails (2026-08-26)**: video cards show the file's **embedded artwork** (MKV attached pictures / MP4 `covr`) instead of the plain gradient. `FileBrowser.getThumbnail` (`dreamplayer/files`) reads **metadata only** — `MediaMetadataRetriever.getEmbeddedPicture` (Android) / `AVURLAsset` `commonMetadata` `commonKeyArtwork` (iOS; MKV attachments unreadable there, MP4/MOV only) — never `getFrameAtTime`, which returns black frames for DV/HDR (do not add frame-extracting thumbnails). Local sources only (path / `file:` / `content:` / `tree:`); remote (SMB/WebDAV/Jellyfin/HTTP) skip the probe. `ThumbnailStore` (`lib/services/thumbnail_store.dart`) caches bytes in memory + disk (`<tmp>/cover_art/<fnv1a32hex>-<tail≤24>.img`), negative-cache in-memory only, keyed by `TmdStore.identityKeyFor` (same key as the details screen). TMDB backdrop still wins on continue-watching cards — embedded art renders only when there's no TMDB match. **Deadlock gotcha**: `future.whenComplete(() => map.remove(key))` DEADLOCKS — the arrow returns `Map.remove`'s value, which IS the same future (it waits on itself); use a block body `{ _inFlight.remove(key); }`. Probe failures/timeouts (10 s guard) just leave the gradient.
@@ -1752,18 +1753,17 @@ Source: https://github.com/mangeshghodke/DreamPlayer/issues/6
 - FTP download hidden — Dart `HttpClient` cannot handle `ftp://` URIs; native download bridge too complex for now
 - **All shipped (2026-09)**: downloaded files in home grid with a green "downloaded" badge + local playback (`_buildDownloadedGrid` in home_screen.dart:1080), Settings → Downloads → download directory picker (settings_screen.dart:503, native `setDownloadDir`/`getDownloadDir`). Nothing left in this phase.
 
-### iOS spatial audio — NOT IMPLEMENTED (design decided 2026-09-28, user deferred)
+### iOS spatial audio — IMPLEMENTED (2026-10-30) + the research that shaped it
 
-**Current state: iOS does nothing.** `AvPlayerView.swift:729` only does
-`setCategory(.playback, mode: .moviePlayback)` + `setActive(true)` and never
-declares multichannel support, so **iOS never even offers the user spatial
-audio**. There is no iOS handler for the `system_controls` channel at all
-(it is registered only in `MainActivity.kt:229`), so
-`SystemControls.spatialAudioChanges` never emits on iOS, `_liveSpatial`
-stays `''`, and the teal Spatial chip is hard-gated on `Platform.isAndroid`
-(`player_screen.dart:4402` and `:6426`). The Android Spatializer wiring
-(`ExoPlayerView.kt:147-256`, `spatialStatus()` → `map["spatialAudio"]`) is
-Android-only and is the parity target.
+**Status: shipped, premium-gated.** The switch, the gate and the native
+enforcement are documented under "Spatial audio is a PAID feature on iOS" in
+the CI / Deployment section — read that one first; it is the authoritative
+description (Settings → Audio → "Spatial audio", default OFF, paywall on
+enable, native opt-in/out per engine path).
+
+The notes below are the design research from 2026-09-28 that decided the
+approach. They are kept because the rejected alternatives are expensive to
+re-derive.
 
 **Do NOT use SpatialAudioKit** (researched 2026-09-28,
 https://spatialaudiokit.github.io/docs/). It is a Swift package by
@@ -1818,16 +1818,17 @@ string contract — the Bass Boost row (gated on it, `player_screen.dart:5825`)
 would then appear on iOS too, which is correct: it exists to offset the
 low-end thinning of HRTF virtualization.
 
-**Verification gap — the reason this is deferred.** There is no Mac and no
+**Verification gap — the reason this shipped blind.** There is no Mac and no
 iOS device in the dev loop, so this can only be CI-verified. A green build
 proves it *compiles*, not that spatial audio *works*; the 2026-09-24
 TestFlight run failed on a one-line Swift type error in
 `FileBrowser.swift` that local tooling could never have caught. Budget for a
 TestFlight cycle and on-device verification with AirPods Pro. Still
-needs on-device confirmation: the AetherEngine FFmpeg path (WebDAV/FTP/Files)
-decodes to PCM through a loopback producer, and whether
-`allowedAudioSpatializationFormats = .multichannel` spatializes that path
-is unknown until tested. Also note Apple's Control Center only shows the
+needs on-device confirmation: the AetherEngine software path (WebDAV/FTP/Files
+MKV) renders through the engine's own `AVSampleBufferAudioRenderer`, and
+whether `allowedAudioSpatializationFormats = .multichannel` spatializes that
+path is unknown until tested — and whether the session's stereo opt-out
+actually silences it. Also note Apple's Control Center only shows the
 spatial icon for `AVPlayer` / `AVSampleBufferAudioRenderer` playback, and
 AirPods settings can read "Spatial Audio Not Playing" even while spatial
 audio is in fact active — do not treat either as a failure signal.
@@ -2879,12 +2880,12 @@ earlier notes here claimed releases were all-free, which was wrong about reality
 | 18 | Sleep timer | Choice-gate on arming timer |
 | 56 | Download to device | Choice-gate on start |
 | 37 | OpenSubtitles online search | Choice-gate on opening search sheet |
+| — | **Spatial audio (iOS)** | Choice-gate on turning the Settings switch ON |
 
 **Explicitly NOT gated (iOS free forever)** — gating these would burn reviews
 (OutPlayer lesson: gating table-stakes = 1★ wave):
-- **PiP (22)** — only works on the native-AVPlayer path; Jellyfin/WebDAV/Files
-  FFmpeg-sourced files have NO PiP on iOS today. Gating it = "paid and PiP
-  doesn't work on my NAS file".
+- **PiP (22)** — now works on BOTH engine paths (the sample-buffer controller
+  covers the software path), so gating it would be indefensible.
 - Gestures (15), aspect/fit (12), repeat/shuffle (16), auto-next (20),
   chapters — table-stakes.
 - All codec audio decode (24) — every format plays free or the player has no
@@ -2896,6 +2897,106 @@ earlier notes here claimed releases were all-free, which was wrong about reality
   info probe (55), downloads-list VIEWING (57), download dir picker (58).
 - **Android = every feature free forever** (hardcoded `advanced = true`,
   zero gated code paths; the gate map is iOS-only).
+
+### Spatial audio is a PAID feature on iOS (2026-10-30)
+
+**The switch, not the OS.** Apple owns the spatialization decision (Control
+Center / AirPods settings); the app can only opt an item IN or out. So the
+premium gate is an explicit app-level opt-in:
+
+- **Settings → Audio → "Spatial audio"** (iOS only; the Android row does not
+  exist because Android's spatial audio is the platform Spatializer, which
+  the app only *reports* and never controls — there is nothing to gate).
+  **Default OFF.** Turning it ON for a free user opens the paywall and leaves
+  the switch OFF if the user dismisses it; an entitled user (paying or in the
+  7-day trial) gets it straight away. Gate helper:
+  `spatialAudioMayBeEnabled` (`lib/services/spatial_audio_store.dart`),
+  wired in `settings_screen._spatialAudioGate`.
+- **Dart↔native contract**: the pref is `dreamplayer.spatialAudio`
+  (`SpatialAudioStore.prefsKey`); shared_preferences prefixes it on iOS, so
+  the native side reads `flutter.dreamplayer.spatialAudio` straight from
+  `UserDefaults`. `test/spatial_audio_gate_test.dart` pins both spellings
+  together — a rename on either side would silently leave the feature stuck
+  OFF, which is exactly the failure the test exists to catch.
+
+**Enforcement is per pipeline, and the engine decides the pipeline.** AetherEngine
+routes by **CODEC, not by source type**: HEVC and progressive H.264 take the
+native AVPlayer path; AV1/VP9/VP8/MPEG-2/VC-1 and interlaced H.264 take the
+software path. (This corrects the older note that said the FFmpeg path was a
+*source* thing — MKV just happens to land on the software path because
+AVPlayer cannot open the container.)
+
+| | Native AVPlayer path | Software path |
+|---|---|---|
+| Switch ON | `AVPlayerItem.allowedAudioSpatializationFormats = .multichannel` — exact | The engine's own renderer already opts into `.multichannel` — nothing to do |
+| Switch OFF | `allowedAudioSpatializationFormats = []` — exact, **5.1/7.1 is kept** | **No host seam.** The renderer's `allowedAudioSpatializationFormats` is set inside the engine's `AudioOutput`, which is `internal`. The only lever is the audio session: a session without multichannel support cannot spatialize, so it is asked for stereo. |
+
+**The software-path cost, stated plainly.** A free user on a route that
+spatializes (AirPods Pro has Spatial Audio on by default) gets **stereo
+instead of 5.1/7.1** on the software path. That is the price of enforcing the
+gate without forking the engine: the alternative is the renderer spatializing
+multichannel for free, because the engine opts itself in and the host cannot
+opt it out. The session is only asked for stereo when it would otherwise leak
+(`!enabled && routeIsSpatializing`); every other route keeps multichannel.
+
+**THE session lever must never be used on the native path.** A session without
+multichannel support downmixes the **native** path's 5.1/7.1 to stereo too —
+and there is no way to lift that back once the session is active, so the
+downmix would stick for the whole session. So `applySpatialAudio` picks ONE
+lever per pipeline and never mixes them:
+
+- **Native path** (`findPlayerLayer()?.player?.currentItem` exists) → the
+  item's `allowedAudioSpatializationFormats`, and the session is left alone.
+- **Software path** → the session. The signal that the software path is live
+  is `engine.softwarePiPSource != nil` (the engine publishes it once the
+  session owns its display layer); without that signal the pipeline is unknown
+  (nothing loaded yet) and guessing would risk downmixing the native path.
+- **Neither** → do nothing. Guessing is the trap, not the safe default.
+
+**The software-path lever is best-effort, and that is honest.** It is applied
+after the load settles, by which time the engine has already activated the
+session, and Apple documents `setSupportsMultichannelContent` as a
+pre-activation call. So the enforcement on the software path is *probably*
+effective and *possibly* a no-op — a free user on a spatializing route may
+still hear spatialized multichannel there. The native path (Apple containers:
+HEVC / progressive H.264 in MP4/MOV) is exact. Do not describe the software
+path as enforced.
+
+**Forcing the engine to expose the renderer would fix the asymmetry** — it is
+an LGPL-3.0 package, so a local fork is legally possible, but it is 219
+source files, a new pbxproj package reference and an LGPL source-publication
+obligation. Not worth it for a 5.1→stereo difference on one route.
+
+**Traps:**
+- `setSupportsMultichannelContent` is an **XPC round-trip to mediaserverd**
+  and must NOT run on the main thread while the session is active — it trips
+  Xcode's hang-risk diagnostic. The engine declares its own pair off-main in
+  `Task.detached`; ours does the same (`applySpatialAudio`).
+- The engine **re-declares the session on every load** (`awaitAudioSessionCategoryConfigured`
+  before activation), so the opt-in has to be re-applied after each load, not
+  just once at startup.
+- `AVAudioSession.spatialPlaybackCapabilitiesChangedNotification` and
+  `routeChangeNotification` both matter: the system setting can change under
+  the player (AirPods connected, dock plugged in), and the chip has to follow.
+- The chip reports `spatialAudio: "on"` only when the switch is ON **and** the
+  route is actually spatializing. The Dart chip is no longer Android-gated
+  (`player_screen.dart`) — the state comes from the platform either way.
+- **A lapsed entitlement must switch the feature OFF.** The native side reads
+  the opt-in straight from `UserDefaults` (there is no channel round trip), so
+  a stale ON value survives an expired 7-day trial or a cancelled
+  subscription and the paid feature keeps working for free.
+  `SpatialAudioStore.effectiveEnabled()` is the correction: it returns the
+  saved value only while `Entitlements.instance.isEntitled`, and otherwise
+  persists `false`. It runs **before the native open**
+  (`player_screen.dart` `_openCurrent`, iOS only) so the correction lands
+  before the native side reads the pref, and on the Settings screen load so
+  the switch shows the truth. Pinned by `test/spatial_audio_gate_test.dart`.
+- **Every block observer needs its token kept.** `addObserver(forName:…)`
+  returns a token that MUST be stored and removed in `deinit` — an unremoved
+  block observer stays in `NotificationCenter` for the rest of the process, so
+  one entry accumulates per player view. `AvPlayerView` keeps them in
+  `notificationTokens`; the `UserDefaults.didChangeNotification` observer was
+  the leak (one per player view, fired on every shared-preferences write).
 
 **ANDROID IMMUNITY GUARANTEE (2026-09-09)** — Android builds (esp. GitHub
 Releases sideloads) must NEVER show a paywall even after future bug-fix and
@@ -2922,13 +3023,13 @@ Enforced by tests: `test/entitlements_test.dart` asserts (a) on Android
 sheet builder returns null on Android. CI (`flutter test`) gates the paywall
 branch. Future Android-only features must follow the same pattern: read
 `Entitlements.advanced`, never touch StoreKit, never gate.
-- Note: bass/volume-boost/night-mode/spatial (28–31) are **Android-only today**;
+- Note: bass/volume-boost/night-mode (28–30) are **Android-only today**;
   they don't exist on iOS, so they're NOT in this gate map. If iOS audio DSP
   is ever built (AVAudioEngine), it can be added behind the paywall later —
-  never double-gate the same feature. (Spatial audio is a different case: it
-  is NOT custom DSP on iOS, it rides AVPlayer's built-in system
-  spatialization — see "iOS spatial audio" in the Roadmap, which is deferred
-  for a verification reason, not an entitlement one.)
+  never double-gate the same feature. **Spatial audio is the exception: it is
+  NOT custom DSP on iOS** — it rides AVPlayer's built-in system spatialization,
+  and it IS in the gate map (added 2026-10-30, see "Spatial audio is a PAID
+  feature on iOS" above).
 
 **Testing gate** (2026-09-09): ✅ **ALL 7 GATES VERIFIED** on-device
 (OnePlus CPH2573, `a019b7f3`, debug APK, 2026-09-09). Paywall code can

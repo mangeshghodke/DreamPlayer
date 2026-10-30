@@ -769,6 +769,14 @@
   "@settingsNightModeDesc": {
     "description": "Night mode subtitle"
   },
+  "settingsSpatialAudio": "Spatial audio",
+  "@settingsSpatialAudio": {
+    "description": "Spatial audio section title"
+  },
+  "settingsSpatialAudioDesc": "Premium — spatial sound on AirPods Pro and other compatible devices",
+  "@settingsSpatialAudioDesc": {
+    "description": "Spatial audio subtitle"
+  },
   "settingsVideoDecoder": "Video decoder",
   "@settingsVideoDecoder": {
     "description": "Decoder picker label"

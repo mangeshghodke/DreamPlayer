@@ -31,6 +31,7 @@ import '../services/tmdb_client.dart';
 import '../services/simkl_client.dart';
 import '../services/watched_store.dart';
 import '../services/sidecar_subtitle_service.dart';
+import '../services/spatial_audio_store.dart';
 import '../services/mpv_pip.dart';
 import '../services/mpv_surface_view.dart';
 import '../services/mpv_downmix_store.dart';
@@ -858,6 +859,15 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (fsPath != null && fsPath.isNotEmpty) {
           await FileBrowserService.instance.resolvePath(fsPath);
         }
+      } catch (_) {}
+    }
+    // The native side reads the spatial-audio preference straight from the
+    // prefs (it is the only way it learns it without a channel round trip),
+    // so an expired trial or a lapsed subscription has to be corrected
+    // BEFORE the open — otherwise the paid feature stays on for free.
+    if (!_inTests && Platform.isIOS) {
+      try {
+        await SpatialAudioStore.effectiveEnabled();
       } catch (_) {}
     }
     try {
@@ -5277,7 +5287,7 @@ if (mounted) setState(_applySwipeValue);
           video.isTranscoded ||
           JellyfinClient.isTranscodeUri(video.uri ?? ''))
         (label: AppLocalizations.of(context).playerStream, value: 'Server transcoding'),
-      if (Platform.isAndroid && _liveSpatial == 'on')
+      if (_liveSpatial == 'on')
         (label: AppLocalizations.of(context).playerSpatialAudio, value: 'On'),
       if (Platform.isAndroid && _volumeBoostEnabled)
         (
@@ -7397,8 +7407,10 @@ if (mounted) setState(_applySwipeValue);
           ));
         }
       }
-      // Spatial audio — Android only, both engines (spatial is platform-level).
-      if (_badgeSpatialAudio && Platform.isAndroid && _liveSpatial == 'on') {
+      // Spatial audio — the state comes from the platform (Android: the
+      // system Spatializer; iOS: Apple's system spatialization, which the
+      // premium Settings toggle opts into).
+      if (_badgeSpatialAudio && _liveSpatial == 'on') {
         chips.add(FormatChip(
           label: 'Spatial',
           color: Color(0xFF26A69A),

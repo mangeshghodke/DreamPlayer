@@ -596,6 +596,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsNightModeDesc => 'Compresses quiet audio';
 
   @override
+  String get settingsSpatialAudio => 'Spatial audio';
+
+  @override
+  String get settingsSpatialAudioDesc =>
+      'Premium — spatial sound on AirPods Pro and other compatible devices';
+
+  @override
   String get settingsVideoDecoder => 'Video decoder';
 
   @override
