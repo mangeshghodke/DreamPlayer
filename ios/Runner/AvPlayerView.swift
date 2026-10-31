@@ -1908,7 +1908,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 reassertAudioTrack: reassertAudioTrack
             )
             return true
-        } catch let error as CancellationError {
+        } catch is CancellationError {
             // Superseded by a newer load elsewhere — not a playback failure.
             SBMLog.log("reloadSession: cancelled (superseded)")
             return false
@@ -1932,11 +1932,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         reassertAudioTrack: reassertAudioTrack
                     )
                     return true
-                } catch let retryError as CancellationError {
+                } catch is CancellationError {
                     SBMLog.log("reloadSession: cancelled (superseded)")
                     return false
                 } catch {
-                    lastError = String(describing: retryError)
+                    // `error` is the implicit binding of the generic catch —
+                    // `retryError` only exists in the typed clause above.
+                    lastError = String(describing: error)
                     SBMLog.log("reloadSession: retry failed — \(lastError ?? "")")
                     return false
                 }
