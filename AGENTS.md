@@ -375,16 +375,13 @@ A video player app supporting:
   audio-switch could crash) and **restored in 0.5.1 on libsmb2** — see
   "iOS in-app SMB on libsmb2" below. NAS files now reach the app through the in-app
   browser on both platforms, plus CX/Files "Open with", WebDAV and Jellyfin.
-  **Minimum iOS 17.0** (`IPHONEOS_DEPLOYMENT_TARGET = 17.0`; 16.0 → 17.0 on
+  **Minimum iOS 18.0** (`IPHONEOS_DEPLOYMENT_TARGET = 18.0`; 16.0 → 17.0 on
   2026-08 because Citadel (SFTP) requires iOS 17, then 17.0 → 18.0 on
-  2026-10-31 because the AetherEngine 7.x line used 17.2/17.4/18 APIs
-  unconditionally, then **17.0 again on 2026-10-31 (build 64)** because the
-  DreamPlayer fork of AetherEngine 7.53.3 added `#available` guards for the
-  17.2 (`renderingModeChangeNotification`) and 17.4 (`loadVideoPerformanceMetrics`)
-  APIs. The 18 APIs (`Task.detached(executorPreference:)`,
-  `asUnownedTaskExecutor()`) were already guarded with `#available(visionOS 2, *)`).
-  Builds through the latest, iPhone and iPad). The App Store Connect listing's
-  minimum-version field must be lowered to 17.0 at the next submission.
+  2026-10-31 because the AetherEngine 7.x line REQUIRES iOS 18 — see the
+  "iOS audio DSP" section: the package uses 17.2 / 17.4 / 18 APIs
+  unconditionally, so the app's target has to follow the package's. Builds
+  through the latest, iPhone and iPad). The App Store Connect listing's
+  minimum-version field must be raised to 18.0 at the next submission.
   - Channel mapping: state 1/2/3/4 (idle/buffering/ready/ended); DV surfaces as
     `dvhe.<profile>.06` so Dart's `dv`-prefix detection fires; `colorTransfer`
     6 for HDR10/10+/DV, 7 for HLG. Audio/subtitle tracks pushed via
