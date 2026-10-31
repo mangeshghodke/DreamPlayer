@@ -378,7 +378,7 @@ A video player app supporting:
   **Minimum iOS 17.0** (`IPHONEOS_DEPLOYMENT_TARGET = 17.0`; 16.0 → 17.0 on
   2026-08 because Citadel (SFTP) requires iOS 17, then 17.0 → 18.0 on
   2026-10-31 because the AetherEngine 7.x line used 17.2/17.4/18 APIs
-  unconditionally, then **17.0 again on 2026-10-31 (build 65)** because the
+  unconditionally, then **17.0 again on 2026-10-31 (build 64)** because the
   DreamPlayer fork of AetherEngine 7.53.3 added `#available` guards for the
   17.2 (`renderingModeChangeNotification`) and 17.4 (`loadVideoPerformanceMetrics`)
   APIs. The 18 APIs (`Task.detached(executorPreference:)`,
