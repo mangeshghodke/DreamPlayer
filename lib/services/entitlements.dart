@@ -772,3 +772,41 @@ GateResult checkGate({
   if (advanced) return GateResult.available;
   return GateResult.paywallNeeded;
 }
+
+/// Pure decision: may a persisted DSP setting stay ON?
+///
+/// [saved] — the stored value (for the bass level, `level > 0`).
+/// [advanced] — Entitlements.instance.isEntitled.
+/// [paywallActive] — Entitlements.instance.effectivePaywallEnabled.
+///
+/// Mirrors `spatialAudioMayBeEnabled`: the gate is on turning a premium
+/// feature ON, so a saved ON survives only while the user is entitled.
+bool dspSettingMayStayEnabled({
+  required bool saved,
+  required bool advanced,
+  required bool paywallActive,
+}) {
+  if (!saved) return false;
+  if (!paywallActive) return true;
+  return advanced;
+}
+
+/// Correction for a persisted iOS DSP setting — volume boost, night mode,
+/// or a bass level stored as `saved > 0` — the exact shape
+/// `SpatialAudioStore.effectiveEnabled` applies to spatial audio.
+///
+/// The value a user turned ON stays on across restarts while they are
+/// entitled (paying or in trial); once the entitlement lapses a stale ON is
+/// forced back to OFF, so a premium feature can never keep working for free
+/// from the stored pref alone. Android never corrects: the paywall is
+/// iOS-only and `Entitlements` hard-rewards `advanced` there, so the
+/// platform check alone keeps Android immune regardless of store state.
+bool effectiveDspSetting(bool saved) {
+  if (!saved || defaultTargetPlatform != TargetPlatform.iOS) return saved;
+  final ent = Entitlements.instance;
+  return dspSettingMayStayEnabled(
+    saved: saved,
+    advanced: ent.isEntitled,
+    paywallActive: ent.effectivePaywallEnabled,
+  );
+}

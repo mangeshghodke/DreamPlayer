@@ -548,7 +548,9 @@ abstract class PlaybackController {
   /// Night Mode — dynamic range compression / loudness normalisation.
   Future<void> setNightMode(bool enabled);
 
-  /// Sets the bass boost level (0 off – 3 high); Android only.
+  /// Sets the bass boost level (0 off – 3 high). Android attaches a session
+  /// BassBoost effect; iOS applies it as a low shelf in the engine's
+  /// AudioShaping (the AetherEngine fork) — see the paywall gate map.
   Future<void> setBassBoost(int level);
 
   /// Pinch-to-zoom crop: scales the video surface around its center

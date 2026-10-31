@@ -684,8 +684,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         // to a film never reopens at 200% of its own accord. Only the toggle
         // that permits going past 100% is a real setting.
         _audioBoost = 1.0;
-        _volumeBoostEnabled = await VolumeBoostToggleStore.load();
-        _nightMode = await NightModeStore.load();
+        // The iOS DSP trio is paywall-gated (spatial-audio precedent): a
+        // saved ON survives a restart while entitled, but a lapsed trial or
+        // subscription must not keep shaping audio from the stored pref.
+        _volumeBoostEnabled =
+            effectiveDspSetting(await VolumeBoostToggleStore.load());
+        _nightMode = effectiveDspSetting(await NightModeStore.load());
         _subtitleDelayMs = (await SubtitleStyle.load()).delayMs;
         _decoderMode = await DecoderModeStore.load();
       } catch (_) {}
@@ -721,6 +725,17 @@ class _PlayerScreenState extends State<PlayerScreen>
       try {
         await exo.setAudioBoost(_audioBoost);
         await exo.setNightMode(_nightMode);
+        // iOS: push the effective bass level too. The native side reads the
+        // pref itself (Android parity), but a lapsed entitlement has to reach
+        // the engine as 0 — the push also persists that correction. Android
+        // skips this: its BassBoost FX attaches with the audio session, which
+        // does not exist yet this early.
+        if (!Platform.isAndroid) {
+          final prefs = await SharedPreferences.getInstance();
+          final saved =
+              (prefs.getInt('dreamplayer.bassBoost') ?? 0).clamp(0, 3).toInt();
+          await exo.setBassBoost(effectiveDspSetting(saved > 0) ? saved : 0);
+        }
       } catch (_) {}
       if (mounted) setState(() {});
       await _openCurrent();
@@ -5289,15 +5304,16 @@ if (mounted) setState(_applySwipeValue);
         (label: AppLocalizations.of(context).playerStream, value: 'Server transcoding'),
       if (_liveSpatial == 'on')
         (label: AppLocalizations.of(context).playerSpatialAudio, value: 'On'),
-      if (Platform.isAndroid && _volumeBoostEnabled)
+      if (_volumeBoostEnabled)
         (
           label: AppLocalizations.of(context).playerVolumeBoost,
           value: _audioBoost > 1.01
               ? '${(_audioBoost * 100).round()}%'
               : 'Off'
         ),
-      if (Platform.isAndroid && _nightMode) (label: AppLocalizations.of(context).playerNightMode, value: 'On'),
-      if (Platform.isAndroid && _liveBass > 0)
+      if (_nightMode)
+        (label: AppLocalizations.of(context).playerNightMode, value: 'On'),
+      if (_liveBass > 0)
         (label: AppLocalizations.of(context).playerBassBoost, value: '$_liveBass/3'),
       if (speedLabel != null) (label: AppLocalizations.of(context).playerSpeed, value: speedLabel),
       if (_chapters.isNotEmpty)
@@ -6604,10 +6620,13 @@ if (mounted) setState(_applySwipeValue);
                       ),
                     const Divider(color: Colors.white12, height: 1),
                   ],
-                  // Night Mode and Bass Boost are Android-only (Media3
-                  // DynamicsProcessing) — AVPlayer caps volume at 1.0 and has
-                  // no DRC, so the toggles would be cosmetic no-ops on iOS.
-                  if (defaultTargetPlatform == TargetPlatform.android) ...[
+                  // Night Mode and Bass Boost apply on both engines' platforms:
+                  // Android routes them through Media3 (PCM gain + limiter,
+                  // +4 dB night, session BassBoost), iOS through the engine's
+                  // AudioShaping (make-up gain, Compressor.night, low shelf).
+                  // Volume boost itself stays a gesture — see below.
+                  if (defaultTargetPlatform == TargetPlatform.android ||
+                      defaultTargetPlatform == TargetPlatform.iOS) ...[
                     // Volume Boost no longer lives here. It is a gesture, not a
                     // slider: swipe the right half of the player past 100% and
                     // the extra travel becomes over-amplification, gated by
@@ -6645,7 +6664,10 @@ if (mounted) setState(_applySwipeValue);
                                     const ['Off', 'Low', 'Medium', 'High'][level],
                                     style: const TextStyle(color: Colors.white),
                                   ),
-                                  onTap: () {
+                                  onTap: () async {
+                                    // Turning the DSP on is gated; returning
+                                    // to Off always stays free.
+                                    if (level > 0 && !await _gate()) return;
                                     setState(() => _liveBass = level);
                                     setSheet(() {});
                                     _exo?.setBassBoost(level);
@@ -6663,6 +6685,7 @@ if (mounted) setState(_applySwipeValue);
                       trailing: Switch(
                         value: _nightMode,
                         onChanged: (v) async {
+                          if (v && !await _gate()) return;
                           setState(() => _nightMode = v);
                           setSheet(() {});
                           if (_mpvReady) {
@@ -6675,6 +6698,7 @@ if (mounted) setState(_applySwipeValue);
                       ),
                       onTap: () async {
                         final v = !_nightMode;
+                        if (v && !await _gate()) return;
                         setState(() => _nightMode = v);
                         setSheet(() {});
                         if (_mpvReady) {

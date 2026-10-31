@@ -929,8 +929,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadAudioFilters() async {
     try {
-      final night = await NightModeStore.load();
-      final boostEnabled = await VolumeBoostToggleStore.load();
+      // The iOS DSP trio is paywall-gated — same correction
+      // `SpatialAudioStore.effectiveEnabled` applies, so a lapsed
+      // entitlement shows (and keeps) the truth instead of a stale ON.
+      final night = effectiveDspSetting(await NightModeStore.load());
+      final boostEnabled =
+          effectiveDspSetting(await VolumeBoostToggleStore.load());
       final spatial = await SpatialAudioStore.effectiveEnabled();
       if (mounted) {
         setState(() {
@@ -1737,7 +1741,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   // Volume boost is a swipe gesture rather than a value of its own;
                   // see `lib/utils/mpv_volume.dart` and `_applySwipeValue`.
-                  if (defaultTargetPlatform == TargetPlatform.android)
+                  // Android applies it as PCM gain + peak limiter in the sink;
+                  // iOS as make-up gain in the engine's AudioShaping.
+                  if (defaultTargetPlatform == TargetPlatform.android ||
+                      defaultTargetPlatform == TargetPlatform.iOS)
                     SwitchListTile(
                       secondary: const Icon(Icons.volume_up),
                       title: Text(
@@ -1746,11 +1753,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: const Text('Swipe past 100% for up to 200%'),
                       value: _volumeBoostEnabled,
                       onChanged: (v) async {
+                        // Turning the DSP on is gated (iOS paywall);
+                        // switching off always stays free.
+                        if (v && !await _settingsGate()) return;
                         await VolumeBoostToggleStore.save(v);
                         if (mounted) setState(() => _volumeBoostEnabled = v);
                       },
                     ),
-                  if (defaultTargetPlatform == TargetPlatform.android)
+                  if (defaultTargetPlatform == TargetPlatform.android ||
+                      defaultTargetPlatform == TargetPlatform.iOS)
                     SwitchListTile(
                       secondary: const Icon(Icons.nights_stay),
                       title: Text(AppLocalizations.of(context).settingsNightMode),
@@ -1759,6 +1770,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       value: _nightMode,
                       onChanged: (value) async {
+                        if (value && !await _settingsGate()) return;
                         await NightModeStore.save(value);
                         if (mounted) setState(() => _nightMode = value);
                       },

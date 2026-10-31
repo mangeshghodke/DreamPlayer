@@ -560,6 +560,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private var nightModeEnabled: Bool =
         UserDefaults.standard.bool(forKey: "flutter.dreamplayer.nightMode")
 
+    /// Bass boost level (0-3). Same FlutterSharedPreferences key the Android
+    /// native side writes, so it is one setting across platforms; iOS applies
+    /// it as a low shelf (0/4/7/10 dB @ 100 Hz) in the engine's AudioShaping.
+    private var bassLevel: Int = {
+        let v = UserDefaults.standard.integer(forKey: "flutter.dreamplayer.bassBoost")
+        return min(max(v, 0), 3)
+    }()
+
     // ---- Background playback: lock screen / control center ----
     /// Media title from Dart's `open` (shown on the lock screen).
     private var mediaTitle: String?
@@ -574,6 +582,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
     deinit {
         artworkTask?.cancel()
+        shapingWorkItem?.cancel()
         let cc = MPRemoteCommandCenter.shared()
         for token in remoteCommandTokens {
             cc.playCommand.removeTarget(token)
@@ -589,9 +598,77 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
-    private func applyAudioBoost() {
-        // AVPlayer volume is capped at 1.0; boost >1 is clamped and night mode
-        // is a flag only for UI / future DRC tap. Store and emit so chips update.
+    /// Debounces a burst of boost/night/bass changes into ONE session rebuild:
+    /// `AetherEngine.setAudioShaping` re-anchors the session at the playhead
+    /// (~0.3 s of held picture) per change, so a gesture's steps must fold.
+    private var shapingWorkItem: DispatchWorkItem?
+
+    /// The AudioShaping the three DSP controls ask for. Boost is flat make-up
+    /// gain (ratio 1 — transparent; the graph's -1 dBFS alimiter caps the sum),
+    /// night mode is the engine's own `Compressor.night` preset with the
+    /// boost's make-up stacked on it (10 + ~9.5 dB max, inside the 24 dB
+    /// clamp), and bass is the low shelf at 100 Hz. All three off returns the
+    /// default shaping, which the engine treats as byte-for-byte passthrough.
+    private func makeAudioShaping() -> AudioShaping {
+        let boostDB = audioBoost > 1.0 ? 20.0 * log10(Double(audioBoost)) : 0.0
+        let bass = [0.0, 4.0, 7.0, 10.0][min(max(bassLevel, 0), 3)]
+        guard nightModeEnabled || boostDB > 0 || bass > 0 else {
+            return AudioShaping()
+        }
+        let compressor: AudioShaping.Compressor?
+        if nightModeEnabled {
+            let night = AudioShaping.Compressor.night
+            compressor = AudioShaping.Compressor(
+                thresholdDB: night.thresholdDB,
+                ratio: night.ratio,
+                makeupGainDB: night.makeupGainDB + boostDB,
+                attackMilliseconds: night.attackMilliseconds,
+                releaseMilliseconds: night.releaseMilliseconds,
+                kneeDB: night.kneeDB
+            )
+        } else {
+            compressor = boostDB > 0
+                ? AudioShaping.Compressor(
+                    thresholdDB: 0,
+                    ratio: 1,
+                    makeupGainDB: boostDB,
+                    attackMilliseconds: 10,
+                    releaseMilliseconds: 250,
+                    kneeDB: 0
+                )
+                : nil
+        }
+        return AudioShaping(compressor: compressor, bassGainDB: bass, bassFrequencyHz: 100)
+    }
+
+    /// Push the three controls into the engine. The value is written into
+    /// `lastLoadOptions` FIRST because every `load()` replaces the engine's
+    /// options wholesale (AetherEngine.swift `loadedOptions = options`), so
+    /// `open()`'s LoadOptions and `reloadSession`'s copy both read it from
+    /// there; the live setter then rebuilds the RUNNING session when needed.
+    private func applyAudioShaping() {
+        let shaping = makeAudioShaping()
+        lastLoadOptions.audioShaping = shaping
+        shapingWorkItem?.cancel()
+        shapingWorkItem = nil
+        if let engine {
+            if engine.state == .playing {
+                // Debounce only while audio runs: each apply rebuilds the
+                // session at the playhead. Idle/loading apply immediately —
+                // the engine no-ops when the value is already in force, and a
+                // loading session reads the value we just wrote into options.
+                let item = DispatchWorkItem { [weak self] in
+                    self?.engine?.setAudioShaping(shaping)
+                }
+                shapingWorkItem = item
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
+            } else {
+                engine.setAudioShaping(shaping)
+            }
+        }
+        // Unchanged from the old boost hook: AVPlayer's own volume stays at
+        // unity (it caps at 1.0 — the boost lives in AudioShaping now), and
+        // mute restores whatever was saved.
         let effective: Float = min(audioBoost, 1.0)
         if !isMuted { engine?.volume = effective }
         savedVolume = effective
@@ -1047,13 +1124,19 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     let boost = Float((args?["boost"] as? NSNumber)?.doubleValue ?? 1.0)
                     self.audioBoost = min(max(boost, 1), 3)
                     UserDefaults.standard.set(Double(self.audioBoost), forKey: "flutter.dreamplayer.audioBoost")
-                    self.applyAudioBoost()
+                    self.applyAudioShaping()
                     result(nil)
                 case "setNightMode":
                     let enabled = (args?["enabled"] as? Bool) ?? false
                     self.nightModeEnabled = enabled
                     UserDefaults.standard.set(enabled, forKey: "flutter.dreamplayer.nightMode")
-                    self.applyAudioBoost()
+                    self.applyAudioShaping()
+                    result(nil)
+                case "setBassBoost":
+                    let level = (args?["level"] as? NSNumber)?.intValue ?? 0
+                    self.bassLevel = min(max(level, 0), 3)
+                    UserDefaults.standard.set(self.bassLevel, forKey: "flutter.dreamplayer.bassBoost")
+                    self.applyAudioShaping()
                     result(nil)
                 case "setZoom":
                     let scale = CGFloat((args?["scale"] as? NSNumber)?.doubleValue ?? 1.0)
@@ -1330,7 +1413,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             }
         }
 
-        let options = LoadOptions(
+        var options = LoadOptions(
             httpHeaders: [:],
             panelIsInHDRMode: UIScreen.main.currentEDRHeadroom > 1.0,
             preferredAudioLanguages: [],
@@ -1338,6 +1421,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             externalSubtitles: externals,
             autoplay: true
         )
+        // `load()` replaces the engine's options wholesale, so the boost /
+        // night / bass state must ride THIS LoadOptions — Dart pushes the
+        // values over the method channel before `open` is ever called.
+        options.audioShaping = makeAudioShaping()
         lastSource = source
         lastLoadOptions = options
         // Resume: continue from the last watched position when the caller asks.
@@ -2348,6 +2435,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             "chapters": chapters,
             "audioBoost": audioBoost,
             "nightMode": nightModeEnabled,
+            "bassBoost": bassLevel,
             "spatialAudio": spatialAudioState,
             "inPip": inPip,
             "error": lastError ?? "",

@@ -46,6 +46,66 @@ void main() {
       expect(e.advanced, isTrue);
     });
 
+    test('dspSettingMayStayEnabled: a saved OFF never becomes ON', () {
+      expect(
+        dspSettingMayStayEnabled(
+          saved: false,
+          advanced: false,
+          paywallActive: true,
+        ),
+        isFalse,
+      );
+      expect(
+        dspSettingMayStayEnabled(
+          saved: false,
+          advanced: true,
+          paywallActive: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('dspSettingMayStayEnabled: a saved ON survives while entitled', () {
+      expect(
+        dspSettingMayStayEnabled(
+          saved: true,
+          advanced: true,
+          paywallActive: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('dspSettingMayStayEnabled: a lapsed entitlement forces the OFF', () {
+      expect(
+        dspSettingMayStayEnabled(
+          saved: true,
+          advanced: false,
+          paywallActive: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('dspSettingMayStayEnabled: an inactive paywall never corrects', () {
+      expect(
+        dspSettingMayStayEnabled(
+          saved: true,
+          advanced: false,
+          paywallActive: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('effectiveDspSetting never touches Android (immunity guarantee)',
+        () {
+      // Flutter tests run with defaultTargetPlatform == android, where the
+      // paywall is not even active — a saved ON must stay ON.
+      expect(effectiveDspSetting(true), isTrue);
+      expect(effectiveDspSetting(false), isFalse);
+    });
+
     test('7-day trial is inactive until started', () {
       final e = Entitlements.instance;
       expect(e.trialActive, isFalse);
