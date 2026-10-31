@@ -37,7 +37,7 @@ const _kFeatures = [
   'Dolby Vision & HDR10+ playback',
   'HDR10 & HLG passthrough',
   'Spatial audio (AirPods Pro & compatible devices)',
-  'Volume boost, Night mode & Bass boost',
+  'Night mode & Bass boost',
   'Subtitle styling (size, color, outline, delay)',
   'Playback speed control (0.25×–2×)',
   'A-B loop',

@@ -614,9 +614,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// clamp), and bass is the low shelf at 100 Hz. All three off returns the
     /// default shaping, which the engine treats as byte-for-byte passthrough.
     private func makeAudioShaping() -> AudioShaping {
-        let boostDB = audioBoost > 1.0 ? 20.0 * log10(Double(audioBoost)) : 0.0
+        // NO volume boost on iOS. The boost is engine DSP here, and every DSP
+        // change rebuilds the audio session at the playhead (the engine's
+        // `reanchorForAudioShaping` -> `reloadAtCurrentPosition`), which
+        // reloads the video — so a boost that moved with the volume gesture
+        // reloaded the picture on every step. The gesture stays at 100% on
+        // iOS (see `_volumeBoostEnabled` in the Dart player screen) and
+        // Android keeps its own boost, which is a PCM gain and applies live.
         let bass = [0.0, 4.0, 7.0, 10.0][min(max(bassLevel, 0), 3)]
-        guard nightModeEnabled || boostDB > 0 || bass > 0 else {
+        guard nightModeEnabled || bass > 0 else {
             return AudioShaping()
         }
         let compressor: AudioShaping.Compressor?
@@ -625,22 +631,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             compressor = AudioShaping.Compressor(
                 thresholdDB: night.thresholdDB,
                 ratio: night.ratio,
-                makeupGainDB: night.makeupGainDB + boostDB,
+                makeupGainDB: night.makeupGainDB,
                 attackMilliseconds: night.attackMilliseconds,
                 releaseMilliseconds: night.releaseMilliseconds,
                 kneeDB: night.kneeDB
             )
         } else {
-            compressor = boostDB > 0
-                ? AudioShaping.Compressor(
-                    thresholdDB: 0,
-                    ratio: 1,
-                    makeupGainDB: boostDB,
-                    attackMilliseconds: 10,
-                    releaseMilliseconds: 250,
-                    kneeDB: 0
-                )
-                : nil
+            compressor = nil
         }
         return AudioShaping(compressor: compressor, bassGainDB: bass, bassFrequencyHz: 100)
     }
@@ -1152,10 +1149,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     self.setSystemVolume(volume)
                     result(nil)
                 case "setAudioBoost":
-                    let boost = Float((args?["boost"] as? NSNumber)?.doubleValue ?? 1.0)
-                    self.audioBoost = min(max(boost, 1), 3)
-                    UserDefaults.standard.set(Double(self.audioBoost), forKey: "flutter.dreamplayer.audioBoost")
-                    self.applyAudioShaping()
+                    // iOS has no volume boost (see makeAudioShaping): the boost
+                    // is engine DSP here, and every DSP change rebuilds the
+                    // audio session at the playhead, which reloads the video.
+                    SBMLog.log("setAudioBoost: ignored on iOS (no volume boost)")
                     result(nil)
                 case "setNightMode":
                     let enabled = (args?["enabled"] as? Bool) ?? false

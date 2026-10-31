@@ -12,7 +12,7 @@ class TrialIntroScreen extends StatelessWidget {
     _Feature(Icons.videocam, 'Dolby Vision & HDR10+ playback'),
     _Feature(Icons.high_quality, 'HDR10 & HLG passthrough'),
     _Feature(Icons.surround_sound, 'Spatial audio (AirPods Pro)'),
-    _Feature(Icons.graphic_eq, 'Volume boost & Bass boost'),
+    _Feature(Icons.graphic_eq, 'Night mode & Bass boost'),
     _Feature(Icons.subtitles, 'Subtitle styling & online search'),
     _Feature(Icons.speed, 'Playback speed control'),
     _Feature(Icons.repeat, 'A-B loop & sleep timer'),

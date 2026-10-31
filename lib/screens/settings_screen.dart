@@ -933,8 +933,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // `SpatialAudioStore.effectiveEnabled` applies, so a lapsed
       // entitlement shows (and keeps) the truth instead of a stale ON.
       final night = effectiveDspSetting(await NightModeStore.load());
-      final boostEnabled =
-          effectiveDspSetting(await VolumeBoostToggleStore.load());
+      // iOS has no volume boost (see the row below): the boost is engine DSP
+      // there and every DSP change rebuilds the audio session — a video
+      // reload. The stored value is ignored on iOS.
+      final boostEnabled = defaultTargetPlatform == TargetPlatform.iOS
+          ? false
+          : effectiveDspSetting(await VolumeBoostToggleStore.load());
       final spatial = await SpatialAudioStore.effectiveEnabled();
       if (mounted) {
         setState(() {
@@ -1741,10 +1745,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   // Volume boost is a swipe gesture rather than a value of its own;
                   // see `lib/utils/mpv_volume.dart` and `_applySwipeValue`.
-                  // Android applies it as PCM gain + peak limiter in the sink;
-                  // iOS as make-up gain in the engine's AudioShaping.
-                  if (defaultTargetPlatform == TargetPlatform.android ||
-                      defaultTargetPlatform == TargetPlatform.iOS)
+                  // Android applies it as PCM gain + peak limiter in the sink,
+                  // live, so the swipe past 100% is smooth.
+                  //
+                  // iOS has NO boost: there it is make-up gain in the engine's
+                  // AudioShaping, and every DSP change rebuilds the audio
+                  // session at the playhead — a video reload — so a boost that
+                  // rode the volume swipe reloaded the picture on every step.
+                  // The row is hidden rather than offered as a control that
+                  // would fight the playback.
+                  if (defaultTargetPlatform == TargetPlatform.android)
                     SwitchListTile(
                       secondary: const Icon(Icons.volume_up),
                       title: Text(

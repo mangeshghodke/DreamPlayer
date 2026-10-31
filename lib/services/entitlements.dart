@@ -791,8 +791,8 @@ bool dspSettingMayStayEnabled({
   return advanced;
 }
 
-/// Correction for a persisted iOS DSP setting — volume boost, night mode,
-/// or a bass level stored as `saved > 0` — the exact shape
+/// Correction for a persisted iOS DSP setting — night mode, or a bass level
+/// stored as `saved > 0` — the exact shape
 /// `SpatialAudioStore.effectiveEnabled` applies to spatial audio.
 ///
 /// The value a user turned ON stays on across restarts while they are

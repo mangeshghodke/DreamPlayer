@@ -7,14 +7,13 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
-- **Volume boost, Night mode and Bass boost now work on iPhone and iPad.**
-  The same three audio controls are now available on iOS, and they are real
-  audio processing rather than a volume trick: **Volume boost** adds make-up
-  gain on top of the normal level (the 100-200% band of the volume swipe),
-  **Night mode** compresses the dynamic range so quiet dialogue comes up
-  without the loud moments getting louder, and **Bass boost** lifts the low
-  end with a low shelf. On iOS they are part of the subscription (the same
-  as spatial audio); switching them off is always free.
+- **Night mode and Bass boost now work on iPhone and iPad.** The same audio
+  controls are now available on iOS, and they are real audio processing
+  rather than a volume trick: **Night mode** compresses the dynamic range so
+  quiet dialogue comes up without the loud moments getting louder, and
+  **Bass boost** lifts the low end with a low shelf. On iOS they are part of
+  the subscription (the same as spatial audio); switching them off is always
+  free. (Volume boost is **not** included on iOS — see the fixes below.)
 - **iOS now needs iOS 18 or newer.** The playback engine's current line uses
   iOS 18 system APIs (and iOS 17.2/17.4 ones) directly, so the app's own
   minimum follows it. Everything else about the iPhone and iPad app is
@@ -107,8 +106,10 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   and every change to that processing re-anchors the audio session at the
   playhead — which holds the picture for about a third of a second. The
   value was pushed on every increment of the swipe, so the picture reloaded
-  with each step and the raise was not smooth. The extra level is now applied
-  once, when the swipe ends.
+  with each step and the raise was not smooth. **Volume boost has been
+  removed on iOS** — the extra level could not be applied without
+  restarting the audio session, so the swipe now stops at 100% there and the
+  setting is gone. Night mode and Bass boost are unchanged.
 - **iOS: the interface looked stretched for a moment after unlocking the
   iPad or returning to the app.** The system can resize the app's window
   while the app is in the background, and the drawing surface was not

@@ -38,8 +38,7 @@ true of the intended build but not of the one that was reviewed. Verify with
 ## 0.5.5
 
 New:
-• Volume boost, Night mode and Bass boost. The volume swipe can now push
-  past 100% for extra loudness, Night mode compresses the dynamic range so
+• Night mode and Bass boost. Night mode compresses the dynamic range so
   quiet dialogue comes up without the loud moments getting louder, and Bass
   boost lifts the low end. They are part of the subscription; switching them
   off is always free.
@@ -59,9 +58,10 @@ New:
   film — and brings the poster, cast, release date, studio and genres.
 
 Fixed:
-• Pushing the volume past 100% no longer reloads the picture on every step.
-  The extra level is now applied once, when the swipe ends, so the raise is
-  smooth.
+• The volume swipe no longer goes past 100% on iPhone and iPad, and the
+  "Volume boost" setting is gone there. Pushing it past 100% had to rebuild
+  the audio session, which reloaded the picture on every step of the swipe.
+  Night mode and Bass boost are unchanged.
 • After unlocking the iPad — or coming back to the app — the interface no
   longer looks stretched for a moment.
 • A file on a network share keeps playing after the iPad has been locked: the

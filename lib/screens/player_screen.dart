@@ -449,11 +449,17 @@ class _PlayerScreenState extends State<PlayerScreen>
   double _playbackSpeed = 1.0;
 
   /// Volume boost (1.0–3.0) and Night Mode — persisted and re-applied on open.
+  ///
+  /// iOS has no boost: it is engine DSP there, and every DSP change rebuilds
+  /// the audio session at the playhead — a video reload — so the boost is
+  /// clamped off and the gesture stops at 100%. Android keeps it (a PCM
+  /// gain in the sink, applied live).
   double _audioBoost = 1.0;
 
   /// Whether the volume gesture may run past 100% (Settings -> Audio ->
   /// Volume boost). When false the gesture is clamped to the stock 100% and
-  /// this behaves exactly like any other player's volume swipe.
+  /// this behaves exactly like any other player's volume swipe. Always
+  /// false on iOS.
   bool _volumeBoostEnabled = false;
 
   /// System volume when this video opened, and the last value the volume
@@ -687,7 +693,13 @@ class _PlayerScreenState extends State<PlayerScreen>
         // The iOS DSP trio is paywall-gated (spatial-audio precedent): a
         // saved ON survives a restart while entitled, but a lapsed trial or
         // subscription must not keep shaping audio from the stored pref.
-        _volumeBoostEnabled =
+        //
+        // iOS has NO volume boost: the boost is engine DSP there, and every
+        // DSP change rebuilds the audio session at the playhead — a video
+        // reload. A boost that rides the volume gesture therefore reloaded
+        // the picture on every step, so the gesture stays at 100% on iOS.
+        // (Android's boost is a PCM gain and applies live — it stays.)
+        _volumeBoostEnabled = !Platform.isIOS &&
             effectiveDspSetting(await VolumeBoostToggleStore.load());
         _nightMode = effectiveDspSetting(await NightModeStore.load());
         _subtitleDelayMs = (await SubtitleStyle.load()).delayMs;
@@ -4708,21 +4720,14 @@ if (mounted) setState(_applySwipeValue);
         // so re-pushing it on every increment is pure churn (iOS drives the
         // MPVolumeView slider, which is audible while it moves).
         if (systemChanged) _exo?.setSystemVolume(split.system);
-        // iOS applies the boost as engine DSP and EVERY DSP change rebuilds
-        // the audio session (~0.3 s of held picture), so pushing the value
-        // per gesture increment reloads the video on every step. iOS
-        // therefore pushes the final value once, when the gesture ends
-        // (see _endSwipe). Android's boost is a PCM gain — it applies live.
-        if (boostChanged && !_boostAppliesLive) _exo?.setAudioBoost(split.boost);
+        // Android's boost is a PCM gain — it applies live. iOS has no boost
+        // at all (the engine DSP would rebuild the audio session at the
+        // playhead, i.e. reload the video), so this only ever runs on
+        // Android.
+        if (boostChanged) _exo?.setAudioBoost(split.boost);
       }
     }
   }
-
-  /// True when the engine can absorb a boost change without rebuilding its
-  /// audio session. Android applies it as a PCM gain (live ✓); iOS applies it
-  /// as engine DSP, which rebuilds the session ✗ — so iOS pushes the value
-  /// once at the end of the gesture instead.
-  bool get _boostAppliesLive => defaultTargetPlatform != TargetPlatform.iOS;
 
   /// The transient warning pill shown above the gesture overlay when the
   /// gesture crosses a risky threshold.
@@ -4771,12 +4776,6 @@ if (mounted) setState(_applySwipeValue);
     if (_swipeType == null) return;
     // active flag stops further updates/platform pushes.
     _swipeGestureActive = false;
-    // iOS applies the boost as engine DSP, and every DSP change rebuilds the
-    // audio session (a ~0.3 s picture hold). The gesture therefore does not
-    // push the boost while it runs — it pushes the final value once, here.
-    if (_swipeType == _SwipeType.volume && !_boostAppliesLive) {
-      _exo?.setAudioBoost(_audioBoost);
-    }
     _swipeOverlayTimer?.cancel();
     _swipeOverlayTimer = Timer(const Duration(milliseconds: 800), () {
       if (mounted && !_swipeGestureActive) {
@@ -6646,8 +6645,10 @@ if (mounted) setState(_applySwipeValue);
                   // Night Mode and Bass Boost apply on both engines' platforms:
                   // Android routes them through Media3 (PCM gain + limiter,
                   // +4 dB night, session BassBoost), iOS through the engine's
-                  // AudioShaping (make-up gain, Compressor.night, low shelf).
-                  // Volume boost itself stays a gesture — see below.
+                  // AudioShaping (Compressor.night, low shelf).
+                  // Volume boost itself stays a gesture — see below — and
+                  // exists on Android only (iOS: engine DSP, i.e. a session
+                  // rebuild per change).
                   if (defaultTargetPlatform == TargetPlatform.android ||
                       defaultTargetPlatform == TargetPlatform.iOS) ...[
                     // Volume Boost no longer lives here. It is a gesture, not a

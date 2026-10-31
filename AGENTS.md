@@ -945,6 +945,25 @@ behind a built limiter (`reset()`'s passthrough fallback has no ceiling).
   while it moves). Pinned by `test/ios_boost_defer_test.dart` (4 tests, which
   read the Dart and Swift sources — the player screen needs a live platform
   view, so it cannot be pumped as a widget).
+- **AND THEN IT WAS REMOVED FROM iOS ENTIRELY (2026-10-31, build 63).** The
+  deferral above was not enough: the engine's shaping apply is a FULL session
+  rebuild at the playhead (`AetherEngine.setAudioShaping` →
+  `reanchorForAudioShaping` → `reloadAtCurrentPosition`), so even one apply
+  per gesture reloads the video — the user reported "as I increase volume
+  above 100% every volume number reloads the video" and, after the deferral,
+  that it still reloaded. **The only way to make the boost smooth on iOS is
+  to stop rebuilding the session**, and the engine rebuilds the whole
+  filter graph (`AudioShapingGraph`) per shaping value — the makeup gain is
+  baked into the chain string — so a live update would mean rebuilding the
+  graph in place inside the engine (a fork change with no device to test
+  it). The user chose removal over that: **iOS has NO volume boost** — the
+  gesture stops at 100% (`_volumeBoostEnabled = !Platform.isIOS`), the
+  Settings row is Android-only, `makeAudioShaping()` carries no make-up
+  gain, `setAudioBoost` is a logged no-op, and the subscription no longer
+  lists it. **Night mode and bass boost stay on iOS** (they are toggles, not
+  a continuous gesture). Android keeps its boost — there it is a PCM gain in
+  the sink and applies live, with the peak limiter. Pinned by
+  `test/ios_boost_removed_test.dart` (5 tests, source-reading ✓).
 - `setBassBoost` is a new channel case: it stores the level in
   `UserDefaults` under **`flutter.dreamplayer.bassBoost`** — the same key
   Android's `ExoPlayerView.kt` writes, so it is ONE setting across platforms —
