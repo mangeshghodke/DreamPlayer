@@ -127,6 +127,13 @@ enum ChapterProbe {
         }
         let began = Date()
         let maps: [[String: Any]]
+        // Rewind first. The walk starts by reading the EBML header (or the MP4
+        // box) at the cursor's CURRENT position, and the previous walk left it
+        // wherever it ended — so a second probe (after a reload) found
+        // nothing at all and the chapter markers vanished from the seekbar.
+        // The cursor is a separate reader over the same handle, so rewinding
+        // it cannot disturb playback.
+        try? cursor.seek(to: 0)
         if mkvExtensions.contains(ext) {
             maps = MkvChapters.parseMaps(reader: cursor)
         } else {
