@@ -796,7 +796,7 @@
 			repositoryURL = "https://github.com/mangeshghodke/AetherEngine";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 7.53.3;
+				minimumVersion = 7.53.4;
 			};
 		};
 				A1B2C3D40000000000000015 /* XCRemoteSwiftPackageReference "Citadel" */ = {

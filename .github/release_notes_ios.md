@@ -41,9 +41,8 @@ New:
 • Night mode. It compresses the dynamic range so quiet dialogue comes up
   without the loud moments getting louder. It is part of the subscription;
   switching it off is always free.
-• This version works on iOS 17.0 or newer. The playback engine fork adds
-  `#available` guards for the 17.2/17.4 APIs it uses, so the minimum dropped
-  from 18.0 back to 17.0.
+• This version requires iOS 18.0 or newer (iPadOS 18.0). Devices on older
+  versions can keep using the previous release.
 • List or Grid view in the shared-folder browsers. The three-dot menu at the
   top right of the SMB, WebDAV, FTP, DLNA and Jellyfin browsers now has a
   View entry: List for the familiar rows, Grid for tiles with artwork —

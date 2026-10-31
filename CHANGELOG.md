@@ -13,10 +13,13 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   part of the subscription (the same as spatial audio); switching it off is
   always free. (Volume boost and Bass boost are **not** included on iOS —
   see the fixes below.)
-- **iOS minimum lowered to iOS 17.0.** The AetherEngine fork (7.53.3) adds
-  `#available` guards for the 17.2/17.4 APIs it uses (`renderingModeChangeNotification`,
-  `loadVideoPerformanceMetrics`), while the 18 APIs were already guarded.
-  Everything else about the iPhone and iPad app is unchanged.
+- **iOS minimum is now 18.0.** The playback engine uses iOS 17.2 / 17.4 / 18
+  APIs (`AVAudioSession` rendering-mode notifications,
+  `AVSampleBufferDisplayLayer.isReadyForDisplay` / `displayedPixelBuffer()`,
+  `Task.detached(executorPreference:)`) unconditionally, so the engine's
+  floor is iOS 18 and the app follows it. An attempt to lower the floor to
+  17.0 did not compile — see the fixes below. Devices on iOS 17 can keep
+  using the previous release.
 
 - **Hardware SDR tone-mapping (issue #55).** Settings → Player now has a
   "Hardware SDR tone-mapping" switch (Android, off by default). When it is on,

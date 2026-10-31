@@ -868,18 +868,36 @@ compression, bass is a low shelf. Android's implementation is untouched and
 still free.
 
 **The engine is a FORK, and upstream is never touched.** The app now depends on
-`mangeshghodke/AetherEngine` (branch `dreamplayer`, tag `7.53.2`, based on
+`mangeshghodke/AetherEngine` (branch `dreamplayer`, tag `7.53.4`, based on
 upstream `7.53.0`); `ios/Runner.xcodeproj/project.pbxproj` points at the fork
-with `minimumVersion = 7.53.3`. **Never open a PR against upstream and never
+with `minimumVersion = 7.53.4`. **Never open a PR against upstream and never
 push to `origin` there** — the fork is the only channel. The fork now has
-TWO changes vs upstream:
+ONE change vs upstream:
 - **the bass shelf** (kept for reference, unused): see below.
-- **iOS 17 floor**: `Package.swift` set to `.iOS(.v17)` with `#available`
-  guards for `renderingModeChangeNotification` (17.2) in
-  `AudioRouteDescription.swift` and `loadVideoPerformanceMetrics` (17.4) in
-  `SampleBufferRenderer.swift`. The 18 APIs
-  (`Task.detached(executorPreference:)` / `asUnownedTaskExecutor()`) were
-  already guarded with `#available(visionOS 2, *)` upstream.
+
+**The engine's iOS floor is 18.0 and MUST NOT be lowered (build 64, 2026-10-31).**
+The 7.x line uses iOS 17.2 / 17.4 / 18 APIs **unconditionally**:
+`AVAudioSession.renderingMode` / `renderingModeChangeNotification` /
+`renderingCapabilitiesChangeNotification` (`AudioRouteDescription.swift`),
+`AVSampleBufferDisplayLayer.displayedPixelBuffer()` /
+`.isReadyForDisplay` / `AVSampleBufferDisplayLayerReadyForDisplayDidChange` /
+`AVSampleBufferVideoRenderer.presentationTimeExpectation` /
+`.loadVideoPerformanceMetrics` (`SoftwarePlaybackHost.swift`,
+`SampleBufferRenderer.swift`), and
+`Task.detached(executorPreference:)` / `asUnownedTaskExecutor()` /
+`runSynchronously(on:)` (`BlockingWork.swift`). A fork attempt to set
+`Package.swift` to `.iOS(.v17)` and guard only two of them (tag `7.53.3`)
+**failed to compile in CI** with eight "only available in iOS 17.2 / 17.4 /
+18.0 or newer" errors — the guards only covered
+`renderingModeChangeNotification` and `loadVideoPerformanceMetrics`, while
+`renderingMode`, `renderingCapabilitiesChangeNotification`,
+`displayedPixelBuffer()`, `isReadyForDisplay` and the whole
+`Task.detached(executorPreference:)` family stayed unguarded. Since the
+app targets iOS 18.0 anyway, the fix is to keep **upstream's** floor
+(`.iOS(.v18)`) and the upstream API usage; `7.53.4` is that state. The
+app's `IPHONEOS_DEPLOYMENT_TARGET = 18.0` must follow the package's floor,
+and the App Store Connect listing's minimum-version field must be raised to
+**18.0** at the next submission.
 
 **Boost and night mode ride UPSTREAM's public API** — `AudioShaping`,
 `AudioShaping.Compressor` (with `makeupGainDB` clamped 0...24 dB) and the
