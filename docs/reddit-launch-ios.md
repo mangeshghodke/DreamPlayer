@@ -257,7 +257,7 @@ seriously on iOS.
 • NAS support: SMB through the Files app, plus WebDAV, FTP/SFTP, Jellyfin, DLNA
 • Auto sidecar subtitles, PiP, chapters, multi-audio
 
-iPhone and iPad, needs iOS 17+.
+iPhone and iPad, needs iOS 18+.
 
 On price, since it's the obvious question: free to download, with a 7-day trial
 that unlocks everything including Dolby Vision. After that Dolby Vision / HDR
@@ -267,7 +267,7 @@ or ₹4,999 one-time. Browsing, SDR playback, subtitles, PiP and all source type
 stay free. Infuse puts Dolby Vision behind Pro permanently, so this is a
 deliberate difference rather than an accident — and while I'm at it, Infuse is
 the more complete Apple product (Apple TV, Mac, Chromecast, iCloud sync,
-Blu-ray folder support). DreamPlayer is iPhone/iPad, runs on iOS 17 rather than
+Blu-ray folder support). DreamPlayer is iPhone/iPad, runs on iOS 18 rather than
 18, is open source, and is roughly half Infuse's lifetime price.
 
 https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889
@@ -310,7 +310,7 @@ subscription — ₹199/mo, ₹1,499/yr, or ₹4,999 once. Everything else stays
 
 Worth knowing on iPad specifically: Infuse is the more complete Apple product
 (it covers Apple TV and Mac, has Chromecast, and syncs your library across
-devices via iCloud). DreamPlayer is iPhone/iPad, works down to iOS 17, is open
+devices via iCloud). DreamPlayer is iPhone/iPad, works down to iOS 18, is open
 source, is about half Infuse's lifetime price, and its trial actually includes
 Dolby Vision. nPlayer at $4.99 once is also very good value if you don't need
 DV.

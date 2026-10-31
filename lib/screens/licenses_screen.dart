@@ -18,9 +18,9 @@ const List<_LicenseEntry> _entries = [
       'https://github.com/androidx/media'),
   _LicenseEntry('nextlib-media3ext (Android FFmpeg extension)', 'GNU GPL v3.0',
       'https://github.com/anilbeesetti/nextlib'),
-  // Linked at a DreamPlayer fork of AetherEngine (iOS 17 floor + the bass
-  // shelf live there), so the link points at the exact source we ship;
-  // the project and its authorship are superuser404notfound's.
+  // Linked at a DreamPlayer fork of AetherEngine (the bass shelf lives
+  // there), so the link points at the exact source we ship; the project
+  // and its authorship are superuser404notfound's.
   _LicenseEntry('AetherEngine (iOS engine)',
       'LGPL-3.0 + Apple Store/DRM exception',
       'https://github.com/mangeshghodke/AetherEngine'),

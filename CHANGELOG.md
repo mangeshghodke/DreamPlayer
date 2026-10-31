@@ -15,6 +15,10 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   without the loud moments getting louder, and **Bass boost** lifts the low
   end with a low shelf. On iOS they are part of the subscription (the same
   as spatial audio); switching them off is always free.
+- **iOS now needs iOS 18 or newer.** The playback engine's current line uses
+  iOS 18 system APIs (and iOS 17.2/17.4 ones) directly, so the app's own
+  minimum follows it. Everything else about the iPhone and iPad app is
+  unchanged.
 
 - **Hardware SDR tone-mapping (issue #55).** Settings → Player now has a
   "Hardware SDR tone-mapping" switch (Android, off by default). When it is on,

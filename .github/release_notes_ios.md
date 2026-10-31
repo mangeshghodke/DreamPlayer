@@ -43,6 +43,8 @@ New:
   quiet dialogue comes up without the loud moments getting louder, and Bass
   boost lifts the low end. They are part of the subscription; switching them
   off is always free.
+• This version needs iOS 18 or newer. The playback engine now uses iOS 18
+  system APIs directly, so the app's own minimum moved with it.
 • List or Grid view in the shared-folder browsers. The three-dot menu at the
   top right of the SMB, WebDAV, FTP, DLNA and Jellyfin browsers now has a
   View entry: List for the familiar rows, Grid for tiles with artwork —

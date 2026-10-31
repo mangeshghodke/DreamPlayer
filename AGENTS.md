@@ -375,9 +375,13 @@ A video player app supporting:
   audio-switch could crash) and **restored in 0.5.1 on libsmb2** — see
   "iOS in-app SMB on libsmb2" below. NAS files now reach the app through the in-app
   browser on both platforms, plus CX/Files "Open with", WebDAV and Jellyfin.
-  **Minimum iOS 17.0** (`IPHONEOS_DEPLOYMENT_TARGET = 17.0`; bumped from
-  16.0 on 2026-08 because Citadel (SFTP) requires iOS 17; builds through the
-  latest, iPhone and iPad).
+  **Minimum iOS 18.0** (`IPHONEOS_DEPLOYMENT_TARGET = 18.0`; 16.0 → 17.0 on
+  2026-08 because Citadel (SFTP) requires iOS 17, then 17.0 → 18.0 on
+  2026-10-31 because the AetherEngine 7.x line REQUIRES iOS 18 — see the
+  "iOS audio DSP" section: the package uses 17.2 / 17.4 / 18 APIs
+  unconditionally, so the app's target has to follow the package's. Builds
+  through the latest, iPhone and iPad). The App Store Connect listing's
+  minimum-version field must be raised to 18.0 at the next submission.
   - Channel mapping: state 1/2/3/4 (idle/buffering/ready/ended); DV surfaces as
     `dvhe.<profile>.06` so Dart's `dv`-prefix detection fires; `colorTransfer`
     6 for HDR10/10+/DV, 7 for HLG. Audio/subtitle tracks pushed via
@@ -863,16 +867,26 @@ compression, bass is a low shelf. Android's implementation is untouched and
 still free.
 
 **The engine is a FORK, and upstream is never touched.** The app now depends on
-`mangeshghodke/AetherEngine` (branch `dreamplayer`, tag `7.53.1`, based on
+`mangeshghodke/AetherEngine` (branch `dreamplayer`, tag `7.53.2`, based on
 upstream `7.53.0`); `ios/Runner.xcodeproj/project.pbxproj` points at the fork
-with `minimumVersion = 7.53.1`. **Never open a PR against upstream and never
+with `minimumVersion = 7.53.2`. **Never open a PR against upstream and never
 push to `origin` there** — the fork is the only channel. The fork exists for
-exactly two reasons:
-- **the platform floor**: upstream declares `.iOS(.v18)`, the app's deployment
-  target is iOS 17, so the fork lowers `Package.swift` to `.iOS(.v17)`. The v18
-  raise was only to silence Swift 6 diagnostics on `AVSampleBufferDisplayLayer`
-  — no symbol in the package needs 18 (zero `#available(iOS 18)` checks).
+exactly ONE reason:
 - **the bass shelf**: see below.
+
+**The fork does NOT lower the platform floor, and a first attempt to do so
+failed the build (2026-10-31).** The reasoning was "upstream raised the floor
+to iOS 18 only to silence Swift 6 diagnostics, and no symbol needs 18
+(zero `#available(iOS 18)` checks exist)" — that proved only that the code
+does not GUARD those APIs, not that it does not USE them. The compiler said
+otherwise: the 7.x line uses `AVAudioSession`'s rendering-mode notifications
+(17.2), `AVSampleBufferDisplayLayer`'s `isReadyForDisplay` /
+`displayedPixelBuffer()` / `loadVideoPerformanceMetrics` (17.4) and
+`Task.detached(executorPreference:)` / `asUnownedTaskExecutor()` (18)
+**unconditionally**. So `Package.swift` keeps upstream's `.iOS(.v18)` and the
+APP's deployment target moved 17.0 → 18.0 to match. (The old `6.38.0`
+requirement in the pbxproj resolved the engine's 6.x line, which still
+supported iOS 17 — the 7.x line is what moved the floor.)
 
 **Boost and night mode ride UPSTREAM's public API** — `AudioShaping`,
 `AudioShaping.Compressor` (with `makeupGainDB` clamped 0...24 dB) and the

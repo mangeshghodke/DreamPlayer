@@ -148,7 +148,7 @@ Plex support is missing and it's on the list.
 
 **"iOS 18 only?"** (they'll assume it because of Infuse)
 ```
-iOS 17 and up, so older iPads and iPhones are fine. (Infuse is 18+.)
+iOS 18 and up, so older iPads and iPhones are fine. (Infuse is 18+.)
 ```
 
 ---
