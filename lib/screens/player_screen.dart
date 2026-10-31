@@ -4694,18 +4694,35 @@ if (mounted) setState(_applySwipeValue);
       // "boost works until I touch volume" happened).
       final split = splitVolume(next, boostEnabled: _volumeBoostEnabled);
       final boostChanged = split.boost != _audioBoost;
+      final systemChanged = _lastPushedSystemVolume != split.system;
       _audioBoost = split.boost;
       _lastPushedSystemVolume = split.system;
       if (_mpvReady) {
         // System volume on the mpv fallback too — same UX as Media3.
-        unawaited(SystemControls.instance.setSystemVolume(split.system));
+        if (systemChanged) {
+          unawaited(SystemControls.instance.setSystemVolume(split.system));
+        }
         unawaited(_applyMpvVolume(baseFraction: split.system));
       } else {
-        _exo?.setSystemVolume(split.system);
-        if (boostChanged) _exo?.setAudioBoost(split.boost);
+        // The system volume is pinned at max once the gesture passes 100%,
+        // so re-pushing it on every increment is pure churn (iOS drives the
+        // MPVolumeView slider, which is audible while it moves).
+        if (systemChanged) _exo?.setSystemVolume(split.system);
+        // iOS applies the boost as engine DSP and EVERY DSP change rebuilds
+        // the audio session (~0.3 s of held picture), so pushing the value
+        // per gesture increment reloads the video on every step. iOS
+        // therefore pushes the final value once, when the gesture ends
+        // (see _endSwipe). Android's boost is a PCM gain — it applies live.
+        if (boostChanged && !_boostAppliesLive) _exo?.setAudioBoost(split.boost);
       }
     }
   }
+
+  /// True when the engine can absorb a boost change without rebuilding its
+  /// audio session. Android applies it as a PCM gain (live ✓); iOS applies it
+  /// as engine DSP, which rebuilds the session ✗ — so iOS pushes the value
+  /// once at the end of the gesture instead.
+  bool get _boostAppliesLive => defaultTargetPlatform != TargetPlatform.iOS;
 
   /// The transient warning pill shown above the gesture overlay when the
   /// gesture crosses a risky threshold.
@@ -4754,6 +4771,12 @@ if (mounted) setState(_applySwipeValue);
     if (_swipeType == null) return;
     // active flag stops further updates/platform pushes.
     _swipeGestureActive = false;
+    // iOS applies the boost as engine DSP, and every DSP change rebuilds the
+    // audio session (a ~0.3 s picture hold). The gesture therefore does not
+    // push the boost while it runs — it pushes the final value once, here.
+    if (_swipeType == _SwipeType.volume && !_boostAppliesLive) {
+      _exo?.setAudioBoost(_audioBoost);
+    }
     _swipeOverlayTimer?.cancel();
     _swipeOverlayTimer = Timer(const Duration(milliseconds: 800), () {
       if (mounted && !_swipeGestureActive) {

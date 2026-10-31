@@ -603,6 +603,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// (~0.3 s of held picture) per change, so a gesture's steps must fold.
     private var shapingWorkItem: DispatchWorkItem?
 
+    /// The last system volume pushed to the MPVolumeView slider, so an
+    /// unchanged value is not pushed again on every gesture increment.
+    private var lastSystemVolume: Float?
+
     /// The AudioShaping the three DSP controls ask for. Boost is flat make-up
     /// gain (ratio 1 — transparent; the graph's -1 dBFS alimiter caps the sum),
     /// night mode is the engine's own `Compressor.night` preset with the
@@ -649,23 +653,19 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private func applyAudioShaping() {
         let shaping = makeAudioShaping()
         lastLoadOptions.audioShaping = shaping
+        // The engine rebuilds the audio session for every shaping change, and
+        // the rebuild holds the picture for ~0.3 s. The change is therefore
+        // DEBOUNCED, and the debounce must NOT be gated on the engine's
+        // state: the rebuild itself puts the engine into .loading, so a
+        // state-based check would let the NEXT change apply immediately and
+        // rebuild again — a video reload per gesture increment.
         shapingWorkItem?.cancel()
-        shapingWorkItem = nil
-        if let engine {
-            if engine.state == .playing {
-                // Debounce only while audio runs: each apply rebuilds the
-                // session at the playhead. Idle/loading apply immediately —
-                // the engine no-ops when the value is already in force, and a
-                // loading session reads the value we just wrote into options.
-                let item = DispatchWorkItem { [weak self] in
-                    self?.engine?.setAudioShaping(shaping)
-                }
-                shapingWorkItem = item
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
-            } else {
-                engine.setAudioShaping(shaping)
-            }
+        let item = DispatchWorkItem { [weak self] in
+            self?.shapingWorkItem = nil
+            self?.engine?.setAudioShaping(shaping)
         }
+        shapingWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: item)
         // Unchanged from the old boost hook: AVPlayer's own volume stays at
         // unity (it caps at 1.0 — the boost lives in AudioShaping now), and
         // mute restores whatever was saved.
@@ -2959,6 +2959,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private var mpVolumeRetries = 0
 
     private func setSystemVolume(_ value: Float) {
+        // The gesture pins the system volume at max once it passes 100%, so
+        // the same value arrives on every increment. Driving the MPVolumeView
+        // slider again for an unchanged value is churn (and audible while it
+        // moves) — skip it.
+        if let last = lastSystemVolume, abs(last - value) < 0.001 {
+            return
+        }
+        lastSystemVolume = value
         DispatchQueue.main.async {
             if self.mpVolumeView == nil {
                 let mpVolume = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))

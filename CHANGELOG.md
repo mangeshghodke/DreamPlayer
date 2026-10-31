@@ -102,6 +102,25 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
+- **iOS: the volume swipe past 100% reloaded the video on every step.** The
+  extra level above 100% is applied as audio processing on iPhone and iPad,
+  and every change to that processing re-anchors the audio session at the
+  playhead — which holds the picture for about a third of a second. The
+  value was pushed on every increment of the swipe, so the picture reloaded
+  with each step and the raise was not smooth. The extra level is now applied
+  once, when the swipe ends.
+- **iOS: the interface looked stretched for a moment after unlocking the
+  iPad or returning to the app.** The system can resize the app's window
+  while the app is in the background, and the drawing surface was not
+  re-measured until some later layout pass, so the first frame was drawn into
+  a stale surface. The re-measure now happens as the app comes forward, and
+  again shortly afterwards in case the window is resized after that.
+- **iOS: a file on a network share could stop playing after the iPad had been
+  locked, and came back on the wrong audio track.** The lock drops the network
+  connection, and the reload that follows reused the dead connection, which
+  failed immediately. The app now rebuilds the connection from the saved
+  address and retries, and it restores the audio track that was playing
+  before the lock instead of the container's default.
 - **"Native HDR/DV" did not actually hand HDR to the display.** The MPV
   engine's HDR mode only set the properties it needed, so switching from
   "SDR tone-map" to "Native HDR/DV" left the old BT.709 / BT.1886 output

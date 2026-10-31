@@ -59,6 +59,14 @@ New:
   film — and brings the poster, cast, release date, studio and genres.
 
 Fixed:
+• Pushing the volume past 100% no longer reloads the picture on every step.
+  The extra level is now applied once, when the swipe ends, so the raise is
+  smooth.
+• After unlocking the iPad — or coming back to the app — the interface no
+  longer looks stretched for a moment.
+• A file on a network share keeps playing after the iPad has been locked: the
+  app reconnects to the share on its own, and the audio track you had chosen
+  is restored instead of the file's default one.
 • The Get info and Fix match dialogs now search the key-free catalogues
   alongside the others, so a film can be matched even without a key for the
   catalogues that need one.
