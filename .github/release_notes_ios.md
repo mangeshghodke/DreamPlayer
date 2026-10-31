@@ -38,12 +38,12 @@ true of the intended build but not of the one that was reviewed. Verify with
 ## 0.5.5
 
 New:
-• Night mode and Bass boost. Night mode compresses the dynamic range so
-  quiet dialogue comes up without the loud moments getting louder, and Bass
-  boost lifts the low end. They are part of the subscription; switching them
-  off is always free.
-• This version needs iOS 18 or newer. The playback engine now uses iOS 18
-  system APIs directly, so the app's own minimum moved with it.
+• Night mode. It compresses the dynamic range so quiet dialogue comes up
+  without the loud moments getting louder. It is part of the subscription;
+  switching it off is always free.
+• This version works on iOS 17.0 or newer. The playback engine fork adds
+  `#available` guards for the 17.2/17.4 APIs it uses, so the minimum dropped
+  from 18.0 back to 17.0.
 • List or Grid view in the shared-folder browsers. The three-dot menu at the
   top right of the SMB, WebDAV, FTP, DLNA and Jellyfin browsers now has a
   View entry: List for the familiar rows, Grid for tiles with artwork —
@@ -61,7 +61,10 @@ Fixed:
 • The volume swipe no longer goes past 100% on iPhone and iPad, and the
   "Volume boost" setting is gone there. Pushing it past 100% had to rebuild
   the audio session, which reloaded the picture on every step of the swipe.
-  Night mode and Bass boost are unchanged.
+• Bass boost is gone. It had the same problem — switching it rebuilt the
+  audio session and reloaded the picture — and it was only offered while
+  spatial audio was switched on. Night mode and spatial audio are
+  unchanged.
 • After unlocking the iPad — or coming back to the app — the interface no
   longer looks stretched for a moment.
 • A file on a network share keeps playing after the iPad has been locked: the

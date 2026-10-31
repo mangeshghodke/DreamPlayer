@@ -7,17 +7,16 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
-- **Night mode and Bass boost now work on iPhone and iPad.** The same audio
-  controls are now available on iOS, and they are real audio processing
-  rather than a volume trick: **Night mode** compresses the dynamic range so
-  quiet dialogue comes up without the loud moments getting louder, and
-  **Bass boost** lifts the low end with a low shelf. On iOS they are part of
-  the subscription (the same as spatial audio); switching them off is always
-  free. (Volume boost is **not** included on iOS — see the fixes below.)
-- **iOS now needs iOS 18 or newer.** The playback engine's current line uses
-  iOS 18 system APIs (and iOS 17.2/17.4 ones) directly, so the app's own
-  minimum follows it. Everything else about the iPhone and iPad app is
-  unchanged.
+- **Night mode now works on iPhone and iPad.** It is real audio processing
+  rather than a volume trick: it compresses the dynamic range so quiet
+  dialogue comes up without the loud moments getting louder. On iOS it is
+  part of the subscription (the same as spatial audio); switching it off is
+  always free. (Volume boost and Bass boost are **not** included on iOS —
+  see the fixes below.)
+- **iOS minimum lowered to iOS 17.0.** The AetherEngine fork (7.53.3) adds
+  `#available` guards for the 17.2/17.4 APIs it uses (`renderingModeChangeNotification`,
+  `loadVideoPerformanceMetrics`), while the 18 APIs were already guarded.
+  Everything else about the iPhone and iPad app is unchanged.
 
 - **Hardware SDR tone-mapping (issue #55).** Settings → Player now has a
   "Hardware SDR tone-mapping" switch (Android, off by default). When it is on,
@@ -109,7 +108,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   with each step and the raise was not smooth. **Volume boost has been
   removed on iOS** — the extra level could not be applied without
   restarting the audio session, so the swipe now stops at 100% there and the
-  setting is gone. Night mode and Bass boost are unchanged.
+  setting is gone.
+- **iOS: Bass boost removed.** It had the same problem as the volume boost —
+  the low shelf is part of the same audio processing, so switching it
+  restarted the audio session and reloaded the picture. It was also only
+  offered while spatial audio was switched on, so it was hard to reach.
+  Night mode and spatial audio are unchanged.
 - **iOS: the interface looked stretched for a moment after unlocking the
   iPad or returning to the app.** The system can resize the app's window
   while the app is in the background, and the drawing surface was not

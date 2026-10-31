@@ -6642,13 +6642,18 @@ if (mounted) setState(_applySwipeValue);
                       ),
                     const Divider(color: Colors.white12, height: 1),
                   ],
-                  // Night Mode and Bass Boost apply on both engines' platforms:
-                  // Android routes them through Media3 (PCM gain + limiter,
-                  // +4 dB night, session BassBoost), iOS through the engine's
-                  // AudioShaping (Compressor.night, low shelf).
-                  // Volume boost itself stays a gesture — see below — and
-                  // exists on Android only (iOS: engine DSP, i.e. a session
-                  // rebuild per change).
+                  // Night Mode applies on both engines' platforms: Android
+                  // routes it through Media3 (PCM gain + limiter, +4 dB
+                  // night), iOS through the engine's AudioShaping
+                  // (Compressor.night).
+                  //
+                  // Volume boost and bass boost are ANDROID-ONLY now. On iOS
+                  // both are engine DSP, and every DSP change rebuilds the
+                  // audio session at the playhead — a video reload — so a
+                  // boost that rode the volume swipe reloaded the picture on
+                  // every step. The bass row was also gated behind spatial
+                  // audio being engaged, so it was unreachable without
+                  // spatial-audio headphones.
                   if (defaultTargetPlatform == TargetPlatform.android ||
                       defaultTargetPlatform == TargetPlatform.iOS) ...[
                     // Volume Boost no longer lives here. It is a gesture, not a
@@ -6661,7 +6666,8 @@ if (mounted) setState(_applySwipeValue);
                     // Bass Boost appears only while platform spatial audio
                     // is actually engaged — it exists to offset the HRTF
                     // low-end thinning of virtualized surround.
-                    if (_liveSpatial == 'on') ...[
+                    if (_liveSpatial == 'on' &&
+                        defaultTargetPlatform == TargetPlatform.android) ...[
                       const Divider(color: Colors.white12, height: 1),
                       _tvListTile(
                         leading: const Icon(Icons.music_note, color: Colors.white70),

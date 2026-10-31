@@ -375,13 +375,16 @@ A video player app supporting:
   audio-switch could crash) and **restored in 0.5.1 on libsmb2** — see
   "iOS in-app SMB on libsmb2" below. NAS files now reach the app through the in-app
   browser on both platforms, plus CX/Files "Open with", WebDAV and Jellyfin.
-  **Minimum iOS 18.0** (`IPHONEOS_DEPLOYMENT_TARGET = 18.0`; 16.0 → 17.0 on
+  **Minimum iOS 17.0** (`IPHONEOS_DEPLOYMENT_TARGET = 17.0`; 16.0 → 17.0 on
   2026-08 because Citadel (SFTP) requires iOS 17, then 17.0 → 18.0 on
-  2026-10-31 because the AetherEngine 7.x line REQUIRES iOS 18 — see the
-  "iOS audio DSP" section: the package uses 17.2 / 17.4 / 18 APIs
-  unconditionally, so the app's target has to follow the package's. Builds
-  through the latest, iPhone and iPad). The App Store Connect listing's
-  minimum-version field must be raised to 18.0 at the next submission.
+  2026-10-31 because the AetherEngine 7.x line used 17.2/17.4/18 APIs
+  unconditionally, then **17.0 again on 2026-10-31 (build 65)** because the
+  DreamPlayer fork of AetherEngine 7.53.3 added `#available` guards for the
+  17.2 (`renderingModeChangeNotification`) and 17.4 (`loadVideoPerformanceMetrics`)
+  APIs. The 18 APIs (`Task.detached(executorPreference:)`,
+  `asUnownedTaskExecutor()`) were already guarded with `#available(visionOS 2, *)`).
+  Builds through the latest, iPhone and iPad). The App Store Connect listing's
+  minimum-version field must be lowered to 17.0 at the next submission.
   - Channel mapping: state 1/2/3/4 (idle/buffering/ready/ended); DV surfaces as
     `dvhe.<profile>.06` so Dart's `dv`-prefix detection fires; `colorTransfer`
     6 for HDR10/10+/DV, 7 for HLG. Audio/subtitle tracks pushed via
@@ -870,24 +873,16 @@ still free.
 **The engine is a FORK, and upstream is never touched.** The app now depends on
 `mangeshghodke/AetherEngine` (branch `dreamplayer`, tag `7.53.2`, based on
 upstream `7.53.0`); `ios/Runner.xcodeproj/project.pbxproj` points at the fork
-with `minimumVersion = 7.53.2`. **Never open a PR against upstream and never
-push to `origin` there** — the fork is the only channel. The fork exists for
-exactly ONE reason:
-- **the bass shelf**: see below.
-
-**The fork does NOT lower the platform floor, and a first attempt to do so
-failed the build (2026-10-31).** The reasoning was "upstream raised the floor
-to iOS 18 only to silence Swift 6 diagnostics, and no symbol needs 18
-(zero `#available(iOS 18)` checks exist)" — that proved only that the code
-does not GUARD those APIs, not that it does not USE them. The compiler said
-otherwise: the 7.x line uses `AVAudioSession`'s rendering-mode notifications
-(17.2), `AVSampleBufferDisplayLayer`'s `isReadyForDisplay` /
-`displayedPixelBuffer()` / `loadVideoPerformanceMetrics` (17.4) and
-`Task.detached(executorPreference:)` / `asUnownedTaskExecutor()` (18)
-**unconditionally**. So `Package.swift` keeps upstream's `.iOS(.v18)` and the
-APP's deployment target moved 17.0 → 18.0 to match. (The old `6.38.0`
-requirement in the pbxproj resolved the engine's 6.x line, which still
-supported iOS 17 — the 7.x line is what moved the floor.)
+with `minimumVersion = 7.53.3`. **Never open a PR against upstream and never
+push to `origin` there** — the fork is the only channel. The fork now has
+TWO changes vs upstream:
+- **the bass shelf** (kept for reference, unused): see below.
+- **iOS 17 floor**: `Package.swift` set to `.iOS(.v17)` with `#available`
+  guards for `renderingModeChangeNotification` (17.2) in
+  `AudioRouteDescription.swift` and `loadVideoPerformanceMetrics` (17.4) in
+  `SampleBufferRenderer.swift`. The 18 APIs
+  (`Task.detached(executorPreference:)` / `asUnownedTaskExecutor()`) were
+  already guarded with `#available(visionOS 2, *)` upstream.
 
 **Boost and night mode ride UPSTREAM's public API** — `AudioShaping`,
 `AudioShaping.Compressor` (with `makeupGainDB` clamped 0...24 dB) and the
@@ -964,6 +959,20 @@ behind a built limiter (`reset()`'s passthrough fallback has no ceiling).
   a continuous gesture). Android keeps its boost — there it is a PCM gain in
   the sink and applies live, with the peak limiter. Pinned by
   `test/ios_boost_removed_test.dart` (5 tests, source-reading ✓).
+- **AND THEN THE BASS BOOST WENT TOO (2026-10-31, build 64).** The same
+  engine-DSP shape: the low shelf is a stage in the same filter chain, so
+  changing it rebuilds the session at the playhead exactly like the boost
+  did. It was ALSO unreachable in practice — the player's ⋮ row is gated on
+  `_liveSpatial == 'on'` (it exists to offset the HRTF low-end thinning), so
+  without spatial-audio headphones it never appeared at all. The user asked
+  for it to go, keeping spatial audio. **iOS now has exactly ONE audio DSP
+  control: night mode** (a toggle, so one deliberate rebuild when it is
+  switched). `makeAudioShaping()` builds the night compressor only, the
+  shelf is gone, `setBassBoost` is a logged no-op, the emit map reports
+  `bassBoost: 0` / `audioBoost: 1.0`, the ⋮ row is Android-only, and the
+  paywall/trial/ASC lists say "Night mode". Android keeps its bass boost —
+  there it is a session-level `android.media.audiofx.BassBoost` ✓.
+  Pinned by `test/ios_dsp_removed_test.dart` (source-reading ✓).
 - `setBassBoost` is a new channel case: it stores the level in
   `UserDefaults` under **`flutter.dreamplayer.bassBoost`** — the same key
   Android's `ExoPlayerView.kt` writes, so it is ONE setting across platforms —

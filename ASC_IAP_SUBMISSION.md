@@ -90,8 +90,7 @@ what the purchase sheet shows under the plan picker.
 > What is gated and where:
 > - Dolby Vision / HDR10 / HDR10+ / HLG playback — playing an HDR video.
 > - Spatial audio — Settings → Audio → Spatial audio (turn it on).
-> - Night mode, Bass boost — Settings → Audio (turn them on)
->   or the player's menu (Bass boost appears while spatial audio is on).
+> - Night mode — Settings → Audio (turn it on).
 > - Subtitle styling — the CC button in the player → Subtitle settings.
 > - Playback speed, A-B loop, sleep timer — the player's bottom-bar menu.
 > - Download to device — the player's menu or a details screen.
@@ -111,8 +110,7 @@ first-run trial screen list exactly:
 - HDR10 & HLG passthrough
 - Spatial audio (AirPods Pro & compatible devices) — trial screen:
   "Spatial audio (AirPods Pro)"
-- Night mode & Bass boost — trial screen:
-  "Night mode & Bass boost"
+- Night mode — trial screen: "Night mode"
 - Subtitle styling (size, color, outline, delay)
 - Playback speed control (0.25×–2×)
 - A-B loop
