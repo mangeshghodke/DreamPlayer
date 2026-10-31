@@ -605,7 +605,11 @@ class ExoPlayerController implements PlaybackController {
       if (!_events.isClosed) _events.add(event);
     });
     for (final (name, args) in _pending) {
-      method.invokeMethod(name, args);
+      // A method the native side does not implement (or a view torn down
+      // between queueing and attaching) must not become an unhandled async
+      // error — it used to land in the crash log as a MissingPluginException
+      // for every queued call the platform did not answer.
+      unawaited(method.invokeMethod(name, args).catchError((Object _) {}));
     }
     _pending.clear();
   }

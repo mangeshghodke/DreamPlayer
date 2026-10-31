@@ -861,7 +861,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         // on a potentially dead stream.
                         self.needsReloadAfterBackground = false
                         let pos = self.engine?.currentTime ?? 0
-                        await self.reloadSession(at: pos)
+                        let reloaded = await self.reloadSession(at: pos)
+                        if !reloaded, self.lastError != nil {
+                            // A real failure (not a superseded reload): keep the
+                            // flag so the next play tries to rebuild the source
+                            // again — the network may have come back.
+                            self.needsReloadAfterBackground = true
+                        }
                     } else {
                         self.engine?.play()
                     }
@@ -895,6 +901,20 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     result(nil)
                 case "getAudioTracks":
                     result(self.audioTrackMaps())
+                case "setRepeatMode":
+                    // Repeat-one is handled in Dart on iOS: the engine's
+                    // `.ended` is terminal, so the Dart ended-handler restarts
+                    // the file. There is nothing native to do — but the case
+                    // has to exist, or the queued call comes back as a
+                    // MissingPluginException.
+                    SBMLog.log("setRepeatMode: ignored on iOS (handled in Dart)")
+                    result(nil)
+                case "setAudioDelay":
+                    // A/V sync offset is Android-only: the engine exposes no
+                    // audio-offset hook. Accept and ignore so the call can
+                    // never raise MissingPluginException.
+                    SBMLog.log("setAudioDelay: ignored on iOS (no engine hook)")
+                    result(nil)
                 case "getState":
                     // Push a fresh snapshot to the event stream and return the
                     // current state; Dart uses it after a background/foreground
@@ -908,6 +928,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // The engine's `selectAudioTrack(index:)` expects the
                     // native track `id`, so convert flat → id.
                     let trackId = self.engineAudioId(forFlatPosition: index)
+                    // Remembered so every later reload re-applies this track:
+                    // a reloaded session starts on the container's default, and
+                    // on a custom source the engine cannot carry the choice
+                    // over by itself.
+                    if index >= 0 {
+                        self.selectedAudioTrackFlatPos = index
+                    }
                     // Suppress error emission for 2 s — the in-place switch
                     // can transiently error during screen recording or a brief
                     // codec re-init, but AVPlayer recovers on its own.
@@ -1031,8 +1058,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             // autoplay: false so the reloaded session is paused
                             // the instant it exists; the defer above starts it once
                             // the saved track has been applied.
+                            // `reassertAudioTrack: false` — this path applies
+                            // the track itself, right below; the reload must not
+                            // apply the previous one as well.
                             await self.reloadSession(
-                                at: resumeAt, autoplay: !heldForRestore)
+                                at: resumeAt, autoplay: !heldForRestore,
+                                reassertAudioTrack: false)
                             // Wait for the freshly loaded engine to reach
                             // .ready so selectAudioTrack is honored.
                             await self.waitForEngineReady(timeout: 3.0)
@@ -1259,6 +1290,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         smbServerId = nil
         smbPlayback = nil
         let smbResume = Self.smbParts(fromResumeKey: resumeKey)
+        // Kept so a background-resume reload can rebuild a dead SMB session.
+        smbResumeParts = smbResume
         if let uri, uri.hasPrefix("dreamplayersmb://"),
            let connection = SMBBridge.shared.session(for: uri) {
             // Must precede the plain-path branch: Dart sends `path` alongside
@@ -1366,6 +1399,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          chapterByteSource = nil
          chapterCursor = nil
          chapters = []
+         // A new file starts on the container's default track until Dart
+         // restores the saved one — the remembered selection must not leak
+         // across files.
+         selectedAudioTrackFlatPos = nil
          subtitleOverlay.clear()
          invalidatePipController()
          emit()
@@ -1817,69 +1854,207 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// so a later deliberate seek is never rewound by this.
     private var pendingResumeSeconds: Double = 0
 
+    /// The SMB server / share / path of the current file, taken from the
+    /// durable resume key ("smb:<serverId>/<share>/<path>").
+    ///
+    /// A lock or a background cycle can drop the TCP socket to the NAS. The
+    /// handle then reads nothing, the container probe fails ("custom source
+    /// probe failed") and the player shows an error. The token-based
+    /// connection is gone with the socket, so the ONLY way back is to re-open
+    /// the session from these parts — the same recovery the open path
+    /// performs for a stale token.
+    private var smbResumeParts: (id: String, share: String, path: String)?
+
+    /// Flat position of the audio track the viewer selected — the same
+    /// numbering the `audioTracks` map uses.
+    ///
+    /// A reloaded session starts on the container's DEFAULT track, and on a
+    /// custom source the selection cannot be carried over by the engine. So
+    /// every reload re-applies this; without it a lock/unlock cycle silently
+    /// put the viewer back on the first track.
+    private var selectedAudioTrackFlatPos: Int?
     /// - Parameter autoplay: when false the freshly loaded session is paused
     ///   immediately, before any `await`, and the caller is responsible for
     ///   starting it. Used by the session-start audio-track restore, where the
     ///   container's default track would otherwise be audible between the
     ///   reload completing and the saved track being applied.
-    private func reloadSession(at position: Double, autoplay: Bool = true) async {
+    /// - Parameter reassertAudioTrack: when true (the default) the viewer's
+    ///   selected audio track is re-applied to the reloaded session. The
+    ///   caller passes false when it applies the track itself right after the
+    ///   reload (the `setAudioTrack` path), so the selection is not applied
+    ///   twice.
+    /// - Returns: true when the session was (re)loaded successfully.
+    @discardableResult
+    private func reloadSession(
+        at position: Double,
+        autoplay: Bool = true,
+        reassertAudioTrack: Bool = true
+    ) async -> Bool {
         // The Dart replay button sends seekTo(0) AND play() back-to-back; each
         // triggers a reload here. A second engine.load supersedes the first,
         // which then throws CancellationError — so coalesce duplicates and let
         // one reload run at a time.
-        guard !reloadInFlight else { return }
+        guard !reloadInFlight else { return false }
         reloadInFlight = true
         defer { reloadInFlight = false }
-        guard let engine else { return }
+        guard let engine else { return false }
         let activeSub = engine.activeSubtitleTrackIndex
         SBMLog.log("reloadSession: start at \(position)s (smb=\(isSMBStream)) autoplay=\(autoplay)")
         do {
-            let freshSource = try await buildFreshSource()
-            guard let freshSource else {
-                SBMLog.log("reloadSession: buildFreshSource returned nil — aborting")
-                return
-            }
-            lastSource = freshSource
-            // Pass the autoplay preference to the engine so the default track
-            // is never audible when we intend to pause immediately.
-            var options = lastLoadOptions
-            options.autoplay = autoplay
-            let probe = try await engine.load(source: freshSource, startPosition: position, options: options)
-            if !autoplay {
-                // Synchronous, immediately after the session exists and before
-                // any suspension point, so the default track is audible for
-                // milliseconds rather than the ~300ms this used to take.
-                engine.pause()
-                SBMLog.log("reloadSession: paused on load (autoplay: false)")
-            }
-             if let probe {
-                 // Same-file reload can drop DV info (startPosition load).
-                 // Keep the earlier detection instead of regressing to SDR.
-                 videoCodecName = probe.videoCodecName ?? self.videoCodecName
-                 videoWidth = probe.videoWidth > 0 ? Int(probe.videoWidth) : self.videoWidth
-                 videoHeight = probe.videoHeight > 0 ? Int(probe.videoHeight) : self.videoHeight
-                 isDolbyVision = probe.isDolbyVision || self.isDolbyVision
-                 dvProfile = probe.dvProfile ?? self.dvProfile
-             }
-            if let activeSub, engine.subtitleTracks.contains(where: { $0.id == activeSub }) {
-                engine.selectSubtitleTrack(index: activeSub)
-            }
-            // Fresh AVPlayer instance after reload — re-apply the saved rate.
-            applySpeed(pendingSpeed)
-            // `load(startPosition:)` is not honoured for network sources, so a
-            // reload from a saved position still comes up at 0. Re-assert it.
-            await reassertPosition(position)
-            // Re-probe chapters after reload (audio track change, etc.) so the
-            // chapter markers and prev/next buttons don't disappear.
-            await probeChapters()
-            SBMLog.log("reloadSession: done at \(position)s")
+            try await loadFreshSession(
+                at: position,
+                autoplay: autoplay,
+                activeSub: activeSub,
+                reassertAudioTrack: reassertAudioTrack
+            )
+            return true
         } catch let error as CancellationError {
             // Superseded by a newer load elsewhere — not a playback failure.
             SBMLog.log("reloadSession: cancelled (superseded)")
+            return false
         } catch {
-            lastError = String(describing: error)
+            let firstFailure = String(describing: error)
+            // A locked-away session loses its TCP socket: the SMB handle is
+            // dead, so the container probe fails ("custom source probe
+            // failed") and the player shows an error. Rebuild the session
+            // from the durable resume key and try once more — exactly what
+            // the open path does for a stale token, and the recovery the
+            // viewer needs after a lock/unlock cycle.
+            if isSMBStream, await rebuildSMBConnection() {
+                SBMLog.log(
+                    "reloadSession: load failed (\(firstFailure)) — "
+                    + "SMB session rebuilt, retrying")
+                do {
+                    try await loadFreshSession(
+                        at: position,
+                        autoplay: autoplay,
+                        activeSub: activeSub,
+                        reassertAudioTrack: reassertAudioTrack
+                    )
+                    return true
+                } catch let retryError as CancellationError {
+                    SBMLog.log("reloadSession: cancelled (superseded)")
+                    return false
+                } catch {
+                    lastError = String(describing: retryError)
+                    SBMLog.log("reloadSession: retry failed — \(lastError ?? "")")
+                    return false
+                }
+            }
+            lastError = firstFailure
+            SBMLog.log("reloadSession: failed — \(firstFailure)")
+            return false
         }
     }
+
+    /// Re-opens the SMB session for the current file from the durable resume
+    /// key. The token-based connection died with the socket, so this is a
+    /// fresh login + tree connect + file open on the same share.
+    @discardableResult
+    private func rebuildSMBConnection() async -> Bool {
+        guard let parts = smbResumeParts else {
+            SBMLog.log("reloadSession: no SMB resume key — cannot rebuild the session")
+            return false
+        }
+        SBMLog.log(
+            "reloadSession: rebuilding the SMB session from the resume key "
+            + "server=\(parts.id) share=\(parts.share)")
+        // Blocking handshake (login + tree connect + stat) — keep it off the
+        // main actor, the same way the open path does it.
+        let connection: SMBPlayback? = await Task.detached(priority: .userInitiated) {
+            SMBBridge.shared.openSmb(
+                serverId: parts.id, share: parts.share, path: parts.path
+            )
+        }.value
+        guard let connection else {
+            SBMLog.log("reloadSession: SMB rebuild FAILED")
+            return false
+        }
+        smbPlayback = connection
+        isSMBStream = true
+        // A fresh handle needs a fresh chapter cursor as well — the old one
+        // points into the dead connection.
+        chapterCursor = connection.makeChapterReader()
+        SBMLog.log(
+            "reloadSession: SMB session rebuilt (\(connection.byteSize) bytes)")
+        return true
+    }
+
+    /// Loads a fresh session from a fresh source and re-applies everything
+    /// that does not survive a reload: the video format info, the selected
+    /// audio track, the subtitle track, the playback rate and the position.
+    private func loadFreshSession(
+        at position: Double,
+        autoplay: Bool,
+        activeSub: Int?,
+        reassertAudioTrack: Bool
+    ) async throws {
+        guard let engine else { return }
+        let freshSource = try await buildFreshSource()
+        guard let freshSource else {
+            SBMLog.log("reloadSession: buildFreshSource returned nil — aborting")
+            throw NSError(
+                domain: "DreamPlayer",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Could not reopen the media"]
+            )
+        }
+        lastSource = freshSource
+        // Pass the autoplay preference to the engine so the default track
+        // is never audible when we intend to pause immediately.
+        var options = lastLoadOptions
+        options.autoplay = autoplay
+        let probe = try await engine.load(source: freshSource, startPosition: position, options: options)
+        if !autoplay {
+            // Synchronous, immediately after the session exists and before
+            // any suspension point, so the default track is audible for
+            // milliseconds rather than the ~300ms this used to take.
+            engine.pause()
+            SBMLog.log("reloadSession: paused on load (autoplay: false)")
+        }
+         if let probe {
+             // Same-file reload can drop DV info (startPosition load).
+             // Keep the earlier detection instead of regressing to SDR.
+             videoCodecName = probe.videoCodecName ?? self.videoCodecName
+             videoWidth = probe.videoWidth > 0 ? Int(probe.videoWidth) : self.videoWidth
+             videoHeight = probe.videoHeight > 0 ? Int(probe.videoHeight) : self.videoHeight
+             isDolbyVision = probe.isDolbyVision || self.isDolbyVision
+             dvProfile = probe.dvProfile ?? self.dvProfile
+         }
+        // A failed attempt this reload recovered from latched `.error` on the
+        // engine, and the error surface is driven by `lastError`. The new
+        // session is healthy, so clear it — otherwise the viewer is left
+        // staring at an error for a file that is playing again.
+        if lastError != nil {
+            lastError = nil
+            SBMLog.log("reloadSession: cleared the previous error — the session recovered")
+            emit()
+        }
+        // A reloaded session starts on the container's DEFAULT track. The
+        // viewer's selection has to be re-applied — and on a custom source
+        // that means the engine re-probes the container, which drops the
+        // playhead, so the position is re-asserted further down.
+        if reassertAudioTrack, let flat = selectedAudioTrackFlatPos, flat >= 0 {
+            await waitForEngineReady(timeout: 3.0)
+            let trackId = engineAudioId(forFlatPosition: flat)
+            SBMLog.log(
+                "reloadSession: re-asserting audio track flat=\(flat) id=\(trackId)")
+            engine.selectAudioTrack(index: trackId)
+        }
+        if let activeSub, engine.subtitleTracks.contains(where: { $0.id == activeSub }) {
+            engine.selectSubtitleTrack(index: activeSub)
+        }
+        // Fresh AVPlayer instance after reload — re-apply the saved rate.
+        applySpeed(pendingSpeed)
+        // `load(startPosition:)` is not honoured for network sources, so a
+        // reload from a saved position still comes up at 0. Re-assert it.
+        await reassertPosition(position)
+        // Re-probe chapters after reload (audio track change, etc.) so the
+        // chapter markers and prev/next buttons don't disappear.
+        await probeChapters()
+        SBMLog.log("reloadSession: done at \(position)s")
+    }
+
 
     /// Probes chapters for the current source (local file, in-app SMB, WebDAV,
     /// FTP, or plain HTTP). Runs off the main actor because the reads are

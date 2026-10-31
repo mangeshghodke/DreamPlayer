@@ -1688,6 +1688,33 @@ All three were "the saved audio track silently destroyed the saved position", an
 
 `AvPlayerView.pendingResumeSeconds`, `reloadSession(at:autoplay:)`, and `reloadSession: paused on load` are the three things to check if any of this regresses. **Lesson: assert new log lines appear in the device log before trusting a fix here — two of the three above looked correct on paper and did nothing.**
 
+#### iOS lock/unlock on SMB — two more bugs, both invisible without the device log (2026-10-31)
+
+Reported on the iPad: play an SMB file → pause → lock → unlock. **First try: an error on screen. Second try: playback, but the audio had switched to the default/first track.** The `smb_debug.log` answered both in four lines:
+
+```
+10:36:30.828 PM  reloadSession: start at 212.918s (smb=true) autoplay=true
+10:36:30.828 PM  buildFreshSource: SMB — new source on the live handle (5435827491 bytes, hint=mkv)
+10:36:30.830 PM  engine error: smb=true: Failed to load: custom source probe failed
+...
+10:37:09.953 PM  reloadSession: start at 227.305s (smb=true) autoplay=true      <- second try: SUCCEEDED
+10:37:09.953 PM  buildFreshSource: SMB — new source on the live handle (5435827491 bytes, hint=mkv)
+10:37:09.953 PM  (no selectAudioTrack line follows)                            <- the track was lost
+```
+
+1. **A lock kills the SMB socket, and the reload reused the dead handle.** The unlock path reloads the session (`needsReloadAfterBackground` → `play`/`seekTo` → `reloadSession`) because iOS may have revoked bookmark access or dropped the connection. `buildFreshSource` built a new reader over the **live handle** — but the handle's TCP socket died while the device was suspended, so the container probe failed in **2 ms** (a socket write error, not a timeout) and the player surfaced "custom source probe failed". The second attempt worked only because the app had meanwhile done a full `open`, which re-establishes the session ("token is stale, re-opening from resumeKey"). **Fix:** `reloadSession` now catches the load failure, rebuilds the SMB session from the durable resume key (`smbResumeParts` → `SMBBridge.openSmb`) and retries once — the same recovery the open path performs for a stale token. The `play` handler also keeps `needsReloadAfterBackground` set when the reload genuinely failed, so the next play tries again. New log lines: `rebuilding the SMB session from the resume key`, `SMB session rebuilt`, `load failed (…) — SMB session rebuilt, retrying`.
+2. **A reload drops the audio track.** A reloaded session starts on the container's DEFAULT track, and a custom source cannot carry the selection over — the engine has to rebuild the pipeline (`reloadWithAudioOverride`) on the retained reader. The subtitle track was re-applied after a reload; **the audio track was not**, so every lock/unlock silently put the viewer back on the first track. **Fix:** the view remembers the selected track's FLAT position (`selectedAudioTrackFlatPos`, set in `setAudioTrack`) and `reloadSession` re-applies it after the load — before the position is re-asserted, because the rebuild drops the playhead. The `setAudioTrack` path passes `reassertAudioTrack: false` and applies the track itself, so the selection is never applied twice. New log line: `reloadSession: re-asserting audio track flat=N id=M`.
+
+**The engine's own switch is safe here:** `selectAudioTrack` refuses only a **forward-only** custom source (`isCustomSource && !customSourceIsSeekable`); the libsmb2 reader is positional (`smb2_pread`), so the engine reports it as seekable and rebuilds on the retained reader ✓.
+
+#### The queued-call hole behind `dreamplayer_crash.log` (2026-10-31)
+
+`dreamplayer_crash.log` held seven `MissingPluginException(No implementation found for method setRepeatMode on channel dreamplayer/exo_N)` entries — one per SMB file opened. `setRepeatMode` is **Android-only** (iOS repeat-one is handled in Dart), and `setAudioDelay` likewise. Two defects, both fixed:
+
+- The **native side** now answers both (`setRepeatMode` / `setAudioDelay` → logged no-op) so the channel contract is complete.
+- The **Dart side** replayed its queued calls with a bare `method.invokeMethod(name, args)` — the returned future was never awaited and had no error handler, so an unanswered method became an **unhandled async error**. `_send` already swallowed these; the replay loop did not. It now uses `unawaited(...catchError(...))`.
+- Note the channel ids in the log are ODD (`exo_1`, `exo_3`, `exo_5`): iOS creates a second platform view per player screen (the AirPlay picker), so the engine's view ids advance by two. They are not a "disposed view" signal — the error was purely "the method is not implemented".
+
 **Architecture**
 - New native module per platform exposing a MethodChannel (same shape as `FileBrowser.kt` / `dreamplayer/files`):
   - Android: `SMBClient.kt` (jcifs-ng) — channel `dreamplayer/smb`
