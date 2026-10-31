@@ -38,6 +38,11 @@ true of the intended build but not of the one that was reviewed. Verify with
 ## 0.5.5
 
 New:
+• Volume boost, Night mode and Bass boost. The volume swipe can now push
+  past 100% for extra loudness, Night mode compresses the dynamic range so
+  quiet dialogue comes up without the loud moments getting louder, and Bass
+  boost lifts the low end. They are part of the subscription; switching them
+  off is always free.
 • List or Grid view in the shared-folder browsers. The three-dot menu at the
   top right of the SMB, WebDAV, FTP, DLNA and Jellyfin browsers now has a
   View entry: List for the familiar rows, Grid for tiles with artwork —

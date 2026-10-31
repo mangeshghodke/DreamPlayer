@@ -831,7 +831,7 @@ A video player app supporting:
 
 - **NEVER put `Spacer()`/`Expanded()` inside AlertDialog `actions` (2026-08 gotcha, broke every network-server dialog)**: `AlertDialog` lays `actions` out in an **OverflowBar**, not a Flex — a Flex child there throws `Incorrect use of ParentDataWidget … Expanded wants FlexParentData, found _OverflowBarParentData` while mounting and the whole dialog form dies (user-visible: "only the Test button, no input fields" on FTP/WebDAV/Jellyfin/SMB add-server dialogs). The four dialogs had a `const Spacer()` between Test and Cancel for push-right spacing; fix: removed them + `actionsAlignment: MainAxisAlignment.spaceBetween` in the shared `serverDialog()` helper (`lib/widgets/server_form_kit.dart`). Regression-tested in `test/server_dialog_layout_test.dart`, which pumps both dialogs at phone + iPad portrait/landscape sizes and asserts all 6 TextFields mount at full height (≥40 px) — this test is what caught the bug; label-Text heights are NOT a valid size proxy (a floating label is naturally ~16 px).
 
-- **Volume Boost + Night Mode — Android-only (REWRITTEN 2026-10-25, issue #41)**: the boost is **PCM make-up gain + a peak limiter inside the audio sink** (`BoostLimiterProcessor.kt`, inserted by `DreamRenderersFactory.buildAudioSink` alongside `AudioDelayProcessor`). It runs on whatever layout the decoder produced, so it is channel-agnostic. **No audio effect is attached — do not reintroduce `LoudnessEnhancer` or `DynamicsProcessing`.**
+- **Volume Boost + Night Mode — Android path (REWRITTEN 2026-10-25, issue #41); the iOS path is "iOS audio DSP" below**: the boost is **PCM make-up gain + a peak limiter inside the audio sink** (`BoostLimiterProcessor.kt`, inserted by `DreamRenderersFactory.buildAudioSink` alongside `AudioDelayProcessor`). It runs on whatever layout the decoder produced, so it is channel-agnostic. **No audio effect is attached — do not reintroduce `LoudnessEnhancer` or `DynamicsProcessing`.**
   - **Why both effects are banned.** `LoudnessEnhancer` is a FIXED, untunable compressor with no limiter, and **AOSP hard-wires it for STEREO** — attached to a 5.1 session it mangles the centre channel (the dialogue) while the rest of the mix keeps playing, which is exactly the reported "background music continues, vocals disappear". `DynamicsProcessing` was the replacement and works on the OnePlus 12R, but it is a **vendor HAL effect**: the reporter's OnePlus Pad 2 refuses to create it at all, failing in `setEngineArchitecture()` with `IllegalArgumentException: AudioEffect: bad parameter value` for both `ch=6` and `ch=2`. That throw comes from the `AudioEffect` base constructor, so **no `Config` shape can fix it** (the 1-arg ctor, `bandCount >= 1` and explicit 2.0 downmix were all tried by the reporter). Its failure path fell through to `LoudnessEnhancer`, which is how the stereo-only effect ended up on a 5.1 session in the first place.
   - **The PCM path is also what MPV does**, and the reporter confirmed MPV sounds correct on the same speakers after its gain fix. One mechanism, identical behaviour on both engines and every device, and no dependence on whether a vendor HAL implements an optional effect. `LoudnessEnhancer` also remains banned as a fallback.
   - Boost is capped at **+12 dB** (`currentBoostDb()`: `20*log10(audioBoost) + 4 dB` for Night Mode, clamped 0..12). The gesture's 200% is 2.0× = +6.02 dB; Night Mode takes it to +10.02 dB. `ExoPlayerView.setAudioBoost` writes the gain through `applyBoostGain()` at gesture rate — a parameter write, never a sink rebuild, so the limiter's release envelope keeps running across the drag (rebuilding per frame reset it, which is why dialogue returned while dragging and vanished after release). Log line `volume boost via PCM gain+limiter at XdB` is gated on the last logged value (`boostLoggedDb`) so it appears once per real change, not once per frame.
@@ -853,7 +853,84 @@ A video player app supporting:
   - Night Mode adds +4 dB on the native side and ×1.6 on MPV. iOS remains a **deliberate no-op** (`AVPlayer.volume` caps at 1.0, no public DRC-over-AVPlayer API) and both controls stay hidden on iOS.
   - **Verified on-device (OnePlus 12R, 2026-10-25)** — see the block at the top of this section. The Pad 2 speaker A/B is the reporter's to confirm; that was the measurement gap that kept this issue open for three rounds, and it is now closed on the mechanism rather than on a vendor effect.
 
-- **Bass Boost — Android-only (2026-08-25)**: `android.media.audiofx.BassBoost` attached to the same session in `applyAudioEffects` (independent of the loudness guard — applies even at 1.0× / night mode off); levels Off/Low/Medium/High → strength ~150–1000; persisted `flutter.dreamplayer.bassBoost`, live via `setBassBoost`, emitted as `bassBoost` in the event map. The ⋮ sheet row is **gated on `_liveSpatial == 'on'`** — it exists to offset HRTF low-end thinning during spatial virtualization, so it appears only while the teal Spatial chip is active and vanishes when routing/content changes. Works on any output (wired/USB/BT) since it's session-level DSP. iOS: no public API over AVPlayer; would need AetherEngine PCM routed through an owned `AVAudioEngine` with an `AVAudioUnitEQ` low-shelf band (+4–8 dB @ ~100 Hz) plus re-plumbing position/pause/rate/seek — deferred alongside volume boost. The `_liveSpatial == 'on'` gate this row depends on is set by the **Android-only** `system_controls` channel today; if/when iOS spatial ships (see "iOS spatial audio" in the Roadmap) the same gate starts working on iOS for free, which is the correct behavior — the row exists to offset HRTF low-end thinning.
+- **Bass Boost — Android-only (2026-08-25)**: `android.media.audiofx.BassBoost` attached to the same session in `applyAudioEffects` (independent of the loudness guard — applies even at 1.0× / night mode off); levels Off/Low/Medium/High → strength ~150–1000; persisted `flutter.dreamplayer.bassBoost`, live via `setBassBoost`, emitted as `bassBoost` in the event map. The ⋮ sheet row is **gated on `_liveSpatial == 'on'`** — it exists to offset HRTF low-end thinning during spatial virtualization, so it appears only while the teal Spatial chip is active and vanishes when routing/content changes. Works on any output (wired/USB/BT) since it's session-level DSP. iOS: AVPlayer exposes no public boost/DRC API, so iOS does the same three things in the engine's `AudioShaping` graph (see "iOS audio DSP" below). The `_liveSpatial == 'on'` gate this row depends on now works on iOS too — iOS spatial shipped in 0.5.5 — which is the correct behavior: the row exists to offset HRTF low-end thinning.
+
+### iOS audio DSP — volume boost, night mode & bass boost (2026-10-31)
+
+**iOS now has the same three audio controls as Android**, and they are real DSP
+(not a volume trick): boost is make-up gain, night mode is dynamic-range
+compression, bass is a low shelf. Android's implementation is untouched and
+still free.
+
+**The engine is a FORK, and upstream is never touched.** The app now depends on
+`mangeshghodke/AetherEngine` (branch `dreamplayer`, tag `7.53.1`, based on
+upstream `7.53.0`); `ios/Runner.xcodeproj/project.pbxproj` points at the fork
+with `minimumVersion = 7.53.1`. **Never open a PR against upstream and never
+push to `origin` there** — the fork is the only channel. The fork exists for
+exactly two reasons:
+- **the platform floor**: upstream declares `.iOS(.v18)`, the app's deployment
+  target is iOS 17, so the fork lowers `Package.swift` to `.iOS(.v17)`. The v18
+  raise was only to silence Swift 6 diagnostics on `AVSampleBufferDisplayLayer`
+  — no symbol in the package needs 18 (zero `#available(iOS 18)` checks).
+- **the bass shelf**: see below.
+
+**Boost and night mode ride UPSTREAM's public API** — `AudioShaping`,
+`AudioShaping.Compressor` (with `makeupGainDB` clamped 0...24 dB) and the
+engine's own `Compressor.night` preset (threshold −30 dB, ratio 4, makeup
++10 dB, attack 5 ms, release 250 ms, knee 6 dB) are all upstream. The host
+applies them through `AetherEngine.setAudioShaping(_:)`, which is idempotent
+(equal value → no rebuild), preserves the audio session, and folds a change
+made during a load into the in-flight rebuild.
+
+**The bass shelf is the fork's job, and it could NOT be an FFmpeg filter.**
+This engine's FFmpeg is built from an allow-list (`FFmpegBuild/build.sh`)
+that compiles only `abuf*`, `aformat`, `aresample`, `dialoguenhance`, `pan`,
+`acompressor`, `alimiter` — **`bass` (and every other EQ) is not in the
+build**, so a chain stage would silently never load. The fork therefore runs
+the shelf as a Swift biquad (`LowShelfBiquad`) on the frame as it enters
+`AudioShapingGraph.push()`, with libavfilter's `af_biquads.c` `case bass:`
+coefficients (poles = 2, Q = 0.5, `alpha = sin(w0)`, `beta = sqrt(2A)`),
+validated against a real `ffmpeg -af bass=…`: worst gain difference
+**0.0061 dB** over 5 Hz…8 kHz. Chain order is
+**shelf → dialoguenhance → acompressor → alimiter** — `alimiter` stays LAST,
+so the −1 dBFS ceiling holds over the boosted sum, and the shelf runs only
+behind a built limiter (`reset()`'s passthrough fallback has no ceiling).
+
+**Native wiring (`ios/Runner/AvPlayerView.swift`).**
+- `makeAudioShaping()` maps the three controls onto one `AudioShaping`:
+  boost = flat make-up gain (`ratio 1` — transparent, the limiter does the
+  capping) with `makeupGainDB = 20·log10(boost)`; night = `Compressor.night`
+  with the boost's make-up stacked on top (10 + 9.54 = 19.54 dB, inside the
+  24 dB clamp); bass = 0/4/7/10 dB @ 100 Hz. All off → the default
+  `AudioShaping()`, which the engine treats as byte-for-byte passthrough.
+- **TRAP — `load()` REPLACES the engine's options wholesale**
+  (`AetherEngine.swift`: `loadedOptions = options`), so a shaping value that
+  only lives on the engine is WIPED by the next load. `applyAudioShaping()`
+  therefore writes `lastLoadOptions.audioShaping` FIRST, `open()` sets
+  `options.audioShaping = makeAudioShaping()` on the `LoadOptions` it hands to
+  `engine.load`, and `reloadSession` copies `lastLoadOptions` — so every load
+  path carries the value.
+- **TRAP — each apply rebuilds the session at the playhead** (~0.3 s of held
+  picture), so the change is debounced 0.3 s while the engine is `.playing`
+  and applied immediately otherwise (an idle/loading engine reads the value
+  out of the options anyway).
+- `setBassBoost` is a new channel case: it stores the level in
+  `UserDefaults` under **`flutter.dreamplayer.bassBoost`** — the same key
+  Android's `ExoPlayerView.kt` writes, so it is ONE setting across platforms —
+  then applies the shaping. `"bassBoost"` also rides the emit map, so the Dart
+  `_liveBass` chip follows the engine.
+- `AVPlayer.volume` still caps at 1.0, so the boost is DSP, not volume: the
+  old `engine.volume = min(audioBoost, 1)` line survives only to keep the
+  mute/unmute bookkeeping identical.
+
+**Paywall (iOS premium — spatial-audio precedent).** Turning boost, night mode
+or bass ON is choice-gated (Settings → Audio, and the player's ⋮ sheet);
+switching OFF is always free. `effectiveDspSetting` (`entitlements.dart`)
+applies the lapsed-entitlement correction to the saved values — the same shape
+as `SpatialAudioStore.effectiveEnabled`. Android is untouched: its `checkGate`
+is a guaranteed no-op there. Dart pushes the effective bass level on iOS at
+open (the native side reads the pref itself), so a lapsed entitlement reaches
+the engine as 0 and the correction is persisted.
 
 - **Background playback + media notification controls (2026-08-26)** — the #1 competitor-gap feature: audio keeps playing and lock screen / notification / headset controls work when the app is backgrounded or the screen locks.
   - **Android** (`PlaybackManager.kt`, `PlaybackService.kt`): deliberate **NOT** a Media3 `MediaSessionService` refactor — the player stays in the Activity-scoped platform view, so a plain **`MediaSessionCompat`** (`androidx.media:media:1.7.0`) wraps it and a thin **foreground service** (type `mediaPlayback`) only holds foreground priority + hosts the `MediaStyle` notification (rew-10s / play-pause / ffw-10s / close, tap → app). All actions route through session callbacks back into the live player instance. Player hygiene added in one go: `setAudioAttributes(..., handleAudioFocus=true)` (pauses for calls/other apps), `setHandleAudioBecomingNoisy(true)` (pause on headphone unplug), `setWakeMode(C.WAKE_MODE_NETWORK)` (CPU+Wi-Fi locks so streams keep buffering with screen off). `POST_NOTIFICATIONS` requested fire-and-forget in Dart before first playback (13+; denial hides the notification but playback/service still work).
@@ -2891,6 +2968,7 @@ earlier notes here claimed releases were all-free, which was wrong about reality
 | 56 | Download to device | Choice-gate on start |
 | 37 | OpenSubtitles online search | Choice-gate on opening search sheet |
 | — | **Spatial audio (iOS)** | Choice-gate on turning the Settings switch ON |
+| — | **Volume boost / Night mode / Bass boost (iOS)** | Choice-gate on turning the control ON (Settings → Audio; the bass row is in the player menu and stays behind spatial being on) |
 
 **Explicitly NOT gated (iOS free forever)** — gating these would burn reviews
 (OutPlayer lesson: gating table-stakes = 1★ wave):
@@ -3033,13 +3111,19 @@ Enforced by tests: `test/entitlements_test.dart` asserts (a) on Android
 sheet builder returns null on Android. CI (`flutter test`) gates the paywall
 branch. Future Android-only features must follow the same pattern: read
 `Entitlements.advanced`, never touch StoreKit, never gate.
-- Note: bass/volume-boost/night-mode (28–30) are **Android-only today**;
-  they don't exist on iOS, so they're NOT in this gate map. If iOS audio DSP
-  is ever built (AVAudioEngine), it can be added behind the paywall later —
-  never double-gate the same feature. **Spatial audio is the exception: it is
-  NOT custom DSP on iOS** — it rides AVPlayer's built-in system spatialization,
-  and it IS in the gate map (added 2026-10-30, see "Spatial audio is a PAID
-  feature on iOS" above).
+- Note: bass/volume-boost/night-mode (28–30) are **Android-only in the sense
+  that the Android implementation is unchanged and Android stays free**; the
+  iOS side is now built (2026-10-31) on the AetherEngine fork's
+  `AudioShaping` (make-up gain + limiter, `Compressor.night`, low-shelf
+  bass — see "iOS audio DSP" in Implemented features) and IS in the gate map:
+  choice-gate on turning each control ON, plus `effectiveDspSetting`
+  (`entitlements.dart`) correcting a stale saved ON when the entitlement
+  lapses — the same shape `SpatialAudioStore.effectiveEnabled` applies.
+  Never double-gate: the turn-on is the one gate, the correction is the
+  sweep. **Spatial audio is the exception: it is NOT custom DSP on iOS** —
+  it rides AVPlayer's built-in system spatialization, and it IS in the gate
+  map (added 2026-10-30, see "Spatial audio is a PAID feature on iOS"
+  above).
 
 **Testing gate** (2026-09-09): ✅ **ALL 7 GATES VERIFIED** on-device
 (OnePlus CPH2573, `a019b7f3`, debug APK, 2026-09-09). Paywall code can

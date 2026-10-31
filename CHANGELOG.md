@@ -7,6 +7,15 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
+- **Volume boost, Night mode and Bass boost now work on iPhone and iPad.**
+  The same three audio controls are now available on iOS, and they are real
+  audio processing rather than a volume trick: **Volume boost** adds make-up
+  gain on top of the normal level (the 100-200% band of the volume swipe),
+  **Night mode** compresses the dynamic range so quiet dialogue comes up
+  without the loud moments getting louder, and **Bass boost** lifts the low
+  end with a low shelf. On iOS they are part of the subscription (the same
+  as spatial audio); switching them off is always free.
+
 - **Hardware SDR tone-mapping (issue #55).** Settings → Player now has a
   "Hardware SDR tone-mapping" switch (Android, off by default). When it is on,
   the video decoder is asked to output standard SDR instead of the source's
