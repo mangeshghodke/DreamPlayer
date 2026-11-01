@@ -3469,11 +3469,78 @@ history scan (`Transaction.all`) is what decides what the customer owns.
   called from `app.dart`'s lifecycle observer): a subscription that lapsed
   while the app was in the background stops being premium, and a purchase made
   elsewhere starts being premium. The rule is deliberately conservative —
-  `revalidateShouldRevoke()` only revokes when the account **has**
-  transactions and none of them entitle the user any more. **An empty history
-  never revokes**, because that can also mean StoreKit has not answered yet,
-  and locking a paying customer out over a transient empty cache is the worse
-  failure.
+  `revalidateShouldRevoke({activeProductId, nonEntitled})` only revokes when
+  the **product that granted access itself** shows up in the scan as
+  non-entitled (an `expirationDate` in the past or a `revocationDate`). A
+  count-based rule ("has transactions but none entitle") is NOT safe: measured
+  on device (build 65, 12:13:15), a scan right after an update returned ONLY
+  the expired monthly while the lifetime unlock landed ~21 s later — under a
+  count-based rule that read would have locked a paying customer out for up
+  to a minute. **Empty and partial histories never revoke here**; the
+  signed-out case is handled at the Restore button instead (next section).
+
+### The restore verdict comes from the store — and sign-out is enforced there (2026-11-01)
+
+`restorePurchases()` returned what the campaign-state already believed: the
+iPad log (build 69, 20:09:15) showed it answer "Purchase restored!" while
+its own log said `transactions: []` — the check ran on `isAdvanced` (memory),
+not on the store. Same session:
+
+| Time | Situation | Answer |
+|---|---|---|
+| 20:07:51 | scan right after launch | only the expired monthly (lifetime still missing) |
+| 20:08:12 | ~21 s later | lifetime lands — **partial answers are transient** |
+| 20:09:07 | signed out of Media & Purchases | every scan empty, entitlement still "Active" from cache |
+| 20:09:15 | Restore tapped | "Purchase restored!" — the lie above |
+
+**Apple's answer to "can the app tell the user signed out"** (docs read, not
+assumed): *no StoreKit API reports "signed in"* — only `AppStore.sync()`
+PROMPTS for the App Store credentials, and Apple's guidance says to call it
+only on an explicit user action. Meanwhile the sandbox-testing page says
+signing out "can remove your access to purchased content" — a purchase
+belongs to the Apple Account. So the app cannot detect sign-out in the
+background, but it CAN decide at the Restore button: a completed sign-in
+prompt followed by an empty history is a settled "this account owns
+nothing".
+
+**The new verdict shape** — `restorePurchases()` is now
+`Future<({bool restored, bool storeEmpty})>`:
+
+- `sync()` runs first through `TrialStore.syncPurchasesWithAppStore()`
+  (false = failed/cancelled/offline — it swallows errors by design); then
+  the plugin restore; then the same 12 s history poll as the old wait.
+- **`restored` = the poll positively found a purchase that entitles.**
+  `_rememberEntitledProduct` as per the "remembered in the app's own data"
+  section.
+- **`storeEmpty` = `synced && found == null && maxCount == 0 && no errors.`
+  Nothing else counted as "empty", ever: a partial history
+  (`maxCount > 0`, none entitled) is the 20:07:51 case and keeps the
+  entitlement; an UNSYNCED empty (user cancelled the Apple ID prompt) is
+  ambiguous and keeps it; a scan/store that threw is ambiguous and keeps it.
+- **`synced && scan.count == 0` revokes the cached entitlement**
+  (`_forgetEntitledProduct`) — the sign-out enforcement, with Apple's own
+  wording logged as the reason. The binary `storeEmpty` is what the paywall
+  consumes so any future caller cannot re-invent the cache lie.
+- The paywall's handler uses the outcome: `restored` → "Purchase restored!"
+  + close; plugin/store errors → try/catch, "Restore failed — try again
+  later"; anything else → sheet stays open. The old cached-verdict loop is
+  gone.
+
+**Do not move this rule into the background scans.** Launch/revalidate keeps
+"empty and partial never revoke" (the table above is why); the only
+authoritative sign-out moment is the prompt the Restore button itself raises.
+`AppStore.sync()` still has exactly one call site — pinned by test.
+
+**Tests:** the StoreKit/plugin channels cannot answer under `flutter test`
+(and the Pigeon `restorePurchases` call can HANG in a test isolate when
+widget tests have already initialized the binding — it truncated a 30 s
+timeout), so the ambiguous/unreadable semantics are pinned by SOURCE
+(`test/entitlements_storekit_test.dart`, "Restore Purchases verdict
+(signed-out semantics)"): plugin-failure and poll-error blocks must not touch
+the entitlement; `storeEmpty`'s ternary; revoke lives inside the
+`synced && count == 0` branch only; the `count > 0` branch contains no
+`_forgetEntitledProduct`; the paywall shows "Restore failed — try again
+later" on a dead store.
 
 **`AppStore.sync()` stays exactly where it is: behind the Restore button.**
 It is the one call Apple's policy allows to prompt for the Apple ID, and it

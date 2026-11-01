@@ -138,9 +138,31 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   re-checks the purchase: a subscription that expired while the app was in the
   background no longer unlocks the premium features, and a purchase made
   elsewhere (the App Store tab, a redemption code) starts unlocking them —
-  both without restarting the app. The check never revokes an access on an
-  empty purchase history, because that can also mean the store has not
-  answered yet.
+  both without restarting the app. The check revokes only when the store
+  reports the very product that granted access as expired or refunded —
+  measured on device, right after an update the store can answer with an
+  incomplete history, and an empty or half-filled answer never means "no
+  purchase": it means "not known yet".
+- **iOS: "Restore Purchases" now reports the store's answer, not a cached
+  one.** The button could show "Purchase restored!" on a log read from the
+  app's memory alone — with the store itself reporting nothing — and could
+  close the sheet without the store having been asked. The answer now comes
+  from the store's purchase history: a purchase there unlocks immediately;
+  an empty history is only a verdict **after the sign-in prompt the button
+  triggers has completed**; a half-filled or unreadable answer is never
+  treated as "no purchase" (measured on device: right after an update the
+  store can answer with an expired subscription only, and the lifetime
+  unlock lands about twenty seconds later), and a store that cannot be
+  reached fails with a clear message instead of inventing success.
+- **iOS: signing out of Media & Purchases drops premium access.** Apple's
+  own guidance for the sandbox is that signing out "can remove your access
+  to purchased content", because a purchase belongs to the Apple Account.
+  The app cannot tell "signed out" from "the store has not answered yet"
+  while running, so the decision happens where the account is actually
+  provable: at the Restore button's sign-in prompt — a completed prompt
+  followed by an empty purchase history now revokes the cached entitlement,
+  so premium features stop and the paywall comes back. There is no
+  "is signed in" API for the app to poll.
 - **iOS: "Restore Purchases" no longer closes itself the moment it opens.**
   The sheet used to shut as soon as it saw an active subscription — which is
   right when a premium feature was tapped, but not when the sheet was opened

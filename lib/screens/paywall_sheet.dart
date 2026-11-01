@@ -383,21 +383,29 @@ class _PaywallSheetState extends State<PaywallSheet> {
     IapLog.instance.log('RESTORE', '_restorePurchases called from paywall');
     final messenger = ScaffoldMessenger.of(context);
     Entitlements.instance.startPurchaseListener();
-    await Entitlements.instance.restorePurchases();
-    // Wait for the entitlement instead of a fixed delay. `AppStore.sync()`
-    // (an explicit user action, so it is allowed) can take a moment, and the
-    // transaction can reach us through the purchase stream or through the
-    // history query at different times — a fixed 3s window reported "No
-    // previous purchase found" for purchases that were about to land.
-    final deadline = DateTime.now().add(const Duration(seconds: 12));
-    while (!Entitlements.instance.isAdvanced &&
-        DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+    // The verdict comes from the store scan inside restorePurchases() — never
+    // from the cached flag, which was saying "Active" on the very sheet this
+    // button was pressed on.
+    ({bool restored, bool storeEmpty}) outcome;
+    try {
+      outcome = await Entitlements.instance.restorePurchases();
+    } catch (e) {
+      // A dead store (plugin/channel error) must not crash the Restore tap.
+      IapLog.instance.log('RESTORE', 'restorePurchases threw: $e');
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Restore failed — try again later')),
+      );
+      return;
     }
-    IapLog.instance.log('RESTORE', 'after wait: isAdvanced=${Entitlements.instance.isAdvanced}');
+    IapLog.instance.log(
+      'RESTORE',
+      'after wait: isAdvanced=${Entitlements.instance.isAdvanced} '
+      'restored=${outcome.restored} storeEmpty=${outcome.storeEmpty}',
+    );
     if (!mounted) return;
     setState(() {});
-    if (Entitlements.instance.isAdvanced) {
+    if (outcome.restored) {
       IapLog.instance.log('RESTORE', 'SUCCESS → Purchase restored!');
       messenger.showSnackBar(
         const SnackBar(content: Text('Purchase restored!')),

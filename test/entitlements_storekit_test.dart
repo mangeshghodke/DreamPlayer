@@ -172,31 +172,46 @@ void main() {
       // customer out over a transient empty cache is the worse failure.
       expect(
         Entitlements.revalidateShouldRevoke(
-          transactionCount: 0,
-          entitledProduct: null,
+          activeProductId: 'dp_premium_lifetime_2026',
+          nonEntitled: const [],
         ),
         isFalse,
       );
     });
 
-    test('transactions that no longer entitle the user revoke it', () {
-      // A lapsed subscription or a refunded lifetime.
+    test('a partial history does NOT revoke the entitlement', () {
+      // Measured in iap_debug.log on 2026-11-01, 20:07:51: a scan right after
+      // an app update returned ONLY the expired monthly while the lifetime
+      // landed 21 s later (20:08:12). "Transactions exist but none entitle"
+      // without naming the granted product is a partial cache, not an answer.
       expect(
         Entitlements.revalidateShouldRevoke(
-          transactionCount: 1,
-          entitledProduct: null,
+          activeProductId: 'dp_premium_lifetime_2026',
+          nonEntitled: const ['dp_premium_monthly_2026'],
+        ),
+        isFalse,
+      );
+    });
+
+    test('a lapsed subscription named in the history revokes it', () {
+      // The store's history carries the exact product we granted with its
+      // expiration in the past — that IS an answer.
+      expect(
+        Entitlements.revalidateShouldRevoke(
+          activeProductId: 'dp_premium_monthly_2026',
+          nonEntitled: const ['dp_premium_monthly_2026'],
         ),
         isTrue,
       );
     });
 
-    test('a still-valid transaction keeps the entitlement', () {
+    test('a refunded lifetime named in the history revokes it', () {
       expect(
         Entitlements.revalidateShouldRevoke(
-          transactionCount: 1,
-          entitledProduct: 'dp_premium_lifetime_2026',
+          activeProductId: 'dp_premium_lifetime_2026',
+          nonEntitled: const ['dp_premium_monthly_2026', 'dp_premium_lifetime_2026'],
         ),
-        isFalse,
+        isTrue,
       );
     });
   });
@@ -282,7 +297,9 @@ void main() {
           .length;
       expect(occurrences, 1);
       final restore = entitlementsSource.substring(
-        entitlementsSource.indexOf('Future<void> restorePurchases() async {'),
+        entitlementsSource.indexOf(
+          'Future<({bool restored, bool storeEmpty})> restorePurchases()',
+        ),
         entitlementsSource.indexOf('/// Test-only: reset the singleton state.'),
       );
       expect(restore, contains('syncPurchasesWithAppStore()'));
@@ -584,6 +601,90 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.byType(PaywallSheet), findsOneWidget);
+    });
+  });
+
+  group('Restore Purchases verdict (signed-out semantics)', () {
+    // Apple's sandbox-testing guidance: "Signing out of Media & Purchases
+    // can remove your access to purchased content" — a purchase belongs to
+    // the Apple Account, so a SIGNED-OUT customer must not keep riding an
+    // entitlement. The app cannot tell "signed out" from "StoreKit has not
+    // hydrated its cache yet" on an ordinary read, and measured logs prove
+    // both empty and partial reads happen transiently. The one authoritative
+    // moment is the Restore button: `AppStore.sync()` (reachIt only there)
+    // prompts for the owning Apple ID, so a COMPLETED sync followed by an
+    // EMPTY history is a settled answer — "this account owns nothing" — and
+    // the cached entitlement is revoked there.
+
+    String restoreSource() {
+      final src = File('lib/services/entitlements.dart').readAsStringSync();
+      return src.substring(
+        src.indexOf(
+          'Future<({bool restored, bool storeEmpty})> restorePurchases()',
+        ),
+        src.indexOf('/// Test-only: reset the singleton state.'),
+      );
+    }
+    test('an unreadable store is ambiguous — nothing is granted, nothing is revoked',
+        () {
+      // The StoreKit/plugin channel cannot answer in tests (and per Pigeon API
+      // can HANG in a test isolate — the real semantics are pinned by source):
+      // both the plugin-restore failure and a history-scan throw must leave
+      // the cached entitlement exactly as it was.
+      final restore = restoreSource();
+
+      // The plugin failure path logs and rethrows before any state change.
+      final pluginIdx =
+          restore.indexOf("IapLog.instance.log('RESTORE', 'restorePurchases() ERROR:");
+      expect(pluginIdx, greaterThan(0));
+      final pluginBlock =
+          restore.substring(pluginIdx, restore.indexOf('rethrow;', pluginIdx) + 'rethrow;'.length);
+      expect(pluginBlock, contains('_restorePending = false;'));
+      expect(pluginBlock, isNot(contains('_advanced')));
+      expect(pluginBlock, isNot(contains('_forgetEntitledProduct')));
+
+      // A history-scan error mid-poll is caught: no verdict, no revoke.
+      final pollIdx = restore.indexOf("IapLog.instance.log('RESTORE', 'store poll ERROR:");
+      expect(pollIdx, greaterThan(0));
+      final pollBlock = restore.substring(
+          pollIdx, restore.indexOf('IapLog.instance.log', pollIdx + 10));
+      expect(pollBlock, contains('_storeAnswered = false;'));
+      expect(pollBlock, isNot(contains('_forgetEntitledProduct')));
+
+      // The paywall does not crash on a dead store either.
+      final paywall =
+          File('lib/screens/paywall_sheet.dart').readAsStringSync();
+      expect(paywall, contains("const SnackBar(content: Text('Restore failed — try again later'))"));
+    });
+
+
+    test('the verdict is decided by the store answer, never the cache', () {
+      final restore = restoreSource();
+      expect(restore, contains('restored: found != null'));
+      expect(restore,
+          contains('storeEmpty: synced && found == null && maxCount == 0'));
+    });
+
+    test('empty after a COMPLETED sync revokes (Apple sign-out semantics)',
+        () {
+      final restore = restoreSource();
+      final idx = restore.indexOf('if (synced && scan.count == 0) {');
+      expect(idx, greaterThan(0));
+      final block =
+          restore.substring(idx, restore.indexOf('} else if (scan.count > 0)', idx));
+      expect(block, contains('_forgetEntitledProduct()'));
+      // Apple, sandbox-testing guidance: "Signing out of Media & Purchases
+      // can remove your access to purchased content in production apps."
+      expect(block, contains('remove your access to purchased content'));
+    });
+
+    test('a partial history never revokes on restore', () {
+      final restore = restoreSource();
+      final idx = restore.indexOf('} else if (scan.count > 0) {');
+      expect(idx, greaterThan(0));
+      final block = restore.substring(idx, restore.indexOf('} else {', idx));
+      expect(block, contains('none entitled'));
+      expect(block, isNot(contains('_forgetEntitledProduct')));
     });
   });
 }

@@ -509,11 +509,13 @@ class Entitlements extends ChangeNotifier {
   /// found" report can be answered from the log instead of guessed at: zero
   /// transactions and a Sandbox entry mean an environment mismatch, not a
   /// broken restore.
-  Future<({String? entitledProduct, int count, List<String> seen})>
+  Future<({String? entitledProduct, int count, List<String> seen,
+      List<String> nonEntitled})>
       _scanHistory() async {
     final all = await SK2Transaction.transactions();
     final candidates = <({String productId, int? expirationMs})>[];
     final seen = <String>[];
+    final nonEntitled = <String>{};
     for (final t in all) {
       var productId = t.productId;
       int? expirationMs = _parseEpochMs(t.expirationDate);
@@ -552,10 +554,17 @@ class Entitlements extends ChangeNotifier {
         revocationMs: revocationMs,
       )) {
         candidates.add((productId: productId, expirationMs: expirationMs));
+      } else {
+        nonEntitled.add(productId);
       }
     }
     final entitledProduct = pickDurableProduct(candidates);
-    return (entitledProduct: entitledProduct, count: all.length, seen: seen);
+    return (
+      entitledProduct: entitledProduct,
+      count: all.length,
+      seen: seen,
+      nonEntitled: nonEntitled.toList(),
+    );
   }
 
   /// Pure: pick the entitlement that lasts longest among the ones that
@@ -598,18 +607,26 @@ class Entitlements extends ChangeNotifier {
   /// [entitledProduct] the product (if any) that still entitles the user.
   ///
   /// The rule is deliberately CONSERVATIVE: the entitlement is only revoked
-  /// when the account still has transactions but none of them entitle the user
-  /// any more (a lapsed subscription, a refunded lifetime). An EMPTY history
-  /// is ambiguous — StoreKit may simply not have refreshed yet — so it never
-  /// revokes an entitlement on that basis. Locking a paying customer out over
-  /// a transient empty cache is a far worse failure than letting a lapsed
-  /// subscriber keep the feature until the next launch.
+  /// when the account's history NAMES the product we granted as no longer
+  /// entitled — the transaction is present with a past `expirationDate` (a
+  /// lapsed subscription) or a `revocationDate` (a refunded lifetime). That is
+  /// the store saying, about the exact purchase we hold, that it is gone.
+  ///
+  /// A history whose transactions do not entitle but do NOT name our product
+  /// is a PARTIAL cache, not an answer: measured in iap_debug.log on
+  /// 2026-11-01, a right-after-update read returned only the expired monthly
+  /// (20:07:51) while the lifetime landed 21 s later (20:08:12). An EMPTY
+  /// history is equally ambiguous — "not known yet". Neither may revoke an
+  /// entitlement; locking a paying customer out over a transient cache is a
+  /// far worse failure. The one authoritative sign-out signal is an
+  /// `AppStore.sync()` (the Restore button's sign-in prompt), and that is
+  /// enforced in `restorePurchases()`, not here.
   @visibleForTesting
   static bool revalidateShouldRevoke({
-    required int transactionCount,
-    required String? entitledProduct,
+    required String? activeProductId,
+    required List<String> nonEntitled,
   }) =>
-      transactionCount > 0 && entitledProduct == null;
+      activeProductId != null && nonEntitled.contains(activeProductId);
 
   /// Re-check the entitlement when the app comes back to the foreground.
   ///
@@ -636,17 +653,18 @@ class Entitlements extends ChangeNotifier {
         await _rememberEntitledProduct(entitledProduct);
         return;
       }
+      final active = _activeProductId ?? _cachedProductId;
       if (revalidateShouldRevoke(
-        transactionCount: scan.count,
-        entitledProduct: entitledProduct,
+        activeProductId: active,
+        nonEntitled: scan.nonEntitled,
       ) &&
           _advanced) {
-        // The account has transactions, but none of them entitle the user any
-        // more — the subscription lapsed or the purchase was refunded.
+        // The store's history names the purchase we hold as gone — a lapsed
+        // subscription or a refunded lifetime.
         IapLog.instance.log(
           reason,
-          '${scan.count} transaction(s) but none entitled '
-          '(${scan.seen.join(', ')}) → revoking entitlement',
+          '$active is no longer entitled (transactions: '
+          '${scan.seen.join(', ')}) → revoking entitlement',
         );
         _advanced = false;
         _storeEntitled = false;
@@ -657,7 +675,11 @@ class Entitlements extends ChangeNotifier {
       }
       IapLog.instance.log(
         reason,
-        'no transactions — keeping the current entitlement',
+        scan.count == 0
+            ? 'no transactions — keeping the current entitlement'
+            : 'partial history — keeping the current entitlement '
+                '(entitled=${_activeProductId ?? _cachedProductId ?? 'none'}, '
+                'transactions: ${scan.seen.join(', ')})',
       );
     } catch (e) {
       IapLog.instance.log(reason, 'ERROR: $e');
@@ -1032,11 +1054,25 @@ class Entitlements extends ChangeNotifier {
   }
 
   /// Restore purchases — explicit user action only.
-  Future<void> restorePurchases() async {
+  ///
+  /// The verdict comes from the STORE, never from the cached flag: the
+  /// paywall must not claim "Purchase restored!" over state that was true
+  /// before the button was pressed (measured in iap_debug.log 2026-11-01,
+  /// 20:09:15 — the store returned 0 transactions and the sheet still closed
+  /// with a success message read off the cache).
+  ///
+  /// Returns `restored` only when THIS restore's history read found a purchase
+  /// that entitles. `storeEmpty` is true only when
+  /// `AppStore.sync()` completed (Apple's sign-in prompt was shown and the
+  /// account settled) and the history read back EMPTY — the one authoritative
+  /// "signed out / different account / nothing owned" answer, on which the
+  /// cached entitlement is revoked per Apple's guidance that signing out of
+  /// Media & Purchases removes access to purchased content.
+  Future<({bool restored, bool storeEmpty})> restorePurchases() async {
     IapLog.instance.log('RESTORE', 'called, platform=$defaultTargetPlatform');
     if (defaultTargetPlatform == TargetPlatform.android && !_debugFreeUser) {
       IapLog.instance.log('RESTORE', 'REJECTED: android non-debug');
-      return;
+      return (restored: false, storeEmpty: false);
     }
     _restorePending = true;
     _expectedProductId = null;
@@ -1044,35 +1080,118 @@ class Entitlements extends ChangeNotifier {
     // the local cache, which can be empty after a reinstall even though the
     // account owns the product; AppStore.sync() is what re-fetches it (and
     // prompts for the owning Apple ID if the device is signed in with a
-    // different one).
+    // different one). A completion is the authentication we need before an
+    // empty history may mean "this account owns nothing" — a cancellation
+    // (the wrapper answers false) means the account did not settle and an
+    // empty read stays ambiguous.
     final synced = await TrialStore.instance.syncPurchasesWithAppStore();
     IapLog.instance.log('RESTORE', 'AppStore.sync() -> $synced');
     IapLog.instance.log('RESTORE', 'calling InAppPurchase.instance.restorePurchases()');
     try {
       await InAppPurchase.instance.restorePurchases();
       IapLog.instance.log('RESTORE', 'restorePurchases() completed');
-      // The plugin's StoreKit 2 restore enumerates `currentEntitlements` and
-      // delivers them through the purchase stream; it never calls
-      // `AppStore.sync()`. Re-derive from `Transaction.all` as well so a
-      // restore does not depend on a stream event landing inside the paywall's
-      // three-second window. This is a read-only query — it cannot grant an
-      // entitlement that StoreKit does not already report.
-      await refreshEntitlements(force: true);
-      IapLog.instance.log(
-        'RESTORE',
-        'post-restore refresh: isAdvanced=$_advanced '
-        'active=${_activeProductId ?? 'none'}',
-      );
     } catch (e) {
       IapLog.instance.log('RESTORE', 'restorePurchases() ERROR: $e');
       _restorePending = false;
       rethrow;
     }
-    // Clear pending flag after a short window if nothing was restored.
-    Future<void>.delayed(const Duration(seconds: 5), () {
-      IapLog.instance.log('RESTORE', 'clearing _restorePending after 5s');
-      _restorePending = false;
-    });
+    // The plugin's StoreKit 2 restore enumerates `currentEntitlements` and
+    // delivers them through the purchase stream; it never calls
+    // `AppStore.sync()`. Re-derive from `Transaction.all` on a short poll so
+    // the verdict reflects the STORE, including a history that needed a
+    // moment to hydrate. This is a read-only query — it cannot grant an
+    // entitlement that StoreKit does not already report.
+    final deadline = DateTime.now().add(const Duration(seconds: 12));
+    var maxCount = 0;
+    String? found;
+    var thrown = false;
+    try {
+      while (true) {
+        final scan = await _scanHistory();
+        _storeAnswered = true;
+        maxCount = maxCount < scan.count ? scan.count : maxCount;
+        if (scan.entitledProduct != null) {
+          final product = scan.entitledProduct!;
+          found = product;
+          _advanced = true;
+          _storeEntitled = true;
+          _activeProductId = product;
+          _purchaseFailed = false;
+          _purchaseCanceled = false;
+          await _rememberEntitledProduct(product);
+          notifyListeners();
+          IapLog.instance.log(
+            'RESTORE',
+            'store answer: entitled via $found (transactions: '
+            '${scan.seen.join(', ')})',
+          );
+          break;
+        }
+        if (!DateTime.now().isBefore(deadline)) {
+          if (synced && scan.count == 0) {
+            // A COMPLETED sync followed by an empty history is not the
+            // transient "not known yet" case: the customer just answered
+            // Apple's sign-in prompt and the account they settled in owns
+            // nothing. Per Apple's guidance ("signing out of Media & Purchases
+            // can remove your access to purchased content") the saved
+            // entitlement is revoked here.
+            if (_advanced) {
+              IapLog.instance.log(
+                'RESTORE',
+                'sync completed, store empty '
+                '(max tx seen: $maxCount) → revoking cached entitlement',
+              );
+              _advanced = false;
+              _storeEntitled = false;
+              _activeProductId = null;
+              await _forgetEntitledProduct();
+              notifyListeners();
+            } else {
+              IapLog.instance.log(
+                'RESTORE',
+                'sync completed, store empty '
+                '(max tx seen: $maxCount) → nothing to restore',
+              );
+            }
+          } else if (scan.count > 0) {
+            IapLog.instance.log(
+              'RESTORE',
+              'store returned ${scan.count} transaction(s) but none entitled '
+              '(${scan.seen.join(', ')}) — no purchase restored; the '
+              'transient partial cache never revokes',
+            );
+          } else {
+            IapLog.instance.log(
+              'RESTORE',
+              'store answered empty without a completed sync — ambiguous, '
+              'the current entitlement is kept',
+            );
+          }
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+    } catch (e) {
+      thrown = true;
+      // A StoreKit read error mid-restore must not crash the Restore tap —
+      // and an unreadable history is ambiguous by definition, so the cached
+      // entitlement is kept.
+      IapLog.instance.log('RESTORE', 'store poll ERROR: $e');
+      _storeAnswered = false;
+    }
+    _restorePending = false;
+    if (!thrown) {
+      IapLog.instance.log(
+        'RESTORE',
+        'verdict: restored=${found != null} storeEmpty='
+        '${synced && found == null && maxCount == 0} '
+        'isAdvanced=$_advanced active=${_activeProductId ?? 'none'}',
+      );
+    }
+    return (
+      restored: found != null,
+      storeEmpty: synced && found == null && maxCount == 0 && !thrown,
+    );
   }
 
   /// Test-only: reset the singleton state.

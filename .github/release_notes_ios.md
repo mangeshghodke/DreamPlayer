@@ -62,6 +62,16 @@ Fixed:
   its own — the subscription screen steps out of the way by itself if it is
   open — and the Restore button no longer reports "No previous purchase
   found" for a purchase that is still on its way.
+• The Restore button now reports the store's own answer. It could say
+  "Purchase restored!" based on what the app already knew in memory, even
+  when the store reported nothing, and could close the sheet without having
+  waited for the store. A half-finished or unreadable answer is no longer
+  treated as "no purchase", and a store that cannot be reached says so
+  instead of claiming success.
+• Signing out of Media & Purchases now ends premium access. A purchase
+  belongs to the Apple Account, so at the sign-in prompt the Restore button
+  raises, an empty purchase history afterwards now ends the entitlement —
+  premium features stop and the subscription screen returns.
 • The subscription screen no longer flashes up in front of someone who has
   already paid.
 • After an update, the unlock button no longer appears at all for someone
