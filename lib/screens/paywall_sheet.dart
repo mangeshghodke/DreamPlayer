@@ -60,6 +60,11 @@ class _PaywallSheetState extends State<PaywallSheet> {
   List<ProductDetails> _products = [];
   String? _error;
   Timer? _timer;
+  VoidCallback? _entitlementListener;
+
+  /// Guards against popping twice: the entitlement listener and the buy /
+  /// restore flows can both decide the sheet is done.
+  bool _closed = false;
 
   @override
   void initState() {
@@ -73,12 +78,55 @@ class _PaywallSheetState extends State<PaywallSheet> {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+    // The entitlement can arrive while the sheet is open: StoreKit re-delivers
+    // the purchase history after an install/update/reinstall, a purchase can
+    // complete on another device, or a restore can land. When it does, the
+    // sheet must get out of the way instead of leaving a paywall in front of
+    // a paying user.
+    _entitlementListener = () {
+      if (!mounted) return;
+      if (Entitlements.instance.isAdvanced) {
+        IapLog.instance.log('PAYWALL', 'entitlement arrived — closing the sheet');
+        _closeWith(true);
+      } else {
+        setState(() {});
+      }
+    };
+    Entitlements.instance.addListener(_entitlementListener!);
+    // The entitlement can also arrive BETWEEN the gate's check and this
+    // sheet opening (the store answered in that window) — then nothing
+    // notifies the listener, so the sheet would sit in front of a paying
+    // user. Check once the first frame is up.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (Entitlements.instance.isAdvanced) {
+        IapLog.instance.log(
+          'PAYWALL',
+          'entitlement was already there when the sheet opened — closing it',
+        );
+        _closeWith(true);
+      }
+    });
+  }
+
+  /// Closes the sheet once, with [result].
+  void _closeWith(bool result) {
+    if (_closed) return;
+    _closed = true;
+    if (mounted) Navigator.of(context).pop(result);
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    Entitlements.instance.stopPurchaseListener();
+    final listener = _entitlementListener;
+    if (listener != null) Entitlements.instance.removeListener(listener);
+    _entitlementListener = null;
+    // The purchase listener is NOT stopped here: it is started at app launch
+    // (Apple: the transaction listener must run "as soon as your app
+    // launches") so StoreKit's re-delivery after an install/update/reinstall
+    // is never missed. Stopping it when the paywall closed would put the
+    // plan back behind a Restore Purchases tap.
     super.dispose();
   }
 
@@ -229,7 +277,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
       if (Entitlements.instance.isAdvanced) {
         IapLog.instance.log('BUY', 'SUCCESS → popping with true');
         Entitlements.instance.clearBuyInitiated();
-        if (mounted) Navigator.of(context).pop(true);
+        _closeWith(true);
       } else if (!mounted) {
         IapLog.instance.log('BUY', 'not mounted, returning');
         Entitlements.instance.clearBuyInitiated();
@@ -304,14 +352,20 @@ class _PaywallSheetState extends State<PaywallSheet> {
 
   Future<void> _restorePurchases() async {
     IapLog.instance.log('RESTORE', '_restorePurchases called from paywall');
-    final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     Entitlements.instance.startPurchaseListener();
     await Entitlements.instance.restorePurchases();
-    IapLog.instance.log('RESTORE', 'waiting 3s for StoreKit...');
-    // Give StoreKit up to 3s to deliver the restored transaction.
-    await Future<void>.delayed(const Duration(seconds: 3));
-    IapLog.instance.log('RESTORE', 'after 3s wait: isAdvanced=${Entitlements.instance.isAdvanced}');
+    // Wait for the entitlement instead of a fixed delay. `AppStore.sync()`
+    // (an explicit user action, so it is allowed) can take a moment, and the
+    // transaction can reach us through the purchase stream or through the
+    // history query at different times — a fixed 3s window reported "No
+    // previous purchase found" for purchases that were about to land.
+    final deadline = DateTime.now().add(const Duration(seconds: 12));
+    while (!Entitlements.instance.isAdvanced &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    IapLog.instance.log('RESTORE', 'after wait: isAdvanced=${Entitlements.instance.isAdvanced}');
     if (!mounted) return;
     setState(() {});
     if (Entitlements.instance.isAdvanced) {
@@ -319,7 +373,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
       messenger.showSnackBar(
         const SnackBar(content: Text('Purchase restored!')),
       );
-      navigator.pop(true);
+      _closeWith(true);
     } else {
       IapLog.instance.log('RESTORE', 'NOT restored → No previous purchase found');
       messenger.showSnackBar(
@@ -416,10 +470,9 @@ class _PaywallSheetState extends State<PaywallSheet> {
                   style: TextButton.styleFrom(
                       foregroundColor: Colors.greenAccent),
                   onPressed: () async {
-                    final navigator = Navigator.of(context);
                     await Entitlements.instance.setDebugFreeUser(false);
                     if (!mounted) return;
-                    navigator.pop(true);
+                    _closeWith(true);
                   },
                   icon: const Icon(Icons.check_circle_outline),
                   label: const Text('Simulate purchase (debug)'),

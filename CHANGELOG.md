@@ -103,6 +103,29 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
+- **iOS: a subscription or lifetime unlock no longer has to be restored by
+  hand after an app update or a reinstall.** Apple re-delivers the purchase
+  history when the app starts (and when a purchase is completed on another
+  device), but the app was not listening for it at that point, so the plan was
+  only picked up after tapping "Restore Purchases" — and the Restore button
+  only reported success after a fixed three-second wait, which sometimes
+  showed "No previous purchase found" for a purchase that was about to
+  arrive. The app now follows Apple's guidance and listens for transactions
+  from launch, judges each one by what it actually says (the right product,
+  not refunded, not expired) instead of by whether the user just tapped Buy,
+  and waits for the entitlement rather than for a stopwatch. The paywall also
+  steps out of the way by itself if the entitlement turns up while it is open.
+- **iOS: the paywall no longer flashes at a paying user.** The store check is
+  asynchronous, so a gate could read "not subscribed" in the first moments
+  after launch or an update and put the subscription screen in front of
+  someone who had already paid. The gates now wait for that first check.
+- **iOS: a lapsed subscription stops being premium.** Coming back to the app
+  re-checks the purchase: a subscription that expired while the app was in the
+  background no longer unlocks the premium features, and a purchase made
+  elsewhere (the App Store tab, a redemption code) starts unlocking them —
+  both without restarting the app. The check never revokes an access on an
+  empty purchase history, because that can also mean the store has not
+  answered yet.
 - **iOS: the volume swipe past 100% reloaded the video on every step.** The
   extra level above 100% is applied as audio processing on iPhone and iPad,
   and every change to that processing re-anchors the audio session at the

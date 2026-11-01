@@ -76,7 +76,11 @@ void main() {
   test('_gate consults the single entitlement authority', () {
     final start = player.indexOf('Future<bool> _gate()');
     expect(start, isNonNegative);
-    final body = player.substring(start, start + 500);
+    // Read the whole method body — a fixed character window silently stops
+    // covering the body as soon as a comment is added to it.
+    final end = player.indexOf('\n  }', start);
+    expect(end, greaterThan(start));
+    final body = player.substring(start, end);
     expect(body, contains('checkGate('));
     expect(body, contains('advanced: Entitlements.instance.isEntitled'));
     expect(body, contains('paywallActive: Entitlements.instance.effectivePaywallEnabled'));

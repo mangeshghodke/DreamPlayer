@@ -49,16 +49,21 @@ class Entitlements extends ChangeNotifier {
   /// user taps a product (they arrive through purchaseStream instantly).
   bool _buyInitiated = false;
 
-  /// When true, all incoming purchases are completed (orphan drain) without
-  /// activating entitlements. Set true when the listener starts, cleared
-  /// after a short delay so real purchases can be accepted.
-  bool _drainMode = false;
-
   /// The product ID of the active purchase (null = not purchased, only trial).
   String? _activeProductId;
 
   /// The product ID expected from an in-flight purchase (null when idle).
   String? _expectedProductId;
+
+  /// Transaction ids finished by the unfinished-transaction sweep.
+  ///
+  /// StoreKit can deliver a transaction we just finished through the purchase
+  /// stream — an Ask to Buy request that was still pending, for instance.
+  /// Such a transaction was never completed, so it must NOT grant an
+  /// entitlement (the sweep declined it). The ids are remembered here so the
+  /// stream handler can tell those apart from a real re-delivery of a
+  /// purchase the customer actually made.
+  final Set<String> _sweptTransactionIds = <String>{};
 
   /// True while an explicit restorePurchases() is in flight.
   bool _restorePending = false;
@@ -122,6 +127,29 @@ class Entitlements extends ChangeNotifier {
   bool _initialised = false;
   bool get initialised => _initialised;
 
+  /// Completes once the first entitlement read has finished.
+  ///
+  /// The gates await this before deciding, so a subscriber is never shown the
+  /// paywall during the first seconds after launch: the StoreKit query is
+  /// asynchronous, and without this the gate would read `_advanced == false`
+  /// and put the paywall in front of a paying user.
+  final Completer<void> _ready = Completer<void>();
+
+  /// Waits for the first entitlement read — bounded, so a slow or missing
+  /// StoreKit can never block a gate. On timeout the gate simply uses the
+  /// current state.
+  Future<void> awaitReady() async {
+    if (_ready.isCompleted) return;
+    // Nothing is going to complete it (init() was never called) — waiting
+    // would only stall the gate.
+    if (!_initialised) return;
+    try {
+      await _ready.future.timeout(const Duration(seconds: 3));
+    } on TimeoutException {
+      IapLog.instance.log('ENTITLE', 'awaitReady: timed out, using current state');
+    }
+  }
+
   /// Call once at app start.
   Future<void> init() async {
     if (_initialised) return;
@@ -137,16 +165,25 @@ class Entitlements extends ChangeNotifier {
 
     IapLog.instance.log('INIT', 'debugFreeUser=$_debugFreeUser, debugTrialExpired=$_debugTrialExpired, trialStartedAt=$_trialStartedAtMs, isAdvanced=$isAdvanced, isEntitled=$isEntitled');
 
-    // Clear unfinished transactions at app launch — per Apple's docs, the
-    // updates listener receives them once at launch; finishing them here
-    // keeps the queue clean so no later purchase can short-circuit the
-    // Apple confirmation sheet.
+    // Apple's guidance for StoreKit 2 (Transaction.updates):
+    //   "Create a Task to iterate through the transactions from the listener
+    //    as soon as your app launches. ... Without the updates listener to
+    //    listen for these transactions, your app may miss them."
+    //
+    // StoreKit re-delivers the purchase history after an install, an app
+    // update or a reinstall ("the app automatically has all transactions
+    // available to it upon initial launch"), and for purchases completed on
+    // another device. The listener has to be running BEFORE that happens or
+    // the plan never comes back on its own — the user would have to tap
+    // Restore Purchases after every update, which is exactly the complaint
+    // this fixes.
     if (paywallEnabled) {
-      unawaited(sweepUnfinishedTransactions());
+      startPurchaseListener();
       // Re-read what the customer already owns. Without this an app update
       // locks out existing subscribers until they tap Restore Purchases.
-      unawaited(refreshEntitlements());
+      await refreshEntitlements();
     }
+    if (!_ready.isCompleted) _ready.complete();
   }
 
   /// Resolve the trial start time from both stores.
@@ -228,6 +265,34 @@ class Entitlements extends ChangeNotifier {
     return null;
   }
 
+  /// The entitlement facts carried by a purchase-stream event.
+  ///
+  /// The plugin puts StoreKit's canonical `jsonRepresentation` into
+  /// `verificationData.localVerificationData` — the same payload the history
+  /// query returns — so a stream event can be judged by exactly the same
+  /// product/expiry/revocation rules as a history read.
+  ///
+  /// Returns null when the payload is missing or unreadable; the caller then
+  /// falls back to the "the user just tapped Buy" heuristic.
+  static ({String productId, int? expirationMs, int? revocationMs})?
+      _entitlementFromDetails(PurchaseDetails p) {
+    final raw = p.verificationData.localVerificationData;
+    if (raw.isEmpty) return null;
+    try {
+      final json = jsonDecode(raw);
+      if (json is! Map<String, dynamic>) return null;
+      final productId =
+          (json['productID'] ?? json['productId'] ?? p.productID).toString();
+      return (
+        productId: productId,
+        expirationMs: _parseEpochMs(json['expirationDate']),
+        revocationMs: _parseEpochMs(json['revocationDate']),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Re-derive entitlement from the customer's existing StoreKit purchases.
   ///
   /// Called at app start, and again after an explicit Restore Purchases.
@@ -238,10 +303,7 @@ class Entitlements extends ChangeNotifier {
   ///
   /// Reads `Transaction.all` (a plain query that creates no transactions and
   /// does not touch the payment queue) and keeps any of our products that is
-  /// neither revoked nor expired. Deliberately NOT using
-  /// `InAppPurchase.restorePurchases()` here: that emits through the purchase
-  /// stream, where the orphaned-transaction guards in [_onPurchaseUpdate]
-  /// correctly reject anything the user did not just buy.
+  /// neither revoked nor expired.
   ///
   /// [force] re-reads even when this session is already entitled, so a restore
   /// can confirm the purchase instead of trusting a stream event.
@@ -250,61 +312,13 @@ class Entitlements extends ChangeNotifier {
     if (!paywallEnabled && !_debugFreeUser) return;
     if (_advanced && !force) return; // already entitled this session
     try {
-      final all = await SK2Transaction.transactions();
-      String? entitledProduct;
-      // `environment` is "Sandbox" for TestFlight/development and "Production"
-      // for the App Store. The two have separate transaction histories, which
-      // is why a purchase made in the App Store is invisible in a TestFlight
-      // build (and vice-versa). Log it on every transaction so a "no previous
-      // purchase found" report can be answered from the log instead of guessed
-      // at: zero transactions and a Sandbox entry mean an environment mismatch,
-      // not a broken restore.
-      final seen = <String>[];
-      for (final t in all) {
-        var productId = t.productId;
-        int? expirationMs = _parseEpochMs(t.expirationDate);
-        int? revocationMs;
-        var environment = 'unknown';
-
-        // jsonRepresentation is the canonical StoreKit 2 payload and carries
-        // revocationDate / productID; the wrapper omits revocation entirely.
-        final raw = t.jsonRepresentation;
-        if (raw != null && raw.isNotEmpty) {
-          try {
-            final json = jsonDecode(raw);
-            if (json is Map<String, dynamic>) {
-              productId = (json['productID'] ?? json['productId'] ?? productId)
-                  as String;
-              expirationMs = _parseEpochMs(json['expirationDate']) ??
-                  expirationMs;
-              revocationMs = _parseEpochMs(json['revocationDate']);
-              environment = (json['environment'] ?? 'unknown').toString();
-            }
-          } catch (_) {
-            // Keep the wrapper-derived values; expiry/revocation fall back to
-            // the conservative reading below.
-          }
-        }
-        seen.add('$productId/$environment');
-        IapLog.instance.log(
-          'ENTITLE',
-          'tx product=$productId env=$environment '
-          'expiration=$expirationMs revocation=$revocationMs',
-        );
-
-        if (isEntitledTransaction(
-          productId: productId,
-          expirationMs: expirationMs,
-          revocationMs: revocationMs,
-        )) {
-          entitledProduct ??= productId;
-        }
-      }
+      final scan = await _scanHistory();
+      final entitledProduct = scan.entitledProduct;
       if (entitledProduct == null) {
         IapLog.instance.log(
           'ENTITLE',
-          'no active purchase found in ${all.length} transaction(s) '
-          '(store ${seen.isEmpty ? 'empty' : seen.join(', ')})',
+          'no active purchase found in ${scan.count} transaction(s) '
+          '(store ${scan.seen.isEmpty ? 'empty' : scan.seen.join(', ')})',
         );
         return;
       }
@@ -319,7 +333,134 @@ class Entitlements extends ChangeNotifier {
     }
   }
 
-  /// Start listening to StoreKit purchase stream (call when paywall opens).
+  /// Read the whole transaction history and decide what it entitles.
+  ///
+  /// `environment` is "Sandbox" for TestFlight/development and "Production"
+  /// for the App Store. The two have separate transaction histories, which is
+  /// why a purchase made in the App Store is invisible in a TestFlight build
+  /// (and vice-versa). Every transaction is logged so a "no previous purchase
+  /// found" report can be answered from the log instead of guessed at: zero
+  /// transactions and a Sandbox entry mean an environment mismatch, not a
+  /// broken restore.
+  Future<({String? entitledProduct, int count, List<String> seen})>
+      _scanHistory() async {
+    final all = await SK2Transaction.transactions();
+    String? entitledProduct;
+    final seen = <String>[];
+    for (final t in all) {
+      var productId = t.productId;
+      int? expirationMs = _parseEpochMs(t.expirationDate);
+      int? revocationMs;
+      var environment = 'unknown';
+
+      // jsonRepresentation is the canonical StoreKit 2 payload and carries
+      // revocationDate / productID; the wrapper omits revocation entirely.
+      final raw = t.jsonRepresentation;
+      if (raw != null && raw.isNotEmpty) {
+        try {
+          final json = jsonDecode(raw);
+          if (json is Map<String, dynamic>) {
+            productId = (json['productID'] ?? json['productId'] ?? productId)
+                as String;
+            expirationMs =
+                _parseEpochMs(json['expirationDate']) ?? expirationMs;
+            revocationMs = _parseEpochMs(json['revocationDate']);
+            environment = (json['environment'] ?? 'unknown').toString();
+          }
+        } catch (_) {
+          // Keep the wrapper-derived values; expiry/revocation fall back to
+          // the conservative reading below.
+        }
+      }
+      seen.add('$productId/$environment');
+      IapLog.instance.log(
+        'ENTITLE',
+        'tx product=$productId env=$environment '
+        'expiration=$expirationMs revocation=$revocationMs',
+      );
+
+      if (isEntitledTransaction(
+        productId: productId,
+        expirationMs: expirationMs,
+        revocationMs: revocationMs,
+      )) {
+        entitledProduct ??= productId;
+      }
+    }
+    return (entitledProduct: entitledProduct, count: all.length, seen: seen);
+  }
+
+  /// Pure: should a re-scan of the transaction history REVOKE the entitlement?
+  ///
+  /// [transactionCount] is how many transactions the account has,
+  /// [entitledProduct] the product (if any) that still entitles the user.
+  ///
+  /// The rule is deliberately CONSERVATIVE: the entitlement is only revoked
+  /// when the account still has transactions but none of them entitle the user
+  /// any more (a lapsed subscription, a refunded lifetime). An EMPTY history
+  /// is ambiguous — StoreKit may simply not have refreshed yet — so it never
+  /// revokes an entitlement on that basis. Locking a paying customer out over
+  /// a transient empty cache is a far worse failure than letting a lapsed
+  /// subscriber keep the feature until the next launch.
+  @visibleForTesting
+  static bool revalidateShouldRevoke({
+    required int transactionCount,
+    required String? entitledProduct,
+  }) =>
+      transactionCount > 0 && entitledProduct == null;
+
+  /// Re-check the entitlement when the app comes back to the foreground.
+  ///
+  /// A subscription that lapsed while the app was in the background must stop
+  /// being premium, and a purchase made elsewhere (the Apple Store tab, a
+  /// redemption code) must start being premium — without either needing a
+  /// restart.
+  Future<void> revalidate() async {
+    if (defaultTargetPlatform == TargetPlatform.android) return;
+    if (!paywallEnabled && !_debugFreeUser) return;
+    try {
+      final scan = await _scanHistory();
+      final entitledProduct = scan.entitledProduct;
+      if (entitledProduct != null) {
+        if (!_advanced || _activeProductId != entitledProduct) {
+          _advanced = true;
+          _activeProductId = entitledProduct;
+          IapLog.instance.log('ENTITLE', 'revalidate: entitled via $entitledProduct');
+          notifyListeners();
+        }
+        return;
+      }
+      if (revalidateShouldRevoke(
+        transactionCount: scan.count,
+        entitledProduct: entitledProduct,
+      ) &&
+          _advanced) {
+        // The account has transactions, but none of them entitle the user any
+        // more — the subscription lapsed or the purchase was refunded.
+        IapLog.instance.log(
+          'ENTITLE',
+          'revalidate: ${scan.count} transaction(s) but none entitled '
+          '(${scan.seen.join(', ')}) → revoking entitlement',
+        );
+        _advanced = false;
+        _activeProductId = null;
+        notifyListeners();
+        return;
+      }
+      IapLog.instance.log(
+        'ENTITLE',
+        'revalidate: no transactions — keeping the current entitlement',
+      );
+    } catch (e) {
+      IapLog.instance.log('ENTITLE', 'revalidate ERROR: $e');
+    }
+  }
+
+  /// Start listening to the StoreKit purchase stream.
+  ///
+  /// Called at app launch (so StoreKit's transaction re-delivery after an
+  /// install/update/reinstall is never missed) and again when the paywall
+  /// opens. Idempotent.
   void startPurchaseListener() {
     if (purchaseSub != null) {
       IapLog.instance.log('LISTENER', 'already listening, skip');
@@ -334,8 +475,10 @@ class Entitlements extends ChangeNotifier {
       return;
     }
     // Sweep unfinished transactions right away (fire-and-forget — the
-    // paywall's product loading covers the wait). Orphans delivered at
-    // listener attach are also rejected+completed by _onPurchaseUpdate.
+    // paywall's product loading covers the wait). Per Apple's docs the
+    // updates listener receives unfinished transactions once at launch;
+    // finishing them keeps the queue clean so no later purchase can
+    // short-circuit the Apple confirmation sheet.
     // The RELIABLE sweep (direct SK2 unfinished list) runs again before
     // every buyNonConsumable — see sweepUnfinishedTransactions().
     unawaited(sweepUnfinishedTransactions());
@@ -368,9 +511,6 @@ class Entitlements extends ChangeNotifier {
   /// Returns the number of transactions finished.
   Future<int> sweepUnfinishedTransactions() async {
     if (defaultTargetPlatform != TargetPlatform.iOS) return 0;
-    // Drain mode during the sweep: any event the finish() calls might
-    // trigger is completed without activating (no purchase is in flight).
-    _drainMode = true;
     var finished = 0;
     try {
       try {
@@ -419,7 +559,6 @@ class Entitlements extends ChangeNotifier {
       }
       return finished;
     } finally {
-      _drainMode = false;
       if (finished == 0) {
         IapLog.instance.log('SWEEP', 'no unfinished transactions finished');
       }
@@ -450,6 +589,7 @@ class Entitlements extends ChangeNotifier {
       try {
         await SK2Transaction.finish(id);
         finished++;
+        _sweptTransactionIds.add(transaction.id);
         IapLog.instance.log(
           'SWEEP',
           'SK2 finished id=$id product=${transaction.productId}',
@@ -475,48 +615,64 @@ class Entitlements extends ChangeNotifier {
   }
 
   Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchases) async {
-    IapLog.instance.log('PURCHASE_STREAM', 'received ${purchases.length} purchase(s), drainMode=$_drainMode');
+    IapLog.instance.log('PURCHASE_STREAM', 'received ${purchases.length} purchase(s)');
     for (final p in purchases) {
       IapLog.instance.log('PURCHASE_UPDATE', 'status=${p.status}, productID=${p.productID}, pendingComplete=${p.pendingCompletePurchase}, verification=${p.verificationData}');
 
-      // Drain mode: complete all orphaned pending transactions without
-      // activating. This runs for 2s after the listener starts — long
-      // enough for all orphans to arrive, short enough that the user
-      // can't have tapped a product yet (products are still loading).
-      if (_drainMode) {
-        IapLog.instance.log('PURCHASE_UPDATE', 'DRAIN: completing ${p.productID} (${p.status}, pending=${p.pendingCompletePurchase})');
-        if (p.pendingCompletePurchase) {
-          await InAppPurchase.instance.completePurchase(p);
-          IapLog.instance.log('PURCHASE_UPDATE', 'DRAIN: completePurchase done for ${p.productID}');
-        }
-        continue;
-      }
-      if (p.status == PurchaseStatus.purchased) {
-        // New purchase — accept ONLY when buyNonConsumable() has actually been
-        // called and returned (buyInitiated=true), AND the product matches.
-        // This prevents orphaned pending transactions (from previous sessions)
-        // from being accepted before the user taps a product.
-        final isRestorePurchase = _restorePending;
-        if (!isRestorePurchase && !_buyInitiated) {
-          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED purchased: _buyInitiated=false (orphaned stale transaction), awaiting completePurchase');
+      if (p.status == PurchaseStatus.purchased ||
+          p.status == PurchaseStatus.restored) {
+        // Judge the transaction by its CONTENT, not by whether the user just
+        // tapped Buy. StoreKit re-delivers the purchase history after an
+        // install, an app update or a reinstall, and for purchases completed
+        // on another device; those transactions are finished (not pending)
+        // and carry the same product/expiry/revocation facts as any other.
+        // Requiring `_buyInitiated` here meant a returning subscriber's plan
+        // was dropped on the floor and only came back after tapping Restore
+        // Purchases.
+        //
+        // What is still rejected: a transaction for a product we do not sell,
+        // a refunded/revoked one, and an expired subscription — all of them
+        // fail `isEntitledTransaction`. Only when the payload cannot be read
+        // at all does the old "the user just tapped Buy" heuristic apply.
+        final tx = _entitlementFromDetails(p);
+        final initiated = _buyInitiated || _restorePending;
+        final productMatches =
+            _expectedProductId == null || p.productID == _expectedProductId;
+        final swept = p.purchaseID != null &&
+            _sweptTransactionIds.contains(p.purchaseID);
+        final accept = !swept &&
+            (tx != null
+                ? isEntitledTransaction(
+                    productId: tx.productId,
+                    expirationMs: tx.expirationMs,
+                    revocationMs: tx.revocationMs,
+                  )
+                : (initiated && productMatches));
+
+        if (!accept) {
+          IapLog.instance.log(
+            'PURCHASE_UPDATE',
+            'REJECTED ${p.status}: productID=${p.productID}, '
+            'parsed=${tx != null}, initiated=$initiated, swept=$swept, '
+            'expected=$_expectedProductId',
+          );
           if (p.pendingCompletePurchase) {
             await InAppPurchase.instance.completePurchase(p);
-            IapLog.instance.log('PURCHASE_UPDATE', 'completePurchase done for orphan: ${p.productID}');
+            IapLog.instance.log(
+              'PURCHASE_UPDATE',
+              'completePurchase done for rejected: ${p.productID}',
+            );
           }
           continue;
         }
-        if (!isRestorePurchase &&
-            (_expectedProductId == null || p.productID != _expectedProductId)) {
-          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED purchased: isRestore=$isRestorePurchase, expected=$_expectedProductId, got=${p.productID}');
-          if (p.pendingCompletePurchase) {
-            await InAppPurchase.instance.completePurchase(p);
-            IapLog.instance.log('PURCHASE_UPDATE', 'completePurchase done for wrong product: ${p.productID}');
-          }
-          continue;
-        }
-        IapLog.instance.log('PURCHASE_UPDATE', 'ACCEPTED purchased: productID=${p.productID}, isRestore=$isRestorePurchase');
+
+        IapLog.instance.log(
+          'PURCHASE_UPDATE',
+          'ACCEPTED ${p.status}: productID=${p.productID}, '
+          'source=${initiated ? 'user action' : 'store re-delivery'}',
+        );
         _advanced = true;
-        _activeProductId = p.productID;
+        _activeProductId = tx?.productId ?? p.productID;
         _expectedProductId = null;
         _restorePending = false;
         _buyInitiated = false;
@@ -527,34 +683,6 @@ class Entitlements extends ChangeNotifier {
           await InAppPurchase.instance.completePurchase(p);
           IapLog.instance.log('PURCHASE_UPDATE', 'completePurchase done for accepted: ${p.productID}');
         }
-        notifyListeners();
-        return;
-      }
-      if (p.status == PurchaseStatus.restored) {
-        // Restore — only accept when user explicitly tapped Restore.
-        if (!_restorePending) {
-          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED restored: _restorePending=false');
-          if (p.pendingCompletePurchase) {
-            await InAppPurchase.instance.completePurchase(p);
-          }
-          continue;
-        }
-        // Reject orphaned pending transactions during restore — they are
-        // not real purchases. A genuine restored transaction has
-        // pendingComplete=false (already finished by a previous app session).
-        if (p.pendingCompletePurchase) {
-          IapLog.instance.log('PURCHASE_UPDATE', 'REJECTED restored: pendingComplete=true (orphaned), completing it');
-          await InAppPurchase.instance.completePurchase(p);
-          continue;
-        }
-        IapLog.instance.log('PURCHASE_UPDATE', 'ACCEPTED restored: productID=${p.productID}');
-        _advanced = true;
-        _activeProductId = p.productID;
-        _expectedProductId = null;
-        _restorePending = false;
-        _debugFreeUser = false;
-        _purchaseFailed = false;
-        _purchaseCanceled = false;
         notifyListeners();
         return;
       }
@@ -674,6 +802,10 @@ class Entitlements extends ChangeNotifier {
       IapLog.instance.log('BUY', 'REJECTED: android non-debug');
       return false;
     }
+    // A new attempt starts from a clean slate: the previous attempt's
+    // failure/cancel flags must not be mistaken for this one's outcome.
+    _purchaseFailed = false;
+    _purchaseCanceled = false;
     final available = await InAppPurchase.instance.isAvailable();
     IapLog.instance.log('BUY', 'isAvailable=$available');
     if (!available) return false;
@@ -741,10 +873,13 @@ class Entitlements extends ChangeNotifier {
     _expectedProductId = null;
     _restorePending = false;
     _buyInitiated = false;
-    _drainMode = false;
     _purchaseFailed = false;
     _purchaseCanceled = false;
     _initialised = false;
+    _sweptTransactionIds.clear();
+    purchaseSub?.cancel();
+    purchaseSub = null;
+    if (!_ready.isCompleted) _ready.complete();
     TrialStore.resetProbeForTest();
   }
 
@@ -753,6 +888,28 @@ class Entitlements extends ChangeNotifier {
   void setTrialStartedAtForTest(DateTime? at) {
     _trialStartedAtMs = at?.millisecondsSinceEpoch;
   }
+
+  /// Test-only: the raw StoreKit entitlement — WITHOUT the Android immunity
+  /// and without the debug override.
+  ///
+  /// `advanced` / `isAdvanced` are deliberately unusable for asserting what
+  /// StoreKit said: on Android `advanced` is unconditionally true, so the
+  /// only way to observe the real state is this raw flag.
+  @visibleForTesting
+  bool get storeKitEntitled => _advanced;
+
+  /// Test-only: remember a transaction id as "finished by the launch sweep".
+  @visibleForTesting
+  void markSweptTransactionForTest(String id) => _sweptTransactionIds.add(id);
+
+  /// Test-only: feed a synthetic purchase-stream event into the handler.
+  ///
+  /// The real events come from StoreKit's `Transaction.updates`; this is the
+  /// same code path with a hand-built payload, so the acceptance rules can be
+  /// pinned without a device.
+  @visibleForTesting
+  Future<void> handlePurchaseUpdateForTest(List<PurchaseDetails> purchases) =>
+      _onPurchaseUpdate(purchases);
 }
 
 /// Gate-result enum: not required (not gated), available (free), paywall needed.

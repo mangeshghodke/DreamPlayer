@@ -57,6 +57,17 @@ New:
   film — and brings the poster, cast, release date, studio and genres.
 
 Fixed:
+• A subscription or lifetime unlock no longer has to be restored by hand
+  after an app update or a reinstall. The app now picks the purchase up on
+  its own — the subscription screen steps out of the way by itself if it is
+  open — and the Restore button no longer reports "No previous purchase
+  found" for a purchase that is still on its way.
+• The subscription screen no longer flashes up in front of someone who has
+  already paid.
+• A subscription that has expired while the app was in the background no
+  longer unlocks the premium features, and a purchase made elsewhere (the App
+  Store tab, a redemption code) starts unlocking them without restarting the
+  app.
 • The volume swipe no longer goes past 100% on iPhone and iPad, and the
   "Volume boost" setting is gone there. Pushing it past 100% had to rebuild
   the audio session, which reloaded the picture on every step of the swipe.

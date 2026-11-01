@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,6 +9,7 @@ import 'screens/player_screen.dart';
 import 'screens/settings_screen.dart';
 import 'models/video_item.dart';
 import 'services/accent_store.dart';
+import 'services/entitlements.dart';
 import 'services/font_store.dart';
 import 'services/default_engine_store.dart';
 import 'services/jellyfin_client.dart';
@@ -29,11 +32,30 @@ class DreamPlayerApp extends StatefulWidget {
   State<DreamPlayerApp> createState() => _DreamPlayerAppState();
 }
 
-class _DreamPlayerAppState extends State<DreamPlayerApp> {
+class _DreamPlayerAppState extends State<DreamPlayerApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _listenForIntents();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Coming back to the foreground is the moment to re-check the
+    // entitlement: a subscription can lapse while the app is in the
+    // background, and a purchase can be made elsewhere (the Apple Store tab,
+    // a redemption code). Without this the app would keep the stale answer
+    // until the next launch.
+    if (state == AppLifecycleState.resumed) {
+      unawaited(Entitlements.instance.revalidate());
+    }
   }
 
   Future<void> _listenForIntents() async {

@@ -1141,12 +1141,17 @@ Future<void> _offerVc1Mpv() async {
   /// Use before any gated action (speed ≠1×, A-B, sleep timer, subtitle
   /// styling, download, OpenSubtitles search).
   Future<bool> _gate() async {
+    // Wait for the first entitlement read before deciding: the StoreKit query
+    // is asynchronous, and deciding on a half-read state would put the
+    // paywall in front of a paying user right after launch or an app update.
+    await Entitlements.instance.awaitReady();
     final gate = checkGate(
       gateEnabled: true,
       advanced: Entitlements.instance.isEntitled,
       paywallActive: Entitlements.instance.effectivePaywallEnabled,
     );
     if (gate != GateResult.paywallNeeded) return true;
+    if (!mounted) return false;
     final purchased = await showPaywall(context);
     return purchased;
   }

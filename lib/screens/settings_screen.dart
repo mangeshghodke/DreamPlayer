@@ -570,12 +570,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// gets it straight away.
   Future<bool> _spatialAudioGate() async {
     final ent = Entitlements.instance;
+    // Wait for the first entitlement read — a paying user must never be shown
+    // the paywall because the StoreKit query had not answered yet.
+    await ent.awaitReady();
     if (spatialAudioMayBeEnabled(
       advanced: ent.isEntitled,
       paywallActive: ent.effectivePaywallEnabled,
     )) {
       return true;
     }
+    if (!mounted) return false;
     return await showPaywall(context);
   }
 
@@ -2474,12 +2478,17 @@ class _FaqTile extends StatelessWidget {
 /// drifts — and `Entitlements.advanced` being the single chokepoint is what
 /// keeps Android free, so there must not be a second one.
 Future<bool> settingsGate(BuildContext context) async {
+  // Wait for the first entitlement read before deciding — see
+  // `Entitlements.awaitReady`. Deciding on a half-read state would flash the
+  // paywall at a paying user right after launch or an app update.
+  await Entitlements.instance.awaitReady();
   final gate = checkGate(
     gateEnabled: true,
     advanced: Entitlements.instance.isEntitled,
     paywallActive: Entitlements.instance.effectivePaywallEnabled,
   );
   if (gate != GateResult.paywallNeeded) return true;
+  if (!context.mounted) return false;
   return await showPaywall(context);
 }
 

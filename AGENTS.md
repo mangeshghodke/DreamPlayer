@@ -3382,6 +3382,106 @@ would need another registration in `AppDelegate` (and another
 `ios_native_check.py`/pbxproj concern). It is unrelated to the trial, and that
 is deliberate.
 
+### The plan comes back on its own — the listener, not the sync (2026-11-01)
+
+Reported as *"after an app update my subscription is gone and I have to tap
+Restore every time"*, and *"after reinstalling on the same Apple ID it
+activates after a few seconds, otherwise I press Restore"*. The second half
+was the clue: **a few seconds** is exactly how long StoreKit takes to refresh
+and re-deliver the purchase history — the plan WAS coming back, but the app
+was not listening for it.
+
+**What Apple's documentation actually says** (read it, do not assume — the
+two pages contradict each other unless you read both):
+
+- `AppStore.sync()`: *"Calling `AppStore.sync()` displays a system prompt
+  that asks users to authenticate with their App Store credentials. **Call
+  this function only in response to an explicit user action**, like tapping or
+  clicking a button."* → **a sync at launch is against Apple's guidance.**
+- `AppStore.sync()`, on reinstall: *"StoreKit automatically keeps up to date
+  transaction information and subscription status available to your app. When
+  users reinstall your app or download it on a new device, **the app
+  automatically has all transactions available to it upon initial launch.**
+  There's no need for users to ask your app to restore transactions — your app
+  can immediately get the current entitlements using `currentEntitlements` and
+  transaction history using `Transaction.all`."*
+- `Transaction.updates`: *"**Create a Task to iterate through the transactions
+  from the listener as soon as your app launches.** … **Without the `updates`
+  listener to listen for these transactions, your app may miss them.**"* And:
+  *"It also emits transactions that customers complete in your app on another
+  device."*
+
+**So the auto-reactivation must come from the LISTENER, not from a sync.** The
+older section above ("the cache is empty after a reinstall") is superseded on
+that point: the transactions are available; we were simply not listening.
+
+**Three bugs, one root cause (the listener was never started):**
+
+1. **`init()` started no listener.** It read `Transaction.all` once and
+   stopped. The plugin starts StoreKit's `Transaction.updates` observer in the
+   purchase stream's `onListen`
+   (`in_app_purchase_storekit_platform.dart:73`), and nothing listened until
+   the paywall opened — so StoreKit's re-delivery (after an install, an
+   update, a reinstall, or a purchase made on another device) was **missed**.
+   `init()` now calls `startPurchaseListener()`.
+2. **The stream handler would have thrown the re-delivery away anyway.** It
+   accepted a `purchased` event only when `_buyInitiated` was set ("the user
+   just tapped Buy") and rejected everything else as an "orphaned stale
+   transaction". A re-delivered purchase is finished and legitimate, so it
+   was rejected. The rule is now **content-based**: a transaction is accepted
+   when it says it is one of our products, is not refunded/revoked and is not
+   expired (`isEntitledTransaction`). The Buy-tap heuristic survives only as
+   the fallback for an unreadable payload.
+3. **The "drain mode" was in the way.** It rejected every event for a short
+   window after the listener attached, which is exactly when the
+   re-delivery lands. It is gone — the content rule subsumes it (a pending
+   orphan is still completed, never granted).
+
+**The `_sweptTransactionIds` guard.** The launch sweep finishes StoreKit's
+unfinished transactions (an interrupted purchase, or an Ask to Buy request
+that was still pending). StoreKit can then deliver one of those through the
+stream, and it must NOT grant an entitlement — the sweep declined it. The
+sweep remembers the ids it finished and the stream handler rejects them. The
+history scan (`Transaction.all`) is what decides what the customer owns.
+
+**Other fixes in the same pass:**
+
+- **The gates wait for the first check.** `Entitlements.awaitReady()` (a
+  `Completer` completed at the end of `init()`, bounded by a 3 s timeout, and
+  a no-op when `init()` was never called) is awaited by `PlayerScreen._gate()`,
+  `settingsGate()` and `_spatialAudioGate()`. Without it a paying user could
+  be shown the paywall in the first seconds after launch — the store check is
+  asynchronous, and the gate read the pre-answer state.
+- **The paywall closes itself.** It listens to `Entitlements` and pops with
+  `true` when the entitlement arrives (a restore, a re-delivery, a purchase
+  completed elsewhere) instead of leaving a paywall in front of a paying user.
+  `_closeWith()` guards the double pop that this would otherwise cause in the
+  buy and restore flows.
+- **Restore waits for the entitlement, not for a stopwatch.** The old fixed
+  3 s delay reported "No previous purchase found" for a purchase that was
+  about to land; it now polls for up to 12 s.
+- **The foreground re-checks the entitlement** (`Entitlements.revalidate()`,
+  called from `app.dart`'s lifecycle observer): a subscription that lapsed
+  while the app was in the background stops being premium, and a purchase made
+  elsewhere starts being premium. The rule is deliberately conservative —
+  `revalidateShouldRevoke()` only revokes when the account **has**
+  transactions and none of them entitle the user any more. **An empty history
+  never revokes**, because that can also mean StoreKit has not answered yet,
+  and locking a paying customer out over a transient empty cache is the worse
+  failure.
+
+**`AppStore.sync()` stays exactly where it is: behind the Restore button.**
+It is the one call Apple's policy allows to prompt for the Apple ID, and it
+is the only thing that helps when the device is signed in with a *different*
+account than the one that bought. `test/entitlements_storekit_test.dart` pins
+that split (one call site, reachable only through `restorePurchases()`).
+
+**What was NOT done, on purpose:** no "had an entitlement" Keychain flag and
+no background sync at launch. Both were the obvious fix and both are wrong —
+the flag would only have been used to decide whether to sync, and a sync at
+launch is exactly what Apple's documentation tells you not to do (it raises a
+sign-in prompt in front of every user, including the ones who never bought).
+
 ### Competitor-gap roadmap, phased (2026-08)
 
 Gap analysis vs Infuse / Just Player / Nova / VLC produced a phased plan. Later
@@ -3829,6 +3929,7 @@ test/
   upnp_client_test.dart         # UPnP/DLNA entry + transcoded/externalSubs parsing
   library_folders_test.dart     # library folder store (files vs jellyfin source)
   watched_store_test.dart       # watched marks store
+  entitlements_storekit_test.dart # StoreKit re-delivery is accepted by content; Apple's sync() policy (sync only on an explicit Restore)
   mpv_audio_select_test.dart    # container DEFAULT audio pin helper
   audio_track_store_test.dart   # per-video+engine last audio pick
   tone_map_store_test.dart      # dreamplayer.toneMapMode store
