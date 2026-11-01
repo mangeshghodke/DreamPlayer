@@ -199,8 +199,26 @@ jobs:
             exit 1
           fi
           echo "Uploading: $IPA_FILE"
-          xcrun altool --upload-app \
-            --type ios \
-            --file "$IPA_FILE" \
-            --apiKey "$APPSTORE_API_KEY_ID" \
-            --apiIssuer "$APPSTORE_ISSUER_ID"
+
+          # Retry the upload: App Store Connect occasionally drops the
+          # connection mid-upload ("The Internet connection appears to be
+          # offline", -1009) and the whole 14-minute build is lost with it.
+          # The failure is transient — the same IPA uploads fine on a rerun —
+          # so give it a few attempts before failing the job.
+          for attempt in 1 2 3; do
+            echo "Upload attempt $attempt/3"
+            if xcrun altool --upload-app \
+              --type ios \
+              --file "$IPA_FILE" \
+              --apiKey "$APPSTORE_API_KEY_ID" \
+              --apiIssuer "$APPSTORE_ISSUER_ID"; then
+              echo "Upload succeeded on attempt $attempt"
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Upload failed — retrying in 30s"
+              sleep 30
+            fi
+          done
+          echo "ERROR: Upload failed after 3 attempts"
+          exit 1
