@@ -64,6 +64,9 @@ Fixed:
   found" for a purchase that is still on its way.
 • The subscription screen no longer flashes up in front of someone who has
   already paid.
+• After an update, the app now waits for the store to answer before it
+  decides you have no purchase — so the unlock button no longer sits there
+  for a few seconds at someone who is already subscribed.
 • A subscription that has expired while the app was in the background no
   longer unlocks the premium features, and a purchase made elsewhere (the App
   Store tab, a redemption code) starts unlocking them without restarting the

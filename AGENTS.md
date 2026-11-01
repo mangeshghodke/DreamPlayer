@@ -3481,6 +3481,42 @@ is the only thing that helps when the device is signed in with a *different*
 account than the one that bought. `test/entitlements_storekit_test.dart` pins
 that split (one call site, reachable only through `restorePurchases()`).
 
+**The launch scan is re-read — ONE scan is not authoritative (2026-11-01,
+from `iap_debug.log`).** StoreKit hydrates its transaction cache
+asynchronously, and the plugin's `Transaction.all` is a **one-shot read of
+that cache** (`rawTransactions()` in the plugin collects the async sequence
+once and returns). Right after an app update it can come back **EMPTY** or
+**PARTIAL** even though the customer owns the purchase. Measured on the
+iPad, build 65, one afternoon:
+
+| Time | Scan result |
+|---|---|
+| 12:13:15 | **partial** — only the expired monthly subscription, no lifetime |
+| 12:14:13 | **empty** (`revalidate: no transactions`) |
+| 12:14:23 | **empty** (`store empty`) |
+| 12:16:52 | complete (`dp_premium_lifetime_2026`) |
+
+So **one empty read does NOT mean "no purchase" — it means "not known yet".**
+Treating it as a verdict is what put the "unlock" button in front of an
+entitled customer for 3–5 s after an update (the exact complaint this work
+started from). `init()` therefore re-reads the history on a short schedule
+(`Entitlements.entitlementScanSchedule` — 0 / 800 / 1700 ms) and stops at
+the first read that finds a purchase that entitles.
+
+**Two constraints on that schedule, both pinned by a test:**
+
+- **It must finish inside `awaitReady`'s 3 s budget.** The gates give up
+  waiting after 3 s and open the paywall, so a slower schedule would not
+  help an entitled customer — it would only delay a free user's paywall.
+- **The paywall still auto-closes** for the case the schedule cannot cover:
+  a StoreKit query that is SLOW (the first query after a launch took 5.9 s
+  in the log) answers after the gate has already decided. The sheet then
+  closes itself when the entitlement lands.
+
+The launch scan also runs under `effectivePaywallEnabled` rather than
+`paywallEnabled`, so the debug "simulate free user" build exercises the
+same path.
+
 **What was NOT done, on purpose:** no "had an entitlement" Keychain flag and
 no background sync at launch. Both were the obvious fix and both are wrong —
 the flag would only have been used to decide whether to sync, and a sync at

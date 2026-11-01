@@ -305,6 +305,56 @@ void main() {
     });
   });
 
+  group('the launch scan is re-read', () {
+    // StoreKit hydrates its transaction cache asynchronously, and the
+    // plugin's `Transaction.all` is a one-shot read of that cache — right
+    // after an app update it can come back EMPTY or PARTIAL even though the
+    // customer owns the purchase. Measured in iap_debug.log on 2026-11-01:
+    // 12:14:23 → empty, 12:14:13 → empty, 12:13:15 → the expired monthly
+    // only, 12:16:52 → complete. One empty read is "not known yet", not "no
+    // purchase", so the launch scan retries.
+
+    test('the retry schedule fits inside the gate budget', () {
+      // The gates give up waiting after 3s (awaitReady's timeout) and open
+      // the paywall — a slower schedule would not help an entitled customer,
+      // it would only delay a free user's paywall.
+      final last = Entitlements.entitlementScanSchedule.last;
+      expect(last.inMilliseconds, lessThan(3000));
+      expect(Entitlements.entitlementScanSchedule.length, greaterThan(1));
+      // The offsets must be increasing, or the retries would fire out of
+      // order.
+      final offsets = Entitlements.entitlementScanSchedule
+          .map((d) => d.inMilliseconds)
+          .toList();
+      for (var i = 1; i < offsets.length; i++) {
+        expect(offsets[i], greaterThan(offsets[i - 1]));
+      }
+    });
+
+    test('init re-reads the history when the first read finds nothing',
+        () async {
+      final e = Entitlements.instance;
+      // The debug override is the only way to switch the entitlement
+      // machinery on in a test build.
+      await e.setDebugFreeUser(true);
+      Entitlements.launchScanSchedule = const [
+        Duration.zero,
+        Duration(milliseconds: 1),
+        Duration(milliseconds: 2),
+      ];      addTearDown(() async {
+        await e.setDebugFreeUser(false);
+        e.resetForTest();
+      });
+
+      await e.init();
+
+      // The store answers nothing (no plugin in a test) → every attempt of
+      // the schedule ran.
+      expect(e.launchScanAttempts,
+          greaterThanOrEqualTo(Entitlements.entitlementScanSchedule.length));
+    });
+  });
+
   group('the paywall steps aside', () {
     // The entitlement can arrive while the sheet is open — StoreKit
     // re-delivers the purchase history after an install/update/reinstall, a

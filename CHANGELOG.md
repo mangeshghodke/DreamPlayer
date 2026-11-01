@@ -118,7 +118,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 - **iOS: the paywall no longer flashes at a paying user.** The store check is
   asynchronous, so a gate could read "not subscribed" in the first moments
   after launch or an update and put the subscription screen in front of
-  someone who had already paid. The gates now wait for that first check.
+  someone who had already paid. The gates now wait for that first check —
+  and the first check is re-read, because one empty answer does not mean
+  "no purchase": the store fills its purchase cache asynchronously, so right
+  after an update it can answer empty or half-complete. The app now waits
+  for a real answer before it decides, which is what stops the "unlock"
+  button from sitting there for a few seconds at an existing subscriber.
 - **iOS: a lapsed subscription stops being premium.** Coming back to the app
   re-checks the purchase: a subscription that expired while the app was in the
   background no longer unlocks the premium features, and a purchase made

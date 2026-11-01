@@ -177,13 +177,71 @@ class Entitlements extends ChangeNotifier {
     // the plan never comes back on its own — the user would have to tap
     // Restore Purchases after every update, which is exactly the complaint
     // this fixes.
-    if (paywallEnabled) {
+    if (effectivePaywallEnabled) {
       startPurchaseListener();
       // Re-read what the customer already owns. Without this an app update
       // locks out existing subscribers until they tap Restore Purchases.
-      await refreshEntitlements();
+      //
+      // And RE-READ it more than once: a single launch scan is not
+      // authoritative. StoreKit hydrates its transaction cache
+      // asynchronously, and the plugin's `Transaction.all` is a one-shot
+      // read of that cache — right after an app update it can come back
+      // EMPTY ("store empty") or PARTIAL (only the expired subscription,
+      // no lifetime), even though the customer owns the purchase. Measured
+      // in iap_debug.log on 2026-11-01: 12:14:23 → empty, 12:14:13 →
+      // empty, 12:13:15 → the expired monthly only, 12:16:52 → complete.
+      // One empty read therefore does NOT mean "no purchase", it means "not
+      // known yet" — and the gates would put the paywall in front of an
+      // entitled customer for those few seconds.
+      await _resolveEntitlementAtLaunch();
     }
     if (!_ready.isCompleted) _ready.complete();
+  }
+
+  /// When the launch scan is re-read, as offsets from the start of the scan.
+  ///
+  /// The whole schedule has to finish inside `awaitReady`'s 3s budget: the
+  /// gates give up waiting after 3s and open the paywall, so a slower
+  /// schedule would not help an entitled customer — it would only delay a
+  /// free user's paywall. The first attempt is immediate; the retries cover
+  /// the window in which StoreKit fills its cache.
+  static const List<Duration> entitlementScanSchedule = [
+    Duration.zero,
+    Duration(milliseconds: 800),
+    Duration(milliseconds: 1700),
+  ];
+
+  /// The schedule actually used — tests replace it with a fast one.
+  @visibleForTesting
+  static List<Duration> launchScanSchedule = entitlementScanSchedule;
+
+  /// How many times the launch scan ran (test hook).
+  @visibleForTesting
+  int launchScanAttempts = 0;
+
+  /// Resolve the entitlement at launch, re-reading the history if the first
+  /// read did not find anything that entitles.
+  ///
+  /// Stops as soon as a purchase entitles, so an entitled customer waits for
+  /// the first successful read and a free customer waits for the whole
+  /// schedule (once, at launch, and only when a premium feature is tapped).
+  Future<void> _resolveEntitlementAtLaunch() async {
+    final started = DateTime.now();
+    for (final offset in launchScanSchedule) {
+      final wait = offset - DateTime.now().difference(started);
+      if (wait > Duration.zero) await Future<void>.delayed(wait);
+      if (_advanced) break;
+      launchScanAttempts++;
+      await refreshEntitlements(force: true);
+      if (_advanced) break;
+      if (offset != launchScanSchedule.last) {
+        IapLog.instance.log(
+          'ENTITLE',
+          'launch scan at ${offset.inMilliseconds}ms: nothing entitled yet — '
+          'retrying (StoreKit may not have hydrated its transaction cache)',
+        );
+      }
+    }
   }
 
   /// Resolve the trial start time from both stores.
@@ -877,6 +935,8 @@ class Entitlements extends ChangeNotifier {
     _purchaseCanceled = false;
     _initialised = false;
     _sweptTransactionIds.clear();
+    launchScanAttempts = 0;
+    launchScanSchedule = entitlementScanSchedule;
     purchaseSub?.cancel();
     purchaseSub = null;
     if (!_ready.isCompleted) _ready.complete();
