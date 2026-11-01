@@ -3456,7 +3456,12 @@ history scan (`Transaction.all`) is what decides what the customer owns.
   `true` when the entitlement arrives (a restore, a re-delivery, a purchase
   completed elsewhere) instead of leaving a paywall in front of a paying user.
   `_closeWith()` guards the double pop that this would otherwise cause in the
-  buy and restore flows.
+  buy and restore flows. **There is a second window to cover:** the store can
+  answer BETWEEN the gate's check and the sheet opening, and then no
+  notification fires — so `initState` also checks once on the first frame
+  (`addPostFrameCallback`) and closes the sheet right away. Widget-tested in
+  `test/entitlements_storekit_test.dart` (the sheet must be gone after the
+  entitlement turns up).
 - **Restore waits for the entitlement, not for a stopwatch.** The old fixed
   3 s delay reported "No previous purchase found" for a purchase that was
   about to land; it now polls for up to 12 s.
@@ -3929,7 +3934,7 @@ test/
   upnp_client_test.dart         # UPnP/DLNA entry + transcoded/externalSubs parsing
   library_folders_test.dart     # library folder store (files vs jellyfin source)
   watched_store_test.dart       # watched marks store
-  entitlements_storekit_test.dart # StoreKit re-delivery is accepted by content; Apple's sync() policy (sync only on an explicit Restore)
+  entitlements_storekit_test.dart # StoreKit re-delivery is accepted by content; Apple's sync() policy (sync only on an explicit Restore); the paywall closes itself when the entitlement arrives
   mpv_audio_select_test.dart    # container DEFAULT audio pin helper
   audio_track_store_test.dart   # per-video+engine last audio pick
   tone_map_store_test.dart      # dreamplayer.toneMapMode store
