@@ -3526,6 +3526,12 @@ nothing".
   later"; anything else → sheet stays open. The old cached-verdict loop is
   gone.
 
+**user-verified on device (2026-11-01, build 70**: sign out of Media &
+Purchases → Restore → complete the prompt → "Active" flips to "Unlock" and
+premium stops. The aged behaviour — background scans never revoking on
+empty/partial, so "Active" survives a sign-out until Restore is used — was
+also confirmed on device the same day by the user.
+
 **Do not move this rule into the background scans.** Launch/revalidate keeps
 "empty and partial never revoke" (the table above is why); the only
 authoritative sign-out moment is the prompt the Restore button itself raises.
