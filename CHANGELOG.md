@@ -77,6 +77,14 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   speakers — use at your own risk", and swiping the brightness past 80%
   flashes "Brightness above 80% drains the battery faster". Each warning
   appears once, at the moment you cross the line, and never blocks playback.
+- **Press-and-hold for a temporary 2x boost (issue #57).** Press and hold
+  anywhere on the picture for ~300 ms and playback jumps to 2x with a small
+  "2x »" badge at the top centre; lift your finger and the speed you had
+  dialed in comes back. The boost is session state — it never touches the
+  saved playback-speed preference, and it is cleared when a new video opens.
+  Excluded on TV, in PiP, while touch-locked, while paused, and before the
+  player is ready. On iOS a hold is a non-1x speed change, so it passes the
+  same paywall gate as the speed picker (Android is always free).
 ### Removed
 
 - **All "Play on TV" casting removed (Android).** The sheet offered Google

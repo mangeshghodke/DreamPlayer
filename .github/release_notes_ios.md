@@ -55,6 +55,10 @@ New:
 • Another key-free film catalogue is available in Settings → Metadata. It
   matches a film by its catalogue code — SVFLA-012 and SVFLA012 are the same
   film — and brings the poster, cast, release date, studio and genres.
+• Press and hold the picture to play at double speed; lift your finger to
+  return to the speed you had set. A small "2x" badge appears at the top while
+  the boost is active. It is part of the subscription, like the other
+  playback-speed changes; switching back is always free.
 
 Fixed:
 • A subscription or lifetime unlock no longer has to be restored by hand

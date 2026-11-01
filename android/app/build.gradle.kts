@@ -96,7 +96,7 @@ android {
         // Pick one flavour per user and stay on it (issue #43).
         //
         // Last published: v0.5.4 -> universal 43 | arm64-v8a 2043.
-        versionCode = 44
+        versionCode = 45
         versionName = flutter.versionName
     }
 

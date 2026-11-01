@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -775,6 +776,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Same for a gesture safety warning.
     _gestureSafetyWarningTimer?.cancel();
     _gestureSafetyWarning = null;
+    // A press-and-hold 2x boost never survives an open; the open itself
+    // re-applies the persisted speed on both engines.
+    _speedHoldActive = false;
     // Invalidate any in-flight MPV chapter poll for the previous file.
     _mpvChapterProbeToken++;
     // A new video means a previous software-decode fallback was for the last
@@ -4516,6 +4520,56 @@ Future<void> _offerVc1Mpv() async {
     setState(() => _dtSeekSide = forward ? 1 : -1);
   }
 
+  // ---- Press-and-hold temporary 2x boost (issue #57, phones/tablets) ----
+  //
+  // Holding the picture raises playback to 2x; releasing restores whatever
+  // speed the user had dialed in. _playbackSpeed is left UNTOUCHED, so the
+  // more-sheet radio, the info chip and the persisted preference all keep
+  // telling the truth — the hold is session state, never saved.
+  //
+  // A completed tap never collides with this: a tap frees the finger (the
+  // recognizer delivers onTapUp on lift), and while the finger is still down
+  // when the long-press deadline fires the tap recognizer has already lost
+  // the arena, so lifting after a hold toggles nothing and seeks nothing.
+  static const double _speedHoldRate = 2.0;
+  bool _speedHoldActive = false;
+
+  /// Applies a rate directly to whichever engine is live. The boosted rate
+  /// is a parameter write only — it must never touch
+  /// [PlaybackSpeedStore]/_playbackSpeed.
+  void _applyHoldRate(double rate) {
+    if (_mpvReady) {
+      unawaited(_mpvPlayer?.setRate(rate));
+    } else {
+      _exo?.setSpeed(rate);
+    }
+  }
+
+  Future<void> _onLongPressStart(LongPressStartDetails details) async {
+    if (_isTv || !_backendReady || _touchLocked || _inPip) return;
+    if (_speedHoldActive || !_playing) return;
+    // Temporary 2x is still a non-1x speed change: a free iOS user answers
+    // the paywall here (Android's gate is always a guaranteed no-op,
+    // Entitlements.advanced = true).
+    if (!await _gate()) return;
+    if (!mounted || _speedHoldActive || !_playing) return;
+    _speedHoldActive = true;
+    _applyHoldRate(_speedHoldRate);
+    setState(() {});
+  }
+
+  void _onLongPressEnd(LongPressEndDetails details) => _endSpeedHold();
+  void _onLongPressCancel() => _endSpeedHold();
+
+  /// Restores the user's previous speed and dismisses the badge. The stored
+  /// _playbackSpeed IS the restore target — the hold never wrote anywhere.
+  void _endSpeedHold() {
+    if (!_speedHoldActive) return;
+    _speedHoldActive = false;
+    _applyHoldRate(_playbackSpeed);
+    if (mounted) setState(() {});
+  }
+
   // ---- Unified gesture handling (single-finger pan + two-finger pinch) ----
   //
   // A single GestureDetector can't own vertical + horizontal + scale
@@ -7804,14 +7858,58 @@ if (mounted) setState(_applySwipeValue);
             // reach the app. Vertical drags adjust brightness (left half) or
             // volume (right half); taps toggle controls.
             Positioned.fill(
-              child: GestureDetector(
+              child: RawGestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onTapUp: _onTapUp,
-                onDoubleTapDown: _onDoubleTapDown,
-                onDoubleTap: () {},
-                onScaleStart: _onScaleStart,
-                onScaleUpdate: _onScaleUpdate,
-                onScaleEnd: _onScaleEnd,
+                gestures: {
+                  // Issue #57: a hold boosts to 2x. The 300 ms deadline is
+                  // the hold threshold — GestureDetector's long-press is a
+                  // fixed 500 ms, too slow to read as deliberate next to the
+                  // 260 ms tap window. Every other recognizer keeps its
+                  // GestureDetector default, so the existing tap /
+                  // double-tap / scale wiring behaves exactly as before.
+                  LongPressGestureRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        LongPressGestureRecognizer
+                      >(
+                        () => LongPressGestureRecognizer(
+                          duration: const Duration(milliseconds: 300),
+                        ),
+                        (instance) {
+                          instance.onLongPressStart = _onLongPressStart;
+                          instance.onLongPressEnd = _onLongPressEnd;
+                          instance.onLongPressCancel = _onLongPressCancel;
+                        },
+                      ),
+                  TapGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+                    TapGestureRecognizer
+                  >(
+                    TapGestureRecognizer.new,
+                    (instance) {
+                      instance.onTapUp = _onTapUp;
+                    },
+                  ),
+                  DoubleTapGestureRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        DoubleTapGestureRecognizer
+                      >(
+                        DoubleTapGestureRecognizer.new,
+                        (instance) {
+                          instance.onDoubleTapDown = _onDoubleTapDown;
+                          instance.onDoubleTap = () {};
+                        },
+                      ),
+                  ScaleGestureRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        ScaleGestureRecognizer
+                      >(
+                        ScaleGestureRecognizer.new,
+                        (instance) {
+                          instance.onStart = _onScaleStart;
+                          instance.onUpdate = _onScaleUpdate;
+                          instance.onEnd = _onScaleEnd;
+                        },
+                      ),
+                },
                 child: const SizedBox.expand(),
               ),
             ),
@@ -7952,6 +8050,41 @@ if (mounted) setState(_applySwipeValue);
                               : Icons.forward_10,
                           color: Colors.white,
                           size: 42,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            // Hold-to-2x badge (issue #57): while the finger is down, a
+            // compact pill at the top centre says the picture is speeding.
+            // IgnorePointer so it can never steal the (still-held) gesture.
+            if (_speedHoldActive)
+              Positioned(
+                top: MediaQuery.paddingOf(context).top + 12,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Center(
+                    child: AnimatedOpacity(
+                      opacity: 1.0,
+                      duration: const Duration(milliseconds: 120),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.72),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${speedLabel(_speedHoldRate)} »',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
