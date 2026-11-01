@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.5 | 60 | 1644 |
+| 0.5.5 | 71 | 3386 |
 | 0.5.4 | 56 | 1756 |
 | 0.5.2 | 51 | 1549 |
 | 0.5.1 | 36 | 3833 |
@@ -27,9 +27,18 @@ it can be reproduced with a plain character count after any edit.
 
 ---
 
-## 0.5.5 (build 60)
+## 0.5.5 (build 71)
 
 New:
+• Night mode. It compresses the dynamic range so quiet dialogue comes up
+  without the loud moments getting louder. It is part of the subscription;
+  switching it off is always free.
+• This version requires iOS 18.0 or newer (iPadOS 18.0). Devices on older
+  versions can keep using the previous release.
+• Press and hold the picture to play at double speed; lift your finger to
+  return to the speed you had set. A small "2x" badge appears at the top while
+  the boost is active. It is part of the subscription, like the other
+  playback-speed changes; switching back is always free.
 • List or Grid in the network browsers. The three-dot menu at the top right of
   the SMB, WebDAV, FTP, DLNA and Jellyfin browsers now has a View entry: List
   for the familiar rows, Grid for tiles with artwork — folders, films and
@@ -48,6 +57,23 @@ New:
   and never blocks playback.
 
 Fixed:
+• A subscription or lifetime unlock no longer has to be restored by hand
+  after an app update or a reinstall. The app now picks the purchase up on
+  its own — the subscription screen steps out of the way by itself if it is
+  open — and the Restore button no longer reports "No previous purchase
+  found" for a purchase that is still on its way.
+• The Restore button now reports the store's own answer. It could say
+  "Purchase restored!" based on what the app already knew in memory, even
+  when the store reported nothing. A half-finished or unreachable answer is
+  no longer treated as "no purchase" or as success.
+• Signing out of Media & Purchases now ends premium access. A purchase
+  belongs to the Apple Account, so after signing in at the prompt an empty
+  purchase history now ends the entitlement — premium features stop and the
+  subscription screen returns.
+• The subscription screen no longer flashes up in front of someone who has
+  already paid, and after an update the unlock button no longer appears at
+  all for an existing subscriber. The app knows the purchase the moment it
+  starts; a brand-new install still asks the store as usual.
 • Picking a match from the optional catalogue could load the wrong film. The
   poster and description were fetched from the main catalogue instead, which
   answered with an unrelated title. The details now come from the catalogue
