@@ -1104,8 +1104,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 builder: (context, _) {
                   final e = Entitlements.instance;
                   final entitled = e.isEntitled;
+                  // While the store has not answered yet, we do NOT know
+                  // whether the customer is subscribed — saying "Unlock"
+                  // would be a lie that shows up as a paywall for someone
+                  // who has been paying for months (the first StoreKit
+                  // query after an update took 3.5s on the iPad). Show
+                  // "Checking…" until the answer (or the cached
+                  // entitlement from this install) arrives. The window is
+                  // bounded, so the Unlock button always comes back.
+                  final checking = e.entitlementChecking;
                   // Lifetime users: button vanishes entirely.
-                  final showButton = !entitled || e.trialActive;
+                  final showButton = !checking && (!entitled || e.trialActive);
                   return ListTile(
                     leading: Icon(
                       Icons.workspace_premium,
@@ -1113,35 +1122,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     title: const Text('DreamPlayer Premium'),
                     subtitle: Text(
-                      entitled
-                          ? 'Thank you for supporting DreamPlayer'
-                          : 'Unlock all premium features',
+                      checking
+                          ? 'Checking your purchase…'
+                          : entitled
+                              ? 'Thank you for supporting DreamPlayer'
+                              : 'Unlock all premium features',
                     ),
-                    trailing: showButton
-                        ? TextButton(
-                            onPressed: () => showPaywall(context),
-                            style: TextButton.styleFrom(
-                              backgroundColor: theme.colorScheme.primary,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                    trailing: checking
+                        ? const Icon(Icons.hourglass_empty, size: 16)
+                        : showButton
+                            ? TextButton(
+                                onPressed: () => showPaywall(context),
+                                style: TextButton.styleFrom(
+                                  backgroundColor: theme.colorScheme.primary,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 8),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Unlock',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              )
+                            : const Text(
+                                'Active',
+                                style: TextStyle(
+                                  color: Colors.greenAccent,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            child: const Text(
-                              'Unlock',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          )
-                        : const Text(
-                            'Active',
-                            style: TextStyle(
-                              color: Colors.greenAccent,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
                   );
                 },
               ),

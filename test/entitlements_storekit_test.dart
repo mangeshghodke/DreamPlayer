@@ -355,6 +355,130 @@ void main() {
     });
   });
 
+  group('the entitlement survives an app update', () {
+    // The iPad log (build 66) showed the whole problem in three lines:
+    //   13:37:03.128 [INIT] … isAdvanced=false
+    //   13:37:06.648 [ENTITLE] restored existing purchase: dp_premium_lifetime_2026
+    // i.e. StoreKit's FIRST `Transaction.all` in the fresh process took 3.5
+    // seconds (its transaction cache lives on the device and Apple rebuilds
+    // it after a sign-in — "Clear the purchase history cache on the
+    // device"). During those seconds the app did not know the customer was
+    // subscribed, so Settings showed "Unlock" and a gated feature could open
+    // the paywall for someone who had been paying for months.
+    //
+    // The fix: remember the product the STORE confirmed in the app's own data
+    // container. An app UPDATE keeps that container → the entitlement is
+    // known instantly, with no "Unlock" and no paywall. A REINSTALL deletes
+    // it → a fresh install asks the store from scratch, which is what the
+    // customer asked for.
+
+    test('the product the store confirmed is remembered for the next launch',
+        () async {
+      final e = Entitlements.instance;
+      await e.handlePurchaseUpdateForTest([
+        _event(productId: 'dp_premium_lifetime_2026', status: 'purchased'),
+      ]);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('dreamplayer.lastEntitledProduct'),
+          'dp_premium_lifetime_2026');
+    });
+
+    test('the next launch of the same install knows the entitlement at once',
+        () async {
+      // This is the "app update" case: the data container survived, so the
+      // entitlement is there before StoreKit has answered anything.
+      SharedPreferences.setMockInitialValues({
+        'dreamplayer.lastEntitledProduct': 'dp_premium_lifetime_2026',
+      });
+      final e = Entitlements.instance;
+      e.resetForTest();
+
+      await e.init();
+
+      expect(e.storeKitEntitled, isTrue);
+      expect(e.entitlementKnown, isTrue);
+      expect(e.isEntitled, isTrue);
+      // No store call is needed for that — the answer was already known.
+      expect(e.launchScanAttempts, 0);
+    });
+
+    test('a fresh install asks the store — and shows "Checking…" meanwhile',
+        () async {
+      // A reinstall wipes the data container: the app has no idea what the
+      // customer owns until StoreKit answers. The debug override is the only
+      // way to switch the entitlement machinery on in a test build (it makes
+      // the paywall active, exactly like a free iOS user).
+      SharedPreferences.setMockInitialValues({});
+      final e = Entitlements.instance;
+      e.resetForTest();
+      await e.setDebugFreeUser(true);
+      Entitlements.launchScanSchedule = const [
+        Duration.zero,
+        Duration(milliseconds: 300),
+      ];
+      addTearDown(() async {
+        await e.setDebugFreeUser(false);
+        e.resetForTest();
+      });
+
+      // While the launch scan is in flight the app must not claim "not
+      // entitled" — the row shows "Checking…" instead of a false "Unlock".
+      final pending = e.init();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(e.entitlementChecking, isTrue);
+
+      await pending;
+
+      // The store answered nothing → the app is not entitled, and now it
+      // KNOWS that, so the Unlock button is correct.
+      expect(e.storeKitEntitled, isFalse);
+      expect(e.entitlementKnown, isTrue);
+      expect(e.entitlementChecking, isFalse);
+    });
+
+    test('with the paywall off there is nothing to check', () async {
+      // Every feature is free in that build, so the state counts as known
+      // and the row must not sit on "Checking…" forever.
+      SharedPreferences.setMockInitialValues({});
+      final e = Entitlements.instance;
+      e.resetForTest();
+
+      await e.init();
+
+      expect(e.effectivePaywallEnabled, isFalse);
+      expect(e.entitlementKnown, isTrue);
+      expect(e.entitlementChecking, isFalse);
+    });
+
+    test('a revoked entitlement clears the cache', () async {
+      final e = Entitlements.instance;
+      await e.handlePurchaseUpdateForTest([
+        _event(productId: 'dp_premium_lifetime_2026', status: 'purchased'),
+      ]);
+      expect(e.cachedEntitlementForTest, 'dp_premium_lifetime_2026');
+
+      await e.forgetCachedEntitlementForTest();
+
+      expect(e.cachedEntitlementForTest, isNull);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('dreamplayer.lastEntitledProduct'), isNull);
+    });
+
+    test('the Settings row waits for the answer instead of claiming "Unlock"',
+        () {
+      // The Settings screen is not pumped here (it pulls in the whole app
+      // shell), so the shape of the row is pinned by reading it — the same
+      // approach the other screen-level gates use.
+      final settings =
+          File('lib/screens/settings_screen.dart').readAsStringSync();
+      expect(settings, contains('entitlementChecking'));
+      expect(settings, contains('Checking your purchase'));
+      // The old shape claimed "Unlock" unconditionally.
+      expect(settings, isNot(contains('final showButton = !entitled')));
+    });
+  });
+
   group('the paywall steps aside', () {
     // The entitlement can arrive while the sheet is open — StoreKit
     // re-delivers the purchase history after an install/update/reinstall, a

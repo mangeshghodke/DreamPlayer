@@ -124,6 +124,16 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   after an update it can answer empty or half-complete. The app now waits
   for a real answer before it decides, which is what stops the "unlock"
   button from sitting there for a few seconds at an existing subscriber.
+- **iOS: an app update no longer shows the "Unlock" button to a subscriber.**
+  The store's first answer after an update can take a few seconds (it reads a
+  purchase cache that lives on the device), and until it arrives the app did
+  not know what the customer owns. The app now remembers the purchase the
+  store confirmed **in its own app data**, which an app update keeps and a
+  reinstall deletes: after an update the subscription is known immediately —
+  no "Unlock", no subscription screen — while a fresh install still asks the
+  store from scratch. The row says "Checking…" while the store is being
+  asked, so a subscriber is never told "Unlock" by mistake, and the button
+  always comes back (a free user can never be stuck behind the spinner).
 - **iOS: a lapsed subscription stops being premium.** Coming back to the app
   re-checks the purchase: a subscription that expired while the app was in the
   background no longer unlocks the premium features, and a purchase made

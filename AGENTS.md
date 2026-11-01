@@ -3517,6 +3517,68 @@ The launch scan also runs under `effectivePaywallEnabled` rather than
 `paywallEnabled`, so the debug "simulate free user" build exercises the
 same path.
 
+### The entitlement is remembered in the app's own data (2026-11-01)
+
+The retry schedule above fixed the *eventual* answer, but not the **3.5 s
+window** the customer actually saw: the iPad log (build 66) shows
+`13:37:03.128 [INIT] … isAdvanced=false` → `13:37:06.648 [ENTITLE] restored
+existing purchase: dp_premium_lifetime_2026`. For those 3.5 s the Settings
+row said **"Unlock"** to someone who had been paying for months, and a gated
+feature could have opened the paywall.
+
+**Apple's own docs explain the mechanism** (they were read, not guessed):
+
+- `Transaction.all` — *"returns the customer's transaction history **current
+  to the moment you access it**"* — a **snapshot of a DEVICE-SIDE cache**.
+- The sandbox testing page: *"Apps that you download from TestFlight always
+  run in the sandbox environment"*, *"**Clear the purchase history cache on
+  the device**"*, and *"Clearing the purchase history … can take longer than
+  several minutes"*. Signing out of Media & Purchases therefore clears the
+  cache, and the next query rebuilds it — which is exactly the slow, empty
+  first read in the log.
+- The "App Sandbox" page (`/documentation/security/app-sandbox`) is the
+  **macOS** sandbox (entitlements) and has nothing to do with StoreKit or
+  TestFlight latency. Do not go looking there again.
+
+**The fix: the app remembers what the store told it, in its own data
+container.** `Entitlements` writes the confirmed product id to
+`dreamplayer.lastEntitledProduct` (SharedPreferences → NSUserDefaults) and
+reads it back in `init()`.
+
+**Why SharedPreferences and NOT the Keychain — the distinction IS the
+feature.** The app's data container **survives an app UPDATE** and is
+**deleted by a reinstall**. That maps exactly onto the customer's rule:
+
+| Situation | The container | What the customer sees |
+|---|---|---|
+| App update | kept | entitled **immediately** — no "Unlock", no paywall |
+| Reinstall / fresh install | deleted | the store is asked from scratch (the paywall may appear) |
+| No purchase history | — | the paywall appears when a gated feature is tapped |
+
+A Keychain item would survive the reinstall as well, which is precisely the
+behaviour that was asked NOT to happen. (An earlier attempt used the
+Keychain and was reverted.)
+
+**The rules that keep it honest:**
+
+- It is **only written when the store itself confirmed a purchase**
+  (`_rememberEntitledProduct`), and **cleared the moment the store says it no
+  longer entitles** (`_forgetEntitledProduct`, called from `revalidate`'s
+  revoke branch). So it can never grant more than the store granted — it can
+  only make the app wait for the store's answer.
+- The **launch scan still runs** even when the cache says "entitled": only
+  the store can report that a subscription lapsed while the app was closed.
+  The cache is the answer shown *while* the store is asked.
+- `awaitReady()` returns **immediately** when the cache answers — that is
+  what makes an update instant instead of merely fast.
+- The Settings row shows **"Checking…"** while the store is being asked
+  (`entitlementChecking`) instead of a false "Unlock", and the window is
+  **bounded**: `awaitReady`'s 3 s timeout completes the ready completer, so
+  the Unlock button always comes back and a free user is never stuck behind a
+  spinner. The trailing widget is a static `hourglass_empty` icon, **not** a
+  `CircularProgressIndicator` — an endless animation makes `pumpAndSettle`
+  time out in every widget test that opens Settings.
+
 **What was NOT done, on purpose:** no "had an entitlement" Keychain flag and
 no background sync at launch. Both were the obvious fix and both are wrong —
 the flag would only have been used to decide whether to sync, and a sync at
@@ -3970,7 +4032,7 @@ test/
   upnp_client_test.dart         # UPnP/DLNA entry + transcoded/externalSubs parsing
   library_folders_test.dart     # library folder store (files vs jellyfin source)
   watched_store_test.dart       # watched marks store
-  entitlements_storekit_test.dart # StoreKit re-delivery is accepted by content; Apple's sync() policy (sync only on an explicit Restore); the paywall closes itself when the entitlement arrives
+  entitlements_storekit_test.dart # StoreKit re-delivery is accepted by content; Apple's sync() policy (sync only on an explicit Restore); the paywall closes itself when the entitlement arrives; the entitlement survives an app update (cached in the app's own data, wiped by a reinstall) and the Settings row waits for the store instead of claiming "Unlock"
   mpv_audio_select_test.dart    # container DEFAULT audio pin helper
   audio_track_store_test.dart   # per-video+engine last audio pick
   tone_map_store_test.dart      # dreamplayer.toneMapMode store

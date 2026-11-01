@@ -52,6 +52,91 @@ class Entitlements extends ChangeNotifier {
   /// The product ID of the active purchase (null = not purchased, only trial).
   String? _activeProductId;
 
+  /// The last product the STORE confirmed, cached in the app's own data
+  /// container (SharedPreferences / NSUserDefaults).
+  ///
+  /// **Why this exists.** StoreKit's first `Transaction.all` in a fresh
+  /// process is slow (measured on the iPad: 3.5 s after an app update) and
+  /// its answer is a snapshot of a DEVICE-SIDE cache that Apple rebuilds
+  /// after a sign-in ("Clear the purchase history cache on the device").
+  /// During that window the app did not know what the customer owns, so the
+  /// Settings screen showed "Unlock" and a gated feature could open the
+  /// paywall — for someone who had been paying for months.
+  ///
+  /// **What it is not.** It is NOT a Keychain item, so it does NOT survive a
+  /// reinstall: a fresh install still asks the store from scratch (the
+  /// customer's requirement — the paywall may appear there). An app UPDATE
+  /// keeps the data container, so the entitlement is known INSTANTLY and no
+  /// "Unlock" state is shown at all.
+  ///
+  /// It is only ever WRITTEN when the store itself confirmed a purchase, and
+  /// it is cleared the moment the store says the purchase no longer entitles
+  /// (a lapsed subscription, a refund). So it can only make the app wait for
+  /// the store's answer — never grant something the store has refused.
+  static const String _kLastEntitledProduct = 'dreamplayer.lastEntitledProduct';
+
+  /// The product ID restored from the cache (null = none).
+  String? _cachedProductId;
+
+  /// Whether the entitlement came from the cache rather than from the store.
+  bool _entitlementFromCache = false;
+
+  /// Whether the STORE has told us what the customer owns.
+  ///
+  /// False until the first scan answers. While it is false the app must not
+  /// claim "not entitled" — the answer may still be on its way.
+  bool _storeAnswered = false;
+
+  /// Whether the STORE confirmed an entitlement (not the cached one).
+  bool _storeEntitled = false;
+
+  /// Whether we know the entitlement state at all: the store answered, the
+  /// cached entitlement answered it, or the app gave up waiting.
+  ///
+  /// The Settings row uses this to show "Checking…" instead of a false
+  /// "Unlock" while the store is still thinking. When the paywall is off
+  /// there is nothing to check — every feature is free — so the state counts
+  /// as known.
+  bool get entitlementKnown =>
+      !effectivePaywallEnabled ||
+      _entitlementFromCache ||
+      _storeAnswered ||
+      _ready.isCompleted;
+
+  /// The store is still being asked — the app does not know yet.
+  ///
+  /// This is the window the customer saw: StoreKit's first `Transaction.all`
+  /// in a fresh process took 3.5s on the iPad, and until it answered the app
+  /// showed "Unlock" to someone who had been paying for months. The row
+  /// shows "Checking…" here instead — and the window is bounded (the gate
+  /// timeout closes it), so the Unlock button always comes back.
+  bool get entitlementChecking =>
+      effectivePaywallEnabled && _initialised && !entitlementKnown;
+
+  /// Remember the product the store confirmed, so the next launch of THIS
+  /// install knows the entitlement without asking the store first.
+  Future<void> _rememberEntitledProduct(String productId) async {
+    if (_cachedProductId == productId) return;
+    _cachedProductId = productId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kLastEntitledProduct, productId);
+    } catch (_) {}
+    IapLog.instance.log('ENTITLE', 'cached entitlement: $productId');
+  }
+
+  /// Forget the cached product — the store says it no longer entitles.
+  Future<void> _forgetEntitledProduct() async {
+    if (_cachedProductId == null) return;
+    _cachedProductId = null;
+    _entitlementFromCache = false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kLastEntitledProduct);
+    } catch (_) {}
+    IapLog.instance.log('ENTITLE', 'cleared the cached entitlement');
+  }
+
   /// The product ID expected from an in-flight purchase (null when idle).
   String? _expectedProductId;
 
@@ -133,12 +218,16 @@ class Entitlements extends ChangeNotifier {
   /// paywall during the first seconds after launch: the StoreKit query is
   /// asynchronous, and without this the gate would read `_advanced == false`
   /// and put the paywall in front of a paying user.
-  final Completer<void> _ready = Completer<void>();
+  Completer<void> _ready = Completer<void>();
 
   /// Waits for the first entitlement read — bounded, so a slow or missing
   /// StoreKit can never block a gate. On timeout the gate simply uses the
   /// current state.
   Future<void> awaitReady() async {
+    // The cached entitlement already answers the question — there is nothing
+    // to wait for. This is what makes an app UPDATE instant: the customer
+    // who owns the app is entitled before StoreKit has even been asked.
+    if (_entitlementFromCache) return;
     if (_ready.isCompleted) return;
     // Nothing is going to complete it (init() was never called) — waiting
     // would only stall the gate.
@@ -147,6 +236,10 @@ class Entitlements extends ChangeNotifier {
       await _ready.future.timeout(const Duration(seconds: 3));
     } on TimeoutException {
       IapLog.instance.log('ENTITLE', 'awaitReady: timed out, using current state');
+      // The store did not answer in time. Close the "Checking…" window so
+      // the Unlock button comes back — a free user must never be stuck
+      // behind a spinner they cannot dismiss.
+      if (!_ready.isCompleted) _ready.complete();
     }
   }
 
@@ -159,11 +252,22 @@ class Entitlements extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       _debugFreeUser = prefs.getBool(_kDebugFreeUser) ?? false;
       _debugTrialExpired = prefs.getBool(_kDebugTrialExpired) ?? false;
+      // The entitlement this install was last told about by the store. It
+      // survives an app UPDATE (the data container is preserved) and dies
+      // with a reinstall (the container is deleted) — which is exactly the
+      // distinction the customer asked for.
+      final cached = prefs.getString(_kLastEntitledProduct);
+      if (cached != null && _productIds.contains(cached) && !_debugFreeUser) {
+        _cachedProductId = cached;
+        _entitlementFromCache = true;
+        _advanced = true;
+        _activeProductId = cached;
+      }
     } catch (_) {}
 
     await _loadTrialStart();
 
-    IapLog.instance.log('INIT', 'debugFreeUser=$_debugFreeUser, debugTrialExpired=$_debugTrialExpired, trialStartedAt=$_trialStartedAtMs, isAdvanced=$isAdvanced, isEntitled=$isEntitled');
+    IapLog.instance.log('INIT', 'debugFreeUser=$_debugFreeUser, debugTrialExpired=$_debugTrialExpired, trialStartedAt=$_trialStartedAtMs, isAdvanced=$isAdvanced, isEntitled=$isEntitled, cachedEntitlement=$_cachedProductId');
 
     // Apple's guidance for StoreKit 2 (Transaction.updates):
     //   "Create a Task to iterate through the transactions from the listener
@@ -230,10 +334,12 @@ class Entitlements extends ChangeNotifier {
     for (final offset in launchScanSchedule) {
       final wait = offset - DateTime.now().difference(started);
       if (wait > Duration.zero) await Future<void>.delayed(wait);
-      if (_advanced) break;
       launchScanAttempts++;
-      await refreshEntitlements(force: true);
-      if (_advanced) break;
+      // The store is asked even when the cache says "entitled": only the
+      // store can tell us that the subscription lapsed while the app was
+      // closed. The cached answer is what the UI shows in the meantime.
+      await revalidate(reason: 'launch scan');
+      if (_storeEntitled) break;
       if (offset != launchScanSchedule.last) {
         IapLog.instance.log(
           'ENTITLE',
@@ -371,6 +477,7 @@ class Entitlements extends ChangeNotifier {
     if (_advanced && !force) return; // already entitled this session
     try {
       final scan = await _scanHistory();
+      _storeAnswered = true;
       final entitledProduct = scan.entitledProduct;
       if (entitledProduct == null) {
         IapLog.instance.log(
@@ -381,9 +488,11 @@ class Entitlements extends ChangeNotifier {
         return;
       }
       _advanced = true;
+      _storeEntitled = true;
       _activeProductId = entitledProduct;
       _purchaseFailed = false;
       _purchaseCanceled = false;
+      await _rememberEntitledProduct(entitledProduct);
       IapLog.instance.log('ENTITLE', 'restored existing purchase: $entitledProduct');
       notifyListeners();
     } catch (e) {
@@ -473,19 +582,23 @@ class Entitlements extends ChangeNotifier {
   /// being premium, and a purchase made elsewhere (the Apple Store tab, a
   /// redemption code) must start being premium — without either needing a
   /// restart.
-  Future<void> revalidate() async {
+  Future<void> revalidate({String reason = 'revalidate'}) async {
     if (defaultTargetPlatform == TargetPlatform.android) return;
     if (!paywallEnabled && !_debugFreeUser) return;
     try {
       final scan = await _scanHistory();
+      _storeAnswered = true;
       final entitledProduct = scan.entitledProduct;
       if (entitledProduct != null) {
         if (!_advanced || _activeProductId != entitledProduct) {
           _advanced = true;
+          _storeEntitled = true;
           _activeProductId = entitledProduct;
-          IapLog.instance.log('ENTITLE', 'revalidate: entitled via $entitledProduct');
+          IapLog.instance.log(reason, 'entitled via $entitledProduct');
           notifyListeners();
         }
+        _storeEntitled = true;
+        await _rememberEntitledProduct(entitledProduct);
         return;
       }
       if (revalidateShouldRevoke(
@@ -496,21 +609,23 @@ class Entitlements extends ChangeNotifier {
         // The account has transactions, but none of them entitle the user any
         // more — the subscription lapsed or the purchase was refunded.
         IapLog.instance.log(
-          'ENTITLE',
-          'revalidate: ${scan.count} transaction(s) but none entitled '
+          reason,
+          '${scan.count} transaction(s) but none entitled '
           '(${scan.seen.join(', ')}) → revoking entitlement',
         );
         _advanced = false;
+        _storeEntitled = false;
         _activeProductId = null;
+        await _forgetEntitledProduct();
         notifyListeners();
         return;
       }
       IapLog.instance.log(
-        'ENTITLE',
-        'revalidate: no transactions — keeping the current entitlement',
+        reason,
+        'no transactions — keeping the current entitlement',
       );
     } catch (e) {
-      IapLog.instance.log('ENTITLE', 'revalidate ERROR: $e');
+      IapLog.instance.log(reason, 'ERROR: $e');
     }
   }
 
@@ -730,6 +845,8 @@ class Entitlements extends ChangeNotifier {
           'source=${initiated ? 'user action' : 'store re-delivery'}',
         );
         _advanced = true;
+        _storeEntitled = true;
+        _storeAnswered = true;
         _activeProductId = tx?.productId ?? p.productID;
         _expectedProductId = null;
         _restorePending = false;
@@ -737,6 +854,9 @@ class Entitlements extends ChangeNotifier {
         _debugFreeUser = false;
         _purchaseFailed = false;
         _purchaseCanceled = false;
+        // The store confirmed it — remember it for the next launch of this
+        // install, so an app UPDATE never shows a false "Unlock".
+        await _rememberEntitledProduct(_activeProductId!);
         if (p.pendingCompletePurchase) {
           await InAppPurchase.instance.completePurchase(p);
           IapLog.instance.log('PURCHASE_UPDATE', 'completePurchase done for accepted: ${p.productID}');
@@ -935,11 +1055,18 @@ class Entitlements extends ChangeNotifier {
     _purchaseCanceled = false;
     _initialised = false;
     _sweptTransactionIds.clear();
+    _cachedProductId = null;
+    _entitlementFromCache = false;
+    _storeAnswered = false;
+    _storeEntitled = false;
     launchScanAttempts = 0;
     launchScanSchedule = entitlementScanSchedule;
     purchaseSub?.cancel();
     purchaseSub = null;
-    if (!_ready.isCompleted) _ready.complete();
+    // A fresh completer: the "the store is still being asked" window is
+    // observable again in the next test. `awaitReady()` returns immediately
+    // while `_initialised` is false, so no gate can stall on it.
+    _ready = Completer<void>();
     TrialStore.resetProbeForTest();
   }
 
@@ -970,6 +1097,14 @@ class Entitlements extends ChangeNotifier {
   @visibleForTesting
   Future<void> handlePurchaseUpdateForTest(List<PurchaseDetails> purchases) =>
       _onPurchaseUpdate(purchases);
+
+  /// Test-only: drop the cached entitlement (what a revoke does).
+  @visibleForTesting
+  Future<void> forgetCachedEntitlementForTest() => _forgetEntitledProduct();
+
+  /// Test-only: the product id cached for this install (null = none).
+  @visibleForTesting
+  String? get cachedEntitlementForTest => _cachedProductId;
 }
 
 /// Gate-result enum: not required (not gated), available (free), paywall needed.
