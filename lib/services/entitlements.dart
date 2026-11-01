@@ -512,7 +512,7 @@ class Entitlements extends ChangeNotifier {
   Future<({String? entitledProduct, int count, List<String> seen})>
       _scanHistory() async {
     final all = await SK2Transaction.transactions();
-    String? entitledProduct;
+    final candidates = <({String productId, int? expirationMs})>[];
     final seen = <String>[];
     for (final t in all) {
       var productId = t.productId;
@@ -551,10 +551,45 @@ class Entitlements extends ChangeNotifier {
         expirationMs: expirationMs,
         revocationMs: revocationMs,
       )) {
-        entitledProduct ??= productId;
+        candidates.add((productId: productId, expirationMs: expirationMs));
       }
     }
+    final entitledProduct = pickDurableProduct(candidates);
     return (entitledProduct: entitledProduct, count: all.length, seen: seen);
+  }
+
+  /// Pure: pick the entitlement that lasts longest among the ones that
+  /// entitle right now.
+  ///
+  /// A customer can own BOTH a subscription and the lifetime unlock (a
+  /// Sandbox account often has leftovers). The first entiting transaction in
+  /// the history is not necessarily the best one to remember — and what we
+  /// remember is what the next launch trusts. A monthly subscription would
+  /// expire while the customer still owns the lifetime, so the lifetime (no
+  /// expiry) wins, and between two subscriptions the later expiry wins.
+  @visibleForTesting
+  static String? pickDurableProduct(
+    List<({String productId, int? expirationMs})> candidates,
+  ) {
+    String? best;
+    int? bestExpiry;
+    for (final c in candidates) {
+      final expiry = c.expirationMs;
+      if (best == null) {
+        best = c.productId;
+        bestExpiry = expiry;
+        continue;
+      }
+      if (expiry == null) {
+        // No expiry = never ends — the most durable one there is.
+        best = c.productId;
+        bestExpiry = null;
+      } else if (bestExpiry != null && expiry > bestExpiry) {
+        best = c.productId;
+        bestExpiry = expiry;
+      }
+    }
+    return best;
   }
 
   /// Pure: should a re-scan of the transaction history REVOKE the entitlement?

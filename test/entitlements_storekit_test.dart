@@ -355,8 +355,7 @@ void main() {
     });
   });
 
-  group('the entitlement survives an app update', () {
-    // The iPad log (build 66) showed the whole problem in three lines:
+  group('the entitlement survives an app update', () {    // The iPad log (build 66) showed the whole problem in three lines:
     //   13:37:03.128 [INIT] … isAdvanced=false
     //   13:37:06.648 [ENTITLE] restored existing purchase: dp_premium_lifetime_2026
     // i.e. StoreKit's FIRST `Transaction.all` in the fresh process took 3.5
@@ -463,6 +462,40 @@ void main() {
       expect(e.cachedEntitlementForTest, isNull);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('dreamplayer.lastEntitledProduct'), isNull);
+    });
+
+    test('a monthly and a lifetime together: the lifetime is what we remember',
+        () {
+      // A Sandbox account can easily own both: an expired monthly from an
+      // earlier test plus the lifetime unlock. The expired one does not
+      // entitle (the scan already filters it out), and when several DO
+      // entitle, the one that lasts longest is the one we cache — a
+      // subscription would expire while the customer still owns the
+      // lifetime, and the cached value is what the next launch trusts.
+      expect(
+        Entitlements.pickDurableProduct([
+          (productId: 'dp_premium_monthly_2026', expirationMs: 1789972346000),
+          (productId: 'dp_premium_lifetime_2026', expirationMs: null),
+        ]),
+        'dp_premium_lifetime_2026',
+      );
+      // The order in the history must not matter.
+      expect(
+        Entitlements.pickDurableProduct([
+          (productId: 'dp_premium_lifetime_2026', expirationMs: null),
+          (productId: 'dp_premium_monthly_2026', expirationMs: 1789972346000),
+        ]),
+        'dp_premium_lifetime_2026',
+      );
+      // Two subscriptions: the later expiry wins.
+      expect(
+        Entitlements.pickDurableProduct([
+          (productId: 'dp_premium_monthly_2026', expirationMs: 1789972346000),
+          (productId: 'dp_premium_yearly_2026', expirationMs: 1821508346000),
+        ]),
+        'dp_premium_yearly_2026',
+      );
+      expect(Entitlements.pickDurableProduct([]), isNull);
     });
 
     test('the Settings row waits for the answer instead of claiming "Unlock"',

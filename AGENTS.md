@@ -3566,6 +3566,13 @@ Keychain and was reverted.)
   longer entitles** (`_forgetEntitledProduct`, called from `revalidate`'s
   revoke branch). So it can never grant more than the store granted — it can
   only make the app wait for the store's answer.
+- **When several purchases entitle, the one that lasts longest is the one
+  remembered** (`Entitlements.pickDurableProduct`). A Sandbox account easily
+  owns both an expired monthly and the lifetime unlock, and a live monthly
+  next to the lifetime would be the wrong thing to cache — it would expire
+  while the customer still owns the lifetime, and the cached value is what
+  the next launch trusts. The measured iPad account: the monthly expired
+  2026-09-21 (so it does not entitle at all), the lifetime never expires.
 - The **launch scan still runs** even when the cache says "entitled": only
   the store can report that a subscription lapsed while the app was closed.
   The cache is the answer shown *while* the store is asked.
