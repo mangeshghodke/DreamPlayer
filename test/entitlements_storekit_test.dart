@@ -549,5 +549,41 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.byType(PaywallSheet), findsNothing);
     });
+
+    testWidgets('a sheet opened ON PURPOSE stays open (the Restore button)',
+        (tester) async {
+      // The iPad log (build 67) showed two "Restore Purchases" taps and two
+      // instantly closed sheets: "entitlement was already there when the
+      // sheet opened — closing it". The customer had nothing left to tap.
+      final e = Entitlements.instance;
+      await e.setDebugFreeUser(true);
+      addTearDown(() async => e.setDebugFreeUser(false));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    showPaywall(context, closeOnEntitlement: false),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(PaywallSheet), findsOneWidget);
+
+      // The entitlement is there — the sheet must STAY, so the Restore
+      // button inside it can be used.
+      await e.setDebugFreeUser(false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(PaywallSheet), findsOneWidget);
+    });
   });
 }

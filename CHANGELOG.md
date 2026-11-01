@@ -141,6 +141,11 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   both without restarting the app. The check never revokes an access on an
   empty purchase history, because that can also mean the store has not
   answered yet.
+- **iOS: "Restore Purchases" no longer closes itself the moment it opens.**
+  The sheet used to shut as soon as it saw an active subscription — which is
+  right when a premium feature was tapped, but not when the sheet was opened
+  on purpose to use the Restore button: the customer was left with nothing
+  to tap. Opened on purpose, it now stays up.
 - **iOS: the volume swipe past 100% reloaded the video on every step.** The
   extra level above 100% is applied as audio processing on iPhone and iPad,
   and every change to that processing re-anchors the audio session at the

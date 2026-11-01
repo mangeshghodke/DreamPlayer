@@ -68,6 +68,8 @@ Fixed:
   who is already subscribed. The app now knows the purchase the moment it
   starts, so there is nothing to restore and nothing to tap. A brand-new
   install still asks the store as usual.
+• The "Restore Purchases" sheet no longer closes itself the instant it opens.
+  Opened on purpose, it now stays up so the Restore button can be used.
 • After an update, the app now waits for the store to answer before it
   decides you have no purchase — so the unlock button no longer sits there
   for a few seconds at someone who is already subscribed.

@@ -10,7 +10,16 @@ import 'package:dream_player/services/iap_logger.dart';
 /// Shows the paywall sheet. Returns true if the user purchased successfully.
 ///
 /// Shows on Android only when `debugFreeUser` override is active (debug builds).
-Future<bool> showPaywall(BuildContext context) async {
+///
+/// [closeOnEntitlement] — close the sheet by itself when the entitlement
+/// arrives. That is right for a GATE (a premium feature was tapped while the
+/// store had not answered yet: the paywall must not stay in front of a
+/// paying user) and wrong for a sheet the user opened ON PURPOSE to use the
+/// Restore button — that one closed itself instantly and left the customer
+/// with nothing to tap (seen in the iPad log, build 67: two "Restore
+/// Purchases" taps, two instantly closed sheets).
+Future<bool> showPaywall(BuildContext context,
+    {bool closeOnEntitlement = true}) async {
   final e = Entitlements.instance;
   if (defaultTargetPlatform == TargetPlatform.android && !e.debugFreeUser) {
     IapLog.instance.log('PAYWALL', 'showPaywall: android non-debug, returning false');
@@ -26,7 +35,7 @@ Future<bool> showPaywall(BuildContext context) async {
     context: context,
     backgroundColor: const Color(0xFF1C1C1E),
     isScrollControlled: true,
-    builder: (_) => const PaywallSheet(),
+    builder: (_) => PaywallSheet(closeOnEntitlement: closeOnEntitlement),
   );
   IapLog.instance.log('PAYWALL', 'showPaywall: sheet closed, result=$result');
   return result ?? false;
@@ -48,7 +57,13 @@ const _kFeatures = [
 ];
 
 class PaywallSheet extends StatefulWidget {
-  const PaywallSheet({super.key});
+  const PaywallSheet({super.key, this.closeOnEntitlement = true});
+
+  /// Whether the sheet closes itself when the entitlement arrives.
+  ///
+  /// False for a sheet the user opened on purpose (the "Restore Purchases"
+  /// row) — it must stay up so the Restore button can be used.
+  final bool closeOnEntitlement;
 
   @override
   State<PaywallSheet> createState() => _PaywallSheetState();
@@ -86,6 +101,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
     _entitlementListener = () {
       if (!mounted) return;
       if (Entitlements.instance.isAdvanced) {
+        if (!widget.closeOnEntitlement) {
+          // The user opened this sheet on purpose (to use Restore) — it stays.
+          IapLog.instance.log(
+              'PAYWALL', 'entitlement arrived — keeping the sheet open');
+          setState(() {});
+          return;
+        }
         IapLog.instance.log('PAYWALL', 'entitlement arrived — closing the sheet');
         _closeWith(true);
       } else {
@@ -100,6 +122,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (Entitlements.instance.isAdvanced) {
+        if (!widget.closeOnEntitlement) {
+          IapLog.instance.log(
+            'PAYWALL',
+            'entitlement was already there — keeping the sheet open',
+          );
+          return;
+        }
         IapLog.instance.log(
           'PAYWALL',
           'entitlement was already there when the sheet opened — closing it',

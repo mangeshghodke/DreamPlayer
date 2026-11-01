@@ -2229,7 +2229,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 leading: const Icon(Icons.restore),
                 title: const Text('Restore Purchases'),
                 subtitle: const Text('Restore or view subscription'),
-                onTap: () => showPaywall(context),
+                // The sheet must stay open: the customer opened it on
+                // purpose to use the Restore button. A sheet that closes
+                // itself because the entitlement is already there leaves
+                // them with nothing to tap (iPad log, build 67).
+                onTap: () => showPaywall(context, closeOnEntitlement: false),
               ),
               Divider(color: Theme.of(context).dividerColor),
             ],
