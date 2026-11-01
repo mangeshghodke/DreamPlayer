@@ -988,6 +988,38 @@ behind a built limiter (`reset()`'s passthrough fallback has no ceiling).
   paywall/trial/ASC lists say "Night mode". Android keeps its bass boost —
   there it is a session-level `android.media.audiofx.BassBoost` ✓.
   Pinned by `test/ios_dsp_removed_test.dart` (source-reading ✓).
+- **The two surviving iOS audio controls are paywall-gated; Android is free
+  (2026-10-31, build 64).** Spatial audio and night mode are the only audio
+  DSP controls iOS keeps, and both are **choice-gated**: the switch defaults
+  OFF and a free user who turns it ON gets the paywall instead of the
+  feature; switching OFF is always free. The gates are
+  `spatialAudioMayBeEnabled` (Settings → Audio → Spatial audio, iOS-only row)
+  and `settingsGate` / the player's `_gate()` (Settings → Audio → Night Mode
+  and the player's ⋮ night-mode switch AND its row tap). A **lapsed**
+  entitlement cannot keep either working from the stored pref alone:
+  `SpatialAudioStore.effectiveEnabled()` runs BEFORE `_exo.open()` (the native
+  side reads `flutter.dreamplayer.spatialAudio` straight from UserDefaults, so
+  it must be corrected before the load) and it persists the correction, while
+  `effectiveDspSetting` does the same for night mode — but **iOS only**, so
+  Android is never corrected. **Android is immune by construction**:
+  `Entitlements.advanced` returns true unconditionally there, so every gate
+  resolves to "available" and the paywall sheet can never open; the spatial
+  row is not even offered (Android only *reports* the platform spatializer,
+  it never controls it).
+  **The decision layer was already pinned** (`checkGate`,
+  `dspSettingMayStayEnabled`, `effectiveDspSetting`, the Android immunity in
+  `test/entitlements_test.dart`; the spatial store in
+  `test/spatial_audio_gate_test.dart`) — **the WIRING was not**: a refactor
+  that dropped `await _settingsGate()` from the night-mode row, or saved the
+  setting BEFORE the gate, would keep every existing test green while
+  shipping the paid feature for free. `test/audio_paywall_gate_test.dart`
+  (9 tests) closes that gap: a widget test turns night mode ON on Android
+  with no entitlement and asserts it persists with no paywall, a second one
+  lights the paywall (the debug free-user override) and asserts the sheet
+  opens and nothing is saved, a third asserts turning OFF is always free, and
+  the source-reading tests pin that both rows gate ON *before* the save.
+  **Trap:** the paywall sheet ticks a countdown timer every second, so
+  `pumpAndSettle` NEVER settles while it is open — pump explicitly.
 - `setBassBoost` is a new channel case: it stores the level in
   `UserDefaults` under **`flutter.dreamplayer.bassBoost`** — the same key
   Android's `ExoPlayerView.kt` writes, so it is ONE setting across platforms —
