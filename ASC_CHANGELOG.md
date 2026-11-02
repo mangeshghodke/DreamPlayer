@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.5 | 71 | 3386 |
+| 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
 | 0.5.2 | 51 | 1549 |
 | 0.5.1 | 36 | 3833 |
@@ -74,6 +74,12 @@ Fixed:
   already paid, and after an update the unlock button no longer appears at
   all for an existing subscriber. The app knows the purchase the moment it
   starts; a brand-new install still asks the store as usual.
+• Playing a file from a shared folder could stop after the iPad was locked,
+  and could come back on the wrong audio track. The connection is now rebuilt
+  after unlock, and the audio track you had chosen is restored.
+• The whole screen could look stretched for a moment after unlocking the
+  iPad or returning to the app. It now redraws at the correct size straight
+  away.
 • Picking a match from the optional catalogue could load the wrong film. The
   poster and description were fetched from the main catalogue instead, which
   answered with an unrelated title. The details now come from the catalogue

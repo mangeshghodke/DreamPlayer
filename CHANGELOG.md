@@ -7,20 +7,6 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
-- **Night mode now works on iPhone and iPad.** It is real audio processing
-  rather than a volume trick: it compresses the dynamic range so quiet
-  dialogue comes up without the loud moments getting louder. On iOS it is
-  part of the subscription (the same as spatial audio); switching it off is
-  always free. (Volume boost and Bass boost are **not** included on iOS —
-  see the fixes below.)
-- **iOS minimum is now 18.0.** The playback engine uses iOS 17.2 / 17.4 / 18
-  APIs (`AVAudioSession` rendering-mode notifications,
-  `AVSampleBufferDisplayLayer.isReadyForDisplay` / `displayedPixelBuffer()`,
-  `Task.detached(executorPreference:)`) unconditionally, so the engine's
-  floor is iOS 18 and the app follows it. An attempt to lower the floor to
-  17.0 did not compile — see the fixes below. Devices on iOS 17 can keep
-  using the previous release.
-
 - **Hardware SDR tone-mapping (issue #55).** Settings → Player now has a
   "Hardware SDR tone-mapping" switch (Android, off by default). When it is on,
   the video decoder is asked to output standard SDR instead of the source's
@@ -83,8 +69,7 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   dialed in comes back. The boost is session state — it never touches the
   saved playback-speed preference, and it is cleared when a new video opens.
   Excluded on TV, in PiP, while touch-locked, while paused, and before the
-  player is ready. On iOS a hold is a non-1x speed change, so it passes the
-  same paywall gate as the speed picker (Android is always free).
+  player is ready.
 ### Removed
 
 - **All "Play on TV" casting removed (Android).** The sheet offered Google
@@ -111,97 +96,6 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
-- **iOS: a subscription or lifetime unlock no longer has to be restored by
-  hand after an app update or a reinstall.** Apple re-delivers the purchase
-  history when the app starts (and when a purchase is completed on another
-  device), but the app was not listening for it at that point, so the plan was
-  only picked up after tapping "Restore Purchases" — and the Restore button
-  only reported success after a fixed three-second wait, which sometimes
-  showed "No previous purchase found" for a purchase that was about to
-  arrive. The app now follows Apple's guidance and listens for transactions
-  from launch, judges each one by what it actually says (the right product,
-  not refunded, not expired) instead of by whether the user just tapped Buy,
-  and waits for the entitlement rather than for a stopwatch. The paywall also
-  steps out of the way by itself if the entitlement turns up while it is open.
-- **iOS: the paywall no longer flashes at a paying user.** The store check is
-  asynchronous, so a gate could read "not subscribed" in the first moments
-  after launch or an update and put the subscription screen in front of
-  someone who had already paid. The gates now wait for that first check —
-  and the first check is re-read, because one empty answer does not mean
-  "no purchase": the store fills its purchase cache asynchronously, so right
-  after an update it can answer empty or half-complete. The app now waits
-  for a real answer before it decides, which is what stops the "unlock"
-  button from sitting there for a few seconds at an existing subscriber.
-- **iOS: an app update no longer shows the "Unlock" button to a subscriber.**
-  The store's first answer after an update can take a few seconds (it reads a
-  purchase cache that lives on the device), and until it arrives the app did
-  not know what the customer owns. The app now remembers the purchase the
-  store confirmed **in its own app data**, which an app update keeps and a
-  reinstall deletes: after an update the subscription is known immediately —
-  no "Unlock", no subscription screen — while a fresh install still asks the
-  store from scratch. The row says "Checking…" while the store is being
-  asked, so a subscriber is never told "Unlock" by mistake, and the button
-  always comes back (a free user can never be stuck behind the spinner).
-- **iOS: a lapsed subscription stops being premium.** Coming back to the app
-  re-checks the purchase: a subscription that expired while the app was in the
-  background no longer unlocks the premium features, and a purchase made
-  elsewhere (the App Store tab, a redemption code) starts unlocking them —
-  both without restarting the app. The check revokes only when the store
-  reports the very product that granted access as expired or refunded —
-  measured on device, right after an update the store can answer with an
-  incomplete history, and an empty or half-filled answer never means "no
-  purchase": it means "not known yet".
-- **iOS: "Restore Purchases" now reports the store's answer, not a cached
-  one.** The button could show "Purchase restored!" on a log read from the
-  app's memory alone — with the store itself reporting nothing — and could
-  close the sheet without the store having been asked. The answer now comes
-  from the store's purchase history: a purchase there unlocks immediately;
-  an empty history is only a verdict **after the sign-in prompt the button
-  triggers has completed**; a half-filled or unreadable answer is never
-  treated as "no purchase" (measured on device: right after an update the
-  store can answer with an expired subscription only, and the lifetime
-  unlock lands about twenty seconds later), and a store that cannot be
-  reached fails with a clear message instead of inventing success.
-- **iOS: signing out of Media & Purchases drops premium access.** Apple's
-  own guidance for the sandbox is that signing out "can remove your access
-  to purchased content", because a purchase belongs to the Apple Account.
-  The app cannot tell "signed out" from "the store has not answered yet"
-  while running, so the decision happens where the account is actually
-  provable: at the Restore button's sign-in prompt — a completed prompt
-  followed by an empty purchase history now revokes the cached entitlement,
-  so premium features stop and the paywall comes back. There is no
-  "is signed in" API for the app to poll.
-- **iOS: "Restore Purchases" no longer closes itself the moment it opens.**
-  The sheet used to shut as soon as it saw an active subscription — which is
-  right when a premium feature was tapped, but not when the sheet was opened
-  on purpose to use the Restore button: the customer was left with nothing
-  to tap. Opened on purpose, it now stays up.
-- **iOS: the volume swipe past 100% reloaded the video on every step.** The
-  extra level above 100% is applied as audio processing on iPhone and iPad,
-  and every change to that processing re-anchors the audio session at the
-  playhead — which holds the picture for about a third of a second. The
-  value was pushed on every increment of the swipe, so the picture reloaded
-  with each step and the raise was not smooth. **Volume boost has been
-  removed on iOS** — the extra level could not be applied without
-  restarting the audio session, so the swipe now stops at 100% there and the
-  setting is gone.
-- **iOS: Bass boost removed.** It had the same problem as the volume boost —
-  the low shelf is part of the same audio processing, so switching it
-  restarted the audio session and reloaded the picture. It was also only
-  offered while spatial audio was switched on, so it was hard to reach.
-  Night mode and spatial audio are unchanged.
-- **iOS: the interface looked stretched for a moment after unlocking the
-  iPad or returning to the app.** The system can resize the app's window
-  while the app is in the background, and the drawing surface was not
-  re-measured until some later layout pass, so the first frame was drawn into
-  a stale surface. The re-measure now happens as the app comes forward, and
-  again shortly afterwards in case the window is resized after that.
-- **iOS: a file on a network share could stop playing after the iPad had been
-  locked, and came back on the wrong audio track.** The lock drops the network
-  connection, and the reload that follows reused the dead connection, which
-  failed immediately. The app now rebuilds the connection from the saved
-  address and retries, and it restores the audio track that was playing
-  before the lock instead of the container's default.
 - **"Native HDR/DV" did not actually hand HDR to the display.** The MPV
   engine's HDR mode only set the properties it needed, so switching from
   "SDR tone-map" to "Native HDR/DV" left the old BT.709 / BT.1886 output
