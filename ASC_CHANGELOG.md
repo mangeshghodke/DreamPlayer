@@ -16,6 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
+| 0.5.6 | next | 1271 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
 | 0.5.2 | 51 | 1549 |
@@ -24,6 +25,32 @@ that copying a block for App Store Connect can never pick up a stray note:
 A count is the length of the text you would paste — the block from its "New:"
 or "Fixed:" line down to its last character, including the final newline — so
 it can be reproduced with a plain character count after any edit.
+
+---
+
+## 0.5.6 (next build)
+
+New:
+• A Shortcuts app action, "Play URL in DreamPlayer": run it from the Shortcuts
+  app — or share a video link to it — and the address opens straight into
+  playback.
+• Play .strm shortcut files and M3U/M3U8 playlists. A .strm file that holds a
+  video link is followed automatically, and a playlist plays its entries in
+  order.
+• Plex servers can be browsed in the app. Add a Plex Media Server from the +
+  menu under Network sources and sign in once with your Plex account; the
+  server's movie and show libraries then appear with posters, and tapping an
+  item plays it directly over your network.
+• Skip intro and skip credits now appear while the playhead is inside an
+  opening or closing chapter — matched from the chapter names, or from the
+  optional online intro database — as a row in the player's menu and as an
+  on-screen pill.
+• Network servers (shared folders, WebDAV, Jellyfin) can now keep two
+  addresses, one for your home network and one for when you are away, and the
+  app switches to the other automatically when one stops answering.
+• The player's three-dot menu has a "Playback stats" toggle: a small live
+  overlay in the corner of the video shows the video and audio format, the
+  playback speed and the current position while you watch.
 
 ---
 
