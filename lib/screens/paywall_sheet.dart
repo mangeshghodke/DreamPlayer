@@ -48,7 +48,7 @@ const _kFeatures = [
   'Spatial audio (AirPods Pro & compatible devices)',
   'Night mode',
   'Subtitle styling (size, color, outline, delay)',
-  'Playback speed control (0.25×–2×)',
+  'Playback speed control (0.25×–2×, incl. press-and-hold 2×)',
   'A-B loop',
   'Sleep timer',
   'Download to device',

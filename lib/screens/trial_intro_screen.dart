@@ -14,7 +14,7 @@ class TrialIntroScreen extends StatelessWidget {
     _Feature(Icons.surround_sound, 'Spatial audio (AirPods Pro)'),
     _Feature(Icons.graphic_eq, 'Night mode'),
     _Feature(Icons.subtitles, 'Subtitle styling & online search'),
-    _Feature(Icons.speed, 'Playback speed control'),
+    _Feature(Icons.speed, 'Playback speed control (incl. press-and-hold 2×)'),
     _Feature(Icons.repeat, 'A-B loop & sleep timer'),
     _Feature(Icons.download, 'Download to device'),
   ];
