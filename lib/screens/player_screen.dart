@@ -44,7 +44,9 @@ import '../services/downloaded_subtitles_store.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/open_intent.dart';
 import '../services/download_manager.dart';
+import '../services/intro_db.dart';
 import '../utils/chapter_nav.dart';
+import '../utils/skip_chapters.dart';
 import '../utils/episode_label.dart';
 import '../utils/gesture_safety.dart';
 import '../utils/screen_orientation.dart';
@@ -427,6 +429,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Container chapters (MKV, local files) — populated from the native event
   /// once parsed. Empty hides the chapters button.
   List<ExoChapter> _chapters = const [];
+
+  /// Optional IntroDB lookup results (compiled in only with
+  /// --dart-define=INTRODB_BASE_URL; used when no chapter NAME matched).
+  int? _remoteIntroEndMs;
+  int? _remoteCreditsStartMs;
+  bool _remoteSkipLookedUp = false;
 
   /// Guard so an ended video is marked watched exactly once per session.
   bool _markedWatched = false;
@@ -822,6 +830,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     _abA = null;
     _abB = null;
     _hdrPaywallShowing = false;
+    _remoteIntroEndMs = null;
+    _remoteCreditsStartMs = null;
+    _remoteSkipLookedUp = false;
     // Seed chapters from the VideoItem (e.g. Jellyfin `MediaSources[].Chapters`);
     // native MKV parsing (`e.chapters`) will override once available.
     _chapters = video.chapters
@@ -3917,6 +3928,7 @@ Future<void> _offerVc1Mpv() async {
       }
     }
     if (e.chapters.isNotEmpty) _chapters = e.chapters;
+    _maybeRemoteSkipLookup();
 
     // Watched state: a video that played to the end is marked watched so
     // library lists can show it (Phase 2). Once per session per video.
@@ -6881,6 +6893,33 @@ if (mounted) setState(_applySwipeValue);
                       trailing: Icon(expandChapters ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
                       onTap: () => setSheet(() => expandChapters = !expandChapters),
                     ),
+                    () {
+                      final introMs = _skipIntroTargetMs;
+                      final creditsMs = _skipCreditsTargetMs;
+                      final posMs = _position.inMilliseconds;
+                      return Column(children: [
+                        if (introMs != null && posMs < introMs)
+                          _tvListTile(
+                            leading: const Icon(Icons.skip_next, color: Colors.white70),
+                            title: const Text('Skip intro', style: TextStyle(color: Colors.white)),
+                            subtitle: Text('to ${_formatDuration(Duration(milliseconds: introMs))}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                            onTap: () {
+                              Navigator.of(sheetContext).pop();
+                              _skipIntro();
+                            },
+                          ),
+                        if (creditsMs != null && posMs < creditsMs)
+                          _tvListTile(
+                            leading: const Icon(Icons.fast_forward, color: Colors.white70),
+                            title: const Text('Skip credits', style: TextStyle(color: Colors.white)),
+                            subtitle: Text('to ${_formatDuration(Duration(milliseconds: creditsMs))}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                            onTap: () {
+                              Navigator.of(sheetContext).pop();
+                              _skipCredits();
+                            },
+                          ),
+                      ]);
+                    }(),
                     if (expandChapters)
                       Padding(
                         padding: const EdgeInsets.only(left: 12),
@@ -7055,6 +7094,67 @@ if (mounted) setState(_applySwipeValue);
       }
     }
     _showChapterToast('$verb · ${chapter.title}');
+    _showControls();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Skip intro / skip credits (chapter-name matching + optional IntroDB)
+  // ---------------------------------------------------------------------------
+
+  /// "Skip intro" target: end of the intro chapter, or the IntroDB value when
+  /// no chapter name matched (opt-in via --dart-define=INTRODB_BASE_URL).
+  int? get _skipIntroTargetMs {
+    return SkipChapters.skipIntroTargetMs(_chapters) ?? _remoteIntroEndMs;
+  }
+
+  int? get _skipCreditsTargetMs {
+    return SkipChapters.skipCreditsTargetMs(_chapters) ?? _remoteCreditsStartMs;
+  }
+
+  bool get _skipIntroVisible {
+    final t = _skipIntroTargetMs;
+    return _backendReady &&
+        !_inPip &&
+        t != null &&
+        _position.inMilliseconds < t;
+  }
+
+  void _maybeRemoteSkipLookup() {
+    if (!IntroDb.available || _remoteSkipLookedUp) return;
+    // Chapter names already cover it — no network call.
+    if (SkipChapters.findIntro(_chapters) != null ||
+        SkipChapters.findCredits(_chapters) != null) {
+      _remoteSkipLookedUp = true;
+      return;
+    }
+    _remoteSkipLookedUp = true;
+    final title = _displayTitle;
+    final durMs = _duration.inMilliseconds;
+    unawaited(IntroDb.lookup(title: title, durationMs: durMs > 0 ? durMs : null)
+        .then((r) {
+      if (r == null || !mounted) return;
+      if (r.introEndMs != null || r.creditsStartMs != null) {
+        setState(() {
+          _remoteIntroEndMs = r.introEndMs;
+          _remoteCreditsStartMs = r.creditsStartMs;
+        });
+      }
+    }));
+  }
+
+  void _skipIntro() {
+    final t = _skipIntroTargetMs;
+    if (t == null || _touchLocked) return;
+    _seekBackend(Duration(milliseconds: t));
+    _showChapterToast('Skipped intro');
+    _showControls();
+  }
+
+  void _skipCredits() {
+    final t = _skipCreditsTargetMs;
+    if (t == null || _touchLocked) return;
+    _seekBackend(Duration(milliseconds: t));
+    _showChapterToast('Skipped credits');
     _showControls();
   }
 
@@ -8088,6 +8188,26 @@ if (mounted) setState(_applySwipeValue);
                         ),
                       ),
                     ),
+                  ),
+                ),
+              ),
+            // "Skip intro" pill (YouTube-style), bottom-right while the
+            // playhead is still inside the intro. TV gets the sheet rows
+            // instead (no hover), so the pill is hidden there.
+            if (!_isTv && _skipIntroVisible && _controlsVisible)
+              Positioned(
+                right: 16,
+                bottom: 96,
+                child: OutlinedButton.icon(
+                  onPressed: _skipIntro,
+                  icon: const Icon(Icons.skip_next, size: 18),
+                  label: const Text('Skip intro'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.black.withValues(alpha: 0.72),
+                    side: const BorderSide(color: Colors.white54),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
                   ),
                 ),
               ),
