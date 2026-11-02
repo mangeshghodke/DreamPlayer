@@ -35,6 +35,32 @@ true of the intended build but not of the one that was reviewed. Verify with
 
 ---
 
+## 0.5.6
+
+New:
+• A Shortcuts app action, "Play URL in DreamPlayer": run it from the Shortcuts
+  app — or share a video link to it — and the address opens straight into
+  playback.
+• Play .strm shortcut files and M3U/M3U8 playlists. A .strm file that holds a
+  video link is followed automatically, and a playlist plays its entries in
+  order.
+• Plex servers can be browsed in the app. Add a Plex Media Server from the +
+  menu under Network sources and sign in once with your Plex account; the
+  server's movie and show libraries then appear with posters, and tapping an
+  item plays it directly over your network.
+• Skip intro and skip credits now appear while the playhead is inside an
+  opening or closing chapter — matched from the chapter names, or from the
+  optional online intro database — as a row in the player's menu and as an
+  on-screen pill.
+• Network servers (shared folders, WebDAV, Jellyfin) can now keep two
+  addresses, one for your home network and one for when you are away, and the
+  app switches to the other automatically when one stops answering.
+• The player's three-dot menu has a "Playback stats" toggle: a small live
+  overlay in the corner of the video shows the video and audio format, the
+  playback speed and the current position while you watch.
+
+---
+
 ## 0.5.5
 
 New:
