@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import '../models/video_item.dart';
 import '../utils/file_info_extractor.dart';
+import 'ftp_client.dart';
 import 'jellyfin_client.dart';
 import 'library_folders.dart';
+import 'playlist_resolver.dart';
+import 'smb_client.dart';
 import 'upnp_client.dart';
 import 'webdav_client.dart';
 
@@ -17,6 +22,9 @@ import 'webdav_client.dart';
 class NetworkVideoResolver {
   /// Resolves [folder] (a file entry) to a playable [VideoItem], or null.
   static Future<VideoItem?> resolve(LibraryFolder folder) async {
+    // STRM pointer / M3U playlist cards resolve to the target media here.
+    final playlist = await _resolvePlaylist(folder);
+    if (playlist != null) return playlist;
     final info = extractFileInfo(folder.name);
     VideoItem build({
       String? path,
@@ -131,4 +139,119 @@ class NetworkVideoResolver {
   /// Percent-encodes each path segment (mirrors `_encodePath`).
   static String _encodePath(String path) =>
       path.split('/').map(Uri.encodeComponent).join('/');
+
+  /// Resolves a .strm/.m3u file entry to its target VideoItem, per source.
+  /// Returns null for non-playlist files (and for sources without a text
+  /// fetch, e.g. Jellyfin).
+  static Future<VideoItem?> _resolvePlaylist(LibraryFolder folder) async {
+    final name = folder.name;
+    if (!PlaylistResolver.isStrmFile(name) &&
+        !PlaylistResolver.isM3uFile(name)) {
+      return null;
+    }
+    try {
+      switch (folder.source) {
+        case LibraryFolderSource.files:
+          final p = folder.videoPath ?? folder.path;
+          return await PlaylistResolver.resolveToVideoItem(
+            name: name,
+            selfRef: p,
+            baseForRelative: 'file://$p',
+            resumeKeyPrefix: folder.path,
+            fetchTextAt: (ref) async {
+              var f = ref;
+              if (f.startsWith('file://')) f = Uri.parse(f).toFilePath();
+              try {
+                return PlaylistResolver.decodeText(await File(f).readAsBytes());
+              } catch (_) {
+                return null;
+              }
+            },
+          );
+        case LibraryFolderSource.smb:
+          final serverId = folder.networkServerId ?? '';
+          final share = folder.networkShare ?? '';
+          final path = folder.networkPath ?? '';
+          return await PlaylistResolver.resolveToVideoItem(
+            name: name,
+            selfRef: path,
+            baseForRelative:
+                'smb://$serverId/$share/${PlaylistResolver.dirOf(path)}/',
+            resumeKeyPrefix: 'smb:$serverId/$share',
+            fetchTextAt: (ref) async {
+              var p2 = ref;
+              final prefix = 'smb://$serverId/$share/';
+              if (p2.startsWith(prefix)) p2 = p2.substring(prefix.length);
+              return PlaylistResolver.decodeText(
+                  await SmbClient.instance.fetchBytes(serverId, share, p2));
+            },
+          );
+        case LibraryFolderSource.webdav:
+          final serverId = folder.networkServerId ?? '';
+          final server = (await WebDavClient.instance.listServers())
+              .where((s) => s.id == serverId)
+              .firstOrNull;
+          if (server == null) return null;
+          String auth = '';
+          try {
+            auth = await WebDavClient.instance.authorizationHeader(serverId);
+          } on Exception {
+            auth = '';
+          }
+          final base = server.url.replaceAll(RegExp(r'/+$'), '');
+          final path = folder.networkPath ?? '';
+          return await PlaylistResolver.resolveToVideoItem(
+            name: name,
+            selfRef: '$base${_encodePath(path)}',
+            baseForRelative:
+                '$base${_encodePath(PlaylistResolver.dirOf(path))}/',
+            resumeKeyPrefix: 'webdav_$serverId',
+            httpHeaders: auth.isEmpty ? const {} : {'Authorization': auth},
+            allowSelfSigned: server.allowSelfSigned,
+            fetchTextAt: (ref) async => PlaylistResolver.decodeText(
+                await WebDavClient.instance.fetchUrl(serverId: serverId, url: ref)),
+          );
+        case LibraryFolderSource.ftp:
+          final serverId = folder.networkServerId ?? '';
+          final path = folder.networkPath ?? '';
+          return await PlaylistResolver.resolveToVideoItem(
+            name: name,
+            selfRef: 'ftp://$serverId${_encodePath(path)}',
+            baseForRelative:
+                'ftp://$serverId${_encodePath(PlaylistResolver.dirOf(path))}/',
+            resumeKeyPrefix: 'ftp_$serverId',
+            fetchTextAt: (ref) async {
+              var p2 = ref;
+              for (final prefix in ['ftp://$serverId', 'sftp://$serverId']) {
+                if (p2.startsWith(prefix)) p2 = p2.substring(prefix.length);
+              }
+              if (p2.startsWith('://')) p2 = p2.substring(3);
+              return PlaylistResolver.decodeText(
+                  await FtpClient.instance.fetchBytes(serverId, p2));
+            },
+          );
+        case LibraryFolderSource.upnp:
+          final serverId = folder.networkServerId ?? '';
+          final parentId = folder.parentId;
+          if (parentId == null || parentId.isEmpty) return null;
+          final entries = await UpnpClient.instance.browse(serverId, parentId);
+          final entry = entries
+              .where((e) => e.name == name && e.url != null && e.url!.isNotEmpty)
+              .firstOrNull;
+          if (entry == null || entry.url == null) return null;
+          return await PlaylistResolver.resolveToVideoItem(
+            name: name,
+            selfRef: entry.url!,
+            baseForRelative: entry.url!,
+            resumeKeyPrefix: 'upnp:$serverId/${entry.id}',
+            fetchTextAt: (ref) async => PlaylistResolver.decodeText(
+                await WebDavClient.instance.fetchUrl(url: ref)),
+          );
+        case LibraryFolderSource.jellyfin:
+          return null;
+      }
+    } on Exception {
+      return null;
+    }
+  }
 }

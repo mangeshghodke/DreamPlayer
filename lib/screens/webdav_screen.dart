@@ -7,6 +7,7 @@ import '../services/folder_scanner.dart';
 import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
 import '../services/tmdb_prefetch_queue.dart';
+import '../services/playlist_resolver.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/server_alt_store.dart';
 import '../services/watched_store.dart';
@@ -341,6 +342,25 @@ class _WebDavScreenState extends State<WebDavScreen> {
     if (!mounted) return;
 
     final base = server.url.replaceAll(RegExp(r'/+$'), '');
+
+    // STRM pointer / M3U playlist entries resolve to a URL and play directly.
+    if (await PlaylistResolver.maybeOpen(
+      context: context,
+      name: entry.name,
+      selfRef: '$base${_encodePath(entry.path)}',
+      baseForRelative:
+          '$base${_encodePath(PlaylistResolver.dirOf(entry.path))}/',
+      resumeKeyPrefix: 'webdav_${server.id}',
+      fetchTextAt: (ref) async => PlaylistResolver.decodeText(
+          await _webdav.fetchUrl(serverId: server.id, url: ref)),
+      play: (item) => PlaylistResolver.playResolved(context, item),
+      httpHeaders:
+          authHeader.isEmpty ? const {} : {'Authorization': authHeader},
+      allowSelfSigned: server.allowSelfSigned,
+    )) {
+      return;
+    }
+    if (!mounted) return;
     // Playlist = every video in this folder; used to find the tapped entry.
     final videos = _entries.where((e) => !e.isDirectory).toList();
     final playlist = [

@@ -26,6 +26,7 @@ final class FtpClient: NSObject {
     private static let videoExtensions: Set<String> = [
         "mkv", "mp4", "mov", "avi", "webm", "m4v", "ts", "m2ts", "mts",
         "wmv", "flv", "mpg", "mpeg", "3gp", "3g2", "vob", "divx", "xvid", "m2v",
+            "strm", "m3u", "m3u8",
     ]
 
     static func register(with messenger: FlutterBinaryMessenger) {

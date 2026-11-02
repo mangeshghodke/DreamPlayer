@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import '../models/video_item.dart';
 import '../services/browser_view_store.dart';
 import '../services/jellyfin_client.dart';
+import '../services/playlist_resolver.dart';
 import '../services/tmdb_client.dart';
 import '../services/tmdb_prefetch_queue.dart';
 import '../services/upnp_client.dart';
+import '../services/webdav_client.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
 import '../utils/file_info_extractor.dart';
@@ -312,6 +314,19 @@ class _UpnpScreenState extends State<UpnpScreen> {
       return;
     }
     if (entry.url == null || entry.url!.isEmpty) return;
+    // STRM pointer / M3U playlist entries resolve to a URL and play directly.
+    if (await PlaylistResolver.maybeOpen(
+      context: context,
+      name: entry.name,
+      selfRef: entry.url!,
+      baseForRelative: entry.url!,
+      resumeKeyPrefix: 'upnp:${server.id}/${entry.id}',
+      fetchTextAt: (ref) async => PlaylistResolver.decodeText(
+          await WebDavClient.instance.fetchUrl(url: ref)),
+      play: (item) => PlaylistResolver.playResolved(context, item),
+    )) {
+      return;
+    }
     final key = _identityKey(entry);
     // Jellyfin DLNA servers transcode items with external subtitles to a
     // lossy unseekable H.264 TS stream (kills HDR). If this URL is one of

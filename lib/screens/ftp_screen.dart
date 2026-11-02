@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/video_item.dart';
 import '../services/browser_view_store.dart';
 import '../services/ftp_client.dart';
+import '../services/playlist_resolver.dart';
 import '../services/tmdb_client.dart';
 import '../services/tmdb_prefetch_queue.dart';
 import '../services/resume_progress_helper.dart';
@@ -309,7 +310,29 @@ class _FtpScreenState extends State<FtpScreen> {
     if (server == null) return;
 
     final scheme = server.isSftp ? 'sftp' : 'ftp';
-    final encodedPath = entry.path.split('/').map(Uri.encodeComponent).join('/');
+    // STRM pointer / M3U playlist entries resolve to a URL and play directly.
+    String enc(String p) => p.split('/').map(Uri.encodeComponent).join('/');
+    if (await PlaylistResolver.maybeOpen(
+      context: context,
+      name: entry.name,
+      selfRef: '$scheme://${server.id}${enc(entry.path)}',
+      baseForRelative:
+          '$scheme://${server.id}${enc(PlaylistResolver.dirOf(entry.path))}/',
+      resumeKeyPrefix: '${scheme}_${server.id}',
+      fetchTextAt: (ref) async {
+        var p = ref;
+        for (final prefix in ['$scheme://${server.id}', 'ftp://${server.id}', 'sftp://${server.id}']) {
+          if (p.startsWith(prefix)) p = p.substring(prefix.length);
+        }
+        return PlaylistResolver.decodeText(
+            await FtpClient.instance.fetchBytes(server.id, p));
+      },
+      play: (item) => PlaylistResolver.playResolved(context, item),
+    )) {
+      return;
+    }
+
+    final encodedPath = enc(entry.path);
     // FtpDataSource resolves ftp://<serverId>/<path> to saved credentials.
     final uri = '$scheme://${server.id}$encodedPath';
 

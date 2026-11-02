@@ -279,6 +279,7 @@ class SMBClient(private val context: Context) {
         private val VIDEO_EXTENSIONS = setOf(
             "mkv", "mp4", "mov", "avi", "webm", "m4v", "ts", "m2ts", "mts",
             "wmv", "flv", "mpg", "mpeg", "3gp", "3g2", "vob", "divx", "xvid", "m2v",
+            "strm", "m3u", "m3u8",
         )
 
         /// Sideloaded subtitles auto-paired with a same-named video in a folder.

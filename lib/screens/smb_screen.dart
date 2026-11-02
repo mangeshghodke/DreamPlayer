@@ -5,6 +5,7 @@ import '../models/video_item.dart';
 import '../services/browser_view_store.dart';
 import '../services/folder_scanner.dart';
 import '../services/library_folders.dart';
+import '../services/playlist_resolver.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/server_alt_store.dart';
 import '../services/simkl_client.dart';
@@ -720,6 +721,26 @@ class _SmbScreenState extends State<SmbScreen> {
     final index = _entries.indexWhere((e) => !e.isDirectory && e.path == entry.path);
     if (index < 0) return;
     final video = _entries[index];
+
+    // STRM pointer / M3U playlist entries resolve to a URL and play directly.
+    if (await PlaylistResolver.maybeOpen(
+      context: context,
+      name: video.name,
+      selfRef: video.path,
+      baseForRelative:
+          'smb://${server.id}/$_share/${PlaylistResolver.dirOf(video.path)}/',
+      resumeKeyPrefix: 'smb:${server.id}/$_share',
+      fetchTextAt: (ref) async {
+        var p = ref;
+        final prefix = 'smb://${server.id}/$_share/';
+        if (p.startsWith(prefix)) p = p.substring(prefix.length);
+        return PlaylistResolver.decodeText(
+            await _smb.fetchBytes(server.id, _share, p));
+      },
+      play: (item) => PlaylistResolver.playResolved(context, item),
+    )) {
+      return;
+    }
 
     setState(() => _opening = true);
     String? videoUrl;

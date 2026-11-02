@@ -49,7 +49,7 @@ const List<String> junkFilePrefixes = [
 
 /// File extensions that are never playable content.
 const Set<String> junkFileExtensions = {
-  '.xml', '.nfo', '.txt', '.sfv', '.url', '.m3u', '.m3u8', '.log', '.tmp',
+  '.xml', '.nfo', '.txt', '.sfv', '.url', '.log', '.tmp',
   '.part', '.crdownload', '.download', '.ini', '.db', '.cue',
   // Sidecar subtitles. The player still auto-pairs these natively when it
   // opens a video (Android `SubtitleFormats.findSiblingSubtitles` / iOS

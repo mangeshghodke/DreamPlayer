@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,6 +8,7 @@ import '../services/download_manager.dart';
 import '../services/file_browser.dart';
 import '../services/folder_scanner.dart';
 import '../services/library_folders.dart';
+import '../services/playlist_resolver.dart';
 import '../services/tmdb_client.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
@@ -238,6 +239,27 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   /// Opens a video's details page first (TMDB metadata + Play/Resume button),
   /// like the WebDAV/Jellyfin browsers.
   Future<void> _playVideo(FileEntry entry) async {
+    // STRM pointer / M3U playlist entries resolve to a URL and play directly.
+    if (await PlaylistResolver.maybeOpen(
+      context: context,
+      name: entry.name,
+      selfRef: entry.path,
+      baseForRelative: 'file://${entry.path}',
+      resumeKeyPrefix: entry.resumeKey ?? entry.path,
+      fetchTextAt: (ref) async {
+        var p = ref;
+        if (p.startsWith('file://')) p = Uri.parse(p).toFilePath();
+        try {
+          return PlaylistResolver.decodeText(await File(p).readAsBytes());
+        } catch (_) {
+          return null;
+        }
+      },
+      play: (item) => PlaylistResolver.playResolved(context, item),
+    )) {
+      return;
+    }
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TmdDetailsScreen(video: _toVideoItem(entry)),

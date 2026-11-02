@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,7 @@ import '../services/file_browser.dart';
 import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
 import '../services/library_folders.dart';
+import '../services/playlist_resolver.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/smb_client.dart';
 import '../services/simkl_client.dart';
@@ -749,6 +752,7 @@ class _FolderScreenState extends State<FolderScreen> {
       await _loadWebDav();
       return;
     }
+    if (await _maybeOpenPlaylist(entry)) return;
     final video = _toVideoItem(entry);
     final folderName = _subfolderName;
     final folderKey = _atRoot
@@ -788,6 +792,7 @@ class _FolderScreenState extends State<FolderScreen> {
       await _load();
       return;
     }
+    if (await _maybeOpenPlaylist(entry)) return;
     final video = _toVideoItem(entry);
     // Use the subfolder-aware metadataKey so episodes in subfolders
     // (e.g. "Strike the Blood Final") resolve to the correct season.
@@ -877,6 +882,7 @@ class _FolderScreenState extends State<FolderScreen> {
     }
     final serverId = widget.folder.networkServerId ?? '';
     final share = widget.folder.networkShare ?? _networkShare;
+    if (await _maybeOpenPlaylist(entry)) return;
     final server = (await SmbClient.instance.listServers())
         .firstWhere((s) => s.id == serverId, orElse: () => SmbServer(
               id: serverId, name: '', host: '', port: 445,
@@ -946,6 +952,7 @@ class _FolderScreenState extends State<FolderScreen> {
       await _loadFtp();
       return;
     }
+    if (await _maybeOpenPlaylist(entry)) return;
     final item = _toVideoItem(entry);
     if (!mounted) return;
     // Use the subfolder-aware metadataKey so episodes in subfolders
@@ -991,6 +998,7 @@ class _FolderScreenState extends State<FolderScreen> {
       return;
     }
     if (entry.url == null || entry.url!.isEmpty) return;
+    if (await _maybeOpenPlaylist(entry)) return;
     final serverId = widget.folder.networkServerId ?? '';
     final key = 'upnp:$serverId/${entry.id}';
     // Jellyfin DLNA servers transcode items with external subtitles; play
@@ -1072,6 +1080,110 @@ class _FolderScreenState extends State<FolderScreen> {
         _loadWebDav();
       }
     }
+  }
+
+  /// STRM/M3U entries resolve to a playable URL and play directly.
+  /// Returns true when [entry] was a playlist/pointer and was handled.
+  Future<bool> _maybeOpenPlaylist(Object entry) async {
+    String name;
+    String selfRef;
+    String baseForRelative;
+    String resumeKeyPrefix;
+    Future<String?> Function(String) fetchTextAt;
+    Map<String, String> httpHeaders = const {};
+    var allowSelfSigned = false;
+    if (entry is SmbEntry) {
+      final serverId = widget.folder.networkServerId ?? '';
+      final share = widget.folder.networkShare ?? _networkShare;
+      name = entry.name;
+      selfRef = entry.path;
+      baseForRelative =
+          'smb://$serverId/$share/${PlaylistResolver.dirOf(entry.path)}/';
+      resumeKeyPrefix = 'smb:$serverId/$share';
+      fetchTextAt = (ref) async {
+        var p = ref;
+        final prefix = 'smb://$serverId/$share/';
+        if (p.startsWith(prefix)) p = p.substring(prefix.length);
+        return PlaylistResolver.decodeText(
+            await SmbClient.instance.fetchBytes(serverId, share, p));
+      };
+    } else if (entry is WebDavEntry) {
+      final serverId = widget.folder.networkServerId ?? '';
+      final server = (await WebDavClient.instance.listServers())
+          .firstWhere((s) => s.id == serverId,
+              orElse: () => WebDavServer(
+                  id: serverId, name: '', url: '', username: '', hasPassword: false));
+      var auth = '';
+      try {
+        auth = await WebDavClient.instance.authorizationHeader(serverId);
+      } on PlatformException {
+        auth = '';
+      }
+      final base = server.url.replaceAll(RegExp(r'/+$'), '');
+      String enc(String p) => p.split('/').map(Uri.encodeComponent).join('/');
+      name = entry.name;
+      selfRef = '$base${enc(entry.path)}';
+      baseForRelative = '$base${enc(PlaylistResolver.dirOf(entry.path))}/';
+      resumeKeyPrefix = 'webdav_$serverId';
+      httpHeaders = auth.isEmpty ? const {} : {'Authorization': auth};
+      allowSelfSigned = server.allowSelfSigned;
+      fetchTextAt = (ref) async => PlaylistResolver.decodeText(
+          await WebDavClient.instance.fetchUrl(serverId: serverId, url: ref));
+    } else if (entry is FtpEntry) {
+      final serverId = widget.folder.networkServerId ?? '';
+      final scheme = _ftpIsSftp ? 'sftp' : 'ftp';
+      name = entry.name;
+      selfRef = '$scheme://$serverId${_encodeFtpPath(entry.path)}';
+      baseForRelative =
+          '$scheme://$serverId${_encodeFtpPath(PlaylistResolver.dirOf(entry.path))}/';
+      resumeKeyPrefix = '${scheme}_$serverId';
+      fetchTextAt = (ref) async {
+        var p = ref;
+        for (final prefix in ['$scheme://$serverId', 'ftp://$serverId', 'sftp://$serverId']) {
+          if (p.startsWith(prefix)) p = p.substring(prefix.length);
+        }
+        return PlaylistResolver.decodeText(
+            await FtpClient.instance.fetchBytes(serverId, p));
+      };
+    } else if (entry is UpnpEntry) {
+      if (entry.url == null || entry.url!.isEmpty) return false;
+      name = entry.name;
+      selfRef = entry.url!;
+      baseForRelative = entry.url!;
+      resumeKeyPrefix = 'upnp:${widget.folder.networkServerId}/${entry.id}';
+      fetchTextAt = (ref) async => PlaylistResolver.decodeText(
+          await WebDavClient.instance.fetchUrl(url: ref));
+    } else {
+      final fe = entry as FileEntry;
+      name = fe.name;
+      selfRef = fe.path;
+      baseForRelative = 'file://${fe.path}';
+      resumeKeyPrefix = 'file:${widget.folder.id}';
+      fetchTextAt = (ref) async {
+        var p = ref;
+        if (p.startsWith('file://')) p = Uri.parse(p).toFilePath();
+        try {
+          return PlaylistResolver.decodeText(await File(p).readAsBytes());
+        } catch (_) {
+          return null;
+        }
+      };
+    }
+    if (!PlaylistResolver.isStrmFile(name) && !PlaylistResolver.isM3uFile(name)) {
+      return false;
+    }
+    if (!mounted) return false;
+    return PlaylistResolver.maybeOpen(
+      context: context,
+      name: name,
+      selfRef: selfRef,
+      baseForRelative: baseForRelative,
+      resumeKeyPrefix: resumeKeyPrefix,
+      fetchTextAt: fetchTextAt,
+      play: (item) => PlaylistResolver.playResolved(context, item),
+      httpHeaders: httpHeaders,
+      allowSelfSigned: allowSelfSigned,
+    );
   }
 
   VideoItem _toVideoItem(Object entry) {

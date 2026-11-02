@@ -58,7 +58,7 @@ void main() {
         'Swades - We, the People.srt',
         '.Avengers.Endgame.2019.mkv.46.archos.resume.xml',
         'movie.nfo',
-        'playlist.m3u',
+        'notes.txt',
       ]) {
         expect(isJunkFile(name), isTrue, reason: name);
       }
@@ -89,6 +89,10 @@ void main() {
         'Swades - We, the People.mp4',
         'Harry.Potter.and.the.Sorcerers.Stone.2001.mkv',
         'golmaal.mkv',
+        // STRM pointers and M3U playlists are playable, not junk.
+        'Movie.strm',
+        'playlist.m3u',
+        'playlist.m3u8',
       ]) {
         expect(isJunkFile(name), isFalse, reason: name);
       }

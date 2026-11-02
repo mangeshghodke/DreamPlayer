@@ -1161,7 +1161,7 @@ final class SMBBridge: NSObject {
         let ext = (name as NSString).pathExtension.lowercased()
         let media = [
             "mkv", "mp4", "avi", "mov", "m2ts", "ts", "webm", "wmv", "flv", "ogv", "m4v",
-            "mpg", "mpeg", "rmvb", "vob", "iso", "divx", "3gp",
+            "mpg", "mpeg", "rmvb", "vob", "iso", "divx", "3gp", "strm", "m3u", "m3u8",
         ]
         return !media.contains(ext)
     }
