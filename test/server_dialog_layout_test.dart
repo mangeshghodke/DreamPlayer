@@ -65,8 +65,8 @@ void main() {
     testWidgets('WebDAV add-server fields sized (${entry.key})',
         (tester) async {
       await openAddDialog(tester, entry.value, WebDavScreen());
-      // name, host, port, path, username, password.
-      expectAllFieldsSized(tester, 6);
+      // name, host, port, path, alternate URL, username, password.
+      expectAllFieldsSized(tester, 7);
     });
   }
 }

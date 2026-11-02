@@ -6,12 +6,14 @@ import '../services/browser_view_store.dart';
 import '../services/folder_scanner.dart';
 import '../services/library_folders.dart';
 import '../services/resume_progress_helper.dart';
+import '../services/server_alt_store.dart';
 import '../services/simkl_client.dart';
 import '../services/smb_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/tmdb_prefetch_queue.dart';
 import '../services/app_debug_log.dart';
 import '../utils/episode_label.dart';
+import '../utils/server_failover.dart';
 import '../services/watched_store.dart';
 import '../utils/file_info_extractor.dart';
 import '../utils/season_group.dart' as sg;
@@ -140,7 +142,16 @@ class _SmbScreenState extends State<SmbScreen> {
   Future<void> _probeStatuses(List<SmbServer> servers) async {
     if (servers.isEmpty) return;
     final results = await Future.wait([
-      for (final s in servers) _smb.checkServer(s.host, s.port).then((ok) => (s.id, ok)),
+      for (final s in servers) () async {
+        var ok = await _smb.checkServer(s.host, s.port);
+        if (!ok) {
+          // Fall back to the saved alternate address (if any) for the dot.
+          final alt = await ServerAltStore.altFor('smb', s.id);
+          final p = alt == null ? null : parseSmbAltAddress(alt);
+          if (p != null) ok = await _smb.checkServer(p.host, p.port);
+        }
+        return (s.id, ok);
+      }(),
     ]);
     if (!mounted) return;
     setState(() {
@@ -178,10 +189,11 @@ class _SmbScreenState extends State<SmbScreen> {
       _error = null;
     });
     try {
-      final shares = await _smb.listShares(server.id);
+      final res = await _smb.withAltFailover(server, () => _smb.listShares(server.id));
       if (!mounted) return;
       setState(() {
-        _entries = shares;
+        _browsing = res.server; // re-pointed to the alt address on failover
+        _entries = res.value;
         _loading = false;
       });
     } on PlatformException catch (e) {
@@ -372,9 +384,14 @@ class _SmbScreenState extends State<SmbScreen> {
       _expandedSeasons.clear();
     });
     try {
-      final entries = await _smb.listDirectory(server.id, _share, path);
+      final res = await _smb.withAltFailover(
+        server,
+        () => _smb.listDirectory(server.id, _share, path),
+      );
       if (!mounted) return;
+      final entries = res.value;
       setState(() {
+        _browsing = res.server;
         _path = path;
         _entries = entries;
         _loading = false;
@@ -709,14 +726,20 @@ class _SmbScreenState extends State<SmbScreen> {
     List<VideoExternalSub> externalSubs = const [];
     String? subtitleUrl;
     try {
-      videoUrl = await _smb.openShare(server.id, _share, video.path);
+      videoUrl = (await _smb.withAltFailover(
+        server,
+        () => _smb.openShare(server.id, _share, video.path),
+      )).value;
       // All matching subtitles (video.srt, video.eng.srt, ...).
       final subPaths = video.subtitlePaths ?? (video.subtitlePath != null ? [video.subtitlePath!] : const <String>[]);
       if (subPaths.isNotEmpty) {
         final subs = <VideoExternalSub>[];
-        for (final p in subPaths) {
+          for (final p in subPaths) {
           try {
-            final u = await _smb.openShare(server.id, _share, p);
+            final u = (await _smb.withAltFailover(
+              server,
+              () => _smb.openShare(server.id, _share, p),
+            )).value;
             final ext = p.split('.').last.toLowerCase();
             final mime = ext == 'ass' || ext == 'ssa'
                 ? 'text/x-ssa'
@@ -835,10 +858,14 @@ class _SmbScreenState extends State<SmbScreen> {
         _loading = true;
       });
       try {
-        final shares = await _smb.listShares(_browsing!.id);
+        final res = await _smb.withAltFailover(
+          _browsing!,
+          () => _smb.listShares(_browsing!.id),
+        );
         if (!mounted) return;
         setState(() {
-          _entries = shares;
+          _browsing = res.server;
+          _entries = res.value;
           _loading = false;
         });
       } on PlatformException catch (e) {
@@ -871,6 +898,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
   Future<void> _deleteServer(SmbServer server) async {
     await _smb.deleteServer(server.id);
+    await ServerAltStore.removeFor('smb', server.id);
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text('Removed ${server.name}')));
@@ -2590,6 +2618,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
   late final TextEditingController _username;
   late final TextEditingController _password;
   late final TextEditingController _domain;
+  late final TextEditingController _alt;
   late bool _guest;
   bool _testing = false;
   String? _resultMessage;
@@ -2606,7 +2635,13 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
     _username = TextEditingController(text: s?.username ?? '');
     _password = TextEditingController(text: '');
     _domain = TextEditingController(text: s?.domain ?? '');
+    _alt = TextEditingController(text: '');
     _guest = s?.anonymous ?? false;
+    if (s != null) {
+      ServerAltStore.altFor('smb', s.id).then((a) {
+        if (mounted) _alt.text = a ?? '';
+      });
+    }
   }
 
   @override
@@ -2617,6 +2652,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
     _username.dispose();
     _password.dispose();
     _domain.dispose();
+    _alt.dispose();
     super.dispose();
   }
 
@@ -2652,7 +2688,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
       return;
     }
     try {
-      await _smb.saveServer(
+      final saved = await _smb.saveServer(
         id: widget.existing?.id,
         name: _name.text.trim(),
         host: host,
@@ -2662,6 +2698,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
         domain: _domain.text.trim(),
         anonymous: _guest,
       );
+      await ServerAltStore.setAlt('smb', saved.id, _alt.text);
       widget.onSave?.call();
       if (mounted) Navigator.of(context).pop();
     } on PlatformException catch (e) {
@@ -2740,6 +2777,20 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 14),
+                    TvTextField(
+                      controller: _alt,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      textInputAction: TextInputAction.next,
+                      decoration: serverFieldDecoration(
+                        context,
+                        label: 'Alternate address',
+                        hint: 'e.g. public IP or 2nd hostname:port',
+                        icon: Icons.swap_horiz_outlined,
+                        optional: true,
+                      ),
                     ),
                     SwitchListTile(
                       contentPadding: const EdgeInsets.only(top: 4),

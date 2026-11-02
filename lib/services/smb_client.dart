@@ -1,5 +1,8 @@
 import 'package:flutter/services.dart';
 
+import '../utils/server_failover.dart';
+import 'server_alt_store.dart';
+
 /// A saved SMB server (see `SMBClient.swift` / `SMBClient.kt`). Passwords
 /// never cross to Dart — only `hasPassword` (native sides keep them in
 /// Keychain / Keystore).
@@ -30,6 +33,19 @@ class SmbServer {
   String get subtitle {
     final auth = domain.isNotEmpty ? '$domain\\$credentialLabel' : credentialLabel;
     return '$host:$port · $auth';
+  }
+
+  SmbServer copyWith({String? host, int? port}) {
+    return SmbServer(
+      id: id,
+      name: name,
+      host: host ?? this.host,
+      port: port ?? this.port,
+      username: username,
+      domain: domain,
+      anonymous: anonymous,
+      hasPassword: hasPassword,
+    );
   }
 
   factory SmbServer.fromMap(Map<dynamic, dynamic> m) {
@@ -315,6 +331,46 @@ class SmbClient {
     return result
         .map((e) => SmbDiscovered.fromMap(e as Map<dynamic, dynamic>))
         .toList();
+  }
+
+  /// Runs [op] against the saved server; on a channel failure, if an
+  /// alternate address is stored for this server, the saved server is
+  /// re-pointed at it (password is kept — empty password means "keep stored"
+  /// on both platforms) and [op] retried. If the alt also fails, the primary
+  /// address is restored and the original error rethrown.
+  /// Returns the result plus the *effective* server (re-pointed on failover).
+  Future<({T value, SmbServer server})> withAltFailover<T>(
+    SmbServer server,
+    Future<T> Function() op,
+  ) async {
+    return runWithAltFailover<({T value, SmbServer server})>(
+      primary: () async => (value: await op(), server: server),
+      alt: await ServerAltStore.altFor('smb', server.id),
+      runAlt: (alt) async {
+        final parsed = parseSmbAltAddress(alt);
+        if (parsed == null) throw StateError('Bad alternate address: $alt');
+        await _repoint(server, parsed.host, parsed.port);
+        return (value: await op(), server: server.copyWith(host: parsed.host, port: parsed.port));
+      },
+      persistAlt: (a) async {
+        // Called with the alt before runAlt (already re-pointed there) and
+        // with null when runAlt failed — restore the primary address then.
+        if (a == null) await _repoint(server, server.host, server.port);
+      },
+    );
+  }
+
+  Future<void> _repoint(SmbServer server, String host, int port) {
+    return saveServer(
+      id: server.id,
+      name: server.name,
+      host: host,
+      port: port,
+      username: server.username,
+      domain: server.domain,
+      anonymous: server.anonymous,
+      password: '', // empty keeps the stored credential natively
+    );
   }
 
   /// Quick reachability probe used for the saved-server online/offline dot.

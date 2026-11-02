@@ -20,12 +20,17 @@ class JellyfinServer {
     this.userId,
     this.allowSelfSigned = false,
     this.autoDiscovered = false,
+    this.altUrl,
   });
 
   final String name;
 
   /// Normalized base URL without trailing slash, e.g. `http://192.168.1.16:8096`.
   final String url;
+
+  /// Optional alternate base URL (e.g. public address when the LAN one is
+  /// unreachable). Tried automatically on connection failure.
+  final String? altUrl;
 
   final String username;
   final String? token;
@@ -57,6 +62,7 @@ class JellyfinServer {
     Object? userId = _unset,
     bool? allowSelfSigned,
     bool? autoDiscovered,
+    Object? altUrl = _unset,
   }) {
     return JellyfinServer(
       name: name ?? this.name,
@@ -66,6 +72,7 @@ class JellyfinServer {
       userId: identical(userId, _unset) ? this.userId : userId as String?,
       allowSelfSigned: allowSelfSigned ?? this.allowSelfSigned,
       autoDiscovered: autoDiscovered ?? this.autoDiscovered,
+      altUrl: identical(altUrl, _unset) ? this.altUrl : altUrl as String?,
     );
   }
 
@@ -76,6 +83,7 @@ class JellyfinServer {
         'token': token,
         'userId': userId,
         'allowSelfSigned': allowSelfSigned,
+        'altUrl': altUrl,
       };
 
   factory JellyfinServer.fromJson(Map<String, dynamic> json) {
@@ -86,6 +94,7 @@ class JellyfinServer {
       token: json['token'] as String?,
       userId: json['userId'] as String?,
       allowSelfSigned: (json['allowSelfSigned'] as bool?) ?? false,
+      altUrl: json['altUrl'] as String?,
     );
   }
 }
@@ -1178,6 +1187,40 @@ class JellyfinClient {
       _serversKey,
       jsonEncode(servers.map((s) => s.toJson()).toList()),
     );
+  }
+
+  /// Runs [op] against [server]; on a connection-level failure, if the server
+  /// has an [JellyfinServer.altUrl], the saved server is re-pointed at it and
+  /// [op] retried with the alt server. If the alt also fails, the primary URL
+  /// is restored in the saved list and the original error rethrown.
+  /// "Session expired" is NOT a failover trigger — that means re-login.
+  Future<({T value, JellyfinServer server})> withAltFailover<T>(
+    JellyfinServer server,
+    Future<T> Function(JellyfinServer server) op,
+  ) async {
+    try {
+      return (value: await op(server), server: server);
+    } on JellyfinException catch (e) {
+      if (e.message.contains('Session expired')) rethrow;
+      final alt = normalizeUrl(server.altUrl ?? '');
+      if (alt.isEmpty || alt == server.url) rethrow;
+      final altServer = server.copyWith(url: alt);
+      final servers = await loadServers();
+      final i = servers.indexWhere((s) => s.url == server.url);
+      if (i >= 0) {
+        servers[i] = altServer;
+        await saveServers(servers);
+      }
+      try {
+        return (value: await op(altServer), server: altServer);
+      } catch (_) {
+        if (i >= 0) {
+          servers[i] = server;
+          await saveServers(servers);
+        }
+        rethrow;
+      }
+    }
   }
 
   static const _folderMetaKey = 'dreamplayer.jellyfinFolderMeta';

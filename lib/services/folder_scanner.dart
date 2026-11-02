@@ -217,21 +217,37 @@ class FolderScanner {
   }
 
   Future<List<Object>> _listSmb(LibraryFolder folder) async {
+    final serverId = folder.networkServerId ?? '';
+    final server = (await SmbClient.instance.listServers())
+        .firstWhere((s) => s.id == serverId, orElse: () => SmbServer(
+              id: serverId, name: '', host: '', port: 445,
+              username: '', domain: '', anonymous: false, hasPassword: false));
     final entries = await SmbClient.instance
-        .listDirectory(
-          folder.networkServerId ?? '',
-          folder.networkShare ?? '',
-          folder.networkPath ?? '',
+        .withAltFailover(
+          server,
+          () => SmbClient.instance.listDirectory(
+                serverId,
+                folder.networkShare ?? '',
+                folder.networkPath ?? '',
+              ),
         )
         .timeout(const Duration(seconds: 15));
-    return entries;
+    return entries.value;
   }
 
   Future<List<Object>> _listWebDav(LibraryFolder folder) async {
+    final serverId = folder.networkServerId ?? '';
+    final server = (await WebDavClient.instance.listServers())
+        .firstWhere((s) => s.id == serverId, orElse: () => WebDavServer(
+              id: serverId, name: '', url: '', username: '', hasPassword: false));
     final entries = await WebDavClient.instance
-        .listDirectory(folder.networkServerId ?? '', folder.networkPath ?? '')
+        .withAltFailover(
+          server,
+          () => WebDavClient.instance
+              .listDirectory(serverId, folder.networkPath ?? ''),
+        )
         .timeout(const Duration(seconds: 15));
-    return entries;
+    return entries.value;
   }
 
   Future<List<Object>> _listFtp(LibraryFolder folder) async {

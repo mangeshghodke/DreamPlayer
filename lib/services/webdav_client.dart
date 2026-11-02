@@ -1,5 +1,8 @@
 import 'package:flutter/services.dart';
 
+import '../utils/server_failover.dart';
+import 'server_alt_store.dart';
+
 /// A saved WebDAV server (see `WebDAVClient.kt`). The password never crosses
 /// to Dart — only `hasPassword` is exposed; the ready-made `Authorization`
 /// header is fetched via [WebDavClient.authorizationHeader].
@@ -29,6 +32,17 @@ class WebDavServer {
     final auth = username.isEmpty ? 'No login' : username;
     final ssl = allowSelfSigned ? ' · self-signed OK' : '';
     return '$url · $auth$ssl';
+  }
+
+  WebDavServer copyWith({String? url}) {
+    return WebDavServer(
+      id: id,
+      name: name,
+      url: url ?? this.url,
+      username: username,
+      hasPassword: hasPassword,
+      allowSelfSigned: allowSelfSigned,
+    );
   }
 
   factory WebDavServer.fromMap(Map<dynamic, dynamic> m) {
@@ -152,6 +166,41 @@ class WebDavClient {
     return result
         .map((e) => WebDavEntry.fromMap(e as Map<dynamic, dynamic>))
         .toList();
+  }
+
+  /// Runs [op] against the saved server; on a channel failure, if an
+  /// alternate URL is stored for this server, the saved server is re-pointed
+  /// at it (empty password keeps the stored credential on both platforms) and
+  /// [op] retried; if the alt also fails the primary URL is restored and the
+  /// original error rethrown. Returns the result plus the effective server.
+  Future<({T value, WebDavServer server})> withAltFailover<T>(
+    WebDavServer server,
+    Future<T> Function() op,
+  ) async {
+    return runWithAltFailover<({T value, WebDavServer server})>(
+      primary: () async => (value: await op(), server: server),
+      alt: await ServerAltStore.altFor('webdav', server.id),
+      runAlt: (alt) async {
+        final url = normalizeAltUrl(alt);
+        if (url == null) throw StateError('Bad alternate URL: $alt');
+        await _repoint(server, url);
+        return (value: await op(), server: server.copyWith(url: url));
+      },
+      persistAlt: (a) async {
+        if (a == null) await _repoint(server, server.url);
+      },
+    );
+  }
+
+  Future<void> _repoint(WebDavServer server, String url) {
+    return saveServer(
+      id: server.id,
+      name: server.name,
+      url: url,
+      username: server.username,
+      password: '', // empty keeps the stored credential natively
+      allowSelfSigned: server.allowSelfSigned,
+    );
   }
 
   /// The ready-made `Authorization` header for [serverId]'s saved credentials

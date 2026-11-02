@@ -559,8 +559,16 @@ class _FolderScreenState extends State<FolderScreen> {
       final serverId = widget.folder.networkServerId ?? '';
       final share = widget.folder.networkShare ?? _networkShare;
       final path = _currentPath.replaceAll(RegExp(r'/+$'), '').replaceAll(RegExp(r'^/+'), '');
-      final entries = await SmbClient.instance.listDirectory(serverId, share, path);
+      final server = (await SmbClient.instance.listServers())
+          .firstWhere((s) => s.id == serverId, orElse: () => SmbServer(
+                id: serverId, name: '', host: '', port: 445,
+                username: '', domain: '', anonymous: false, hasPassword: false));
+      final res = await SmbClient.instance.withAltFailover(
+        server,
+        () => SmbClient.instance.listDirectory(serverId, share, path),
+      );
       if (!mounted) return;
+      final entries = res.value;
 
       // Pre-populate ALL cached data in ONE setState.
       final service = TmdService.instance;
@@ -633,8 +641,15 @@ class _FolderScreenState extends State<FolderScreen> {
       final serverId = widget.folder.networkServerId ?? '';
       final basePath = widget.folder.networkPath ?? '';
       final path = _currentPath.isEmpty ? basePath : _currentPath;
-      final entries = await WebDavClient.instance.listDirectory(serverId, path);
+      final server = (await WebDavClient.instance.listServers())
+          .firstWhere((s) => s.id == serverId, orElse: () => WebDavServer(
+                id: serverId, name: '', url: '', username: '', hasPassword: false));
+      final res = await WebDavClient.instance.withAltFailover(
+        server,
+        () => WebDavClient.instance.listDirectory(serverId, path),
+      );
       if (!mounted) return;
+      final entries = res.value;
       setState(() {
         _networkEntries = entries;
         _loading = false;
@@ -862,7 +877,14 @@ class _FolderScreenState extends State<FolderScreen> {
     }
     final serverId = widget.folder.networkServerId ?? '';
     final share = widget.folder.networkShare ?? _networkShare;
-    final uri = await SmbClient.instance.openShare(serverId, share, entry.path);
+    final server = (await SmbClient.instance.listServers())
+        .firstWhere((s) => s.id == serverId, orElse: () => SmbServer(
+              id: serverId, name: '', host: '', port: 445,
+              username: '', domain: '', anonymous: false, hasPassword: false));
+    final uri = (await SmbClient.instance.withAltFailover(
+      server,
+      () => SmbClient.instance.openShare(serverId, share, entry.path),
+    )).value;
     final resumeKey = 'smb:$serverId/$share/${entry.path}';
     final fi = extractFileInfo(entry.name);
     final item = VideoItem(

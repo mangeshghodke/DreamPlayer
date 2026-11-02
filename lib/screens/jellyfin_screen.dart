@@ -134,10 +134,18 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
       _seriesMeta = null;
     });
     try {
-      final items = _crumbs.isEmpty
-          ? await _client.getLibraries(server)
-          : await _client.getItems(server, _crumbs.last.parentId);
+      final res = await _client.withAltFailover(
+        server,
+        (s) => _crumbs.isEmpty
+            ? _client.getLibraries(s)
+            : _client.getItems(s, _crumbs.last.parentId),
+      );
       if (!mounted) return;
+      final items = res.value;
+      if (res.server.url != server.url) {
+        // Failover re-pointed the saved server at its alternate address.
+        _browsing = res.server;
+      }
       // Folders first, then playables, each sorted by name.
       final folders = items.where((i) => i.isFolder).toList()..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       final playables = items.where((i) => i.isPlayable).toList()..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -411,11 +419,14 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     );
     if (result == null) return null;
     try {
-      final authed = await _client.authenticate(
+      final authed = (await _client.withAltFailover(
         server,
-        username: result.username,
-        password: result.password,
-      );
+        (s) => _client.authenticate(
+          s,
+          username: result.username,
+          password: result.password,
+        ),
+      )).value;
       await _replaceServer(authed);
       if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -967,6 +978,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
 
   late final TextEditingController _name;
   late final TextEditingController _url;
+  late final TextEditingController _altUrl;
   late final TextEditingController _username;
   late final TextEditingController _password;
   late bool _allowSelfSigned;
@@ -982,6 +994,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
     final s = _existing;
     _name = TextEditingController(text: s?.name ?? '');
     _url = TextEditingController(text: s?.url ?? '');
+    _altUrl = TextEditingController(text: s?.altUrl ?? '');
     _username = TextEditingController(text: s?.username ?? '');
     _password = TextEditingController(text: '');
     _allowSelfSigned = s?.allowSelfSigned ?? false;
@@ -991,6 +1004,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
   void dispose() {
     _name.dispose();
     _url.dispose();
+    _altUrl.dispose();
     _username.dispose();
     _password.dispose();
     super.dispose();
@@ -1067,6 +1081,9 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
         token: _existing?.token,
         userId: _existing?.userId,
         allowSelfSigned: _allowSelfSigned,
+        altUrl: JellyfinClient.normalizeUrl(_altUrl.text).isEmpty
+            ? null
+            : JellyfinClient.normalizeUrl(_altUrl.text),
       );
       // Re-auth when a password was entered (or when none exists yet).
       final password = _password.text;
@@ -1143,6 +1160,21 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                         label: AppLocalizations.of(context).jellyfinServerAddress,
                         hint: 'http://192.168.1.16:8096',
                         icon: Icons.lan_outlined,
+                      ),
+                    ),
+                    SizedBox(height: 14),
+                    ServerTextField(
+                      controller: _altUrl,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      textInputAction: TextInputAction.next,
+                      decoration: serverFieldDecoration(
+                        context,
+                        label: 'Alternate address',
+                        hint: 'e.g. https://public.example.com:8096',
+                        icon: Icons.swap_horiz_outlined,
+                        optional: true,
                       ),
                     ),
                     SizedBox(height: 14),

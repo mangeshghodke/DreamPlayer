@@ -8,6 +8,7 @@ import '../services/library_folders.dart';
 import '../services/tmdb_client.dart';
 import '../services/tmdb_prefetch_queue.dart';
 import '../services/resume_progress_helper.dart';
+import '../services/server_alt_store.dart';
 import '../services/watched_store.dart';
 import '../services/webdav_client.dart';
 import '../utils/file_info_extractor.dart';
@@ -177,9 +178,14 @@ class _WebDavScreenState extends State<WebDavScreen> {
       _isSeriesFolder = false;
     });
     try {
-      final entries = await _webdav.listDirectory(server.id, path);
+      final res = await _webdav.withAltFailover(
+        server,
+        () => _webdav.listDirectory(server.id, path),
+      );
       if (!mounted) return;
+      final entries = res.value;
       setState(() {
+        _browsing = res.server; // re-pointed to the alt URL on failover
         _path = path;
         _entries = entries;
         _loading = false;
@@ -472,6 +478,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
 
   Future<void> _deleteServer(WebDavServer server) async {
     await _webdav.deleteServer(server.id);
+    await ServerAltStore.removeFor('webdav', server.id);
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
@@ -963,6 +970,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
   late final TextEditingController _path;
   late final TextEditingController _username;
   late final TextEditingController _password;
+  late final TextEditingController _alt;
   late _WebDavProtocol _protocol;
   late bool _allowSelfSigned;
   bool _testing = false;
@@ -978,7 +986,13 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
     _name = TextEditingController(text: s?.name ?? '');
     _username = TextEditingController(text: s?.username ?? '');
     _password = TextEditingController(text: '');
+    _alt = TextEditingController(text: '');
     _allowSelfSigned = s?.allowSelfSigned ?? false;
+    if (s != null) {
+      ServerAltStore.altFor('webdav', s.id).then((a) {
+        if (mounted) _alt.text = a ?? '';
+      });
+    }
 
     // Prefill host/port/path from an existing server URL so editing stays
     // round-trip clean.
@@ -1009,6 +1023,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
     _path.dispose();
     _username.dispose();
     _password.dispose();
+    _alt.dispose();
     super.dispose();
   }
 
@@ -1088,7 +1103,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
       return;
     }
     try {
-      await _webdav.saveServer(
+      final saved = await _webdav.saveServer(
         id: widget.existing?.id,
         name: _name.text.trim(),
         url: _composedUrl(),
@@ -1096,6 +1111,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
         password: _password.text,
         allowSelfSigned: _allowSelfSigned,
       );
+      await ServerAltStore.setAlt('webdav', saved.id, _alt.text);
       widget.onSave?.call();
       if (mounted) Navigator.of(context).pop();
     } on PlatformException catch (e) {
@@ -1211,6 +1227,21 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                           ),
                         ),
                       ],
+                    ),
+                    SizedBox(height: 14),
+                    TvTextField(
+                      controller: _alt,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      textInputAction: TextInputAction.next,
+                      decoration: serverFieldDecoration(
+                        context,
+                        label: 'Alternate URL',
+                        hint: 'e.g. https://public.example.com:8443/dav',
+                        icon: Icons.swap_horiz_outlined,
+                        optional: true,
+                      ),
                     ),
                     SizedBox(height: 14),
                     TvTextField(
