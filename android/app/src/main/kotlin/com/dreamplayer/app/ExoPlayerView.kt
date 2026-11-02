@@ -1600,6 +1600,36 @@ class ExoPlayerView(
                     emit()
                     result.success(stateMap())
                 }
+                // Playback stats HUD: raw engine telemetry for the Dart side
+                // to poll once per second while the HUD is open. Field names
+                // are pinned against media3-exoplayer 1.10.1 DecoderCounters
+                // (renderedOutputBufferCount / droppedBufferCount).
+                "getStats" -> {
+                    val dc = player.decoderCounters
+                    val vf = player.videoFormat
+                    val af = player.audioFormat
+                    result.success(
+                        mapOf(
+                            "videoWidth" to
+                                (videoSize.width.takeIf { it > 0 }),
+                            "videoHeight" to
+                                (videoSize.height.takeIf { it > 0 }),
+                            "videoFps" to vf?.framesPerSecond,
+                            // Format bitrate is BITS per second.
+                            "videoBitrate" to vf?.bitrate,
+                            "audioBitrate" to af?.bitrate,
+                            "renderedOutputBufferCount" to
+                                dc?.renderedOutputBufferCount,
+                            "droppedBufferCount" to
+                                (dc?.droppedBufferCount ?: 0),
+                            "playbackSpeed" to player.playbackParameters.speed,
+                            "positionMs" to player.currentPosition,
+                            "durationMs" to
+                                (if (player.duration == C.TIME_UNSET)
+                                    0L else player.duration),
+                        )
+                    )
+                }
                 "setAudioTrack" -> {
                     val index = call.argument<Number>("index")?.toInt() ?: -1
                     selectAudioTrack(index)

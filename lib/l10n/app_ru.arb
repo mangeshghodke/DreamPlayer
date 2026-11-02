@@ -2101,6 +2101,11 @@
   "@playerPictureInPicture": {
     "description": "Translated key"
   },
+
+  "playerPlaybackStats": "Статистика воспроизведения",
+  "@playerPlaybackStats": {
+    "description": "Live playback performance HUD (resolution, decoder, fps, bitrates) toggle"
+  },
   "playerSleepTimerFinished": "Таймер истёк — воспроизведение приостановлено",
   "@playerSleepTimerFinished": {
     "description": "Translated key"

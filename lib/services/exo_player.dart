@@ -674,6 +674,21 @@ class ExoPlayerController implements PlaybackController {
     return _latest;
   }
 
+  /// Raw engine telemetry for the playback stats HUD (Infuse-style overlay):
+  /// format fps/bitrate plus the cumulative video decoder counters. Returns
+  /// null when the channel is not attached. Dart computes the RENDERED fps
+  /// from consecutive polls (see RenderedFpsMeter) — Media3 only exposes
+  /// cumulative counts.
+  Future<Map<Object?, Object?>?> getStats() async {
+    final channel = _method;
+    if (channel == null) return null;
+    try {
+      return await channel.invokeMethod<Map<Object?, Object?>>('getStats');
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Future<void> seekTo(Duration position) =>
       _send('seekTo', {'positionMs': position.inMilliseconds});

@@ -2101,6 +2101,11 @@
   "@playerPictureInPicture": {
     "description": "Translated key"
   },
+
+  "playerPlaybackStats": "播放统计",
+  "@playerPlaybackStats": {
+    "description": "Live playback performance HUD (resolution, decoder, fps, bitrates) toggle"
+  },
   "playerSleepTimerFinished": "睡眠定时结束 — 播放已暂停",
   "@playerSleepTimerFinished": {
     "description": "Translated key"

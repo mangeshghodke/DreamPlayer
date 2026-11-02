@@ -3,6 +3,22 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## 0.5.6
+
+### Added
+
+- **Playback stats HUD (Infuse parity).** The player's three-dot menu has a
+  "Playback stats" toggle that overlays a live performance panel in the top
+  left of the video: resolution, video/audio codec, decoder (hardware /
+  software), source and rendered fps, video/audio bitrate, dropped frames,
+  speed and position. On the MPV engine every value is polled from libmpv
+  properties once a second (`container-fps`, `estimated-vf-fps`, bitrates,
+  drop counters); on Media3 a new native `getStats` channel method returns the
+  format fps/bitrate and the cumulative `DecoderCounters`, and the rendered
+  fps is derived Dart-side from consecutive counter deltas. On iOS (no stats
+  channel) the HUD shows the live chip labels plus the playhead. Session-only
+  toggle; hidden in PiP; snapshot resets on every open.
+
 ## 0.5.5
 
 ### Added

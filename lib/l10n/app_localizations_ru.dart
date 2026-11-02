@@ -1691,6 +1691,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get playerPictureInPicture => 'Картинка в картинке';
 
   @override
+  String get playerPlaybackStats => 'Статистика воспроизведения';
+
+  @override
   String get homeSmbNoShares => 'Ресурсы не найдены. Проверьте настройки NAS.';
 
   @override

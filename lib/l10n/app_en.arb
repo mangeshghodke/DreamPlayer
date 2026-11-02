@@ -2206,6 +2206,11 @@
   "@playerPictureInPicture": {
     "description": "Picture-in-picture setting"
   },
+
+  "playerPlaybackStats": "Playback stats",
+  "@playerPlaybackStats": {
+    "description": "Live playback performance HUD (resolution, decoder, fps, bitrates) toggle"
+  },
   "homeSmbNoShares": "No shares found. Check your NAS share settings.",
   "@homeSmbNoShares": {
     "description": "No SMB shares found on home"

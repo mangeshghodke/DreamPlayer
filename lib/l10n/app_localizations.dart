@@ -3258,6 +3258,12 @@ abstract class AppLocalizations {
   /// **'Picture-in-picture'**
   String get playerPictureInPicture;
 
+  /// Live playback performance HUD (resolution, decoder, fps, bitrates) toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Playback stats'**
+  String get playerPlaybackStats;
+
   /// No SMB shares found on home
   ///
   /// In en, this message translates to:

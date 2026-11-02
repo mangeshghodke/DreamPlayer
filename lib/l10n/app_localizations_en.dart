@@ -1683,6 +1683,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerPictureInPicture => 'Picture-in-picture';
 
   @override
+  String get playerPlaybackStats => 'Playback stats';
+
+  @override
   String get homeSmbNoShares =>
       'No shares found. Check your NAS share settings.';
 

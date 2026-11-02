@@ -70,6 +70,8 @@ import '../services/thermal_monitor.dart';
 import '../widgets/airplay_button.dart';
 import '../widgets/format_chip.dart';
 import '../widgets/gesture_warning_pill.dart';
+import '../widgets/stats_hud.dart';
+import '../utils/playback_stats.dart';
 import 'player_error.dart';
 import '../services/entitlements.dart';
 import 'paywall_sheet.dart';
@@ -206,6 +208,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _mpvResolution;
   int? _mpvAudioChannels;
   bool _mpvSubtitleOn = false;
+  // Playback stats HUD (Infuse-style live performance overlay). Session-only:
+  // the toggle lives in the ⋮ sheet, the snapshot is re-polled every second.
+  bool _statsHudVisible = false;
+  PlaybackStats? _statsSnapshot;
+  Timer? _statsTimer;
+  final RenderedFpsMeter _exoStatsFpsMeter = RenderedFpsMeter();
   /// Current subtitle lines from mpv, rendered by our own overlay instead of
   /// media_kit's built-in SubtitleView (which lands in the letterbox bar).
   List<String> _mpvSubtitleLines = [];
@@ -787,6 +795,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     // A press-and-hold 2x boost never survives an open; the open itself
     // re-applies the persisted speed on both engines.
     _speedHoldActive = false;
+    // The stats HUD's snapshot belongs to the previous file; the toggle
+    // itself stays on. Also reset the rendered-fps baseline so the first
+    // sample for the new video is not compared against the old file's
+    // counter.
+    _statsSnapshot = null;
+    _exoStatsFpsMeter.fromCounters(-1, DateTime.now());
     // Invalidate any in-flight MPV chapter poll for the previous file.
     _mpvChapterProbeToken++;
     // A new video means a previous software-decode fallback was for the last
@@ -4387,6 +4401,8 @@ Future<void> _offerVc1Mpv() async {
     _dtSeekTimer?.cancel();
     _chapterToastTimer?.cancel();
     _gestureSafetyWarningTimer?.cancel();
+    _statsTimer?.cancel();
+    _statsTimer = null;
     // Put the user's original decoder mode back if we forced software for the
     // current file's hardware-decoder failure.
     unawaited(_restoreDecoderOverride());
@@ -6297,6 +6313,24 @@ if (mounted) setState(_applySwipeValue);
                         unawaited(MpvPipService.instance.enterPip());
                       },
                     ),
+                  // Playback stats HUD (Infuse-style live performance
+                  // overlay) — session-only toggle, polled every second.
+                  _tvListTile(
+                      leading: const Icon(Icons.show_chart,
+                          color: Colors.white70),
+                      title: Text(
+                        AppLocalizations.of(context).playerPlaybackStats,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      trailing: Text(
+                        _statsHudVisible ? 'On' : 'Off',
+                        style: const TextStyle(color: Colors.white54),
+                      ),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _toggleStatsHud();
+                      },
+                    ),
                   // Aspect ratio dropdown
                   _tvListTile(
                     leading: const Icon(Icons.aspect_ratio, color: Colors.white70),
@@ -7544,6 +7578,129 @@ if (mounted) setState(_applySwipeValue);
     return _liveResolution ?? _current.resolution;
   }
 
+  /// Decoder line for the stats HUD — same data the ⓘ info sheet shows,
+  /// because Media3 does not copy the effective decoder state back into a
+  /// stable Dart field in all cases: reuse the live chip fields instead.
+  String? get _statsDecoderLine {
+    if (_mpvReady) {
+      switch (_mpvHwdecMode) {
+        case 'no':
+          return 'software';
+        case 'mediacodec':
+          return 'hardware (mediacodec)';
+        case 'mediacodec-copy':
+          return 'hardware (mediacodec-copy)';
+        default:
+          return 'hardware (auto)';
+      }
+    }
+    if (!Platform.isAndroid) return null;
+    if (_liveDecoderName != null) {
+      final hw = (_isHwDecoder ?? true) ? 'hardware' : 'software';
+      return '$_liveDecoderName · $hw';
+    }
+    return null;
+  }
+
+  void _toggleStatsHud() {
+    _statsHudVisible = !_statsHudVisible;
+    _statsSnapshot = null;
+    _syncStatsPolling();
+    if (mounted) setState(() {});
+  }
+
+  void _syncStatsPolling() {
+    final active = _statsHudVisible && !_inPip && mounted;
+    if (active) {
+      _statsTimer ??= Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => _pollPlaybackStats(),
+      );
+      return;
+    }
+    _statsTimer?.cancel();
+    _statsTimer = null;
+  }
+
+  Future<void> _pollPlaybackStats() async {
+    if (!mounted || !_statsHudVisible || _inPip) return;
+    if (_mpvReady) {
+      await _pollMpvStats();
+    } else if (_exo != null && Platform.isAndroid) {
+      await _pollExoStats();
+    } else if (_exo != null) {
+      // iOS: the native player has no stats channel, so the HUD shows the
+      // live chip labels plus the playhead — no invented numbers.
+      _statsSnapshot = PlaybackStats(
+        durationMs: _duration.inMilliseconds,
+        positionMs: _position.inMilliseconds,
+        speed: _playing ? _playbackSpeed : null,
+        videoCodec: _videoCodecInfoLabel,
+        audioLabel: _audioInfoLabel,
+      );
+    } else {
+      return;
+    }
+    if (mounted && _statsHudVisible) setState(() {});
+  }
+
+  /// MPV: every stat is a libmpv property read one second apart. Anything
+  /// that fails to read (stock libmpv, paused, demux not started) simply
+  /// drops out of the snapshot — the HUD shows only what mpv exposes.
+  Future<void> _pollMpvStats() async {
+    final platform = _mpvPlayer?.platform;
+    if (platform is! NativePlayer) return;
+    Future<String?> read(String name) async {
+      try {
+        return await platform.getProperty(name);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final params = _mpvVideoParams;
+    final stats = statsFromMpvProperties(
+      containerFps: await read('container-fps'),
+      estimatedVfFps: await read('estimated-vf-fps'),
+      videoBitrate: await read('video-bitrate'),
+      audioBitrate: await read('audio-bitrate'),
+      frameDropCount: await read('frame-drop-count'),
+      decoderFrameDropCount: await read('decoder-frame-drop-count'),
+      width: params?.w,
+      height: params?.h,
+      speed: _playing ? _mpvPlayer?.state.rate : null,
+      durationMs: _mpvPlayer?.state.duration.inMilliseconds,
+      positionMs: _mpvPlayer?.state.position.inMilliseconds,
+      labels: {
+        'video': _videoCodecInfoLabel,
+        'audio': _audioInfoLabel,
+        'decoder': _statsDecoderLine,
+      },
+    );
+    if (!stats.isEmpty) _statsSnapshot = stats;
+  }
+
+  /// Media3: one `getStats` channel call returns the format fps/bitrate and
+  /// the cumulative decoder counters; the RENDERED fps is measured on the
+  /// Dart side as the delta between consecutive polls.
+  Future<void> _pollExoStats() async {
+    final exo = _exo;
+    if (exo is! ExoPlayerController) return;
+    final raw = await exo.getStats();
+    if (raw == null) return;
+    final rendered = intOrNullField(raw, 'renderedOutputBufferCount') ?? -1;
+    final fps = _exoStatsFpsMeter.fromCounters(rendered, DateTime.now());
+    _statsSnapshot = statsFromGetStatsMap(
+      raw,
+      renderedFps: fps,
+      labels: {
+        'video': _videoCodecInfoLabel,
+        'audio': _audioInfoLabel,
+        'decoder': _statsDecoderLine,
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -8194,6 +8351,18 @@ if (mounted) setState(_applySwipeValue);
             // "Skip intro" pill (YouTube-style), bottom-right while the
             // playhead is still inside the intro. TV gets the sheet rows
             // instead (no hover), so the pill is hidden there.
+            // Playback stats HUD (Infuse-style), top-left below the top bar.
+            // The top bar can overlap it briefly while controls are visible;
+            // the chips flash for 5 s per open and then the HUD owns the
+            // corner again.
+            if (_statsHudVisible && !_inPip)
+              Positioned(
+                top: MediaQuery.paddingOf(context).top + 52,
+                left: 12,
+                child: IgnorePointer(
+                  child: PlaybackStatsHud(stats: _statsSnapshot),
+                ),
+              ),
             if (!_isTv && _skipIntroVisible && _controlsVisible)
               Positioned(
                 right: 16,

@@ -1670,6 +1670,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerPictureInPicture => '画中画';
 
   @override
+  String get playerPlaybackStats => '播放统计';
+
+  @override
   String get homeSmbNoShares => '未找到共享。请检查NAS共享设置。';
 
   @override
