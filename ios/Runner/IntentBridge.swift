@@ -20,6 +20,10 @@ final class IntentBridge {
 
     private var intentChannel: FlutterMethodChannel?
     private var pendingInitialPayload: [String: Any]?
+    /// URLs that arrived before the Flutter engine registered the channel
+    /// (e.g. a Shortcuts "Play URL" run, which opens the app and performs the
+    /// intent possibly before `configure` ran). Flushed in `configure`.
+    private var pendingOpens: [[String: Any]] = []
     private var securityScopedURLs: [URL] = []
 
     /// Dedupe: on scene-based apps the same URL can arrive through both the app
@@ -41,6 +45,10 @@ final class IntentBridge {
             result(payload)
         }
         intentChannel = channel
+        for payload in pendingOpens {
+            channel.invokeMethod("open", arguments: payload)
+        }
+        pendingOpens.removeAll()
     }
 
     /// Records the URL that launched the app (cold start). Idempotent — the
@@ -61,7 +69,12 @@ final class IntentBridge {
         lastURLKey = key
         lastURLTime = Date()
 
-        intentChannel?.invokeMethod("open", arguments: payload(for: url))
+        let payload = payload(for: url)
+        if let intentChannel {
+            intentChannel.invokeMethod("open", arguments: payload)
+        } else {
+            pendingOpens.append(payload)
+        }
     }
 
     private func payload(for url: URL) -> [String: Any] {

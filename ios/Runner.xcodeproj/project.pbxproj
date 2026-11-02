@@ -24,6 +24,7 @@
 		A1B2C3D50000000000000008 /* UpnpClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000008 /* UpnpClient.swift */; };
 		A1B2C3D50000000000000002 /* FileBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000002 /* FileBrowser.swift */; };
 		A1B2C3D50000000000000003 /* IntentBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000003 /* IntentBridge.swift */; };
+		A1B2C3D600000000000000AA /* PlayUrlIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D600000000000000AB /* PlayUrlIntent.swift */; };
 		
 		A1B2C3D5000000000000000E /* BufferedSMBReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000D /* BufferedSMBReader.swift */; };
 		A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000000E /* WebDAVClient.swift */; };
@@ -92,6 +93,7 @@
 		A1B2C3D40000000000000008 /* UpnpClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpnpClient.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000002 /* FileBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowser.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000003 /* IntentBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentBridge.swift; sourceTree = "<group>"; };
+		A1B2C3D600000000000000AB /* PlayUrlIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayUrlIntent.swift; sourceTree = "<group>"; };
 		
 		A1B2C3D4000000000000000D /* BufferedSMBReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BufferedSMBReader.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000000E /* WebDAVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClient.swift; sourceTree = "<group>"; };
@@ -195,6 +197,7 @@
 				97C147031CF9000F007C117E /* Runner.entitlements */,
 				A1B2C3D40000000000000002 /* FileBrowser.swift */,
 				A1B2C3D40000000000000003 /* IntentBridge.swift */,
+				A1B2C3D600000000000000AB /* PlayUrlIntent.swift */,
 				A1B2C3D4000000000000000D /* BufferedSMBReader.swift */,
 				A1B2C3D4000000000000000E /* WebDAVClient.swift */,
 				A1B2C3D4000000000000032 /* SMBBridge.swift */,
@@ -387,6 +390,7 @@
 				A1B2C3D50000000000000008 /* UpnpClient.swift in Sources */,
 				A1B2C3D50000000000000002 /* FileBrowser.swift in Sources */,
 				A1B2C3D50000000000000003 /* IntentBridge.swift in Sources */,
+				A1B2C3D600000000000000AA /* PlayUrlIntent.swift in Sources */,
 				A1B2C3D5000000000000000E /* BufferedSMBReader.swift in Sources */,
 				A1B2C3D5000000000000000F /* WebDAVClient.swift in Sources */,
 				A1B2C3D5000000000000033 /* SMBBridge.swift in Sources */,
