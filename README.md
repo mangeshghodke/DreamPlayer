@@ -30,8 +30,8 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 
 - No ads, no account required
 - **7-day free trial**, then an optional Premium subscription (monthly, yearly, or a one-time lifetime purchase) — the trial is opt-in from the welcome screen, never automatic
-- Premium unlocks **Dolby Vision / HDR playback, subtitle styling, playback speed, A-B repeat, the sleep timer, downloads to device and OpenSubtitles search**. Browsing every source, playback itself, subtitle *viewing*, chapters, picture-in-picture, background audio and resume stay free
-- Requires **iOS / iPadOS 17.0** or later
+- Premium unlocks **Dolby Vision / HDR playback, subtitle styling, playback speed (incl. press-and-hold 2×), A-B repeat, the sleep timer, downloads to device and OpenSubtitles search**. Browsing every source, playback itself, subtitle *viewing*, chapters, picture-in-picture, background audio and resume stay free
+- Requires **iOS / iPadOS 18.0** or later
 - Play your own files: local storage, Files-app folders, **in-app SMB/NAS on iPhone and iPad**, WebDAV, FTP/SFTP, Jellyfin, DLNA, and "Open with" hand-offs from other apps
 - Full Dolby Vision (P7/P8/P9) / HDR10 / HDR10+ / HLG support on capable iPad and iPhone panels, plus lossless audio (DTS-HD, TrueHD, E-AC3, FLAC) — DV Profile 4 is Android-only
 - Android builds remain **completely free** — every feature, no paywall — and are on the [Releases](https://github.com/mangeshghodke/DreamPlayer/releases) page
@@ -168,7 +168,7 @@ Each thumbnail is linked — click any image to open it full size.
 - **Multi-select delete** — long-press files or folders to select, then ⋮ → Delete. Folders are deleted recursively, with the confirmation spelling that out
 
 ### Localization
-- **English, Spanish, Chinese Simplified, Russian** — 549 translated strings across all 13 screens
+- **English, Spanish, Chinese Simplified, Russian** — 1100+ translated strings across all screens
 - **Auto-detect** device language on launch; optional **Settings → General → Language** override
 - Technical terms (codec names, HDR, Dolby Vision, etc.) stay English by design
 
@@ -191,7 +191,7 @@ Each thumbnail is linked — click any image to open it full size.
 - **Chapters** — previous/next chapter buttons beside the transport (press previous twice to walk back, not just restart the current one) and ticks on the seekbar, on both engines and on local, SMB, WebDAV, FTP, UPnP and Jellyfin sources
 - **AirPlay (iOS)** — the real system AirPlay picker is embedded in the player top bar; video goes out on the native AVPlayer path, while FFmpeg-backed containers (MKV/TS/AVI) can send audio only
 - **Keyboard shortcuts (non-TV)** — `K` / Space play-pause, `J` / `L` seek ∓10 s, `F` fullscreen; left/right seek while the controls are hidden
-- **Playback speed** 0.25×–2× with refresh-rate matching on Android
+- **Playback speed** 0.25×–2× with refresh-rate matching on Android, plus **press-and-hold for a temporary 2×** — hold the picture ~300 ms and a "2x »" badge shows at the top; release to return to your speed
 - **Frame interpolation (MPV, Android)** — the picture panel (the sliders button at the top right) → *Frame interpolation* picks a target rate (30 / 48 / 60 / 120 fps) and a quality (Sharp / Balanced / Smooth), so a 24 fps film plays at 60 fps with blended in-between frames and pans stop looking choppy. It is MPV-only by design: Media3 has no interpolation API, and producing the extra frames on the native engine would mean routing the decoder through our own GPU renderer — which would cost the Dolby Vision / HDR passthrough the native engine exists for. Set a default in Settings → Player, or change it live from the picture panel. The target is also **capped automatically when the phone gets warm** (Android thermal headroom), and the same reading steps the Anime4K preset down — the quality never climbs back on its own, so the picture doesn't keep changing under you
 - **Thermal-aware quality (Android)** — while the MPV engine plays, DreamPlayer samples the device's thermal headroom every 10 s and eases the GPU-heavy features down before the phone throttles
 - **Pinch-to-zoom**, horizontal-swipe seek, double-tap-to-seek ±10 s
@@ -328,9 +328,9 @@ decoding, and a stable 4K 60 fps picture on a phone.**
 | Engine | Platform | What it does | Why we picked it |
 |---|---|---|---|
 | **Media3 / ExoPlayer 1.10.x** | Android phone, tablet, Android TV, Fire TV | The Google-maintained Android playback engine. We use it through a **hybrid-composition `PlatformViewLink`** so the `SurfaceView` is a real SurfaceFlinger layer on the physical display. This is the only path that delivers real HDR/DV to the panel. Built on top of Media3 is our `DreamRenderersFactory` which adds the **nextlib FFmpeg audio extension** for DTS / DTS-HD / E-AC3-JOC / TrueHD / FLAC. | The only engine that does hardware Dolby Vision on Android (`c2.qti.dv.decoder` on the OnePlus, `OMX.MTK.VIDEO.DECODER.DVHE.STH` on the Fire TV) with real HDR composited on the panel. Nova Video Player, Just Player, Plex, MX Player Pro all use it. |
-| **AetherEngine 6.38.x** | iOS / iPad | Native iOS playback built on AVPlayer + FFmpeg demux/decode. The AetherPlayerView exposes a `videoFormat` for `.hdr10 / .hdr10Plus / .dolbyVision`, the engine reads the container, FFmpeg fills in what AVPlayer can't (DTS / DTS-HD / TrueHD, MKV / WebM / TS / AVI containers), and the engine routes bitstream-audio over HDMI. | The only path that combines AVPlayer's hardware HDR / DV fast path on the panel with FFmpeg's container / codec coverage for non-Apple formats. iOS has no ExoPlayer port. |
+| **AetherEngine 7.53.x** | iOS / iPad | Native iOS playback built on AVPlayer + FFmpeg demux/decode. The AetherPlayerView exposes a `videoFormat` for `.hdr10 / .hdr10Plus / .dolbyVision`, the engine reads the container, FFmpeg fills in what AVPlayer can't (DTS / DTS-HD / TrueHD, MKV / WebM / TS / AVI containers), and the engine routes bitstream-audio over HDMI. | The only path that combines AVPlayer's hardware HDR / DV fast path on the panel with FFmpeg's container / codec coverage for non-Apple formats. iOS has no ExoPlayer port. |
 | **nextlib `media3ext`** | Android (FFmpeg audio) | The Android FFmpeg extension that adds `FfmpegAudioRenderer` for DTS / DTS-HD / TrueHD / FLAC. Wired into `DreamRenderersFactory` AFTER the stock audio renderer, so it acts as a fallback for the lossless codecs. | The same FFmpeg integration Nova Video Player uses. Video stays on hardware `MediaCodecVideoRenderer`; audio falls back to FFmpeg for the formats the OS can't decode. |
-| **Citadel (SwiftNIO SSH)** | iOS / iPad SFTP | Native SFTP client used by the FTP browser for SFTP playback (`FtpByteRangeSource`). | The only maintained Swift SSH client that compiles cleanly on iOS 17. |
+| **Citadel (SwiftNIO SSH)** | iOS / iPad SFTP | Native SFTP client used by the FTP browser for SFTP playback (`FtpByteRangeSource`). | The only maintained Swift SSH client that compiles cleanly on iOS 18. |
 | **libsmb2** | **Android + iOS / iPad SMB reads** | The C SMB 2/3 library behind **all** SMB playback. On iOS it also does browsing, share listing, LAN discovery and stat: discovery is a subnet sweep plus a real IPC$ handshake to report dialect and server GUID, and playback serves the engine through a synchronous `smb2_pread` reader — no async-to-sync bridging, so the deadlock class the old iOS transport hit cannot recur. On **Android** the *read* path uses it too (a JNI bridge over the same vendored sources), for both the native engine and the MPV fallback. Vendored under `ios/Runner/libsmb2`, compiled for iOS by `ios/libsmb2_build.sh` and for Android by `android/app/src/main/cpp/CMakeLists.txt`. LGPL 2.1. |
 | **jcifs-ng** | Android SMB **browsing** | The Java SMB 2/3 client behind the in-app SMB browser (directory listing) and the small sidecar-subtitle fetch on Android. The bulk byte reads no longer go through it. | Nova's and CX Explorer's SMB library; measured ~75 MB/s vs ~4–6 MB/s for smbj on the NAS. Kept for browsing because it is pure Java and needs no native build step. |
 | **Media3 / DefaultHttpDataSource + OkHttp** | Android HTTP(S) | Standard Media3 HTTP source (with a custom trust-all OkHttp client for self-signed WebDAV). | Reuses Media3's mature HTTP implementation; the self-signed client is opt-in per server. |
@@ -434,10 +434,8 @@ To enable spatial audio in DreamPlayer:
    the **ⓘ** button next to the title — the "Spatial audio" row reads
    "On" with the routing info.
 
-The chip is Android-only today. On iOS, Apple spatializes multichannel
-soundtracks on the native AVPlayer path and the system controls it from
-Control Center → AirPlay / Head-tracking — DreamPlayer does not surface a
-state for it yet.
+On iOS the same idea ships as a premium opt-in — see *Spatial Audio on iOS*
+below.
 
 ## Spatial Audio on iOS
 
@@ -477,7 +475,7 @@ default). When enabled:
 | Platform | Minimum version |
 |---|---|
 | Android | 5.0 (API 21) |
-| iOS / iPadOS | 17.0 |
+| iOS / iPadOS | 18.0 |
 
 ## Download
 
