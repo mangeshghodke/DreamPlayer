@@ -81,6 +81,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Changed
 
+- **Plex servers are now a first-class browser.** Add a Plex Media Server from
+  the + → Network sources menu, sign in once with your Plex account, and
+  browse movies, shows, seasons and episodes straight from the server —
+  direct play over the local network, TMDB posters via the usual details
+  screen, and chapter markers (Plex intro/credits) on the seekbar. Browse-only,
+  mirroring how the Jellyfin client shipped.
 - **The MPV picture controls are all in one place now.** The HDR output mode
   and the frame interpolation (target frame rate and quality) moved out of the
   player's three-dot menu and into the picture panel — the sliders button at

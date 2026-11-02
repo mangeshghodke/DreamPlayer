@@ -423,6 +423,8 @@ Color _sourceColor(PlaybackSource source) {
       return const Color(0xFF6D4C41);
     case PlaybackSource.jellyfin:
       return const Color(0xFF9C27B0);
+    case PlaybackSource.plex:
+      return const Color(0xFFCC7B19);
     case PlaybackSource.files:
       return const Color(0xFF00695C);
     case PlaybackSource.ftp:

@@ -45,6 +45,7 @@ import '../widgets/video_card.dart';
 import '../utils/tv_helper.dart';
 import 'file_browser_screen.dart';
 import 'jellyfin_screen.dart';
+import 'plex_screen.dart';
 import '../utils/file_info_extractor.dart';
 import '../utils/startup_permissions.dart';
 import '../services/app_updater.dart';
@@ -2509,6 +2510,12 @@ class _HomeScreenState extends State<HomeScreen>
                       onTap: () => Navigator.of(context).pop('jellyfin'),
                     ),
                     ListTile(
+                      leading: const Icon(Icons.perm_media_outlined),
+                      title: const Text('Plex'),
+                      subtitle: const Text('Browse your Plex server'),
+                      onTap: () => Navigator.of(context).pop('plex'),
+                    ),
+                    ListTile(
                       leading: const Icon(Icons.cast_connected_outlined),
                       title: Text('DLNA'),
                       subtitle: Text(AppLocalizations.of(context).homeUpnpDlna),
@@ -2549,6 +2556,10 @@ class _HomeScreenState extends State<HomeScreen>
         await Navigator.of(
           context,
         ).push(MaterialPageRoute<void>(builder: (_) => const JellyfinScreen()));
+      case 'plex':
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const PlexScreen()));
       case 'smb':
         await Navigator.of(
           context,

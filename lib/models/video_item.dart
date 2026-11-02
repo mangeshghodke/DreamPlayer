@@ -110,6 +110,7 @@ enum PlaybackSource {
   filesSmb('Files / SMB'),
   smb('SMB'),
   jellyfin('Jellyfin'),
+  plex('Plex'),
   files('Files'),
   network('Network');
 
@@ -242,6 +243,7 @@ class VideoItem {
       if (key.startsWith('folderbookmark:')) return PlaybackSource.filesSmb;
       if (key.startsWith('smb:') || key.startsWith('smb_')) return PlaybackSource.smb;
       if (key.startsWith('jellyfin:')) return PlaybackSource.jellyfin;
+      if (key.startsWith('plex:')) return PlaybackSource.plex;
     }
     final u = uri;
     if (u != null) {

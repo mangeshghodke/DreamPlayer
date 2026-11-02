@@ -578,6 +578,7 @@ class DownloadManager extends ChangeNotifier {
     return switch (src) {
       PlaybackSource.webdav => 'webdav',
       PlaybackSource.jellyfin => 'jellyfin',
+      PlaybackSource.plex => 'plex',
       PlaybackSource.smb => 'smb',
       PlaybackSource.cxSmb => 'smb',
       PlaybackSource.filesSmb => 'smb',
