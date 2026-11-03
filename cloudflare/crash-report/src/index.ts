@@ -3,7 +3,7 @@ interface Env {
   CRASH_REPORT_SECRET?: string;
 }
 
-const FROM = "crash@softbuydeals.in";
+const FROM = "crash-dreamplayer@softbuydeals.in";
 // Email Routing rule on softbuydeals.in forwards admin@ -> ghodke.mangesh2@gmail.com
 const TO = "ghodke.mangesh2@gmail.com";
 
