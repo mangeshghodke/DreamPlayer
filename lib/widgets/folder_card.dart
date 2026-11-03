@@ -290,6 +290,7 @@ class _FolderCardState extends State<FolderCard> {
                             CachedImage(
                               posterUrl,
                               fit: BoxFit.cover,
+                              poster: true,
                               errorBuilder: (_, _, _) =>
                                   const SizedBox.shrink(),
                               loadingBuilder: (context, child, progress) =>

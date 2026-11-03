@@ -2,7 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../services/adult_content_store.dart';
 import '../services/image_cache_service.dart';
+import '../utils/image_size.dart';
 
 /// Drop-in replacement for [Image.network] that serves images from a permanent
 /// on-disk cache first, falling back to network only when the image isn't
@@ -18,6 +20,7 @@ class CachedImage extends StatefulWidget {
     this.alignment,
     this.errorBuilder,
     this.loadingBuilder,
+    this.poster = false,
   });
 
   final String url;
@@ -29,9 +32,32 @@ class CachedImage extends StatefulWidget {
   final AlignmentGeometry? alignment;
   final ImageErrorWidgetBuilder? errorBuilder;
   final Widget Function(BuildContext, Widget, ImageChunkEvent?)? loadingBuilder;
+  /// Marks the image as a POSTER (issue #58). When the Metadata
+  /// "Include adult content" toggle is on and the decoded image is wider
+  /// than tall (a full DVD sleeve: back + spine + front), the crop aligns
+  /// RIGHT so the front cover shows instead of the back. An explicit
+  /// [alignment] always wins.
+  final bool poster;
 
   @override
   State<CachedImage> createState() => _CachedImageState();
+}
+
+/// Alignment decision for a possibly-wide poster (issue #58): an explicit
+/// caller alignment always wins; otherwise, when adult content is enabled
+/// and the decoded image is wider than tall (full DVD sleeve), crop to the
+/// RIGHT so the front cover shows; everything else centres.
+AlignmentGeometry posterAlignment({
+  AlignmentGeometry? explicitAlignment,
+  required bool poster,
+  required bool adult,
+  Uint8List? bytes,
+}) {
+  if (explicitAlignment != null) return explicitAlignment;
+  if (poster && adult && bytes != null && (imageSizeOf(bytes)?.isWide ?? false)) {
+    return Alignment.centerRight;
+  }
+  return Alignment.center;
 }
 
 class _CachedImageState extends State<CachedImage> {
@@ -100,6 +126,15 @@ class _CachedImageState extends State<CachedImage> {
     }
   }
 
+  /// Effective alignment: caller's explicit [CachedImage.alignment], else
+  /// right-aligned for wide posters in adult mode, else centre.
+  AlignmentGeometry get _effectiveAlignment => posterAlignment(
+        explicitAlignment: widget.alignment,
+        poster: widget.poster,
+        adult: AdultContentStore.includeAdultNow,
+        bytes: _bytes,
+      );
+
   @override
   Widget build(BuildContext context) {
     if (_error) {
@@ -118,7 +153,7 @@ class _CachedImageState extends State<CachedImage> {
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
-        alignment: widget.alignment ?? Alignment.center,
+        alignment: _effectiveAlignment,
         errorBuilder: widget.errorBuilder,
       );
     }
@@ -128,7 +163,7 @@ class _CachedImageState extends State<CachedImage> {
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
-        alignment: widget.alignment ?? Alignment.center,
+        alignment: _effectiveAlignment,
         errorBuilder: (context, error, stack) {
           // Bytes are present but undecodable — mark it and fall back to a
           // network fetch of the same URL rather than showing the caller

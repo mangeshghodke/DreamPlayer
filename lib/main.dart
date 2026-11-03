@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'services/accent_store.dart';
+import 'services/adult_content_store.dart';
 import 'services/avdb_adapter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -29,6 +30,9 @@ Future<void> main() async {
   // (the "App crashed?" note shares it). Nothing else depends on it, so
   // install before the async startup chain.
   CrashLog.install();
+  // Warm the adult-content toggle so synchronous readers (poster alignment
+  // in CachedImage, issue #58) see the saved value from the first frame.
+  unawaited(AdultContentStore().load());
   await useNativeDisplayRefreshRate();
   unawaited(initTvMode());
   unawaited(LanguageService.instance.init());

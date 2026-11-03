@@ -183,6 +183,7 @@ class FolderRowArt extends StatelessWidget {
     return CachedImage(
       poster,
       fit: BoxFit.cover,
+      poster: true,
       errorBuilder: (_, _, _) => const SizedBox.shrink(),
       loadingBuilder: (context, child, progress) =>
           progress == null ? child : const SizedBox.shrink(),

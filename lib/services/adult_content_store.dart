@@ -26,6 +26,14 @@ class AdultContentStore {
   bool _includeAdult = false;
   bool _loaded = false;
 
+  /// Last value any instance loaded or saved. Lets synchronous readers
+  /// (e.g. poster alignment in [CachedImage]) see the toggle without an
+  /// await; false until something has loaded it.
+  static bool _sharedIncludeAdult = false;
+
+  /// Synchronous view of the toggle, updated by every [load]/[setIncludeAdult].
+  static bool get includeAdultNow => _sharedIncludeAdult;
+
   /// Cached value; false until [load] has run.
   bool get includeAdult => _includeAdult;
 
@@ -40,12 +48,14 @@ class AdultContentStore {
       _includeAdult = false;
     }
     _loaded = true;
+    _sharedIncludeAdult = _includeAdult;
     return _includeAdult;
   }
 
   Future<bool> setIncludeAdult(bool value) async {
     _includeAdult = value;
     _loaded = true;
+    _sharedIncludeAdult = value;
     try {
       final prefs = await _preferences();
       await prefs.setBool(includeAdultPrefsKey, value);

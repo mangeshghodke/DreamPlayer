@@ -21,9 +21,10 @@ String? metadataImageUrl(String? value, {int width = 780}) {
 }
 
 /// The poster URL for a cached meta, or null when there is no poster.
-/// w185 was sized for a 48 px thumbnail. Episode rows can now show a 96 px
-/// poster (issue #38), so ask for w300 and stay sharp.
-String? posterUrlOf(TmdMeta? meta) => meta?.movie.posterUrl(width: 300);
+/// w185 was sized for a 48 px thumbnail; rows can show a 96 px poster
+/// (issue #38) and home cards render at up to ~3x DPR, so ask for w500 and
+/// stay sharp (issue #58 — w300 read as blurry on the grid).
+String? posterUrlOf(TmdMeta? meta) => meta?.movie.posterUrl(width: 500);
 
 List<String> _stringList(dynamic value) {
   if (value is! List) return const [];

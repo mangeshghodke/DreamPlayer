@@ -178,6 +178,7 @@ class EpisodePosterThumb extends StatelessWidget {
                     width: box.w,
                     height: box.h,
                     fit: BoxFit.cover,
+                    poster: true,
                     errorBuilder: (_, _, _) => Center(child: icon),
                   ),
                 ),
