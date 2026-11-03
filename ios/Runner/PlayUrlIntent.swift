@@ -18,7 +18,7 @@ struct PlayUrlIntent: AppIntent {
     var url: URL
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Play \(.$url) in DreamPlayer")
+        Summary("Play \(PlayUrlIntent.$url) in DreamPlayer")
     }
 
     func perform() async throws -> some IntentResult {
