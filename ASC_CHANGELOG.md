@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.6 | next | 1271 |
+| 0.5.6 | next | 1489 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
 | 0.5.2 | 51 | 1549 |
@@ -51,6 +51,9 @@ New:
 • The player's three-dot menu has a "Playback stats" toggle: a small live
   overlay in the corner of the video shows the video and audio format, the
   playback speed and the current position while you watch.
+• If the app froze or closed on its own, the "App crashed?" note in Settings
+  now opens a report form right in the app: tick the debug log files to
+  attach, write what happened, and tap Submit — no email app needed.
 
 ---
 
