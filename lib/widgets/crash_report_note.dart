@@ -2,11 +2,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/crash_log_share.dart';
+import '../services/crash_report_upload.dart';
+import 'crash_report_dialog.dart';
 
 /// The "App crashed?" note shown beneath the FAQ in Settings: names the
-/// debug logs that may exist on the device and hands the existing ones to
-/// the platform share sheet, so they can be attached to an email from the
-/// user's own mail app.
+/// debug logs that may exist on the device and sends them from an in-app
+/// popup (file checkboxes + message + Submit) to the configured upload
+/// endpoint. When no endpoint is configured — or the upload fails — it
+/// falls back to the platform share sheet, so they can be attached to an
+/// email from the user's own mail app.
 ///
 /// iOS-only: the crash reports this note answers come from App Store Connect
 /// (TestFlight/App Store builds); Android has no report in the loop, so the
@@ -28,6 +32,11 @@ class CrashReportNote extends StatelessWidget {
           ),
         ),
       );
+      return;
+    }
+    if (CrashReportUpload.isConfigured) {
+      if (!context.mounted) return;
+      await showCrashReportDialog(context);
       return;
     }
     try {
@@ -56,10 +65,16 @@ class CrashReportNote extends StatelessWidget {
       ),
       title: const Text('App crashed?', style: TextStyle(fontSize: 14)),
       subtitle: Text(
-        'Froze or closed on its own? Send us the debug files that exist in '
-        "DreamPlayer's folder — dreamplayer_crash.log, app_debug.log, "
-        'smb_debug.log and/or iap_debug.log. Tapping opens the share sheet '
-        'so you can attach them to an email to $supportEmail.',
+        CrashReportUpload.isConfigured
+            ? 'Froze or closed on its own? Tap to attach the debug files '
+                "that exist in DreamPlayer's folder — dreamplayer_crash.log, "
+                'app_debug.log, smb_debug.log and/or iap_debug.log — add a '
+                'note, and submit them straight from the app.'
+            : 'Froze or closed on its own? Send us the debug files that exist '
+                "in DreamPlayer's folder — dreamplayer_crash.log, "
+                'app_debug.log, smb_debug.log and/or iap_debug.log. Tapping '
+                'opens the share sheet so you can attach them to an email to '
+                '$supportEmail.',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),

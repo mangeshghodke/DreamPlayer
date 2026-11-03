@@ -1605,16 +1605,17 @@ class ExoPlayerView(
                 // are pinned against media3-exoplayer 1.10.1 DecoderCounters
                 // (renderedOutputBufferCount / droppedBufferCount).
                 "getStats" -> {
-                    val dc = player.decoderCounters
+                    val dc = player.videoDecoderCounters
                     val vf = player.videoFormat
                     val af = player.audioFormat
+                    val size = player.videoSize
                     result.success(
                         mapOf(
                             "videoWidth" to
-                                (videoSize.width.takeIf { it > 0 }),
+                                (size.width.takeIf { it > 0 }),
                             "videoHeight" to
-                                (videoSize.height.takeIf { it > 0 }),
-                            "videoFps" to vf?.framesPerSecond,
+                                (size.height.takeIf { it > 0 }),
+                            "videoFps" to vf?.frameRate,
                             // Format bitrate is BITS per second.
                             "videoBitrate" to vf?.bitrate,
                             "audioBitrate" to af?.bitrate,

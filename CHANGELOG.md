@@ -21,6 +21,15 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Changed
 
+- **In-app crash report popup.** The "App crashed?" note in Settings now opens
+  a dialog instead of the mail app: the debug logs that exist on the device
+  (dreamplayer_crash.log, app_debug.log, smb_debug.log, iap_debug.log) are
+  listed with checkboxes, there is a message box, and Submit uploads them as
+  multipart/form-data to the endpoint set with
+  `--dart-define=CRASH_REPORT_ENDPOINT=...` (e.g. a Cloudflare Worker that
+  forwards to the support inbox). When no endpoint is configured — or the
+  upload fails — the old share-sheet/email route is still there as a
+  fallback.
 - **In-app update install flow (Mornye/open_filex style).** The update dialog
   no longer has an "Allow installs" phase or an "Open settings" button. After
   the APK downloads, the system installer intent is fired directly; when the
