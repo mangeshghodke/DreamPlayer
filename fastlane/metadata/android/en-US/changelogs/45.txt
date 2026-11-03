@@ -1,6 +1,0 @@
-0.5.5
-
-New: press and hold the picture to play at 2x speed; lift your finger to
-return to the speed you had set. A small "2x" badge shows at the top while
-the boost is active. On iOS the boost is part of the subscription, like the
-other playback-speed changes.

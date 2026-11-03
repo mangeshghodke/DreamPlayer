@@ -1,0 +1,9 @@
+Added
+
+- Playback stats HUD (Infuse parity). The player's three-dot menu has a
+  "Playback stats" toggle that overlays a live performance panel in the top
+  left of the video: resolution, video/audio codec, decoder (hardware /
+  software), source and rendered fps, video/audio bitrate, dropped frames,
+  speed and position. On the MPV engine every value is polled from libmpv
+  properties once a second (container-fps, estimated-vf-fps, bitrates,
+  drop counters); on Media3 a new native getStats ch
