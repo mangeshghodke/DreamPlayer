@@ -27,8 +27,16 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   per-app "Allow from this source" grant is missing, Android's own Package
   installer shows the "For your security" popup with Cancel / Settings, and
   its Settings button opens the toggle. The grant is kept by the OS per app
-  (survives updates, wiped on uninstall). The dialog also gained a
+  (survives updates, wiped on uninstall) — verified on-device (CPH2573).
+  The dialog also gained a
   "Full changelog" button that opens the release page on GitHub.
+
+### Fixed
+
+- **Stats HUD native probe compile fix.** `getStats` in `ExoPlayerView.kt`
+  referenced `player.decoderCounters` and `Format.framesPerSecond`, which do
+  not exist in media3 1.10.1 — now `player.videoDecoderCounters` and
+  `Format.frameRate` (debug APK build was failing on this).
 
 ## 0.5.5
 
