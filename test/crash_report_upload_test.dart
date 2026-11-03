@@ -73,4 +73,15 @@ void main() {
     expect(worker, isNot(contains('Bearer cfat')));
     expect(worker, contains('env.CRASH_REPORT_SECRET'));
   });
+
+  test('iOS signed builds forward the crash-report defines to the IPA', () {
+    // Without these in signing_setup.py the TestFlight build ships with an
+    // empty endpoint and silently falls back to the share sheet.
+    final signing = File('ios/signing_setup.py').readAsStringSync();
+    expect(signing, contains("'CRASH_REPORT_ENDPOINT'"));
+    expect(signing, contains("'CRASH_REPORT_SECRET'"));
+    final wf = File('.github/workflows/ios.yml').readAsStringSync();
+    expect(wf, contains('secrets.CRASH_REPORT_ENDPOINT'));
+    expect(wf, contains('secrets.CRASH_REPORT_SECRET'));
+  });
 }
