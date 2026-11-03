@@ -17,9 +17,9 @@ struct PlayUrlIntent: AppIntent {
     @Parameter(title: "Video URL")
     var url: URL
 
-    static var parameterSummary: some ParameterSummary {
-        Summary("Play \(PlayUrlIntent.$url) in DreamPlayer")
-    }
+    // No custom parameterSummary: the Summary("\(...)") keypath-interpolation
+    // syntax changed in the iOS 26/Xcode 27 SDK and no longer compiles; the
+    // default summary (parameter title + value) is fine for one parameter.
 
     func perform() async throws -> some IntentResult {
         IntentBridge.shared.handleOpenURL(url)
