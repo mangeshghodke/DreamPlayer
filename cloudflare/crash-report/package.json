@@ -1,0 +1,7 @@
+{
+  "name": "dreamplayer-crash-report",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "deploy": "wrangler deploy", "dev": "wrangler dev" },
+  "devDependencies": { "wrangler": "^4.103.0", "typescript": "^5.5.0", "@cloudflare/workers-types": "^4.2025.0.0" }
+}

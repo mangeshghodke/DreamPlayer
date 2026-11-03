@@ -26,9 +26,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   (dreamplayer_crash.log, app_debug.log, smb_debug.log, iap_debug.log) are
   listed with checkboxes, there is a message box, and Submit uploads them as
   multipart/form-data to the endpoint set with
-  `--dart-define=CRASH_REPORT_ENDPOINT=...` (e.g. a Cloudflare Worker that
-  forwards to the support inbox). When no endpoint is configured — or the
-  upload fails — the old share-sheet/email route is still there as a
+  `--dart-define=CRASH_REPORT_ENDPOINT=...` — shipped as the Cloudflare
+  Worker `dreamplayer-crash-report` (source in `cloudflare/crash-report/`),
+  which emails the logs to the support inbox via Email Routing. A shared
+  secret (`CRASH_REPORT_SECRET`, sent as `Authorization: Bearer …`) keeps
+  the public URL from being spammed. When no endpoint is configured — or
+  the upload fails — the old share-sheet/email route is still there as a
   fallback.
 - **In-app update install flow (Mornye/open_filex style).** The update dialog
   no longer has an "Allow installs" phase or an "Open settings" button. After

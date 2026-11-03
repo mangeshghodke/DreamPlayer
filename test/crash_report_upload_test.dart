@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,5 +58,19 @@ void main() {
     // In tests no define is passed, so the fallback path (share sheet) is
     // what would be taken.
     expect(crashReportEndpoint, isEmpty);
+  });
+
+  test('upload sends the shared secret as a Bearer header when configured', () {
+    final src = File('lib/services/crash_report_upload.dart').readAsStringSync();
+    expect(src, contains('crashReportSecret'));
+    expect(src, contains("authorizationHeader, 'Bearer \$crashReportSecret'"));
+    // The endpoint/secret are dart-defines, never hardcoded URLs.
+    final cfg = File('lib/config/crash_report_endpoint.dart').readAsStringSync();
+    expect(cfg, contains("String.fromEnvironment('CRASH_REPORT_ENDPOINT')"));
+    expect(cfg, contains("String.fromEnvironment('CRASH_REPORT_SECRET')"));
+    // The worker source must never contain the secret value.
+    final worker = File('cloudflare/crash-report/src/index.ts').readAsStringSync();
+    expect(worker, isNot(contains('Bearer cfat')));
+    expect(worker, contains('env.CRASH_REPORT_SECRET'));
   });
 }

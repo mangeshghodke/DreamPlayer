@@ -76,6 +76,9 @@ class CrashReportUpload {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
     try {
       final request = await client.postUrl(Uri.parse(crashReportEndpoint));
+      if (crashReportSecret.isNotEmpty) {
+        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $crashReportSecret');
+      }
       request.headers.contentType = ContentType(
         'multipart',
         'form-data',
