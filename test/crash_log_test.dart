@@ -78,6 +78,21 @@ void main() {
     expect(text, contains('trimmed entry follows the kept tail'));
   });
 
+  test('install creates the log file eagerly so it is always attachable', () async {
+    expect(logFile.existsSync(), isFalse);
+
+    CrashLog.install();
+    await CrashLog.flush();
+
+    // Even with no crash, dreamplayer_crash.log exists and carries a boot
+    // entry — the "App crashed?" report form lists only existing files.
+    expect(logFile.existsSync(), isTrue);
+    final text = logFile.readAsStringSync();
+    expect(text, contains('session'));
+    expect(text, contains('app started'));
+    expect(text, isNot(contains('uncaught error')));
+  });
+
   test('install wires FlutterError.onError to the file', () async {
     final previous = FlutterError.onError;
     addTearDown(() => FlutterError.onError = previous);

@@ -5,7 +5,9 @@ import 'package:path_provider/path_provider.dart';
 
 /// Crash log for UNCAUGHT Dart errors, written as `dreamplayer_crash.log`
 /// next to `app_debug.log` in the app's Documents directory so the Settings
-/// "App crashed?" note can send it with the other debug files.
+/// "App crashed?" note can send it with the other debug files. The file is
+/// created eagerly at startup (boot entry) so it always exists to attach,
+/// even when no crash has happened yet.
 ///
 /// Two honest limits, so the file is never expected to be more than it is:
 /// it records framework/uncaught-async exceptions (FlutterError.onError and
@@ -47,6 +49,11 @@ class CrashLog {
   static void install() {
     if (!enabled) return;
 
+    // Create the file eagerly with a boot entry: the "App crashed?" report
+    // form lists only files that exist, and a session with no uncaught error
+    // would otherwise have nothing to attach.
+    write('app started', null, label: 'session');
+
     final previousOnError = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
       // Console behaviour preserved — dumpErrorToConsole is exactly what the
@@ -64,14 +71,14 @@ class CrashLog {
   }
 
   /// Appends one timestamped entry. Never throws; never blocks the caller.
-  static void write(String description, StackTrace? stack) {
+  static void write(String description, StackTrace? stack, {String label = 'uncaught error'}) {
     if (!enabled) return;
     final now = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
     final stamp = '${now.year}-${two(now.month)}-${two(now.day)} '
         '${two(now.hour)}:${two(now.minute)}:${two(now.second)}';
     final buffer = StringBuffer()
-      ..writeln('[$stamp] uncaught error')
+      ..writeln('[$stamp] $label')
       ..writeln(description)
       ..writeln('--- stack ---');
     if (stack != null) {
