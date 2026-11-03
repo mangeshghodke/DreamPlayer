@@ -101,6 +101,7 @@ void main() {
           notes: 'notes',
           assetUrl:
               'https://github.com/mangeshghodke/DreamPlayer/releases/download/v0.5.3/DreamPlayer-0.5.3-arm64-v8a.apk',
+          releaseTag: 'v0.5.3',
         );
 
     test('file name comes from the asset URL', () {

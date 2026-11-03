@@ -15,7 +15,11 @@ class AvailableUpdate {
     required this.installedVersion,
     required this.notes,
     required this.assetUrl,
+    required this.releaseTag,
   });
+
+  /// The GitHub tag as published (`v0.5.3`), used to link to the release page.
+  final String releaseTag;
 
   /// Version from the release tag, without the leading `v` (`0.5.3`).
   final String version;
@@ -31,16 +35,14 @@ class AvailableUpdate {
 
   String get fileName => Uri.parse(assetUrl).pathSegments.last;
 
+  /// Link to this release's page on GitHub.
+  String get releasePageUrl =>
+      'https://github.com/${AppUpdater._repo}/releases/tag/$releaseTag';
+
   /// Before 0.5.2 every published APK was signed by a throwaway CI key, so an
   /// install over one of those fails with a signature mismatch. Telling the
   /// user up front is kinder than a failed installer.
   bool get needsOneTimeUninstall => AppUpdater.compareVersions(installedVersion, '0.5.2') < 0;
-}
-
-/// The user has not allowed DreamPlayer to install apps yet. Surface it as a
-/// prompt, not as a failed update.
-class UpdatePermissionRequired implements Exception {
-  const UpdatePermissionRequired();
 }
 
 /// Checks GitHub Releases for a newer build and performs the install.
@@ -149,6 +151,7 @@ class AppUpdater {
           releaseNotesSection(json['body'] as String? ?? ''),
         ),
         assetUrl: url,
+        releaseTag: tag,
       );
     } finally {
       client.close(force: true);
@@ -222,29 +225,12 @@ class AppUpdater {
     }
   }
 
-  /// Fires the system package installer. Throws [UpdatePermissionRequired]
-  /// when the user has not granted "install unknown apps".
+  /// Fires the system package installer. The intent is always sent; when the
+  /// "install unknown apps" grant is missing, the system installer itself
+  /// shows the "For your security" popup with a Settings button (the grant is
+  /// kept by the OS per app and cleared on uninstall).
   static Future<void> install(File apk) async {
-    try {
-      await _channel.invokeMethod<void>('installApk', {'fileName': apk.uri.pathSegments.last});
-    } on PlatformException catch (e) {
-      if (e.code == 'permission_required') throw const UpdatePermissionRequired();
-      rethrow;
-    }
-  }
-
-  static Future<bool> canInstall() async {
-    if (!isSupported) return false;
-    try {
-      return await _channel.invokeMethod<bool>('canInstall') ?? false;
-    } on PlatformException {
-      return true;
-    }
-  }
-
-  static Future<void> openInstallPermissionSettings() async {
-    if (!isSupported) return;
-    await _channel.invokeMethod<void>('openInstallPermissionSettings');
+    await _channel.invokeMethod<void>('installApk', {'fileName': apk.uri.pathSegments.last});
   }
 
   static Future<String> _currentAbi() async {

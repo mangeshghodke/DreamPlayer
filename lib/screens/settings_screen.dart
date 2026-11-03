@@ -233,6 +233,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             '\u2022 Chapter marks no longer disappear on in-app SMB',
         assetUrl: 'https://github.com/mangeshghodke/DreamPlayer/releases/'
             'download/v0.5.5/DreamPlayer-0.5.5-arm64-v8a.apk',
+        releaseTag: 'v0.5.5',
       ),
     );
   }

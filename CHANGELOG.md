@@ -19,6 +19,17 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
   channel) the HUD shows the live chip labels plus the playhead. Session-only
   toggle; hidden in PiP; snapshot resets on every open.
 
+### Changed
+
+- **In-app update install flow (Mornye/open_filex style).** The update dialog
+  no longer has an "Allow installs" phase or an "Open settings" button. After
+  the APK downloads, the system installer intent is fired directly; when the
+  per-app "Allow from this source" grant is missing, Android's own Package
+  installer shows the "For your security" popup with Cancel / Settings, and
+  its Settings button opens the toggle. The grant is kept by the OS per app
+  (survives updates, wiped on uninstall). The dialog also gained a
+  "Full changelog" button that opens the release page on GitHub.
+
 ## 0.5.5
 
 ### Added

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/app_updater.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// The in-app update prompt. Covers the whole sideload flow: notes, download
 /// with progress, the "install unknown apps" prompt, and the final installer
@@ -18,7 +19,7 @@ Future<void> showAppUpdateDialog(BuildContext context, AvailableUpdate update) {
   );
 }
 
-enum _Phase { prompt, downloading, permission, error }
+enum _Phase { prompt, downloading, error }
 
 class _UpdateDialog extends StatefulWidget {
   const _UpdateDialog({required this.update});
@@ -36,7 +37,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   int _total = 0;
   bool _cancelled = false;
   String? _error;
-  File? _apk;
 
   Future<void> _startDownload() async {
     setState(() {
@@ -68,7 +68,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         },
       );
       if (!mounted || _cancelled) return;
-      _apk = apk;
       await _install(apk);
     } catch (e) {
       if (!mounted || _cancelled) {
@@ -91,10 +90,11 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
   Future<void> _install(File apk) async {
     try {
+      // The installer intent is always fired; if the "install unknown apps"
+      // grant is missing, the system installer shows its own popup with a
+      // Settings button — no separate phase needed here.
       await AppUpdater.install(apk);
       if (mounted) Navigator.of(context).pop();
-    } on UpdatePermissionRequired {
-      if (mounted) setState(() => _phase = _Phase.permission);
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
@@ -158,9 +158,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             color: colorScheme.primaryContainer,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Icon(
+          child:           Icon(
             switch (_phase) {
-              _Phase.permission => Icons.settings_rounded,
               _Phase.error => Icons.error_outline_rounded,
               _ => Icons.system_update_rounded,
             },
@@ -174,10 +173,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                switch (_phase) {
-                  _Phase.permission => 'Allow installs',
-                  _ => 'Update available',
-                },
+                'Update available',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -185,8 +181,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               const SizedBox(height: 2),
               Text(
                 switch (_phase) {
-                  _Phase.permission =>
-                    'One system setting is needed to finish.',
                   _Phase.error => 'The update did not finish.',
                   _Phase.downloading => 'Downloading the new version…',
                   _ => 'A newer version of DreamPlayer is ready.',
@@ -264,7 +258,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
   List<Widget> _body(ThemeData theme) {
     if (_phase == _Phase.downloading) return [_downloading(theme)];
-    if (_phase == _Phase.permission) return [_permission(theme)];
     if (_phase == _Phase.error) {
       return [
         Text(
@@ -301,6 +294,24 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                   ? 'See the release page for details.'
                   : update.notes,
               style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => launchUrl(
+              Uri.parse(update.releasePageUrl),
+              mode: LaunchMode.externalApplication,
+            ),
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: const Text('Full changelog'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
@@ -377,15 +388,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     );
   }
 
-  Widget _permission(ThemeData theme) {
-    return Text(
-      'Android needs permission for DreamPlayer to install the update. '
-      'Turn on "Allow from this source" in the screen that opens, then come '
-      'back and tap Install.',
-      style: theme.textTheme.bodyMedium,
-    );
-  }
-
   List<Widget> _actions(ThemeData theme) {
     switch (_phase) {
       case _Phase.prompt:
@@ -457,40 +459,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 ),
               ),
               child: const Text('Cancel'),
-            ),
-          ),
-        ];
-      case _Phase.permission:
-        return [
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: AppUpdater.openInstallPermissionSettings,
-                  child: const Text('Open settings'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _apk == null ? null : () => _install(_apk!),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text('Install'),
             ),
           ),
         ];

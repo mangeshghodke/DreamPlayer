@@ -1379,13 +1379,18 @@ tag against `PackageInfo.version` and downloads the APK; the native half
   arm64-split user the universal APK is a **versionCode downgrade** and the
   install is refused. `Build.SUPPORTED_ABIS[0]` chooses the asset; universal is
   only the fallback for a release missing that ABI.
-- **Installing needs three things**, none optional: the
-  `REQUEST_INSTALL_PACKAGES` permission, a `FileProvider` (`…fileprovider`,
-  `res/xml/file_paths.xml` → `cacheDir/updates/`) because Android 7+ rejects
-  `file://` installer URIs, and the user's per-app **Allow from this source**
-  grant. The native `installApk` answers `permission_required` while that is
-  off; the dialog opens `ACTION_MANAGE_UNKNOWN_APP_SOURCES` and retries with
-  the already-downloaded file, so nothing is fetched twice.
+ - **Installing needs two things**, both static: the
+   `REQUEST_INSTALL_PACKAGES` permission and a `FileProvider`
+   (`…fileprovider`, `res/xml/file_paths.xml` → `cacheDir/updates/`) because
+   Android 7+ rejects `file://` installer URIs. The native `installApk` does
+   **no** `canRequestPackageInstalls()` pre-check — it always fires the
+   installer intent (Mornye/`open_filex` style). When the per-app **Allow from
+   this source** grant is missing, the system PackageInstaller itself shows
+   the "For your security" popup with **Cancel / Settings**; its Settings
+   button opens the per-app toggle. That grant is kept by the OS per app,
+   survives app updates (so the popup does not come back), and is wiped on
+   uninstall (so it does come back after a reinstall). There is no in-app
+   permission phase anymore — pinned by `test/update_dialog_test.dart`.
 - **Versions before 0.5.2 need one uninstall.** Their APKs were signed by a
   throwaway CI key (issue #43), so the installer fails with
   `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. The dialog says so up front when the
