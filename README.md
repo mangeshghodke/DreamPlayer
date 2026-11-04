@@ -103,6 +103,9 @@ Each thumbnail is linked — click any image to open it full size.
 - Live on-screen chips showing the active HDR format (profile-aware), video codec, audio codec, and resolution
 - Graceful fallback on non-DV devices (P7/P8 as HDR10, P4/P5 show a clean error)
 
+### Video Upscaling (iOS)
+- Optional **MetalFX real-time upscaling** — Settings → Player → *Video upscaling* upscales **SD / 720p / 1080p SDR** video to the display on **iOS 26+ Apple Silicon** devices (e.g. iPad Pro M2). 4K and HDR/Dolby Vision video always play at native quality (the native path is untouched). An **"Upscaled"** chip in the player shows the source → output size while active. The app still runs on iOS 18+; the toggle only appears on iOS 26+.
+
 ### Lossless Audio
 - All major codecs: **DTS, DTS-HD, TrueHD, E-AC3, AC3, AAC, FLAC** and more
 - Mid-playback **audio track switching** with full track names and channel info

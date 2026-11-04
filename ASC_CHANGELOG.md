@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.6 | 3 | 1489 |
+| 0.5.6 | 7 | 1808 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
 | 0.5.2 | 51 | 1549 |
@@ -28,7 +28,7 @@ it can be reproduced with a plain character count after any edit.
 
 ---
 
-## 0.5.6 (build 3)
+## 0.5.6 (build 7)
 
 New:
 • A Shortcuts app action, "Play URL in DreamPlayer": run it from the Shortcuts
@@ -54,6 +54,11 @@ New:
 • If the app froze or closed on its own, the "App crashed?" note in Settings
   now opens a report form right in the app: tick the debug log files to
   attach, write what happened, and tap Submit — no email app needed.
+• Optional video upscaling (Settings → Player → Video upscaling) for SD,
+  720p and 1080p videos on iOS 26+ Apple Silicon devices, using Apple's
+  MetalFX to upscale to the display in real time. 4K and HDR/Dolby Vision
+  video always play at native quality. An "Upscaled" chip in the player
+  shows while it is active.
 
 ---
 

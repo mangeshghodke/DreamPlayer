@@ -860,6 +860,49 @@ A video player app supporting:
 
 - **Bass Boost — Android-only (2026-08-25)**: `android.media.audiofx.BassBoost` attached to the same session in `applyAudioEffects` (independent of the loudness guard — applies even at 1.0× / night mode off); levels Off/Low/Medium/High → strength ~150–1000; persisted `flutter.dreamplayer.bassBoost`, live via `setBassBoost`, emitted as `bassBoost` in the event map. The ⋮ sheet row is **gated on `_liveSpatial == 'on'`** — it exists to offset HRTF low-end thinning during spatial virtualization, so it appears only while the teal Spatial chip is active and vanishes when routing/content changes. Works on any output (wired/USB/BT) since it's session-level DSP. iOS: AVPlayer exposes no public boost/DRC API, so iOS does the same three things in the engine's `AudioShaping` graph (see "iOS audio DSP" below). The `_liveSpatial == 'on'` gate this row depends on now works on iOS too — iOS spatial shipped in 0.5.5 — which is the correct behavior: the row exists to offset HRTF low-end thinning.
 
+### iOS MetalFX video upscaling (2026-11-04, 0.5.6, user-verified on iPad)
+
+- **The stage is the engine's, not ours.** Upstream AetherEngine already ships
+  a MetalFX upscale stage (`AetherEngine+Upscale.swift`, `Video/FrameUpscaler.swift`,
+  `Video/UpscaleRouteDecision.swift`, load option `upscalesLowResolutionVideo`,
+  engine issue #846). We do NOT build a host-side CAMetalLayer presenter — that
+  would replace the display-layer presentation and cost DV/HDR passthrough on
+  the native AVPlayer path (same trade rejected for Media3 on Android).
+- **Fork change (tag `7.53.5`, branch `dreamplayer`):** the route gate
+  `source.width < 1920, source.height < 1080` excluded exactly-1080p; it is now
+  `Swift.min(source.width, source.height) <= 1080` → **SD / 720p / 1080p
+  eligible, 4K not**. The pbxproj pin (`upToNextMajorVersion from 7.53.4`)
+  auto-resolves 7.53.5, no app change needed.
+- **Stage floor is iOS 26+, not the MetalFX API floor.** `MTLFXTemporalScaler`
+  itself is iOS 16+, but the engine wraps the stage in `#available(iOS 26, ...)`
+  (it chains VideoToolbox ML super-resolution before MetalFX). The app's
+  `IPHONEOS_DEPLOYMENT_TARGET = 18.0` is unchanged and must stay 18 — on
+  iOS 18–25 the route returns `.notTaken(.unsupportedOS)` and playback is
+  normal. The Settings toggle is only shown when the device reports iOS 26+
+  (`osMajorVersion` on the `dreamplayer/device` channel — added on both
+  platforms; Dart `lib/utils/os_version.dart` `isIos26OrLater()`).
+- **Engine-side eligibility (all automatic, no app logic):** SDR only, not DV,
+  8-bit 4:2:0 only, MetalFX-capable Apple Silicon device, display larger than
+  the source, not AirPlay video receiver, not live. HDR/DV always bypass.
+- **App wiring:** `IosUpscaleStore` (pref `dreamplayer.iosUpscale`, default
+  off) → Settings → Player → "Video upscaling (MetalFX)" (iOS 26+ only,
+  paywall choice-gated on enable). `AvPlayerView.open()` sets
+  `options.upscalesLowResolutionVideo` from the pref so every load/reload
+  carries it. Status is emitted in `stateMap` (`upscaleActive/Source/Target/
+  Degraded`) from `engine.activeUpscale` (observed via `$activeUpscale` sink);
+  the player shows a passive "Upscaled · WxH → WxH" chip. Android answers
+  `setUpscale` as a logged no-op (Media3 renders at native resolution).
+- **Deliberately NO live player toggle.** An earlier build had a top-right
+  popup switch whose `setUpscale` reloaded the session at the playhead — but a
+  mid-session reload does NOT engage the stage (it's a load option), so the
+  video reloaded without upscaling until the next open. Reverted in build 7:
+  the toggle lives in Settings only and applies on the next open; the player
+  screen has no button/panel. Pinned by `test/ios_upscale_test.dart`.
+- **Tests:** `test/ios_upscale_test.dart` (8) — store default/persist, native
+  pref→LoadOptions + emit + no-reload case, Android no-op, osMajorVersion
+  channel both platforms, Settings row gated iOS-26+ + paywalled, player has
+  no toggle but keeps the chip.
+
 ### iOS audio DSP — volume boost, night mode & bass boost (2026-10-31)
 
 **iOS now has the same three audio controls as Android**, and they are real DSP
