@@ -1159,20 +1159,16 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     SBMLog.log("setBassBoost: ignored on iOS (no bass boost)")
                     result(nil)
                 case "setUpscale":
-                    // MetalFX upscale stage (engine #846). The engine decides
-                    // per load whether the stage applies (SDR, SD/720p/1080p,
-                    // MetalFX-capable device, display larger); the pref only
-                    // turns the request on. A change mid-playback needs a load,
-                    // so reload at the playhead like any other load option.
+                    // MetalFX upscale stage (engine #846) is a LOAD option: the
+                    // engine decides per load whether the stage applies (SDR,
+                    // SD/720p/1080p, MetalFX device, display larger). There is
+                    // no live mid-session toggle — a reload mid-playback did
+                    // not actually engage the stage, so the pref is persisted
+                    // and applies on the NEXT open/reload. open() reads the
+                    // same pref when building LoadOptions.
                     let upOn = (args?["enabled"] as? Bool) ?? false
                     UserDefaults.standard.set(upOn, forKey: "flutter.dreamplayer.iosUpscale")
-                    SBMLog.log("setUpscale: \(upOn)")
-                    Task { @MainActor in
-                        if let e = self.engine, e.state != .idle, e.state != .ended {
-                            _ = await self.reloadSession(at: e.currentTime)
-                        }
-                        self.emit()
-                    }
+                    SBMLog.log("setUpscale: \(upOn) (applies on next open)")
                     result(nil)
                 case "setZoom":
                     let scale = CGFloat((args?["scale"] as? NSNumber)?.doubleValue ?? 1.0)

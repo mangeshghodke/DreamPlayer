@@ -30,9 +30,13 @@ void main() {
     expect(av, contains('"upscaleActive"'));
     expect(av, contains('"upscaleSource"'));
     expect(av, contains('"upscaleTarget"'));
-    // The channel case exists and reloads at the playhead on change.
-    expect(av, contains('case "setUpscale"'));
-    expect(av, contains('reloadSession(at:'));
+    // The channel case persists only — NO mid-session reload (a reload did
+    // not engage the stage live); it applies on the next open.
+    final caseStart = av.indexOf('case "setUpscale"');
+    final caseBlock =
+        av.substring(caseStart, av.indexOf('result(nil)', caseStart));
+    expect(caseBlock, contains('UserDefaults.standard.set(upOn'));
+    expect(caseBlock, isNot(contains('reloadSession(at:')));
   });
 
   test('Android answers setUpscale as a logged no-op', () {
@@ -67,34 +71,21 @@ void main() {
     expect(row, contains('IosUpscaleStore().setEnabled(value)'));
   });
 
-  test('player pushes the pref before open and shows the chip', () {
+  test('player shows only the status chip — no popup toggle or live push', () {
     final player = File('lib/screens/player_screen.dart').readAsStringSync();
-    expect(player, contains('exo.setUpscale('));
-    expect(player, contains('IosUpscaleStore.prefsKey'));
+    // The toggle lives in Settings -> Player only: no panel, no top-bar
+    // button, no setUpscale call from the player screen.
+    expect(player, isNot(contains('_IosUpscalePanel')));
+    expect(player, isNot(contains('_onIosUpscaleToggled')));
+    expect(player, isNot(contains('Icons.auto_awesome')));
+    expect(player, isNot(contains('exo.setUpscale(')));
+    // Status chip from the event map stays.
     expect(player, contains('_liveUpscaleActive = e.upscaleActive;'));
     expect(player, contains("label: _liveUpscaleLabel.isNotEmpty"));
   });
 
-  test('player has a top-right popup toggle like the MPV picture panel', () {
-    final player = File('lib/screens/player_screen.dart').readAsStringSync();
-    // Button shown only on iOS 26+ and only on the non-MPV engine.
-    expect(player, contains('if (_iosUpscaleSupported && !_mpvReady)'));
-    expect(player, contains('Icons.auto_awesome'));
-    // Semi-transparent popup panel with the switch and live status.
-    expect(player, contains('class _IosUpscalePanel extends StatelessWidget'));
-    expect(player, contains('Colors.black.withValues(alpha: 0.76)'));
-    expect(player, contains('_onIosUpscaleToggled'));
-    // Toggle is paywall-gated before the save.
-    final handler =
-        player.substring(player.indexOf('Future<void> _onIosUpscaleToggled'));
-    expect(handler, contains('if (value && !await _gate()) return;'));
-    expect(handler, contains('IosUpscaleStore().setEnabled(value)'));
-    expect(handler, contains('_exo?.setUpscale(value)'));
-  });
-
   test('controller surface carries the upscale fields', () {
     final exo = File('lib/services/exo_player.dart').readAsStringSync();
-    expect(exo, contains('Future<void> setUpscale(bool enabled);'));
     expect(exo, contains("upscaleActive: m['upscaleActive'] == true"));
   });
 

@@ -19,8 +19,6 @@ import '../services/anime4k_shader_store.dart';
 import '../services/hdr_toys_shader_store.dart';
 import '../services/default_engine_store.dart';
 import '../services/exo_player.dart';
-import '../services/ios_upscale_store.dart';
-import '../utils/os_version.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/playback_modes.dart';
@@ -236,42 +234,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   VideoParams? _mpvVideoParams;
   Future<void>? _mpvAnime4kApplyChain;
   bool _mpvPictureControlsOpen = false;
-  bool _iosUpscaleSupported = false;
-  bool _iosUpscaleEnabled = false;
-  bool _iosUpscalePanelOpen = false;
-
-  Future<void> _loadIosUpscaleSupport() async {
-    final supported = await isIos26OrLater();
-    final enabled = await IosUpscaleStore().load();
-    if (mounted) {
-      setState(() {
-        _iosUpscaleSupported = supported;
-        _iosUpscaleEnabled = enabled;
-      });
-    }
-  }
-
-  void _openIosUpscalePanel() {
-    if (!_iosUpscaleSupported || _inPip || _touchLocked) return;
-    _showControls();
-    _hideTimer?.cancel();
-    if (mounted) setState(() => _iosUpscalePanelOpen = true);
-  }
-
-  void _closeIosUpscalePanel() {
-    if (!mounted || !_iosUpscalePanelOpen) return;
-    setState(() => _iosUpscalePanelOpen = false);
-    _restartHideTimer();
-  }
-
-  Future<void> _onIosUpscaleToggled(bool value) async {
-    if (value && !await _gate()) return;
-    await IosUpscaleStore().setEnabled(value);
-    // iOS applies it on the next engine load; the native side reloads the
-    // session at the playhead, so the change is visible immediately.
-    await _exo?.setUpscale(value);
-    if (mounted) setState(() => _iosUpscaleEnabled = value);
-  }
 
   /// Position to restore after an audio-track switch reset playback to the
   /// start. Cleared as soon as it has been applied (or once the safety-net
@@ -625,8 +587,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // iOS 26+ only: the MetalFX upscale stage needs it (engine #846).
-    unawaited(_loadIosUpscaleSupport());
     // Keep the system UI mode constant (immersive) for the whole player
     // screen. Toggling immersive/edgeToEdge during the rotation transition
     // fights the system's own rotation animation and makes the video jitter.
@@ -806,10 +766,9 @@ class _PlayerScreenState extends State<PlayerScreen>
           final saved =
               (prefs.getInt('dreamplayer.bassBoost') ?? 0).clamp(0, 3).toInt();
           await exo.setBassBoost(effectiveDspSetting(saved > 0) ? saved : 0);
-          // iOS-only MetalFX upscale request; the engine decides per load
-          // (SDR SD/720p/1080p, iOS 26+, Apple Silicon). Android no-ops.
-          await exo.setUpscale(
-              prefs.getBool(IosUpscaleStore.prefsKey) ?? false);
+          // iOS MetalFX upscale: the native side reads the
+          // dreamplayer.iosUpscale pref itself when building LoadOptions, so
+          // no channel push is needed here — it applies on this open.
         }
       } catch (_) {}
       if (mounted) setState(() {});
@@ -1617,7 +1576,6 @@ Future<void> _offerVc1Mpv() async {
     if (mounted) {
       setState(() {
         if (_mpvPictureControlsOpen) _mpvPictureControlsOpen = false;
-        _iosUpscalePanelOpen = false;
       });
     }
   }
@@ -3080,7 +3038,6 @@ Future<void> _offerVc1Mpv() async {
     if (mounted) {
       setState(() {
         _mpvPictureControlsOpen = false;
-        _iosUpscalePanelOpen = false;
       });
     }
     debugPrint('mpv: failed: $message');
@@ -3481,7 +3438,6 @@ Future<void> _offerVc1Mpv() async {
       if (inPip) {
         _controlsVisible = false;
         _mpvPictureControlsOpen = false;
-        _iosUpscalePanelOpen = false;
       }
     });
   }
@@ -8637,22 +8593,6 @@ if (mounted) setState(_applySwipeValue);
                                  onFocusChange: (_) => _showControls(),
                                ),
                              ],
-                             // iOS 26+: same top-right spot as the MPV
-                             // picture panel, but for the MetalFX upscale
-                             // toggle (engine #846).
-                             if (_iosUpscaleSupported && !_mpvReady) ...[
-                               SizedBox(width: 4),
-                               _TvControlButton(
-                                 onPressed: _touchLocked
-                                     ? null
-                                     : _openIosUpscalePanel,
-                                 icon: const Icon(Icons.auto_awesome),
-                                 color: _iosUpscaleEnabled
-                                     ? const Color(0xFF80CBC4)
-                                     : Colors.white,
-                                 onFocusChange: (_) => _showControls(),
-                               ),
-                             ],
                              SizedBox(width: 4),
                           ],
                         ),
@@ -8913,30 +8853,6 @@ if (mounted) setState(_applySwipeValue);
                 ),
               ),
              ),
-             if (_iosUpscalePanelOpen && _iosUpscaleSupported && !_inPip)
-               Positioned.fill(
-                 child: GestureDetector(
-                   behavior: HitTestBehavior.translucent,
-                   onTap: _closeIosUpscalePanel,
-                   child: Align(
-                     alignment: Alignment.bottomCenter,
-                     child: Padding(
-                       padding: EdgeInsets.fromLTRB(
-                         16,
-                         16,
-                         16,
-                         MediaQuery.paddingOf(context).bottom + 92,
-                       ),
-                       child: _IosUpscalePanel(
-                         enabled: _iosUpscaleEnabled,
-                         active: _liveUpscaleActive,
-                         status: _liveUpscaleLabel,
-                         onChanged: _onIosUpscaleToggled,
-                       ),
-                     ),
-                   ),
-                 ),
-               ),
              if (_mpvPictureControlsOpen && _mpvReady && !_inPip)
                Positioned.fill(
                  child: GestureDetector(
@@ -8988,65 +8904,6 @@ if (mounted) setState(_applySwipeValue);
    }
  }
 
-
-/// iOS counterpart of the MPV picture panel: one MetalFX upscale toggle in a
-/// semi-transparent popup (engine #846). Shown from the top-right auto_awesome
-/// button on iOS 26+ only; the change applies at the playhead via a session
-/// reload on the native side, so it is visible immediately.
-class _IosUpscalePanel extends StatelessWidget {
-  const _IosUpscalePanel({
-    required this.enabled,
-    required this.active,
-    required this.status,
-    required this.onChanged,
-  });
-
-  final bool enabled;
-  final bool active;
-  final String status;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.76),
-      borderRadius: BorderRadius.circular(14),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Video upscaling (MetalFX)',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Upscale to the display',
-                    style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: Text(
-                  active && status.isNotEmpty
-                      ? 'Upscaling · $status'
-                      : 'SDR SD/720p/1080p video only — 4K and HDR/DV stay native',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                value: enabled,
-                activeThumbColor: const Color(0xFF80CBC4),
-                onChanged: onChanged,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _MpvPictureControls extends StatelessWidget {
   const _MpvPictureControls({
