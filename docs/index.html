@@ -254,12 +254,55 @@
       <article class="card reveal">
         <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.7-6.3 4.7L8 14 2 9.4h7.6z"/></svg></div>
         <h3>Metadata that looks right</h3>
-        <p>Posters, overviews, cast and episode stills from TMDB, with TheTVDB as an optional second provider when you need it.</p>
+        <p>Posters, overviews, cast and episode stills from TMDB, with TheTVDB and two key-less adult databases (AVDb, r18.dev) as optional providers behind Settings → Metadata → Include adult content. Wide DVD-sleeve posters show the front cover, at higher resolution.</p>
       </article>
       <article class="card reveal">
         <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg></div>
         <h3>Android TV</h3>
         <p>A real ten-foot experience with D-pad navigation — verified on Fire TV Stick 4K with Dolby Vision and Atmos passthrough to the panel.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================== what's new -->
+<section class="section" id="whats-new">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <span class="eyebrow">What's new</span>
+      <h2>Recently added, per platform</h2>
+      <p class="lede">
+        One app, two stores — here is what each build got lately.
+      </p>
+    </div>
+
+    <div class="cards">
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
+        <h3>Android &amp; Android TV</h3>
+        <ul class="card__list">
+          <li><strong>In-app updates</strong> — the app checks GitHub Releases once a day and offers a one-tap update with release notes and download progress (Settings → About → Check now). Works on Fire TV too.</li>
+          <li><strong>A second engine, MPV</strong> — "Play with MPV" for files the main engine can't decode, with frame interpolation up to 120 fps, Anime4K upscaling and HDR tone-mapping (SDR picture on this engine only).</li>
+          <li><strong>Volume boost, night mode, bass boost</strong> — boost is a swipe gesture up to 200% with a limiter, so dialogue survives.</li>
+          <li><strong>Hardware SDR tone-mapping</strong> — optional fix for devices that render Dolby Vision Profile 5 with wrong colours.</li>
+          <li><strong>Download to device</strong> — save any SMB / WebDAV / Jellyfin / DLNA / HTTP file for offline playback.</li>
+          <li><strong>"App crashed?" report</strong> — Settings sends the debug logs plus your own message straight to the developer.</li>
+        </ul>
+        <span class="card__tag">GitHub Releases · Obtainium · Media3 + MPV</span>
+      </article>
+
+      <article class="card reveal">
+        <div class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
+        <h3>iPhone &amp; iPad</h3>
+        <ul class="card__list">
+          <li><strong>In-app SMB is back</strong> — browse and play straight from your NAS on libsmb2, with instant seek and resume, no Files-app detour.</li>
+          <li><strong>AirPlay</strong> — a real AirPlay button in the player (video on Apple containers, audio everywhere).</li>
+          <li><strong>Picture-in-picture on both playback paths</strong> — including the FFmpeg software path for MKV/TS.</li>
+          <li><strong>Night mode &amp; spatial audio</strong> — premium unlock; spatial audio rides Apple's built-in HRTF on the native path.</li>
+          <li><strong>Adult metadata + front-cover posters</strong> — same AVDb / r18.dev providers and DVD-sleeve cover alignment as Android.</li>
+          <li><strong>"App crashed?" report</strong> — same one-tap log-and-message send as Android.</li>
+        </ul>
+        <span class="card__tag">App Store · AetherEngine · iOS 18+</span>
       </article>
     </div>
   </div>

@@ -418,6 +418,16 @@ p { margin: 0 0 1.1em; }
 .card p { color: var(--text-dim); font-size: 0.96rem; margin: 0; }
 .card h3 { margin-bottom: 8px; }
 
+.card__list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  display: grid;
+  gap: 9px;
+}
+.card__list strong { color: var(--text); font-weight: 600; }
+
 .card__tag {
   display: inline-block;
   margin-top: 15px;
