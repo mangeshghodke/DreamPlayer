@@ -28,19 +28,70 @@ class SceneDelegate: FlutterSceneDelegate {
     // is presented — otherwise that frame is drawn into a stale surface and
     // the whole UI reads as stretched for a moment.
     forceFlutterViewRelayout(scene)
+    startRelayoutWatch(scene, for: 1.5)
   }
 
   override func sceneDidBecomeActive(_ scene: UIScene) {
     super.sceneDidBecomeActive(scene)
     forceFlutterViewRelayout(scene)
-    // Two things can still be wrong at activation time: iPadOS can resize the
-    // scene AFTER this callback, and the key window is not always available
-    // yet (the relayout above then finds no window and does nothing). Re-run
-    // it a few times over the next fraction of a second so a late resize — or
-    // a window that only appears now — is picked up.
-    for delay in [0.05, 0.2, 0.5] {
-      DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-        self?.forceFlutterViewRelayout(scene)
+    // iPadOS can resize the scene AFTER activation and the key window is not
+    // always available yet, so a fixed set of delayed retries is not enough:
+    // watch every frame for a few seconds and re-layout whenever the root
+    // view's bounds no longer match the window's.
+    startRelayoutWatch(scene, for: 3.0)
+  }
+
+  override func sceneDidEnterBackground(_ scene: UIScene) {
+    super.sceneDidEnterBackground(scene)
+    relayoutWatch?.invalidate()
+    relayoutWatch = nil
+  }
+
+  // MARK: - Relayout watch
+
+  private var relayoutWatch: CADisplayLink?
+  private var relayoutWatchEnd: CFTimeInterval = 0
+  private weak var relayoutWatchScene: UIScene?
+
+  /// Runs [relayoutTick] on every frame for [seconds] after foregrounding, so
+  /// a late scene resize (Split View snapshot prep, flutter/flutter#128868)
+  /// is picked up on the very next frame instead of waiting for an unrelated
+  /// layout pass.
+  private func startRelayoutWatch(_ scene: UIScene, for seconds: CFTimeInterval) {
+    guard scene is UIWindowScene else { return }
+    relayoutWatch?.invalidate()
+    relayoutWatchScene = scene
+    relayoutWatchEnd = CACurrentMediaTime() + seconds
+    let link = CADisplayLink(target: self, selector: #selector(relayoutTick(_:)))
+    link.add(to: .main, forMode: .common)
+    relayoutWatch = link
+  }
+
+  @objc private func relayoutTick(_ link: CADisplayLink) {
+    guard let scene = relayoutWatchScene as? UIWindowScene else {
+      link.invalidate(); relayoutWatch = nil; return
+    }
+    if CACurrentMediaTime() > relayoutWatchEnd {
+      link.invalidate(); relayoutWatch = nil; return
+    }
+    for window in scene.windows where !window.isHidden {
+      guard let rootView = window.rootViewController?.viewIfLoaded else { continue }
+      let target = window.bounds
+      if target.width <= 0 || target.height <= 0 { continue }
+      if rootView.bounds.width != target.width || rootView.bounds.height != target.height {
+        SBMLog.log("relayout watch: root \(rootView.bounds.size) != window \(target.size) — forcing")
+        rootView.frame = target
+        rootView.setNeedsLayout()
+        rootView.layoutIfNeeded()
+        // Nudge once more so viewDidLayoutSubviews runs even when the engine
+        // cached the previous bounds.
+        rootView.frame = CGRect(x: target.minX + 0.5, y: target.minY,
+                                width: target.width - 0.5, height: target.height)
+        rootView.setNeedsLayout()
+        rootView.layoutIfNeeded()
+        rootView.frame = target
+        rootView.setNeedsLayout()
+        rootView.layoutIfNeeded()
       }
     }
   }
@@ -69,6 +120,7 @@ class SceneDelegate: FlutterSceneDelegate {
     let target = window.bounds
     guard target.width > 0, target.height > 0 else { return }
 
+    SBMLog.log("forceFlutterViewRelayout: window \(target.size), root \(rootView.bounds.size)")
     rootView.frame = CGRect(x: target.minX + 0.5, y: target.minY, width: target.width - 0.5, height: target.height)
     rootView.setNeedsLayout()
     rootView.layoutIfNeeded()
