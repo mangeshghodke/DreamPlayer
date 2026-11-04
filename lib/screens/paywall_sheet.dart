@@ -539,7 +539,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
                 children: [
                   GestureDetector(
                     onTap: () => launchUrl(
-                      Uri.parse('https://mangeshghodke.github.io/DreamPlayer/terms'),
+                      Uri.parse('https://dreamplayer.isroot.in/terms'),
                       mode: LaunchMode.externalApplication,
                     ),
                     child: const Text(
@@ -554,7 +554,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
                   const Text('·', style: TextStyle(color: Colors.white38, fontSize: 11)),
                   GestureDetector(
                     onTap: () => launchUrl(
-                      Uri.parse('https://mangeshghodke.github.io/DreamPlayer/privacy'),
+                      Uri.parse('https://dreamplayer.isroot.in/privacy'),
                       mode: LaunchMode.externalApplication,
                     ),
                     child: const Text(

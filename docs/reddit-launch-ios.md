@@ -103,8 +103,8 @@ the **main feed** or you can only post in the monthly **App Shelf** megathread.
 | Requirement | You have |
 |---|---|
 | Real-life identity + real contact details | Mangesh Ghodke, established account, reachable via the repo's issue tracker |
-| Published Privacy Policy | `https://mangeshghodke.github.io/DreamPlayer/privacy.html` (verified 200) |
-| Published Terms of Service | `https://mangeshghodke.github.io/DreamPlayer/terms.html` (verified 200) |
+| Published Privacy Policy | `https://dreamplayer.isroot.in/privacy.html` (verified 200) |
+| Published Terms of Service | `https://dreamplayer.isroot.in/terms.html` (verified 200) |
 
 → **Post to the main feed under the Transparency Path**, with your name, a
 contact route, and both policy links in the post body.
@@ -218,8 +218,8 @@ App Store: https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889
 
 **Developer / contact**
 Mangesh Ghodke — source, issues and contact via the GitHub repo linked below.
-Privacy Policy: https://mangeshghodke.github.io/DreamPlayer/privacy.html
-Terms of Service: https://mangeshghodke.github.io/DreamPlayer/terms.html
+Privacy Policy: https://dreamplayer.isroot.in/privacy.html
+Terms of Service: https://dreamplayer.isroot.in/terms.html
 ```
 
 **The `[OS]` prefix is worth keeping in the title** — the sub asks for it on

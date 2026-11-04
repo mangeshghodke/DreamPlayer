@@ -8,7 +8,7 @@ Thank you for the review. We have addressed both issues:
 
 We have added a functional Terms of Use link inside the app at **Settings > About > Terms of Use**, which opens our EULA hosted at:
 
-https://mangeshghodke.github.io/DreamPlayer/terms.html
+https://dreamplayer.isroot.in/terms.html
 
 The same link also appears in the in-app paywall sheet (bottom of the subscription screen) alongside the Privacy Policy. Both links are visible before any purchase is made.
 

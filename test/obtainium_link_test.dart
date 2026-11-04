@@ -51,7 +51,7 @@ void main() {
     expect(
       readme,
       contains(
-        'https://mangeshghodke.github.io/DreamPlayer/assets/img/badge-obtainium.png',
+        'https://dreamplayer.isroot.in/assets/img/badge-obtainium.png',
       ),
     );
     expect(File('docs/assets/img/badge-obtainium.png').existsSync(), isTrue);

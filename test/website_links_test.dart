@@ -2,35 +2,21 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Pins the casing of the app website URL.
+/// Pins the app website host: `dreamplayer.isroot.in` (custom domain, served
+/// from `main:/docs` via GitHub Pages; `docs/CNAME` carries the domain).
 ///
-/// GitHub Pages serves this project at `mangeshghodke.github.io/DreamPlayer/`,
-/// where the path IS the repository name, and GitHub matches it
-/// **case-sensitively**. Measured against the live site:
+/// History: the site used to live at `mangeshghodke.github.io/DreamPlayer/`,
+/// where the Pages path was the repo name and GitHub matched it
+/// case-sensitively — `/dreamplayer/` returned 404, a silent failure for the
+/// App-Review-critical Terms/Privacy links. With the custom domain the site is
+/// served at the domain root, and this test now pins the exact host string so
+/// a typo (wrong TLD, missing subdomain) fails loudly instead of 404ing.
 ///
-///   /DreamPlayer/  -> 200
-///   /DreamPlayer   -> 301 (GitHub adds the trailing slash)
-///   /dreamplayer/  -> 404
-///   /Dreamplayer/  -> 404
-///
-/// This is the OPPOSITE of the repo URL, which GitHub resolves
-/// case-insensitively (`github.com/mangeshghodke/dreamplayer` works), so a
-/// Pages link can look correct in the repo view and still 404 on the site.
-///
-/// Renaming the repo would only flip which casing works, and `/DreamPlayer/` is
-/// already referenced from the README, the in-app Terms/Privacy buttons, the
-/// App Review reply and the App Store listing — so the casing is pinned by
-/// convention rather than fixed. A mistyped link fails as a silent 404, and the
-/// Terms/Privacy links are App Review critical, so this is a test rather than a
-/// convention.
-///
-/// Two things must NOT be flagged, and both are real occurrences in the repo:
-///   * `img.shields.io/badge/Website-mangeshghodke.github.io-2D8CF0` — a badge
-///     image whose HOSTNAME merely contains the string; not a site link.
-///   * `mangeshghodke.github.io/DreamPlayer` as bare link TEXT — not a URL.
+/// One thing must NOT be flagged: the shields.io badge whose label merely
+/// contains the host (`img.shields.io/badge/Website-dreamplayer.isroot.in-...`)
+/// — not a site link.
 void main() {
-  const host = 'mangeshghodke.github.io';
-  const segment = 'DreamPlayer';
+  const host = 'dreamplayer.isroot.in';
 
   List<File> sources() => [
         ...Directory('lib').listSync(recursive: true).whereType<File>(),
@@ -41,38 +27,30 @@ void main() {
           .where((f) => f.path.endsWith('.dart') || f.path.endsWith('.md'))
           .toList();
 
-  test('every Pages link uses the exact DreamPlayer casing', () {
+  test('every website reference uses the exact dreamplayer.isroot.in host', () {
     final offenders = <String>[];
+    // Hosts that look like the site but are not — a mistyped link 404s.
+    final wrongHosts = RegExp(
+        r'(dreamplayer\.isroot\.(?:com|net|org|in\.au)|dreamplayer\.isroot\.io)');
     for (final file in sources()) {
       final content = file.readAsStringSync();
-      var i = content.indexOf(host);
-      while (i != -1) {
-        final rest = content.substring(i + host.length);
-        // Only a site reference if the host is followed by a path separator.
-        // Read the first path segment as a URL token. Scanning to "next slash
-        // or end of file" is wrong: a link target ends in `)`, e.g.
-        // `.../DreamPlayer/)]`, which would swallow the rest of the document.
-        final seg = RegExp(r'^/([A-Za-z0-9._-]+)').firstMatch(rest)?.group(1);
-        if (seg != null) {
-          if (seg != segment) {
-            offenders.add('${file.path}: .../$seg/  (expected /$segment/)');
-          }
-        }
-        i = content.indexOf(host, i + 1);
+      for (final m in wrongHosts.allMatches(content)) {
+        offenders.add('${file.path}: ${m.group(0)}');
       }
     }
     expect(offenders, isEmpty,
-        reason: 'lowercase or mixed-case Pages paths return 404. '
-            'Expected the first path segment to be exactly "$segment".');
+        reason: 'Only $host is the app website; lookalike hosts 404.');
   });
 
-  test('the shipped Terms and Privacy URLs keep the correct casing', () {
+  test('the shipped Terms and Privacy URLs use the pinned host', () {
     const legal = {
-      'https://mangeshghodke.github.io/DreamPlayer/terms': 'Terms of Use',
-      'https://mangeshghodke.github.io/DreamPlayer/privacy': 'Privacy Policy',
+      'https://dreamplayer.isroot.in/terms': 'Terms of Use',
+      'https://dreamplayer.isroot.in/privacy': 'Privacy Policy',
     };
     for (final url in legal.keys) {
-      expect(url, contains('https://$host/$segment/'), reason: url);
+      expect(url, startsWith('https://$host/'), reason: url);
     }
+    // And the CNAME file GitHub Pages reads for the custom domain.
+    expect(File('docs/CNAME').readAsStringSync().trim(), host);
   });
 }

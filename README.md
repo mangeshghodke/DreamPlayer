@@ -7,7 +7,7 @@
 [![License: GPLv3](https://img.shields.io/github/license/mangeshghodke/DreamPlayer?style=flat)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS%20%7C%20iPad%20%7C%20Android%20TV-blue)](https://github.com/mangeshghodke/DreamPlayer)
 [![Flutter](https://img.shields.io/badge/Flutter-3.44-46A6F2?logo=flutter&logoColor=white&color=46A6F2)](https://flutter.dev)
-[![Website](https://img.shields.io/badge/Website-mangeshghodke.github.io-2D8CF0)](https://mangeshghodke.github.io/DreamPlayer/)
+[![Website](https://img.shields.io/badge/Website-dreamplayer.isroot.in-2D8CF0)](https://dreamplayer.isroot.in/)
 [![Downloads](https://img.shields.io/github/downloads/mangeshghodke/DreamPlayer/total)](https://github.com/mangeshghodke/DreamPlayer/releases)
 [![App Store](https://img.shields.io/badge/App_Store-Download-0D96F2?logo=apple&logoColor=white)](https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889)
 [![Donate](https://img.shields.io/badge/Donate-Razorpay-2D8CF0)](https://rzp.io/rzp/cZ5afqVG)
@@ -15,7 +15,7 @@
 
 A cross-platform video player for **Android, iOS/iPad, and Android TV** — built for true Dolby Vision, HDR10/HDR10+, and lossless audio playback.
 
-🌐 **[dreamplayer website →](https://mangeshghodke.github.io/DreamPlayer/)** — features, codec support, screenshots and downloads in one place.
+🌐 **[dreamplayer website →](https://dreamplayer.isroot.in/)** — features, codec support, screenshots and downloads in one place.
 
 > [!NOTE]
 > The website path is **case-sensitive**: `github.io/DreamPlayer/` works, `github.io/dreamplayer/` returns 404. Please copy the link rather than retyping it — and if you add it anywhere else in this repo, keep that exact capitalisation. `test/website_links_test.dart` enforces it.
@@ -482,7 +482,7 @@ default). When enabled:
 
 ## Download
 
-Full feature list, codec tables, screenshots and FAQs: **[mangeshghodke.github.io/DreamPlayer](https://mangeshghodke.github.io/DreamPlayer/)**
+Full feature list, codec tables, screenshots and FAQs: **[dreamplayer.isroot.in](https://dreamplayer.isroot.in/)**
 
 ### iOS / iPadOS — [App Store](https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889)
 
@@ -498,7 +498,7 @@ Prebuilt **Android** binaries are on the [Releases](https://github.com/mangeshgh
 
 #### Get updates automatically with Obtainium
 
-<a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.dreamplayer.app%2522%252C%2522url%2522%253A%2522https%253A%252F%252Fgithub.com%252Fmangeshghodke%252FDreamPlayer%2522%252C%2522author%2522%253A%2522mangeshghodke%2522%252C%2522name%2522%253A%2522DreamPlayer%2522%257D"><img src="https://mangeshghodke.github.io/DreamPlayer/assets/img/badge-obtainium.png" width="161" height="48" alt="Get it on Obtainium"></a>
+<a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.dreamplayer.app%2522%252C%2522url%2522%253A%2522https%253A%252F%252Fgithub.com%252Fmangeshghodke%252FDreamPlayer%2522%252C%2522author%2522%253A%2522mangeshghodke%2522%252C%2522name%2522%253A%2522DreamPlayer%2522%257D"><img src="https://dreamplayer.isroot.in/assets/img/badge-obtainium.png" width="161" height="48" alt="Get it on Obtainium"></a>
 
 [**Obtainium**](https://obtainium.imranr.dev/) installs and updates apps straight from their GitHub Releases, so you get each DreamPlayer build without watching this page. The link above adds DreamPlayer to Obtainium in one tap; if Obtainium isn't installed yet, it offers to get it first.
 

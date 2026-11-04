@@ -2153,7 +2153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: const Text('End User License Agreement'),
                   trailing: const Icon(Icons.open_in_new, size: 18),
                   onTap: () => launchUrl(
-                    Uri.parse('https://mangeshghodke.github.io/DreamPlayer/terms.html'),
+                    Uri.parse('https://dreamplayer.isroot.in/terms.html'),
                   ),
                 ),
                 TvTile(
@@ -2162,7 +2162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: const Text('How your data is handled'),
                   trailing: const Icon(Icons.open_in_new, size: 18),
                   onTap: () => launchUrl(
-                    Uri.parse('https://mangeshghodke.github.io/DreamPlayer/privacy.html'),
+                    Uri.parse('https://dreamplayer.isroot.in/privacy.html'),
                   ),
                 ),
               ],
