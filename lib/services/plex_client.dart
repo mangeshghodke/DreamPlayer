@@ -154,6 +154,7 @@ class PlexItem {
     this.partId,
     this.container,
     this.thumbPath,
+    this.artPath,
     this.chapters = const [],
   });
 
@@ -185,6 +186,9 @@ class PlexItem {
 
   /// Server-relative thumb path, e.g. `/library/metadata/…/thumb/…`.
   final String? thumbPath;
+
+  /// Server-relative backdrop (`art`) path, e.g. `/library/metadata/…/art/…`.
+  final String? artPath;
   final List<VideoChapter> chapters;
 
   bool get isPlayable => type == 'movie' || type == 'episode';
@@ -226,6 +230,7 @@ class PlexItem {
       sectionType: PlexItem.attr(json, 'type') as String?,
       isFolder: true,
       thumbPath: PlexItem.attr(json, 'thumb') as String?,
+      artPath: PlexItem.attr(json, 'art') as String?,
       sizeBytes: PlexItem._asInt(PlexItem.attr(json, 'size')),
     );
   }
@@ -271,6 +276,7 @@ class PlexItem {
       partId: partId,
       container: container,
       thumbPath: PlexItem.attr(json, 'thumb') as String?,
+      artPath: PlexItem.attr(json, 'art') as String?,
     );
   }
 
@@ -348,6 +354,7 @@ class PlexItem {
         'partId': partId,
         'container': container,
         'thumbPath': thumbPath,
+        'artPath': artPath,
         'chapters': [for (final c in chapters) c.toJson()],
       };
 
@@ -373,6 +380,7 @@ class PlexItem {
       partId: json['partId'] as String?,
       container: json['container'] as String?,
       thumbPath: json['thumbPath'] as String?,
+      artPath: json['artPath'] as String?,
       chapters: chaptersList is List
           ? chaptersList
               .whereType<Map<String, dynamic>>()
@@ -853,6 +861,24 @@ class PlexClient {
       return url;
     }
     return url;
+  }
+
+  /// Absolute artwork URL for an item's poster (`thumb`), token as
+  /// `X-Plex-Token`, or null when the item has no thumb. Used for
+  /// Infuse-style library cards and poster thumbnails.
+  String? thumbUrl(PlexServer server, PlexItem item) {
+    final path = item.thumbPath;
+    if (path == null || path.isEmpty) return null;
+    return '${_base(server)}$path'
+        '?X-Plex-Token=${Uri.encodeQueryComponent(server.token ?? '')}';
+  }
+
+  /// Absolute artwork URL for an item's backdrop (`art`), or null.
+  String? artUrl(PlexServer server, PlexItem item) {
+    final path = item.artPath;
+    if (path == null || path.isEmpty) return null;
+    return '${_base(server)}$path'
+        '?X-Plex-Token=${Uri.encodeQueryComponent(server.token ?? '')}';
   }
 
   String streamUrlOn(PlexServer server, PlexItem item, String base) {

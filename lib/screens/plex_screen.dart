@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/plex_client.dart';
+import '../widgets/episode_row.dart';
+import '../widgets/library_card_grid.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_tile.dart';
 import 'tmd_details_screen.dart';
@@ -387,15 +389,29 @@ class _PlexScreenState extends State<PlexScreen> {
                   )
                 else
                   Expanded(
-                    child: ListView(
-                      children: [
-                        for (final item in _items)
-                          _ItemRow(
-                            item: item,
-                            onTap: () => _openItem(item),
+                    // Libraries level (no crumbs): Infuse-style artwork cards
+                    // using the server's own art/thumb. Inner levels: rows
+                    // with poster thumbnails.
+                    child: _crumbs.isEmpty
+                        ? LibraryCardGrid(
+                            itemCount: _items.length,
+                            artworkFor: (i) =>
+                                _client.artUrl(server, _items[i]) ??
+                                _client.thumbUrl(server, _items[i]),
+                            titleFor: (i) => _items[i].name,
+                            onTapFor: (i) => () => _openItem(_items[i]),
+                            iconFor: (_) => Icons.video_library_outlined,
+                          )
+                        : ListView(
+                            children: [
+                              for (final item in _items)
+                                _ItemRow(
+                                  item: item,
+                                  thumbUrl: _client.thumbUrl(server, item),
+                                  onTap: () => _openItem(item),
+                                ),
+                            ],
                           ),
-                      ],
-                    ),
                   ),
               ],
             ),
@@ -455,10 +471,14 @@ class _ItemRow extends StatelessWidget {
   const _ItemRow({
     required this.item,
     required this.onTap,
+    this.thumbUrl,
   });
 
   final PlexItem item;
   final VoidCallback onTap;
+
+  /// Server-provided poster URL (thumb), or null for the plain icon row.
+  final String? thumbUrl;
 
   IconData get _icon {
     if (item.type == 'episode') return Icons.smart_display_outlined;
@@ -488,10 +508,7 @@ class _ItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return TvFocusWrap(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      onTap: onTap,
-      child: ListTile(
+    final tile = ListTile(
         leading: Icon(
             _icon,
             color: item.isPlayable
@@ -512,7 +529,39 @@ class _ItemRow extends StatelessWidget {
         trailing: item.isPlayable
             ? const Icon(Icons.play_circle_outline)
             : const Icon(Icons.chevron_right),
-      ),
+      );
+    // With a server poster the row renders as an EpisodeRow thumb; ListTile
+    // keeps its own onTap so touch works (TvFocusWrap only covers TV keys).
+    if (thumbUrl != null) {
+      return TvFocusWrap(
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        onTap: onTap,
+        child: EpisodeRow(
+          thumbBuilder: (size) =>
+              EpisodePosterThumb(posterUrl: thumbUrl, size: size),
+          title: Text(
+            item.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: _subtitle == null
+              ? null
+              : Text(
+                  _subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+          trailing: item.isPlayable
+              ? const Icon(Icons.play_circle_outline)
+              : const Icon(Icons.chevron_right),
+          onTap: onTap,
+        ),
+      );
+    }
+    return TvFocusWrap(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      onTap: onTap,
+      child: tile,
     );
   }
 }

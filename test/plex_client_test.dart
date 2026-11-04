@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dream_player/models/video_item.dart';
@@ -183,6 +184,63 @@ void main() {
         url,
         'http://192.168.1.10:32400/library/parts/10/file.mp4?X-Plex-Token=tok',
       );
+    });
+  });
+
+  group('Plex artwork URLs (library cards)', () {
+    const server = PlexServer(
+      name: 's',
+      url: 'http://192.168.1.10:32400',
+      token: 'tok',
+      machineIdentifier: 'm1',
+    );
+
+    test('thumb/art paths parse from metadata and section JSON', () {
+      final item = PlexItem.fromMetadataJson({
+        'ratingKey': '5',
+        'type': 'movie',
+        'title': 'Movie',
+        'thumb': '/library/metadata/5/thumb/1',
+        'art': '/library/metadata/5/art/1',
+      });
+      expect(item.thumbPath, '/library/metadata/5/thumb/1');
+      expect(item.artPath, '/library/metadata/5/art/1');
+      final section = PlexItem.fromSectionJson({
+        'key': '1',
+        'title': 'Movies',
+        'type': 'movie',
+        'thumb': '/library/sections/1/thumb',
+        'art': '/library/sections/1/art',
+      });
+      expect(section.artPath, '/library/sections/1/art');
+    });
+
+    test('thumbUrl/artUrl build absolute token URLs', () {
+      final client = PlexClient();
+      final item = PlexItem(
+        id: '5',
+        name: 'Movie',
+        type: 'movie',
+        isFolder: false,
+        thumbPath: '/library/metadata/5/thumb/1',
+        artPath: '/library/metadata/5/art/1',
+      );
+      expect(client.thumbUrl(server, item),
+          'http://192.168.1.10:32400/library/metadata/5/thumb/1?X-Plex-Token=tok');
+      expect(client.artUrl(server, item),
+          'http://192.168.1.10:32400/library/metadata/5/art/1?X-Plex-Token=tok');
+      final noArt = PlexItem(id: '6', name: 'X', type: 'movie', isFolder: false);
+      expect(client.thumbUrl(server, noArt), null);
+      expect(client.artUrl(server, noArt), null);
+    });
+
+    test('plex browser shows the card grid at libraries level and thumbs inside', () {
+      final src = File('lib/screens/plex_screen.dart').readAsStringSync();
+      expect(src, contains('LibraryCardGrid('));
+      expect(src, contains('_crumbs.isEmpty'));
+      expect(src, contains('_client.artUrl(server, _items[i]) ??'));
+      expect(src, contains('_client.thumbUrl(server, item)'));
+      expect(src, contains('EpisodePosterThumb(posterUrl: thumbUrl'));
     });
   });
 }

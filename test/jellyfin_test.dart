@@ -799,15 +799,15 @@ void main() {
       final src =
           File('lib/screens/jellyfin_screen.dart').readAsStringSync();
       expect(src, contains('if (_browsing != null && _crumbs.isEmpty)'));
-      expect(src, contains('Widget _libraryGrid(BuildContext context)'));
-      expect(src, contains('backdropImageUrl(server, item)'));
-      expect(src, contains('primaryImageUrl(server, item)'));
-      expect(src, contains('margin: EdgeInsets.zero'));
-      // Touch tap must work on phones: TvFocusWrap only handles TV key events,
-      // so the card content needs its own InkWell (same as BrowserEntryCard).
-      final grid = src.substring(src.indexOf('Widget _libraryGrid'));
+      expect(src, contains('LibraryCardGrid('));
+      expect(src, contains('backdropImageUrl(server, _items[i]) ??'));
+      expect(src, contains('primaryImageUrl(server, _items[i])'));
+      // The shared card grid owns the touch target: TvFocusWrap only handles
+      // TV key events, so the card content carries its own InkWell.
+      final grid =
+          File('lib/widgets/library_card_grid.dart').readAsStringSync();
+      expect(grid, contains('margin: EdgeInsets.zero'));
       expect(grid, contains('InkWell('));
-      expect(grid, contains("onTap: () => _openItem(item)"));
     });
 
     test('inner levels fall back to server artwork (backdrop ?? primary)', () {
