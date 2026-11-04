@@ -810,6 +810,18 @@ void main() {
       expect(grid, contains("onTap: () => _openItem(item)"));
     });
 
+    test('inner levels fall back to server artwork (backdrop ?? primary)', () {
+      final src =
+          File('lib/screens/jellyfin_screen.dart').readAsStringSync();
+      // Grid: folders and files both use server art when nothing better exists.
+      expect(src, contains('backdropImageUrl(server, item) ??'));
+      expect(src, contains('posterUrlOf(meta) ??\n                  serverArt'));
+      // Row tile takes an artworkUrl and uses it as the thumb fallback.
+      expect(src, contains('this.artworkUrl,'));
+      expect(src, contains('stillUrl: stillUrl ?? artworkUrl'));
+      expect(src, contains('posterUrl: posterUrl ?? artworkUrl'));
+    });
+
     test('progressFor prefers the further-along server position', () {
       final positions = <String, int>{'k': 5000};
       final durations = <String, int>{'k': 100000};

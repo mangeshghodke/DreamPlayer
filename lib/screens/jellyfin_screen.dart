@@ -636,10 +636,16 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
                 itemCount: _items.length,
                 itemBuilder: (context, index) {
                   final item = _items[index];
+                  final server = _browsing;
+                  final serverArt = server == null
+                      ? null
+                      : (_client.backdropImageUrl(server, item) ??
+                          _client.primaryImageUrl(server, item));
                   return _JellyfinTile(
                     item: item,
                     tmdbMeta: _tmdbFor(item),
                     episode: _episodeForItem(item),
+                    artworkUrl: serverArt,
                     watched: !item.isFolder &&
                         (_watchedKeys.contains(_watchedKeyFor(item)) ||
                             item.played),
@@ -755,6 +761,11 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
         final item = _items[index];
         final episode = _episodeForItem(item);
         final meta = _tmdbFor(item);
+        final server = _browsing;
+        final serverArt = server == null
+            ? null
+            : (_client.backdropImageUrl(server, item) ??
+                _client.primaryImageUrl(server, item));
         final parsed = ParsedFileName.parse(item.name);
         final isEpisode = parsed.isEpisode || episode != null;
         final code = isEpisode
@@ -778,10 +789,11 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
           title: title,
           subtitle: subtitle,
           artworkUrl: item.isFolder
-              ? null
+              ? serverArt
               : (episode?.stillUrl() ??
                   meta?.movie.backdropUrl(width: 780) ??
-                  posterUrlOf(meta)),
+                  posterUrlOf(meta) ??
+                  serverArt),
           fallbackIcon: item.isFolder
               ? Icons.folder
               : (isEpisode
@@ -906,6 +918,7 @@ class _JellyfinTile extends StatelessWidget {
     this.watched = false,
     this.onToggleWatched,
     this.resumeProgress,
+    this.artworkUrl,
   });
 
   final JellyfinItem item;
@@ -916,10 +929,23 @@ class _JellyfinTile extends StatelessWidget {
   final VoidCallback? onToggleWatched;
   final double? resumeProgress;
 
+  /// Server-provided artwork (backdrop ?? primary) — the Infuse-style source
+  /// when no TMDB/episode still exists.
+  final String? artworkUrl;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     if (item.isFolder) {
+      if (artworkUrl != null) {
+        return EpisodeRow(
+          thumbBuilder: (size) =>
+              EpisodePosterThumb(posterUrl: artworkUrl, size: size),
+          title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: onTap,
+        );
+      }
       return TvTile(
         leading: Icon(Icons.folder, color: colorScheme.primary),
         title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1034,8 +1060,8 @@ class _JellyfinTile extends StatelessWidget {
 
     return EpisodeRow(
       thumbBuilder: (size) => EpisodeStillThumb(
-      stillUrl: stillUrl,
-      posterUrl: posterUrl,
+      stillUrl: stillUrl ?? artworkUrl,
+      posterUrl: posterUrl ?? artworkUrl,
       size: size,
     ),
       title: titleWidget,
