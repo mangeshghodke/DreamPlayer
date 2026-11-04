@@ -96,7 +96,7 @@ import Network
     // Same channel as Android's MainActivity: device facts. iOS answers the
     // OS major version (the MetalFX upscale stage needs iOS 26+); isTv is
     // always false here.
-    MethodChannel(messenger, "dreamplayer/device").setMethodCallHandler { call, result in
+    FlutterMethodChannel(name: "dreamplayer/device", binaryMessenger: messenger).setMethodCallHandler { call, result in
       switch call.method {
       case "isTv":
         result(false)
