@@ -75,6 +75,23 @@ void main() {
     expect(player, contains("label: _liveUpscaleLabel.isNotEmpty"));
   });
 
+  test('player has a top-right popup toggle like the MPV picture panel', () {
+    final player = File('lib/screens/player_screen.dart').readAsStringSync();
+    // Button shown only on iOS 26+ and only on the non-MPV engine.
+    expect(player, contains('if (_iosUpscaleSupported && !_mpvReady)'));
+    expect(player, contains('Icons.auto_awesome'));
+    // Semi-transparent popup panel with the switch and live status.
+    expect(player, contains('class _IosUpscalePanel extends StatelessWidget'));
+    expect(player, contains('Colors.black.withValues(alpha: 0.76)'));
+    expect(player, contains('_onIosUpscaleToggled'));
+    // Toggle is paywall-gated before the save.
+    final handler =
+        player.substring(player.indexOf('Future<void> _onIosUpscaleToggled'));
+    expect(handler, contains('if (value && !await _gate()) return;'));
+    expect(handler, contains('IosUpscaleStore().setEnabled(value)'));
+    expect(handler, contains('_exo?.setUpscale(value)'));
+  });
+
   test('controller surface carries the upscale fields', () {
     final exo = File('lib/services/exo_player.dart').readAsStringSync();
     expect(exo, contains('Future<void> setUpscale(bool enabled);'));
