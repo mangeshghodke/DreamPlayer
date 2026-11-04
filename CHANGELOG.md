@@ -7,6 +7,18 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
+- **Skip intro / recap / credits (issue #60).** A "Skip …" button appears
+  bottom-right when the playhead is inside (or within 5 s of) an intro, recap
+  or credits segment, and the ⋮ sheet lists all three as rows. Segments come
+  from embedded chapter names (`Opening`/`OP`/`Intro`, `Recap`/`Previously`,
+  `Ending`/`Credits`/`ED` — word-boundary matched, last credits chapter wins)
+  and, for TMDB-matched TV episodes, from the keyless **AniSkip** API (via an
+  AniList title→MAL-id lookup) — the IntroDB domain named in the issue no
+  longer resolves, AniSkip is the working community source. Results,
+  including negatives, are cached locally per episode, so SMB/USB/offline
+  playback reuses them with no network. Settings → Player → "Skip intro /
+  recap / credits" chooses **Off**, **Show a skip button** (default), or
+  **Auto-skip** (seeks past each segment once, while playing).
 - **Jellyfin media-server sync (Infuse-style).** Resume position and watched
   state now live on the Jellyfin server: the player reports playback
   start/progress/stop through the Sessions API (`/Sessions/Playing*`), pulls

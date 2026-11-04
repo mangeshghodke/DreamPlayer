@@ -22,6 +22,7 @@ import '../services/download_manager.dart';
 import '../services/entitlements.dart';
 import '../services/exo_player.dart';
 import '../services/image_cache_service.dart';
+import '../services/aniskip_store.dart';
 import '../services/ios_upscale_store.dart';
 import '../l10n/app_localizations.dart';
 import '../services/language_service.dart';
@@ -74,6 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _pipEnabled = true;
   bool _iosUpscale = false;
   bool _iosUpscaleSupported = false;
+  SkipMode _skipMode = SkipMode.prompt;
   bool _autoPlayNext = false;
   bool _hwSdrToneMap = false;
   DecoderMode _decoderMode = DecoderMode.auto;
@@ -211,6 +213,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _scanDepth = prefs.getInt('dreamplayer.scanDepth') ?? 5;
           _iosUpscale = prefs.getBool(IosUpscaleStore.prefsKey) ?? false;
         });
+        final skipMode = await AniskipStore.loadMode();
+        if (mounted) setState(() => _skipMode = skipMode);
       }
     } catch (_) {}
   }
@@ -225,6 +229,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final supported = await isIos26OrLater();
     if (mounted) setState(() => _iosUpscaleSupported = supported);
   }
+
+  static String _skipModeLabel(SkipMode m) => switch (m) {
+        SkipMode.off => 'Off',
+        SkipMode.prompt => 'Show a skip button',
+        SkipMode.auto => 'Auto-skip',
+      };
+
+  static String _skipModeDesc(SkipMode m) => switch (m) {
+        SkipMode.off => 'Never look up or offer skip segments',
+        SkipMode.prompt =>
+          'A "Skip intro / recap / credits" button appears near the segment '
+              '(embedded chapters or AniSkip, cached locally)',
+        SkipMode.auto => 'Jumps past intro, recap and credits by itself',
+      };
 
   Future<void> _previewUpdateDialog() async {
     final installed = await _loadVersion();
@@ -1395,6 +1413,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (mounted) setState(() => _iosUpscale = value);
                     },
                   ),
+                ListTile(
+                  leading: const Icon(Icons.skip_next),
+                  title: const Text('Skip intro / recap / credits'),
+                  subtitle: Text(_skipModeLabel(_skipMode)),
+                  onTap: () async {
+                    final picked = await showDialog<SkipMode>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Skip intro / recap / credits'),
+                        content: RadioGroup<SkipMode>(
+                          groupValue: _skipMode,
+                          onChanged: (v) => Navigator.pop(ctx, v),
+                          child: _ScrollableRadioList(
+                            children: SkipMode.values
+                                .map((m) => RadioListTile<SkipMode>(
+                                      value: m,
+                                      title: Text(_skipModeLabel(m)),
+                                      subtitle: Text(_skipModeDesc(m),
+                                          style:
+                                              const TextStyle(fontSize: 12)),
+                                    ))
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    );
+                    if (picked != null) {
+                      await AniskipStore.saveMode(picked);
+                      if (mounted) setState(() => _skipMode = picked);
+                    }
+                  },
+                ),
                 if (defaultTargetPlatform == TargetPlatform.android)
                   ListTile(
                     leading: const Icon(Icons.play_circle_outline),

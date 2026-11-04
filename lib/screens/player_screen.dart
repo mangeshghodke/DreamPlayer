@@ -46,7 +46,9 @@ import '../services/open_intent.dart';
 import '../services/download_manager.dart';
 import '../services/intro_db.dart';
 import '../utils/chapter_nav.dart';
-import '../utils/skip_chapters.dart';
+import '../services/aniskip_client.dart';
+import '../services/aniskip_store.dart';
+import '../utils/skip_segments.dart';
 import '../utils/episode_label.dart';
 import '../utils/gesture_safety.dart';
 import '../utils/screen_orientation.dart';
@@ -440,11 +442,19 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// once parsed. Empty hides the chapters button.
   List<ExoChapter> _chapters = const [];
 
-  /// Optional IntroDB lookup results (compiled in only with
-  /// --dart-define=INTRODB_BASE_URL; used when no chapter NAME matched).
-  int? _remoteIntroEndMs;
-  int? _remoteCreditsStartMs;
+  /// Remote skip segments (AniSkip community timestamps, issue #60; the
+  /// optional IntroDB fallback compiles in only with
+  /// --dart-define=INTRODB_BASE_URL). Used for the kinds no chapter NAME
+  /// covers. Cached in AniskipStore, so SMB/USB/offline playback reuses them.
+  List<SkipSegment> _remoteSegments = const [];
   bool _remoteSkipLookedUp = false;
+
+  /// Skip intro/recap/credits mode (Settings → Player), loaded per open.
+  SkipMode _skipMode = SkipMode.prompt;
+
+  /// Segment starts already auto-skipped this open (auto mode fires once per
+  /// segment, not on every position tick).
+  final Set<int> _autoSkippedStarts = {};
 
   /// Guard so an ended video is marked watched exactly once per session.
   bool _markedWatched = false;
@@ -849,9 +859,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     _abA = null;
     _abB = null;
     _hdrPaywallShowing = false;
-    _remoteIntroEndMs = null;
-    _remoteCreditsStartMs = null;
+    _remoteSegments = const [];
     _remoteSkipLookedUp = false;
+    _autoSkippedStarts.clear();
+    unawaited(AniskipStore.loadMode().then((m) {
+      if (mounted) setState(() => _skipMode = m);
+    }));
     // Seed chapters from the VideoItem (e.g. Jellyfin `MediaSources[].Chapters`);
     // native MKV parsing (`e.chapters`) will override once available.
     _chapters = video.chapters
@@ -4040,6 +4053,17 @@ Future<void> _offerVc1Mpv() async {
     if (e.chapters.isNotEmpty) _chapters = e.chapters;
     _maybeRemoteSkipLookup();
 
+    // Auto-skip intro/recap/credits (issue #60): when the playhead is inside a
+    // segment and playing, seek past it — once per segment per open.
+    if (_skipMode == SkipMode.auto && e.playing && !_dragging && !_inPip) {
+      final seg =
+          SkipSegments.inside(_allSkipSegments, e.position.inMilliseconds);
+      if (seg != null && !_autoSkippedStarts.contains(seg.startMs)) {
+        _autoSkippedStarts.add(seg.startMs);
+        _seekBackend(Duration(milliseconds: seg.endMs));
+      }
+    }
+
     // Watched state: a video that played to the end is marked watched so
     // library lists can show it (Phase 2). Once per session per video.
     if (e.ended && !_markedWatched) {
@@ -7017,6 +7041,41 @@ if (mounted) setState(_applySwipeValue);
                         ],
                       ),
                     ),
+                  // Skip intro / recap / credits rows (issue #60) — chapter
+                  // names and AniSkip segments alike; shown even without
+                  // container chapters.
+                  if (_allSkipSegments.isNotEmpty) ...[
+                    const Divider(color: Colors.white12, height: 1),
+                    for (final entry in [
+                      (SkipSegmentKind.intro, Icons.skip_next, 'Skip intro'),
+                      (SkipSegmentKind.recap, Icons.replay, 'Skip recap'),
+                      (SkipSegmentKind.credits, Icons.fast_forward, 'Skip credits'),
+                    ])
+                      () {
+                        final s =
+                            SkipSegments.firstOf(_allSkipSegments, entry.$1);
+                        if (s == null) return const SizedBox.shrink();
+                        final target = entry.$1 == SkipSegmentKind.credits
+                            ? s.startMs
+                            : s.endMs;
+                        if (_position.inMilliseconds >= target) {
+                          return const SizedBox.shrink();
+                        }
+                        return _tvListTile(
+                          leading: Icon(entry.$2, color: Colors.white70),
+                          title: Text(entry.$3,
+                              style: const TextStyle(color: Colors.white)),
+                          subtitle: Text(
+                              'to ${_formatDuration(Duration(milliseconds: target))}',
+                              style: const TextStyle(
+                                  color: Colors.white54, fontSize: 12)),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            _skipSegment(s);
+                          },
+                        );
+                      }(),
+                  ],
                   if (_chapters.isNotEmpty) ...[
                     const Divider(color: Colors.white12, height: 1),
                     _tvListTile(
@@ -7026,33 +7085,6 @@ if (mounted) setState(_applySwipeValue);
                       trailing: Icon(expandChapters ? Icons.expand_less : Icons.expand_more, color: Colors.white54),
                       onTap: () => setSheet(() => expandChapters = !expandChapters),
                     ),
-                    () {
-                      final introMs = _skipIntroTargetMs;
-                      final creditsMs = _skipCreditsTargetMs;
-                      final posMs = _position.inMilliseconds;
-                      return Column(children: [
-                        if (introMs != null && posMs < introMs)
-                          _tvListTile(
-                            leading: const Icon(Icons.skip_next, color: Colors.white70),
-                            title: const Text('Skip intro', style: TextStyle(color: Colors.white)),
-                            subtitle: Text('to ${_formatDuration(Duration(milliseconds: introMs))}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                            onTap: () {
-                              Navigator.of(sheetContext).pop();
-                              _skipIntro();
-                            },
-                          ),
-                        if (creditsMs != null && posMs < creditsMs)
-                          _tvListTile(
-                            leading: const Icon(Icons.fast_forward, color: Colors.white70),
-                            title: const Text('Skip credits', style: TextStyle(color: Colors.white)),
-                            subtitle: Text('to ${_formatDuration(Duration(milliseconds: creditsMs))}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                            onTap: () {
-                              Navigator.of(sheetContext).pop();
-                              _skipCredits();
-                            },
-                          ),
-                      ]);
-                    }(),
                     if (expandChapters)
                       Padding(
                         padding: const EdgeInsets.only(left: 12),
@@ -7231,65 +7263,114 @@ if (mounted) setState(_applySwipeValue);
   }
 
   // ---------------------------------------------------------------------------
-  // Skip intro / skip credits (chapter-name matching + optional IntroDB)
+  // Skip intro / recap / credits (chapter names + AniSkip, issue #60)
   // ---------------------------------------------------------------------------
 
-  /// "Skip intro" target: end of the intro chapter, or the IntroDB value when
-  /// no chapter name matched (opt-in via --dart-define=INTRODB_BASE_URL).
-  int? get _skipIntroTargetMs {
-    return SkipChapters.skipIntroTargetMs(_chapters) ?? _remoteIntroEndMs;
-  }
+  /// All skip segments: chapter-name-derived merged with remote (AniSkip).
+  /// Per kind the chapter wins when it labels one — a named chapter matches
+  /// this exact file; remote fills the kinds the chapters don't label.
+  List<SkipSegment> get _allSkipSegments =>
+      SkipSegments.merge(SkipSegments.fromChapters(_chapters), _remoteSegments);
 
-  int? get _skipCreditsTargetMs {
-    return SkipChapters.skipCreditsTargetMs(_chapters) ?? _remoteCreditsStartMs;
-  }
+  /// The segment the pill offers right now (playhead inside it, or it starts
+  /// within 5 s). Null in auto/off mode — auto seeks without a prompt.
+  SkipSegment? get _promptSegment => _skipMode == SkipMode.prompt
+      ? SkipSegments.promptable(_allSkipSegments, _position.inMilliseconds)
+      : null;
 
   bool get _skipIntroVisible {
-    final t = _skipIntroTargetMs;
-    return _backendReady &&
-        !_inPip &&
-        t != null &&
-        _position.inMilliseconds < t;
+    final p = _promptSegment;
+    return _backendReady && !_inPip && p != null;
   }
 
   void _maybeRemoteSkipLookup() {
-    if (!IntroDb.available || _remoteSkipLookedUp) return;
-    // Chapter names already cover it — no network call.
-    if (SkipChapters.findIntro(_chapters) != null ||
-        SkipChapters.findCredits(_chapters) != null) {
-      _remoteSkipLookedUp = true;
+    if (_remoteSkipLookedUp) return;
+    _remoteSkipLookedUp = true;
+    if (_skipMode == SkipMode.off) return;
+    // Chapter names already cover every kind — no network call.
+    final chapterSegs = SkipSegments.fromChapters(_chapters);
+    final covered = SkipSegmentKind.values
+        .every((k) => chapterSegs.any((s) => s.kind == k));
+    if (covered) return;
+    final meta = _tmdbMeta;
+    final tmdbId = meta?.movie.tmdbId;
+    if (meta == null || meta.movie.kind != TmdKind.tv || tmdbId == null) {
+      _introDbFallback();
       return;
     }
-    _remoteSkipLookedUp = true;
+    final ep = resolvedPlayerEpisode(
+      title: _current.title,
+      seasonNumber: _current.seasonNumber,
+      episodeNumber: _current.episodeNumber,
+      folderSeason: meta.folderSeason,
+      firstAvailableSeason:
+          _firstCachedSeason(TmdService.instance.metaWithSeasons(meta)),
+    );
+    if (ep == null) {
+      _introDbFallback();
+      return;
+    }
+    final client = AniskipClient();
+    unawaited(client
+        .segmentsForEpisode(
+          tmdbTvId: tmdbId,
+          providerKey: meta.movie.providerKey,
+          title: meta.movie.title,
+          season: ep.season,
+          episode: ep.episode,
+          durationMs:
+              _duration.inMilliseconds > 0 ? _duration.inMilliseconds : null,
+        )
+        .then((segs) {
+          if (!mounted) return;
+          if (segs != null && segs.isNotEmpty) {
+            setState(() => _remoteSegments = segs);
+          } else {
+            _introDbFallback();
+          }
+        })
+        .catchError((_) {
+          _introDbFallback();
+          return null;
+        }));
+  }
+
+  /// Legacy opt-in IntroDB lookup (--dart-define=INTRODB_BASE_URL), used only
+  /// when AniSkip has nothing for the title.
+  void _introDbFallback() {
+    if (!IntroDb.available) return;
     final title = _displayTitle;
     final durMs = _duration.inMilliseconds;
-    unawaited(IntroDb.lookup(title: title, durationMs: durMs > 0 ? durMs : null)
+    unawaited(IntroDb.lookup(
+            title: title, durationMs: durMs > 0 ? durMs : null)
         .then((r) {
       if (r == null || !mounted) return;
-      if (r.introEndMs != null || r.creditsStartMs != null) {
-        setState(() {
-          _remoteIntroEndMs = r.introEndMs;
-          _remoteCreditsStartMs = r.creditsStartMs;
-        });
-      }
+      final segs = <SkipSegment>[
+        if (r.introEndMs != null && r.introEndMs! > 0)
+          SkipSegment(
+              startMs: 0, endMs: r.introEndMs!, kind: SkipSegmentKind.intro),
+        if (r.creditsStartMs != null && r.creditsStartMs! > 0)
+          SkipSegment(
+              startMs: r.creditsStartMs!,
+              endMs: r.creditsStartMs! + 1,
+              kind: SkipSegmentKind.credits),
+      ];
+      if (segs.isNotEmpty) setState(() => _remoteSegments = segs);
     }));
   }
 
-  void _skipIntro() {
-    final t = _skipIntroTargetMs;
-    if (t == null || _touchLocked) return;
-    _seekBackend(Duration(milliseconds: t));
-    _showChapterToast('Skipped intro');
+  void _skipSegment(SkipSegment segment) {
+    if (_touchLocked) return;
+    // Credits seek to the segment START; intro/recap to its END.
+    final target = segment.kind == SkipSegmentKind.credits
+        ? segment.startMs
+        : segment.endMs;
+    _seekBackend(Duration(milliseconds: target));
+    _showChapterToast('Skipped ${segment.kind.name}');
     _showControls();
   }
 
-  void _skipCredits() {
-    final t = _skipCreditsTargetMs;
-    if (t == null || _touchLocked) return;
-    _seekBackend(Duration(milliseconds: t));
-    _showChapterToast('Skipped credits');
-    _showControls();
-  }
+
 
   void _gotoNextChapter() {
     final chapter = ChapterNav.next(_chapters, _position.inMilliseconds);
@@ -8476,9 +8557,20 @@ if (mounted) setState(_applySwipeValue);
                 right: 16,
                 bottom: 96,
                 child: OutlinedButton.icon(
-                  onPressed: _skipIntro,
-                  icon: const Icon(Icons.skip_next, size: 18),
-                  label: const Text('Skip intro'),
+                  onPressed: () {
+                    final p = _promptSegment;
+                    if (p != null) _skipSegment(p);
+                  },
+                  icon: Icon(
+                    switch (_promptSegment?.kind) {
+                      SkipSegmentKind.recap => Icons.replay,
+                      SkipSegmentKind.credits => Icons.fast_forward,
+                      _ => Icons.skip_next,
+                    },
+                    size: 18,
+                  ),
+                  label: Text(
+                      'Skip ${_promptSegment?.kind.name ?? 'intro'}'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     backgroundColor: Colors.black.withValues(alpha: 0.72),

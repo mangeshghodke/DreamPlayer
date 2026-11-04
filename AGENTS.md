@@ -2353,6 +2353,38 @@ wants "no touch focus ring" should copy that split instead of trying to suppress
 the decoration.
 
 
+### Skip intro / recap / credits (issue #60, 0.5.6)
+
+- **Sources, in precedence order per kind:** embedded chapter names first
+  (`SkipSegments.fromChapters` — word-boundary `opening|intro|op`,
+  `recap|previously`, `ending|end|credits?|ed`; the intro/recap segment runs to
+  the NEXT chapter's start, the credits segment is the LAST credits-named
+  chapter), then remote **AniSkip** segments for the kinds chapters don't
+  label (`SkipSegments.merge`). Remote = `AniskipClient`: AniList GraphQL
+  title→`idMal` (cached per TMDB `providerKey`), then
+  `GET api.aniskip.com/v2/skip-times/{malId}/{ep}?types=op&types=ed&types=recap&types=mixed-op&types=mixed-ed&episodeLength=…`
+  — **`types` must be REPEATED query params** (a comma-joined value is a 400)
+  and `episodeLength` is required; HTTP 404 body (`found:false`) = no data.
+  Verified live 2026-11-04 (One Piece MAL 21 ep 1; Demon Slayer MAL 38000).
+  **The IntroDB domain from the issue (`api.introdb.dev`) does not resolve** —
+  AniSkip is anime-only (MAL-keyed), so live-action relies on chapter names;
+  the old opt-in `IntroDb` (dart-define) remains as a last-resort fallback.
+- **Cache:** `AniskipStore` (`dreamplayer.aniskip` JSON) — per-episode
+  segments AND negatives, plus the MAL id — so SMB/USB/offline playback needs
+  no network after one online resolve. Mode pref: `dreamplayer.skipSegmentsMode`
+  (`off|prompt|auto`, default **prompt**).
+- **Player:** pill bottom-right shows the active segment's label
+  (`_promptSegment` = inside it or within 5 s); ⋮ sheet lists Skip intro /
+  recap / credits rows (works without container chapters); auto mode seeks
+  past each segment once per open (`_autoSkippedStarts` latch, only while
+  playing and not dragging/PiP). Lookup fires from the first event with
+  chapters (`_maybeRemoteSkipLookup`), only when some kind is uncovered and
+  the file is a TMDB TV episode (`resolvedPlayerEpisode`).
+- Pure logic in `lib/utils/skip_segments.dart`, parsing in
+  `AniskipClient.parseAniSkipResponse` / `parseAniListMalId` (both
+  try/catch around `jsonDecode` — a non-JSON body must not throw).
+  Tests: `test/skip_segments_test.dart`, `test/aniskip_test.dart`.
+
 ### iOS chapter parity — chapters were local-files-only (0.5.1+35)
 
 The chapter UI (#40) is shared Dart and was never platform-gated, so iOS looked
