@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dream_player/models/video_item.dart';
 import 'package:dream_player/services/jellyfin_client.dart';
 import 'package:dream_player/services/opensubtitles_client.dart';
+import 'package:dream_player/services/resume_progress_helper.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -108,6 +111,26 @@ void main() {
   });
 
   group('JellyfinItem parsing', () {
+    test('fromJson reads UserData played + resume position (server sync)', () {
+      final item = JellyfinItem.fromJson({
+        'Id': 'abc',
+        'Name': 'Movie',
+        'MediaType': 'Video',
+        'UserData': {'Played': true, 'PlaybackPositionTicks': 612000000000},
+      });
+      expect(item.played, true);
+      expect(item.playbackPositionTicks, 612000000000);
+      expect(item.serverPosition, const Duration(hours: 17));
+      final unwatched = JellyfinItem.fromJson({
+        'Id': 'x',
+        'Name': 'Other',
+        'UserData': {'Played': false},
+      });
+      expect(unwatched.played, false);
+      expect(unwatched.playbackPositionTicks, null);
+      expect(unwatched.serverPosition, Duration.zero);
+    });
+
     test('fromJson extracts MediaSources id and fields', () {
       final item = JellyfinItem.fromJson({
         'Id': 'abc',
@@ -709,6 +732,56 @@ void main() {
       expect(parsed.title, 'My.Custom.Name.srt');
       expect(parsed.path, '/media/movies/My.Custom.Name.srt');
       expect(parsed.displayTitle, 'My.Custom.Name.srt');
+    });
+  });
+
+  group('Jellyfin media-server sync (Infuse-style)', () {
+    test('client exposes the Sessions + PlayedItems endpoints', () {
+      final src =
+          File('lib/services/jellyfin_client.dart').readAsStringSync();
+      expect(src, contains('/Sessions/Capabilities/Full'));
+      expect(src, contains('/Sessions/Playing?'));
+      expect(src, contains('/Sessions/Playing/Progress'));
+      expect(src, contains('/Sessions/Playing/Stopped'));
+      expect(src, contains('/PlayedItems/\$itemId'));
+      // Played = POST, unplayed = DELETE.
+      final setPlayed = src.substring(src.indexOf('Future<void> setPlayed'));
+      expect(setPlayed, contains('await _postJson(url'));
+      expect(setPlayed, contains('await _deleteJson(url'));
+      // Progress/Stopped share one PlaySessionId per playback.
+      expect(src, contains('_activePlaySessionId'));
+    });
+
+    test('player pulls server resume and pushes start/progress/stopped/played',
+        () {
+      final src =
+          File('lib/screens/player_screen.dart').readAsStringSync();
+      expect(src, contains('_jellyfinServerPosition()'));
+      expect(src, contains('reportPlaybackStart'));
+      expect(src, contains('reportPlaybackProgress'));
+      expect(src, contains('reportPlaybackStopped'));
+      expect(src, contains('_setJellyfinPlayed(true)'));
+    });
+
+    test('jellyfin browser shows server watched state and pushes toggles', () {
+      final src =
+          File('lib/screens/jellyfin_screen.dart').readAsStringSync();
+      expect(src, contains('|| item.played'));
+      expect(src, contains('setPlayed(server, item.id, now)'));
+      expect(src, contains('serverPositionMs'));
+    });
+
+    test('progressFor prefers the further-along server position', () {
+      final positions = <String, int>{'k': 5000};
+      final durations = <String, int>{'k': 100000};
+      expect(
+          ResumeProgressHelper.progressFor('k', positions, durations,
+              serverPositionMs: 20000),
+          0.2);
+      expect(
+          ResumeProgressHelper.progressFor('k', positions, durations,
+              serverPositionMs: 1000),
+          0.05);
     });
   });
 }

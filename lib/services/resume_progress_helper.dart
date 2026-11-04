@@ -51,8 +51,16 @@ class ResumeProgressHelper {
     Map<String, int> positions,
     Map<String, int> durations, {
     int? fallbackDurationMs,
+    int? serverPositionMs,
   }) {
-    final posMs = positions[key];
+    // Media-server sync: the server-side position (reported by any device)
+    // wins when it is further along than the local one.
+    var posMs = positions[key];
+    if (serverPositionMs != null &&
+        serverPositionMs > 0 &&
+        (posMs == null || serverPositionMs > posMs)) {
+      posMs = serverPositionMs;
+    }
     if (posMs == null || posMs <= 0) return null;
     final durMs =
         durations[key] ?? (fallbackDurationMs != null && fallbackDurationMs > 0 ? fallbackDurationMs : null);

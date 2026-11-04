@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/video_item.dart';
@@ -234,6 +235,12 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     try {
       await WatchedStore.set(key, now);
     } catch (_) {}
+    // Media-server sync: mirror the toggle onto the Jellyfin server so every
+    // other device signed into the account sees the same watched state.
+    final server = _browsing;
+    if (server != null) {
+      unawaited(_client.setPlayed(server, item.id, now));
+    }
   }
 
   /// Best-effort TV-series detection for the current level. Jellyfin items are
@@ -628,7 +635,8 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
                     tmdbMeta: _tmdbFor(item),
                     episode: _episodeForItem(item),
                     watched: !item.isFolder &&
-                        _watchedKeys.contains(_watchedKeyFor(item)),
+                        (_watchedKeys.contains(_watchedKeyFor(item)) ||
+                            item.played),
                     onToggleWatched:
                         item.isFolder ? null : () => _toggleWatched(item),
                     onTap: () => _openItem(item),
@@ -638,6 +646,9 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
                             _watchedKeyFor(item),
                             _resumePositionsMs,
                             _durationsMs,
+                            serverPositionMs: item.playbackPositionTicks != null
+                                ? item.playbackPositionTicks! ~/ 10000
+                                : null,
                           ),
                   );
                 },
@@ -690,7 +701,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
               ? Theme.of(context).colorScheme.primary
               : Theme.of(context).colorScheme.secondary,
           watched: !item.isFolder &&
-              _watchedKeys.contains(_watchedKeyFor(item)),
+              (_watchedKeys.contains(_watchedKeyFor(item)) || item.played),
           onToggleWatched:
               item.isFolder ? null : () => _toggleWatched(item),
           onTap: () => _openItem(item),

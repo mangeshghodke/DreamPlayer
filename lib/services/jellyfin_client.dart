@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
@@ -200,6 +201,8 @@ class JellyfinItem {
     this.sizeBytes,
     this.externalSubtitles = const [],
     this.chapters = const [],
+    this.played = false,
+    this.playbackPositionTicks,
   });
 
   final String id;
@@ -239,6 +242,17 @@ class JellyfinItem {
   /// Chapters from `MediaSources[0].Chapters` (Jellyfin parses MKV `Chapters`).
   /// Each entry has `Name` + `StartPositionTicks` (100 ns units).
   final List<VideoChapter> chapters;
+
+  /// Server-side watched flag from `UserData.Played` (media-server sync).
+  final bool played;
+
+  /// Server-side resume position from `UserData.PlaybackPositionTicks`
+  /// (100 ns units), or null when the server has none.
+  final int? playbackPositionTicks;
+
+  /// Server-side resume position as a [Duration] ('' ticks -> zero).
+  Duration get serverPosition =>
+      Duration(microseconds: (playbackPositionTicks ?? 0) ~/ 10);
 
   Duration get duration => Duration(microseconds: (runTimeTicks ?? 0) ~/ 10);
 
@@ -333,6 +347,9 @@ class JellyfinItem {
       }
     }
     final mediaType = json['MediaType'] as String?;
+    final userData = json['UserData'] is Map<String, dynamic>
+        ? json['UserData'] as Map<String, dynamic>
+        : null;
     return JellyfinItem(
       id: json['Id'] as String? ?? '',
       name: json['Name'] as String? ?? '',
@@ -350,6 +367,9 @@ class JellyfinItem {
       sizeBytes: sizeBytes,
       externalSubtitles: externalSubs,
       chapters: chapters,
+      played: (userData?['Played'] as bool?) ?? false,
+      playbackPositionTicks:
+          (userData?['PlaybackPositionTicks'] as num?)?.toInt(),
     );
   }
 }
@@ -1091,6 +1111,172 @@ class JellyfinClient {
       await prefs.setString(_deviceIdKey, id);
     }
     return id;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Media-server sync (Infuse-style): resume position and watched state are
+  // kept on the SERVER via the Sessions + PlayedItems APIs, so every device
+  // signed into the same account sees the same progress. All calls are
+  // best-effort — a sync failure must never break playback.
+  // ---------------------------------------------------------------------------
+
+  Future<String> _authHeaderFor(JellyfinServer server) async {
+    return 'MediaBrowser Client="DreamPlayer", Device="DreamPlayer", '
+        'DeviceId="${await deviceId}", Version="1.0.0", '
+        'Token="${server.token ?? ''}"';
+  }
+
+  Future<dynamic> _deleteJson(
+    String url, {
+    required bool allowSelfSigned,
+    Map<String, String>? headers,
+    int timeoutSeconds = 10,
+  }) async {
+    final client = _httpClient(allowSelfSigned: allowSelfSigned);
+    try {
+      final req = await client
+          .deleteUrl(Uri.parse(url))
+          .timeout(Duration(seconds: timeoutSeconds));
+      headers?.forEach((k, v) => req.headers.set(k, v));
+      final res = await req.close().timeout(Duration(seconds: timeoutSeconds));
+      await res.drain<void>();
+      if (res.statusCode == 401) {
+        throw const JellyfinException('Session expired — sign in again.');
+      }
+      if (res.statusCode >= 400) {
+        throw JellyfinException('Server error ${res.statusCode}');
+      }
+      return null;
+    } on SocketException catch (e) {
+      throw JellyfinException(friendlyError(e));
+    } on TimeoutException catch (e) {
+      throw JellyfinException(friendlyError(e));
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  final Set<String> _capabilitiesReported = {};
+  String? _activePlaySessionId;
+  String? _activePlayItemId;
+
+  /// POST /Sessions/Capabilities/Full once per server per app run, so the
+  /// server lists DreamPlayer as an active client that supports control.
+  Future<void> reportCapabilities(JellyfinServer server) async {
+    if (_capabilitiesReported.contains(server.url)) return;
+    _capabilitiesReported.add(server.url);
+    try {
+      await _postJson(
+        '${server.url}/Sessions/Capabilities/Full?ApiKey=${server.token}',
+        allowSelfSigned: server.allowSelfSigned,
+        headers: {'X-Emby-Authorization': await _authHeaderFor(server)},
+        body: {
+          'PlayableMediaTypes': ['Video', 'Audio'],
+          'SupportsMediaControl': true,
+          'SupportedCommands': ['Play', 'Pause', 'Seek', 'Stop'],
+        },
+        timeoutSeconds: 8,
+      );
+    } catch (_) {}
+  }
+
+  /// POST /Sessions/Playing — announces playback start (creates the server
+  /// session that later progress/stopped reports attach to).
+  Future<void> reportPlaybackStart(
+    JellyfinServer server,
+    String itemId, {
+    int positionTicks = 0,
+  }) async {
+    try {
+      await reportCapabilities(server);
+      _activePlaySessionId =
+          'dp${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}${Random().nextInt(1 << 30)}';
+      _activePlayItemId = itemId;
+      await _postJson(
+        '${server.url}/Sessions/Playing?ApiKey=${server.token}',
+        allowSelfSigned: server.allowSelfSigned,
+        headers: {'X-Emby-Authorization': await _authHeaderFor(server)},
+        body: {
+          'ItemId': itemId,
+          'MediaSourceId': itemId,
+          'PlaySessionId': _activePlaySessionId,
+          'PositionTicks': positionTicks,
+          'IsPaused': false,
+          'PlayMethod': 'DirectPlay',
+        },
+        timeoutSeconds: 8,
+      );
+    } catch (_) {}
+  }
+
+  /// POST /Sessions/Playing/Progress — periodic position report (also what
+  /// stores the server-side resume position).
+  Future<void> reportPlaybackProgress(
+    JellyfinServer server,
+    String itemId,
+    int positionTicks, {
+    bool isPaused = false,
+  }) async {
+    if (_activePlayItemId != itemId || _activePlaySessionId == null) return;
+    try {
+      await _postJson(
+        '${server.url}/Sessions/Playing/Progress?ApiKey=${server.token}',
+        allowSelfSigned: server.allowSelfSigned,
+        headers: {'X-Emby-Authorization': await _authHeaderFor(server)},
+        body: {
+          'ItemId': itemId,
+          'PlaySessionId': _activePlaySessionId,
+          'PositionTicks': positionTicks,
+          'IsPaused': isPaused,
+          'PlayMethod': 'DirectPlay',
+        },
+        timeoutSeconds: 8,
+      );
+    } catch (_) {}
+  }
+
+  /// POST /Sessions/Playing/Stopped — ends the server session at [positionTicks].
+  Future<void> reportPlaybackStopped(
+    JellyfinServer server,
+    String itemId,
+    int positionTicks,
+  ) async {
+    final sessionId = _activePlaySessionId;
+    if (_activePlayItemId == itemId && sessionId != null) {
+      try {
+        await _postJson(
+          '${server.url}/Sessions/Playing/Stopped?ApiKey=${server.token}',
+          allowSelfSigned: server.allowSelfSigned,
+          headers: {'X-Emby-Authorization': await _authHeaderFor(server)},
+          body: {
+            'ItemId': itemId,
+            'PlaySessionId': sessionId,
+            'PositionTicks': positionTicks,
+            'PlayMethod': 'DirectPlay',
+          },
+          timeoutSeconds: 8,
+        );
+      } catch (_) {}
+    }
+    if (_activePlayItemId == itemId) {
+      _activePlaySessionId = null;
+      _activePlayItemId = null;
+    }
+  }
+
+  /// Marks an item played/unplayed on the server:
+  /// POST /Users/{userId}/PlayedItems/{itemId} / DELETE same.
+  Future<void> setPlayed(JellyfinServer server, String itemId, bool played) async {
+    final url =
+        '${server.url}/Users/${server.userId}/PlayedItems/$itemId?ApiKey=${server.token}';
+    try {
+      if (played) {
+        await _postJson(url,
+            allowSelfSigned: server.allowSelfSigned, timeoutSeconds: 8);
+      } else {
+        await _deleteJson(url, allowSelfSigned: server.allowSelfSigned);
+      }
+    } catch (_) {}
   }
 
   /// Builds the direct-play [VideoItem] for [item] as a server-transcoded

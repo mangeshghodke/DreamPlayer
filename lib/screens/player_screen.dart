@@ -877,6 +877,15 @@ class _PlayerScreenState extends State<PlayerScreen>
       // 'media3' — MPV saves under 'mpv' and would be missed).
       final engine = (_engine == PlayEngine.mpv || _mpvActive) ? 'mpv' : 'media3';
       resume = await ResumeStore.positionFor(_resumeKey, engine: engine);
+      // Jellyfin media-server sync: the server-side resume position
+      // (UserData.PlaybackPositionTicks, kept current by our progress
+      // reports) wins when it is further along than the local one.
+      if (_current.jellyfinItemId != null) {
+        final serverPos = await _jellyfinServerPosition();
+        if (serverPos != null && (resume == null || serverPos > resume)) {
+          resume = serverPos;
+        }
+      }
       // Skip trivial positions and "basically finished" ones.
       if (resume != null && resume < const Duration(seconds: 10)) resume = null;
       if (resume != null &&
@@ -953,6 +962,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       // After `open`, so the lock-screen title and artwork change together.
       // A cached miss deliberately clears the previous title/poster.
       _pushNowPlayingMetadata();
+      // Announce playback to the Jellyfin server (media-server sync).
+      if (!_inTests) unawaited(_reportJellyfinStart(resume));
     } catch (e) {
       _setTerminalError('Playback unavailable: $e');
     }
@@ -969,6 +980,81 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (position >= const Duration(seconds: 10)) {
       ContinueWatchingStore.save(_withLiveDuration, position);
     }
+    // Media-server sync: report progress so the server-side resume position
+    // (shown on other devices) stays current.
+    unawaited(_reportJellyfinProgress(position));
+  }
+
+  // -------------------------------------------------------------------------
+  // Jellyfin media-server sync (Infuse-style): pull the server resume
+  // position on open, push playback progress while playing, and mark the
+  // item played on the server when it ends. All best-effort.
+  // -------------------------------------------------------------------------
+
+  Future<JellyfinServer?> _jellyfinServerForCurrent() async {
+    final sid = _current.jellyfinServerId;
+    if (sid == null || sid.isEmpty) return null;
+    try {
+      return await JellyfinClient().serverForUrl(sid);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Server-side resume position for the current Jellyfin item, if any.
+  Future<Duration?> _jellyfinServerPosition() async {
+    final iid = _current.jellyfinItemId;
+    if (iid == null) return null;
+    final server = await _jellyfinServerForCurrent();
+    if (server == null) return null;
+    try {
+      final item = await JellyfinClient().getItem(server, iid);
+      final pos = item?.serverPosition ?? Duration.zero;
+      return pos > Duration.zero ? pos : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _reportJellyfinStart(Duration? resume) async {
+    final iid = _current.jellyfinItemId;
+    if (iid == null) return;
+    final server = await _jellyfinServerForCurrent();
+    if (server == null) return;
+    await JellyfinClient().reportPlaybackStart(
+      server,
+      iid,
+      positionTicks: (resume ?? Duration.zero).inMicroseconds * 10,
+    );
+  }
+
+  Future<void> _reportJellyfinProgress(Duration position) async {
+    final iid = _current.jellyfinItemId;
+    if (iid == null || position <= Duration.zero) return;
+    final server = await _jellyfinServerForCurrent();
+    if (server == null) return;
+    await JellyfinClient().reportPlaybackProgress(
+      server,
+      iid,
+      position.inMicroseconds * 10,
+    );
+  }
+
+  Future<void> _reportJellyfinStopped() async {
+    final iid = _current.jellyfinItemId;
+    if (iid == null) return;
+    final server = await _jellyfinServerForCurrent();
+    if (server == null) return;
+    await JellyfinClient()
+        .reportPlaybackStopped(server, iid, _position.inMicroseconds * 10);
+  }
+
+  Future<void> _setJellyfinPlayed(bool played) async {
+    final iid = _current.jellyfinItemId;
+    if (iid == null) return;
+    final server = await _jellyfinServerForCurrent();
+    if (server == null) return;
+    await JellyfinClient().setPlayed(server, iid, played);
   }
 
   /// The current video, but with a real duration when the player already knows
@@ -3563,6 +3649,7 @@ Future<void> _offerVc1Mpv() async {
       final key = _resumeKey;
       if (!_inTests && key.isNotEmpty) WatchedStore.set(key, true);
       if (!_inTests) _pushSimklHistory(key);
+      if (!_inTests) unawaited(_setJellyfinPlayed(true));
     }
     if (_sleepAtEnd) {
       _sleepAtEnd = false;
@@ -3960,6 +4047,7 @@ Future<void> _offerVc1Mpv() async {
       final key = _resumeKey;
       if (!_inTests && key.isNotEmpty) WatchedStore.set(key, true);
       if (!_inTests) _pushSimklHistory(key);
+      if (!_inTests) unawaited(_setJellyfinPlayed(true));
     }
 
     // A-B repeat: loop back to A whenever playback passes B. Only while
@@ -4416,6 +4504,8 @@ Future<void> _offerVc1Mpv() async {
     // current file's hardware-decoder failure.
     unawaited(_restoreDecoderOverride());
     _saveResume(_position);
+    // End the Jellyfin server session at the final position (media-server sync).
+    if (!_inTests) unawaited(_reportJellyfinStopped());
     _stopTranscodeJob();
     unawaited(_restoreSystemVolumeAfterSession());
     // Restore system brightness so it doesn't stick after the player closes.
