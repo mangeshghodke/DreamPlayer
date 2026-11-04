@@ -771,6 +771,40 @@ void main() {
       expect(src, contains('serverPositionMs'));
     });
 
+    test('item image tags parse and artwork URLs are built with the token',
+        () {
+      final item = JellyfinItem.fromJson({
+        'Id': 'lib1',
+        'Name': 'Movies',
+        'IsFolder': true,
+        'ImageTags': {'Primary': 'abc123', 'Logo': 'def456'},
+        'BackdropImageTags': ['bd0', 'bd1'],
+      });
+      expect(item.imageTags['Primary'], 'abc123');
+      expect(item.backdropImageTags, ['bd0', 'bd1']);
+      const server = JellyfinServer(
+          name: 's', url: 'http://nas:8096', token: 'tok', userId: 'u1');
+      final client = JellyfinClient();
+      expect(client.primaryImageUrl(server, item),
+          'http://nas:8096/Items/lib1/Images/Primary?tag=abc123&ApiKey=tok');
+      expect(client.backdropImageUrl(server, item),
+          'http://nas:8096/Items/lib1/Images/Backdrop/0?tag=bd0&ApiKey=tok');
+      expect(client.backdropImageUrl(server, item, index: 5), null);
+      final noArt = JellyfinItem.fromJson({'Id': 'x', 'Name': 'NoArt'});
+      expect(client.primaryImageUrl(server, noArt), null);
+      expect(client.backdropImageUrl(server, noArt), null);
+    });
+
+    test('libraries level renders an artwork card grid, not folder rows', () {
+      final src =
+          File('lib/screens/jellyfin_screen.dart').readAsStringSync();
+      expect(src, contains('if (_browsing != null && _crumbs.isEmpty)'));
+      expect(src, contains('Widget _libraryGrid(BuildContext context)'));
+      expect(src, contains('backdropImageUrl(server, item)'));
+      expect(src, contains('primaryImageUrl(server, item)'));
+      expect(src, contains('margin: EdgeInsets.zero'));
+    });
+
     test('progressFor prefers the further-along server position', () {
       final positions = <String, int>{'k': 5000};
       final durations = <String, int>{'k': 100000};

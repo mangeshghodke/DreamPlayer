@@ -11,6 +11,7 @@ import '../services/resume_progress_helper.dart';
 import '../services/watched_store.dart';
 import '../widgets/browser_entry_card.dart';
 import '../widgets/browser_view_menu.dart';
+import '../widgets/cached_image.dart';
 import '../widgets/server_form_kit.dart';
 import '../widgets/tv_overscan.dart';
 import '../widgets/episode_row.dart';
@@ -619,6 +620,11 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
         ),
       );
     }
+    // Libraries level (server picked, no crumbs): Infuse-style artwork cards
+    // with the server's own backdrop/poster, not plain folder rows.
+    if (_browsing != null && _crumbs.isEmpty) {
+      return RefreshIndicator(onRefresh: _onRefresh, child: _libraryGrid(context));
+    }
     return RefreshIndicator(
       onRefresh: _onRefresh,
       child: ListenableBuilder(
@@ -654,6 +660,86 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
                 },
               ),
       ),
+    );
+  }
+
+  /// Libraries level of a server: a grid of artwork cards using the server's
+  /// own backdrop (16:9) or primary poster, with the library name overlaid —
+  /// the Infuse-style "your libraries" look instead of raw folder rows.
+  Widget _libraryGrid(BuildContext context) {
+    final server = _browsing!;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = (width / 240).floor().clamp(2, 6);
+        return GridView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(12),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 16 / 9,
+          ),
+          itemCount: _items.length,
+          itemBuilder: (context, index) {
+            final item = _items[index];
+            final backdrop = _client.backdropImageUrl(server, item);
+            final primary = _client.primaryImageUrl(server, item);
+            final art = backdrop ?? primary;
+            return TvFocusWrap(
+              onTap: () => _openItem(item),
+              margin: EdgeInsets.zero,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (art != null)
+                      CachedImage(art, fit: BoxFit.cover)
+                    else
+                      ColoredBox(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        child: Icon(Icons.folder, color: Theme.of(context).colorScheme.primary),
+                      ),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.78),
+                            ],
+                            stops: const [0.55, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 10,
+                      right: 10,
+                      bottom: 8,
+                      child: Text(
+                        item.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

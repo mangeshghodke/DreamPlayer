@@ -203,6 +203,8 @@ class JellyfinItem {
     this.chapters = const [],
     this.played = false,
     this.playbackPositionTicks,
+    this.imageTags = const {},
+    this.backdropImageTags = const [],
   });
 
   final String id;
@@ -249,6 +251,13 @@ class JellyfinItem {
   /// Server-side resume position from `UserData.PlaybackPositionTicks`
   /// (100 ns units), or null when the server has none.
   final int? playbackPositionTicks;
+
+  /// `ImageTags` map (e.g. `Primary`, `Logo`, `Thumb`) — used to build
+  /// server artwork URLs (Infuse-style library cards).
+  final Map<String, String> imageTags;
+
+  /// `BackdropImageTags` list — 16:9 artwork for library tiles.
+  final List<String> backdropImageTags;
 
   /// Server-side resume position as a [Duration] ('' ticks -> zero).
   Duration get serverPosition =>
@@ -370,6 +379,11 @@ class JellyfinItem {
       played: (userData?['Played'] as bool?) ?? false,
       playbackPositionTicks:
           (userData?['PlaybackPositionTicks'] as num?)?.toInt(),
+      imageTags: ((json['ImageTags'] as Map?) ?? const {})
+          .map((k, v) => MapEntry(k.toString(), v.toString())),
+      backdropImageTags: ((json['BackdropImageTags'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList(),
     );
   }
 }
@@ -1346,6 +1360,26 @@ class JellyfinClient {
   /// Stable resume key for a Jellyfin item, surviving session token rotation.
   String resumeKey(JellyfinServer server, JellyfinItem item) =>
       'jellyfin:${server.urlHost}/${item.id}';
+
+  /// Server artwork URL for an item's primary image
+  /// (`/Items/{id}/Images/Primary?tag=…&ApiKey=…`), or null when the item has
+  /// no Primary tag. Used for Infuse-style library cards.
+  String? primaryImageUrl(JellyfinServer server, JellyfinItem item) {
+    final tag = item.imageTags['Primary'];
+    if (tag == null || tag.isEmpty) return null;
+    return '${server.url}/Items/${item.id}/Images/Primary'
+        '?tag=$tag&ApiKey=${server.token ?? ''}';
+  }
+
+  /// Server artwork URL for an item's backdrop
+  /// (`/Items/{id}/Images/Backdrop/{index}?tag=…`), or null when none.
+  String? backdropImageUrl(JellyfinServer server, JellyfinItem item,
+      {int index = 0}) {
+    if (index < 0 || index >= item.backdropImageTags.length) return null;
+    final tag = item.backdropImageTags[index];
+    return '${server.url}/Items/${item.id}/Images/Backdrop/$index'
+        '?tag=$tag&ApiKey=${server.token ?? ''}';
+  }
 
   // ---------------------------------------------------------------------------
   // Persistence
