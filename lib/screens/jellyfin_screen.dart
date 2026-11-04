@@ -692,7 +692,10 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
               margin: EdgeInsets.zero,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Stack(
+                child: InkWell(
+                  onTap: () => _openItem(item),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Stack(
                   fit: StackFit.expand,
                   children: [
                     if (art != null)
@@ -734,6 +737,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
                       ),
                     ),
                   ],
+                  ),
                 ),
               ),
             );

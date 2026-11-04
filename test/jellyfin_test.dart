@@ -803,6 +803,11 @@ void main() {
       expect(src, contains('backdropImageUrl(server, item)'));
       expect(src, contains('primaryImageUrl(server, item)'));
       expect(src, contains('margin: EdgeInsets.zero'));
+      // Touch tap must work on phones: TvFocusWrap only handles TV key events,
+      // so the card content needs its own InkWell (same as BrowserEntryCard).
+      final grid = src.substring(src.indexOf('Widget _libraryGrid'));
+      expect(grid, contains('InkWell('));
+      expect(grid, contains("onTap: () => _openItem(item)"));
     });
 
     test('progressFor prefers the further-along server position', () {
