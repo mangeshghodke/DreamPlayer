@@ -1,5 +1,36 @@
 import Flutter
+import ObjectiveC
 import UIKit
+
+/// On iPadOS the scene can be resized while the app is backgrounded/locked
+/// (Split View snapshot prep, flutter/flutter#128868). When that happens the
+/// window bounds change in the system's own layout pass, but the engine only
+/// re-creates its render surface from `viewDidLayoutSubviews` — and if the
+/// view's frame was never re-set, the first frames after unlock are drawn
+/// into a stale surface and the whole UI reads as stretched for a moment.
+/// This swizzle forces the FlutterViewController's view to the window bounds
+/// on EVERY layout pass, so the engine gets correct viewport metrics in the
+/// same pass, before the frame is presented. Guarded to FlutterViewController
+/// so no other view controller is affected.
+extension UIViewController {
+  @objc func dreamplayer_viewDidLayoutSubviews() {
+    if self is FlutterViewController, let window = view.window,
+       view.frame != window.bounds {
+      SBMLog.log("viewDidLayoutSubviews: fixing flutter view \(view.frame.size) -> \(window.bounds.size)")
+      view.frame = window.bounds
+    }
+    dreamplayer_viewDidLayoutSubviews()
+  }
+
+  static func installDreamplayerLayoutFix() {
+    let original = class_getInstanceMethod(
+      UIViewController.self, #selector(UIViewController.viewDidLayoutSubviews))
+    let swizzled = class_getInstanceMethod(
+      UIViewController.self, #selector(UIViewController.dreamplayer_viewDidLayoutSubviews))
+    guard let original, let swizzled else { return }
+    method_exchangeImplementations(original, swizzled)
+  }
+}
 
 class SceneDelegate: FlutterSceneDelegate {
 
@@ -8,6 +39,7 @@ class SceneDelegate: FlutterSceneDelegate {
     willConnectTo session: UISceneSession,
     options connectionOptions: UIScene.ConnectionOptions
   ) {
+    UIViewController.installDreamplayerLayoutFix()
     super.scene(scene, willConnectTo: session, options: connectionOptions)
     if let url = connectionOptions.urlContexts.first?.url {
       IntentBridge.shared.setInitialURL(url)
@@ -115,7 +147,11 @@ class SceneDelegate: FlutterSceneDelegate {
     let window = windowScene.windows.first(where: { $0.isKeyWindow })
       ?? windowScene.windows.first(where: { !$0.isHidden })
       ?? windowScene.windows.first
-    guard let window, let rootView = window.rootViewController?.viewIfLoaded else { return }
+    // Use `.view` (forces load) rather than `viewIfLoaded`: at
+    // sceneWillEnterForeground the root view is often not loaded yet, and
+    // skipping it would let the first foreground frame draw into a stale
+    // surface.
+    guard let window, let rootView = window.rootViewController?.view else { return }
 
     let target = window.bounds
     guard target.width > 0, target.height > 0 else { return }
