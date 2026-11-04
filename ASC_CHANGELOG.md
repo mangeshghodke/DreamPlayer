@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.6 | 7 | 1808 |
+| 0.5.6 | 10 | 2271 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
 | 0.5.2 | 51 | 1549 |
@@ -28,7 +28,7 @@ it can be reproduced with a plain character count after any edit.
 
 ---
 
-## 0.5.6 (build 7)
+## 0.5.6 (build 10)
 
 New:
 • A Shortcuts app action, "Play URL in DreamPlayer": run it from the Shortcuts
@@ -59,6 +59,15 @@ New:
   MetalFX to upscale to the display in real time. 4K and HDR/Dolby Vision
   video always play at native quality. An "Upscaled" chip in the player
   shows while it is active.
+• Media servers (Jellyfin, Plex) now open with a library view: each library
+  is an artwork card using the server's own images, and items inside show
+  server posters instead of plain rows.
+• Jellyfin: resume position and watched marks now sync with the server, so
+  playback continues where you left off on any device signed into the same
+  account, and watched checks match across devices.
+
+Fixed:
+• A brief stretched-UI flash right after unlocking the device.
 
 ---
 

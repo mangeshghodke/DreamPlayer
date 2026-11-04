@@ -7,6 +7,21 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
+- **Jellyfin media-server sync (Infuse-style).** Resume position and watched
+  state now live on the Jellyfin server: the player reports playback
+  start/progress/stop through the Sessions API (`/Sessions/Playing*`), pulls
+  `UserData.PlaybackPositionTicks` on open (further-along of local/server
+  wins), and marks items played via `POST/DELETE /Users/{id}/PlayedItems/{itemId}`
+  — both on end-of-playback and from the browser's watched toggle. The
+  Jellyfin browser shows `local || server` watched checks and prefers the
+  server progress bar. All calls are best-effort; a down server never breaks
+  playback.
+- **Library-style media-server browsing for Jellyfin and Plex.** Opening a
+  server now shows its libraries as artwork cards (server backdrop/poster via
+  `/Items/{id}/Images/…` on Jellyfin, `art`/`thumb` + `X-Plex-Token` on Plex)
+  in a shared `LibraryCardGrid`, and inner levels use the server's own poster
+  thumbnails when no TMDB/episode art exists. Cards are touch-tappable
+  (own `InkWell` inside `TvFocusWrap`, so TV D-pad select still works).
 - **Playback stats HUD (Infuse parity).** The player's three-dot menu has a
   "Playback stats" toggle that overlays a live performance panel in the top
   left of the video: resolution, video/audio codec, decoder (hardware /
@@ -45,6 +60,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
+- **iPad whole-UI stretch after lock/unlock.** iPadOS resizes the scene while
+  the app is backgrounded (flutter/flutter#128868) and the engine kept
+  presenting a stale surface for a frame or two after unlock. `SceneDelegate`
+  now swizzles `viewDidLayoutSubviews` (guarded to `FlutterViewController`) to
+  force the view to the window bounds on every layout pass, plus a
+  CADisplayLink watch after foreground/active as a backstop.
 - **Stats HUD native probe compile fix.** `getStats` in `ExoPlayerView.kt`
   referenced `player.decoderCounters` and `Format.framesPerSecond`, which do
   not exist in media3 1.10.1 — now `player.videoDecoderCounters` and
