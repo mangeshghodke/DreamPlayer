@@ -93,5 +93,19 @@ import Network
     DownloadClient.register(with: messenger)
     IconSwitcher.configure(with: messenger)
     TrialStore.register(with: messenger)
+    // Same channel as Android's MainActivity: device facts. iOS answers the
+    // OS major version (the MetalFX upscale stage needs iOS 26+); isTv is
+    // always false here.
+    MethodChannel(messenger, "dreamplayer/device").setMethodCallHandler { call, result in
+      switch call.method {
+      case "isTv":
+        result(false)
+      case "osMajorVersion":
+        let v = UIDevice.current.systemVersion
+        result(Int(v.split(separator: ".").first ?? "0") ?? 0)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 }

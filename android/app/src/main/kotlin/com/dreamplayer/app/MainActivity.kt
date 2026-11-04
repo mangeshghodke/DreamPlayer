@@ -184,6 +184,7 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isTv" -> result.success(isTvBox(this))
+                "osMajorVersion" -> result.success(Build.VERSION.SDK_INT)
                 else -> result.notImplemented()
             }
         }

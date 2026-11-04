@@ -19,6 +19,7 @@ import '../services/anime4k_shader_store.dart';
 import '../services/hdr_toys_shader_store.dart';
 import '../services/default_engine_store.dart';
 import '../services/exo_player.dart';
+import '../services/ios_upscale_store.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/playback_modes.dart';
@@ -402,6 +403,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _liveAudioLanguage;
   bool _liveAudioPassthrough = false;
   String _liveSpatial = '';
+  bool _liveUpscaleActive = false;
+  String _liveUpscaleLabel = '';
   int _liveBass = 0;
   String? _liveResolution;
   HdrFormat _liveHdr = HdrFormat.sdr;
@@ -764,6 +767,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           final saved =
               (prefs.getInt('dreamplayer.bassBoost') ?? 0).clamp(0, 3).toInt();
           await exo.setBassBoost(effectiveDspSetting(saved > 0) ? saved : 0);
+          // iOS-only MetalFX upscale request; the engine decides per load
+          // (SDR SD/720p/1080p, iOS 26+, Apple Silicon). Android no-ops.
+          await exo.setUpscale(
+              prefs.getBool(IosUpscaleStore.prefsKey) ?? false);
         }
       } catch (_) {}
       if (mounted) setState(() {});
@@ -3906,6 +3913,10 @@ Future<void> _offerVc1Mpv() async {
     _liveSpatial = e.spatialAudio;
     _liveBass = e.bassBoost;
     _liveSourceScheme = e.sourceScheme;
+    _liveUpscaleActive = e.upscaleActive;
+    _liveUpscaleLabel = e.upscaleActive && e.upscaleSource.isNotEmpty
+        ? '${e.upscaleSource} → ${e.upscaleTarget}'
+        : '';
     if (e.inPip != _inPip) {
       _inPip = e.inPip;
       if (_inPip) {
@@ -7753,6 +7764,15 @@ if (mounted) setState(_applySwipeValue);
         chips.add(const FormatChip(
           label: 'Upscaled',
           color: Color(0xFFB388FF),
+        ));
+      }
+      // iOS MetalFX upscale stage (engine #846) — SDR SD/720p/1080p only.
+      if (_liveUpscaleActive) {
+        chips.add(FormatChip(
+          label: _liveUpscaleLabel.isNotEmpty
+              ? 'Upscaled · $_liveUpscaleLabel'
+              : 'Upscaled',
+          color: const Color(0xFF80CBC4),
         ));
       }
       // Audio codec — both engines.

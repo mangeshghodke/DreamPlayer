@@ -299,6 +299,9 @@ class ExoPlayerEvent {
     this.nightMode = false,
     this.bassBoost = 0,
     this.spatialAudio = '',
+    this.upscaleActive = false,
+    this.upscaleSource = '',
+    this.upscaleTarget = '',
     this.chapters = const [],
     this.videoDecoderName,
     this.isHwDecoder,
@@ -374,6 +377,11 @@ class ExoPlayerEvent {
   /// content), `available` (routing supports it, toggle off / stereo track),
   /// or `unavailable`. Empty before the first native event (iOS).
   final String spatialAudio;
+  /// iOS MetalFX upscale stage (engine #846): true while the stage upscales
+  /// the frame; [upscaleSource]/[upscaleTarget] are "WxH" strings.
+  final bool upscaleActive;
+  final String upscaleSource;
+  final String upscaleTarget;
 
   /// Bass boost level 0–3 (off/low/medium/high) from the native BassBoost.
   final int bassBoost;
@@ -451,6 +459,9 @@ class ExoPlayerEvent {
       errorCause: m['errorCause'] as String?,
       audioPassthrough: m['audioPassthrough'] == true,
       spatialAudio: m['spatialAudio'] as String? ?? '',
+      upscaleActive: m['upscaleActive'] == true,
+      upscaleSource: m['upscaleSource'] as String? ?? '',
+      upscaleTarget: m['upscaleTarget'] as String? ?? '',
       audioBoost: m['audioBoost'] is num ? (m['audioBoost'] as num).toDouble().clamp(1.0, 3.0) : 1.0,
       nightMode: m['nightMode'] == true,
       bassBoost: asInt(m['bassBoost'], 0),
@@ -552,6 +563,10 @@ abstract class PlaybackController {
   /// BassBoost effect; iOS applies it as a low shelf in the engine's
   /// AudioShaping (the AetherEngine fork) — see the paywall gate map.
   Future<void> setBassBoost(int level);
+
+  /// iOS-only: request the MetalFX upscale stage (SDR SD/720p/1080p video).
+  /// Android answers a logged no-op so the call never throws.
+  Future<void> setUpscale(bool enabled);
 
   /// Pinch-to-zoom crop: scales the video surface around its center
   /// (1.0 = fit, up to ~3.0 = zoomed in). Transient per session.
@@ -781,6 +796,10 @@ class ExoPlayerController implements PlaybackController {
   @override
   Future<void> setBassBoost(int level) =>
       _send('setBassBoost', {'level': level.clamp(0, 3)});
+
+  @override
+  Future<void> setUpscale(bool enabled) =>
+      _send('setUpscale', {'enabled': enabled});
 
   @override
   Future<void> setZoom(double scale) =>

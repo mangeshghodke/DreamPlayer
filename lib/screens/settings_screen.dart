@@ -22,6 +22,7 @@ import '../services/download_manager.dart';
 import '../services/entitlements.dart';
 import '../services/exo_player.dart';
 import '../services/image_cache_service.dart';
+import '../services/ios_upscale_store.dart';
 import '../l10n/app_localizations.dart';
 import '../services/language_service.dart';
 import '../services/metadata_provider_adapter.dart';
@@ -45,6 +46,7 @@ import '../services/the_tvdb_client.dart';
 import '../services/watched_store.dart';
 import '../utils/tv_helper.dart';
 import '../utils/mpv_interpolation.dart';
+import '../utils/os_version.dart';
 import '../widgets/tv_overscan.dart';
 import '../services/accent_store.dart';
 import '../services/layout_store.dart';
@@ -70,6 +72,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _swipeGestures = true;
   bool _mpvNormalizeDownmix = false;
   bool _pipEnabled = true;
+  bool _iosUpscale = false;
+  bool _iosUpscaleSupported = false;
   bool _autoPlayNext = false;
   bool _hwSdrToneMap = false;
   DecoderMode _decoderMode = DecoderMode.auto;
@@ -144,6 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadTheTvdb();
     _loadAutoExpandFolders();
     _loadAutoCheckUpdates();
+    _loadIosUpscaleSupport();
   }
 
   Future<void> _loadOtherVideos() async {
@@ -204,6 +209,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _autoExpandFolders = prefs.getBool('dreamplayer.autoExpandFolders') ?? true;
           _scanDepth = prefs.getInt('dreamplayer.scanDepth') ?? 5;
+          _iosUpscale = prefs.getBool(IosUpscaleStore.prefsKey) ?? false;
         });
       }
     } catch (_) {}
@@ -212,6 +218,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadAutoCheckUpdates() async {
     final enabled = await AppUpdater.autoCheckEnabled();
     if (mounted) setState(() => _autoCheckUpdates = enabled);
+  }
+
+  /// The MetalFX upscale stage needs iOS 26+; the toggle is only offered there.
+  Future<void> _loadIosUpscaleSupport() async {
+    final supported = await isIos26OrLater();
+    if (mounted) setState(() => _iosUpscaleSupported = supported);
   }
 
   Future<void> _previewUpdateDialog() async {
@@ -1365,6 +1377,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       final prefs = await SharedPreferences.getInstance();
                       await prefs.setBool(kPipEnabledKey, value);
                       if (mounted) setState(() => _pipEnabled = value);
+                    },
+                  ),
+                if (defaultTargetPlatform == TargetPlatform.iOS &&
+                    _iosUpscaleSupported)
+                  SwitchListTile(
+                    secondary: const Icon(Icons.auto_awesome),
+                    title: const Text('Video upscaling (MetalFX)'),
+                    subtitle: const Text(
+                      'Upscale SDR SD/720p/1080p video to the display — '
+                      'iOS 26+, Apple Silicon. 4K and HDR/DV stay native.',
+                    ),
+                    value: _iosUpscale,
+                    onChanged: (value) async {
+                      if (value && !await _settingsGate()) return;
+                      await IosUpscaleStore().setEnabled(value);
+                      if (mounted) setState(() => _iosUpscale = value);
                     },
                   ),
                 if (defaultTargetPlatform == TargetPlatform.android)

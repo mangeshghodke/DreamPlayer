@@ -1774,6 +1774,13 @@ class ExoPlayerView(
                     emit()
                     result.success(null)
                 }
+                "setUpscale" -> {
+                    // MetalFX upscaling is iOS-only (AetherEngine stage #846);
+                    // Media3 renders at native resolution. Answer so the queued
+                    // call can never surface as MissingPluginException.
+                    Log.d("ExoPlayerView", "setUpscale: ignored on Android (iOS-only)")
+                    result.success(null)
+                }
                 "setZoom" -> {
                     val scale = (call.argument<Number>("scale")?.toDouble() ?: 1.0)
                         .toFloat()

@@ -1158,6 +1158,22 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // session at the playhead, which reloads the video.
                     SBMLog.log("setBassBoost: ignored on iOS (no bass boost)")
                     result(nil)
+                case "setUpscale":
+                    // MetalFX upscale stage (engine #846). The engine decides
+                    // per load whether the stage applies (SDR, SD/720p/1080p,
+                    // MetalFX-capable device, display larger); the pref only
+                    // turns the request on. A change mid-playback needs a load,
+                    // so reload at the playhead like any other load option.
+                    let upOn = (args?["enabled"] as? Bool) ?? false
+                    UserDefaults.standard.set(upOn, forKey: "flutter.dreamplayer.iosUpscale")
+                    SBMLog.log("setUpscale: \(upOn)")
+                    Task { @MainActor in
+                        if let e = self.engine, e.state != .idle, e.state != .ended {
+                            _ = await self.reloadSession(at: e.currentTime)
+                        }
+                        self.emit()
+                    }
+                    result(nil)
                 case "setZoom":
                     let scale = CGFloat((args?["scale"] as? NSNumber)?.doubleValue ?? 1.0)
                     self.setZoom(min(max(scale, 1.0), 3.0))
@@ -1229,6 +1245,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             Task { @MainActor [weak self] in self?.emit() }
         }.store(in: &cancellables)
         engine.$videoFormat.sink { [weak self] _ in
+            Task { @MainActor [weak self] in self?.emit() }
+        }.store(in: &cancellables)
+        engine.$activeUpscale.sink { [weak self] _ in
             Task { @MainActor [weak self] in self?.emit() }
         }.store(in: &cancellables)
 
@@ -1451,6 +1470,11 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         // night / bass state must ride THIS LoadOptions — Dart pushes the
         // values over the method channel before `open` is ever called.
         options.audioShaping = makeAudioShaping()
+        // MetalFX upscale stage (engine #846): SDR SD/720p/1080p only, decided
+        // inside the engine per load. The pref is read here so every load path
+        // (open + reloadSession's lastLoadOptions copy) carries it.
+        options.upscalesLowResolutionVideo = UserDefaults.standard.bool(
+            forKey: "flutter.dreamplayer.iosUpscale")
         lastSource = source
         lastLoadOptions = options
         // Resume: continue from the last watched position when the caller asks.
@@ -2573,6 +2597,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         let subtitleOn = engine.isSubtitleActive || selectedSubtitle >= 0
         let subtitleFormat = activeSub.map { Self.subtitleFormatLabel($0.codec) } ?? ""
 
+        // MetalFX upscale stage status (engine #846): active when the stage is
+        // running and has not disabled itself mid-session.
+        let upscale = engine.activeUpscale
+        let upscaleActive = upscale != nil && upscale?.disabledReason == nil
+        let upscaleSource = upscale.map { "\(Int($0.sourceSize.width))x\(Int($0.sourceSize.height))" } ?? ""
+        let upscaleTarget = upscale.map { "\(Int($0.targetSize.width))x\(Int($0.targetSize.height))" } ?? ""
+
         let map: [String: Any] = [
             "state": st,
             "playing": playing,
@@ -2603,6 +2634,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             "nightMode": nightModeEnabled,
             "bassBoost": 0,
             "spatialAudio": spatialAudioState,
+            "upscaleActive": upscaleActive,
+            "upscaleSource": upscaleSource,
+            "upscaleTarget": upscaleTarget,
+            "upscaleDegraded": upscale?.degraded ?? false,
             "inPip": inPip,
             "error": lastError ?? "",
             "sourceScheme": currentSourceScheme,
