@@ -12,10 +12,12 @@
 [![App Store](https://img.shields.io/badge/App_Store-Download-0D96F2?logo=apple&logoColor=white)](https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889)
 [![Donate](https://img.shields.io/badge/Donate-Razorpay-2D8CF0)](https://rzp.io/rzp/cZ5afqVG)
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub_Sponsors-Support-EA4AAA?logo=github&logoColor=white)](https://github.com/sponsors/mangeshghodke/)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/sAnXAAA8R)
 
 A cross-platform video player for **Android, iOS/iPad, and Android TV** — built for true Dolby Vision, HDR10/HDR10+, and lossless audio playback.
 
 🌐 **[dreamplayer website →](https://dreamplayer.isroot.in/)** — features, codec support, screenshots and downloads in one place.
+💬 **[Join the Discord →](https://discord.gg/sAnXAAA8R)** — chat, help, feature requests and beta invites.
 
 > [!NOTE]
 > The website path is **case-sensitive**: `github.io/DreamPlayer/` works, `github.io/dreamplayer/` returns 404. Please copy the link rather than retyping it — and if you add it anywhere else in this repo, keep that exact capitalisation. `test/website_links_test.dart` enforces it.

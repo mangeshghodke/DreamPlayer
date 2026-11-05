@@ -215,3 +215,39 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/dreamplayer-android/**/*.apk
+
+      # Post the release to the community Discord (#announcements). A webhook
+      # can only post messages to its own channel — no bot token involved.
+      # Failure must never fail the release, so the script swallows errors.
+      - name: Announce release on Discord
+        if: ${{ secrets.DISCORD_RELEASE_WEBHOOK != '' }}
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          version = os.environ['REF_NAME'].lstrip('v')
+          try:
+              body = open('/tmp/release-body.md').read()
+          except OSError:
+              body = ''
+          payload = {
+              'content': f'\U0001F389 **DreamPlayer v{version}** is out — Android APKs on the release page!',
+              'embeds': [{
+                  'title': f'DreamPlayer v{version}',
+                  'description': body[:4000] or 'See the release page for details.',
+                  'url': f'https://github.com/mangeshghodke/DreamPlayer/releases/tag/v{version}',
+                  'color': 0x2D8CF0,
+              }],
+          }
+          req = urllib.request.Request(
+              os.environ['WEBHOOK'],
+              data=json.dumps(payload).encode(),
+              headers={'Content-Type': 'application/json'})
+          try:
+              urllib.request.urlopen(req, timeout=15)
+              print('Discord announcement posted')
+          except Exception as e:
+              print('Discord announcement failed (release unaffected):', e)
+          PY

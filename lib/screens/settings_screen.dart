@@ -2215,6 +2215,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Uri.parse('https://dreamplayer.isroot.in/privacy.html'),
                   ),
                 ),
+                TvTile(
+                  leading: const Icon(Icons.discord),
+                  title: const Text('Community Discord'),
+                  subtitle: const Text('Chat, help and beta invites'),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://discord.gg/sAnXAAA8R'),
+                  ),
+                ),
               ],
             ),
             Divider(color: Theme.of(context).dividerColor),
