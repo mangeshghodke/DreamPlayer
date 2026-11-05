@@ -17,6 +17,7 @@
 A cross-platform video player for **Android, iOS/iPad, and Android TV** — built for true Dolby Vision, HDR10/HDR10+, and lossless audio playback.
 
 🌐 **[dreamplayer website →](https://dreamplayer.isroot.in/)** — features, codec support, screenshots and downloads in one place.
+
 💬 **[Join the Discord →](https://discord.gg/sAnXAAA8R)** — chat, help, feature requests and beta invites.
 
 ## 📲 Now on the App Store
