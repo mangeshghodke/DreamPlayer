@@ -7,6 +7,11 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
+- **Community Discord** — invite link (https://discord.gg/sAnXAAA8R) in the
+  app (Settings → About), the website nav, the README badges and the GitHub
+  repo About box; `release.yml` auto-posts each GitHub Release to the
+  server's #announcements via the `DISCORD_RELEASE_WEBHOOK` secret (webhook =
+  post-only, no bot token).
 - **TheIntroDB v4 skip timestamps for movies & mainstream TV (issue #60
   follow-up).** Alongside AniSkip (anime), the player now also queries
   TheIntroDB (`api.theintrodb.org/v4/media`), which is keyed by TMDB id and

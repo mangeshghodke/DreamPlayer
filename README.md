@@ -192,6 +192,7 @@ Each thumbnail is linked — click any image to open it full size.
 - **Swipe gestures** — swipe left side for brightness, right side for system volume (phones/tablets, togglable in Settings)
 - Aspect ratio picker: Fit, Crop, Stretch, 16:9, 4:3 (persists per video)
 - **Chapters** — previous/next chapter buttons beside the transport (press previous twice to walk back, not just restart the current one) and ticks on the seekbar, on both engines and on local, SMB, WebDAV, FTP, UPnP and Jellyfin sources
+- **Skip intro / recap / credits** — an on-screen "Skip …" button appears while the playhead is inside (or within 5 s of) a segment, and the ⋮ menu lists all three. Timestamps come from embedded chapter names, **TheIntroDB** (movies & mainstream TV, TMDB-keyed, keyless) and **AniSkip** (anime) — all cached locally, so they work offline and from SMB/USB. Settings → Player → *Skip intro / recap / credits*: Off / Show a skip button (default) / **Auto-skip**
 - **AirPlay (iOS)** — the real system AirPlay picker is embedded in the player top bar; video goes out on the native AVPlayer path, while FFmpeg-backed containers (MKV/TS/AVI) can send audio only
 - **Keyboard shortcuts (non-TV)** — `K` / Space play-pause, `J` / `L` seek ∓10 s, `F` fullscreen; left/right seek while the controls are hidden
 - **Playback speed** 0.25×–2× with refresh-rate matching on Android, plus **press-and-hold for a temporary 2×** — hold the picture ~300 ms and a "2x »" badge shows at the top; release to return to your speed

@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.6 | 10 | 2271 |
+| 0.5.6 | 10 | 2421 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
 | 0.5.2 | 51 | 1549 |
@@ -41,10 +41,12 @@ New:
   menu under Network sources and sign in once with your Plex account; the
   server's movie and show libraries then appear with posters, and tapping an
   item plays it directly over your network.
-• Skip intro and skip credits now appear while the playhead is inside an
-  opening or closing chapter — matched from the chapter names, or from the
-  optional online intro database — as a row in the player's menu and as an
-  on-screen pill.
+• Skip intro, recap and credits: an on-screen "Skip …" button appears near
+  the segment, and the player's menu lists all three. Timestamps come from
+  the file's own chapter names plus free community databases (TheIntroDB
+  for movies and TV shows, AniSkip for anime) and are remembered, so they
+  also work offline. Choose Off, a skip button, or automatic skipping in
+  Settings → Player.
 • Network servers (shared folders, WebDAV, Jellyfin) can now keep two
   addresses, one for your home network and one for when you are away, and the
   app switches to the other automatically when one stops answering.
