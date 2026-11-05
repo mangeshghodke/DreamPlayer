@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
+import '../services/introdb_client.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/tmdb_client.dart';
 
@@ -158,6 +159,61 @@ Future<bool?> showTmdbApiKeyDialog(BuildContext context, String currentKey) asyn
   // `_dependents.isEmpty` in InheritedElement.debugDeactivated — the red screen
   // on saving a TMDB key. Same fix as the TheTVDB dialog in settings_screen.
   // Regression test: test/tvdb_dialog_save_test.dart (and its TMDB sibling).
+  await Future<void>.delayed(const Duration(milliseconds: 400));
+  ctrl.dispose();
+  return ok;
+}
+
+/// TheIntroDB API-key editor (optional — the v4 API works keyless).
+///
+/// Returns `true` when the stored key changed, `false` on cancel.
+Future<bool?> showIntroDbApiKeyDialog(BuildContext context, String currentKey) async {
+  final ctrl = TextEditingController(text: currentKey);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
+      title: const Text('TheIntroDB API key (optional)'),
+      content: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text(
+            'Skip intro/recap/credits timestamps work keyless from '
+            'theintrodb.org; a key only raises the rate limit.',
+            style: TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: ctrl,
+            decoration: const InputDecoration(
+              labelText: 'API key',
+              hintText: 'leave empty for keyless access',
+            ),
+          ),
+        ]),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(AppLocalizations.of(context).commonCancel)),
+        if (currentKey.isNotEmpty)
+          TextButton(
+            onPressed: () async {
+              await IntroDbKeyStore.save('');
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            child: Text(AppLocalizations.of(context).settingsRemove),
+          ),
+        TextButton(
+          onPressed: () async {
+            await IntroDbKeyStore.save(ctrl.text.trim());
+            if (ctx.mounted) Navigator.pop(ctx, true);
+          },
+          child: Text(AppLocalizations.of(context).commonSave),
+        ),
+      ],
+    )),
+  );
+  // Same deferred-dispose fix as the TMDB dialog above (the TextField keeps
+  // rebuilding during the exit animation).
   await Future<void>.delayed(const Duration(milliseconds: 400));
   ctrl.dispose();
   return ok;

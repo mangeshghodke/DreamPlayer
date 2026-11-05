@@ -2359,16 +2359,30 @@ the decoration.
   (`SkipSegments.fromChapters` — word-boundary `opening|intro|op`,
   `recap|previously`, `ending|end|credits?|ed`; the intro/recap segment runs to
   the NEXT chapter's start, the credits segment is the LAST credits-named
-  chapter), then remote **AniSkip** segments for the kinds chapters don't
-  label (`SkipSegments.merge`). Remote = `AniskipClient`: AniList GraphQL
-  title→`idMal` (cached per TMDB `providerKey`), then
-  `GET api.aniskip.com/v2/skip-times/{malId}/{ep}?types=op&types=ed&types=recap&types=mixed-op&types=mixed-ed&episodeLength=…`
-  — **`types` must be REPEATED query params** (a comma-joined value is a 400)
-  and `episodeLength` is required; HTTP 404 body (`found:false`) = no data.
-  Verified live 2026-11-04 (One Piece MAL 21 ep 1; Demon Slayer MAL 38000).
-  **The IntroDB domain from the issue (`api.introdb.dev`) does not resolve** —
-  AniSkip is anime-only (MAL-keyed), so live-action relies on chapter names;
-  the old opt-in `IntroDb` (dart-define) remains as a last-resort fallback.
+  chapter), then remote segments for the kinds chapters don't label
+  (`SkipSegments.merge`). Two remote sources, merged per kind with TheIntroDB
+  winning (`_mergeRemoteSegments`):
+  - **TheIntroDB v4** (`IntroDbClient`, since issue #60's follow-up) —
+    `GET api.theintrodb.org/v4/media?tmdb_id=<id>[&season=&episode=]` (both =
+    TV, neither = movie). **KEYLESS by default** (30 req/window anonymous);
+    optional `Authorization: Bearer` key from Settings → Metadata
+    (`dreamplayer.introdbApiKey`) only raises the limit. TMDB-keyed, so it
+    covers mainstream TV **and movies** with no id bridge. Response groups by
+    type (`intro`/`recap`/`credits`/`preview`), `{start_ms, end_ms}` with
+    null start = 0 and null end = file end; 404 `code:no_submissions` =
+    negative. Verified live 2026-11-05 (GoT tmdb 1399 S01E01 → intro
+    435985–535607 ms; Inception tmdb 27205 → intro 0–38000 ms). The
+    `api.introdb.dev` domain from the original issue does NOT resolve — the
+    live service is `theintrodb.org` / `api.theintrodb.org`.
+  - **AniSkip** (`AniskipClient`) — anime (MAL-keyed): AniList GraphQL
+    title→`idMal` (cached per TMDB `providerKey`), then
+    `GET api.aniskip.com/v2/skip-times/{malId}/{ep}?types=op&types=ed&types=recap&types=mixed-op&types=mixed-ed&episodeLength=…`
+    — **`types` must be REPEATED query params** (a comma-joined value is a
+    400) and `episodeLength` is required; HTTP 404 body (`found:false`) = no
+    data. Verified live 2026-11-04 (One Piece MAL 21 ep 1; Demon Slayer
+    MAL 38000).
+  - The old opt-in `IntroDb` (dart-define `INTRODB_BASE_URL`) remains as a
+    last-resort fallback when both remote sources come back empty.
 - **Cache:** `AniskipStore` (`dreamplayer.aniskip` JSON) — per-episode
   segments AND negatives, plus the MAL id — so SMB/USB/offline playback needs
   no network after one online resolve. Mode pref: `dreamplayer.skipSegmentsMode`

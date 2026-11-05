@@ -48,6 +48,7 @@ import '../services/intro_db.dart';
 import '../utils/chapter_nav.dart';
 import '../services/aniskip_client.dart';
 import '../services/aniskip_store.dart';
+import '../services/introdb_client.dart';
 import '../utils/skip_segments.dart';
 import '../utils/episode_label.dart';
 import '../utils/gesture_safety.dart';
@@ -7294,45 +7295,74 @@ if (mounted) setState(_applySwipeValue);
     if (covered) return;
     final meta = _tmdbMeta;
     final tmdbId = meta?.movie.tmdbId;
-    if (meta == null || meta.movie.kind != TmdKind.tv || tmdbId == null) {
+    if (meta == null || tmdbId == null) {
       _introDbFallback();
       return;
     }
-    final ep = resolvedPlayerEpisode(
-      title: _current.title,
-      seasonNumber: _current.seasonNumber,
-      episodeNumber: _current.episodeNumber,
-      folderSeason: meta.folderSeason,
-      firstAvailableSeason:
-          _firstCachedSeason(TmdService.instance.metaWithSeasons(meta)),
-    );
-    if (ep == null) {
-      _introDbFallback();
-      return;
-    }
-    final client = AniskipClient();
-    unawaited(client
-        .segmentsForEpisode(
+    final durMs =
+        _duration.inMilliseconds > 0 ? _duration.inMilliseconds : null;
+    if (meta.movie.kind == TmdKind.tv) {
+      final ep = resolvedPlayerEpisode(
+        title: _current.title,
+        seasonNumber: _current.seasonNumber,
+        episodeNumber: _current.episodeNumber,
+        folderSeason: meta.folderSeason,
+        firstAvailableSeason:
+            _firstCachedSeason(TmdService.instance.metaWithSeasons(meta)),
+      );
+      if (ep == null) {
+        _introDbFallback();
+        return;
+      }
+      // TheIntroDB v4 first (TMDB-keyed, covers live-action TV), AniSkip
+      // second (MAL-keyed, anime). Both cached per episode.
+      unawaited(_mergeRemoteSegments([
+        IntroDbClient().mediaSegments(
+            tmdbId: tmdbId,
+            season: ep.season,
+            episode: ep.episode,
+            durationMs: durMs),
+        AniskipClient().segmentsForEpisode(
           tmdbTvId: tmdbId,
           providerKey: meta.movie.providerKey,
           title: meta.movie.title,
           season: ep.season,
           episode: ep.episode,
-          durationMs:
-              _duration.inMilliseconds > 0 ? _duration.inMilliseconds : null,
-        )
-        .then((segs) {
-          if (!mounted) return;
-          if (segs != null && segs.isNotEmpty) {
-            setState(() => _remoteSegments = segs);
-          } else {
-            _introDbFallback();
-          }
-        })
-        .catchError((_) {
-          _introDbFallback();
-          return null;
-        }));
+          durationMs: durMs,
+        ),
+      ]));
+    } else {
+      // Movie: TheIntroDB is TMDB-keyed and covers movies directly.
+      unawaited(_mergeRemoteSegments([
+        IntroDbClient().mediaSegments(tmdbId: tmdbId, durationMs: durMs),
+      ]));
+    }
+  }
+
+  /// Fetch several remote segment lists and merge them per kind — earlier
+  /// sources win (TheIntroDB first, AniSkip second). Falls back to the legacy
+  /// opt-in IntroDB define when every source comes back empty/failed.
+  Future<void> _mergeRemoteSegments(
+      List<Future<List<SkipSegment>?>> futures) async {
+    try {
+      final results = await Future.wait(futures);
+      if (!mounted) return;
+      final merged = <SkipSegment>[];
+      for (final r in results) {
+        if (r == null) continue;
+        for (final kind in SkipSegmentKind.values) {
+          if (merged.any((s) => s.kind == kind)) continue;
+          merged.addAll(r.where((s) => s.kind == kind));
+        }
+      }
+      if (merged.isNotEmpty) {
+        setState(() => _remoteSegments = merged);
+      } else {
+        _introDbFallback();
+      }
+    } catch (_) {
+      if (mounted) _introDbFallback();
+    }
   }
 
   /// Legacy opt-in IntroDB lookup (--dart-define=INTRODB_BASE_URL), used only

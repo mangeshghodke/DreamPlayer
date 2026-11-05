@@ -23,6 +23,7 @@ import '../services/entitlements.dart';
 import '../services/exo_player.dart';
 import '../services/image_cache_service.dart';
 import '../services/aniskip_store.dart';
+import '../services/introdb_client.dart';
 import '../services/ios_upscale_store.dart';
 import '../l10n/app_localizations.dart';
 import '../services/language_service.dart';
@@ -108,6 +109,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _badgeServerTranscode = true;
   bool _badgeDecoder = false;
   String _tmdbKey = '';
+  String _introDbKey = '';
   String _theTvdbKey = '';
   String _theTvdbPin = '';
   bool _theTvdbFallback = true;
@@ -147,6 +149,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSubtitlePrefs();
     _loadBadgePrefs();
     _loadTmdbKey();
+    _loadIntroDbKey();
     _loadTheTvdb();
     _loadAutoExpandFolders();
     _loadAutoCheckUpdates();
@@ -628,6 +631,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _editTmdbKey() async {
     final ok = await showTmdbApiKeyDialog(context, _tmdbKey);
     if (ok == true) await _loadTmdbKey();
+  }
+
+  Future<void> _loadIntroDbKey() async {
+    final saved = await IntroDbKeyStore.load();
+    if (mounted) setState(() => _introDbKey = saved);
+  }
+
+  Future<void> _editIntroDbKey() async {
+    final ok = await showIntroDbApiKeyDialog(context, _introDbKey);
+    if (ok == true) await _loadIntroDbKey();
   }
 
   Future<void> _loadTheTvdb() async {
@@ -2087,6 +2100,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    subtitle: const Text('Allow matches for adult titles'),
                    value: _includeAdult,
                    onChanged: _setIncludeAdult,
+                 ),
+                 // Skip intro/recap/credits timestamps (issue #60): TheIntroDB
+                 // v4 is keyless; the optional key only raises the rate limit.
+                 TvTile(
+                   leading: const Icon(Icons.skip_next),
+                   title: const Text('TheIntroDB API key (optional)'),
+                   subtitle: Text(
+                     _introDbKey.isEmpty
+                         ? 'Not set — keyless access is on by default'
+                         : 'Set (${_introDbKey.substring(0, 4)}…${_introDbKey.substring(_introDbKey.length - 4)})',
+                   ),
+                   onTap: _editIntroDbKey,
                  ),
                ],
 

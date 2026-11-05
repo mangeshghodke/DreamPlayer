@@ -7,6 +7,14 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
+- **TheIntroDB v4 skip timestamps for movies & mainstream TV (issue #60
+  follow-up).** Alongside AniSkip (anime), the player now also queries
+  TheIntroDB (`api.theintrodb.org/v4/media`), which is keyed by TMDB id and
+  covers movies and live-action series — keyless out of the box (an optional
+  API key in Settings → Metadata only raises the rate limit). Per kind the
+  precedence is: embedded chapter names → TheIntroDB → AniSkip; all remote
+  results are cached per episode (with negatives), so SMB/USB/offline
+  playback reuses them.
 - **Skip intro / recap / credits (issue #60).** A "Skip …" button appears
   bottom-right when the playhead is inside (or within 5 s of) an intro, recap
   or credits segment, and the ⋮ sheet lists all three as rows. Segments come
