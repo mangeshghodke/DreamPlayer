@@ -91,6 +91,7 @@ what the purchase sheet shows under the plan picker.
 > - Dolby Vision / HDR10 / HDR10+ / HLG playback — playing an HDR video.
 > - Spatial audio — Settings → Audio → Spatial audio (turn it on).
 > - Night mode — Settings → Audio (turn it on).
+> - Video upscaling (MetalFX) — Settings → Player → Video upscaling (iOS 26+ only, turn it on).
 > - Subtitle styling — the CC button in the player → Subtitle settings.
 > - Playback speed (including press-and-hold for a temporary 2×), A-B loop, sleep timer — the player's bottom-bar menu / press-and-hold on the video.
 > - Download to device — the player's menu or a details screen.
@@ -111,6 +112,7 @@ first-run trial screen list exactly:
 - Spatial audio (AirPods Pro & compatible devices) — trial screen:
   "Spatial audio (AirPods Pro)"
 - Night mode — trial screen: "Night mode"
+- Video upscaling (MetalFX, iOS 26+) — trial screen: "Video upscaling (MetalFX)"
 - Subtitle styling (size, color, outline, delay)
 - Playback speed control (0.25×–2×, incl. press-and-hold 2×)
 - A-B loop

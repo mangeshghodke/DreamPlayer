@@ -230,7 +230,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// The MetalFX upscale stage needs iOS 26+; the toggle is only offered there.
   Future<void> _loadIosUpscaleSupport() async {
     final supported = await isIos26OrLater();
-    if (mounted) setState(() => _iosUpscaleSupported = supported);
+    // The engine reads the pref straight from UserDefaults, so a lapsed
+    // entitlement has to be corrected here too — the switch must show the
+    // truth and the correction must be persisted before the next open.
+    final effective = await IosUpscaleStore().effectiveEnabled();
+    if (mounted) {
+      setState(() {
+        _iosUpscaleSupported = supported;
+        _iosUpscale = effective;
+      });
+    }
   }
 
   static String _skipModeLabel(SkipMode m) => switch (m) {

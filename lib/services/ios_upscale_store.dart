@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'entitlements.dart';
+
 /// iOS-only: request the AetherEngine MetalFX upscale stage (engine #846).
 ///
 /// The engine decides per load whether the stage applies — SDR content whose
@@ -37,5 +39,20 @@ class IosUpscaleStore {
       // Keep the in-memory value for this session even if persisting failed.
     }
     return _enabled;
+  }
+
+  /// The value the native side must act on: the saved preference, but only
+  /// while the user is still entitled. The engine reads the pref directly
+  /// from UserDefaults when building LoadOptions, so a lapsed subscription or
+  /// expired trial would otherwise leave the paid feature on for free — this
+  /// turns it off and persists the correction before the next open.
+  Future<bool> effectiveEnabled() async {
+    final saved = await load();
+    final ent = Entitlements.instance;
+    if (saved && ent.effectivePaywallEnabled && !ent.isEntitled) {
+      await setEnabled(false);
+      return false;
+    }
+    return saved;
   }
 }

@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:dream_player/services/entitlements.dart';
 import 'package:dream_player/services/ios_upscale_store.dart';
 
 /// iOS MetalFX upscale wiring (engine #846 via the AetherEngine fork):
@@ -69,6 +71,46 @@ void main() {
     final row = settings.substring(settings.indexOf('Video upscaling (MetalFX)'));
     expect(row, contains('if (value && !await _settingsGate()) return;'));
     expect(row, contains('IosUpscaleStore().setEnabled(value)'));
+    // The switch shows the EFFECTIVE value (lapsed entitlement corrected).
+    expect(settings, contains('IosUpscaleStore().effectiveEnabled()'));
+  });
+
+  test('a lapsed entitlement turns the saved upscale opt-in off', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = IosUpscaleStore();
+    await store.setEnabled(true);
+
+    // Android is the only platform where the paywall can be lit in a test
+    // build (the debug "simulate free user" override); same code path.
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() async {
+      await Entitlements.instance.setDebugFreeUser(false);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    // Entitled user keeps it on.
+    expect(await store.effectiveEnabled(), isTrue);
+    expect(await store.load(), isTrue);
+
+    // Entitlement lapses: the engine reads the pref straight from
+    // UserDefaults, so a stale ON would keep the paid feature on for free —
+    // it must be corrected AND persisted.
+    await Entitlements.instance.setDebugFreeUser(true);
+    expect(await store.effectiveEnabled(), isFalse);
+    expect(await store.load(), isFalse);
+  });
+
+  test('the player corrects a stale opt-in before open on iOS', () {
+    final player = File('lib/screens/player_screen.dart').readAsStringSync();
+    final i = player.indexOf('SpatialAudioStore.effectiveEnabled()');
+    expect(player.substring(i, i + 400), contains('IosUpscaleStore().effectiveEnabled()'));
+  });
+
+  test('the paywall feature list and trial screen both name upscaling', () {
+    final paywall = File('lib/screens/paywall_sheet.dart').readAsStringSync();
+    expect(paywall, contains("'Video upscaling (MetalFX, iOS 26+)'"));
+    final trial = File('lib/screens/trial_intro_screen.dart').readAsStringSync();
+    expect(trial, contains("'Video upscaling (MetalFX)'"));
   });
 
   test('player shows only the status chip — no popup toggle or live push', () {

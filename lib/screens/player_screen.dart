@@ -33,6 +33,7 @@ import '../services/simkl_client.dart';
 import '../services/watched_store.dart';
 import '../services/sidecar_subtitle_service.dart';
 import '../services/spatial_audio_store.dart';
+import '../services/ios_upscale_store.dart';
 import '../services/mpv_pip.dart';
 import '../services/mpv_surface_view.dart';
 import '../services/mpv_downmix_store.dart';
@@ -952,6 +953,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (!_inTests && Platform.isIOS) {
       try {
         await SpatialAudioStore.effectiveEnabled();
+        // Same for the MetalFX upscale pref, which the engine reads straight
+        // from UserDefaults when building LoadOptions.
+        await IosUpscaleStore().effectiveEnabled();
       } catch (_) {}
     }
     try {

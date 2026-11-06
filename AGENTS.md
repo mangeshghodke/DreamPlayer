@@ -3251,6 +3251,7 @@ earlier notes here claimed releases were all-free, which was wrong about reality
 | 56 | Download to device | Choice-gate on start |
 | 37 | OpenSubtitles online search | Choice-gate on opening search sheet |
 | — | **Spatial audio (iOS)** | Choice-gate on turning the Settings switch ON |
+| — | **Video upscaling / MetalFX (iOS 26+)** | Choice-gate on turning the Settings switch ON; `IosUpscaleStore.effectiveEnabled()` corrects a stale ON before open (engine reads the pref from UserDefaults) |
 | — | **Volume boost / Night mode / Bass boost (iOS)** | Choice-gate on turning the control ON (Settings → Audio; the bass row is in the player menu and stays behind spatial being on) |
 
 **Explicitly NOT gated (iOS free forever)** — gating these would burn reviews

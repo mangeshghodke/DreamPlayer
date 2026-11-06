@@ -47,6 +47,7 @@ const _kFeatures = [
   'HDR10 & HLG passthrough',
   'Spatial audio (AirPods Pro & compatible devices)',
   'Night mode',
+  'Video upscaling (MetalFX, iOS 26+)',
   'Subtitle styling (size, color, outline, delay)',
   'Playback speed control (0.25×–2×, incl. press-and-hold 2×)',
   'A-B loop',
