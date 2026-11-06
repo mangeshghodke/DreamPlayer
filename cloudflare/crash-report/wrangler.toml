@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
 # Send Email binding (Email Routing on softbuydeals.in forwards
-# admin@softbuydeals.in -> ghodke.mangesh2@gmail.com)
+# admin@softbuydeals.in -> dreamplayersupport@gmail.com)
 [[unsafe.bindings]]
 name = "EMAIL"
 type = "send_email"
