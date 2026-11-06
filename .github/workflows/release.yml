@@ -219,12 +219,20 @@ jobs:
       # Post the release to the community Discord (#announcements). A webhook
       # can only post messages to its own channel — no bot token involved.
       # Failure must never fail the release, so the script swallows errors.
+      # NOTE: no step-level `if: ${{ secrets... }}` here — the `secrets`
+      # context is not allowed in a step `if:` (job-level only), and an
+      # invalid expression makes GitHub reject the whole workflow file, which
+      # shows up as a 0-second failed run on EVERY push to main. The empty-
+      # check lives in the shell instead.
       - name: Announce release on Discord
-        if: ${{ secrets.DISCORD_RELEASE_WEBHOOK != '' }}
         env:
           WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
           REF_NAME: ${{ github.ref_name }}
         run: |
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "DISCORD_RELEASE_WEBHOOK not set — skipping Discord announce"
+            exit 0
+          fi
           python3 - <<'PY'
           import json, os, urllib.request
           version = os.environ['REF_NAME'].lstrip('v')
