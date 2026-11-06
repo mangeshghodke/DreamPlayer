@@ -18,6 +18,6 @@ npx wrangler deploy
 Live URL: `https://dreamplayer-crash-report.ghodke-mangesh2.workers.dev`
 
 The `to` address must be a verified Email Routing destination on
-softbuydeals.in (the Gmail behind the forward rule). `from` must be an
+softbuydeals.in (dreamplayersupport@gmail.com, the destination behind the forward rule). `from` must be an
 address on the zone (Email Routing enabled). The worker checks
 `Authorization: Bearer $CRASH_REPORT_SECRET` when the secret is set.

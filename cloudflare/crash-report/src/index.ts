@@ -4,8 +4,8 @@ interface Env {
 }
 
 const FROM = "crash-dreamplayer@softbuydeals.in";
-// Email Routing rule on softbuydeals.in forwards admin@ -> ghodke.mangesh2@gmail.com
-const TO = "ghodke.mangesh2@gmail.com";
+// Email Routing rule on softbuydeals.in forwards admin@ -> dreamplayersupport@gmail.com
+const TO = "dreamplayersupport@gmail.com";
 
 function cors(status: number, body: string): Response {
   return new Response(body, {
