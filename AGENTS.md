@@ -2557,6 +2557,35 @@ Verified on Android (the bug is in shared Dart, so that is the fast check) by
 `getApplicationDocumentsDirectory()` to `app_flutter/`, NOT `files/`, which is
 where I first looked and wrongly concluded the writer was broken on both.
 
+### "App crashed?" report form — both platforms (2026-11-06)
+
+Settings → below the FAQ → `CrashReportNote` (`lib/widgets/crash_report_note.dart`,
+`isSupported = !kIsWeb` — NOT iOS-gated since Android got it). Flow: tap →
+`dumpLogcatIfAndroid()` (Android only) → `existingCrashLogPaths()` → in-app
+`CrashReportDialog` (checkboxes + message + Submit → `CrashReportUpload` to the
+`CRASH_REPORT_ENDPOINT` dart-define, else share-sheet fallback via `shareCrashLogs`).
+
+**The attach list is PER PLATFORM** (`crash_log_share.dart`):
+- Android: `dreamplayer_crash.log` (uncaught Dart errors, `CrashLog`),
+  `app_debug.log` (`AppDebugLog.mark` traces), `logcat_dump.log`.
+- iOS: `dreamplayer_crash.log`, `app_debug.log`, `smb_debug.log` (SBMLog),
+  `iap_debug.log` (StoreKit).
+`crashLogNamesFor(platform)` picks the list; `existingCrashLogPaths` lists only
+files that exist. Do NOT put iOS-only names in the Android list (user request
+2026-11-06) — `smb_debug.log`/`iap_debug.log` are Swift-side writers and never
+exist on Android; the reverse (`logcat_dump.log` on iOS) is equally pointless.
+
+**`logcat_dump.log` is the Android native-crash channel.** `dumpLogcat` on the
+`dreamplayer/device` channel (MainActivity.kt) runs `logcat -d -v threadtime -t 4000`
+— apps read only their own uid's logs without READ_LOGS (API 16+) — and writes
+the newest 512 KiB to `<documents>/logcat_dump.log`. This is the ONLY log that
+carries native/Java crashes (decoder SIGSEGV, `NoSuchMethodError` like the
+2026-11-06 HDR report), because `CrashLog`'s `FlutterError.onError` /
+`PlatformDispatcher.onError` handlers never see those; on iOS the equivalent
+is the ASC `.ips` reports, which is why iOS doesn't need a dump. Dart calls it
+only on Android and swallows `MissingPluginException` (iOS answers
+notImplemented).
+
 ### TmdStore writes: why the iPad froze solid on a details screen (2026-10-04)
 
 **Symptom (iOS/SMB):** tapping an episode or movie in the SMB browser froze the

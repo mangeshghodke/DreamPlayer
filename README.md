@@ -524,6 +524,14 @@ For TMDB metadata, copy `.env.example` to `.env` and add your API key:
 flutter run --dart-define-from-file=.env
 ```
 
+## Support & crash reports
+
+- 💬 **[Discord](https://discord.gg/sAnXAAA8R)** — chat, help, feature requests, beta invites
+- 🐛 [GitHub Issues](https://github.com/mangeshghodke/DreamPlayer/issues) — bug reports
+- 📧 ghodke.mangesh2@gmail.com
+
+**If the app froze or crashed**, open **Settings → "App crashed?"** (below the FAQ) and tap it: an in-app form lists the debug logs that exist on your device with checkboxes, plus a message box and **Submit** (uploads to the configured endpoint, or falls back to the system share sheet so you can email them). On **Android** the tap first dumps the app's own logcat to `logcat_dump.log` — the only log that captures native crashes — and the list is Android-only (`dreamplayer_crash.log`, `app_debug.log`, `logcat_dump.log`); on **iOS** it offers `dreamplayer_crash.log`, `app_debug.log`, `smb_debug.log`, `iap_debug.log` (native crashes on iOS come from App Store Connect `.ips` reports).
+
 ## License
 
 Copyright (C) 2026 Mangesh Ghodke. Released under the [GNU General Public License v3.0](LICENSE).
