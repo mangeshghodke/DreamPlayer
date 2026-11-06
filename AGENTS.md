@@ -238,6 +238,21 @@ A video player app supporting:
   HDR10-compatible layer). Panel: `supportedHdrTypes=[1,2,3,4]`,
   `  mMaxLuminance=1400`. (The `IMAX_SONIC_ANTHEM` mkv is actually SDR h264/BT.709
   despite the name — its BT709 layer is correct.)
+  **HDR window forcing must never be fatal (2026-11-06 user report)**: a user
+  device crashed on HDR/DV open with `NoSuchMethodError: No virtual method
+  setDesiredHdrHeadroom(F)V in class Landroid/view/Window;` from a
+  Handler-posted runnable — a hard main-thread crash, so the Dart
+  software-decode fallback never ran and DV P7/P8 + HDR10+ all "failed" while
+  Just Player played them. Every release since 0.1.4 gates `applyHdrHeadroom`
+  at `SDK_INT >= TIRAMISU`, so the crashing device is a vendor ROM reporting a
+  high SDK_INT but shipping a stripped `Window` (or a stale build) — either
+  way R8 keeps the guarded call in the dex and the ROM throws at the call
+  site. Fix: `applyHdrHeadroom` now wraps the whole body in
+  `try/catch NoSuchMethodError` (delegating to `applyHdrHeadroomUnsafe`) and
+  the API-31 headroom get/set go through `windowHeadroom`/`setWindowHeadroom`
+  helpers that check `SDK_INT >= S` AND catch `NoSuchMethodError`. Without the
+  forcing, SurfaceFlinger auto-tone-maps HDR→SDR — exactly what Just Player
+  does on the same device, so playback continues instead of crashing.
   **HDR EDR ramp engaged (2026-08, OnePlus)**: with the passthrough working, the
   display was STILL not boosting — bright PQ skies clipped flat to white.
   Root cause: OPLUS only enters HDR mode when the *window* asks for headroom.

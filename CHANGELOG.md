@@ -5,6 +5,17 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ## 0.5.6
 
+### Fixed
+
+- **Crash on HDR/Dolby Vision open on some devices (2026-11-06 report).**
+  `NoSuchMethodError: Window.setDesiredHdrHeadroom(F)V` killed the app from a
+  main-thread runnable whenever HDR content opened, so DV P7/P8 and HDR10+
+  showed no fallback at all while other players worked. The HDR window
+  forcing is now guarded per-API (`SDK_INT >= S` for the headroom calls) and
+  wrapped so a missing vendor Window method can never crash playback — without
+  the forcing, Android tone-maps HDR to SDR automatically, same as Just
+  Player.
+
 ### Added
 
 - **Community Discord** — invite link (https://discord.gg/sAnXAAA8R) in the

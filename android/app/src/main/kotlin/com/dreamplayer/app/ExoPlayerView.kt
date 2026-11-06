@@ -2069,6 +2069,31 @@ class ExoPlayerView(
     /// Nova's video layer is device-composited with the ratio ramping at 1.468;
     /// ours was `forceClientComposition=true clientType=UNSUPPORTDATASPACE` and
     /// stuck at 1.0 until this call).
+    /// `Window.getDesiredHdrHeadroom`/`setDesiredHdrHeadroom` are API 31+. The
+    /// guards keep the call off pre-S devices even if the outer TIRAMISU gate
+    /// is ever relaxed, and the NoSuchMethodError catch covers vendor ROMs that
+    /// report a high SDK_INT but ship a stripped Window class (2026-11-06 crash
+    /// report).
+    private fun windowHeadroom(window: android.view.Window): Float =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                window.desiredHdrHeadroom
+            } catch (_: NoSuchMethodError) {
+                1.0f
+            }
+        } else {
+            1.0f
+        }
+
+    private fun setWindowHeadroom(window: android.view.Window, value: Float) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        try {
+            window.setDesiredHdrHeadroom(value)
+        } catch (_: NoSuchMethodError) {
+            // ROM without the method — the headroom request is simply dropped.
+        }
+    }
+
     private fun applyHdrHeadroom(
         desired: Float,
         colorTransfer: Int,
@@ -2084,6 +2109,33 @@ class ExoPlayerView(
         // Where the tag cannot be set, stay in the default color mode and let
         // SurfaceFlinger auto-tone-map HDR→SDR (correct, if not boosted).
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        // 2026-11-06 user report: `NoSuchMethodError: No virtual method
+        // setDesiredHdrHeadroom(F)V in class Landroid/view/Window;` crashed the
+        // app on HDR/DV open (a Handler-posted runnable, so a hard main-thread
+        // crash — the Dart software-decode fallback never gets a chance because
+        // this is not a PlaybackException). Every release since 0.1.4 gates this
+        // function at TIRAMISU, so the crashing device is a vendor ROM that
+        // reports SDK_INT >= 33 while missing the API-31 Window method (or a
+        // stale build). Either way the forcing must NEVER be fatal: without it
+        // SurfaceFlinger auto-tone-maps HDR→SDR, which is exactly what Just
+        // Player does on the same device. Catch NoSuchMethodError explicitly —
+        // R8 keeps the guarded calls in the dex, so a ROM that lies about
+        // SDK_INT would still throw at the call site.
+        try {
+            applyHdrHeadroomUnsafe(desired, colorTransfer, skipWindowHdr)
+        } catch (e: NoSuchMethodError) {
+            Log.w("ExoPlayerView", "HDR window API missing on this ROM (SDK=${Build.VERSION.SDK_INT}); skipping headroom forcing", e)
+            hdrHeadroomSet = 1.0f
+        } catch (e: Exception) {
+            Log.w("ExoPlayerView", "applyHdrHeadroom failed", e)
+        }
+    }
+
+    private fun applyHdrHeadroomUnsafe(
+        desired: Float,
+        colorTransfer: Int,
+        skipWindowHdr: Boolean = false,
+    ) {
         // Dolby Vision content skips the forced window HDR machinery entirely:
         // with the hybrid-composition platform view (see exo_player.dart) the
         // video's `SurfaceView` is now a real layer on the physical HDR panel,
@@ -2118,12 +2170,12 @@ class ExoPlayerView(
             val window = activity.window
             if (window != null) {
                 val hadForcedHdr = window.colorMode != ActivityInfo.COLOR_MODE_DEFAULT ||
-                    window.desiredHdrHeadroom > 1.0f || hdrHeadroomSet > 1.0f
+                    windowHeadroom(window) > 1.0f || hdrHeadroomSet > 1.0f
                 if (window.colorMode != ActivityInfo.COLOR_MODE_DEFAULT) {
                     window.colorMode = ActivityInfo.COLOR_MODE_DEFAULT
                 }
-                if (window.desiredHdrHeadroom > 1.0f) {
-                    window.setDesiredHdrHeadroom(1.0f)
+                if (windowHeadroom(window) > 1.0f) {
+                    setWindowHeadroom(window, 1.0f)
                 }
                 hdrHeadroomSet = 1.0f
                 if (hadForcedHdr) {
@@ -2151,7 +2203,7 @@ class ExoPlayerView(
             window.colorMode = mode
         }
         if (desired != hdrHeadroomSet) {
-            window.setDesiredHdrHeadroom(desired)
+            setWindowHeadroom(window, desired)
             hdrHeadroomSet = desired
         }
         // The two-arg `SurfaceControl.Transaction.setDataSpace(SurfaceControl, Int)`
