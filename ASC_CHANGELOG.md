@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.6 | 12 | 2607 |
+| 0.5.6 | 13 | 2607 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
 | 0.5.2 | 51 | 1549 |
