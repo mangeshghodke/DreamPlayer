@@ -7,6 +7,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Fixed
 
+- **Skip intro/recap/credits pill was unclickable and overlapped the seekbar
+  on iOS.** The pill sat before the bottom bar in the player Stack, so the
+  bar (a later child) painted over it and swallowed its taps; on iOS the bar
+  is taller (home-indicator safe area), so the pill at `bottom: 96` sat right
+  on the seekbar. The pill now renders after the bottom bar and is anchored
+  at `112 + safe-area bottom`, clearing the bar on both platforms.
 - **Crash on HDR/Dolby Vision open on some devices (2026-11-06 report).**
   `NoSuchMethodError: Window.setDesiredHdrHeadroom(F)V` killed the app from a
   main-thread runnable whenever HDR content opened, so DV P7/P8 and HDR10+

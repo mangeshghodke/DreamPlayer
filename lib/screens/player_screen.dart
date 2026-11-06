@@ -8567,9 +8567,6 @@ if (mounted) setState(_applySwipeValue);
                   ),
                 ),
               ),
-            // "Skip intro" pill (YouTube-style), bottom-right while the
-            // playhead is still inside the intro. TV gets the sheet rows
-            // instead (no hover), so the pill is hidden there.
             // Playback stats HUD (Infuse-style), top-left below the top bar.
             // The top bar can overlap it briefly while controls are visible;
             // the chips flash for 5 s per open and then the HUD owns the
@@ -8580,34 +8577,6 @@ if (mounted) setState(_applySwipeValue);
                 left: 12,
                 child: IgnorePointer(
                   child: PlaybackStatsHud(stats: _statsSnapshot),
-                ),
-              ),
-            if (!_isTv && _skipIntroVisible && _controlsVisible)
-              Positioned(
-                right: 16,
-                bottom: 96,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    final p = _promptSegment;
-                    if (p != null) _skipSegment(p);
-                  },
-                  icon: Icon(
-                    switch (_promptSegment?.kind) {
-                      SkipSegmentKind.recap => Icons.replay,
-                      SkipSegmentKind.credits => Icons.fast_forward,
-                      _ => Icons.skip_next,
-                    },
-                    size: 18,
-                  ),
-                  label: Text(
-                      'Skip ${_promptSegment?.kind.name ?? 'intro'}'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: Colors.black.withValues(alpha: 0.72),
-                    side: const BorderSide(color: Colors.white54),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20)),
-                  ),
                 ),
               ),
             // Horizontal-swipe seek preview (timestamp + frame thumbnail).
@@ -8909,9 +8878,9 @@ if (mounted) setState(_applySwipeValue);
                 ),
               ),
             ),
-              // Chapter jump confirmation. Anchored above the bottom bar so it
-              // never covers the seekbar markers the user just clicked.
-              if (_chapterToast != null)
+            // Chapter jump confirmation. Anchored above the bottom bar so it
+            // never covers the seekbar markers the user just clicked.
+            if (_chapterToast != null)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -9065,6 +9034,43 @@ if (mounted) setState(_applySwipeValue);
                 ),
               ),
              ),
+            // "Skip intro/recap/credits" pill (YouTube-style), bottom-right
+            // while the playhead is inside (or within 5 s of) a segment. It
+            // MUST sit after the bottom bar in the Stack: the bar is a later
+            // child, so an earlier pill is painted under it and its taps land
+            // on the seekbar (reported on iOS, where the bar is taller
+            // because of the home-indicator safe area). Anchored above the
+            // bar: 112 + safe-area bottom clears it on both platforms.
+            // TV gets the sheet rows instead (no hover), so hidden there.
+            if (!_isTv && _skipIntroVisible && _controlsVisible)
+              Positioned(
+                right: 16,
+                bottom: 112 + MediaQuery.paddingOf(context).bottom,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    final p = _promptSegment;
+                    if (p != null) _skipSegment(p);
+                  },
+                  icon: Icon(
+                    switch (_promptSegment?.kind) {
+                      SkipSegmentKind.recap => Icons.replay,
+                      SkipSegmentKind.credits => Icons.fast_forward,
+                      _ => Icons.skip_next,
+                    },
+                    size: 18,
+                  ),
+                  label: Text(
+                      'Skip ${_promptSegment?.kind.name ?? 'intro'}'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.black.withValues(alpha: 0.72),
+                    side: const BorderSide(color: Colors.white54),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                  ),
+                ),
+              ),
+
              if (_mpvPictureControlsOpen && _mpvReady && !_inPip)
                Positioned.fill(
                  child: GestureDetector(
