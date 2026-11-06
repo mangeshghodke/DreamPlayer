@@ -4063,10 +4063,12 @@ The home library shows **only folders the user explicitly adds** — nothing is 
 - **Community Discord: `https://discord.gg/sAnXAAA8R`** — linked from Settings →
   About ("Community Discord" tile), the website nav (`docs/index.html`),
   README badges, and the GitHub repo About box (description + `discord` topic,
-  homepage = website). `release.yml` posts each tagged release to
-  #announcements through the `DISCORD_RELEASE_WEBHOOK` Actions secret — a
-  webhook can only post to its own channel, no bot token involved, and an
-  announce failure never fails the release.
+  homepage = website). (A `release.yml` step that auto-posted each release to
+  #announcements via a `DISCORD_RELEASE_WEBHOOK` secret existed briefly and was
+  removed on 2026-11-06 when the secret was deleted — do not re-add a
+  step-level `if: ${{ secrets... }}`: the `secrets` context is job-level only
+  and an invalid step `if` makes GitHub reject the whole workflow file, which
+  shows as a 0-second failed run on EVERY push to main.)
 - **The app website is `https://dreamplayer.isroot.in/` (custom domain).** Served from `main:/docs` of this repo via GitHub Pages; `docs/CNAME` carries `dreamplayer.isroot.in`, and the DNS zone at the registrar (nameservers ns1/ns2.nevercode.in) is itself `dreamplayer.isroot.in`, so the apex needs GitHub Pages' four A records (`@` → 185.199.108.153 / .109.153 / .110.153 / .111.153, TTL 3600; an ALIAS/ANAME to `mangeshghodke.github.io.` also works) — a CNAME at the zone apex is invalid next to the SOA/NS. GitHub then serves the site at the domain root and issues the TLS cert. History: before the custom domain the site lived at `mangeshghodke.github.io/DreamPlayer/`, where the Pages path *was* the repo name and GitHub matched it case-sensitively (`/dreamplayer/` → 404) — a silent failure for the App-Review-critical Terms/Privacy links. The domain is now pinned by `test/website_links_test.dart`, which scans `lib/`, `docs/`, `.github` and the root markdown and fails on any lookalike host (wrong TLD, missing subdomain). It must NOT flag the shields.io badge whose label merely contains the host (`img.shields.io/badge/Website-dreamplayer.isroot.in-...`). Both `/terms` and `/terms.html` resolve (Pages serves the `.html` file for the extensionless path), so the app spells the legal links without the extension while `review_reply.md` uses it — both are fine. When the domain changes, update `docs/CNAME`, every link, and the test's `host` constant in the same commit.
 - **Bundle ID (iOS)**: `com.dreamplayer.app`. **App display name**: `DreamPlayer`.
 - **Android**: app label `DreamPlayer`; package `com.dreamplayer.app` (matches iOS bundle ID `com.dreamplayer.app`). Build/test locally on the phone.
