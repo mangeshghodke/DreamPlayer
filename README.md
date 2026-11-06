@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS%20%7C%20iPad%20%7C%20Android%20TV-blue)](https://github.com/mangeshghodke/DreamPlayer)
 [![Flutter](https://img.shields.io/badge/Flutter-3.44-46A6F2?logo=flutter&logoColor=white&color=46A6F2)](https://flutter.dev)
 [![Website](https://img.shields.io/badge/Website-dreamplayer.isroot.in-2D8CF0)](https://dreamplayer.isroot.in/)
-[![Downloads](https://img.shields.io/github/downloads/mangeshghodke/DreamPlayer/total)](https://github.com/mangeshghodke/DreamPlayer/releases)
+[![Downloads](https://img.shields.io/github/downloads/mangeshghodke/DreamPlayer/total?logo=github&label=Downloads&color=2D8CF0)](https://github.com/mangeshghodke/DreamPlayer/releases)
 [![App Store](https://img.shields.io/badge/App_Store-Download-0D96F2?logo=apple&logoColor=white)](https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889)
 [![Donate](https://img.shields.io/badge/Donate-Razorpay-2D8CF0)](https://rzp.io/rzp/cZ5afqVG)
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub_Sponsors-Support-EA4AAA?logo=github&logoColor=white)](https://github.com/sponsors/mangeshghodke/)
