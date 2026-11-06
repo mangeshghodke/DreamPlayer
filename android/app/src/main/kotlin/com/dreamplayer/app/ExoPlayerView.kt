@@ -2126,8 +2126,15 @@ class ExoPlayerView(
         } catch (e: NoSuchMethodError) {
             Log.w("ExoPlayerView", "HDR window API missing on this ROM (SDK=${Build.VERSION.SDK_INT}); skipping headroom forcing", e)
             hdrHeadroomSet = 1.0f
-        } catch (e: Exception) {
-            Log.w("ExoPlayerView", "applyHdrHeadroom failed", e)
+        } catch (e: Throwable) {
+            // 2026-11-06 follow-up (Mi 11X / Android 13, Moto Edge 20 Fusion /
+            // Android 15, both HDR10+ OLEDs): the API-31 method EXISTS on
+            // API 33+, so a crash there is some other vendor throwable in the
+            // window/surface forcing — still must never kill playback.
+            // Throwable (not just Exception) so no vendor Error escapes;
+            // logged so the "App crashed?" logcat_dump can name it.
+            Log.w("ExoPlayerView", "applyHdrHeadroom failed on this ROM (SDK=${Build.VERSION.SDK_INT}); skipping headroom forcing", e)
+            hdrHeadroomSet = 1.0f
         }
     }
 

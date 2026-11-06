@@ -253,6 +253,16 @@ A video player app supporting:
   helpers that check `SDK_INT >= S` AND catch `NoSuchMethodError`. Without the
   forcing, SurfaceFlinger auto-tone-maps HDR→SDR — exactly what Just Player
   does on the same device, so playback continues instead of crashing.
+  **Follow-up (same report, Mi 11X / Android 13 and Moto Edge 20 Fusion /
+  Android 15, both HDR10+ OLEDs, v0.5.5):** on API 33+ the API-31 method
+  exists, so a crash there is some OTHER vendor throwable in the window/
+  surface forcing — the wrapper's second catch was broadened from
+  `Exception` to `Throwable` so no vendor Error escapes either, and it logs
+  `applyHdrHeadroom failed on this ROM (SDK=…)` so the "App crashed?"
+  `logcat_dump.log` names the real stack. **The fix is in main (0.5.6+), NOT
+  in the released v0.5.5** — verify on the affected devices with a 0.5.6
+  build; if it still crashes there, the logcat dump from the report form is
+  the evidence to read.
   **HDR EDR ramp engaged (2026-08, OnePlus)**: with the passthrough working, the
   display was STILL not boosting — bright PQ skies clipped flat to white.
   Root cause: OPLUS only enters HDR mode when the *window* asks for headroom.
