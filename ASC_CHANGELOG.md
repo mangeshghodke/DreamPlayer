@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.6 | 11 | 2421 |
+| 0.5.6 | 12 | 2607 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
 | 0.5.2 | 51 | 1549 |
@@ -70,6 +70,9 @@ New:
 
 Fixed:
 • A brief stretched-UI flash right after unlocking the device.
+• The "Skip intro/recap/credits" button now sits above the control bar and
+  responds to taps (it previously overlapped the seekbar on iPhone/iPad and
+  taps landed on the bar instead).
 
 ---
 
