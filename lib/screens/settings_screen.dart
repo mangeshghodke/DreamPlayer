@@ -2329,10 +2329,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            // "App crashed?" — iOS only: hands the handful of debug logs the
-            // app already writes, whatever exists, out to support via the
-            // share sheet (mailto: cannot carry attachments); Android has
-            // no ASC crash reports to answer.
+            // "App crashed?" — both platforms: hands the debug logs the app
+            // already writes (plus a fresh logcat dump on Android, the only
+            // log that carries native crashes) out to support via the in-app
+            // report form or the share sheet (mailto: cannot carry
+            // attachments).
             if (CrashReportNote.isSupported) const CrashReportNote(),
             // Restore Purchases — always visible when paywall is effective.
             // Opens the paywall sheet so the user can see which product is

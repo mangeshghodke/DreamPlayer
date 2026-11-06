@@ -52,12 +52,33 @@ void main() {
     }
   }
 
-  test('existingCrashLogPaths returns only the logs that exist', () async {
-    seedLogs(const ['app_debug.log', 'smb_debug.log']);
-    final paths = await existingCrashLogPaths(documentsDir: docsDir);
-    expect(paths, hasLength(2));
+  test('existingCrashLogPaths returns only the logs that exist (iOS list)',
+      () async {
+    seedLogs(const ['app_debug.log', 'smb_debug.log', 'iap_debug.log']);
+    final paths = await existingCrashLogPaths(
+        documentsDir: docsDir, platform: TargetPlatform.iOS);
+    expect(paths, hasLength(3));
     expect(paths.any((p) => p.endsWith('app_debug.log')), isTrue);
     expect(paths.any((p) => p.endsWith('smb_debug.log')), isTrue);
+    expect(paths.any((p) => p.endsWith('iap_debug.log')), isTrue);
+    expect(paths.any((p) => p.endsWith('logcat_dump.log')), isFalse);
+  });
+
+  test('existingCrashLogPaths on Android excludes iOS-only logs', () async {
+    seedLogs(const [
+      'dreamplayer_crash.log',
+      'app_debug.log',
+      'smb_debug.log',
+      'iap_debug.log',
+      'logcat_dump.log',
+    ]);
+    final paths = await existingCrashLogPaths(
+        documentsDir: docsDir, platform: TargetPlatform.android);
+    expect(paths, hasLength(3));
+    expect(paths.any((p) => p.endsWith('dreamplayer_crash.log')), isTrue);
+    expect(paths.any((p) => p.endsWith('app_debug.log')), isTrue);
+    expect(paths.any((p) => p.endsWith('logcat_dump.log')), isTrue);
+    expect(paths.any((p) => p.endsWith('smb_debug.log')), isFalse);
     expect(paths.any((p) => p.endsWith('iap_debug.log')), isFalse);
   });
 
@@ -204,7 +225,7 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('Settings shows no crash note on Android', (tester) async {
+  testWidgets('Settings shows the crash note on Android too', (tester) async {
     SharedPreferences.setMockInitialValues({});
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
 
@@ -212,7 +233,53 @@ void main() {
     await tester.pump();
 
     final found = await scrollToListItem(tester, find.text('App crashed?'));
-    expect(found, isFalse, reason: 'note must not exist on Android');
+    expect(found, isTrue, reason: 'note must exist on Android (logcat dump)');
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  test('crashLogNamesFor is per platform', () {
+    expect(crashLogNamesFor(TargetPlatform.android), contains('logcat_dump.log'));
+    expect(crashLogNamesFor(TargetPlatform.android), isNot(contains('iap_debug.log')));
+    expect(crashLogNamesFor(TargetPlatform.android), isNot(contains('smb_debug.log')));
+    expect(crashLogNamesFor(TargetPlatform.iOS), contains('iap_debug.log'));
+    expect(crashLogNamesFor(TargetPlatform.iOS), contains('smb_debug.log'));
+    expect(crashLogNamesFor(TargetPlatform.iOS), isNot(contains('logcat_dump.log')));
+    expect(crashLogNamesFor(TargetPlatform.android), contains('dreamplayer_crash.log'));
+  });
+
+  test('dumpLogcatIfAndroid is a no-op off Android', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    expect(await dumpLogcatIfAndroid(), isNull);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  test('dumpLogcatIfAndroid asks the device channel on Android', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final calls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('dreamplayer/device'),
+            (call) async {
+      calls.add(call.method);
+      if (call.method == 'dumpLogcat') {
+        final dir = (call.arguments as Map)['dir'] as String;
+        return '$dir/logcat_dump.log';
+      }
+      return null;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(const MethodChannel('dreamplayer/device'), null);
+      debugDefaultTargetPlatformOverride = null;
+    });
+    final path = await dumpLogcatIfAndroid();
+    expect(calls, ['dumpLogcat']);
+    expect(path, endsWith('logcat_dump.log'));
+  });
+
+  test('dumpLogcatIfAndroid swallows a missing handler', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    // No mock handler registered -> MissingPluginException -> null, no throw.
+    expect(await dumpLogcatIfAndroid(), isNull);
   });
 }

@@ -186,6 +186,40 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "isTv" -> result.success(isTvBox(this))
                 "osMajorVersion" -> result.success(Build.VERSION.SDK_INT)
+                // Settings "App crashed?" on Android: dump this app's own
+                // logcat (no READ_LOGS needed since API 16 — logcat run from
+                // the app uid only sees the app's lines) into the Documents
+                // dir the Dart side passed, so the report form can attach it.
+                // This is what catches NATIVE/Java crashes (SIGSEGV in a
+                // decoder, NoSuchMethodError) that CrashLog's Dart handlers
+                // cannot reach — the OS-side crash dialogs are exactly those.
+                "dumpLogcat" -> {
+                    val dir = call.argument<String>("dir")
+                    if (dir == null) {
+                        result.error("bad_args", "dir required", null)
+                        return@setMethodCallHandler
+                    }
+                    Thread {
+                        try {
+                            val proc = Runtime.getRuntime().exec(
+                                arrayOf("logcat", "-d", "-v", "threadtime", "-t", "4000")
+                            )
+                            val text = proc.inputStream.bufferedReader().readText()
+                            proc.waitFor()
+                            // Cap at 512 KiB, keeping the NEWEST lines (crashes
+                            // are at the end of the dump).
+                            val bytes = text.toByteArray(Charsets.UTF_8)
+                            val tail = if (bytes.size > 512 * 1024)
+                                bytes.copyOfRange(bytes.size - 512 * 1024, bytes.size)
+                            else bytes
+                            val file = java.io.File(dir, "logcat_dump.log")
+                            file.writeBytes(tail)
+                            result.success(file.absolutePath)
+                        } catch (e: Exception) {
+                            result.error("logcat_failed", e.message, null)
+                        }
+                    }.start()
+                }
                 else -> result.notImplemented()
             }
         }

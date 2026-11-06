@@ -12,17 +12,20 @@ import 'crash_report_dialog.dart';
 /// falls back to the platform share sheet, so they can be attached to an
 /// email from the user's own mail app.
 ///
-/// iOS-only: the crash reports this note answers come from App Store Connect
-/// (TestFlight/App Store builds); Android has no report in the loop, so the
-/// row would be talking about nothing there.
+/// Both platforms: on iOS the reports answer App Store Connect crashes; on
+/// Android the note first dumps the app's own logcat (`logcat_dump.log`),
+/// which is the only log that carries native/Java crashes (decoder SIGSEGV,
+/// NoSuchMethodError) — CrashLog's Dart handlers never see those.
 class CrashReportNote extends StatelessWidget {
   const CrashReportNote({super.key});
 
-  static bool get isSupported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+  static bool get isSupported => !kIsWeb;
 
   Future<void> _send(BuildContext context) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
+    // Android: refresh the logcat dump FIRST so the freshest crash is in the
+    // file the form is about to list.
+    await dumpLogcatIfAndroid();
     final paths = await existingCrashLogPaths();
     if (paths.isEmpty) {
       messenger?.showSnackBar(
@@ -43,10 +46,13 @@ class CrashReportNote extends StatelessWidget {
       await shareCrashLogs(paths);
     } catch (e) {
       messenger?.showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Could not open the share sheet. The log files stay in the app '
-            "documents folder ('On My iPad / Files' → DreamPlayer on iOS).",
+            defaultTargetPlatform == TargetPlatform.iOS
+                ? 'Could not open the share sheet. The log files stay in the '
+                    "app documents folder ('On My iPad / Files' → DreamPlayer)."
+                : 'Could not open the share sheet. The report form can still '
+                    'attach the logs if an upload endpoint is configured.',
           ),
         ),
       );
@@ -65,15 +71,10 @@ class CrashReportNote extends StatelessWidget {
       ),
       title: const Text('App crashed?', style: TextStyle(fontSize: 14)),
       subtitle: Text(
-        CrashReportUpload.isConfigured
-            ? 'Froze or closed on its own? Tap to attach the debug files '
-                "that exist in DreamPlayer's folder — dreamplayer_crash.log, "
-                'app_debug.log, smb_debug.log and/or iap_debug.log — add a '
-                'note, and submit them straight from the app.'
-            : 'Froze or closed on its own? Send us the debug files that exist '
-                "in DreamPlayer's folder — dreamplayer_crash.log, "
-                'app_debug.log, smb_debug.log and/or iap_debug.log. Tapping '
-                'opens the share sheet so you can attach them to an email to '
+        defaultTargetPlatform == TargetPlatform.android
+            ? 'Froze or crashed? Attach the debug logs (logcat included) and '
+                'send them to us.'
+            : 'Froze or crashed? Attach the debug logs and send them to '
                 '$supportEmail.',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,

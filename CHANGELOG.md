@@ -18,6 +18,14 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
+- **"App crashed?" report form on Android too.** Settings → below the FAQ now
+  shows the note on both platforms. On Android, tapping it first dumps the
+  app's own logcat to `logcat_dump.log` — the only log that captures native
+  crashes (decoder SIGSEGV, NoSuchMethodError), which the Dart crash log
+  cannot see — and the attach list is platform-specific: Android offers
+  `dreamplayer_crash.log`, `app_debug.log`, `logcat_dump.log` only (no
+  iOS-only `smb_debug.log`/`iap_debug.log`); iOS keeps its four. Submit goes
+  to the configured upload endpoint, falling back to the share sheet.
 - **Community Discord** — invite link (https://discord.gg/sAnXAAA8R) in the
   app (Settings → About), the website nav, the README badges and the GitHub
   repo About box; `release.yml` auto-posts each GitHub Release to the
