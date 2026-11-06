@@ -125,7 +125,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('App crashed?'), findsOneWidget);
-      expect(find.textContaining('ghodke.mangesh2@gmail.com'), findsOneWidget);
+      expect(find.textContaining('dreamplayersupport@gmail.com'), findsOneWidget);
 
       await tester.tap(find.text('App crashed?'));
       await tester.pumpAndSettle();

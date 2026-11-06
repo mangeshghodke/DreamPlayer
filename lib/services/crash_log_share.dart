@@ -32,7 +32,7 @@ List<String> crashLogNamesFor([TargetPlatform? platform]) =>
         ? androidCrashLogNames
         : iosCrashLogNames;
 
-const supportEmail = 'ghodke.mangesh2@gmail.com';
+const supportEmail = 'dreamplayersupport@gmail.com';
 
 const MethodChannel _deviceChannel = MethodChannel('dreamplayer/device');
 
