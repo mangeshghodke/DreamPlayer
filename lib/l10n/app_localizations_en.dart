@@ -1766,4 +1766,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get browserViewGrid => 'Grid';
+
+  @override
+  String get settingsMpvUserConfig => 'Custom MPV config';
+
+  @override
+  String get settingsMpvUserConfigNone => 'None';
+
+  @override
+  String get settingsMpvUserConfigChange => 'Change file…';
+
+  @override
+  String get settingsMpvUserConfigHint =>
+      'Your mpv.conf is applied on top of DreamPlayer\'s MPV settings (options only — scripts and profiles are ignored). vo/wid are protected so the video surface stays attached.';
+
+  @override
+  String get playerSecondarySubtitleTop => 'Secondary subtitle (top)';
 }

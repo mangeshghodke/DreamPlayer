@@ -38,6 +38,7 @@ import '../services/mpv_pip.dart';
 import '../services/mpv_surface_view.dart';
 import '../services/mpv_downmix_store.dart';
 import '../services/mpv_interpolation_store.dart';
+import '../services/mpv_user_config.dart';
 import '../services/tone_map_store.dart';
 import '../services/subtitle_fonts.dart';
 import '../services/subtitle_style.dart';
@@ -212,6 +213,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _mpvResolution;
   int? _mpvAudioChannels;
   bool _mpvSubtitleOn = false;
+  /// Secondary (top-edge) subtitle track id on the MPV engine, session-only.
+  String? _mpvSecondarySubId;
+  /// MPV video toggles from the picture panel (session-only).
+  bool _mpvDeband = false;
+  bool _mpvDither = false;
   // Playback stats HUD (Infuse-style live performance overlay). Session-only:
   // the toggle lives in the ⋮ sheet, the snapshot is re-polled every second.
   bool _statsHudVisible = false;
@@ -1896,11 +1902,14 @@ Future<void> _offerVc1Mpv() async {
     try {
       await platform.setProperty('sub-auto', 'fuzzy');
       await platform.setProperty('sub-visibility', 'yes');
+      // Secondary (dual) subtitles render at the top edge (mpv-android style).
+      await platform.setProperty('secondary-sub-visibility', 'yes');
+      await platform.setProperty('secondary-sub-pos', '100');
       await platform.setProperty('demuxer-mkv-subtitle-preroll', 'yes');
       await platform.setProperty('sub-fix-timing', 'yes');
       await platform.setProperty('blend-subtitles', 'yes');
       await platform.setProperty('sub-ass-override', 'yes');
-      debugPrint('mpv: subtitles configured (auto, visibility, preroll, fix-timing, blend, ass-override)');
+      debugPrint('mpv: subtitles configured (auto, visibility, secondary, preroll, fix-timing, blend, ass-override)');
     } catch (e) {
       debugPrint('mpv: subtitle config unavailable: $e');
     }
@@ -2530,7 +2539,10 @@ Future<void> _offerVc1Mpv() async {
       if (mounted) {
         setState(() {
           _mpvAnime4kEnabled = false;
-          _mpvAnime4kApplied = false;
+      _mpvAnime4kApplied = false;
+      _mpvSecondarySubId = null;
+      _mpvDeband = false;
+      _mpvDither = false;
           _mpvAnime4kError = 'Could not load Anime4K shaders';
         });
       }
@@ -2677,8 +2689,91 @@ Future<void> _offerVc1Mpv() async {
     _mpvPictureContrast = 0;
     _mpvPictureSaturation = 0;
     _mpvPictureGamma = 0;
+    _mpvDeband = false;
+    _mpvDither = false;
     if (mounted) setState(() {});
     await _applyMpvPictureAdjustments();
+    final player = _mpvPlayer;
+    if (player != null) await _applyMpvVideoToggles(player);
+  }
+
+  /// Deband / dither toggles from the MPV picture panel (session-only).
+  Future<void> _applyMpvVideoToggles(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer || _inTests) return;
+    try {
+      await player.handle;
+      await platform.setProperty('deband', _mpvDeband ? 'yes' : 'no');
+      await platform.setProperty('dither', _mpvDither ? 'ordered' : 'no');
+    } catch (e) {
+      debugPrint('mpv: video toggles unavailable: $e');
+    }
+  }
+
+  void _updateMpvVideoToggle(String property, bool value) {
+    if (property == 'deband') {
+      _mpvDeband = value;
+    } else if (property == 'dither') {
+      _mpvDither = value;
+    }
+    if (mounted) setState(() {});
+    final player = _mpvPlayer;
+    if (player != null) unawaited(_applyMpvVideoToggles(player));
+  }
+
+  /// Applies the user's custom mpv.conf (Settings → Player → Custom MPV
+  /// config) on top of our hardened defaults. Options-only: libmpv reads
+  /// scripts/profiles at init, which media_kit does not expose, so those keys
+  /// are reported as skipped by the parser.
+  Future<void> _applyMpvUserConfig(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer || _inTests) return;
+    try {
+      final cfg = await MpvUserConfigStore.load();
+      final uri = cfg.uri;
+      if (uri == null || uri.isEmpty) return;
+      final text = await FileBrowserService.instance.readTextFile(uri);
+      if (text == null || text.trim().isEmpty) {
+        debugPrint('mpv: user config "${cfg.name}" unreadable/empty, skipped');
+        return;
+      }
+      await player.handle;
+      final parsed = parseMpvConf(text);
+      for (final w in parsed.warnings) {
+        debugPrint('mpv: user config: $w');
+      }
+      for (final opt in parsed.options) {
+        try {
+          await platform.setProperty(opt.name, opt.value);
+        } catch (e) {
+          debugPrint('mpv: user config option ${opt.name} failed: $e');
+        }
+      }
+      debugPrint(
+        'mpv: user config "${cfg.name}" applied (${parsed.options.length} options)',
+      );
+    } catch (e) {
+      debugPrint('mpv: user config apply failed: $e');
+    }
+  }
+
+  /// Selects the secondary (top-edge) subtitle track on MPV, or clears it.
+  Future<void> _setMpvSecondarySub(String? trackId) async {
+    _mpvSecondarySubId = trackId;
+    final player = _mpvPlayer;
+    final platform = player?.platform;
+    if (player == null || platform is! NativePlayer || _inTests) {
+      if (mounted) setState(() {});
+      return;
+    }
+    try {
+      await player.handle;
+      await platform.setProperty('secondary-sid', trackId ?? 'no');
+      debugPrint('mpv: secondary subtitle = ${trackId ?? 'no'}');
+    } catch (e) {
+      debugPrint('mpv: secondary subtitle failed: $e');
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _applyMpvPictureAdjustments({
@@ -2910,6 +3005,11 @@ Future<void> _offerVc1Mpv() async {
       }
       // Audio/subs — hwdec already applied above; skip the duplicate.
       await _configureMpvAudio(player, skipHwdec: true);
+      // Picture-panel video toggles, then the user's custom mpv.conf — applied
+      // AFTER our hardening so user options win, except the protected keys
+      // (vo/wid/force-window/…) which the parser already filters out.
+      await _applyMpvVideoToggles(player);
+      await _applyMpvUserConfig(player);
       // Apply the user's subtitle styling (size, color, background, outline,
       // vertical position) so settings carry over from Media3 to mpv.
       await _applyMpvSubtitleStyle(player);
@@ -5337,9 +5437,12 @@ if (mounted) setState(_applySwipeValue);
             .where((t) => !t.uri && t.id != 'no' && t.id != 'auto')
             .firstOrNull
         : null;
+    final selectable = tracks.where((t) => t.id != 'auto').toList();
     const onlineSentinel = -3;
     const loadSentinel = -2;
     const downloadedBase = -10;
+    const secondaryOff = 199;
+    const secondaryBase = 200;
     final resumeKey = _current.resumeKey ?? _current.id;
     final downloaded = await DownloadedSubtitlesStore.loadForVideo(resumeKey);
     if (!mounted) return;
@@ -5422,13 +5525,64 @@ if (mounted) setState(_applySwipeValue);
                           .join(' · '),
                       style: const TextStyle(color: Colors.white),
                     ),
-                    onTap: () => Navigator.of(sheetContext).pop(100 + tracks.indexOf(t)),
-                  );
-                }(),
-              const Divider(color: Colors.white12, height: 1),
-              _tvListTile(
-                leading: const Icon(Icons.language, color: Colors.white70),
-                title: Text(AppLocalizations.of(context).playerSearchOnlineSubs,
+                      onTap: () => Navigator.of(sheetContext).pop(100 + tracks.indexOf(t)),
+                    );
+                  }(),
+                if (selectable.length > 1) ...[
+                 const Divider(color: Colors.white12, height: 1),
+                 Padding(
+                   padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
+                   child: Text(
+                     AppLocalizations.of(context).playerSecondarySubtitleTop,
+                     style: TextStyle(
+                       color: Colors.white70,
+                       fontSize: 12,
+                       fontWeight: FontWeight.w600,
+                     ),
+                   ),
+                 ),
+                 _tvListTile(
+                   leading: Icon(
+                     _mpvSecondarySubId == null
+                         ? Icons.radio_button_checked
+                         : Icons.radio_button_off,
+                     color: _mpvSecondarySubId == null
+                         ? Colors.white
+                         : Colors.white54,
+                   ),
+                   title: Text(
+                     AppLocalizations.of(context).commonOff,
+                     style: TextStyle(color: Colors.white),
+                   ),
+                   onTap: () => Navigator.of(sheetContext).pop(secondaryOff),
+                 ),
+                 for (final t in selectable)
+                   () {
+                     final isSelected = _mpvSecondarySubId == t.id;
+                     final title = t.title?.trim();
+                     final lang = languageName(t.language ?? '');
+                     return _tvListTile(
+                       leading: Icon(
+                         isSelected
+                             ? Icons.radio_button_checked
+                             : Icons.radio_button_off,
+                         color: isSelected ? Colors.white : Colors.white54,
+                       ),
+                       title: Text(
+                         [lang, if (title != null && title.isNotEmpty) title]
+                             .where((s) => s.isNotEmpty)
+                             .join(' · '),
+                         style: const TextStyle(color: Colors.white),
+                       ),
+                       onTap: () =>
+                           Navigator.of(sheetContext).pop(secondaryBase + selectable.indexOf(t)),
+                     );
+                   }(),
+               ],
+               const Divider(color: Colors.white12, height: 1),
+               _tvListTile(
+                 leading: const Icon(Icons.language, color: Colors.white70),
+                 title: Text(AppLocalizations.of(context).playerSearchOnlineSubs,
                     style: TextStyle(color: Colors.white)),
                 onTap: () => Navigator.of(sheetContext).pop(onlineSentinel),
               ),
@@ -5464,6 +5618,17 @@ if (mounted) setState(_applySwipeValue);
             language: picked.language,
           ),
         );
+      }
+      return;
+    }
+    if (choice == secondaryOff) {
+      await _setMpvSecondarySub(null);
+      return;
+    }
+    if (choice >= secondaryBase) {
+      final idx = choice - secondaryBase;
+      if (idx >= 0 && idx < selectable.length) {
+        await _setMpvSecondarySub(selectable[idx].id);
       }
       return;
     }
@@ -9102,10 +9267,13 @@ if (mounted) setState(_applySwipeValue);
                           toneMapMode: _toneMapMode,
                           toneMapNotice: _mpvHdrModeNotice,
                           gpuNextAvailable: _mpvGpuNext == true,
-                          interpolation: _mpvInterpolation,
-                          thermalTier: _thermalTier,
-                          thermalHeadroom: _thermalHeadroom,
-                          onChanged: _updateMpvPicture,
+                           interpolation: _mpvInterpolation,
+                           thermalTier: _thermalTier,
+                           thermalHeadroom: _thermalHeadroom,
+                           deband: _mpvDeband,
+                           dither: _mpvDither,
+                           onChanged: _updateMpvPicture,
+                           onVideoToggleChanged: _updateMpvVideoToggle,
                           onAnime4kChanged: _setMpvAnime4kEnabled,
                           onAnime4kModeChanged: _setMpvAnime4kMode,
                           onToneMapModeChanged: _setMpvToneMapMode,
@@ -9144,7 +9312,10 @@ class _MpvPictureControls extends StatelessWidget {
     required this.interpolation,
     required this.thermalTier,
     required this.thermalHeadroom,
+    required this.deband,
+    required this.dither,
     required this.onChanged,
+    required this.onVideoToggleChanged,
     required this.onAnime4kChanged,
     required this.onAnime4kModeChanged,
     required this.onToneMapModeChanged,
@@ -9168,7 +9339,10 @@ class _MpvPictureControls extends StatelessWidget {
   final MpvInterpolationConfig interpolation;
   final ThermalTier thermalTier;
   final double thermalHeadroom;
+  final bool deband;
+  final bool dither;
   final void Function(String property, double value) onChanged;
+  final void Function(String property, bool value) onVideoToggleChanged;
   final Future<void> Function(bool enabled) onAnime4kChanged;
   final Future<void> Function(Anime4kMode mode) onAnime4kModeChanged;
   final Future<void> Function(ToneMapMode mode) onToneMapModeChanged;
@@ -9478,12 +9652,40 @@ class _MpvPictureControls extends StatelessWidget {
                      ),
                    ],
                  ),
-                 if (anime4kApplying)
-                   const LinearProgressIndicator(minHeight: 2),
-                 const SizedBox(height: 4),
+                if (anime4kApplying)
+                  const LinearProgressIndicator(minHeight: 2),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text(
+                    'Deband',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Smooths gradient banding (GPU cost per frame)',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  value: deband,
+                  onChanged: (v) => onVideoToggleChanged('deband', v),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text(
+                    'Dither',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Ordered dithering instead of rounding to 8-bit',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  value: dither,
+                  onChanged: (v) => onVideoToggleChanged('dither', v),
+                ),
+                const SizedBox(height: 4),
 
 
-              Align(
+               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
                   onPressed: () {

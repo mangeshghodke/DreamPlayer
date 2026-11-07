@@ -36,6 +36,8 @@ import '../services/subtitle_prefs.dart';
 import '../services/support_links.dart';
 import '../services/mpv_downmix_store.dart';
 import '../services/mpv_interpolation_store.dart';
+import '../services/mpv_user_config.dart';
+import '../services/file_browser.dart';
 import '../services/app_icon_service.dart';
 import '../services/app_updater.dart';
 import '../widgets/update_dialog.dart';
@@ -143,6 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadToneMapMode();
     _loadMpvInterpolation();
     _loadMpvDownmix();
+    _loadMpvUserConfig();
     _loadAudioFilters();
     _loadSimkl();
     _loadOpensubtitles();
@@ -329,6 +332,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final value = await MpvDownmixStore.load();
       if (mounted) setState(() => _mpvNormalizeDownmix = value);
     } catch (_) {}
+  }
+
+  String? _mpvUserConfigName;
+
+  Future<void> _loadMpvUserConfig() async {
+    try {
+      final cfg = await MpvUserConfigStore.load();
+      if (mounted) setState(() => _mpvUserConfigName = cfg.name);
+    } catch (_) {}
+  }
+
+  Future<void> _editMpvUserConfig(BuildContext context) async {
+    final l = AppLocalizations.of(context);
+    if (_mpvUserConfigName != null) {
+      final action = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l.settingsMpvUserConfig),
+          content: Text('${_mpvUserConfigName!}\n\n${l.settingsMpvUserConfigHint}'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'change'),
+              child: Text(l.settingsMpvUserConfigChange),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'clear'),
+              child: Text(l.commonClear),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(l.commonCancel),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (action == 'clear') {
+        await MpvUserConfigStore.clear();
+        setState(() => _mpvUserConfigName = null);
+        return;
+      }
+      if (action != 'change') return;
+    }
+    try {
+      final picked = await FileBrowserService.instance.pickMpvConfig();
+      if (picked == null || !mounted) return;
+      await MpvUserConfigStore.save(uri: picked.uri, name: picked.name);
+      setState(() => _mpvUserConfigName = picked.name);
+    } on PlatformException {
+      // picker unavailable on this device
+    }
   }
 
   Future<void> _loadToneMapMode() async {
@@ -1582,6 +1636,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           : '${AppLocalizations.of(context).settingsMpvInterpolationFps(_mpvInterpolationFps)} · ${_interpolationQualityLabel(context)}',
                     ),
                     onTap: () => _pickMpvInterpolation(context),
+                  ),
+                if (defaultTargetPlatform == TargetPlatform.android &&
+                    _showMpvSettings)
+                  ListTile(
+                    leading: const Icon(Icons.description_outlined),
+                    title: Text(AppLocalizations.of(context).settingsMpvUserConfig),
+                    subtitle: Text(
+                      _mpvUserConfigName ??
+                          AppLocalizations.of(context).settingsMpvUserConfigNone,
+                    ),
+                    onTap: () => _editMpvUserConfig(context),
                   ),
                 SwitchListTile(
                   secondary: const Icon(Icons.skip_next),

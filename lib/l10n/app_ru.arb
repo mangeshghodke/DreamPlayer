@@ -2101,7 +2101,6 @@
   "@playerPictureInPicture": {
     "description": "Translated key"
   },
-
   "playerPlaybackStats": "Статистика воспроизведения",
   "@playerPlaybackStats": {
     "description": "Live playback performance HUD (resolution, decoder, fps, bitrates) toggle"
@@ -2241,5 +2240,25 @@
   "browserViewGrid": "Сетка",
   "@browserViewGrid": {
     "description": "Translated key"
+  },
+  "settingsMpvUserConfig": "Своя конфигурация MPV",
+  "@settingsMpvUserConfig": {
+    "description": "Settings → Player row for the user's own mpv.conf"
+  },
+  "settingsMpvUserConfigNone": "Нет",
+  "@settingsMpvUserConfigNone": {
+    "description": "No custom MPV config selected"
+  },
+  "settingsMpvUserConfigChange": "Изменить файл…",
+  "@settingsMpvUserConfigChange": {
+    "description": "Dialog action to pick a different config file"
+  },
+  "settingsMpvUserConfigHint": "Ваш mpv.conf применяется поверх настроек MPV в DreamPlayer (только опции; скрипты и профили игнорируются). vo/wid защищены, чтобы видеоповерхность не отключалась.",
+  "@settingsMpvUserConfigHint": {
+    "description": "Explanation under the custom MPV config row"
+  },
+  "playerSecondarySubtitleTop": "Вторые субтитры (сверху)",
+  "@playerSecondarySubtitleTop": {
+    "description": "Header for the secondary subtitle list in the MPV CC sheet"
   }
 }

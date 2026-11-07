@@ -28,6 +28,7 @@ class FileBrowser(private val activity: MainActivity) {
         const val CHANNEL = "dreamplayer/files"
         const val REQ_PICK_FOLDER = 9001
         const val REQ_PICK_SUBTITLE = 9002
+        const val REQ_PICK_MPV_CONFIG = 9003
 
         private const val PREFS = "dreamplayer.folderBookmarks"
         private const val BOOKMARK_PREFIX = "bm."
@@ -43,6 +44,7 @@ class FileBrowser(private val activity: MainActivity) {
 
     private var pendingFolderResult: MethodChannel.Result? = null
     private var pendingSubtitleResult: MethodChannel.Result? = null
+    private var pendingMpvConfigResult: MethodChannel.Result? = null
 
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
@@ -81,6 +83,15 @@ class FileBrowser(private val activity: MainActivity) {
                 "pickFolder" -> pickFolder(result)
                 "pickLibraryFolder" -> pickLibraryFolder(result)
                 "pickSubtitle" -> pickSubtitle(result)
+                "pickMpvConfig" -> pickMpvConfig(result)
+                "readTextFile" -> {
+                    val uri = call.argument<String>("uri")
+                    if (uri == null) {
+                        result.error("bad_args", "readTextFile needs uri", null)
+                    } else {
+                        result.success(readTextFile(uri, 1024 * 1024))
+                    }
+                }
                 "getThumbnail" -> {
                     val path = call.argument<String>("path")
                     val uri = call.argument<String>("uri")
@@ -836,6 +847,93 @@ class FileBrowser(private val activity: MainActivity) {
             }
         }
         result.success(outUri)
+    }
+
+    // MARK: - MPV config picker (user's own mpv.conf)
+
+    /// Picks a config file for the MPV engine. Unlike [pickSubtitle] the URI is
+    /// kept as-is (persistable permission taken): the user edits their own
+    /// file between sessions, so it must NOT be copied to cache.
+    private fun pickMpvConfig(result: MethodChannel.Result) {
+        if (pendingMpvConfigResult != null) {
+            result.error("busy", "A file picker is already open", null)
+            return
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        pendingMpvConfigResult = result
+        try {
+            activity.startActivityForResult(intent, REQ_PICK_MPV_CONFIG)
+        } catch (_: Exception) {
+            pendingMpvConfigResult = null
+            result.error("no_picker", "No file picker available", null)
+        }
+    }
+
+    fun onMpvConfigPicked(resultCode: Int, data: Intent?) {
+        val result = pendingMpvConfigResult ?: return
+        pendingMpvConfigResult = null
+        if (resultCode != Activity.RESULT_OK || data?.data == null) {
+            result.success(null)
+            return
+        }
+        val uri = data.data!!
+        try {
+            activity.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        } catch (_: Exception) {
+        }
+        var name = uri.lastPathSegment?.substringAfterLast('/') ?: "mpv.conf"
+        try {
+            activity.contentResolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null, null, null,
+            )?.use { c ->
+                if (c.moveToFirst()) {
+                    c.getString(0)?.takeIf { it.isNotBlank() }?.let { name = it }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        result.success(mapOf("uri" to uri.toString(), "name" to name))
+    }
+
+    /// Reads up to [maxBytes] of a text file from a content:// / file:// URI or
+    /// plain path. Returns null when unreadable.
+    private fun readTextFile(uriString: String, maxBytes: Int): String? {
+        try {
+            val uri = android.net.Uri.parse(uriString)
+            val stream = when (uri.scheme) {
+                null, "file" -> java.io.File(uri.path ?: uriString).takeIf { it.isFile }?.inputStream()
+                else -> activity.contentResolver.openInputStream(uri)
+            } ?: return null
+            return stream.use { input ->
+                val buf = java.io.ByteArrayOutputStream()
+                val chunk = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val n = input.read(chunk)
+                    if (n < 0) break
+                    if (total + n > maxBytes) {
+                        buf.write(chunk, 0, maxBytes - total)
+                        break
+                    }
+                    buf.write(chunk, 0, n)
+                    total += n
+                }
+                buf.toString("UTF-8")
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("FileBrowser", "readTextFile failed for $uriString: $e")
+            return null
+        }
     }
 
     fun onFolderPicked(resultCode: Int, data: Intent?) {

@@ -1752,4 +1752,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get browserViewGrid => '网格';
+
+  @override
+  String get settingsMpvUserConfig => '自定义 MPV 配置';
+
+  @override
+  String get settingsMpvUserConfigNone => '无';
+
+  @override
+  String get settingsMpvUserConfigChange => '更改文件…';
+
+  @override
+  String get settingsMpvUserConfigHint =>
+      '您的 mpv.conf 会叠加在 DreamPlayer 的 MPV 设置之上（仅选项；脚本和配置节会被忽略）。vo/wid 受保护，视频画面不会中断。';
+
+  @override
+  String get playerSecondarySubtitleTop => '第二字幕（顶部）';
 }

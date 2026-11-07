@@ -3413,6 +3413,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Grid'**
   String get browserViewGrid;
+
+  /// Settings → Player row for the user's own mpv.conf
+  ///
+  /// In en, this message translates to:
+  /// **'Custom MPV config'**
+  String get settingsMpvUserConfig;
+
+  /// No custom MPV config selected
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get settingsMpvUserConfigNone;
+
+  /// Dialog action to pick a different config file
+  ///
+  /// In en, this message translates to:
+  /// **'Change file…'**
+  String get settingsMpvUserConfigChange;
+
+  /// Explanation under the custom MPV config row
+  ///
+  /// In en, this message translates to:
+  /// **'Your mpv.conf is applied on top of DreamPlayer\'s MPV settings (options only — scripts and profiles are ignored). vo/wid are protected so the video surface stays attached.'**
+  String get settingsMpvUserConfigHint;
+
+  /// Header for the secondary subtitle list in the MPV CC sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Secondary subtitle (top)'**
+  String get playerSecondarySubtitleTop;
 }
 
 class _AppLocalizationsDelegate

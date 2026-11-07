@@ -274,6 +274,30 @@ class FileBrowserService {
     return result;
   }
 
+  /// Presents the system file picker for the user's custom MPV config file.
+  /// Returns `{uri, name}` (persistable content:// URI) or null if cancelled.
+  /// Android-only; iOS has no channel implementation (MPV is Android-only).
+  Future<({String uri, String name})?> pickMpvConfig() async {
+    final result = await _channel.invokeMethod<Map>('pickMpvConfig');
+    if (result == null) return null;
+    final uri = result['uri'];
+    final name = result['name'];
+    if (uri is! String || uri.isEmpty) return null;
+    return (uri: uri, name: name is String && name.isNotEmpty ? name : uri);
+  }
+
+  /// Reads a text file (content:// / file:// / plain path) up to 1 MiB.
+  /// Android-only. Returns null when unreadable.
+  Future<String?> readTextFile(String uri) async {
+    try {
+      return await _channel.invokeMethod<String>('readTextFile', {'uri': uri});
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   /// Embedded cover-art bytes for a local video (metadata-only read — safe for
   /// DV/HDR). Returns null when the file has no attached artwork or the source
   /// is remote (http(s) is skipped natively).

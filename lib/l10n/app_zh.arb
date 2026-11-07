@@ -2101,7 +2101,6 @@
   "@playerPictureInPicture": {
     "description": "Translated key"
   },
-
   "playerPlaybackStats": "播放统计",
   "@playerPlaybackStats": {
     "description": "Live playback performance HUD (resolution, decoder, fps, bitrates) toggle"
@@ -2241,5 +2240,25 @@
   "browserViewGrid": "网格",
   "@browserViewGrid": {
     "description": "Translated key"
+  },
+  "settingsMpvUserConfig": "自定义 MPV 配置",
+  "@settingsMpvUserConfig": {
+    "description": "Settings → Player row for the user's own mpv.conf"
+  },
+  "settingsMpvUserConfigNone": "无",
+  "@settingsMpvUserConfigNone": {
+    "description": "No custom MPV config selected"
+  },
+  "settingsMpvUserConfigChange": "更改文件…",
+  "@settingsMpvUserConfigChange": {
+    "description": "Dialog action to pick a different config file"
+  },
+  "settingsMpvUserConfigHint": "您的 mpv.conf 会叠加在 DreamPlayer 的 MPV 设置之上（仅选项；脚本和配置节会被忽略）。vo/wid 受保护，视频画面不会中断。",
+  "@settingsMpvUserConfigHint": {
+    "description": "Explanation under the custom MPV config row"
+  },
+  "playerSecondarySubtitleTop": "第二字幕（顶部）",
+  "@playerSecondarySubtitleTop": {
+    "description": "Header for the secondary subtitle list in the MPV CC sheet"
   }
 }

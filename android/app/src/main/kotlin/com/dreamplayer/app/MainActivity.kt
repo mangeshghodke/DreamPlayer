@@ -353,6 +353,7 @@ class MainActivity : FlutterActivity() {
         when (requestCode) {
             FileBrowser.REQ_PICK_FOLDER -> fileBrowser?.onFolderPicked(resultCode, data)
             FileBrowser.REQ_PICK_SUBTITLE -> fileBrowser?.onSubtitlePicked(resultCode, data)
+            FileBrowser.REQ_PICK_MPV_CONFIG -> fileBrowser?.onMpvConfigPicked(resultCode, data)
         }
     }
 

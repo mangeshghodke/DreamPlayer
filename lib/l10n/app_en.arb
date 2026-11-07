@@ -2206,7 +2206,6 @@
   "@playerPictureInPicture": {
     "description": "Picture-in-picture setting"
   },
-
   "playerPlaybackStats": "Playback stats",
   "@playerPlaybackStats": {
     "description": "Live playback performance HUD (resolution, decoder, fps, bitrates) toggle"
@@ -2316,5 +2315,25 @@
   "browserViewGrid": "Grid",
   "@browserViewGrid": {
     "description": "Label for the grid view option in the network browsers"
+  },
+  "settingsMpvUserConfig": "Custom MPV config",
+  "@settingsMpvUserConfig": {
+    "description": "Settings → Player row for the user's own mpv.conf"
+  },
+  "settingsMpvUserConfigNone": "None",
+  "@settingsMpvUserConfigNone": {
+    "description": "No custom MPV config selected"
+  },
+  "settingsMpvUserConfigChange": "Change file…",
+  "@settingsMpvUserConfigChange": {
+    "description": "Dialog action to pick a different config file"
+  },
+  "settingsMpvUserConfigHint": "Your mpv.conf is applied on top of DreamPlayer's MPV settings (options only — scripts and profiles are ignored). vo/wid are protected so the video surface stays attached.",
+  "@settingsMpvUserConfigHint": {
+    "description": "Explanation under the custom MPV config row"
+  },
+  "playerSecondarySubtitleTop": "Secondary subtitle (top)",
+  "@playerSecondarySubtitleTop": {
+    "description": "Header for the secondary subtitle list in the MPV CC sheet"
   }
 }

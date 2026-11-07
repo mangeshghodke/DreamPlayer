@@ -1773,4 +1773,20 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get browserViewGrid => 'Сетка';
+
+  @override
+  String get settingsMpvUserConfig => 'Своя конфигурация MPV';
+
+  @override
+  String get settingsMpvUserConfigNone => 'Нет';
+
+  @override
+  String get settingsMpvUserConfigChange => 'Изменить файл…';
+
+  @override
+  String get settingsMpvUserConfigHint =>
+      'Ваш mpv.conf применяется поверх настроек MPV в DreamPlayer (только опции; скрипты и профили игнорируются). vo/wid защищены, чтобы видеоповерхность не отключалась.';
+
+  @override
+  String get playerSecondarySubtitleTop => 'Вторые субтитры (сверху)';
 }
