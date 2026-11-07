@@ -382,6 +382,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _mpvUserConfigName = picked.name);
     } on PlatformException {
       // picker unavailable on this device
+    } on MissingPluginException {
+      // non-Android platform: no channel implementation (row is Android-only)
     }
   }
 

@@ -91,6 +91,37 @@ profile=fast
       final r = parseMpvConf('\n\n   \n# only comments\n=novalue\n');
       expect(r.options, isEmpty);
     });
+
+    test('binary garbage / hostile input never throws and is capped', () {
+      // 5000 garbage bytes + NULs + a 100 KB single line.
+      final garbage = String.fromCharCodes(
+        List.generate(5000, (i) => i % 256),
+      );
+      final hugeLine = 'x' * 100000;
+      final r = parseMpvConf('$garbage\n$hugeLine\ndeband=yes\n');
+      expect(r.options.length, lessThanOrEqualTo(mpvConfMaxOptions));
+      expect(r.warnings, contains(contains('oversized line')));
+    });
+
+    test('option cap drops the tail of a huge valid file', () {
+      final r = parseMpvConf(
+        List.generate(500, (i) => 'opt-$i=yes').join('\n'),
+      );
+      expect(r.options.length, mpvConfMaxOptions);
+      expect(r.warnings, contains(contains('option cap')));
+    });
+
+    test('keys must look like mpv option names', () {
+      final r = parseMpvConf('BAD KEY!!=1\ndeband=yes\nUPPER=no\n');
+      expect(r.options, [const MpvOption('deband', 'yes')]);
+    });
+
+    test('idle/keep-open are protected so the core cannot quit mid-session', () {
+      final r = parseMpvConf('no-idle\nno-keep-open\ndeband=yes\n');
+      expect(r.options, [const MpvOption('deband', 'yes')]);
+      expect(r.warnings, contains('"idle" is init-only/protected, skipped'));
+      expect(r.warnings, contains('"keep-open" is init-only/protected, skipped'));
+    });
   });
 
   group('MpvUserConfigStore', () {

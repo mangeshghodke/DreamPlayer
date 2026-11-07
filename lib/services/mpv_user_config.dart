@@ -18,7 +18,17 @@ const Set<String> mpvProtectedOptions = {
   'load-scripts',
   'script',
   'scripts-append',
+  // keep mpv alive after the playlist ends / between files — without these
+  // a conf line could make the core quit and tear down the player mid-session.
+  'idle',
+  'keep-open',
 };
+
+/// Hard caps so a garbage or binary file picked by mistake cannot flood mpv
+/// with thousands of property writes (each is a channel round-trip).
+const int mpvConfMaxOptions = 200;
+const int mpvConfMaxLineLength = 4096;
+final RegExp _mpvOptionName = RegExp(r'^[a-z0-9][a-z0-9-]*$');
 
 /// Init-only options: libmpv reads these only during `mpv_initialize`, so
 /// applying them at runtime is a silent no-op. They are reported as skipped
@@ -66,7 +76,12 @@ MpvConfParseResult parseMpvConf(
   final warnings = <String>[];
   var inProfile = false;
 
+  var oversizedLines = 0;
   for (final rawLine in content.split('\n')) {
+    if (rawLine.length > mpvConfMaxLineLength) {
+      oversizedLines++;
+      continue;
+    }
     final line = rawLine.trim();
     if (line.isEmpty || line.startsWith('#')) continue;
 
@@ -90,7 +105,7 @@ MpvConfParseResult parseMpvConf(
       key = line.trim();
       value = 'yes';
     }
-    if (key.isEmpty) continue;
+    if (key.isEmpty || !_mpvOptionName.hasMatch(key)) continue;
 
     if (key == 'include') {
       if (depth >= 5) {
@@ -121,7 +136,14 @@ MpvConfParseResult parseMpvConf(
       warnings.add('"$key" is init-only/protected, skipped');
       continue;
     }
+    if (options.length >= mpvConfMaxOptions) {
+      warnings.add('option cap ($mpvConfMaxOptions) reached, rest of file ignored');
+      break;
+    }
     options.add(MpvOption(key, value));
+  }
+  if (oversizedLines > 0) {
+    warnings.add('$oversizedLines oversized line(s) skipped');
   }
   return MpvConfParseResult(options: options, warnings: warnings);
 }
