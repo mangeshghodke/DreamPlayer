@@ -3,6 +3,30 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
+## Unreleased
+
+### Added
+
+- **Secondary (dual) subtitles on the MPV engine.** The CC sheet gains a
+  "Secondary subtitle (top)" section when a video has more than one subtitle
+  track: pick any track to render it at the top edge alongside the primary
+  one (mpv `secondary-sid` + `secondary-sub-pos=100`), or Off. Session-only,
+  MPV-only (Media3 has no dual-subtitle renderer).
+- **Deband and Dither switches in the MPV picture panel** (next to Anime4K),
+  applied live via `deband`/`dither=ordered`; both reset with the panel's
+  Reset button.
+- **Custom MPV config (Android, MPV engine).** Settings → Player → *Custom
+  MPV config* lets you pick your own `mpv.conf` (persistable file URI). On
+  every MPV open the file is parsed and its options are applied on top of
+  DreamPlayer's hardened settings via `setProperty` — `key=value`, `no-key`,
+  bare keys, quoted values and `include=` (recursive, depth-capped) are
+  supported. Safety rails: `vo`/`wid`/`force-window`/`gpu-context`/
+  `config*`/`script*`/`input-conf`/`idle`/`keep-open` are protected and
+  skipped (logged), profiles are skipped, scripts are init-only in libmpv and
+  reported as such, and hostile files are capped (200 options, 4 KB lines,
+  option-name regex, 1 MiB read cap) so a wrong file can never crash or
+  flood the player.
+
 ## 0.5.6
 
 ### Fixed

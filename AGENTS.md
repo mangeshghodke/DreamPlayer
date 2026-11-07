@@ -188,6 +188,25 @@ A video player app supporting:
   for session-only Brightness, Contrast, Saturation, Gamma, and Reset. Values
   are applied through MPV's native equalizer properties, not Flutter filters;
   the controls are hidden for Media3 and PiP, and reapply after surface changes.
+- **MPV power-user features (2026-11-07, adapted from mpv-android which is
+  MIT — code/ideas portable with attribution)**: (1) **secondary/dual
+  subtitles** — the MPV CC sheet has a "Secondary subtitle (top)" section when
+  >1 track exists; sets `secondary-sid` + `secondary-sub-visibility=yes` +
+  `secondary-sub-pos=100` (`player_screen.dart`), session-only. (2) **Deband /
+  Dither switches** in the MPV picture panel, live via `deband` /
+  `dither=ordered`. (3) **Custom MPV config** — Settings → Player → *Custom
+  MPV config* picks a persistable `mpv.conf`; at every MPV open
+  `_applyMpvUserConfig` reads it (`FileBrowserService.readTextFile`, 1 MiB
+  cap) and applies it via `parseMpvConf` (`lib/services/mpv_user_config.dart`)
+  AFTER our hardening, so user options win except the protected list
+  (`vo`/`wid`/`force-window`/`gpu-context`/`config*`/`script*`/`input-conf`/
+  `idle`/`keep-open` — the SurfaceView attach and core liveness). Parser
+  supports `key=value`, `no-key`, bare keys, quotes, recursive `include=`
+  (depth 5); profiles and init-only keys are skipped with a log line. Hostile
+  files are capped (200 options, 4 KB lines, option-name regex) — pinned by
+  `test/mpv_user_config_test.dart` (12 tests). Lua scripts are NOT loadable:
+  libmpv reads them only at init and media_kit starts with `--config=no` and
+  exposes no init options — that needs our own JNI shim (roadmap).
 - **MPV SurfaceView path Phase 1+2 in tree (2026-09-23)**: `media_kit_video`
   removed; video → `MpvSurfaceView` (hybrid composition). Custom `libmpv.so`
   may live in `android/app/src/main/jniLibs/` (Gradle `pickFirsts`). See
