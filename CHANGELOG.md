@@ -5,6 +5,14 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ## Unreleased
 
+### Changed
+
+- **Skip intro/recap/credits pill polish (issue #62).** The pill now stays
+  visible when the rest of the player HUD fades out (Netflix/Disney+ style),
+  remains tappable while touch-lock is engaged (skipping is a deliberate
+  action, not a gesture to lock out), and is anchored slightly higher
+  (128 + safe-area bottom, was 112) so it clears the seekbar and bottom edge.
+
 ### Added
 
 - **Secondary (dual) subtitles on the MPV engine.** The CC sheet gains a

@@ -7559,14 +7559,15 @@ if (mounted) setState(_applySwipeValue);
   }
 
   void _skipSegment(SkipSegment segment) {
-    if (_touchLocked) return;
+    // Issue #62: the skip pill stays usable while controls are locked —
+    // skipping an intro is a deliberate action, not a gesture to lock out.
     // Credits seek to the segment START; intro/recap to its END.
     final target = segment.kind == SkipSegmentKind.credits
         ? segment.startMs
         : segment.endMs;
     _seekBackend(Duration(milliseconds: target));
     _showChapterToast('Skipped ${segment.kind.name}');
-    _showControls();
+    if (!_touchLocked) _showControls();
   }
 
 
@@ -9203,18 +9204,22 @@ if (mounted) setState(_applySwipeValue);
                 ),
               ),
              ),
-            // "Skip intro/recap/credits" pill (YouTube-style), bottom-right
-            // while the playhead is inside (or within 5 s of) a segment. It
-            // MUST sit after the bottom bar in the Stack: the bar is a later
-            // child, so an earlier pill is painted under it and its taps land
-            // on the seekbar (reported on iOS, where the bar is taller
-            // because of the home-indicator safe area). Anchored above the
-            // bar: 112 + safe-area bottom clears it on both platforms.
+            // "Skip intro/recap/credits" pill (YouTube/Netflix-style),
+            // bottom-right while the playhead is inside (or within 5 s of) a
+            // segment. It MUST sit after the bottom bar in the Stack: the bar
+            // is a later child, so an earlier pill is painted under it and
+            // its taps land on the seekbar (reported on iOS, where the bar is
+            // taller because of the home-indicator safe area). Anchored above
+            // the bar: 128 + safe-area bottom clears it on both platforms
+            // (issue #62: raised from 112 so it doesn't sit flush on the
+            // seekbar). Unlike the rest of the HUD it stays visible when the
+            // controls fade AND while touch-locked (issue #62) — the pill is
+            // a later Stack child than the gesture catcher, so its taps win.
             // TV gets the sheet rows instead (no hover), so hidden there.
-            if (!_isTv && _skipIntroVisible && _controlsVisible)
+            if (!_isTv && _skipIntroVisible)
               Positioned(
                 right: 16,
-                bottom: 112 + MediaQuery.paddingOf(context).bottom,
+                bottom: 128 + MediaQuery.paddingOf(context).bottom,
                 child: OutlinedButton.icon(
                   onPressed: () {
                     final p = _promptSegment;
