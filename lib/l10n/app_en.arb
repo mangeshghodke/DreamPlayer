@@ -769,6 +769,14 @@
   "@settingsNightModeDesc": {
     "description": "Night mode subtitle"
   },
+  "settingsAudioDownmix": "Downmix to stereo",
+  "settingsAudioDownmixDesc": "Fold 5.1/7.1 tracks into 2.0 so dialogue stays loud on stereo headphones and speakers. Applies on the next playback; ignored for HDMI passthrough.",
+  "@settingsAudioDownmix": {
+    "description": "Settings → Audio: switch that folds 5.1/7.1 audio into stereo."
+  },
+  "@settingsAudioDownmixDesc": {
+    "description": "Subtitle of the downmix-to-stereo switch in Settings → Audio."
+  },
   "settingsSpatialAudio": "Spatial audio",
   "@settingsSpatialAudio": {
     "description": "Spatial audio section title"

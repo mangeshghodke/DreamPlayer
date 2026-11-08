@@ -601,6 +601,13 @@ class AppLocalizationsRu extends AppLocalizations {
       'Compress dynamic range for quiet listening';
 
   @override
+  String get settingsAudioDownmix => 'Даунмикс в стерео';
+
+  @override
+  String get settingsAudioDownmixDesc =>
+      'Сводит дорожки 5.1/7.1 к стерео (2.0), чтобы диалоги оставались громкими в наушниках и колонках. Применяется при следующем воспроизведении; при сквозной передаче HDMI игнорируется.';
+
+  @override
   String get settingsSpatialAudio => 'Пространственный звук';
 
   @override

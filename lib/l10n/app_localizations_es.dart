@@ -601,6 +601,13 @@ class AppLocalizationsEs extends AppLocalizations {
       'Compress dynamic range for quiet listening';
 
   @override
+  String get settingsAudioDownmix => 'Mezcla a estéreo';
+
+  @override
+  String get settingsAudioDownmixDesc =>
+      'Convierte pistas 5.1/7.1 a 2.0 para que los diálogos sigan altos en auriculares o altavoces estéreo. Se aplica en la siguiente reproducción; se ignora en la salida HDMI directa.';
+
+  @override
   String get settingsSpatialAudio => 'Audio espacial';
 
   @override

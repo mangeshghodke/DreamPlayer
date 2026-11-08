@@ -7,6 +7,7 @@ import 'package:intl/intl.dart' as intl;
 
 import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
+import 'app_localizations_fr.dart';
 import 'app_localizations_ru.dart';
 import 'app_localizations_zh.dart';
 
@@ -98,6 +99,7 @@ abstract class AppLocalizations {
   static const List<Locale> supportedLocales = <Locale>[
     Locale('en'),
     Locale('es'),
+    Locale('fr'),
     Locale('ru'),
     Locale('zh'),
   ];
@@ -1223,6 +1225,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Compresses quiet audio'**
   String get settingsNightModeDesc;
+
+  /// Settings → Audio: switch that folds 5.1/7.1 audio into stereo.
+  ///
+  /// In en, this message translates to:
+  /// **'Downmix to stereo'**
+  String get settingsAudioDownmix;
+
+  /// Subtitle of the downmix-to-stereo switch in Settings → Audio.
+  ///
+  /// In en, this message translates to:
+  /// **'Fold 5.1/7.1 tracks into 2.0 so dialogue stays loud on stereo headphones and speakers. Applies on the next playback; ignored for HDMI passthrough.'**
+  String get settingsAudioDownmixDesc;
 
   /// Spatial audio section title
   ///
@@ -3456,7 +3470,7 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) =>
-      <String>['en', 'es', 'ru', 'zh'].contains(locale.languageCode);
+      <String>['en', 'es', 'fr', 'ru', 'zh'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -3469,6 +3483,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsEn();
     case 'es':
       return AppLocalizationsEs();
+    case 'fr':
+      return AppLocalizationsFr();
     case 'ru':
       return AppLocalizationsRu();
     case 'zh':

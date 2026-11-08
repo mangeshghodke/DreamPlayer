@@ -596,6 +596,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsNightModeDesc => 'Compresses quiet audio';
 
   @override
+  String get settingsAudioDownmix => 'Downmix to stereo';
+
+  @override
+  String get settingsAudioDownmixDesc =>
+      'Fold 5.1/7.1 tracks into 2.0 so dialogue stays loud on stereo headphones and speakers. Applies on the next playback; ignored for HDMI passthrough.';
+
+  @override
   String get settingsSpatialAudio => 'Spatial audio';
 
   @override

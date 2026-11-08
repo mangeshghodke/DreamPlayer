@@ -160,6 +160,14 @@ class ExoPlayerView(
         p.getBoolean("flutter.dreamplayer.nightMode", false)
     }
 
+    /// Downmix to stereo (Settings -> Audio). Pushed into the sink's
+    /// DownmixAudioProcessor on every open — configure() reads it once per
+    /// stream, so a mid-playback toggle applies on the next track/open.
+    private var audioDownmixEnabled: Boolean = run {
+        val p = activity.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        p.getBoolean("flutter.dreamplayer.audioDownmix", false)
+    }
+
     // ---- Bass Boost (android.media.audiofx.BassBoost on the session) ----
     // Exists to offset the low-end thinning that HRTF spatialization causes.
     // 0 = off, 1 = Low, 2 = Medium, 3 = High (strength 0–1000).
@@ -1249,6 +1257,10 @@ class ExoPlayerView(
                 "open" -> {
                     try {
                         registerSpatialListenerOnce()
+                        // Downmix-to-stereo: push the pref into the sink
+                        // processor BEFORE the first audio format configures
+                        // the chain (configure() reads it once per stream).
+                        DreamRenderersFactory.audioDownmixProcessor.setEnabled(audioDownmixEnabled)
                         // Recreate the player when the decoder mode changed so
                         // renderers are rebuilt with the new MediaCodecSelector
                         // (the lambda reads prefs live on every query). Prefer the
@@ -1771,6 +1783,18 @@ class ExoPlayerView(
                     activity.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
                         .edit().putInt("flutter.dreamplayer.bassBoost", level).apply()
                     applyAudioEffects()
+                    emit()
+                    result.success(null)
+                }
+                "setAudioDownmix" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    audioDownmixEnabled = enabled
+                    activity.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                        .edit().putBoolean("flutter.dreamplayer.audioDownmix", enabled).apply()
+                    // The output channel count is fixed when the sink
+                    // configures the chain, so this applies on the next track
+                    // change / open; the processor reads it in configure().
+                    DreamRenderersFactory.audioDownmixProcessor.setEnabled(enabled)
                     emit()
                     result.success(null)
                 }
@@ -2336,6 +2360,7 @@ class ExoPlayerView(
         map["audioPassthrough"] = passthroughEnabled
         map["audioBoost"] = audioBoost
         map["nightMode"] = nightModeEnabled
+        map["audioDownmix"] = audioDownmixEnabled
         map["bassBoost"] = bassBoostLevel
         map["spatialAudio"] = spatialStatus()
         map["inPip"] = inPip

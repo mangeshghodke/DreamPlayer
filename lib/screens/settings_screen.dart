@@ -30,6 +30,7 @@ import '../services/language_service.dart';
 import '../services/metadata_provider_adapter.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/spatial_audio_store.dart';
+import '../services/audio_downmix_store.dart';
 import '../services/subtitle_encodings.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
@@ -90,6 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _volumeBoostEnabled = false;
   bool _nightMode = false;
   bool _spatialAudio = false;
+  bool _audioDownmix = false;
   bool _simklConnected = false;
   DateTime? _simklLastSync;
   String? _osUsername;
@@ -603,7 +605,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _languageLabel(Locale? locale) {
     if (locale == null) return 'System default';
-    final names = {'en': 'English', 'es': 'Spanish', 'zh': 'Chinese (Simplified)', 'ru': 'Russian'};
+    final names = {'en': 'English', 'es': 'Spanish', 'zh': 'Chinese (Simplified)', 'ru': 'Russian', 'fr': 'French'};
     return names[locale.languageCode] ?? locale.languageCode;
   }
 
@@ -1053,11 +1055,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ? false
           : effectiveDspSetting(await VolumeBoostToggleStore.load());
       final spatial = await SpatialAudioStore.effectiveEnabled();
+      // Not paywall-gated (unlike the DSP trio above): see the row comment.
+      final downmix = await AudioDownmixStore.load();
       if (mounted) {
         setState(() {
           _nightMode = night;
           _volumeBoostEnabled = boostEnabled;
           _spatialAudio = spatial;
+          _audioDownmix = downmix;
         });
       }
     } catch (_) {}
@@ -1906,6 +1911,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         setState(() => _spatialAudio = value);
                       },
                     ),
+                  // === Downmix to stereo (both platforms, FREE) ===
+                  // One switch: fold 5.1/7.1 tracks into 2.0 so the centre
+                  // channel (dialogue) survives on stereo headphones and
+                  // speakers. Android: a PCM processor in the Media3 sink,
+                  // and mpv `audio-channels=stereo` on the MPV engine. iOS:
+                  // the stereo audio-session lever (Apple's own downmix keeps
+                  // the centre). Applies on the next playback; bitstream
+                  // passthrough over HDMI is untouched — the processors only
+                  // run on decoded PCM.
+                  //
+                  // Deliberately NOT paywall-gated: downmix is about AUDIO
+                  // channel count, and most 5.1/7.1 content is ordinary SDR
+                  // that free users can already play — gating it would lock
+                  // a basic stereo-listening fix behind the paywall. Only the
+                  // HDR/DV *video* path and the iOS DSP trio stay premium.
+                  SwitchListTile(
+                    secondary: const Icon(Icons.speaker),
+                    title: Text(
+                        AppLocalizations.of(context).settingsAudioDownmix),
+                    subtitle: Text(
+                        AppLocalizations.of(context).settingsAudioDownmixDesc),
+                    value: _audioDownmix,
+                    onChanged: (value) async {
+                      await AudioDownmixStore.save(value);
+                      if (mounted) setState(() => _audioDownmix = value);
+                    },
+                  ),
                   // === Volume Boost / Night Mode (both engines) ===
                   // MPV only: an mpv engine property. Defaults off so the two
                   // Android engines play at the same level (issue #37).

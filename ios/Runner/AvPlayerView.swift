@@ -673,6 +673,17 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         UserDefaults.standard.object(forKey: "flutter.dreamplayer.spatialAudio") as? Bool ?? false
     }
 
+    /// Whether "Downmix to stereo" (Settings -> Audio) is on.
+    ///
+    /// NOT a premium feature — unlike spatial audio it is not gated: it
+    /// applies to any 5.1/7.1 file, including ordinary SDR content that free
+    /// users can already play, so no entitlement check is applied here.
+    /// Written by the Dart store (`dreamplayer.audioDownmix`);
+    /// shared_preferences prefixes keys with `flutter.` on iOS.
+    private var audioDownmixEnabled: Bool {
+        UserDefaults.standard.object(forKey: "flutter.dreamplayer.audioDownmix") as? Bool ?? false
+    }
+
     /// Whether the current route is spatializing. The system owns that setting
     /// (Control Center / AirPods); the app can only opt in or out.
     private var routeSpatialAudioActive: Bool {
@@ -707,13 +718,28 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     @discardableResult
     private func applySpatialAudio(force: Bool = false) -> Bool {
         let enabled = spatialAudioEnabled
-        if !force, lastSpatialAudioApplied == enabled {
+        let downmix = audioDownmixEnabled
+        if !force, lastSpatialAudioApplied == enabled, lastDownmixApplied == downmix {
             return false
         }
         lastSpatialAudioApplied = enabled
+        lastDownmixApplied = downmix
 
+        // Downmix ON wins over spatial: a stereo session cannot spatialize,
+        // and that is the point — the user asked for plain stereo output.
         if let item = findPlayerLayer()?.player?.currentItem {
-            item.allowedAudioSpatializationFormats = enabled ? .multichannel : []
+            item.allowedAudioSpatializationFormats = (enabled && !downmix) ? .multichannel : []
+            if downmix {
+                // Force the session to stereo so the NATIVE path's 5.1/7.1 is
+                // downmixed as well (Apple's downmix keeps the centre channel,
+                // so dialogue stays loud). The engine re-declares the session
+                // on every load and applySpatialAudio runs again after each
+                // load, so the value is liftable on the next load when the
+                // toggle goes back off.
+                Task.detached(priority: .userInitiated) {
+                    try? AVAudioSession.sharedInstance().setSupportsMultichannelContent(false)
+                }
+            }
             return true
         }
 
@@ -722,7 +748,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         // path" signal. Without it the pipeline is unknown (nothing loaded
         // yet), and guessing would risk downmixing the native path.
         guard engine?.softwarePiPSource != nil else { return false }
-        let wantsMultichannel = enabled || !routeSpatialAudioActive
+        let wantsMultichannel = (enabled || !routeSpatialAudioActive) && !downmix
         Task.detached(priority: .userInitiated) {
             let session = AVAudioSession.sharedInstance()
             try? session.setSupportsMultichannelContent(wantsMultichannel)
@@ -739,6 +765,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// The last spatial-audio opt-in that was applied, so a defaults change
     /// that did not touch it does not trigger another session round trip.
     private var lastSpatialAudioApplied: Bool?
+
+    /// Same latch for the downmix lever.
+    private var lastDownmixApplied: Bool?
 
     
 
@@ -1157,6 +1186,16 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // engine DSP here, and every DSP change rebuilds the audio
                     // session at the playhead, which reloads the video.
                     SBMLog.log("setBassBoost: ignored on iOS (no bass boost)")
+                    result(nil)
+                case "setAudioDownmix":
+                    // Downmix to stereo: persist the pref (the load paths read
+                    // it from UserDefaults) and re-apply the session levers.
+                    // Not paywalled — it applies to free SDR 5.1/7.1 too.
+                    let downmixOn = (args?["enabled"] as? Bool) ?? false
+                    UserDefaults.standard.set(downmixOn, forKey: "flutter.dreamplayer.audioDownmix")
+                    SBMLog.log("setAudioDownmix: \(downmixOn) — stereo session lever applied")
+                    self.applySpatialAudio(force: true)
+                    self.emit()
                     result(nil)
                 case "setUpscale":
                     // MetalFX upscale stage (engine #846) is a LOAD option: the
@@ -2630,6 +2669,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             "nightMode": nightModeEnabled,
             "bassBoost": 0,
             "spatialAudio": spatialAudioState,
+            "audioDownmix": audioDownmixEnabled,
             "upscaleActive": upscaleActive,
             "upscaleSource": upscaleSource,
             "upscaleTarget": upscaleTarget,

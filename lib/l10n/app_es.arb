@@ -761,6 +761,8 @@
   "@settingsNightModeDesc": {
     "description": "Night mode subtitle"
   },
+  "settingsAudioDownmix": "Mezcla a estéreo",
+  "settingsAudioDownmixDesc": "Convierte pistas 5.1/7.1 a 2.0 para que los diálogos sigan altos en auriculares o altavoces estéreo. Se aplica en la siguiente reproducción; se ignora en la salida HDMI directa.",
   "settingsSpatialAudio": "Audio espacial",
   "@settingsSpatialAudio": {
     "description": "Spatial audio section title"

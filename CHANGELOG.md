@@ -15,6 +15,16 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
+- **Downmix to stereo (Settings → Audio).** One switch folds 5.1/7.1 tracks
+  into 2.0 so dialogue (the centre channel) stays loud on stereo headphones
+  and speakers — the standard −3 dB centre/surround matrix, LFE dropped.
+  Android Media3: a PCM `DownmixAudioProcessor` in the audio sink chain,
+  before the boost limiter so peaks are limited; HDMI bitstream passthrough
+  is untouched (the receiver downmixes itself). MPV engine:
+  `audio-channels=stereo` (swresample downmix). iOS: the stereo
+  audio-session lever, so Apple's own downmix applies. Takes effect on the
+  next playback/track change. Free on both platforms (not paywall-gated —
+  it applies to ordinary SDR 5.1/7.1 content too).
 - **Secondary (dual) subtitles on the MPV engine.** The CC sheet gains a
   "Secondary subtitle (top)" section when a video has more than one subtitle
   track: pick any track to render it at the top edge alongside the primary

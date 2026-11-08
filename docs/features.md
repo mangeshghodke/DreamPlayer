@@ -79,7 +79,7 @@ The full feature list. The README carries a short summary; everything below is t
 - **Multi-select delete** — long-press files or folders to select, then ⋮ → Delete. Folders are deleted recursively, with the confirmation spelling that out
 
 ## Localization
-- **English, Spanish, Chinese Simplified, Russian** — 1100+ translated strings across all screens
+- **English, Spanish, Chinese Simplified, Russian, French** — 1100+ translated strings across all screens
 - **Auto-detect** device language on launch; optional **Settings → General → Language** override
 - Technical terms (codec names, HDR, Dolby Vision, etc.) stay English by design
 

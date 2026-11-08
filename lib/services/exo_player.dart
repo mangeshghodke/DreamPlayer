@@ -297,6 +297,7 @@ class ExoPlayerEvent {
     this.audioPassthrough = false,
     this.audioBoost = 1.0,
     this.nightMode = false,
+    this.audioDownmix = false,
     this.bassBoost = 0,
     this.spatialAudio = '',
     this.upscaleActive = false,
@@ -392,6 +393,9 @@ class ExoPlayerEvent {
   /// Night Mode flag (compressed dynamic range).
   final bool nightMode;
 
+  /// Downmix-to-stereo setting reported by the native side.
+  final bool audioDownmix;
+
   /// Container chapters (MKV only, local files). Empty when the file has
   /// none or the source is a network stream.
   final List<ExoChapter> chapters;
@@ -464,6 +468,7 @@ class ExoPlayerEvent {
       upscaleTarget: m['upscaleTarget'] as String? ?? '',
       audioBoost: m['audioBoost'] is num ? (m['audioBoost'] as num).toDouble().clamp(1.0, 3.0) : 1.0,
       nightMode: m['nightMode'] == true,
+      audioDownmix: m['audioDownmix'] == true,
       bassBoost: asInt(m['bassBoost'], 0),
       chapters: (m['chapters'] as List? ?? const [])
           .map((e) => ExoChapter.fromMap(e as Map<dynamic, dynamic>))
@@ -563,6 +568,13 @@ abstract class PlaybackController {
   /// BassBoost effect; iOS applies it as a low shelf in the engine's
   /// AudioShaping (the AetherEngine fork) — see the paywall gate map.
   Future<void> setBassBoost(int level);
+
+  /// Downmix to stereo: fold 5.1/7.1 audio into 2.0 (centre channel kept at
+  /// -3 dB). Android Media3 retunes a PCM `AudioProcessor` (applies on the
+  /// next track/open — the output channel count is fixed at sink configure
+  /// time); iOS applies the stereo audio-session lever. Bitstream passthrough
+  /// is unaffected (processors only see decoded PCM).
+  Future<void> setAudioDownmix(bool enabled);
 
   /// iOS-only: request the MetalFX upscale stage (SDR SD/720p/1080p video).
   /// Android answers a logged no-op so the call never throws.
@@ -796,6 +808,10 @@ class ExoPlayerController implements PlaybackController {
   @override
   Future<void> setBassBoost(int level) =>
       _send('setBassBoost', {'level': level.clamp(0, 3)});
+
+  @override
+  Future<void> setAudioDownmix(bool enabled) =>
+      _send('setAudioDownmix', {'enabled': enabled});
 
   @override
   Future<void> setUpscale(bool enabled) =>

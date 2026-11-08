@@ -33,6 +33,7 @@ import '../services/simkl_client.dart';
 import '../services/watched_store.dart';
 import '../services/sidecar_subtitle_service.dart';
 import '../services/spatial_audio_store.dart';
+import '../services/audio_downmix_store.dart';
 import '../services/ios_upscale_store.dart';
 import '../services/mpv_pip.dart';
 import '../services/mpv_surface_view.dart';
@@ -509,6 +510,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   double? _systemVolumeAtOpen;
   double? _lastPushedSystemVolume;
   bool _nightMode = false;
+  bool _audioDownmix = false;
 
   int _subtitleDelayMs = 0;
   bool _autoPlayNext = false;
@@ -739,6 +741,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         _volumeBoostEnabled = !Platform.isIOS &&
             effectiveDspSetting(await VolumeBoostToggleStore.load());
         _nightMode = effectiveDspSetting(await NightModeStore.load());
+        // Not paywall-gated: downmix applies to any 5.1/7.1 file, including
+        // free SDR playback, so the saved value is used uncorrected.
+        _audioDownmix = await AudioDownmixStore.load();
         _subtitleDelayMs = (await SubtitleStyle.load()).delayMs;
         _decoderMode = await DecoderModeStore.load();
       } catch (_) {}
@@ -774,6 +779,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       try {
         await exo.setAudioBoost(_audioBoost);
         await exo.setNightMode(_nightMode);
+        await exo.setAudioDownmix(_audioDownmix);
         // iOS: push the effective bass level too. The native side reads the
         // pref itself (Android parity), but a lapsed entitlement has to reach
         // the engine as 0 — the push also persists that correction. Android
@@ -1926,6 +1932,12 @@ Future<void> _offerVc1Mpv() async {
     //   (Settings -> Player), so clipping-sensitive downmixes remain available.
     try {
       final normalizeDownmix = await MpvDownmixStore.load();
+      // Downmix to stereo (Settings -> Audio): force mpv's output layout to
+      // stereo; its swresample downmix keeps the centre channel at -3 dB,
+      // which is what keeps dialogue loud on stereo headphones/speakers.
+      // Ignored for bitstream passthrough (audio-spdif) — mpv does not
+      // decode those, so nothing is downmixed there.
+      final downmix = await AudioDownmixStore.load();
       // Ceiling for _applyMpvVolume to work against; it raises this further
       // when the user's boost needs more headroom than 200%.
       await platform.setProperty('volume-max', '400');
@@ -1934,8 +1946,13 @@ Future<void> _offerVc1Mpv() async {
         'audio-normalize-downmix',
         normalizeDownmix ? 'yes' : 'no',
       );
-      debugPrint('mpv: audio configured (volume-max=200, pitch-correction, '
-          'normalize-downmix=${normalizeDownmix ? 'yes' : 'no'})');
+      await platform.setProperty(
+        'audio-channels',
+        downmix ? 'stereo' : 'auto',
+      );
+      debugPrint('mpv: audio configured (volume-max=400, pitch-correction, '
+          'normalize-downmix=${normalizeDownmix ? 'yes' : 'no'}, '
+          'audio-channels=${downmix ? 'stereo' : 'auto'})');
     } catch (e) {
       debugPrint('mpv: audio config unavailable: $e');
     }
@@ -1957,7 +1974,13 @@ Future<void> _offerVc1Mpv() async {
         'audio-normalize-downmix',
         normalize ? 'yes' : 'no',
       );
-      debugPrint('mpv: audio-normalize-downmix -> ${normalize ? 'yes' : 'no'}');
+      final downmix = await AudioDownmixStore.load();
+      await platform.setProperty(
+        'audio-channels',
+        downmix ? 'stereo' : 'auto',
+      );
+      debugPrint('mpv: audio-normalize-downmix -> ${normalize ? 'yes' : 'no'}, '
+          'audio-channels -> ${downmix ? 'stereo' : 'auto'}');
     } catch (e) {
       debugPrint('mpv: downmix setting failed: $e');
     }

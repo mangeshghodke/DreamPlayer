@@ -1,0 +1,2341 @@
+{
+  "@@locale": "fr",
+  "@commonCancel": {
+    "description": "Cancel button"
+  },
+  "@commonSave": {
+    "description": "Save button"
+  },
+  "@commonDelete": {
+    "description": "Delete button"
+  },
+  "@commonRemove": {
+    "description": "Remove button"
+  },
+  "@commonClose": {
+    "description": "Close button"
+  },
+  "@commonRetry": {
+    "description": "Retry button"
+  },
+  "@commonEdit": {
+    "description": "Edit button"
+  },
+  "@commonSearch": {
+    "description": "Search button/label"
+  },
+  "@commonTest": {
+    "description": "Test connection button"
+  },
+  "@commonOff": {
+    "description": "Disabled/off state"
+  },
+  "@commonReset": {
+    "description": "Reset to defaults"
+  },
+  "@commonClear": {
+    "description": "Clear action"
+  },
+  "@commonDiscover": {
+    "description": "Network discovery button"
+  },
+  "@commonRefresh": {
+    "description": "Refresh/reload button"
+  },
+  "@commonRetryAction": {
+    "description": "Retry a failed operation"
+  },
+  "@commonNothingHere": {
+    "description": "Empty state message"
+  },
+  "@commonNothingYet": {
+    "description": "Empty list message"
+  },
+  "@commonSomethingWentWrong": {
+    "description": "Generic error message"
+  },
+  "@commonNoResults": {
+    "description": "No search results"
+  },
+  "@commonTestConnection": {
+    "description": "Test server connection button"
+  },
+  "@appTitle": {
+    "description": "App name shown in launcher and headers"
+  },
+  "@navLibrary": {
+    "description": "Bottom nav tab label"
+  },
+  "@navSettings": {
+    "description": "Bottom nav tab label"
+  },
+  "@pressBackToExit": {
+    "description": "Toast message when back is pressed once"
+  },
+  "@homeContinueWatching": {
+    "description": "Section header for resume list"
+  },
+  "@homeYourLibrary": {
+    "description": "Section header for user library folders"
+  },
+  "@homeAddSource": {
+    "description": "FAB menu label"
+  },
+  "@homeAddFolder": {
+    "description": "Menu item to add a local folder"
+  },
+  "@homeInternalStorage": {
+    "description": "Menu item for local file browser"
+  },
+  "@homeBrowseFiles": {
+    "description": "Subtitle for internal storage menu item"
+  },
+  "@homeNetworkSources": {
+    "description": "Expansion tile header for network options"
+  },
+  "@homeNoFolders": {
+    "description": "Empty library state"
+  },
+  "@homeNoVideos": {
+    "description": "Empty continue-watching state"
+  },
+  "@homeAuthorization": {
+    "description": "Authorization dialog title"
+  },
+  "@homeFolderPickerTimeout": {
+    "description": "Error when SAF picker times out"
+  },
+  "@homeCouldNotPickFolder": {
+    "description": "Error when folder picker fails"
+  },
+  "@homeRemoveFromLibrary": {
+    "description": "Dialog title for removing library folder"
+  },
+  "@homeFilesStayOnDevice": {
+    "description": "Dialog body for library removal"
+  },
+  "@homeRemoveFromContinue": {
+    "description": "Dialog title for removing continue-watching entry"
+  },
+  "@homeDownloading": {
+    "description": "Section header for active downloads in drawer"
+  },
+  "@homeDownloads": {
+    "description": "Section header for completed downloads in drawer"
+  },
+  "@homeNoDownloads": {
+    "description": "Empty downloads state"
+  },
+  "@homeNoCompletedDownloads": {
+    "description": "No finished downloads in drawer"
+  },
+  "@homeCancelled": {
+    "description": "Download status label"
+  },
+  "@homeFailed": {
+    "description": "Download status label"
+  },
+  "@homeRemoveDownload": {
+    "description": "Dialog title for removing a download"
+  },
+  "@homePlayUrl": {
+    "description": "Menu item to play a direct URL"
+  },
+  "@homeStreamLink": {
+    "description": "Subtitle for Play URL menu item"
+  },
+  "@homeVideoUrl": {
+    "description": "Text field label for URL input"
+  },
+  "@homeEnterValidUrl": {
+    "description": "Validation error for URL input"
+  },
+  "@homeCouldNotOpenLink": {
+    "description": "Error opening a URL"
+  },
+  "@homeAddWebdavServer": {
+    "description": "Menu item for WebDAV"
+  },
+  "@homeFtpOrSftp": {
+    "description": "Subtitle for FTP menu item"
+  },
+  "@homeJellyfinServer": {
+    "description": "Subtitle for Jellyfin menu item"
+  },
+  "@homeUpnpDlna": {
+    "description": "Subtitle for DLNA menu item"
+  },
+  "@homeSmbNas": {
+    "description": "Menu item for SMB shares"
+  },
+  "@homeSmbShares": {
+    "description": "Subtitle for SMB menu item on Android"
+  },
+  "@homeSmbViaFiles": {
+    "description": "Subtitle for SMB on iOS via Files"
+  },
+  "@playerNotSupported": {
+    "description": "Shown on unsupported platforms"
+  },
+  "@playerNoSource": {
+    "description": "Error when no URI/path"
+  },
+  "@playerNoPlayable": {
+    "description": "Error when source can't play"
+  },
+  "@playerSmbStreamError": {
+    "description": "Error when mpv can't open SMB"
+  },
+  "@playerControllerLost": {
+    "description": "Error when controller disposed early"
+  },
+  "@playerAudioTracks": {
+    "description": "Audio track picker title"
+  },
+  "@playerNoAudioTracks": {
+    "description": "No audio tracks available"
+  },
+  "@playerSubtitles": {
+    "description": "Subtitle picker section title"
+  },
+  "@playerNoSubtitles": {
+    "description": "No subtitle tracks available"
+  },
+  "@playerSearchOnlineSubs": {
+    "description": "Button to search OpenSubtitles"
+  },
+  "@playerLoadSubtitleFile": {
+    "description": "Button to load external subtitle file"
+  },
+  "@playerTitle": {
+    "description": "Info sheet row label"
+  },
+  "@playerSource": {
+    "description": "Info sheet row label"
+  },
+  "@playerUrl": {
+    "description": "Info sheet row label"
+  },
+  "@playerFileSize": {
+    "description": "Info sheet row label"
+  },
+  "@playerVideoInfo": {
+    "description": "Button to open video info sheet"
+  },
+  "@playerResolution": {
+    "description": "Info sheet row label"
+  },
+  "@playerDecoder": {
+    "description": "Info sheet row label"
+  },
+  "@playerAudioCh": {
+    "description": "Audio channels label"
+  },
+  "@playerStream": {
+    "description": "Info sheet row label for server transcoding"
+  },
+  "@playerServerTranscoding": {
+    "description": "Shown when server is transcoding"
+  },
+  "@playerSpatialAudio": {
+    "description": "Info sheet row label"
+  },
+  "@playerVolumeBoost": {
+    "description": "Info sheet row label"
+  },
+  "@playerNightMode": {
+    "description": "Info sheet row label"
+  },
+  "@playerBassBoost": {
+    "description": "Info sheet row label"
+  },
+  "@playerSpeed": {
+    "description": "Playback speed info label"
+  },
+  "@playerChapters": {
+    "description": "Chapters section label"
+  },
+  "@playerAspectRatio": {
+    "description": "Aspect ratio picker title"
+  },
+  "@playerPlaybackSpeed": {
+    "description": "Speed picker title"
+  },
+  "@playerPlaybackSettings": {
+    "description": "⋮ sheet section header"
+  },
+  "@playerRepeatShuffle": {
+    "description": "Repeat and shuffle section title"
+  },
+  "@playerShuffle": {
+    "description": "Shuffle toggle label"
+  },
+  "@playerShuffleDesc": {
+    "description": "Shuffle subtitle"
+  },
+  "@playerSleepTimer": {
+    "description": "Sleep timer section title"
+  },
+  "@playerSleepEndOfVideo": {
+    "description": "Sleep timer option"
+  },
+  "@playerAudioDelay": {
+    "description": "Audio delay section title"
+  },
+  "@playerSubtitleSettings": {
+    "description": "Subtitle settings button"
+  },
+  "@playerSubtitleSettingsDesc": {
+    "description": "Subtitle settings subtitle"
+  },
+  "@playerVideoDecoder": {
+    "description": "Decoder picker title"
+  },
+  "@playerDecoderHw": {
+    "description": "Hardware-only decoder option"
+  },
+  "@playerDecoderSw": {
+    "description": "Software decoder option"
+  },
+  "@playerDecoderAuto": {
+    "description": "Auto decoder option"
+  },
+  "@playerDecoderReopen": {
+    "description": "Subtitle under decoder picker"
+  },
+  "@playerVolumeBoostTitle": {
+    "description": "Volume boost section title"
+  },
+  "@playerBassBoostTitle": {
+    "description": "Bass boost section title"
+  },
+  "@playerBassLow": {
+    "description": "Bass boost level"
+  },
+  "@playerBassMedium": {
+    "description": "Bass boost level"
+  },
+  "@playerBassHigh": {
+    "description": "Bass boost level"
+  },
+  "@playerNightModeTitle": {
+    "description": "Night mode section title"
+  },
+  "@playerAutoPlayNext": {
+    "description": "Auto-play toggle label"
+  },
+  "@playerAutoPlayNextDesc": {
+    "description": "Auto-play subtitle"
+  },
+  "@playerSubtitleDelay": {
+    "description": "Subtitle delay slider label"
+  },
+  "@playerDownloadToDevice": {
+    "description": "Download button in ⋮ sheet"
+  },
+  "@playerOpenExternal": {
+    "description": "External player handoff button"
+  },
+  "@playerNoVideoInFolder": {
+    "description": "Empty folder state"
+  },
+  "@playerTryMpv": {
+    "description": "Fallback engine button on error surface"
+  },
+  "@playerWatchBeginning": {
+    "description": "Replay from start button"
+  },
+  "@playerWatchBeginningMpv": {
+    "description": "Replay from start via MPV"
+  },
+  "@playerPlayWithMpv": {
+    "description": "Play via MPV engine button"
+  },
+  "@playerChapterN": {
+    "description": "Chapter count label",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@playerPosition": {
+    "description": "Current position label",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "@playerVolumeLevel": {
+    "description": "Volume multiplier display",
+    "placeholders": {
+      "level": {
+        "type": "String"
+      }
+    }
+  },
+  "@sourceJellyfin": {
+    "description": "Source badge label"
+  },
+  "@sourceJellyfinHttp": {
+    "description": "Source badge label"
+  },
+  "@sourceNetworkHttp": {
+    "description": "Source badge label"
+  },
+  "@sourceWebdav": {
+    "description": "Source badge label"
+  },
+  "@sourceLocalFile": {
+    "description": "Source badge label"
+  },
+  "@sourceDocumentSaf": {
+    "description": "Source badge label"
+  },
+  "@sourceFtpSftp": {
+    "description": "Source badge label"
+  },
+  "@sourceSmb": {
+    "description": "Source badge label"
+  },
+  "@sourceAppAsset": {
+    "description": "Source badge label"
+  },
+  "@sourceTranscoding": {
+    "description": "Transcoding badge"
+  },
+  "@sourceSwDecode": {
+    "description": "Software decode chip"
+  },
+  "@sourceHwDecode": {
+    "description": "Hardware decode chip"
+  },
+  "@sourceHwDecodeAuto": {
+    "description": "Auto hardware decode chip"
+  },
+  "@settingsPlayer": {
+    "description": "Settings section header"
+  },
+  "@settingsAudio": {
+    "description": "Settings section header"
+  },
+  "@settingsStorage": {
+    "description": "Settings section header"
+  },
+  "@settingsMetadata": {
+    "description": "Settings section header"
+  },
+  "@settingsSubtitles": {
+    "description": "Settings section header"
+  },
+  "@settingsAbout": {
+    "description": "Settings section header"
+  },
+  "@settingsSupport": {
+    "description": "Settings section header"
+  },
+  "@settingsMpvNormalizeDownmix": {
+    "description": "Toggle for mpv surround-to-stereo downmix normalization"
+  },
+  "@settingsMpvNormalizeDownmixDesc": {
+    "description": "MPV downmix normalization subtitle"
+  },
+  "@settingsSwipeGestures": {
+    "description": "Toggle for swipe brightness/volume"
+  },
+  "@settingsSwipeDesc": {
+    "description": "Swipe gestures subtitle"
+  },
+  "@settingsPip": {
+    "description": "PiP toggle label"
+  },
+  "@settingsPipDesc": {
+    "description": "PiP subtitle"
+  },
+  "@settingsDefaultEngine": {
+    "description": "Default playback engine setting"
+  },
+  "@settingsEngineAutoDesc": {
+    "description": "Auto engine subtitle"
+  },
+  "@settingsEngineMedia3Desc": {
+    "description": "Media3 engine subtitle"
+  },
+  "@settingsEngineMpvDesc": {
+    "description": "libmpv engine subtitle"
+  },
+  "@settingsEngineAskDesc": {
+    "description": "Ask-every-time engine subtitle"
+  },
+  "@settingsToneMapMode": {
+    "description": "libmpv HDR presentation mode picker label"
+  },
+  "@settingsToneMapSdrDesc": {
+    "description": "SDR tone-map mode subtitle"
+  },
+  "@settingsToneMapNativeDesc": {
+    "description": "Native HDR mode subtitle"
+  },
+  "@settingsToneMapLinearDesc": {
+    "description": "Linear HDR mode subtitle"
+  },
+  "@settingsToneMapBt2020Desc": {
+    "description": "BT.2020 wide-gamut mode subtitle"
+  },
+  "@settingsToneMapHlgDesc": {
+    "description": "BT.2100 HLG mode subtitle"
+  },
+  "@settingsToneMapPqDesc": {
+    "description": "BT.2100 PQ (HDR10) mode subtitle"
+  },
+  "@settingsMpvInterpolation": {
+    "description": "libmpv frame interpolation picker label"
+  },
+  "@settingsMpvInterpolationDesc": {
+    "description": "Frame interpolation subtitle"
+  },
+  "@settingsMpvInterpolationOff": {
+    "description": "Frame interpolation off label"
+  },
+  "@settingsMpvInterpolationTarget": {
+    "description": "Frame interpolation target frame rate header"
+  },
+  "@settingsMpvInterpolationQuality": {
+    "description": "Frame interpolation quality header"
+  },
+  "@settingsMpvInterpolationQualitySharp": {
+    "description": "Sharp interpolation filter label"
+  },
+  "@settingsMpvInterpolationQualityBalanced": {
+    "description": "Balanced interpolation filter label"
+  },
+  "@settingsMpvInterpolationQualitySmooth": {
+    "description": "Smooth interpolation filter label"
+  },
+  "@settingsMpvInterpolationFps": {
+    "description": "Target frame rate value label",
+    "placeholders": {
+      "fps": {
+        "type": "int",
+        "example": "48"
+      }
+    }
+  },
+  "@settingsMpvInterpolationNote": {
+    "description": "Frame interpolation footnote"
+  },
+  "@settingsAutoPlayNext": {
+    "description": "Auto-play toggle label"
+  },
+  "@settingsAutoPlayNextDesc": {
+    "description": "Auto play next description"
+  },
+  "@settingsOnScreenBadges": {
+    "description": "Badge toggle label"
+  },
+  "@settingsBadgesDesc": {
+    "description": "Badges subtitle"
+  },
+  "@settingsBadgeOptions": {
+    "description": "Badge options title"
+  },
+  "@settingsChooseBadges": {
+    "description": "Badge dialog subtitle"
+  },
+  "@settingsBadgeFormat": {
+    "description": "Badge option label"
+  },
+  "@settingsBadgeAudioCodec": {
+    "description": "Badge option label"
+  },
+  "@settingsBadgeVideoCodec": {
+    "description": "Badge option label"
+  },
+  "@settingsBadgeVideoCodecDesc": {
+    "description": "Badge option subtitle"
+  },
+  "@settingsBadgeResolution": {
+    "description": "Badge option label"
+  },
+  "@settingsBadgePlayback": {
+    "description": "Badge option label"
+  },
+  "@settingsBadgeSpatialAudio": {
+    "description": "Badge option label"
+  },
+  "@settingsBadgeTranscoding": {
+    "description": "Badge option label"
+  },
+  "@settingsBadgeDecoder": {
+    "description": "Badge option label"
+  },
+  "@settingsBadgeDecoderDesc": {
+    "description": "Badge option subtitle"
+  },
+  "@settingsVolumeBoost": {
+    "description": "Volume boost section title"
+  },
+  "@settingsNightMode": {
+    "description": "Night mode section title"
+  },
+  "@settingsNightModeDesc": {
+    "description": "Night mode subtitle"
+  },
+  "settingsAudioDownmix": "Mixage vers la stéréo",
+  "settingsAudioDownmixDesc": "Réduit les pistes 5.1/7.1 en 2.0 pour que les dialogues restent forts sur un casque ou des enceintes stéréo. S'applique à la prochaine lecture ; ignoré en passthrough HDMI.",
+  "@settingsSpatialAudio": {
+    "description": "Spatial audio section title"
+  },
+  "@settingsSpatialAudioDesc": {
+    "description": "Spatial audio subtitle"
+  },
+  "@settingsVideoDecoder": {
+    "description": "Decoder picker label"
+  },
+  "@settingsDecoderHw": {
+    "description": "Hardware-only option"
+  },
+  "@settingsDecoderSw": {
+    "description": "Software option"
+  },
+  "@settingsDecoderAuto": {
+    "description": "Auto option"
+  },
+  "@settingsDecoderReopen": {
+    "description": "Subtitle under decoder picker"
+  },
+  "@settingsHwSdrToneMap": {
+    "description": "Hardware SDR tone-mapping toggle label"
+  },
+  "@settingsHwSdrToneMapDesc": {
+    "description": "Hardware SDR tone-mapping toggle subtitle"
+  },
+  "@settingsTmdbKey": {
+    "description": "TMDB key input label"
+  },
+  "@settingsApiKeyHint": {
+    "description": "Text field hint"
+  },
+  "@settingsKeyMustBe32": {
+    "description": "Validation error"
+  },
+  "@settingsClearCache": {
+    "description": "Clear cache button"
+  },
+  "@settingsClearCacheTitle": {
+    "description": "Cache clear confirmation dialog"
+  },
+  "@settingsCacheCleared": {
+    "description": "Cache cleared snackbar"
+  },
+  "@settingsCacheClearedDesc": {
+    "description": "Cache cleared subtitle"
+  },
+  "@settingsOpenLicenses": {
+    "description": "Button to view licenses"
+  },
+  "@settingsGplNotices": {
+    "description": "License section subtitle"
+  },
+  "@settingsEngine": {
+    "description": "Engine label in About section"
+  },
+  "@settingsVersion": {
+    "description": "Version label in About section"
+  },
+  "@settingsFaq": {
+    "description": "FAQ section header"
+  },
+  "@settingsFaqEngine": {
+    "description": "FAQ question"
+  },
+  "@settingsFaqEngineAnswer": {
+    "description": "FAQ answer"
+  },
+  "@settingsFaqRefresh": {
+    "description": "FAQ question"
+  },
+  "@settingsFaqRefreshAnswer": {
+    "description": "FAQ answer"
+  },
+  "@settingsFaqTmdb": {
+    "description": "FAQ question"
+  },
+  "@settingsFaqTmdbAnswer": {
+    "description": "FAQ answer"
+  },
+  "@settingsSimklSync": {
+    "description": "SIMKL sync button"
+  },
+  "@settingsSimklDisconnect": {
+    "description": "SIMKL disconnect button"
+  },
+  "@settingsSimklDisconnectDesc": {
+    "description": "SIMKL disconnect subtitle"
+  },
+  "@settingsSimklConnect": {
+    "description": "SIMKL connect button"
+  },
+  "@settingsSimklNotConfigured": {
+    "description": "SIMKL not set up"
+  },
+  "@settingsSimklSignInFirst": {
+    "description": "Error when not signed in"
+  },
+  "@settingsSyncWatched": {
+    "description": "SIMKL sync description"
+  },
+  "@settingsGoToAddress": {
+    "description": "SIMKL auth instruction"
+  },
+  "@settingsWaitingAuth": {
+    "description": "SIMKL auth waiting state"
+  },
+  "@settingsConnected": {
+    "description": "SIMKL connected state"
+  },
+  "@settingsOpenSubtitles": {
+    "description": "OpenSubtitles section header"
+  },
+  "@settingsSubReadingLang": {
+    "description": "Subtitle reading language setting"
+  },
+  "@settingsSubDownloadLang": {
+    "description": "Subtitle download language setting"
+  },
+  "@settingsSubEncoding": {
+    "description": "Subtitle encoding setting"
+  },
+  "@settingsAutoFetchSubs": {
+    "description": "Auto-fetch toggle label"
+  },
+  "@settingsAutoFetchDesc": {
+    "description": "Auto-fetch subtitle"
+  },
+  "@settingsAudioPassthrough": {
+    "description": "Audio passthrough toggle"
+  },
+  "@settingsOpenSubtitlesSignIn": {
+    "description": "OpenSubtitles login dialog title"
+  },
+  "@settingsUsername": {
+    "description": "Username field label"
+  },
+  "@settingsPassword": {
+    "description": "Password field label"
+  },
+  "@detailsResumeFrom": {
+    "description": "Resume button label",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@detailsPlay": {
+    "description": "Play button"
+  },
+  "@detailsPlayEngine": {
+    "description": "Play with engine suffix",
+    "placeholders": {
+      "engineSuffix": {
+        "type": "String"
+      }
+    }
+  },
+  "@detailsWatchBeginning": {
+    "description": "Replay from start"
+  },
+  "@detailsFindOnTmdb": {
+    "description": "Manual TMDB search button"
+  },
+  "@detailsGetInfo": {
+    "description": "Open info/search dialog"
+  },
+  "@detailsNoMetadata": {
+    "description": "No TMDB match state"
+  },
+  "@detailsFixMatch": {
+    "description": "Re-search TMDB button"
+  },
+  "@detailsRemoveInfo": {
+    "description": "Clear TMDB match button"
+  },
+  "@detailsOverview": {
+    "description": "Overview section header"
+  },
+  "@detailsEpisodeOverview": {
+    "description": "Episode overview header"
+  },
+  "@detailsCast": {
+    "description": "Cast section header"
+  },
+  "@detailsEpisodeCast": {
+    "description": "Episode cast header"
+  },
+  "@detailsGuestStars": {
+    "description": "Guest stars header"
+  },
+  "@detailsEpisodes": {
+    "description": "Episodes section header"
+  },
+  "@detailsStills": {
+    "description": "Stills gallery header"
+  },
+  "@detailsTrailers": {
+    "description": "Trailers section header"
+  },
+  "@detailsSubtitles": {
+    "description": "Subtitles card title"
+  },
+  "@detailsSearchSubsOnline": {
+    "description": "Subtitle search button"
+  },
+  "@detailsFileInfo": {
+    "description": "File info card title"
+  },
+  "@detailsProbingFile": {
+    "description": "Loading state while probing"
+  },
+  "@detailsDownloadToDevice": {
+    "description": "Download button in details"
+  },
+  "@detailsDownloaded": {
+    "description": "Download complete label"
+  },
+  "@detailsSearchTitle": {
+    "description": "Search field hint in Fix match dialog"
+  },
+  "@detailsTvSeries": {
+    "description": "Media type badge"
+  },
+  "@detailsMovie": {
+    "description": "Media type badge"
+  },
+  "@detailsSearchUnavailable": {
+    "description": "TMDB search error"
+  },
+  "@detailsSearchFailed": {
+    "description": "TMDB search error"
+  },
+  "@detailsNoResults": {
+    "description": "No TMDB results"
+  },
+  "@detailsCouldNotListFolder": {
+    "description": "Folder listing error"
+  },
+  "@detailsMarkWatchedSimkl": {
+    "description": "SIMKL sync button"
+  },
+  "@detailsNothingNewSimkl": {
+    "description": "SIMKL sync empty state"
+  },
+  "@detailsMonthJan": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthFeb": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthMar": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthApr": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthMay": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthJun": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthJul": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthAug": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthSep": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthOct": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthNov": {
+    "description": "Month abbreviation"
+  },
+  "@detailsMonthDec": {
+    "description": "Month abbreviation"
+  },
+  "@smbNetworkShares": {
+    "description": "SMB browser title"
+  },
+  "@smbBookmarkHome": {
+    "description": "Bookmark button in AppBar"
+  },
+  "@smbSyncSimkl": {
+    "description": "SIMKL sync button"
+  },
+  "@smbServerList": {
+    "description": "Server list button"
+  },
+  "@smbScanNetwork": {
+    "description": "Network scan button"
+  },
+  "@smbAddServer": {
+    "description": "Add SMB server button"
+  },
+  "@smbNoShares": {
+    "description": "No shares found error"
+  },
+  "@smbEpisodes": {
+    "description": "Episodes section in series view"
+  },
+  "@smbOtherVideos": {
+    "description": "Non-episode videos section"
+  },
+  "@smbOverview": {
+    "description": "Series overview header"
+  },
+  "@smbScanningNetwork": {
+    "description": "Network scan loading state"
+  },
+  "@smbDetectedNetwork": {
+    "description": "Discovered servers section"
+  },
+  "@smbSavedServers": {
+    "description": "Saved servers section"
+  },
+  "@smbConnected": {
+    "description": "Connection success message"
+  },
+  "@smbHostRequired": {
+    "description": "Validation error"
+  },
+  "@smbSaveFailed": {
+    "description": "Save error message"
+  },
+  "@smbEditServer": {
+    "description": "Edit server dialog title"
+  },
+  "@smbNetworkShare": {
+    "description": "SMB dialog section label"
+  },
+  "@smbName": {
+    "description": "Server name field label"
+  },
+  "@smbHost": {
+    "description": "Host field label"
+  },
+  "@smbPort": {
+    "description": "Port field label"
+  },
+  "@smbUsername": {
+    "description": "Username field label"
+  },
+  "@smbPassword": {
+    "description": "Password field label"
+  },
+  "@smbPasswordKeep": {
+    "description": "Password field hint on edit"
+  },
+  "@smbDomain": {
+    "description": "Domain field label"
+  },
+  "@smbDomainHint": {
+    "description": "Domain field hint"
+  },
+  "@smbGuest": {
+    "description": "Guest access label"
+  },
+  "@smbBookmarkAdded": {
+    "description": "Bookmark success message",
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      },
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "@webdavBookmarkHome": {
+    "description": "Bookmark button in AppBar"
+  },
+  "@webdavServerList": {
+    "description": "Server list button"
+  },
+  "@webdavAddServer": {
+    "description": "Add WebDAV server button"
+  },
+  "@webdavSavedServers": {
+    "description": "Saved servers section"
+  },
+  "@webdavHostRequired": {
+    "description": "Validation error"
+  },
+  "@webdavConnected": {
+    "description": "Connection success message"
+  },
+  "@webdavConnectionFailed": {
+    "description": "Connection error"
+  },
+  "@webdavSaveFailed": {
+    "description": "Save error"
+  },
+  "@webdavEditServer": {
+    "description": "Edit dialog title"
+  },
+  "@webdavServerName": {
+    "description": "Server name field label"
+  },
+  "@webdavHttp": {
+    "description": "Protocol radio label"
+  },
+  "@webdavHttps": {
+    "description": "Protocol radio label"
+  },
+  "@webdavHost": {
+    "description": "Host field label"
+  },
+  "@webdavPort": {
+    "description": "Port field label"
+  },
+  "@webdavPath": {
+    "description": "Path field label"
+  },
+  "@webdavUsername": {
+    "description": "Username field label"
+  },
+  "@webdavPassword": {
+    "description": "Password field label"
+  },
+  "@webdavPasswordKeep": {
+    "description": "Password field hint on edit"
+  },
+  "@webdavSelfSigned": {
+    "description": "Self-signed toggle label"
+  },
+  "@webdavSelfSignedDesc": {
+    "description": "Self-signed subtitle"
+  },
+  "@webdavHttpInsecure": {
+    "description": "HTTP warning"
+  },
+  "@webdavBookmarkAdded": {
+    "description": "Bookmark success",
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      },
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "@ftpTitle": {
+    "description": "FTP browser title"
+  },
+  "@ftpServerList": {
+    "description": "Server list button"
+  },
+  "@ftpAddServer": {
+    "description": "Add FTP server button"
+  },
+  "@ftpSavedServers": {
+    "description": "Saved servers section"
+  },
+  "@ftpFtp": {
+    "description": "Protocol option"
+  },
+  "@ftpSftp": {
+    "description": "Protocol option"
+  },
+  "@ftpHost": {
+    "description": "Host field label"
+  },
+  "@ftpPort": {
+    "description": "Port field label"
+  },
+  "@ftpPath": {
+    "description": "Path field label"
+  },
+  "@ftpUsername": {
+    "description": "Username field label"
+  },
+  "@ftpPassword": {
+    "description": "Password field label"
+  },
+  "@ftpPasswordKeep": {
+    "description": "Password field hint on edit"
+  },
+  "@ftpHostRequired": {
+    "description": "Validation error"
+  },
+  "@ftpConnected": {
+    "description": "Connection success"
+  },
+  "@ftpConnectionFailed": {
+    "description": "Connection error"
+  },
+  "@ftpSaveFailed": {
+    "description": "Save error"
+  },
+  "@ftpEditServer": {
+    "description": "Edit dialog title"
+  },
+  "@ftpUnencryptedWarning": {
+    "description": "FTP security warning"
+  },
+  "@jellyfinTitle": {
+    "description": "Jellyfin browser title"
+  },
+  "@jellyfinServerList": {
+    "description": "Server list button"
+  },
+  "@jellyfinScanNetwork": {
+    "description": "Network scan button"
+  },
+  "@jellyfinAddServer": {
+    "description": "Add Jellyfin server button"
+  },
+  "@jellyfinSavedServers": {
+    "description": "Saved servers section"
+  },
+  "@jellyfinOnThisNetwork": {
+    "description": "Discovered servers section"
+  },
+  "@jellyfinScanLocal": {
+    "description": "Scan button"
+  },
+  "@jellyfinAddToLibrary": {
+    "description": "Add folder to library button"
+  },
+  "@jellyfinSessionExpired": {
+    "description": "Token expired error"
+  },
+  "@jellyfinServerRequired": {
+    "description": "Validation error"
+  },
+  "@jellyfinEnterPassword": {
+    "description": "Login prompt"
+  },
+  "@jellyfinEditServer": {
+    "description": "Edit dialog title"
+  },
+  "@jellyfinServerName": {
+    "description": "Server name field label"
+  },
+  "@jellyfinServerAddress": {
+    "description": "Server address field label"
+  },
+  "@jellyfinUsername": {
+    "description": "Username field label"
+  },
+  "@jellyfinPassword": {
+    "description": "Password field label"
+  },
+  "@jellyfinPasswordKeep": {
+    "description": "Password field hint on edit"
+  },
+  "@jellyfinSelfSigned": {
+    "description": "Self-signed toggle label"
+  },
+  "@jellyfinSelfSignedDesc": {
+    "description": "Self-signed subtitle"
+  },
+  "@jellyfinEnterUsername": {
+    "description": "Username field hint"
+  },
+  "@jellyfinEnterPasswordHint": {
+    "description": "Password field hint"
+  },
+  "@jellyfinSignIn": {
+    "description": "Sign in button"
+  },
+  "@upnpTitle": {
+    "description": "DLNA browser title"
+  },
+  "@upnpDiscover": {
+    "description": "Discovery button"
+  },
+  "@upnpDiscoverFailed": {
+    "description": "Discovery error"
+  },
+  "@upnpBrowseFailed": {
+    "description": "Browse error"
+  },
+  "@upnpNoServers": {
+    "description": "Empty state"
+  },
+  "@upnpDiscoverAgain": {
+    "description": "Retry discovery button"
+  },
+  "@upnpDiagnostics": {
+    "description": "Diagnostics button"
+  },
+  "@downloadTitle": {
+    "description": "Download screen title"
+  },
+  "@downloadNoDownloads": {
+    "description": "Empty download list"
+  },
+  "@downloadDownloading": {
+    "description": "Download in progress label"
+  },
+  "@downloadDownloadingTitle": {
+    "description": "Download progress",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "@downloadComplete": {
+    "description": "Download complete label"
+  },
+  "@downloadFailed": {
+    "description": "Download error",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "@downloadRemove": {
+    "description": "Remove download dialog title"
+  },
+  "@downloadQueued": {
+    "description": "Download queued status"
+  },
+  "@downloadCancelled": {
+    "description": "Download cancelled status"
+  },
+  "@subtitleSettingsTitle": {
+    "description": "Subtitle settings screen title"
+  },
+  "@subtitleTextSize": {
+    "description": "Size selector label"
+  },
+  "@subtitleColor": {
+    "description": "Color selector label"
+  },
+  "@subtitleBackground": {
+    "description": "Background selector label"
+  },
+  "@subtitleBackgroundNone": {
+    "description": "No background option"
+  },
+  "@subtitleBackgroundSemi": {
+    "description": "Semi-transparent background"
+  },
+  "@subtitleBackgroundSolid": {
+    "description": "Solid background"
+  },
+  "@subtitleOutline": {
+    "description": "Outline toggle label"
+  },
+  "@subtitleOutlineDesc": {
+    "description": "Outline subtitle"
+  },
+  "@subtitleBgOpacity": {
+    "description": "Opacity slider label"
+  },
+  "@subtitlePosition": {
+    "description": "Position slider label"
+  },
+  "@subtitlePositionDesc": {
+    "description": "Position description"
+  },
+  "@subtitleDelay": {
+    "description": "Delay slider label"
+  },
+  "@subtitleSample": {
+    "description": "Preview text"
+  },
+  "@subtitleWhite": {
+    "description": "Color option"
+  },
+  "@subtitleYellow": {
+    "description": "Color option"
+  },
+  "@subtitleCyan": {
+    "description": "Color option"
+  },
+  "@subtitleWarm": {
+    "description": "Color option"
+  },
+  "@fileBrowseTitle": {
+    "description": "File browser title"
+  },
+  "@fileBrowseFiles": {
+    "description": "Files section label"
+  },
+  "@fileBrowseAccessNeeded": {
+    "description": "Permission needed message"
+  },
+  "@fileBrowseGrant": {
+    "description": "Grant permission button"
+  },
+  "@fileBrowseNoVideos": {
+    "description": "Empty folder state"
+  },
+  "@fileBrowseRemoveFolder": {
+    "description": "Remove bookmark dialog title"
+  },
+  "@fileBrowseCouldNotRemove": {
+    "description": "Remove error"
+  },
+  "@folderCouldNotList": {
+    "description": "Folder listing error"
+  },
+  "@folderEpisodes": {
+    "description": "Episodes section header"
+  },
+  "@folderOverview": {
+    "description": "Overview header"
+  },
+  "@folderCast": {
+    "description": "Cast section header"
+  },
+  "@opensubtitlesSearch": {
+    "description": "Search dialog title"
+  },
+  "@opensubtitlesSignIn": {
+    "description": "OpenSubtitles sign in title"
+  },
+  "@opensubtitlesDownloadLang": {
+    "description": "Language picker label"
+  },
+  "@opensubtitlesHashMatch": {
+    "description": "Hash matching indicator"
+  },
+  "@opensubtitlesComputingHash": {
+    "description": "Hash computation loading"
+  },
+  "@opensubtitlesSearchHint": {
+    "description": "Search field hint"
+  },
+  "@opensubtitlesEnterSearch": {
+    "description": "Empty search validation"
+  },
+  "@opensubtitlesNoResults": {
+    "description": "No results state"
+  },
+  "@opensubtitlesFreeAccount": {
+    "description": "Rate limit info"
+  },
+  "@opensubtitlesSignInRequired": {
+    "description": "Rate limit reached"
+  },
+  "@errorIo": {
+    "description": "IO/network error"
+  },
+  "@errorConnection": {
+    "description": "Connection lost error"
+  },
+  "@errorServer": {
+    "description": "Server unreachable error"
+  },
+  "@errorHttp": {
+    "description": "HTTP blocked error"
+  },
+  "@errorDvP5": {
+    "description": "DV P5 not supported error"
+  },
+  "@errorDecoderFailed": {
+    "description": "Decoder failure error"
+  },
+  "@errorFormatUnsupported": {
+    "description": "Format unsupported error"
+  },
+  "@errorResourcesReclaimed": {
+    "description": "Decoder reclaimed error"
+  },
+  "@errorAudioInit": {
+    "description": "Audio init error"
+  },
+  "@errorContainerUnsupported": {
+    "description": "Container unsupported error"
+  },
+  "@errorNoVideoPlayer": {
+    "description": "No external player error"
+  },
+  "@licenseGplv3": {
+    "description": "GPLv3 license name"
+  },
+  "@licenseSourceCode": {
+    "description": "Source code section header"
+  },
+  "@licenseGplv3Source": {
+    "description": "Source code link label"
+  },
+  "@licenseNotice": {
+    "description": "Notice section label"
+  },
+  "@supportRazorpay": {
+    "description": "Razorpay description"
+  },
+  "@supportGithub": {
+    "description": "GitHub Sponsors description"
+  },
+  "@permissionsAllFiles": {
+    "description": "Permission dialog title"
+  },
+  "@permissionsAllFilesDesc": {
+    "description": "Permission dialog body"
+  },
+  "@permissionsNotNow": {
+    "description": "Decline permission button"
+  },
+  "@permissionsOpenSettings": {
+    "description": "Open settings button"
+  },
+  "@decoderAuto": {
+    "description": "Auto decoder mode"
+  },
+  "@decoderHardware": {
+    "description": "Hardware decoder mode"
+  },
+  "@decoderSoftware": {
+    "description": "Software decoder mode"
+  },
+  "@engineAuto": {
+    "description": "Auto engine option"
+  },
+  "@engineMedia3": {
+    "description": "Media3 engine option"
+  },
+  "@engineMpv": {
+    "description": "libmpv engine option"
+  },
+  "@engineAsk": {
+    "description": "Ask-every-time option"
+  },
+  "@fitModeFit": {
+    "description": "Fit to screen"
+  },
+  "@fitModeFullscreen": {
+    "description": "Fill screen"
+  },
+  "@fitModeCrop": {
+    "description": "Crop to fill"
+  },
+  "@fitModeStretch": {
+    "description": "Stretch to fill"
+  },
+  "@playbackRepeatOne": {
+    "description": "Repeat one mode"
+  },
+  "@playbackRepeatAll": {
+    "description": "Repeat all mode"
+  },
+  "@librarySourceSmb": {
+    "description": "SMB source badge"
+  },
+  "@librarySourceWebdav": {
+    "description": "WebDAV source badge"
+  },
+  "@librarySourceFtp": {
+    "description": "FTP source badge"
+  },
+  "@librarySourceDlna": {
+    "description": "DLNA source badge"
+  },
+  "@librarySourceJellyfin": {
+    "description": "Jellyfin source badge"
+  },
+  "@badgeHdr10": {
+    "description": "HDR10 badge"
+  },
+  "@badgeHlg": {
+    "description": "HLG badge"
+  },
+  "@badgeSdr": {
+    "description": "SDR badge"
+  },
+  "@badgeDolbyVision": {
+    "description": "Dolby Vision badge"
+  },
+  "@badgeSpatial": {
+    "description": "Spatial audio badge"
+  },
+  "@badgeTranscoding": {
+    "description": "Transcoding badge"
+  },
+  "@badgeSdrMpv": {
+    "description": "SDR MPV badge"
+  },
+  "@sleep5min": {
+    "description": "5 minute timer"
+  },
+  "@sleep10min": {
+    "description": "10 minute timer"
+  },
+  "@sleep15min": {
+    "description": "15 minute timer"
+  },
+  "@sleep30min": {
+    "description": "30 minute timer"
+  },
+  "@sleep60min": {
+    "description": "60 minute timer"
+  },
+  "@sleepEndOfVideo": {
+    "description": "End-of-video timer"
+  },
+  "@sleepFinished": {
+    "description": "Timer expired message"
+  },
+  "@volumeOff": {
+    "description": "Volume off state"
+  },
+  "@tmdbHintEnable": {
+    "description": "TMDB hint dialog title"
+  },
+  "@tmdbHintDesc": {
+    "description": "TMDB hint dialog body"
+  },
+  "@tmdbGetKey": {
+    "description": "TMDB key instruction link"
+  },
+  "@tmdbOpenSettings": {
+    "description": "Open settings button in TMDB hint"
+  },
+  "@bookmarkedAdded": {
+    "description": "Bookmark success message",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@removedFromContinue": {
+    "description": "Continue-watching removal message",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "@folderRemoved": {
+    "description": "Server removed message",
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "@cacheCleared": {
+    "description": "Cache cleared message"
+  },
+  "@liveOnIos": {
+    "description": "Cross-platform note"
+  },
+  "@reopensSamePosition": {
+    "description": "Decoder switch note"
+  },
+  "@hashMatchEnabled": {
+    "description": "Hash matching indicator"
+  },
+  "@videoNotAvailable": {
+    "description": "Video unavailable message"
+  },
+  "@genericError": {
+    "description": "Generic error display",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "@settingsSubtitleEncoding": {
+    "description": "Settings subtitle encoding title"
+  },
+  "@settingsLanguage": {
+    "description": "Settings language section title"
+  },
+  "@settingsSystemDefault": {
+    "description": "System default language option"
+  },
+  "@settingsOpensubAccountHint": {
+    "description": "OpenSubtitles account hint text"
+  },
+  "@settingsSignIn": {
+    "description": "Sign in button"
+  },
+  "@settingsRemove": {
+    "description": "Remove button"
+  },
+  "@settingsClearCacheConfirm": {
+    "description": "Clear cache confirmation title"
+  },
+  "@settingsCouldNotOpenLink": {
+    "description": "Could not open link error"
+  },
+  "@settingsBadgeOptionsDesc": {
+    "description": "Badge options description"
+  },
+  "@settingsTakesEffectNextVideo": {
+    "description": "Decoder takes effect hint"
+  },
+  "@settingsTmdbApiKey": {
+    "description": "TMDB API key setting title"
+  },
+  "@settingsOpensubtitles": {
+    "description": "OpenSubtitles setting title"
+  },
+  "@settingsAutoDownloadSubs": {
+    "description": "Auto download subtitles description"
+  },
+  "@settingsSimklSignOut": {
+    "description": "SIMKL sign out description"
+  },
+  "@settingsSimklSyncDesc": {
+    "description": "SIMKL sync description"
+  },
+  "@settingsGnuGpl": {
+    "description": "GNU GPL license notice"
+  },
+  "@settingsSyncedCount": {
+    "description": "SIMKL sync count snackbar",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@settingsConnectSimkl": {
+    "description": "Connect SIMKL title"
+  },
+  "@settingsSimklPairing": {
+    "description": "SIMKL pairing instructions"
+  },
+  "@opensubtitlesAnonymousHint": {
+    "description": "OpenSubtitles anonymous usage hint"
+  },
+  "@opensubtitlesDownloading": {
+    "description": "Downloading subtitle indicator"
+  },
+  "@folderNoVideosHere": {
+    "description": "Empty folder message"
+  },
+  "@folderSimklNotConfigured": {
+    "description": "SIMKL not configured message"
+  },
+  "@folderSimklSignInFirst": {
+    "description": "SIMKL sign in required"
+  },
+  "@folderSimklSyncFailed": {
+    "description": "SIMKL sync failed error",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "@folderSmbNoShares": {
+    "description": "No SMB shares found message"
+  },
+  "@playerDownloadingTitle": {
+    "description": "Download snackbar title",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "@playerDownloadFailed": {
+    "description": "Download failed error",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "@playerVideoNotSupported": {
+    "description": "Video not supported by built-in player"
+  },
+  "@playerVideoDecodeRetrySw": {
+    "description": "Hardware decoder failed mid-stream, retrying with software"
+  },
+  "@playerSleepTimerFinished": {
+    "description": "Sleep timer finished message"
+  },
+  "@playerVolumeBoostWarning": {
+    "description": "Warning shown when the volume gesture crosses above 100% into boost"
+  },
+  "@playerBrightnessBatteryWarning": {
+    "description": "Warning shown when the brightness gesture reaches full brightness"
+  },
+  "@playerDownloaded": {
+    "description": "Downloaded status label"
+  },
+  "@playerAutoFetched": {
+    "description": "Auto-fetched file notification",
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      }
+    }
+  },
+  "@playerPictureInPicture": {
+    "description": "Picture-in-picture setting"
+  },
+  "@playerPlaybackStats": {
+    "description": "Live playback performance HUD (resolution, decoder, fps, bitrates) toggle"
+  },
+  "@homeSmbNoShares": {
+    "description": "No SMB shares found on home"
+  },
+  "@errorRetry": {
+    "description": "Retry button on error surface"
+  },
+  "@errorTryMpv": {
+    "description": "Try with MPV button on error surface"
+  },
+  "@errorOpenExternal": {
+    "description": "Open in external player button"
+  },
+  "@upnpOnThisNetwork": {
+    "description": "UPnP network subtitle"
+  },
+  "@homeSmbLocalShares": {
+    "description": "SMB local shares subtitle"
+  },
+  "@homeSmbViaFilesApp": {
+    "description": "SMB via Files app subtitle"
+  },
+  "@homeTitle": {
+    "description": "App title in drawer/header"
+  },
+  "@homeNothingYet": {
+    "description": "Empty continue watching message"
+  },
+  "@homeDownloaded": {
+    "description": "Downloaded videos section header"
+  },
+  "@downloadDeleteConfirm": {
+    "description": "Delete download confirmation message",
+    "placeholders": {
+      "title": {
+        "type": "String",
+        "example": "My Movie"
+      }
+    }
+  },
+  "@settingsDownloadFolder": {
+    "description": "Download folder setting title"
+  },
+  "@homeClearAll": {
+    "description": "Button to remove all library folders and continue watching entries"
+  },
+  "@homeClearLibrary": {
+    "description": "Option to remove all library folders"
+  },
+  "@homeClearLibraryDesc": {
+    "description": "Subtitle for clear library option"
+  },
+  "@homeClearLibraryTitle": {
+    "description": "Confirmation dialog title for clearing library"
+  },
+  "@homeClearLibraryContent": {
+    "description": "Confirmation dialog body for clearing library"
+  },
+  "@homeClearContinueWatching": {
+    "description": "Option to remove all continue watching entries"
+  },
+  "@homeClearContinueWatchingDesc": {
+    "description": "Subtitle for clear continue watching option"
+  },
+  "@homeClearContinueWatchingTitle": {
+    "description": "Confirmation dialog title for clearing continue watching"
+  },
+  "@homeClearContinueWatchingContent": {
+    "description": "Confirmation dialog body for clearing continue watching"
+  },
+  "@browserViewMoreOptions": {
+    "description": "Tooltip for the three-dot overflow menu in the network browsers"
+  },
+  "@browserView": {
+    "description": "Label for the view (List / Grid) option in the network browsers"
+  },
+  "@browserViewList": {
+    "description": "Label for the list view option in the network browsers"
+  },
+  "@browserViewGrid": {
+    "description": "Label for the grid view option in the network browsers"
+  },
+  "@settingsMpvUserConfig": {
+    "description": "Settings → Player row for the user's own mpv.conf"
+  },
+  "@settingsMpvUserConfigNone": {
+    "description": "No custom MPV config selected"
+  },
+  "@settingsMpvUserConfigChange": {
+    "description": "Dialog action to pick a different config file"
+  },
+  "@settingsMpvUserConfigHint": {
+    "description": "Explanation under the custom MPV config row"
+  },
+  "@playerSecondarySubtitleTop": {
+    "description": "Header for the secondary subtitle list in the MPV CC sheet"
+  },
+  "commonCancel": "Annuler",
+  "commonSave": "Enregistrer",
+  "commonDelete": "Supprimer",
+  "commonRemove": "Retirer",
+  "commonClose": "Fermer",
+  "commonRetry": "Réessayer",
+  "commonEdit": "Modifier",
+  "commonSearch": "Rechercher",
+  "commonTest": "Tester",
+  "commonOff": "Désactivé",
+  "commonReset": "Réinitialiser",
+  "commonClear": "Effacer",
+  "commonDiscover": "Découvrir",
+  "commonRefresh": "Actualiser",
+  "commonRetryAction": "Réessayer",
+  "commonNothingHere": "Rien ici",
+  "commonNothingYet": "Rien pour le moment",
+  "commonSomethingWentWrong": "Une erreur est survenue",
+  "commonNoResults": "Aucun résultat",
+  "commonTestConnection": "Tester",
+  "appTitle": "DreamPlayer",
+  "navLibrary": "Bibliothèque",
+  "navSettings": "Paramètres",
+  "pressBackToExit": "Appuyez encore sur retour pour quitter",
+  "homeContinueWatching": "Continuer la lecture",
+  "homeYourLibrary": "Votre bibliothèque",
+  "homeAddSource": "Ajouter une source",
+  "homeAddFolder": "Ajouter un dossier à la bibliothèque",
+  "homeInternalStorage": "Stockage interne",
+  "homeBrowseFiles": "Parcourir les fichiers de cet appareil",
+  "homeNetworkSources": "Sources réseau",
+  "homeNoFolders": "Aucun dossier pour le moment. Utilisez les boutons ci-dessus pour en ajouter un.",
+  "homeNoVideos": "Les vidéos que vous lirez apparaîtront ici.",
+  "homeAuthorization": "Autorisation",
+  "homeFolderPickerTimeout": "Le sélecteur de dossier a expiré. Veuillez réessayer.",
+  "homeCouldNotPickFolder": "Impossible de choisir un dossier",
+  "homeRemoveFromLibrary": "Retirer de la bibliothèque ?",
+  "homeFilesStayOnDevice": "Les fichiers restent sur votre appareil.",
+  "homeRemoveFromContinue": "Retirer de « Continuer la lecture » ?",
+  "homeDownloading": "Téléchargement en cours",
+  "homeDownloads": "Téléchargements",
+  "homeNoDownloads": "Aucun téléchargement pour le moment",
+  "homeNoCompletedDownloads": "Aucun téléchargement terminé",
+  "homeCancelled": "Annulé",
+  "homeFailed": "Échec",
+  "homeRemoveDownload": "Supprimer le téléchargement ?",
+  "homePlayUrl": "Lire une URL",
+  "homeStreamLink": "Lire un lien vidéo direct",
+  "homeVideoUrl": "URL de la vidéo",
+  "homeEnterValidUrl": "Saisissez une URL http(s) valide",
+  "homeCouldNotOpenLink": "Impossible d'ouvrir ce lien",
+  "homeAddWebdavServer": "Ajouter un serveur WebDAV",
+  "homeFtpOrSftp": "Serveur de fichiers FTP ou SFTP",
+  "homeJellyfinServer": "Serveur multimédia Jellyfin / Emby",
+  "homeUpnpDlna": "Serveurs UPnP / DLNA sur ce réseau",
+  "homeSmbNas": "SMB / NAS",
+  "homeSmbShares": "Partages SMB sur le réseau local",
+  "homeSmbViaFiles": "SMB via l'application Fichiers",
+  "playerNotSupported": "La lecture n'est pas encore prise en charge sur cette plateforme.",
+  "playerNoSource": "Aucune source vidéo fournie.",
+  "playerNoPlayable": "Aucune source lisible pour cette vidéo.",
+  "playerSmbStreamError": "Impossible de lire ce fichier SMB via le moteur de secours.",
+  "playerControllerLost": "Le contrôleur vidéo a été perdu avant la connexion de la surface.",
+  "playerAudioTracks": "Pistes audio",
+  "playerNoAudioTracks": "Aucune piste audio trouvée",
+  "playerSubtitles": "Sous-titres",
+  "playerNoSubtitles": "Aucun sous-titre trouvé dans cette vidéo",
+  "playerSearchOnlineSubs": "Rechercher des sous-titres en ligne…",
+  "playerLoadSubtitleFile": "Charger un fichier de sous-titres…",
+  "playerTitle": "Titre",
+  "playerSource": "Source",
+  "playerUrl": "URL",
+  "playerFileSize": "Taille du fichier",
+  "playerVideoInfo": "Infos vidéo",
+  "playerResolution": "Résolution",
+  "playerDecoder": "Décodeur",
+  "playerAudioCh": "Canaux audio",
+  "playerStream": "Flux",
+  "playerServerTranscoding": "Transcodage serveur",
+  "playerSpatialAudio": "Audio spatial",
+  "playerVolumeBoost": "Amplification du volume",
+  "playerNightMode": "Mode nuit",
+  "playerBassBoost": "Renforcement des basses",
+  "playerSpeed": "Vitesse",
+  "playerChapters": "Chapitres",
+  "playerAspectRatio": "Format d'image",
+  "playerPlaybackSpeed": "Vitesse de lecture",
+  "playerPlaybackSettings": "Paramètres de lecture",
+  "playerRepeatShuffle": "Répétition et lecture aléatoire",
+  "playerShuffle": "Aléatoire",
+  "playerShuffleDesc": "Ordre aléatoire dans le dossier",
+  "playerSleepTimer": "Minuterie de veille",
+  "playerSleepEndOfVideo": "Fin de la vidéo en cours",
+  "playerAudioDelay": "Décalage audio",
+  "playerSubtitleSettings": "Paramètres des sous-titres",
+  "playerSubtitleSettingsDesc": "Taille, couleur, arrière-plan, délai",
+  "playerVideoDecoder": "Décodeur vidéo",
+  "playerDecoderHw": "Forcer les décodeurs matériels",
+  "playerDecoderSw": "Préférer les décodeurs logiciels",
+  "playerDecoderAuto": "Automatique (recommandé)",
+  "playerDecoderReopen": "Reprend à la même position pour changer de décodeur.",
+  "playerVolumeBoostTitle": "Amplification du volume",
+  "playerBassBoostTitle": "Renforcement des basses",
+  "playerBassLow": "Faible",
+  "playerBassMedium": "Moyen",
+  "playerBassHigh": "Fort",
+  "playerNightModeTitle": "Mode nuit",
+  "playerAutoPlayNext": "Lecture automatique suivante",
+  "playerAutoPlayNextDesc": "Lire l'épisode suivant à la fin",
+  "playerSubtitleDelay": "Délai des sous-titres",
+  "playerDownloadToDevice": "Télécharger sur l'appareil",
+  "playerOpenExternal": "Ouvrir dans un lecteur externe",
+  "playerNoVideoInFolder": "Aucune vidéo ni dossier ici",
+  "playerTryMpv": "Essayer avec MPV",
+  "playerWatchBeginning": "Reprendre depuis le début",
+  "playerWatchBeginningMpv": "Reprendre depuis le début (MPV)",
+  "playerPlayWithMpv": "Lire avec MPV",
+  "playerChapterN": "{count} chapitres",
+  "playerPosition": "Pos : {position}",
+  "playerVolumeLevel": "{level}×",
+  "sourceJellyfin": "Jellyfin",
+  "sourceJellyfinHttp": "Jellyfin (HTTP)",
+  "sourceNetworkHttp": "Réseau (HTTP)",
+  "sourceWebdav": "WebDAV",
+  "sourceLocalFile": "Fichier local",
+  "sourceDocumentSaf": "Document (SAF)",
+  "sourceFtpSftp": "FTP/SFTP",
+  "sourceSmb": "SMB",
+  "sourceAppAsset": "Ressource de l'app",
+  "sourceTranscoding": "Transcodage",
+  "sourceSwDecode": "Décodage logiciel",
+  "sourceHwDecode": "Décodage matériel",
+  "sourceHwDecodeAuto": "Décodage matériel (auto)",
+  "settingsPlayer": "Lecteur",
+  "settingsAudio": "Audio",
+  "settingsStorage": "Stockage",
+  "settingsMetadata": "Métadonnées",
+  "settingsSubtitles": "Sous-titres",
+  "settingsAbout": "À propos",
+  "settingsSupport": "Soutenir",
+  "settingsMpvNormalizeDownmix": "Normaliser le mixage MPV",
+  "settingsMpvNormalizeDownmixDesc": "Évite la distorsion quand MPV mixe en stéréo",
+  "settingsSwipeGestures": "Gestes de balayage",
+  "settingsSwipeDesc": "Côté gauche : luminosité · Côté droit : volume",
+  "settingsPip": "Picture-in-picture",
+  "settingsPipDesc": "Continuer la lecture dans une fenêtre flottante",
+  "settingsDefaultEngine": "Moteur de lecture par défaut",
+  "settingsEngineAutoDesc": "Démarre avec Media3, bascule automatiquement sur libmpv en cas d'échec",
+  "settingsEngineMedia3Desc": "Accéléré matériellement, prend en charge Dolby Vision / HDR",
+  "settingsEngineMpvDesc": "Logiciel d'abord, gère plus de codecs (SDR uniquement)",
+  "settingsEngineAskDesc": "Afficher les deux options pour chaque vidéo",
+  "settingsToneMapMode": "Tone-map HDR (MPV)",
+  "settingsToneMapSdrDesc": "Convertit HDR/DV en SDR dans le moteur (libplacebo)",
+  "settingsToneMapNativeDesc": "Transmet l'espace colorimétrique HDR à l'écran",
+  "settingsToneMapLinearDesc": "Relève l'image dans la plage HDR (sans Dolby Vision)",
+  "settingsToneMapBt2020Desc": "Tone-map gamut étendu avec hdr-toys (libplacebo requis)",
+  "settingsToneMapHlgDesc": "Tone-map HLG avec hdr-toys (libplacebo requis)",
+  "settingsToneMapPqDesc": "Tone-map HDR10 avec hdr-toys (libplacebo requis)",
+  "settingsMpvInterpolation": "Interpolation d'images (MPV)",
+  "settingsMpvInterpolationDesc": "Génère des images supplémentaires pour un mouvement plus fluide",
+  "settingsMpvInterpolationOff": "Désactivé",
+  "settingsMpvInterpolationTarget": "Fréquence d'images cible",
+  "settingsMpvInterpolationQuality": "Qualité d'interpolation",
+  "settingsMpvInterpolationQualitySharp": "Nette (SmoothMotion)",
+  "settingsMpvInterpolationQualityBalanced": "Équilibrée",
+  "settingsMpvInterpolationQualitySmooth": "Douce",
+  "settingsMpvInterpolationFps": "{fps} ips",
+  "settingsMpvInterpolationNote": "S'applique au moteur MPV dès la prochaine vidéo. Media3 ne peut pas interpoler d'images.",
+  "settingsAutoPlayNext": "Épisode suivant automatique",
+  "settingsAutoPlayNextDesc": "Lire l'épisode suivant à la fin",
+  "settingsOnScreenBadges": "Badges à l'écran",
+  "settingsBadgesDesc": "Chips de format pendant la lecture",
+  "settingsBadgeOptions": "Options des badges",
+  "settingsChooseBadges": "Choisissez les chips à afficher",
+  "settingsBadgeFormat": "Format",
+  "settingsBadgeAudioCodec": "Codec audio",
+  "settingsBadgeVideoCodec": "Codec vidéo",
+  "settingsBadgeVideoCodecDesc": "HEVC / H.264 / AV1",
+  "settingsBadgeResolution": "Résolution",
+  "settingsBadgePlayback": "Lecture",
+  "settingsBadgeSpatialAudio": "Audio spatial",
+  "settingsBadgeTranscoding": "Transcodage serveur",
+  "settingsBadgeDecoder": "Décodeur",
+  "settingsBadgeDecoderDesc": "HW / SW / auto",
+  "settingsVolumeBoost": "Amplification du volume",
+  "settingsNightMode": "Mode nuit",
+  "settingsNightModeDesc": "Compresse les sons faibles",
+  "settingsSpatialAudio": "Audio spatial",
+  "settingsSpatialAudioDesc": "Premium — son spatial sur AirPods Pro et autres appareils compatibles",
+  "settingsVideoDecoder": "Décodeur vidéo",
+  "settingsDecoderHw": "Forcer les décodeurs matériels",
+  "settingsDecoderSw": "Préférer les décodeurs logiciels",
+  "settingsDecoderAuto": "Laisser le système choisir (recommandé)",
+  "settingsDecoderReopen": "Prend effet sur la prochaine vidéo",
+  "settingsHwSdrToneMap": "Tone-map SDR matériel",
+  "settingsHwSdrToneMapDesc": "Convertit HDR/Dolby Vision en SDR matériellement — pas de vrai HDR sur l'écran.",
+  "settingsTmdbKey": "Clé API TMDB",
+  "settingsApiKeyHint": "Clé API (auth v3)",
+  "settingsKeyMustBe32": "La clé doit contenir 32 caractères",
+  "settingsClearCache": "Vider le cache",
+  "settingsClearCacheTitle": "Vider le cache ?",
+  "settingsCacheCleared": "Cache vidé",
+  "settingsCacheClearedDesc": "Images et fichiers temporaires mis en cache effacés",
+  "settingsOpenLicenses": "Licences open source",
+  "settingsGplNotices": "GNU GPL v3.0 et avis de tiers",
+  "settingsEngine": "Moteur",
+  "settingsVersion": "Version",
+  "settingsFaq": "FAQ",
+  "settingsFaqEngine": "Quel moteur de lecture devrais-je utiliser ?",
+  "settingsFaqEngineAnswer": "Utilisez Media3, sauf si un fichier précis ne peut pas être lu ; dans ce cas, essayez MPV en secours.",
+  "settingsFaqRefresh": "Comment actualiser les partages réseau ?",
+  "settingsFaqRefreshAnswer": "Tirez vers le bas sur n'importe quel dossier SMB, WebDAV, FTP, DLNA ou Jellyfin pour l'actualiser.",
+  "settingsFaqTmdb": "Comment nommer mes fichiers pour les métadonnées TMDB ?",
+  "settingsFaqTmdbAnswer": "DreamPlayer essaie de faire correspondre les noms de fichiers à The Movie Database (TMDB) pour récupérer affiches, titres, notes, etc. Nommez les fichiers comme « Film.Titre.2024.1080p.mkv » pour de meilleurs résultats.",
+  "settingsSimklSync": "Synchroniser maintenant",
+  "settingsSimklDisconnect": "Déconnecter SIMKL",
+  "settingsSimklDisconnectDesc": "Se déconnecter et arrêter la synchronisation",
+  "settingsSimklConnect": "Connecter SIMKL",
+  "settingsSimklNotConfigured": "SIMKL non configuré",
+  "settingsSimklSignInFirst": "Connectez-vous d'abord à SIMKL",
+  "settingsSyncWatched": "Synchroniser l'historique de visionnage avec simkl.com (gratuit, illimité)",
+  "settingsGoToAddress": "Rendez-vous à l'adresse ci-dessous et saisissez ce code :",
+  "settingsWaitingAuth": "En attente d'autorisation…",
+  "settingsConnected": "Connecté !",
+  "settingsOpenSubtitles": "OpenSubtitles",
+  "settingsSubReadingLang": "Langue de lecture des sous-titres",
+  "settingsSubDownloadLang": "Langue de téléchargement des sous-titres",
+  "settingsSubEncoding": "Encodage des sous-titres",
+  "settingsAutoFetchSubs": "Récupérer automatiquement les sous-titres",
+  "settingsAutoFetchDesc": "Télécharger la meilleure correspondance si aucun sous-titre trouvé",
+  "settingsAudioPassthrough": "Passage audio direct",
+  "settingsOpenSubtitlesSignIn": "Se connecter à OpenSubtitles",
+  "settingsUsername": "Nom d'utilisateur",
+  "settingsPassword": "Mot de passe",
+  "detailsResumeFrom": "Reprendre à {time}",
+  "detailsPlay": "Lire",
+  "detailsPlayEngine": "Lire{engineSuffix}",
+  "detailsWatchBeginning": "Reprendre depuis le début",
+  "detailsFindOnTmdb": "Rechercher sur TMDB",
+  "detailsGetInfo": "Obtenir les infos",
+  "detailsNoMetadata": "Aucune métadonnée chargée",
+  "detailsFixMatch": "Corriger la correspondance",
+  "detailsRemoveInfo": "Supprimer les infos",
+  "detailsOverview": "Vue d'ensemble",
+  "detailsEpisodeOverview": "Résumé de l'épisode",
+  "detailsCast": "Distribution",
+  "detailsEpisodeCast": "Distribution de l'épisode",
+  "detailsGuestStars": "Acteurs invités",
+  "detailsEpisodes": "Épisodes",
+  "detailsStills": "Captures",
+  "detailsTrailers": "Bandes-annonces",
+  "detailsSubtitles": "Sous-titres",
+  "detailsSearchSubsOnline": "Rechercher des sous-titres en ligne",
+  "detailsFileInfo": "Infos du fichier",
+  "detailsProbingFile": "Analyse du fichier…",
+  "detailsDownloadToDevice": "Télécharger sur l'appareil",
+  "detailsDownloaded": "Téléchargé",
+  "detailsSearchTitle": "Rechercher un titre",
+  "detailsTvSeries": "Série TV",
+  "detailsMovie": "Film",
+  "detailsSearchUnavailable": "La recherche est indisponible pour le moment. Réessayez dans un instant.",
+  "detailsSearchFailed": "Échec de la recherche. Réessayez dans un instant.",
+  "detailsNoResults": "Aucun résultat. Essayez un autre titre.",
+  "detailsCouldNotListFolder": "Impossible de lister ce dossier",
+  "detailsMarkWatchedSimkl": "Marquer comme vu depuis SIMKL",
+  "detailsNothingNewSimkl": "Rien de nouveau depuis SIMKL",
+  "detailsMonthJan": "janv.",
+  "detailsMonthFeb": "févr.",
+  "detailsMonthMar": "mars",
+  "detailsMonthApr": "avr.",
+  "detailsMonthMay": "mai",
+  "detailsMonthJun": "juin",
+  "detailsMonthJul": "juil.",
+  "detailsMonthAug": "août",
+  "detailsMonthSep": "sept.",
+  "detailsMonthOct": "oct.",
+  "detailsMonthNov": "nov.",
+  "detailsMonthDec": "déc.",
+  "smbNetworkShares": "Partages réseau",
+  "smbBookmarkHome": "Ajouter ce dossier à l'accueil",
+  "smbSyncSimkl": "Synchroniser les « vus » depuis SIMKL",
+  "smbServerList": "Liste des serveurs",
+  "smbScanNetwork": "Analyser le réseau",
+  "smbAddServer": "Ajouter un serveur",
+  "smbNoShares": "Aucun partage trouvé. Vérifiez les paramètres de partage de votre NAS.",
+  "smbEpisodes": "Épisodes",
+  "smbOtherVideos": "Autres vidéos",
+  "smbOverview": "Vue d'ensemble",
+  "smbScanningNetwork": "Analyse de votre réseau…",
+  "smbDetectedNetwork": "Détecté sur ce réseau",
+  "smbSavedServers": "Serveurs enregistrés",
+  "smbConnected": "Connecté",
+  "smbHostRequired": "L'hôte est requis",
+  "smbSaveFailed": "Échec de l'enregistrement",
+  "smbEditServer": "Modifier le serveur",
+  "smbNetworkShare": "Partage SMB / réseau",
+  "smbName": "Nom",
+  "smbHost": "Hôte",
+  "smbPort": "Port",
+  "smbUsername": "Nom d'utilisateur",
+  "smbPassword": "Mot de passe",
+  "smbPasswordKeep": "Mot de passe (laisser vide pour conserver)",
+  "smbDomain": "Domaine",
+  "smbDomainHint": "WORKGROUP",
+  "smbGuest": "Invité — sans nom d'utilisateur ni mot de passe",
+  "smbBookmarkAdded": "{folder} ajouté à l'accueil (SMB · {server})",
+  "webdavBookmarkHome": "Ajouter ce dossier à l'accueil",
+  "webdavServerList": "Liste des serveurs",
+  "webdavAddServer": "Ajouter un serveur",
+  "webdavSavedServers": "Serveurs enregistrés",
+  "webdavHostRequired": "L'hôte est requis",
+  "webdavConnected": "Connecté",
+  "webdavConnectionFailed": "Échec de la connexion",
+  "webdavSaveFailed": "Échec de l'enregistrement",
+  "webdavEditServer": "Modifier le serveur",
+  "webdavServerName": "Nom du serveur",
+  "webdavHttp": "HTTP",
+  "webdavHttps": "HTTPS",
+  "webdavHost": "Hôte",
+  "webdavPort": "Port",
+  "webdavPath": "Chemin",
+  "webdavUsername": "Nom d'utilisateur",
+  "webdavPassword": "Mot de passe",
+  "webdavPasswordKeep": "Mot de passe (laisser vide pour conserver)",
+  "webdavSelfSigned": "Certificat auto-signé",
+  "webdavSelfSignedDesc": "Faire confiance aux serveurs HTTPS sans certificat d'autorité de certification",
+  "webdavHttpInsecure": "HTTP envoie le mot de passe en clair. Utilisez HTTPS pour les connexions sur Internet.",
+  "webdavBookmarkAdded": "{folder} ajouté à l'accueil (WebDAV · {server})",
+  "ftpTitle": "FTP / SFTP",
+  "ftpServerList": "Liste des serveurs",
+  "ftpAddServer": "Ajouter un serveur",
+  "ftpSavedServers": "Serveurs enregistrés",
+  "ftpFtp": "FTP",
+  "ftpSftp": "SFTP",
+  "ftpHost": "Hôte",
+  "ftpPort": "Port",
+  "ftpPath": "Chemin",
+  "ftpUsername": "Nom d'utilisateur",
+  "ftpPassword": "Mot de passe",
+  "ftpPasswordKeep": "Mot de passe (laisser vide pour conserver)",
+  "ftpHostRequired": "L'hôte est requis",
+  "ftpConnected": "Connecté",
+  "ftpConnectionFailed": "Échec de la connexion",
+  "ftpSaveFailed": "Échec de l'enregistrement",
+  "ftpEditServer": "Modifier le serveur",
+  "ftpUnencryptedWarning": "FTP envoie identifiants et données en clair. Utilisez SFTP pour les connexions sur Internet.",
+  "jellyfinTitle": "Jellyfin",
+  "jellyfinServerList": "Liste des serveurs",
+  "jellyfinScanNetwork": "Analyser le réseau",
+  "jellyfinAddServer": "Ajouter un serveur",
+  "jellyfinSavedServers": "Serveurs enregistrés",
+  "jellyfinOnThisNetwork": "Sur ce réseau",
+  "jellyfinScanLocal": "Analyser le réseau local",
+  "jellyfinAddToLibrary": "Ajouter à la bibliothèque",
+  "jellyfinSessionExpired": "Session expirée",
+  "jellyfinServerRequired": "L'adresse du serveur est requise",
+  "jellyfinEnterPassword": "Saisissez un mot de passe pour vous connecter.",
+  "jellyfinEditServer": "Modifier le serveur",
+  "jellyfinServerName": "Nom du serveur",
+  "jellyfinServerAddress": "Adresse du serveur",
+  "jellyfinUsername": "Nom d'utilisateur",
+  "jellyfinPassword": "Mot de passe",
+  "jellyfinPasswordKeep": "Mot de passe (laisser vide pour conserver)",
+  "jellyfinSelfSigned": "Certificat auto-signé",
+  "jellyfinSelfSignedDesc": "Faire confiance aux serveurs HTTPS sans certificat CA",
+  "jellyfinEnterUsername": "Saisissez votre nom d'utilisateur.",
+  "jellyfinEnterPasswordHint": "Saisissez votre mot de passe.",
+  "jellyfinSignIn": "Se connecter",
+  "upnpTitle": "DLNA",
+  "upnpDiscover": "Découvrir",
+  "upnpDiscoverFailed": "Échec de la découverte",
+  "upnpBrowseFailed": "Échec de la navigation",
+  "upnpNoServers": "Aucun serveur DLNA trouvé",
+  "upnpDiscoverAgain": "Découvrir à nouveau",
+  "upnpDiagnostics": "Diagnostics",
+  "downloadTitle": "Téléchargements",
+  "downloadNoDownloads": "Aucun téléchargement pour le moment",
+  "downloadDownloading": "Téléchargement…",
+  "downloadDownloadingTitle": "Téléchargement : {title}",
+  "downloadComplete": "Téléchargé",
+  "downloadFailed": "Échec du téléchargement : {error}",
+  "downloadRemove": "Supprimer le téléchargement ?",
+  "downloadQueued": "En attente",
+  "downloadCancelled": "Annulé",
+  "subtitleSettingsTitle": "Sous-titres",
+  "subtitleTextSize": "Taille du texte",
+  "subtitleColor": "Couleur",
+  "subtitleBackground": "Arrière-plan",
+  "subtitleBackgroundNone": "Aucun",
+  "subtitleBackgroundSemi": "Semi-transparent",
+  "subtitleBackgroundSolid": "Plein",
+  "subtitleOutline": "Contour noir",
+  "subtitleOutlineDesc": "Ombre derrière les caractères pour la lisibilité",
+  "subtitleBgOpacity": "Opacité de l'arrière-plan",
+  "subtitlePosition": "Position verticale",
+  "subtitlePositionDesc": "Déplace le texte des sous-titres vers le haut (plus haut) ou vers le bas (plus bas).",
+  "subtitleDelay": "Délai",
+  "subtitleSample": "Exemple de ligne de sous-titre",
+  "subtitleWhite": "Blanc",
+  "subtitleYellow": "Jaune",
+  "subtitleCyan": "Cyan",
+  "subtitleWarm": "Chaud",
+  "fileBrowseTitle": "Parcourir les fichiers",
+  "fileBrowseFiles": "Fichiers",
+  "fileBrowseAccessNeeded": "L'accès à tous les fichiers est nécessaire pour parcourir votre stockage",
+  "fileBrowseGrant": "Accorder l'accès",
+  "fileBrowseNoVideos": "Aucune vidéo ni dossier ici",
+  "fileBrowseRemoveFolder": "Supprimer le dossier ?",
+  "fileBrowseCouldNotRemove": "Impossible de supprimer le dossier",
+  "folderCouldNotList": "Impossible de lister ce dossier",
+  "folderEpisodes": "Épisodes",
+  "folderOverview": "Vue d'ensemble",
+  "folderCast": "Distribution",
+  "opensubtitlesSearch": "Rechercher sur OpenSubtitles",
+  "opensubtitlesSignIn": "Se connecter à OpenSubtitles",
+  "opensubtitlesDownloadLang": "Langue de téléchargement",
+  "opensubtitlesHashMatch": "Correspondance par empreinte activée",
+  "opensubtitlesComputingHash": "Calcul de l'empreinte du fichier…",
+  "opensubtitlesSearchHint": "Nom du film / épisode",
+  "opensubtitlesEnterSearch": "Saisissez un terme de recherche",
+  "opensubtitlesNoResults": "Aucun résultat",
+  "opensubtitlesFreeAccount": "Compte gratuit = 20/jour (anonyme = 5/jour). Créez-le sur opensubtitles.com",
+  "opensubtitlesSignInRequired": "Connexion requise pour ce téléchargement (limite anonyme quotidienne atteinte)",
+  "errorIo": "Le fichier vidéo est inaccessible. Il a peut-être été déplacé, supprimé, ou la connexion réseau a été perdue.",
+  "errorConnection": "Connexion interrompue pendant la lecture. Le fichier a peut-être été déplacé, le réseau est instable, ou le serveur a fermé la connexion.",
+  "errorServer": "Serveur injoignable. Vérifiez votre connexion réseau et assurez-vous que le serveur est en marche.",
+  "errorHttp": "HTTP en clair est bloqué pour cette source. Utilisez HTTPS si le serveur le permet.",
+  "errorDvP5": "Cet appareil ne peut pas décoder Dolby Vision Profil 5. Lisez la version HDR10 ou SDR du fichier, ou regardez-la sur un appareil compatible Dolby Vision.",
+  "errorDecoderFailed": "Le décodeur vidéo a échoué pendant la lecture de ce fichier. Il est peut-être corrompu ou utilise un encodage non pris en charge.",
+  "errorFormatUnsupported": "Cet appareil ne peut pas décoder ce format vidéo. Causes courantes : HDR 10 bits ou codec non pris en charge.",
+  "errorResourcesReclaimed": "Le système a récupéré le décodeur vidéo. Reouverture en mode logiciel.",
+  "errorAudioInit": "Impossible d'initialiser la sortie audio. Vérifiez si une autre application utilise le système audio, ou essayez une autre piste audio.",
+  "errorContainerUnsupported": "Ce format de fichier n'est pas pris en charge. Le conteneur (ex. .m2ts, .ts, .vob) peut nécessiter un autre décodeur.",
+  "errorNoVideoPlayer": "Aucune application de lecture vidéo trouvée sur cet appareil",
+  "licenseGplv3": "GNU General Public License v3.0",
+  "licenseSourceCode": "Code source",
+  "licenseGplv3Source": "Code source GPLv3",
+  "licenseNotice": "GNU GPL v3.0 et avis de tiers",
+  "supportRazorpay": "Paiement par UPI, carte bancaire ou netbanking",
+  "supportGithub": "Soutien récurrent sur GitHub",
+  "permissionsAllFiles": "Autoriser l'accès à tous les fichiers ?",
+  "permissionsAllFilesDesc": "DreamPlayer a besoin de l'accès à tous les fichiers pour parcourir votre stockage, lire des vidéos et télécharger des fichiers.",
+  "permissionsNotNow": "Pas maintenant",
+  "permissionsOpenSettings": "Ouvrir les paramètres",
+  "decoderAuto": "Auto",
+  "decoderHardware": "Matériel",
+  "decoderSoftware": "Logiciel",
+  "engineAuto": "Auto",
+  "engineMedia3": "Media3",
+  "engineMpv": "libmpv",
+  "engineAsk": "Demander à chaque fois",
+  "fitModeFit": "Ajuster",
+  "fitModeFullscreen": "Plein écran",
+  "fitModeCrop": "Rogner à l'écran",
+  "fitModeStretch": "Étirer à l'écran",
+  "playbackRepeatOne": "Répéter un",
+  "playbackRepeatAll": "Répéter tout",
+  "librarySourceSmb": "SMB",
+  "librarySourceWebdav": "WebDAV",
+  "librarySourceFtp": "FTP",
+  "librarySourceDlna": "DLNA",
+  "librarySourceJellyfin": "Jellyfin",
+  "badgeHdr10": "HDR10",
+  "badgeHlg": "HLG",
+  "badgeSdr": "SDR",
+  "badgeDolbyVision": "Dolby Vision",
+  "badgeSpatial": "Spatial",
+  "badgeTranscoding": "Transcodage",
+  "badgeSdrMpv": "SDR (MPV)",
+  "sleep5min": "5 min",
+  "sleep10min": "10 min",
+  "sleep15min": "15 min",
+  "sleep30min": "30 min",
+  "sleep60min": "60 min",
+  "sleepEndOfVideo": "Fin de la vidéo en cours",
+  "sleepFinished": "Minuterie de veille terminée — lecture en pause",
+  "volumeOff": "Désactivé",
+  "tmdbHintEnable": "Activer les détails des films ?",
+  "tmdbHintDesc": "DreamPlayer peut récupérer gratuitement affiches, notes, distribution et autres détails depuis The Movie Database (TMDB).",
+  "tmdbGetKey": "Obtenir une clé API TMDB gratuite",
+  "tmdbOpenSettings": "Ouvrir les paramètres",
+  "bookmarkedAdded": "« {name} » ajouté à votre bibliothèque",
+  "removedFromContinue": "« {title} » n'apparaîtra plus ici.",
+  "folderRemoved": "Supprimé : {server}",
+  "cacheCleared": "Cache vidé",
+  "liveOnIos": "Actif sur iOS · reprend à la même position sur Android",
+  "reopensSamePosition": "Reprend à la même position pour changer de décodeur.",
+  "hashMatchEnabled": "Correspondance par empreinte activée",
+  "videoNotAvailable": "Cette vidéo n'est pas disponible à la lecture.",
+  "genericError": "Erreur : {error}",
+  "settingsSubtitleEncoding": "Encodage des sous-titres",
+  "settingsLanguage": "Langue",
+  "settingsSystemDefault": "Par défaut (système)",
+  "settingsOpensubAccountHint": "Compte gratuit = 20/jour (anonyme = 5/jour). Créez-le sur opensubtitles.com",
+  "settingsSignIn": "Se connecter",
+  "settingsRemove": "Retirer",
+  "settingsClearCacheConfirm": "Vider le cache ?",
+  "settingsCouldNotOpenLink": "Impossible d'ouvrir ce lien",
+  "settingsBadgeOptionsDesc": "Choisissez les chips à afficher",
+  "settingsTakesEffectNextVideo": "Prend effet sur la prochaine vidéo",
+  "settingsTmdbApiKey": "Clé API TMDB",
+  "settingsOpensubtitles": "OpenSubtitles",
+  "settingsAutoDownloadSubs": "Télécharger une correspondance si aucune trouvée",
+  "settingsSimklSignOut": "Se déconnecter et arrêter la synchronisation",
+  "settingsSimklSyncDesc": "Synchroniser l'historique de visionnage",
+  "settingsGnuGpl": "GPL v3.0 et avis de tiers",
+  "settingsSyncedCount": "{count} élément(s) synchronisé(s) avec SIMKL",
+  "settingsConnectSimkl": "Connecter SIMKL",
+  "settingsSimklPairing": "Rendez-vous à l'adresse ci-dessous et saisissez ce code :",
+  "opensubtitlesAnonymousHint": "Anonyme = 5/jour, compte gratuit = 20/jour",
+  "opensubtitlesDownloading": "Téléchargement…",
+  "folderNoVideosHere": "Aucune vidéo ni dossier ici",
+  "folderSimklNotConfigured": "SIMKL non configuré",
+  "folderSimklSignInFirst": "Connectez-vous d'abord à SIMKL",
+  "folderSimklSyncFailed": "Échec de la synchro SIMKL : {error}",
+  "folderSmbNoShares": "Aucun partage trouvé. Vérifiez les paramètres de partage de votre NAS.",
+  "playerDownloadingTitle": "Téléchargement : {title}",
+  "playerDownloadFailed": "Échec du téléchargement : {error}",
+  "playerVideoNotSupported": "Cette vidéo n'est pas prise en charge par le lecteur intégré, le lecteur de secours est utilisé.",
+  "playerVideoDecodeRetrySw": "Le décodeur matériel n'a pas pu décoder cette vidéo — nouvelle tentative en décodage logiciel.",
+  "playerSleepTimerFinished": "Minuterie de veille terminée — lecture en pause",
+  "playerVolumeBoostWarning": "Au-delà de 100 %, vos enceintes peuvent être endommagées — à vos risques et périls",
+  "playerBrightnessBatteryWarning": "Une luminosité supérieure à 80 % vide la batterie plus vite",
+  "playerDownloaded": "Téléchargé",
+  "playerAutoFetched": "Récupéré automatiquement : {fileName}",
+  "playerPictureInPicture": "Picture-in-picture",
+  "playerPlaybackStats": "Statistiques de lecture",
+  "homeSmbNoShares": "Aucun partage trouvé. Vérifiez les paramètres de partage de votre NAS.",
+  "errorRetry": "Réessayer",
+  "errorTryMpv": "Essayer avec MPV",
+  "errorOpenExternal": "Ouvrir dans un lecteur externe",
+  "upnpOnThisNetwork": "Serveurs sur ce réseau",
+  "homeSmbLocalShares": "Partages SMB sur le réseau local",
+  "homeSmbViaFilesApp": "SMB via l'application Fichiers",
+  "homeTitle": "DreamPlayer",
+  "homeNothingYet": "Aucune vidéo pour le moment — touchez + pour commencer",
+  "homeDownloaded": "Téléchargé",
+  "downloadDeleteConfirm": "Supprimer « {title} » de votre appareil ?",
+  "settingsDownloadFolder": "Dossier de téléchargement",
+  "homeClearAll": "Tout effacer",
+  "homeClearLibrary": "Vider la bibliothèque",
+  "homeClearLibraryDesc": "Retire toutes les cartes de dossiers de l'écran d'accueil",
+  "homeClearLibraryTitle": "Vider la bibliothèque ?",
+  "homeClearLibraryContent": "Tous les dossiers de la bibliothèque seront retirés. Les fichiers restent sur votre appareil.",
+  "homeClearContinueWatching": "Vider « Continuer la lecture »",
+  "homeClearContinueWatchingDesc": "Retire toutes les cartes « Continuer la lecture »",
+  "homeClearContinueWatchingTitle": "Vider « Continuer la lecture » ?",
+  "homeClearContinueWatchingContent": "Toutes les entrées « Continuer la lecture » seront supprimées.",
+  "browserViewMoreOptions": "Plus d'options",
+  "browserView": "Affichage",
+  "browserViewList": "Liste",
+  "browserViewGrid": "Grille",
+  "settingsMpvUserConfig": "Config MPV personnalisée",
+  "settingsMpvUserConfigNone": "Aucune",
+  "settingsMpvUserConfigChange": "Changer de fichier…",
+  "settingsMpvUserConfigHint": "Votre mpv.conf est appliqué par-dessus les réglages MPV de DreamPlayer (options uniquement — scripts et profils sont ignorés). vo/wid sont protégés pour garder la surface vidéo attachée.",
+  "playerSecondarySubtitleTop": "Sous-titre secondaire (haut)"
+}

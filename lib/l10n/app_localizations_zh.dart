@@ -592,6 +592,13 @@ class AppLocalizationsZh extends AppLocalizations {
       'Compress dynamic range for quiet listening';
 
   @override
+  String get settingsAudioDownmix => '降混合为立体声';
+
+  @override
+  String get settingsAudioDownmixDesc =>
+      '将 5.1/7.1 音轨折叠为 2.0，让对话在立体声耳机和扬声器上保持洪亮。在下次播放时生效；HDMI 直通时忽略。';
+
+  @override
   String get settingsSpatialAudio => '空间音频';
 
   @override

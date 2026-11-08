@@ -947,6 +947,49 @@ A video player app supporting:
   channel both platforms, Settings row gated iOS-26+ + paywalled, player has
   no toggle but keeps the chip.
 
+### Downmix to stereo — 5.1/7.1 → 2.0 (2026-11-08, FREE on both platforms)
+
+- **One toggle**: Settings → Audio → "Downmix to stereo" (`AudioDownmixStore`,
+  pref `dreamplayer.audioDownmix`, default off). **NOT paywall-gated on iOS**
+  (deliberate, user decision 2026-11-08): downmix is about the *audio channel
+  count*, and most 5.1/7.1 content is ordinary SDR that free users can already
+  play — gating it would lock a basic stereo-listening fix behind the paywall.
+  So the store does NOT route through `effectiveDspSetting`, the Settings row
+  saves without `_settingsGate()`, and the paywall "What's included" list does
+  not mention it. Pinned by `test/audio_downmix_test.dart`.
+- **Why**: most movie/series audio is 5.1/7.1 and most people listen on stereo
+  headphones/speakers; a naive L/R fold drops the centre channel, so dialogue
+  goes quiet while effects stay loud. All three engines use the standard
+  downmix matrix — centre + surrounds into both fronts at −3 dB (√½), LFE
+  dropped (no sub on stereo):
+  - **Android Media3**: `DownmixAudioProcessor.kt`, a PCM16 `AudioProcessor`
+    in the sink chain in `DreamRenderersFactory.buildAudioSink`, ordered
+    `delay → downmix → boost` so the boost limiter catches peaks the summing
+    produces. The output channel count is fixed at sink configure time, so
+    `enabled` is read in `configure()` only — a mid-playback toggle applies on
+    the next track change/open (flipping frame size under a live sink would
+    corrupt it). Non-PCM16 throws `UnhandledAudioFormatException` → raw path,
+    so **HDMI bitstream passthrough is never downmixed** (the receiver does
+    its own). `ExoPlayerView` pushes the pref on `open` and answers
+    `setAudioDownmix` (persists `flutter.dreamplayer.audioDownmix`), and emits
+    `audioDownmix` in the state map. Unit tests:
+    `android/app/src/test/.../DownmixAudioProcessorTest.kt` (centre at −3 dB in
+    both outputs, LFE dropped, 7.1 sides, clip-not-wrap, passthrough when
+    off/stereo, mono untouched, non-PCM rejected).
+  - **MPV engine**: `audio-channels=stereo` in `_configureMpvAudio` (swresample
+    downmix, same matrix); `auto` when off. Ignored for `audio-spdif`
+    passthrough. Live via `applyMpvDownmixSetting()`.
+  - **iOS**: the stereo audio-session lever — `applySpatialAudio` in
+    `AvPlayerView.swift` now also reads `flutter.dreamplayer.audioDownmix` and,
+    when on, sets `setSupportsMultichannelContent(false)` on BOTH paths (native
+    AVPlayer path included — Apple's own downmix keeps the centre) and
+    `allowedAudioSpatializationFormats = []`; downmix wins over spatial.
+    `setAudioDownmix` channel case persists the pref + re-applies + emits;
+    stateMap gains `audioDownmix`.
+- Applies on the next playback/track change on every platform. Dart plumbing:
+  `PlaybackController.setAudioDownmix` (`exo_player.dart`) + `ExoPlayerState
+  .audioDownmix`; `player_screen` pushes it at open and loads the store in init.
+
 ### iOS audio DSP — volume boost, night mode & bass boost (2026-10-31)
 
 **iOS now has the same three audio controls as Android**, and they are real DSP
@@ -3022,7 +3065,7 @@ Vulkan ImageReader path exists.
 1. Android release signing (deferred — see CI/Deployment).
 2. **Anime4K real-time upscaling (SHIPPED 2026-09, commit `bb38f09` — one gap left)**: [Anime4K](https://github.com/bloc97/anime4k) is a set of MIT-licensed GLSL shaders that upscale native 1080p anime → 4K in real-time. It is **already in the app**: the MIT shaders live in `assets/anime4k/` (with their LICENSE), `lib/services/anime4k_shader_store.dart` copies them to the app-support dir on first use (mpv needs real file paths) and maps the six canonical modes (A / B / C / A+A / B+B / C+A) to a shader chain, and `player_screen.dart` applies it **on the MPV engine only**, **session-only** (no pref), from the player's ⋮ sheet. Two things are deliberately NOT done: it is **SDR-only** (`isAnime4kSdrVideo` refuses DV/PQ/HLG/BT.2020 content — a shader chain means the frame is no longer the decoder's native BT.2020 PQ layer, so real HDR passthrough would be lost), and the chain runs on `vo=gpu` + `gpu-api=opengl` with `hwdec=mediacodec-copy` (the legacy GLSL path cannot take a direct MediaCodec surface). **The 4K/8K auto-disable is done** (`isAnime4kSupportedResolution`, ≤ 2560×1440 by pixel count). The **remaining gap** is the thermal tiering — see "GPU rendering + Cast — the ordered plan", step 1. The upstream repo has 21k stars and active maintenance; [Anime4KMetal](https://github.com/imxieyi/Anime4KMetal) exists for Apple platforms (Metal shaders) which could apply to the iOS AetherEngine path in a distant future.
 3. **Download to device (done, 2026-09)**: download video files from network sources (SMB, WebDAV, HTTP, Jellyfin, UPnP) to local storage for offline playback. Modeled on Nova Video Player's `CopyCutEngine` + `FileManagerService` pattern. Core is built: Kotlin foreground service + Dart DownloadManager + UI triggers + download screen + SMB via loopback + silent notification with Cancel button + iOS local notification. iOS: notification shows banner once at start, then silent progress updates every 5s; cancel action forwards `jobId` to Dart; tap notification body opens the Downloads drawer. Local file copy uses async chunked I/O (256 KB) with event-loop yield each chunk — sync I/O blocked the UI and caused stutter. Cancel properly interrupts the copy loop via `_activeCompleter` and deletes the partial file. Progress bar renders for all downloads (indeterminate animation when `totalBytes` is unknown; HEAD probe runs before the GET on HTTP sources to resolve size). FTP download is hidden because Dart `HttpClient` cannot handle `ftp://` URIs.
- 4. **Localization / internationalization (DONE 2026-09)**: full app translation via Flutter's built-in `flutter_localizations` + `intl` package. Languages: **English** (default/fallback), **Spanish** (es), **Chinese Simplified** (zh), **Russian** (ru). Auto-detects device system language on launch; optional Settings → General → Language override. Technical terms (codec names, HDR, Dolby Vision, etc.) stay English. **504 ARB keys** in English ARB (`lib/l10n/app_en.arb`), all translated to es/zh/ru (~130 key strings per language). Auto-generated `AppLocalizations` class via `gen-l10n` with camelCase getters, `l10n.yaml` at project root. `LanguageService` (`lib/services/language_service.dart`) manages the locale override with SharedPreferences persistence. `MaterialApp` wired with `localizationsDelegates` + `supportedLocales` via `ListenableBuilder` + **`ValueKey`** to force full rebuild on locale change. Language picker uses `StatefulBuilder` + `ListTile` + `onTap` (not `RadioGroup` — nullable `Locale?` generic type issues). **283 strings localized** across 13 screen files. `test/test_helper.dart` provides `localizationDelegates` for widget tests.
+   4. **Localization / internationalization (DONE 2026-09)**: full app translation via Flutter's built-in `flutter_localizations` + `intl` package. Languages: **English** (default/fallback), **Spanish** (es), **Chinese Simplified** (zh), **Russian** (ru), **French** (fr). Auto-detects device system language on launch; optional Settings → General → Language override. Technical terms (codec names, HDR, Dolby Vision, etc.) stay English. **559 ARB keys** in English ARB (`lib/l10n/app_en.arb`), all translated to es/zh/ru/fr (~130 key strings per language). Auto-generated `AppLocalizations` class via `gen-l10n` with camelCase getters, `l10n.yaml` at project root. `LanguageService` (`lib/services/language_service.dart`) manages the locale override with SharedPreferences persistence. `MaterialApp` wired with `localizationsDelegates` + `supportedLocales` via `ListenableBuilder` + **`ValueKey`** to force full rebuild on locale change. Language picker uses `StatefulBuilder` + `ListTile` + `onTap` (not `RadioGroup` — nullable `Locale?` generic type issues). **283 strings localized** across 13 screen files. `test/test_helper.dart` provides `localizationDelegates` for widget tests.
 
    **Architecture (3 layers):**
    - **UI**: player ⋮ sheet "Download to device" row + details screen bottom bar Download button (visible only for network sources)
@@ -3286,6 +3329,9 @@ earlier notes here claimed releases were all-free, which was wrong about reality
 - Subtitle VIEWING (32–35, 38–40) — only *styling* is gated.
 - Background playback (5), resume (21), watched (45), cover art (54),
   info probe (55), downloads-list VIEWING (57), download dir picker (58).
+- **Downmix to stereo (5.1/7.1 → 2.0)** — free on both platforms; it applies to
+  ordinary SDR 5.1/7.1 content free users already play, so it is not a premium
+  DSP feature (user decision 2026-11-08).
 - **Android = every feature free forever** (hardcoded `advanced = true`,
   zero gated code paths; the gate map is iOS-only).
 
@@ -4217,6 +4263,7 @@ lib/
   services/manual_groups.dart     # user-made manual groups (ManualGroup/ManualGroupsStore, prefs dreamplayer.manualGroups; select N cards → Group)
   services/default_engine_store.dart # dreamplayer.defaultEngine (Media3 / libmpv / ask)
   services/audio_track_store.dart # per-video+engine last audio pick (audio_track_{engine}_{resumeKey})
+  services/audio_downmix_store.dart # downmix-to-stereo toggle (dreamplayer.audioDownmix), FREE both platforms
   services/tone_map_store.dart    # dreamplayer.toneMapMode (sdr|native) for MPV HDR tone-map
   services/hw_sdr_tonemap_store.dart # dreamplayer.hwSdrToneMap — hardware SDR tone-mapping (issue #55)
   services/mpv_surface_view.dart  # MpvSurfaceView platform view (hybrid composition, no Flutter Texture)
@@ -4252,6 +4299,7 @@ lib/
 android/app/src/main/kotlin/com/dreamplayer/app/
   ExoPlayerView.kt              # native PlayerView platform view + channels (open/play/seek/tracks/subtitles) + OkHttp permissive DataSource for self-signed WebDAV
   HwSdrToneMap.kt               # hardware SDR tone-mapping state + pure shouldRequest() decision (issue #55)
+  DownmixAudioProcessor.kt      # PCM16 5.1/7.1 -> stereo downmix processor in the sink chain (centre -3dB, LFE dropped)
   DreamRenderersFactory.kt      # DefaultRenderersFactory subclass: FFmpeg audio/video fallbacks + hardware SDR tone-map codec adapter
   SubtitleFormats.kt            # extension->MIME map, sibling auto-pairing, VobSub pair detection, bounded charset sniff, UTF-8 re-encode
   VobSubPayloadExtractor.kt      # MPEG-PS demux for sidecar .idx/.sub -> DVD subtitle packets (validated vs ffmpeg)
@@ -4294,6 +4342,7 @@ test/
   entitlements_storekit_test.dart # StoreKit re-delivery is accepted by content; Apple's sync() policy (sync only on an explicit Restore); the paywall closes itself when the entitlement arrives; the entitlement survives an app update (cached in the app's own data, wiped by a reinstall) and the Settings row waits for the store instead of claiming "Unlock"
   mpv_audio_select_test.dart    # container DEFAULT audio pin helper
   audio_track_store_test.dart   # per-video+engine last audio pick
+  audio_downmix_test.dart       # downmix store/free-not-gated + native wiring pins (Android Kotlin, MPV, iOS Swift)
   tone_map_store_test.dart      # dreamplayer.toneMapMode store
   settings_tone_map_platform_test.dart # HDR tone-map tile hidden on iOS / shown on Android
   hw_sdr_tonemap_store_test.dart # hardware SDR tone-mapping pref store (issue #55)

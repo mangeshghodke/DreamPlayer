@@ -33,6 +33,12 @@ class DreamRenderersFactory(private val appContext: Context) : DefaultRenderersF
         /// the sink, and because it is the ONLY boost path — no vendor audio
         /// effect is involved (issue #41).
         val audioBoostProcessor = BoostLimiterProcessor()
+
+        /// Downmix to stereo (Settings -> Audio): folds 5.1/7.1 PCM into 2.0
+        /// with the centre channel kept at -3 dB, so dialogue survives on
+        /// stereo headphones/speakers. Sits BEFORE the boost processor so the
+        /// limiter catches any peak the downmix summing produces.
+        val audioDownmixProcessor = DownmixAudioProcessor()
     }
 
     /// Inserts the audio-delay and audio-boost processors into every audio
@@ -46,7 +52,9 @@ class DreamRenderersFactory(private val appContext: Context) : DefaultRenderersF
         DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(enableFloatOutput)
             .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-            .setAudioProcessors(arrayOf(audioDelayProcessor, audioBoostProcessor))
+            .setAudioProcessors(
+                arrayOf(audioDelayProcessor, audioDownmixProcessor, audioBoostProcessor),
+            )
             .build()
 
     /// Injects the hardware SDR tone-mapping request into the video codec
