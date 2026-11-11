@@ -832,6 +832,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             ) { [weak self] _ in
                 guard let self else { return }
                 self.applySpatialAudio(force: true)
+                self.updateNativeSubtitleRendering()
                 self.emit()
             }
         )
@@ -1418,6 +1419,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         UIApplication.shared.isIdleTimerDisabled = true
 
          // Reset per-open state.
+         // The subtitle handoff latch: a fresh load starts inline, so release
+         // any native-rendition request left over from the previous file and
+         // bring the host overlay back.
+         nativeSubtitleRenderingActive = false
+         subtitleOverlay.isHidden = false
+         engine?.setNativeSubtitleRendering(false)
          // Probe/HDR state survives a re-open of the SAME file (resume/replay):
          // the engine probe can drop DV info when loading with a start position,
          // which would regress the badge to SDR. Only cleared when a different
@@ -1686,6 +1693,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 // The engine re-declares its audio session on every load, so
                 // the spatial-audio opt-in has to be re-applied here too.
                 self.applySpatialAudio(force: true)
+                // Re-evaluate the AirPlay/PiP subtitle handoff against the
+                // fresh player (the tick timer also picks it up within 0.25 s).
+                self.updateNativeSubtitleRendering()
                 // Reset any pinch-zoom from a previous session.
                 self.setZoom(1.0)
                 // Resume is not reliable from the load parameter alone on every
@@ -2508,7 +2518,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private func startTickTimer() {
         guard tickTimer == nil else { return }
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.emit() }
+            Task { @MainActor [weak self] in
+                self?.updateNativeSubtitleRendering()
+                self?.emit()
+            }
         }
         timer.tolerance = 0.02
         RunLoop.main.add(timer, forMode: .common)
@@ -2880,6 +2893,59 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             if !t.name.isEmpty { m["label"] = t.name }
             return m
         }
+    }
+
+    // MARK: - Native subtitle rendering (AirPlay / PiP / external display)
+
+    /// Latched state of the host→AVKit subtitle handoff.
+    ///
+    /// While the picture is NOT on this device's own layer — an AirPlay
+    /// receiver, the PiP window, a wired external display — this view's
+    /// `SubtitleOverlayView` is not composited into the stream, so the host
+    /// overlay alone means NO subtitles on the receiver (the reported bug).
+    /// The engine's contract (AetherEngine docs/formats.md "recommended host
+    /// pattern for PiP / AirPlay"): on entering such a surface call
+    /// `setNativeSubtitleRendering(true)` and hide the host overlay; on
+    /// leaving, call `false` and re-enable it. The engine maps the active
+    /// overlay track to the matching AVKit legible rendition (bitmap tracks
+    /// get an OCR-fed text rendition while the rendition is the display), so
+    /// AVKit draws the subs on the receiver itself. Inert on the software
+    /// path — there is no AVPlayerItem — which is why the gate below also
+    /// requires a live player layer (software-path AirPlay is audio-only and
+    /// the video, with the host overlay, stays on the device).
+    private var nativeSubtitleRenderingActive = false
+
+    /// The native AVPlayer path is live (HEVC / progressive H.264); the
+    /// software path has no AVPlayerLayer, so `findPlayerLayer()` is nil.
+    private var nativePathLive: Bool {
+        findPlayerLayer()?.player != nil
+    }
+
+    /// True when the video is being shown somewhere other than the inline
+    /// layer: PiP, AVPlayer external playback, or a wireless AirPlay route
+    /// (the route check survives the item teardown the engine's own LAN-swap
+    /// reload causes — the player flag alone reads a transient false there).
+    private var pictureOffDevice: Bool {
+        if inPip { return true }
+        if let player = findPlayerLayer()?.player, player.isExternalPlaybackActive { return true }
+        return AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay }
+    }
+
+    /// Recompute the handoff state; latched so the engine call fires only on
+    /// a real edge. Called from the 0.25 s tick, the route-change observer,
+    /// the PiP delegate and after every load — cheap and idempotent.
+    private func updateNativeSubtitleRendering() {
+        let wants = nativePathLive && pictureOffDevice
+        guard wants != nativeSubtitleRenderingActive else { return }
+        nativeSubtitleRenderingActive = wants
+        engine?.setNativeSubtitleRendering(wants)
+        // Hide the host overlay while AVKit owns the subs, so an inline view
+        // never double-draws during the transition.
+        subtitleOverlay.isHidden = wants
+        SBMLog.log("native subtitle rendering -> \(wants) "
+                   + "(pip=\(inPip) externalPlayback=\(findPlayerLayer()?.player?.isExternalPlaybackActive ?? false) "
+                   + "airPlayRoute=\(AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay }) "
+                   + "nativePath=\(nativePathLive))")
     }
 
     // MARK: - Subtitle overlay
@@ -3324,6 +3390,7 @@ extension AvPlayerView: AVPictureInPictureControllerDelegate {
         // set — the PiP window needs frames.
         engine?.pictureInPictureActive = true
         inPip = true
+        updateNativeSubtitleRendering()
         emit()
     }
 
@@ -3332,6 +3399,7 @@ extension AvPlayerView: AVPictureInPictureControllerDelegate {
     ) {
         engine?.pictureInPictureActive = false
         inPip = false
+        updateNativeSubtitleRendering()
         emit()
         // Re-arm defensively (no-op when the controller is still bound to a
         // live layer) so the next HOME swipe floats again.

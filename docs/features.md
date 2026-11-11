@@ -24,6 +24,7 @@ The full feature list. The README carries a short summary; everything below is t
 - **Spatial audio** (Android 13+) — the same phone Spatial-audio setting drives both Media3 and MPV; the teal chip shows when the system Spatializer can virtualize the current multichannel PCM output on wired, USB, and Bluetooth routes
 - **Bass Boost** — Off/Low/Medium/High session-level DSP that restores the low-end HRTF virtualization thins out (appears while Spatial audio is engaged)
 - **Volume Boost + Night Mode** — swipe the volume past 100% for up to 2× (200%) of make-up gain, applied to the decoded audio itself with a peak limiter, so it lifts the whole mix instead of crushing the centre channel (Android). Night Mode adds a further +4 dB. A warning appears the moment you cross 100%
+- **Downmix to stereo** (Settings → Audio) — folds 5.1/7.1 tracks into 2.0 with the centre channel kept at −3 dB and LFE dropped, so dialogue stays loud on stereo headphones and speakers. Android Media3 via a PCM processor in the audio sink (HDMI bitstream passthrough untouched), MPV via `audio-channels=stereo`, iOS via the stereo audio-session lever. Applies on the next playback; free on both platforms
 
 ## Subtitles
 - **Embedded + sideloaded** — every subtitle file next to the video auto-attaches

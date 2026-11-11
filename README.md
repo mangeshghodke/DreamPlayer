@@ -29,18 +29,18 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** — buil
 
 ## 📲 Now on the App Store
 
-**DreamPlayer is live on the App Store** for iPhone and iPad (requires iOS / iPadOS 18.0+). No ads, no account; a **7-day opt-in free trial**, then an optional Premium subscription unlocks Dolby Vision / HDR playback, subtitle styling, playback speed, A-B repeat, sleep timer, downloads and OpenSubtitles — browsing, playback, subtitle viewing, chapters, PiP, background audio and resume stay free. **Android builds are completely free** — every feature, no paywall.
+**DreamPlayer is live on the App Store** for iPhone and iPad (requires iOS / iPadOS 18.0+). No ads, no account; a **7-day opt-in free trial**, then an optional Premium subscription unlocks Dolby Vision / HDR playback, subtitle styling, playback speed, A-B repeat, sleep timer, downloads and OpenSubtitles — browsing, playback, subtitle viewing, chapters, PiP, background audio, resume and 5.1/7.1 stereo downmix stay free. **Android builds are completely free** — every feature, no paywall.
 
 [![App Store](https://img.shields.io/badge/App_Store-Download%20on%20iPhone%20%26%20iPad-0D96F2?logo=apple&logoColor=white&style=for-the-badge)](https://apps.apple.com/us/app/dreamplayer-video-player/id6813066889)
 
 ## ✨ Highlights
 
-- **True Dolby Vision (P7/P8/P9) + HDR10/HDR10+/HLG** passthrough to the panel, and **lossless audio** — DTS, DTS-HD, TrueHD, E-AC3, AC3, FLAC
+- **True Dolby Vision (P7/P8/P9) + HDR10/HDR10+/HLG** passthrough to the panel, and **lossless audio** — DTS, DTS-HD, TrueHD, E-AC3, AC3, FLAC — plus a one-tap **5.1/7.1 → stereo downmix** (Settings → Audio) that keeps dialogue loud on headphones/speakers
 - **In-app network playback** — SMB/NAS, WebDAV, FTP/SFTP, Jellyfin, DLNA/UPnP on both platforms, with encrypted credentials
 - **Smart library** — TMDB metadata, continue watching, offline search, grouping, watched marks, downloads to device
 - **Subtitles** — embedded + sideloaded sidecars auto-attach, full styling, OpenSubtitles search
 - **Two Android engines** — Media3 (DV/HDR) or MPV (user-chosen), plus PiP, chapters, skip-intro, gestures, AirPlay on iOS
-- Localization (EN/ES/ZH/RU), Android TV 10-foot UI, alternate app icons
+- Localization (EN/ES/ZH/RU/FR), Android TV 10-foot UI, alternate app icons
 
 👉 **[Full feature list →](docs/features.md)** · **[Playback engines →](docs/engines.md)** · **[Spatial audio →](docs/spatial-audio.md)** · **[Screenshots →](docs/screenshots.md)**
 
