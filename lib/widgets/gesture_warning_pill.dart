@@ -12,12 +12,16 @@ class GestureWarningPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(14),
+        // Nearly-solid black as part of the pill itself, matching the black
+        // area behind it so the accent outline stays crisp.
+        color: Colors.black.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withValues(alpha: 0.5), width: 1.2),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

@@ -417,6 +417,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   String _liveUpscaleLabel = '';
   int _liveBass = 0;
   String? _liveResolution;
+
+  /// Native video dimensions, used to size the swipe slider to the actual
+  /// video content rect (BoxFit.contain) rather than the full screen — in
+  /// portrait the letterboxed video is much shorter than the screen, so a
+  /// screen-relative slider would look oversized.
+  int _videoW = 0;
+  int _videoH = 0;
+
   HdrFormat _liveHdr = HdrFormat.sdr;
 
   /// The transfer the native codec ACTUALLY output (3 = SDR, 6 = PQ). Set
@@ -853,6 +861,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     _autoFetchFired = false;
     _readingAutoSelected = false;
     _vc1Warned = false;
+    // New file: drop the previous video dimensions so the swipe slider sizes
+    // from the new file's aspect (not the old one's) until the first event.
+    _videoW = 0;
+    _videoH = 0;
     // TMDB title for the top bar — cache hit when the home screen
     // pre-fetched this file; a miss resolves fire-and-forget (intent-opened
     // files never hit the home prefetch).
@@ -3448,11 +3460,13 @@ Future<void> _offerVc1Mpv() async {
     }));
     _mpvSubs.add(player.stream.width.listen((v) {
       if (!mounted) return;
+      if (v != null && v > 0) _videoW = v;
       _syncMpvTracksResolution();
       setState(() {});
     }));
     _mpvSubs.add(player.stream.height.listen((v) {
       if (!mounted) return;
+      if (v != null && v > 0) _videoH = v;
       _syncMpvTracksResolution();
       setState(() {});
     }));
@@ -4113,6 +4127,8 @@ Future<void> _offerVc1Mpv() async {
     }
     if (e.videoWidth > 0 && e.videoHeight > 0) {
       _liveResolution = friendlyResolution(e.videoWidth, e.videoHeight);
+      _videoW = e.videoWidth;
+      _videoH = e.videoHeight;
     }
     if (e.videoWidth > 0 ||
         e.durationMs > 0 ||
@@ -5072,6 +5088,110 @@ if (mounted) setState(_applySwipeValue);
   Widget _buildGestureSafetyWarning() =>
       GestureWarningPill(message: _gestureSafetyWarning ?? '');
 
+  /// Vertical slider shown on the side opposite the gesture (mpv∞'s trick):
+  /// a left-side brightness swipe renders it on the right edge, a right-side
+  /// volume swipe on the left edge. Fully transparent — no fill, no outline —
+  /// so nothing blocks the view. A semi-transparent black fill and an
+  /// accent-coloured fill grow from the bottom; icon + percentage on top.
+  /// Sized relative to the VIDEO content rect (BoxFit.contain), not the full
+  /// screen: in portrait the letterboxed video is much shorter than the
+  /// screen, so a screen-relative slider would look oversized; in landscape
+  /// the video fills the height and the slider scales with it.
+  Widget _buildGestureSlider() {
+    final isVolume = _swipeType == _SwipeType.volume;
+    final ceiling = isVolume
+        ? volumeCeiling(boostEnabled: _volumeBoostEnabled)
+        : 1.0;
+    final value = (_swipeCurrentValue / ceiling).clamp(0.0, 1.0);
+    final pct = (_swipeCurrentValue * 100).round();
+    final accent = Theme.of(context).colorScheme.primary;
+
+    // Video content rect height (BoxFit.contain). Falls back to the full
+    // screen height when the video dimensions are not known yet.
+    final sw = MediaQuery.of(context).size.width;
+    final sh = MediaQuery.of(context).size.height;
+    double videoContentH = sh;
+    if (_videoW > 0 && _videoH > 0 && sw > 0 && sh > 0) {
+      final videoAspect = _videoW / _videoH;
+      final containerAspect = sw / sh;
+      videoContentH = videoAspect > containerAspect ? sw / videoAspect : sh;
+    }
+    // ~42% of the video height, clamped so it stays small in portrait
+    // (short letterboxed video) and compact in landscape.
+    final sliderH = (videoContentH * 0.42).clamp(100.0, 210.0);
+    const sliderW = 36.0;
+    const fillW = 20.0;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: sliderW,
+        height: sliderH,
+        decoration: BoxDecoration(
+          // Semi-transparent black fill — visible enough to read the level
+          // bar against any frame, dark enough not to fight the video.
+          color: Colors.black.withValues(alpha: 0.45),
+        ),
+        child: Column(
+          children: [
+            // Icon + percentage at the top.
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isVolume ? Icons.volume_up : Icons.brightness_6,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$pct%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Track — fills from the bottom with the accent colour.
+            Expanded(
+              child: Container(
+                width: fillW,
+                decoration: BoxDecoration(
+                  color: Colors.white12,
+                  borderRadius: BorderRadius.circular(fillW / 2),
+                ),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: FractionallySizedBox(
+                    heightFactor: value,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(fillW / 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.45),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _updateSwipe(double dy) {
     if (_swipeType == null || !_swipeGestureActive) return;
     _swipeDragDelta += -dy / (MediaQuery.of(context).size.height * 0.7);
@@ -5088,6 +5208,8 @@ if (mounted) setState(_applySwipeValue);
   /// that starts while the boost is already engaged would otherwise read as a
   /// fresh crossing and warn for a threshold the user crossed long ago.
   void _checkGestureSafety(double previous, double next) {
+    // Brightness gestures never warn — only volume above 100% does.
+    if (_swipeType == _SwipeType.brightness) return;
     final warning = gestureSafetyWarning(
       isVolume: _swipeType == _SwipeType.volume,
       previous: previous,
@@ -8794,61 +8916,31 @@ if (mounted) setState(_applySwipeValue);
                       _buildGestureSafetyWarning(),
                       const SizedBox(height: 16),
                     ],
-                    AnimatedOpacity(
-                      opacity: _swipeType != null ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 200),
-                      child: Container(
-                        width: 140,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _swipeType == _SwipeType.brightness
-                                  ? Icons.brightness_6
-                                  : Icons.volume_up,
-                              color: Colors.white,
-                              size: 28,
+                    // Level slider on the OPPOSITE side from the gesture
+                    // (mpv∞'s trick): a left-side brightness swipe renders the
+                    // slider on the right edge, a right-side volume swipe on
+                    // the left edge, so the bar never sits under the finger.
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Align(
+                          alignment: _swipeType == _SwipeType.brightness
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              left: _swipeType == _SwipeType.brightness
+                                  ? 24
+                                  : MediaQuery.paddingOf(context).left + 16,
+                              right: _swipeType == _SwipeType.brightness
+                                  ? MediaQuery.paddingOf(context).right + 16
+                                  : 24,
                             ),
-                            SizedBox(height: 8),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
-                              child: LinearProgressIndicator(
-                                // Normalised: the volume gesture now runs
-                                // 0-2.0 (100% + boost) and this widget asserts
-                                // a 0..1 value. Dividing by the active ceiling
-                                // also makes the bar visibly fill through the
-                                // boost half rather than pinning at the end.
-                                value: _swipeCurrentValue /
-                                    (_swipeType == _SwipeType.volume
-                                        ? volumeCeiling(
-                                            boostEnabled:
-                                                _volumeBoostEnabled)
-                                        : 1.0),
-                                minHeight: 4,
-                                backgroundColor: Colors.white24,
-                                valueColor: const AlwaysStoppedAnimation(
-                                  Colors.white,
-                                ),
-                              ),
+                            child: AnimatedOpacity(
+                              opacity: 1.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: _buildGestureSlider(),
                             ),
-                            SizedBox(height: 6),
-                            Text(
-                              '${(_swipeCurrentValue * 100).round()}%',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),

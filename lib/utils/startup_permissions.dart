@@ -34,9 +34,7 @@ Future<void> requestStartupPermissions(BuildContext context) async {
       builder: (context) => AlertDialog(
         title: const Text('Allow all files access?'),
         content: const Text(
-          'DreamPlayer needs All Files Access to browse your storage, play '
-          'videos from any folder, and pick up subtitle files sitting next '
-          'to them. You can change this later in system settings.',
+          'Needed to browse your storage and play videos from any folder.',
         ),
         actions: [
           TextButton(

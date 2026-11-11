@@ -35,6 +35,14 @@ true of the intended build but not of the one that was reviewed. Verify with
 
 ---
 
+## Unreleased
+
+Changed:
+• The brightness/volume swipe pill now matches the app's look — a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
+• Swiping up on brightness no longer shows a warning; only pushing volume past 100% flashes the short battery warning.
+
+---
+
 ## 0.5.6
 
 New:
