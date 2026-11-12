@@ -70,7 +70,13 @@ void main() {
     test('per-open reset releases the handoff and restores the overlay', () {
       expect(swift.contains('nativeSubtitleRenderingActive = false'), isTrue);
       expect(swift.contains('subtitleOverlay.isHidden = false'), isTrue);
-      expect(swift.contains('engine?.setNativeSubtitleRendering(false)'), isTrue);
+      // `engine` is non-optional inside open() (bound by `guard let engine`),
+      // so the reset call must NOT use optional chaining — that fails the
+      // Swift archive (CI run 43163628756).
+      expect(swift.contains('engine.setNativeSubtitleRendering(false)'), isTrue);
+      expect(swift.contains('engine?.setNativeSubtitleRendering(false)'), isFalse,
+          reason: 'optional chaining on the non-optional open()-local engine '
+              'is a compile error');
     });
 
     test('the decision is logged for on-device verification', () {
