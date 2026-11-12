@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/video_item.dart';
 import '../services/browser_view_store.dart';
+import '../services/continue_watching.dart';
 import '../services/folder_scanner.dart';
 import '../services/library_folders.dart';
+import '../services/network_prune.dart';
 import '../services/playlist_resolver.dart';
 import '../services/resume_progress_helper.dart';
 import '../services/server_alt_store.dart';
@@ -398,6 +402,15 @@ class _SmbScreenState extends State<SmbScreen> {
         _loading = false;
         _fileSizes.clear();
       });
+      // Reconcile Continue Watching with this fresh listing: files deleted on
+      // the server since the last visit are pruned. Free — the listing already
+      // happened, and it only ever prunes on a real listing result.
+      unawaited(NetworkPrune.pruneMissingFromListing(
+        serverId: res.server.id,
+        share: _share,
+        dirPath: path,
+        entries: entries,
+      ));
       await _refreshWatched();
       // Clear stale poster cache so fix-match / resolve changes are reflected
       // when navigating back into a folder.
@@ -408,6 +421,13 @@ class _SmbScreenState extends State<SmbScreen> {
       // Background-fetch file sizes (listDirectory returns 0 for performance).
       _fetchSizes(entries);
     } on PlatformException catch (e) {
+      // `server` is promoted non-null by the early return above.
+      if (SmbClient.isNotFound(e)) {
+        // The folder itself is gone from the server (definitive not-found,
+        // NOT an offline server): drop a library bookmark pointing here and
+        // every stored entry under this path.
+        unawaited(_pruneGonePath(server, path));
+      }
       if (mounted) {
         setState(() {
           _error = e.message ?? 'Something went wrong';
@@ -415,6 +435,31 @@ class _SmbScreenState extends State<SmbScreen> {
         });
       }
     }
+  }
+
+  /// Prunes the library bookmark (if [path] is one) and all Continue
+  /// Watching / resume entries under `smb:<id>/<share>/<path>` after the
+  /// server definitively reported that path missing. Only ever called on
+  /// `smb_not_found`.
+  Future<void> _pruneGonePath(SmbServer server, String path) async {
+    try {
+      final clean = trimSlashes(path);
+      final folders = await LibraryFoldersStore.load();
+      for (final f in folders.where((f) =>
+          f.source == LibraryFolderSource.smb &&
+          f.networkServerId == server.id &&
+          f.networkShare == _share &&
+          trimSlashes(f.networkPath ?? '') == clean)) {
+        await NetworkPrune.pruneBookmarkIfGone(f);
+      }
+      final prefix =
+          clean.isEmpty ? 'smb:${server.id}/$_share/' : 'smb:${server.id}/$_share/$clean';
+      final cw = await ContinueWatchingStore.load();
+      final keys = cw.map((e) => ContinueWatchingStore.keyFor(e.video)).toList();
+      for (final key in keysUnderFolder(prefix, keys)) {
+        await removeStoredEntry(key);
+      }
+    } catch (_) {}
   }
 
   Future<void> _onRefresh() async {

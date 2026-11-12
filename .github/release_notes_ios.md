@@ -37,6 +37,9 @@ true of the intended build but not of the one that was reviewed. Verify with
 
 ## 0.5.7
 
+New:
+• Files deleted on your network storage are now cleaned up automatically: they disappear from Continue Watching and from any bookmarked folder on the home screen. Nothing is ever removed unless the server itself confirms the file is gone — if the server is just offline, everything stays.
+
 Fixed:
 • Using a swipe gesture (brightness/volume) no longer greys out the screen or stops the video — the swipe indicator was crashing the player frame on the first swipe.
 

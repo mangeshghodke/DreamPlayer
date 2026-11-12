@@ -332,6 +332,39 @@ class SMBClient(private val context: Context) {
     private fun cacheKey(serverId: String, shareName: String, path: String): String =
         "$serverId|$shareName|${path.replace(Regex("/+"), "/").trim('/')}"
 
+    /// NT statuses that mean "this path does not exist on the server" — as
+    /// opposed to unreachable/auth/timeout. The Dart side uses this to prune
+    /// bookmarked / continue-watching entries for files deleted on the NAS,
+    /// and the safety rule is that ONLY these prune: an offline server must
+    /// never wipe the library.
+    private fun isNotFoundError(e: Exception): Boolean {
+        // SmbException (not CIFSException) carries the NT status.
+        val nt = (e as? jcifs.smb.SmbException)?.ntStatus ?: 0
+        if (nt == jcifs.smb.NtStatus.NT_STATUS_OBJECT_NAME_NOT_FOUND ||
+            nt == jcifs.smb.NtStatus.NT_STATUS_OBJECT_PATH_NOT_FOUND ||
+            nt == jcifs.smb.NtStatus.NT_STATUS_NO_SUCH_FILE
+        ) return true
+        val msg = e.message ?: ""
+        return msg.contains("STATUS_OBJECT_NAME_NOT_FOUND") ||
+            msg.contains("STATUS_OBJECT_PATH_NOT_FOUND") ||
+            msg.contains("STATUS_NO_SUCH_FILE")
+    }
+
+    /// Maps a channel-call exception to a result error, using `smb_not_found`
+    /// for deleted paths so Dart can distinguish them from network failures.
+    private fun replyError(result: MethodChannel.Result, e: Exception) {
+        when (e) {
+            is jcifs.smb.SmbAuthException ->
+                result.error("smb_auth", "Login failed — check username/password/domain", null)
+            else ->
+                if (isNotFoundError(e)) {
+                    result.error("smb_not_found", e.message, null)
+                } else {
+                    result.error("smb_error", e.message, null)
+                }
+        }
+    }
+
     fun invalidateListingCache(serverId: String? = null, shareName: String? = null) {
         if (serverId == null) {
             listingCache.clear()
@@ -421,10 +454,28 @@ class SMBClient(private val context: Context) {
                         executor.execute {
                             try {
                                 result.success(listDirectory(id, shareName, path))
-                            } catch (e: jcifs.smb.SmbAuthException) {
-                                result.error("smb_auth", "Login failed — check username/password/domain", null)
                             } catch (e: Exception) {
-                                result.error("smb_error", e.message, null)
+                                replyError(result, e)
+                            }
+                        }
+                    }
+                }
+                // Existence probe used to prune deleted files from bookmarks /
+                // Continue Watching. `smb_not_found` = the server answered that
+                // the path is gone; `smb_error` = unreachable/other — Dart only
+                // prunes on smb_not_found.
+                "statPath" -> {
+                    val id = call.argument<String>("id")
+                    val shareName = call.argument<String>("share")
+                    val path = call.argument<String>("path") ?: ""
+                    if (id == null || shareName == null) {
+                        result.error("bad_args", "Missing id or share", null)
+                    } else {
+                        executor.execute {
+                            try {
+                                result.success(statPath(id, shareName, path))
+                            } catch (e: Exception) {
+                                replyError(result, e)
                             }
                         }
                     }
@@ -445,10 +496,8 @@ class SMBClient(private val context: Context) {
                         executor.execute {
                             try {
                                 result.success(listDirectoryAll(id, shareName, path))
-                            } catch (e: jcifs.smb.SmbAuthException) {
-                                result.error("smb_auth", "Login failed — check username/password/domain", null)
                             } catch (e: Exception) {
-                                result.error("smb_error", e.message, null)
+                                replyError(result, e)
                             }
                         }
                     }
@@ -739,6 +788,26 @@ class SMBClient(private val context: Context) {
                     "modified" to 0L,
                 )
             }
+    }
+
+    /// Stats one share-relative path (file or directory) without keeping a
+    /// handle. Throws when the path is gone (mapped to smb_not_found by the
+    /// channel handler) or the server is unreachable (smb_error).
+    private fun statPath(serverId: String, shareName: String, path: String): Map<String, Any?> {
+        val creds = SmbStore.resolve(context, serverId)
+            ?: throw IllegalStateException("Unknown server")
+        val ctx = creds.context()
+        val rel = path.trim('/')
+        val url = "smb://${creds.host}:${creds.port}/$shareName/" +
+            if (rel.isEmpty()) "" else rel
+        val f = SmbFile(url, ctx)
+        // getAttributes() throws SmbException with the NT status when the path
+        // is gone (exists() cannot distinguish "gone" from "unreachable").
+        val attrs = f.getAttributes()
+        return mapOf(
+            "exists" to true,
+            "isDirectory" to (attrs and jcifs.SmbConstants.ATTR_DIRECTORY != 0),
+        )
     }
 
     private fun listDirectory(

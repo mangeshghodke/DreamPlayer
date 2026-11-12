@@ -20,6 +20,7 @@ import '../services/library_folders.dart';
 import '../services/local_library_rescan.dart';
 import '../services/manual_groups.dart';
 import '../services/native_media_scanner.dart';
+import '../services/network_prune.dart';
 import '../services/default_engine_store.dart';
 import '../services/network_video_resolver.dart';
 import '../services/series_grouping.dart';
@@ -320,6 +321,10 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() => _entries = entries);
     }
     _resolveMetadata(entries);
+    // Background sweep: SMB files deleted on the server since the last visit
+    // are removed from Continue Watching. Throttled + only against online
+    // servers, and it only ever prunes on a definitive server not-found.
+    unawaited(NetworkPrune.verifyNetworkContinueWatching());
   }
 
   /// Loads the "Your library" folder list, then kicks off best-effort TMDB

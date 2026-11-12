@@ -5,6 +5,11 @@ struct smb2_context;
 
 NS_ASSUME_NONNULL_BEGIN
 
+/// NSError domain used by every LibSMB2 failure, so Swift can check
+/// `error.domain == LibSMB2ErrorDomain` before trusting its `code` (which is
+/// the raw libsmb2 errno — ENOENT means the path was deleted on the server).
+extern NSString *const LibSMB2ErrorDomain;
+
 /// One SMB server identified on the LAN.
 @interface LibSMB2Server : NSObject
 @property(nonatomic, copy) NSString *host;
@@ -93,6 +98,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// Blocking; returns nil only on a real failure.
 - (nullable NSArray<LibSMB2Entry *> *)listDirectory:(NSString *)relativePath
                                                 error:(NSError *_Nullable *_Nullable)error;
+
+/// Stats one path (file or directory) without keeping a handle. Blocking.
+/// On failure the error's `code` is the raw errno from libsmb2, so callers
+/// can tell ENOENT / ENOTDIR ("path deleted on the server") apart from a
+/// network failure — only the former may prune stored entries.
+- (BOOL)statPath:(NSString *)relativePath
+      isDirectory:(BOOL *)outIsDir
+            error:(NSError *_Nullable *_Nullable)error;
 
 /// Size of one file, without keeping the handle. Blocking.
 - (BOOL)fileSizeAtPath:(NSString *)relativePath

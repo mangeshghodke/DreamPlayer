@@ -29,7 +29,7 @@
 
 /// SMB dialect constants, mirrored from smb2.h so the display label does not
 /// depend on the C enum being visible here.
-static NSString *const LibSMB2ErrorDomain = @"com.dreamplayer.app.smb.libsmb2";
+NSString *const LibSMB2ErrorDomain = @"com.dreamplayer.app.smb.libsmb2";
 
 /// Assigns a ready-to-display message to an NSError out-parameter.
 static void LibSMB2Fail(NSError **error, NSString *message) {
@@ -169,6 +169,32 @@ static NSString *LibSMB2NativePath(NSString *path) {
   }
   smb2_closedir(_ctx, dir);
   return entries;
+}
+
+- (BOOL)statPath:(NSString *)relativePath
+      isDirectory:(BOOL *)outIsDir
+            error:(NSError *_Nullable *_Nullable)error {
+  struct smb2_stat_64 st;
+  memset(&st, 0, sizeof(st));
+  int rc = smb2_stat(_ctx, LibSMB2NativePath(relativePath).UTF8String, &st);
+  if (rc != 0) {
+    // smb2_stat returns -errno (NT statuses are mapped by nterror_to_errno,
+    // so a deleted path is -ENOENT). Expose that raw errno as the NSError
+    // code so Swift can map ENOENT/ENOTDIR exactly.
+    int err = -rc;
+    const char *msg = smb2_get_error(_ctx);
+    if (error != NULL) {
+      *error = [NSError errorWithDomain:LibSMB2ErrorDomain
+                                   code:err
+                               userInfo:@{NSLocalizedDescriptionKey:
+                                   msg != NULL ? @(msg) : @"Could not stat that path"}];
+    }
+    return NO;
+  }
+  if (outIsDir != NULL) {
+    *outIsDir = (st.smb2_type == SMB2_TYPE_DIRECTORY);
+  }
+  return YES;
 }
 
 - (BOOL)fileSizeAtPath:(NSString *)relativePath

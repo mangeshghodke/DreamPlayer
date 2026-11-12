@@ -130,11 +130,31 @@ final class SMBBridge: NSObject {
                 }
             }
         case "listDirectory", "listDirectoryAll":
-            withServer(args["id"] as? String, result: result) { server, reply in
+            withServerCoded(args["id"] as? String, result: result) { server, reply in
                 let share = args["share"] as? String ?? ""
                 let path = args["path"] as? String ?? ""
-                self.listDirectory(server: server, share: share, path: path) { entries in
-                    reply(entries, entries == nil ? "Could not read that folder" : nil)
+                self.listDirectory(server: server, share: share, path: path) { entries, error in
+                    if let error {
+                        // smb_not_found = the server answered that the path is
+                        // gone; only that code may prune stored entries.
+                        let code = Self.isNotFound(error) ? "smb_not_found" : "smb_error"
+                        reply(nil, error.localizedDescription, code)
+                    } else {
+                        reply(entries, nil, "smb_error")
+                    }
+                }
+            }
+        case "statPath":
+            withServerCoded(args["id"] as? String, result: result) { server, reply in
+                let share = args["share"] as? String ?? ""
+                let path = args["path"] as? String ?? ""
+                self.statPath(server: server, share: share, path: path) { info, error in
+                    if let error {
+                        let code = Self.isNotFound(error) ? "smb_not_found" : "smb_error"
+                        reply(nil, error.localizedDescription, code)
+                    } else {
+                        reply(info, nil, "smb_error")
+                    }
                 }
             }
         case "fetchSizes":
@@ -263,6 +283,20 @@ final class SMBBridge: NSObject {
         result: @escaping FlutterResult,
         _ body: @escaping (ServerMeta, @escaping (Any?, String?) -> Void) -> Void
     ) {
+        withServerCoded(id, result: result) { server, reply in
+            body(server) { value, error in reply(value, error, "smb_error") }
+        }
+    }
+
+    /// Like [withServer], but the reply carries an explicit error code, so
+    /// callers can signal `smb_not_found` (path deleted on the server) apart
+    /// from `smb_error` (unreachable / auth / other) — Dart only prunes on the
+    /// former.
+    private func withServerCoded(
+        _ id: String?,
+        result: @escaping FlutterResult,
+        _ body: @escaping (ServerMeta, @escaping (Any?, String?, String) -> Void) -> Void
+    ) {
         guard let id, let server = server(id: id) else {
             result(FlutterError(
                 code: "smb_unknown_server",
@@ -272,16 +306,25 @@ final class SMBBridge: NSObject {
             return
         }
         var replied = false
-        let reply: (Any?, String?) -> Void = { value, error in
+        let reply: (Any?, String?, String) -> Void = { value, error, code in
             guard !replied else { return }
             replied = true
             if let error {
-                result(FlutterError(code: "smb_error", message: error, details: nil))
+                result(FlutterError(code: code, message: error, details: nil))
             } else {
                 result(value)
             }
         }
         body(server, reply)
+    }
+
+    /// True when the libsmb2 error is a definitive "path does not exist"
+    /// (ENOENT / ENOTDIR — the NT statuses for a deleted file or folder map to
+    /// ENOENT via nterror_to_errno). Network and auth failures return false.
+    private static func isNotFound(_ error: Error) -> Bool {
+        let ns = error as NSError
+        return ns.domain == LibSMB2ErrorDomain &&
+            (ns.code == ENOENT || ns.code == ENOTDIR)
     }
 
     // MARK: - Saved servers
@@ -989,20 +1032,21 @@ final class SMBBridge: NSObject {
         server: ServerMeta,
         share: String,
         path: String,
-        completion: @escaping ([[String: Any]]?) -> Void
+        completion: @escaping ([[String: Any]]?, NSError?) -> Void
     ) {
         let key = ListingCacheKey(serverId: server.id, share: share, path: path)
         lock.lock()
         if let cached = listingCache[key], cached.isFresh {
             let entries = cached.entries
             lock.unlock()
-            completion(entries)
+            completion(entries, nil)
             return
         }
         lock.unlock()
 
         Task.detached(priority: .userInitiated) {
             var built: [[String: Any]]?
+            var failure: NSError?
             do {
                 let session = try LibSMB2.openSession(
                     toHost: server.host,
@@ -1021,9 +1065,42 @@ final class SMBBridge: NSObject {
                     self.lock.unlock()
                 }
             } catch {
+                failure = error as NSError
                 built = nil
             }
-            await MainActor.run { completion(built) }
+            await MainActor.run { completion(built, failure) }
+        }
+    }
+
+    /// Existence probe for one share-relative path, used to prune deleted
+    /// files from bookmarks / Continue Watching. The error (if any) carries
+    /// the raw libsmb2 errno as its code; see [isNotFound].
+    private func statPath(
+        server: ServerMeta,
+        share: String,
+        path: String,
+        completion: @escaping ([String: Any]?, NSError?) -> Void
+    ) {
+        Task.detached(priority: .userInitiated) {
+            var info: [String: Any]?
+            var failure: NSError?
+            do {
+                let session = try LibSMB2.openSession(
+                    toHost: server.host,
+                    port: UInt16(truncatingIfNeeded: server.port),
+                    user: server.anonymous ? nil : server.username,
+                    password: server.anonymous ? nil : self.getPassword(server.id),
+                    domain: server.domain.isEmpty ? nil : server.domain,
+                    share: share,
+                    timeout: 10)
+                defer { session.close() }
+                var isDir: ObjCBool = false
+                try session.statPath(Self.normalized(path), isDirectory: &isDir)
+                info = ["exists": true, "isDirectory": isDir.boolValue]
+            } catch {
+                failure = error as NSError
+            }
+            await MainActor.run { completion(info, failure) }
         }
     }
 

@@ -244,6 +244,35 @@ class SmbClient {
         .toList();
   }
 
+  /// True only when the server *answered definitively* that the path is gone
+  /// (native maps the SMB NT not-found statuses / libsmb2 ENOENT-ENOTDIR to
+  /// the `smb_not_found` code). NEVER true on a network, timeout or auth
+  /// failure — callers prune stored entries on this alone, so an offline NAS
+  /// must never satisfy it.
+  static bool isNotFound(PlatformException e) => e.code == 'smb_not_found';
+
+  /// Existence probe for one share-relative path (file or directory).
+  /// Returns `exists: false` on `smb_not_found`; rethrows every other
+  /// [PlatformException] (server offline, auth, ...) so the caller can tell
+  /// "deleted" apart from "unreachable".
+  Future<({bool exists, bool isDirectory})> statPath(
+    String serverId,
+    String share,
+    String path,
+  ) async {
+    try {
+      final r = await _channel.invokeMethod<Map<dynamic, dynamic>>('statPath', {
+        'id': serverId,
+        'share': share,
+        'path': path,
+      });
+      return (exists: true, isDirectory: (r?['isDirectory'] as bool?) ?? false);
+    } on PlatformException catch (e) {
+      if (isNotFound(e)) return (exists: false, isDirectory: false);
+      rethrow;
+    }
+  }
+
   /// Full directory listing (videos AND sidecar subtitles) without the
   /// video-only filter and without the native subtitle-attachment logic, so
   /// the sidecar service can pair subtitles by name (Nova parity). Mirrors
