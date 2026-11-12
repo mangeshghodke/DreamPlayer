@@ -5,10 +5,6 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ## 0.5.7
 
-### Added
-
-- **Auto-prune deleted SMB files.** When a file or folder is deleted on the SMB server, it is now removed from Continue Watching and from any Home library bookmark too: browsing the folder reconciles the listing (free — no extra round-trips), a deleted bookmarked folder is dropped when its listing returns not-found, and a throttled background sweep on Home stats each SMB continue-watching file (only against servers that answer, max once per 10 min). **Safety rule:** only a definitive server not-found prunes — an offline NAS, timeout or auth error never removes anything. Native maps the SMB NT not-found statuses (Android/jcifs) and libsmb2 ENOENT/ENOTDIR (iOS) to a distinct `smb_not_found` channel code, exposed as `SmbClient.statPath` / `SmbClient.isNotFound`. Pinned by `test/network_prune_test.dart`.
-
 ### Fixed
 
 - **Gesture swipe crashed the player (iOS, 2026-11-12 crash log).** The new opposite-side swipe slider was mounted as a `Positioned.fill` inside the overlay `Column` (a Flex); on the first swipe, `Positioned.applyParentData` threw `FlexParentData is not a subtype of StackParentData`, the frame failed, the screen went grey and video stopped while audio kept playing. The slider is now a direct child of the player `Stack`; pinned by `test/player_swipe_overlay_stack_test.dart`.
@@ -27,6 +23,7 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ### Added
 
+- **Auto-prune deleted SMB files.** When a file or folder is deleted on the SMB server, it is now removed from Continue Watching and from any Home library bookmark too: browsing the folder reconciles the listing (free — no extra round-trips), a deleted bookmarked folder is dropped when its listing returns not-found, and a throttled background sweep on Home stats each SMB continue-watching file (only against servers that answer, max once per 10 min). **Safety rule:** only a definitive server not-found prunes — an offline NAS, timeout or auth error never removes anything. Native maps the SMB NT not-found statuses (Android/jcifs) and libsmb2 ENOENT/ENOTDIR (iOS) to a distinct `smb_not_found` channel code, exposed as `SmbClient.statPath` / `SmbClient.isNotFound`. Pinned by `test/network_prune_test.dart`.
 - **Downmix to stereo (Settings → Audio).** One switch folds 5.1/7.1 tracks
   into 2.0 so dialogue (the centre channel) stays loud on stereo headphones
   and speakers — the standard −3 dB centre/surround matrix, LFE dropped.
