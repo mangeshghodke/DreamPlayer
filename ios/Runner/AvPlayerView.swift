@@ -1424,7 +1424,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          // bring the host overlay back.
          nativeSubtitleRenderingActive = false
          subtitleOverlay.isHidden = false
-         engine?.setNativeSubtitleRendering(false)
+         // `engine` is non-optional here (bound by the guard at the top of
+         // open()), so no optional chaining — that is a compile error.
+         engine.setNativeSubtitleRendering(false)
          // Probe/HDR state survives a re-open of the SAME file (resume/replay):
          // the engine probe can drop DV info when loading with a start position,
          // which would regress the badge to SDR. Only cleared when a different
