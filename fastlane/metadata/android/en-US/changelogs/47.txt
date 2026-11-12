@@ -1,0 +1,9 @@
+Changed
+
+- Gesture slider restyle: the brightness/volume swipe pill is now a
+  semi-transparent pill on the side opposite your swipe, sized to the video
+  so it never covers the picture.
+- Brightness swipes no longer show a warning; only volume past 100% does.
+- Startup "all files access" dialog text shortened.
+- Skip intro/recap/credits pill stays visible when the HUD fades, works while
+  touch-locked, and sits above the seekbar.
