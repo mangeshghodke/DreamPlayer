@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.7 | 4 | 1205 |
+| 0.5.7 | 5 | 1232 |
 | 0.5.6 | 15 | 2607 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
@@ -29,7 +29,7 @@ it can be reproduced with a plain character count after any edit.
 
 ---
 
-## 0.5.7 (build 4)
+## 0.5.7 (build 5)
 
 New:
 • Files deleted on your network storage are now cleaned up automatically: they disappear from Continue Watching and from any bookmarked folder on the home screen. Nothing is ever removed unless the server itself confirms the file is gone — if the server is just offline, everything stays.
@@ -40,7 +40,7 @@ Fixed:
 Changed:
 • The brightness/volume swipe pill now matches the app's look — a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
 • Swiping up on brightness no longer shows a warning; only pushing volume past 100% flashes the short battery warning.
-• Unlocking the iPad no longer shows a stretched screen for a moment: you now see a brief soft reload (the app icon on black), then the UI comes back the right size and playback continues where you left off.
+• Unlocking the iPad no longer shows a stretched screen for a moment: you now see a brief soft reload in the app's theme colour with your app icon on it, then the UI comes back the right size and playback continues where you left off.
 • Ready for the foldable iPhone: the app adapts to the folded cover screen, the large open inner screen, and Split View — no stretched or overflowing layout at any size, and the inner display runs at its full 120 Hz refresh rate.
 
 ---

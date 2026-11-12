@@ -120,10 +120,11 @@ class SceneDelegate: FlutterSceneDelegate {
     return Date().timeIntervalSince(at) >= 2.0
   }
 
-  /// Black full-screen overlay with the (currently selected) app icon centred.
-  /// Added to the window itself so it sits above the Flutter view AND any
-  /// platform-view video surface, hiding the stale frame. Non-interactive, so
-  /// the player underneath keeps receiving its reload/resume calls.
+  /// Full-screen overlay in the app's theme colour with the (currently
+  /// selected) launcher icon centred. Added to the window itself so it sits
+  /// above the Flutter view AND any platform-view video surface, hiding the
+  /// stale frame. Non-interactive, so the player underneath keeps receiving
+  /// its reload/resume calls.
   private func showUnlockSplash(_ scene: UIScene) {
     guard let windowScene = scene as? UIWindowScene else { return }
     let window = windowScene.windows.first(where: { $0.isKeyWindow })
@@ -134,32 +135,49 @@ class SceneDelegate: FlutterSceneDelegate {
     unlockSplash?.removeFromSuperview()
     unlockSplashHideWork?.cancel()
 
-    let splash = UIView(frame: window.bounds)
-    splash.backgroundColor = .black
+    // The app's theme colour (the accent picked in Settings → Appearance,
+    // default violet) instead of black, so the unlock reads as "the app is
+    // coming back", not as a dead screen.
+    let accent = Self.currentAccentColor()
+    let splash = DreamPlayerGradientView(frame: window.bounds)
+    splash.colors = [accent, accent.dreamplayerDarker(by: 0.72)]
     splash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     splash.isUserInteractionEnabled = false
 
     // Use the launcher icon the user currently has selected, so the splash
     // matches the home screen (nil alternateIconName = primary "AppIcon").
+    //
+    // NOTE: the icon comes from a dedicated *imageset* (SplashIcon…), not
+    // from the `.appiconset`. `UIImage(named:)` cannot load an app icon —
+    // the asset compiler treats app icons specially and they are not in the
+    // regular image namespace — so the old lookup returned nil and the
+    // splash showed as a blank (black) rectangle with no icon at all.
     let iconName = UIApplication.shared.alternateIconName ?? "AppIcon"
-    let icon = UIImage(named: iconName) ?? UIImage(named: "AppIcon")
-    let iconSize: CGFloat = 120
-    let imageView = UIImageView(image: icon)
-    imageView.frame = CGRect(
-      x: (window.bounds.width - iconSize) / 2,
-      y: (window.bounds.height - iconSize) / 2,
-      width: iconSize, height: iconSize)
-    imageView.contentMode = .scaleAspectFit
-    imageView.layer.cornerRadius = iconSize * 0.2237
-    imageView.layer.masksToBounds = true
-    imageView.autoresizingMask = [.flexibleLeftMargin, .flexibleRightMargin,
-                                  .flexibleTopMargin, .flexibleBottomMargin]
-    splash.addSubview(imageView)
+    let imageSet = Self.splashImageSet(for: iconName)
+    let icon = UIImage(named: imageSet)
+    let iconSize: CGFloat = 160
+    if let icon {
+      let imageView = UIImageView(image: icon)
+      imageView.frame = CGRect(
+        x: (window.bounds.width - iconSize) / 2,
+        y: (window.bounds.height - iconSize) / 2,
+        width: iconSize, height: iconSize)
+      imageView.contentMode = .scaleAspectFit
+      imageView.layer.cornerRadius = iconSize * 0.2237
+      imageView.layer.masksToBounds = true
+      imageView.autoresizingMask = [.flexibleLeftMargin, .flexibleRightMargin,
+                                    .flexibleTopMargin, .flexibleBottomMargin]
+      splash.addSubview(imageView)
+    } else {
+      // No icon is a packaging bug (missing imageset) — log it loudly
+      // instead of silently showing a bare coloured screen.
+      SBMLog.log("unlock splash: ICON MISSING (imageSet=\(imageSet))")
+    }
 
     splash.alpha = 1.0
     window.addSubview(splash)
     unlockSplash = splash
-    SBMLog.log("unlock splash: shown (icon=\(iconName))")
+    SBMLog.log("unlock splash: shown (icon=\(iconName) imageSet=\(imageSet) accent=\(accent.dreamplayerHex))")
 
     // The surface is re-created synchronously by forceFlutterViewRelayout
     // right after this; keep the splash up just long enough to read as a soft
@@ -179,6 +197,44 @@ class SceneDelegate: FlutterSceneDelegate {
     }, completion: { _ in
       splash.removeFromSuperview()
     })
+  }
+
+  // MARK: - Unlock splash theming
+
+  /// Maps the selected launcher icon to the imageset that carries the same
+  /// artwork as a *regular* asset (see the note in `showUnlockSplash`).
+  static func splashImageSet(for iconName: String) -> String {
+    switch iconName {
+    case "AppIconMark": return "SplashIconMark"
+    case "AppIconRed": return "SplashIconRed"
+    case "AppIconGreen": return "SplashIconGreen"
+    case "AppIconCyan": return "SplashIconCyan"
+    case "AppIcon": return "SplashIcon"
+    default: return "SplashIcon"
+    }
+  }
+
+  /// The accent the user picked in Settings → Appearance, mirroring
+  /// `lib/services/accent_store.dart`. SharedPreferences prefixes its keys
+  /// with `flutter.` on iOS, so the native side reads
+  /// `flutter.dreamplayer.accent` straight from UserDefaults.
+  static func currentAccentColor() -> UIColor {
+    let id = UserDefaults.standard.string(forKey: "flutter.dreamplayer.accent")
+    return accentColor(for: id)
+  }
+
+  /// Accent palette, kept in step with `AccentStore.accents`.
+  /// NOTE: the divisor is `255.0` (a floating-point literal) on purpose —
+  /// `0x7C / 255` is INTEGER division in Swift and would be 0 (black).
+  static func accentColor(for id: String?) -> UIColor {
+    switch id {
+    case "blue": return UIColor(red: 0x3D / 255.0, green: 0x7B / 255.0, blue: 0xFF / 255.0, alpha: 1)
+    case "cyan": return UIColor(red: 0x00 / 255.0, green: 0xB5 / 255.0, blue: 0xD8 / 255.0, alpha: 1)
+    case "green": return UIColor(red: 0x2F / 255.0, green: 0xBF / 255.0, blue: 0x71 / 255.0, alpha: 1)
+    case "amber": return UIColor(red: 0xFF / 255.0, green: 0xA7 / 255.0, blue: 0x26 / 255.0, alpha: 1)
+    case "pink": return UIColor(red: 0xFF / 255.0, green: 0x4D / 255.0, blue: 0x8D / 255.0, alpha: 1)
+    default: return UIColor(red: 0x7C / 255.0, green: 0x4D / 255.0, blue: 0xFF / 255.0, alpha: 1)
+    }
   }
 
   // MARK: - Relayout watch
@@ -266,5 +322,66 @@ class SceneDelegate: FlutterSceneDelegate {
     rootView.frame = target
     rootView.setNeedsLayout()
     rootView.layoutIfNeeded()
+  }
+}
+
+/// A view whose background is a vertical two-colour gradient. Used by the
+/// unlock splash: the app's accent colour at the top fading to a darker
+/// shade of the same hue at the bottom, so the screen reads as branded
+/// instead of a flat black rectangle.
+///
+/// The gradient layer is resized in `layoutSubviews` — the splash is added
+/// straight to the window and the window can be resized (rotation, Split
+/// View) while it is up.
+final class DreamPlayerGradientView: UIView {
+
+  var colors: [UIColor] = [] {
+    didSet { updateGradient() }
+  }
+
+  private let gradient = CAGradientLayer()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    gradient.startPoint = CGPoint(x: 0.5, y: 0)
+    gradient.endPoint = CGPoint(x: 0.5, y: 1)
+    layer.insertSublayer(gradient, at: 0)
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    gradient.startPoint = CGPoint(x: 0.5, y: 0)
+    gradient.endPoint = CGPoint(x: 0.5, y: 1)
+    layer.insertSublayer(gradient, at: 0)
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    gradient.frame = bounds
+  }
+
+  private func updateGradient() {
+    gradient.colors = colors.map(\.cgColor)
+    gradient.frame = bounds
+  }
+}
+
+extension UIColor {
+  /// Multiplies the RGB components by [factor] (alpha untouched) — used to
+  /// derive the darker end of the splash gradient from the accent colour.
+  func dreamplayerDarker(by factor: CGFloat) -> UIColor {
+    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+    guard getRed(&r, green: &g, blue: &b, alpha: &a) else { return self }
+    return UIColor(red: r * factor, green: g * factor, blue: b * factor, alpha: a)
+  }
+
+  /// `#RRGGBB` — logged so the device log says which accent was used.
+  var dreamplayerHex: String {
+    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+    guard getRed(&r, green: &g, blue: &b, alpha: &a) else { return "#000000" }
+    return String(format: "#%02X%02X%02X",
+                  Int((r * 255).rounded()),
+                  Int((g * 255).rounded()),
+                  Int((b * 255).rounded()))
   }
 }
