@@ -239,6 +239,10 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- 120 Hz opt-in (ProMotion / iPhone Duo inner panel). Third-party apps
+	     are capped at 60 Hz unless this key is true. -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>UIBackgroundModes</key>

@@ -148,8 +148,8 @@ class _CachedImageState extends State<CachedImage> {
       return const SizedBox.shrink();
     }
     if (_bytes != null && _decodeFailed) {
-      return Image.network(
-        widget.url,
+      return _NetworkImage(
+        url: widget.url,
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
@@ -184,6 +184,68 @@ class _CachedImageState extends State<CachedImage> {
         null,
       );
     }
-    return const SizedBox.shrink();
+    // Not cached yet: fetch from the network, sized to the box we actually get
+    // (cacheWidth = rendered width x devicePixelRatio) so a big inner screen
+    // — iPhone Duo open, iPad, Split View — does not decode full-resolution
+    // artwork for every tile.
+    return _NetworkImage(
+      url: widget.url,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      alignment: _effectiveAlignment,
+      errorBuilder: widget.errorBuilder,
+    );
+  }
+}
+
+/// [Image.network] that passes a decode `cacheWidth` computed from the box it
+/// actually receives (rendered width x devicePixelRatio). An explicit
+/// [width] already bounds the decode, so cacheWidth stays null there.
+class _NetworkImage extends StatelessWidget {
+  const _NetworkImage({
+    required this.url,
+    this.width,
+    this.height,
+    this.fit,
+    this.alignment,
+    this.errorBuilder,
+  });
+
+  final String url;
+  final double? width;
+  final double? height;
+  final BoxFit? fit;
+  final AlignmentGeometry? alignment;
+  final ImageErrorWidgetBuilder? errorBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    if (width != null) {
+      return Image.network(
+        url,
+        width: width,
+        height: height,
+        fit: fit,
+        alignment: alignment ?? Alignment.center,
+        errorBuilder: errorBuilder,
+      );
+    }
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final cacheWidth =
+            (w.isFinite && w > 0) ? (w * dpr).round() : null;
+        return Image.network(
+          url,
+          height: height,
+          fit: fit,
+          alignment: alignment ?? Alignment.center,
+          cacheWidth: cacheWidth,
+          errorBuilder: errorBuilder,
+        );
+      },
+    );
   }
 }

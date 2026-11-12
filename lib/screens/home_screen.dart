@@ -1729,6 +1729,10 @@ class _HomeScreenState extends State<HomeScreen>
           edgeOffset: 8,
           child: CustomScrollView(
             controller: _scrollController,
+            // PageStorageKey keeps the scroll offset across fold/unfold and
+            // scene resizes (iPhone Duo, iPad Split View), where the window
+            // gets new constraints and the tree relayouts.
+            key: const PageStorageKey<String>('home_scroll'),
             // Always scrollable so pull-to-refresh works even when the content
             // doesn't fill the screen (e.g. an empty library).
             physics: const AlwaysScrollableScrollPhysics(),

@@ -221,7 +221,7 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
                 const SizedBox(height: 8),
                 ConstrainedBox(
                   constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.45,
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.45,
                   ),
                   child: ListView.builder(
                     shrinkWrap: true,
@@ -321,7 +321,7 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
                     ConstrainedBox(
                       constraints: BoxConstraints(
                         maxHeight:
-                            MediaQuery.of(context).size.height * 0.4,
+                            MediaQuery.sizeOf(context).height * 0.4,
                       ),
                       child: ListView.builder(
                         shrinkWrap: true,

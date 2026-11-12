@@ -511,7 +511,7 @@ class _FtpScreenState extends State<FtpScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             SizedBox(
-              height: MediaQuery.of(context).size.height * 0.6,
+              height: MediaQuery.sizeOf(context).height * 0.6,
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),

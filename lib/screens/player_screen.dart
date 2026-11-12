@@ -4805,7 +4805,7 @@ Future<void> _offerVc1Mpv() async {
   void _onDoubleTapDown(TapDownDetails details) {
     if (_isTv || !_backendReady || _touchLocked || _inPip) return;
     _singleTapTimer?.cancel();
-    final w = MediaQuery.of(context).size.width;
+    final w = MediaQuery.sizeOf(context).width;
     final forward = details.globalPosition.dx >= w / 2;
     _seekBy(Duration(seconds: forward ? 10 : -10));
     _dtSeekTimer?.cancel();
@@ -4943,7 +4943,7 @@ Future<void> _offerVc1Mpv() async {
 
   void _startSwipe(Offset focal) {
     if (!_swipeEnabled) return;
-    final w = MediaQuery.of(context).size.width;
+    final w = MediaQuery.sizeOf(context).width;
     _swipeType = focal.dx < w / 2 ? _SwipeType.brightness : _SwipeType.volume;
     _swipeGestureActive = true;
     _swipeBase = 0;
@@ -5108,8 +5108,8 @@ if (mounted) setState(_applySwipeValue);
 
     // Video content rect height (BoxFit.contain). Falls back to the full
     // screen height when the video dimensions are not known yet.
-    final sw = MediaQuery.of(context).size.width;
-    final sh = MediaQuery.of(context).size.height;
+    final sw = MediaQuery.sizeOf(context).width;
+    final sh = MediaQuery.sizeOf(context).height;
     double videoContentH = sh;
     if (_videoW > 0 && _videoH > 0 && sw > 0 && sh > 0) {
       final videoAspect = _videoW / _videoH;
@@ -5194,7 +5194,7 @@ if (mounted) setState(_applySwipeValue);
 
   void _updateSwipe(double dy) {
     if (_swipeType == null || !_swipeGestureActive) return;
-    _swipeDragDelta += -dy / (MediaQuery.of(context).size.height * 0.7);
+    _swipeDragDelta += -dy / (MediaQuery.sizeOf(context).height * 0.7);
     final previous = _swipeCurrentValue;
     setState(_applySwipeValue);
     _checkGestureSafety(previous, _swipeCurrentValue);
@@ -5261,7 +5261,7 @@ if (mounted) setState(_applySwipeValue);
 
   void _updateSeek(double dx) {
     if (!_seekPreviewActive) return;
-    final w = MediaQuery.of(context).size.width;
+    final w = MediaQuery.sizeOf(context).width;
     final dur = _duration.inMilliseconds;
     if (dur <= 0 || w <= 0) return;
     _seekDragPx += dx;

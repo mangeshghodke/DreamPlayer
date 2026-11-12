@@ -47,6 +47,7 @@ Changed:
 • The brightness/volume swipe pill now matches the app's look — a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
 • Swiping up on brightness no longer shows a warning; only pushing volume past 100% flashes the short battery warning.
 • Unlocking the iPad no longer shows a stretched screen for a moment: you now see a brief soft reload (the app icon on black), then the UI comes back the right size and playback continues where you left off.
+• Ready for the foldable iPhone: the app adapts to the folded cover screen, the large open inner screen, and Split View — no stretched or overflowing layout at any size, scroll position survives folding, and the inner display runs at its full 120 Hz refresh rate.
 
 ---
 

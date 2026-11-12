@@ -134,6 +134,9 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> with WidgetsBindingObse
           navigatorKey: appNavigatorKey,
           navigatorObservers: [appRouteObserver],
           builder: (context, child) {
+            // Targeted getters: on a foldable the window size changes on
+            // every fold/unfold, and a full MediaQuery.of(context) read would
+            // rebuild the whole tree for any change. Read only what we need.
             final mediaQuery = MediaQuery.of(context);
             final clampedTextScaler = mediaQuery.textScaler.clamp(
               minScaleFactor: 1.0,

@@ -235,7 +235,7 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
   }
 
   Widget _preview(ThemeData theme) {
-    final media = MediaQuery.of(context).size;
+    final media = MediaQuery.sizeOf(context);
     final isLandscape = media.width > media.height;
     var boxH = media.width * 9 / 16;
     final maxH = media.height * (isLandscape ? 0.42 : 0.35);
