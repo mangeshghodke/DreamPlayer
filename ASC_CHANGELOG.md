@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.7 | 2 | ~560 |
+| 0.5.7 | 3 | ~560 |
 | 0.5.6 | 15 | 2607 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
@@ -29,7 +29,7 @@ it can be reproduced with a plain character count after any edit.
 
 ---
 
-## 0.5.7 (build 2)
+## 0.5.7 (build 3)
 
 New:
 • Files deleted on your network storage are now cleaned up automatically: they disappear from Continue Watching and from any bookmarked folder on the home screen. Nothing is ever removed unless the server itself confirms the file is gone — if the server is just offline, everything stays.
