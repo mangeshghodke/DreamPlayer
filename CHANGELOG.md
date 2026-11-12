@@ -3,13 +3,14 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
-## Unreleased
+## 0.5.7
 
 ### Changed
 
 - **Gesture slider restyle.** The brightness/volume swipe pill is now a semi-transparent black pill on the side opposite your swipe (left swipe → slider on the right edge, right swipe → slider on the left edge), sized to the video content so it's small in portrait and proportional in landscape. Its outline stays fully visible over bright or dark frames.
 - **Brightness gesture no longer warns.** Only pushing volume past 100% shows the centre-screen battery warning; brightness swipes are silent.
 - **Startup permission dialog shortened.** The All Files Access explainer on first install now reads "Needed to browse your storage and play videos from any folder." instead of a longer subtitle.
+- **iOS: soft-reload splash on unlock.** Unlocking the iPad while DreamPlayer is open no longer shows a stretched UI for a moment — a black screen with the app icon appears briefly, the render surface is re-created at the correct size underneath, then the UI fades back in and playback continues from the saved position. Only fires on a real lock/unlock (≥ 2 s in background), never on cold launch or a quick app-switch.
 - **Skip intro/recap/credits pill polish (issue #62).** The pill now stays
   visible when the rest of the player HUD fades out (Netflix/Disney+ style),
   remains tappable while touch-lock is engaged (skipping is a deliberate

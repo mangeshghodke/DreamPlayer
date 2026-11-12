@@ -95,8 +95,9 @@ android {
         // build -- Android reads the lower code as a downgrade and refuses.
         // Pick one flavour per user and stay on it (issue #43).
         //
-        // Last published: v0.5.4 -> universal 43 | arm64-v8a 2043.
-        versionCode = 46
+        // Last published: v0.5.6 -> 46. Next release must exceed the previous
+        // tag's versionCode or release.yml fails the build.
+        versionCode = 47
         versionName = flutter.versionName
     }
 

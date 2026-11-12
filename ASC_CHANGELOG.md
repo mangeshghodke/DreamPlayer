@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| Unreleased | — | ~220 |
+| 0.5.7 | 1 | ~330 |
 | 0.5.6 | 15 | 2607 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
@@ -29,11 +29,12 @@ it can be reproduced with a plain character count after any edit.
 
 ---
 
-## Unreleased (next build)
+## 0.5.7 (build 1)
 
 Changed:
 • The brightness/volume swipe pill now matches the app's look — a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
 • Swiping up on brightness no longer shows a warning; only pushing volume past 100% flashes the short battery warning.
+• Unlocking the iPad no longer shows a stretched screen for a moment: you now see a brief soft reload (the app icon on black), then the UI comes back the right size and playback continues where you left off.
 
 ---
 
