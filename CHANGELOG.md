@@ -5,6 +5,10 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 
 ## 0.5.7
 
+### Fixed
+
+- **Gesture swipe crashed the player (iOS, 2026-11-12 crash log).** The new opposite-side swipe slider was mounted as a `Positioned.fill` inside the overlay `Column` (a Flex); on the first swipe, `Positioned.applyParentData` threw `FlexParentData is not a subtype of StackParentData`, the frame failed, the screen went grey and video stopped while audio kept playing. The slider is now a direct child of the player `Stack`; pinned by `test/player_swipe_overlay_stack_test.dart`.
+
 ### Changed
 
 - **Gesture slider restyle.** The brightness/volume swipe pill is now a semi-transparent black pill on the side opposite your swipe (left swipe → slider on the right edge, right swipe → slider on the left edge), sized to the video content so it's small in portrait and proportional in landscape. Its outline stays fully visible over bright or dark frames.

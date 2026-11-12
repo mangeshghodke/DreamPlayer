@@ -8907,46 +8907,43 @@ if (mounted) setState(_applySwipeValue);
             // (volume above 100%, full brightness).
             if (_swipeType != null ||
                 _swipeOverlayTimer?.isActive == true ||
-                _gestureSafetyWarning != null)
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_gestureSafetyWarning != null) ...[
-                      _buildGestureSafetyWarning(),
-                      const SizedBox(height: 16),
-                    ],
-                    // Level slider on the OPPOSITE side from the gesture
-                    // (mpv∞'s trick): a left-side brightness swipe renders the
-                    // slider on the right edge, a right-side volume swipe on
-                    // the left edge, so the bar never sits under the finger.
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: Align(
-                          alignment: _swipeType == _SwipeType.brightness
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: _swipeType == _SwipeType.brightness
-                                  ? 24
-                                  : MediaQuery.paddingOf(context).left + 16,
-                              right: _swipeType == _SwipeType.brightness
-                                  ? MediaQuery.paddingOf(context).right + 16
-                                  : 24,
-                            ),
-                            child: AnimatedOpacity(
-                              opacity: 1.0,
-                              duration: const Duration(milliseconds: 200),
-                              child: _buildGestureSlider(),
-                            ),
-                          ),
+                _gestureSafetyWarning != null) ...[
+              // Warning pill stays centred.
+              if (_gestureSafetyWarning != null)
+                Center(child: _buildGestureSafetyWarning()),
+              // Level slider on the OPPOSITE side from the gesture
+              // (mpv∞'s trick): a left-side brightness swipe renders the
+              // slider on the right edge, a right-side volume swipe on
+              // the left edge, so the bar never sits under the finger.
+              // MUST be a direct child of this Stack: a Positioned inside
+              // a Column/Flex throws "FlexParentData is not a subtype of
+              // StackParentData" on mount and greys out the whole player
+              // (iOS crash 2026-11-12, dreamplayer_crash.log).
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: _swipeType != null ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Align(
+                      alignment: _swipeType == _SwipeType.brightness
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: _swipeType == _SwipeType.brightness
+                              ? 24
+                              : MediaQuery.paddingOf(context).left + 16,
+                          right: _swipeType == _SwipeType.brightness
+                              ? MediaQuery.paddingOf(context).right + 16
+                              : 24,
                         ),
+                        child: _buildGestureSlider(),
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
+            ],
             if (_buffering && _backendReady && _error == null)
               Center(
                 child: CircularProgressIndicator(color: Colors.white),

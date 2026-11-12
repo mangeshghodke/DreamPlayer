@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.7 | 1 | ~330 |
+| 0.5.7 | 2 | ~430 |
 | 0.5.6 | 15 | 2607 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
@@ -29,7 +29,10 @@ it can be reproduced with a plain character count after any edit.
 
 ---
 
-## 0.5.7 (build 1)
+## 0.5.7 (build 2)
+
+Fixed:
+• Using a swipe gesture (brightness/volume) no longer greys out the screen or stops the video — the swipe indicator crashed the player on the first swipe.
 
 Changed:
 • The brightness/volume swipe pill now matches the app's look — a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
