@@ -55,6 +55,15 @@ class SceneDelegate: FlutterSceneDelegate {
 
   override func sceneWillEnterForeground(_ scene: UIScene) {
     super.sceneWillEnterForeground(scene)
+    // Coming back from a real background/lock (not a quick app-switch):
+    // cover the first frames with a soft-reload splash (app icon on black)
+    // so a stale surface is never presented — the whole UI used to read
+    // stretched for a moment here.
+    if shouldShowUnlockSplash() {
+      showUnlockSplash(scene)
+    }
+    wasInBackground = false
+    backgroundedAt = nil
     // The scene may already carry its new size here (iPadOS resizes it while
     // the app is backgrounded), so relayout BEFORE the first foreground frame
     // is presented — otherwise that frame is drawn into a stale surface and
@@ -65,6 +74,13 @@ class SceneDelegate: FlutterSceneDelegate {
 
   override func sceneDidBecomeActive(_ scene: UIScene) {
     super.sceneDidBecomeActive(scene)
+    // Safety net: if willEnterForeground didn't run (or the splash wasn't
+    // shown there), show it now, before the user sees a stretched frame.
+    if shouldShowUnlockSplash() {
+      showUnlockSplash(scene)
+    }
+    wasInBackground = false
+    backgroundedAt = nil
     forceFlutterViewRelayout(scene)
     // iPadOS can resize the scene AFTER activation and the key window is not
     // always available yet, so a fixed set of delayed retries is not enough:
@@ -75,8 +91,94 @@ class SceneDelegate: FlutterSceneDelegate {
 
   override func sceneDidEnterBackground(_ scene: UIScene) {
     super.sceneDidEnterBackground(scene)
+    wasInBackground = true
+    backgroundedAt = Date()
+    // If a splash is somehow still up when we go back, drop it immediately.
+    unlockSplash?.removeFromSuperview()
+    unlockSplash = nil
+    unlockSplashHideWork?.cancel()
+    unlockSplashHideWork = nil
     relayoutWatch?.invalidate()
     relayoutWatch = nil
+  }
+
+  // MARK: - Unlock splash ("soft reload")
+
+  /// Set in `sceneDidEnterBackground`, consumed on the next foreground pass
+  /// so the splash only appears on a real background→foreground transition
+  /// (lock/unlock) and never on cold launch or a quick app-switcher flip.
+  private var wasInBackground = false
+  private var backgroundedAt: Date?
+  private var unlockSplash: UIView?
+  private var unlockSplashHideWork: DispatchWorkItem?
+
+  /// The stretch is an unlock symptom, so only show the splash when the app
+  /// was actually away for a moment (≥ 2 s of wall-clock background). A quick
+  /// app-switcher flip returns in well under that and stays snappy.
+  private func shouldShowUnlockSplash() -> Bool {
+    guard wasInBackground, let at = backgroundedAt else { return false }
+    return Date().timeIntervalSince(at) >= 2.0
+  }
+
+  /// Black full-screen overlay with the (currently selected) app icon centred.
+  /// Added to the window itself so it sits above the Flutter view AND any
+  /// platform-view video surface, hiding the stale frame. Non-interactive, so
+  /// the player underneath keeps receiving its reload/resume calls.
+  private func showUnlockSplash(_ scene: UIScene) {
+    guard let windowScene = scene as? UIWindowScene else { return }
+    let window = windowScene.windows.first(where: { $0.isKeyWindow })
+      ?? windowScene.windows.first(where: { !$0.isHidden })
+      ?? windowScene.windows.first
+    guard let window else { return }
+
+    unlockSplash?.removeFromSuperview()
+    unlockSplashHideWork?.cancel()
+
+    let splash = UIView(frame: window.bounds)
+    splash.backgroundColor = .black
+    splash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    splash.isUserInteractionEnabled = false
+
+    // Use the launcher icon the user currently has selected, so the splash
+    // matches the home screen (nil alternateIconName = primary "AppIcon").
+    let iconName = UIApplication.shared.alternateIconName ?? "AppIcon"
+    let icon = UIImage(named: iconName) ?? UIImage(named: "AppIcon")
+    let iconSize: CGFloat = 120
+    let imageView = UIImageView(image: icon)
+    imageView.frame = CGRect(
+      x: (window.bounds.width - iconSize) / 2,
+      y: (window.bounds.height - iconSize) / 2,
+      width: iconSize, height: iconSize)
+    imageView.contentMode = .scaleAspectFit
+    imageView.layer.cornerRadius = iconSize * 0.2237
+    imageView.layer.masksToBounds = true
+    imageView.autoresizingMask = [.flexibleLeftMargin, .flexibleRightMargin,
+                                  .flexibleTopMargin, .flexibleBottomMargin]
+    splash.addSubview(imageView)
+
+    splash.alpha = 1.0
+    window.addSubview(splash)
+    unlockSplash = splash
+    SBMLog.log("unlock splash: shown (icon=\(iconName))")
+
+    // The surface is re-created synchronously by forceFlutterViewRelayout
+    // right after this; keep the splash up just long enough to read as a soft
+    // reload (not a flash), then fade out. Capped so it can never stick.
+    let work = DispatchWorkItem { [weak self] in self?.hideUnlockSplash() }
+    unlockSplashHideWork = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+  }
+
+  private func hideUnlockSplash() {
+    guard let splash = unlockSplash else { return }
+    unlockSplash = nil
+    unlockSplashHideWork = nil
+    SBMLog.log("unlock splash: hiding")
+    UIView.animate(withDuration: 0.25, animations: {
+      splash.alpha = 0
+    }, completion: { _ in
+      splash.removeFromSuperview()
+    })
   }
 
   // MARK: - Relayout watch
