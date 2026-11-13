@@ -1603,13 +1603,14 @@ reverse).
 `pubspec.yaml` version, the `versionCode` in `build.gradle.kts`, and that the
 `versionCode` is greater than the previous tag's.
 
-**CI pins Flutter to `3.47.2`** (`version: '3.47.2'` in the `subosito/flutter-action`
-step of both `release.yml` and `ios.yml`). On 2026-11-13 unpinned `channel: stable`
-moved to a Gradle minimum of 9.3.1 — above this project's wrapper (9.1.0) — and every
-`v*` release build failed with "Your project's Gradle version (9.1.0) is lower than
-Flutter's minimum supported version of 9.3.1" (run 43388602528). Pinning makes
-releases reproducible with the local dev toolchain; when the Gradle wrapper is
-bumped, bump the pin in the same commit.
+**CI pins Flutter to `3.47.2`** (`flutter-version: '3.47.2'` in the `subosito/flutter-action`
+step of both `release.yml` and `ios.yml` — the input is `flutter-version`, NOT `version`;
+`version` is silently ignored with an "Unexpected input(s)" warning, run 43391933250).
+On 2026-11-13 unpinned `channel: stable` moved to a Gradle minimum of 9.3.1 — above this
+project's wrapper (9.1.0) — and every `v*` release build failed with "Your project's
+Gradle version (9.1.0) is lower than Flutter's minimum supported version of 9.3.1"
+(run 43388602528). Pinning makes releases reproducible with the local dev toolchain;
+when the Gradle wrapper is bumped, bump the pin in the same commit.
 
 ### Fullscreen button was a no-op (issue #45) — the Flutter orientation bitmask
 

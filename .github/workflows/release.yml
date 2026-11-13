@@ -40,7 +40,7 @@ jobs:
           # release build failed with "Gradle version lower than Flutter's
           # minimum". Bump this pin together with android/gradle/wrapper when
           # the wrapper is upgraded; must match the local dev toolchain.
-          version: '3.47.2'
+          flutter-version: '3.47.2'
 
       - name: Fetch dependencies
         run: flutter pub get
