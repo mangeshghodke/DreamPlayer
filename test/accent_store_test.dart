@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -65,6 +67,38 @@ void main() {
           reason: '${a.id} is too dark to read on the app background',
         );
       }
+    });
+
+    test('indicatorColorFor is the NavigationBar indicator colour', () {
+      // The splash and the nav pill must be the same colour, so pin both
+      // sides of the definition: the theme really uses primaryContainer as
+      // the indicator, and the store exposes exactly that value.
+      final themeSource = File('lib/theme/app_theme.dart').readAsStringSync();
+      expect(themeSource, contains('indicatorColor: colorScheme.primaryContainer'));
+      for (final a in AccentStore.accents) {
+        final scheme =
+            ColorScheme.fromSeed(seedColor: a.color, brightness: Brightness.dark);
+        expect(AccentStore.indicatorColorFor(a), scheme.primaryContainer,
+            reason: '${a.id}: splash colour would differ from the nav pill');
+      }
+    });
+
+    test('persists the indicator colour for the native splash', () async {
+      final store = await AccentStore.load();
+      final prefs = await SharedPreferences.getInstance();
+      final hex = prefs.getString(AccentStore.indicatorPrefsKey);
+      expect(hex, isNotNull);
+      expect(hex, startsWith('0x'));
+      final parsed = int.parse(hex!.substring(2), radix: 16);
+      expect(parsed, AccentStore.indicatorColorFor(store.accent).toARGB32());
+
+      // A change of accent rewrites it.
+      final pink = AccentStore.accents.firstWhere((a) => a.id == 'pink');
+      await store.setAccent(pink);
+      final hex2 = (await SharedPreferences.getInstance())
+          .getString(AccentStore.indicatorPrefsKey);
+      expect(int.parse(hex2!.substring(2), radix: 16),
+          AccentStore.indicatorColorFor(pink).toARGB32());
     });
   });
 }

@@ -19,6 +19,22 @@ class AccentStore extends ChangeNotifier {
 
   static const String _prefsKey = 'dreamplayer.accent';
 
+  /// SharedPreferences key holding the NavigationBar indicator colour of the
+  /// current accent as `0xAARRGGBB`. The iOS unlock splash reads this
+  /// (native key `flutter.dreamplayer.accentIndicator`) so the splash matches
+  /// the pill behind the selected Library/Settings destination instead of a
+  /// hard-coded violet — Material 3 tone mapping is not re-implemented in
+  /// Swift, the Dart side computes it and persists it.
+  static const String indicatorPrefsKey = 'dreamplayer.accentIndicator';
+
+  /// The colour the NavigationBar paints behind the selected destination:
+  /// `NavigationBarThemeData.indicatorColor` in [AppTheme.dark], i.e.
+  /// `ColorScheme.primaryContainer` of the dark scheme seeded by [a].
+  static Color indicatorColorFor(Accent a) => ColorScheme.fromSeed(
+        seedColor: a.color,
+        brightness: Brightness.dark,
+      ).primaryContainer;
+
   /// Seeds chosen to stay legible on the app's near-black background
   /// (`#0E0E11`) — none of them is so light it disappears against it.
   static const List<Accent> accents = [
@@ -45,9 +61,11 @@ class AccentStore extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final id = prefs.getString(_prefsKey);
-      if (id == null) return store;
-      final found = accents.indexWhere((a) => a.id == id);
-      if (found >= 0) store._index = found;
+      if (id != null) {
+        final found = accents.indexWhere((a) => a.id == id);
+        if (found >= 0) store._index = found;
+      }
+      await store._persistIndicator(prefs);
     } catch (_) {
       // Keep the default accent if prefs are unavailable.
     }
@@ -62,8 +80,19 @@ class AccentStore extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsKey, value.id);
+      await _persistIndicator(prefs);
     } catch (_) {
       // The in-memory accent still applies for this session.
     }
+  }
+
+  /// Writes the current accent's NavigationBar indicator colour so the native
+  /// splash can read it without re-implementing the M3 scheme.
+  Future<void> _persistIndicator(SharedPreferences prefs) async {
+    final c = indicatorColorFor(accent);
+    await prefs.setString(
+      indicatorPrefsKey,
+      '0x${c.toARGB32().toRadixString(16).padLeft(8, '0')}',
+    );
   }
 }

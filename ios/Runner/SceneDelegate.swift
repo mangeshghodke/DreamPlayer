@@ -135,10 +135,13 @@ class SceneDelegate: FlutterSceneDelegate {
     unlockSplash?.removeFromSuperview()
     unlockSplashHideWork?.cancel()
 
-    // The app's theme colour (the accent picked in Settings → Appearance,
-    // default violet) instead of black, so the unlock reads as "the app is
-    // coming back", not as a dead screen.
-    let accent = Self.currentAccentColor()
+    // The app's theme colour instead of black, so the unlock reads as "the
+    // app is coming back", not as a dead screen. This is the same pill colour
+    // the NavigationBar paints behind the selected Library/Settings
+    // destination — `ColorScheme.primaryContainer` of the current accent,
+    // computed in Dart and persisted to SharedPreferences (Material 3 tone
+    // mapping is not re-implemented here).
+    let accent = Self.currentSplashColor()
     let splash = DreamPlayerGradientView(frame: window.bounds)
     splash.colors = [accent, accent.dreamplayerDarker(by: 0.72)]
     splash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -221,6 +224,34 @@ class SceneDelegate: FlutterSceneDelegate {
   static func currentAccentColor() -> UIColor {
     let id = UserDefaults.standard.string(forKey: "flutter.dreamplayer.accent")
     return accentColor(for: id)
+  }
+
+  /// The splash colour: the NavigationBar indicator colour of the current
+  /// accent (`ColorScheme.primaryContainer`), written by Dart as `0xAARRGGBB`
+  /// under `flutter.dreamplayer.accentIndicator`. Falls back to the raw
+  /// accent mirror when the pref is missing (e.g. a build that predates it).
+  static func currentSplashColor() -> UIColor {
+    if let hex = UserDefaults.standard.string(forKey: "flutter.dreamplayer.accentIndicator"),
+       let color = color(fromHex: hex) {
+      return color
+    }
+    return currentAccentColor()
+  }
+
+  /// Parses `0xAARRGGBB` / `AARRGGBB` / `RRGGBB` (alpha defaults to FF).
+  static func color(fromHex hex: String) -> UIColor? {
+    var s = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+    if s.lowercased().hasPrefix("0x") { s.removeFirst(2) }
+    if s.count == 6 { s = "FF" + s }
+    guard s.count == 8 else { return nil }
+    var value: UInt64 = 0
+    guard Scanner(string: s).scanHexInt64(&value) else { return nil }
+    // 255.0 on purpose: / 255 would be integer division and yield 0 (black).
+    let a = CGFloat((value >> 24) & 0xFF) / 255.0
+    let r = CGFloat((value >> 16) & 0xFF) / 255.0
+    let g = CGFloat((value >> 8) & 0xFF) / 255.0
+    let b = CGFloat(value & 0xFF) / 255.0
+    return UIColor(red: r, green: g, blue: b, alpha: a)
   }
 
   /// Accent palette, kept in step with `AccentStore.accents`.

@@ -30,12 +30,22 @@ void main() {
       expect(sceneDelegate, isNot(contains('UIColor.black')));
     });
 
-    test('reads the accent the user picked (SharedPreferences key)', () {
+    test('uses the NavigationBar indicator colour, persisted by Dart', () {
+      // The splash must be the same pill colour the home NavigationBar shows
+      // behind the selected Library/Settings destination. Dart computes it
+      // (ColorScheme.primaryContainer of the current accent) and persists it
+      // as 0xAARRGGBB; the native side reads it — M3 tone mapping is not
+      // re-implemented in Swift.
+      expect(sceneDelegate, contains('flutter.dreamplayer.accentIndicator'));
+      expect(sceneDelegate, contains('func color(fromHex'));
+      expect(accentStore, contains("'dreamplayer.accentIndicator'"));
+      expect(accentStore, contains('indicatorColorFor'));
+      expect(accentStore, contains('primaryContainer'));
+      // Fallback when the pref is missing: the raw accent mirror.
       expect(sceneDelegate, contains('flutter.dreamplayer.accent'));
-      expect(accentStore, contains("'dreamplayer.accent'"));
     });
 
-    test('every Dart accent has a matching Swift colour', () {
+    test('every Dart accent has a matching Swift fallback colour', () {
       // The palette is defined once in Dart (AccentStore.accents) and
       // mirrored in Swift (SceneDelegate.accentColor(for:)). A drift means
       // the splash shows a colour the app never uses.
