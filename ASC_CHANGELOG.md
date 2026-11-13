@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.7 | 6 | 1313 |
+| 0.5.7 | 7 | 1446 |
 | 0.5.6 | 15 | 2607 |
 | 0.5.5 | 71 | 3761 |
 | 0.5.4 | 56 | 1756 |
@@ -29,7 +29,7 @@ it can be reproduced with a plain character count after any edit.
 
 ---
 
-## 0.5.7 (build 6)
+## 0.5.7 (build 7)
 
 New:
 • Files deleted on your network storage are now cleaned up automatically: they disappear from Continue Watching and from any bookmarked folder on the home screen. Nothing is ever removed unless the server itself confirms the file is gone — if the server is just offline, everything stays.
@@ -38,6 +38,7 @@ Fixed:
 • Using a swipe gesture (brightness/volume) no longer greys out the screen or stops the video — the swipe indicator crashed the player on the first swipe.
 
 Changed:
+• The default app icon is now the logo only; the logo with the "DreamPlayer" text is still available as a second choice in Settings.
 • The brightness/volume swipe pill now matches the app's look — a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
 • Swiping up on brightness no longer shows a warning; only pushing volume past 100% flashes the short battery warning.
 • Unlocking the iPad no longer shows a stretched screen for a moment: you now see a brief soft reload — your app icon centred on the same colour as the selected tab at the bottom (it follows the accent colour you picked in Settings) — then the UI comes back the right size and playback continues where you left off.

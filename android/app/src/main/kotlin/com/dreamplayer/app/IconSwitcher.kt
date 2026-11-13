@@ -37,14 +37,26 @@ class IconSwitcher(private val context: Context) {
         const val CHANNEL = "dreamplayer/appicon"
 
         const val DEFAULT = "default"
+
+        /// The variant used when nothing else is enabled and as the repair
+        /// target in [ensureLaunchable]. Since 0.5.7 the DEFAULT LAUNCHER
+        /// ICON IS THE MARK (logo only); the logo + wordmark ("default") is a
+        /// regular selectable alternate.
+        const val FALLBACK = "mark"
         private const val PKG = "com.dreamplayer.app"
+
+        /** One-time migration flag: move installs that still show the old
+         *  wordmark default over to the mark, once per install. */
+        private const val MIGRATED_PREFS = "dreamplayer_icon"
+        private const val MIGRATED_KEY = "migratedToMarkDefault"
 
         /**
          * Variant name -> activity-alias suffix. Mirrors the Dart enum.
          *
-         * NOTE there is no entry mapping to the bare MainActivity: the default
-         * icon has its own alias (`MainActivityAltDefault`) so that exactly one
-         * ALIAS is always enabled. MainActivity is never a toggle target.
+         * NOTE there is no entry mapping to the bare MainActivity: every icon
+         * has its own alias (`MainActivityAltDefault` for the wordmark,
+         * `MainActivityAltMark` for the logo only) so that exactly one ALIAS is
+         * always enabled. MainActivity is never a toggle target.
          */
         private val VARIANTS = mapOf(
             DEFAULT to "Default",
@@ -57,10 +69,10 @@ class IconSwitcher(private val context: Context) {
 
     /** Which variant the launcher is currently showing. */
     fun currentVariant(): String {
-        // Default wins if somehow two are enabled: it is the safe, always
-        // present, always correct option.
-        if (isEnabled(component(DEFAULT))) return DEFAULT
-        return VARIANTS.keys.firstOrNull { it != DEFAULT && isEnabled(component(it)) } ?: DEFAULT
+        // The fallback wins if somehow two are enabled: it is the safe,
+        // always present, always correct option.
+        if (isEnabled(component(FALLBACK))) return FALLBACK
+        return VARIANTS.keys.firstOrNull { it != FALLBACK && isEnabled(component(it)) } ?: FALLBACK
     }
 
     /**
@@ -82,7 +94,7 @@ class IconSwitcher(private val context: Context) {
     /**
      * Self-heal, run on every launch before the UI can ask for anything.
      *
-     * Two repairs, both needed in practice:
+     * Repairs, all needed in practice:
      *
      * 1. **Re-enable MainActivity.** An early version of this feature disabled
      *    it, which bricked the launcher on a real device. Any install that ran
@@ -91,19 +103,42 @@ class IconSwitcher(private val context: Context) {
      *    here or "Open with" keeps resolving through an alias instead of the
      *    real activity.
      * 2. **Guarantee a launcher entry.** If an interrupted toggle somehow left
-     *    no alias enabled, re-enable the default so the app is still reachable.
+     *    no alias enabled, re-enable the fallback (mark) so the app is still
+     *    reachable.
+     * 3. **Migrate the old default icon once (0.5.7).** Installs that predate
+     *    the change still have the wordmark alias (`AltDefault`) enabled. The
+     *    default icon is now the mark, so move those installs over — unless
+     *    the user had explicitly picked a recolour (red/green/cyan), which is
+     *    left alone. Runs once per install, guarded by a prefs flag.
      */
     fun ensureLaunchable() {
         enable(componentMain())
         if (VARIANTS.keys.none { isEnabled(component(it)) }) {
-            enable(component(DEFAULT))
+            enable(component(FALLBACK))
+        }
+        migrateDefaultIconOnce()
+    }
+
+    private fun migrateDefaultIconOnce() {
+        try {
+            val prefs = context.getSharedPreferences(MIGRATED_PREFS, Context.MODE_PRIVATE)
+            if (prefs.getBoolean(MIGRATED_KEY, false)) return
+            prefs.edit().putBoolean(MIGRATED_KEY, true).apply()
+            val current = currentVariant()
+            // Only the old default moves; an explicit recolour choice is kept.
+            if (current == DEFAULT) {
+                applyVariant(FALLBACK)
+            }
+        } catch (_: Exception) {
+            // A failed migration must never block launch; the manifest default
+            // (mark enabled) covers fresh installs anyway.
         }
     }
 
     private fun componentMain(): String = "$PKG.MainActivity"
 
     private fun component(variant: String): String =
-        PKG + ".MainActivityAlt" + (VARIANTS[variant] ?: VARIANTS.getValue(DEFAULT))
+        PKG + ".MainActivityAlt" + (VARIANTS[variant] ?: VARIANTS.getValue(FALLBACK))
 
     private fun isEnabled(component: String): Boolean =
         try {
@@ -111,8 +146,8 @@ class IconSwitcher(private val context: Context) {
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED
         } catch (_: Exception) {
             // Unknown component (install predating the aliases). Only the
-            // default can be assumed present.
-            component == component(DEFAULT)
+            // fallback (mark) can be assumed present.
+            component == component(FALLBACK)
         }
 
     private fun enable(component: String) = setState(component, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
@@ -140,7 +175,7 @@ class IconSwitcher(private val context: Context) {
         when (call.method) {
             "currentVariant" -> result.success(currentVariant())
             "applyVariant" -> {
-                val variant = call.argument<String>("variant") ?: DEFAULT
+                val variant = call.argument<String>("variant") ?: FALLBACK
                 if (!VARIANTS.containsKey(variant)) {
                     result.error("bad_variant", "Unknown icon variant: $variant", null)
                 } else {

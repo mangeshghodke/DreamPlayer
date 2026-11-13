@@ -92,13 +92,19 @@ void main() {
     });
 
     test('every launcher icon variant has a matching splash imageset', () {
+      // Since 0.5.7 the PRIMARY icon is AppIconMark (logo only); the wordmark
+      // "AppIcon" is an alternate. Both map to their own splash imageset.
       const variants = {
-        'AppIcon': 'SplashIcon',
         'AppIconMark': 'SplashIconMark',
+        'AppIcon': 'SplashIcon',
         'AppIconRed': 'SplashIconRed',
         'AppIconGreen': 'SplashIconGreen',
         'AppIconCyan': 'SplashIconCyan',
       };
+      // nil alternateIconName (primary icon) resolves to the mark.
+      expect(sceneDelegate, contains('alternateIconName ?? "AppIconMark"'));
+      expect(sceneDelegate, contains('default: return "SplashIconMark"'),
+          reason: 'the default branch must be the mark imageset');
       for (final entry in variants.entries) {
         expect(
           sceneDelegate,

@@ -6,12 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// The launcher icon variants shipped with the app (issue #23).
 enum AppIconStyle {
-  /// The shipped DreamPlayer icon: logo + "DreamPlayer" wordmark.
-  defaultIcon,
-
-  /// The logo alone, original colours. Android already prints the app name
-  /// under the icon, so the wordmark is redundant there.
+  /// The logo alone. **This is the default icon since 0.5.7** — Android
+  /// already prints the app name under the icon, so the wordmark is
+  /// redundant there.
   markOnly,
+
+  /// The DreamPlayer logo + "DreamPlayer" wordmark (secondary option).
+  defaultIcon,
 
   /// The logo recoloured red.
   red,
@@ -34,9 +35,11 @@ extension AppIconStyleNative on AppIconStyle {
   };
 
   /// Name of the iOS alternate icon bundle, or null for the primary one.
+  /// Since 0.5.7 the PRIMARY icon is the mark (`AppIconMark`), so the
+  /// wordmark is the "AppIcon" alternate and the mark maps to null.
   String? get iosAlternateIconName => switch (this) {
-    AppIconStyle.defaultIcon => null,
-    AppIconStyle.markOnly => 'AppIconMark',
+    AppIconStyle.markOnly => null,
+    AppIconStyle.defaultIcon => 'AppIcon',
     AppIconStyle.red => 'AppIconRed',
     AppIconStyle.green => 'AppIconGreen',
     AppIconStyle.cyan => 'AppIconCyan',
@@ -45,16 +48,16 @@ extension AppIconStyleNative on AppIconStyle {
 
 extension AppIconStyleLabel on AppIconStyle {
   String get label => switch (this) {
-    AppIconStyle.defaultIcon => 'Default',
-    AppIconStyle.markOnly => 'Logo only',
+    AppIconStyle.markOnly => 'Logo only (default)',
+    AppIconStyle.defaultIcon => 'Logo + text',
     AppIconStyle.red => 'Red',
     AppIconStyle.green => 'Green',
     AppIconStyle.cyan => 'Cyan',
   };
 
   String get description => switch (this) {
-    AppIconStyle.defaultIcon => 'The original DreamPlayer icon',
-    AppIconStyle.markOnly => 'Just the logo, without the "DreamPlayer" text',
+    AppIconStyle.markOnly => 'Just the logo, without the "DreamPlayer" text — the default',
+    AppIconStyle.defaultIcon => 'The original DreamPlayer icon: logo plus wordmark',
     AppIconStyle.red => 'The logo in red',
     AppIconStyle.green => 'The logo in green',
     AppIconStyle.cyan => 'The logo in cyan',
@@ -83,7 +86,9 @@ class AppIconService extends ChangeNotifier {
   static const String channel = 'dreamplayer/appicon';
   static const String _prefKey = 'dreamplayer.appIcon';
 
-  AppIconStyle _style = AppIconStyle.defaultIcon;
+  /// The mark (logo only) is the default icon since 0.5.7; load() reconciles
+  /// this with the platform's actual state straight away.
+  AppIconStyle _style = AppIconStyle.markOnly;
   AppIconStyle get style => _style;
 
   bool get _isAndroid => !kIsWeb && Platform.isAndroid;
@@ -147,9 +152,11 @@ class AppIconService extends ChangeNotifier {
 
   static AppIconStyle _fromNative(String name) => switch (name) {
     'mark' => AppIconStyle.markOnly,
+    'default' => AppIconStyle.defaultIcon,
     'red' => AppIconStyle.red,
     'green' => AppIconStyle.green,
     'cyan' => AppIconStyle.cyan,
-    _ => AppIconStyle.defaultIcon,
+    // Unknown names fall back to the mark, which is the default icon.
+    _ => AppIconStyle.markOnly,
   };
 }

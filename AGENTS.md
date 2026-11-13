@@ -1410,9 +1410,10 @@ caught that).
 
 ### App icon switching (issue #23) — the alias rule that bricks the app
 
-Settings → Appearance → App icon switches between five launcher icons (default,
-logo-only, red, green, cyan) via `IconSwitcher.kt` + `IconSwitcher.swift`.
-iOS uses `setAlternateIconName` and is boring. **Android is not, and one rule is
+Settings → Appearance → App icon switches between five launcher icons via
+`IconSwitcher.kt` + `IconSwitcher.swift`. **Since 0.5.7 the DEFAULT is the
+logo-only mark; the original logo + "DreamPlayer" wordmark is a secondary
+option** ("Logo + text"). iOS uses `setAlternateIconName` and is boring. **Android is not, and one rule is
 load-bearing.**
 
 **NEVER disable `MainActivity`.** Each variant is an `<activity-alias>` with
@@ -1428,8 +1429,8 @@ The structure that works, and why each part is required:
 | Component | Enabled? | Carries | Why |
 |---|---|---|---|
 | `MainActivity` | **always** | VIEW filters only | Valid alias target; "Open with" handler. Never a toggle target. |
-| `MainActivityAltDefault` | one of the aliases, on by default | MAIN/LAUNCHER + LEANBACK + VIEW | The default icon. An alias is needed because `MainActivity` has no launcher filter. |
-| `…AltMark/Red/Green/Cyan` | exactly one enabled at a time | MAIN/LAUNCHER + LEANBACK + VIEW | The alternates. |
+| `MainActivityAltMark` | **on by default since 0.5.7** | MAIN/LAUNCHER + LEANBACK + VIEW | The default icon (logo only). An alias is needed because `MainActivity` has no launcher filter. |
+| `…AltDefault/Red/Green/Cyan` | exactly one enabled at a time | MAIN/LAUNCHER + LEANBACK + VIEW | The alternates, including the logo + wordmark (`AltDefault`). |
 
 Because `MainActivity` has no `MAIN`/`LAUNCHER` filter, disabling it would also
 remove the second icon — which is what made the first attempt look reasonable
@@ -1440,10 +1441,13 @@ Two more rules:
 
 - **Enable the new alias BEFORE disabling the others.** A brief moment with two
   icons is harmless; a moment with none is unrecoverable without adb.
-- **`ensureLaunchable()` runs on every launch** and does two repairs: re-enables
+- **`ensureLaunchable()` runs on every launch** and does three repairs: re-enables
   `MainActivity` (for installs that ran the broken build — PackageManager's
   disabled-components list survives an APK update, so it has to be undone in
-  code) and re-enables the default alias if somehow none is enabled.
+  code), re-enables the mark alias if somehow none is enabled, and migrates
+  installs still on the old wordmark default over to the mark **once** per
+  install (`migrateDefaultIconOnce`, prefs-guarded; an explicit red/green/cyan
+  choice is left alone).
 
 ### iOS alternate icons — Guideline 4.6, and never hand-edit Info.plist
 
@@ -1467,11 +1471,16 @@ discarded and `setAlternateIconName()` then does nothing. The alternates are
 declared in `project.pbxproj` instead:
 
 ```
-ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconMark AppIconRed AppIconGreen AppIconCyan";
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon AppIconRed AppIconGreen AppIconCyan";
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIconMark;   // primary since 0.5.7 = logo only
 ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 ```
 
-on all three Runner configs (Debug/Release/Profile). `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS`
+on all three Runner configs (Debug/Release/Profile). Since 0.5.7 the **primary**
+icon (`ASSETCATALOG_COMPILER_APPICON_NAME`) is `AppIconMark` — the logo only — and
+the wordmark `AppIcon` is listed in the ALTERNATE names, so a nil
+`alternateIconName` means the mark and the wordmark is reached with
+`setAlternateIconName("AppIcon")`. `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS`
 is required or the alternate sets are not emitted into the built
 `Info.plist` at all. This is unverifiable without a Mac — `ios_native_check.py`
 only validates pbxproj shape — so the first iOS build must be checked on device.

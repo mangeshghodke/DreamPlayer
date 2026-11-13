@@ -101,12 +101,13 @@
              Exactly one alias is enabled at a time, and IconSwitcher enables
              the new one BEFORE disabling the others, so an interrupted toggle
              can never leave zero launcher entries. ensureLaunchable() also
-             re-enables the default alias on every launch as a backstop.
+             re-enables the MARK alias (the default icon since 0.5.7) on every
+             launch as a backstop.
              =================================================================== -->
         <activity-alias
             android:name=".MainActivityAltDefault"
             android:targetActivity=".MainActivity"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
@@ -167,16 +168,18 @@
              just its launcher entry, so whichever one is enabled must still be
              able to receive "Open with" intents.
 
-             All four are declared enabled="false" so a fresh install shows
-             exactly one icon. IconSwitcher enables the chosen one BEFORE
-             disabling the others, so there is never a moment with no launchable
-             component, and ensureLaunchable() repairs an interrupted toggle on
-             the next launch. -->
+             Only MainActivityAltMark is declared enabled="true" (the default
+             icon since 0.5.7 is the logo only; the logo + wordmark is the
+             AltDefault alternate), so a fresh install shows exactly one icon.
+             IconSwitcher enables the chosen one BEFORE disabling the others,
+             so there is never a moment with no launchable component, and
+             ensureLaunchable() repairs an interrupted toggle on the next
+             launch. -->
 
         <activity-alias
             android:name=".MainActivityAltMark"
             android:targetActivity=".MainActivity"
-            android:enabled="false"
+            android:enabled="true"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

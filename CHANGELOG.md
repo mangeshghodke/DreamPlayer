@@ -14,6 +14,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 ### Changed
 
+- **Default app icon is now the logo only.** The launcher icon is now just the DreamPlayer logo; the original logo + "DreamPlayer" wordmark is still available in Settings → Appearance → App icon as "Logo + text". Existing installs are moved over once on the next launch (an explicitly chosen red/green/cyan icon is left alone).
 - **Gesture slider restyle.** The brightness/volume swipe pill is now a semi-transparent black pill on the side opposite your swipe (left swipe → slider on the right edge, right swipe → slider on the left edge), sized to the video content so it's small in portrait and proportional in landscape. Its outline stays fully visible over bright or dark frames.
 - **Brightness gesture no longer warns.** Only pushing volume past 100% shows the centre-screen battery warning; brightness swipes are silent.
 - **Startup permission dialog shortened.** The All Files Access explainer on first install now reads "Needed to browse your storage and play videos from any folder." instead of a longer subtitle.

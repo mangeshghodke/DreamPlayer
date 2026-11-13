@@ -1,0 +1,15 @@
+Changed
+
+- Default app icon is now the logo only ("Logo + text" stays in Settings).
+- Swipe slider: semi-transparent pill on the opposite side, sized to video.
+- Skip intro/recap/credits pill stays visible when the HUD fades.
+
+Fixed
+
+- Swipe gesture crashed the player on the first swipe.
+
+Added
+
+- SMB files deleted on the server are pruned from Continue Watching and
+  bookmarks; only a confirmed not-found prunes, never an offline NAS.
+- Downmix 5.1/7.1 to stereo (Settings > Audio).

@@ -148,14 +148,16 @@ class SceneDelegate: FlutterSceneDelegate {
     splash.isUserInteractionEnabled = false
 
     // Use the launcher icon the user currently has selected, so the splash
-    // matches the home screen (nil alternateIconName = primary "AppIcon").
+    // matches the home screen. Since 0.5.7 the PRIMARY icon is AppIconMark
+    // (logo only), so a nil alternateIconName means the mark; the wordmark
+    // variant is the "AppIcon" alternate.
     //
     // NOTE: the icon comes from a dedicated *imageset* (SplashIcon…), not
     // from the `.appiconset`. `UIImage(named:)` cannot load an app icon —
     // the asset compiler treats app icons specially and they are not in the
     // regular image namespace — so the old lookup returned nil and the
     // splash showed as a blank (black) rectangle with no icon at all.
-    let iconName = UIApplication.shared.alternateIconName ?? "AppIcon"
+    let iconName = UIApplication.shared.alternateIconName ?? "AppIconMark"
     let imageSet = Self.splashImageSet(for: iconName)
     let icon = UIImage(named: imageSet)
     let iconSize: CGFloat = 160
@@ -213,7 +215,7 @@ class SceneDelegate: FlutterSceneDelegate {
     case "AppIconGreen": return "SplashIconGreen"
     case "AppIconCyan": return "SplashIconCyan"
     case "AppIcon": return "SplashIcon"
-    default: return "SplashIcon"
+    default: return "SplashIconMark"
     }
   }
 
