@@ -22,13 +22,20 @@ extension UIViewController {
     dreamplayer_viewDidLayoutSubviews()
   }
 
+  /// Installs the `viewDidLayoutSubviews` swizzle exactly once. The exchange
+  /// is self-reversing (calling it twice swaps the methods back), so guard
+  /// against re-entry from repeated `scene(_:willConnectTo:)` callbacks.
+  private static var layoutFixInstalled = false
+
   static func installDreamplayerLayoutFix() {
+    guard !layoutFixInstalled else { return }
     let original = class_getInstanceMethod(
       UIViewController.self, #selector(UIViewController.viewDidLayoutSubviews))
     let swizzled = class_getInstanceMethod(
       UIViewController.self, #selector(UIViewController.dreamplayer_viewDidLayoutSubviews))
     guard let original, let swizzled else { return }
     method_exchangeImplementations(original, swizzled)
+    layoutFixInstalled = true
   }
 }
 

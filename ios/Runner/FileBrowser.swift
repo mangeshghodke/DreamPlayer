@@ -123,7 +123,17 @@ final class FileBrowser: NSObject {
     // MARK: - Roots
 
     private var documentsURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        // The app's Documents directory always exists on iOS; fall back to the
+        // Caches directory, then to a constructed path, so this can never
+        // crash on a force-unwrapped empty array.
+        if let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            return url
+        }
+        if let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            return url
+        }
+        return URL(fileURLWithPath: NSSearchPathForDirectoriesInDomains(
+            .documentDirectory, .userDomainMask, true).first ?? NSHomeDirectory())
     }
 
     /// Virtual "Files" root (opens the system Files-app home via the document
