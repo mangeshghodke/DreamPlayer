@@ -118,6 +118,11 @@ class SceneDelegate: FlutterSceneDelegate {
   private var backgroundedAt: Date?
   private var unlockSplash: UIView?
   private var unlockSplashHideWork: DispatchWorkItem?
+  /// When the splash was first shown, so we can enforce a minimum display time.
+  private var unlockSplashShownAt: Date?
+  /// Set true once `relayoutTick` has observed root view bounds matching the
+  /// window bounds — i.e. the stretch fix has taken effect.
+  private var layoutConfirmed = false
 
   /// The stretch is an unlock symptom, so only show the splash when the app
   /// was actually away for a moment (≥ 2 s of wall-clock background). A quick
@@ -189,14 +194,37 @@ class SceneDelegate: FlutterSceneDelegate {
     splash.alpha = 1.0
     window.addSubview(splash)
     unlockSplash = splash
+    unlockSplashShownAt = Date()
+    layoutConfirmed = false
     SBMLog.log("unlock splash: shown (icon=\(iconName) imageSet=\(imageSet) accent=\(accent.dreamplayerHex))")
 
-    // The surface is re-created synchronously by forceFlutterViewRelayout
-    // right after this; keep the splash up just long enough to read as a soft
-    // reload (not a flash), then fade out. Capped so it can never stick.
-    let work = DispatchWorkItem { [weak self] in self?.hideUnlockSplash() }
+    // Keep the splash up until the relayout watch has confirmed the layout is
+    // stable, with a minimum of 1.5s and a hard cap of 3.0s.
+    unlockSplashHideWork = nil
+    tryHideUnlockSplash()
+  }
+
+  /// Hides the unlock splash once the layout fix has taken effect, enforcing a
+  /// minimum display time so the user never sees a flash of stretched UI.
+  ///
+  /// Called both on a retry timer and from `relayoutTick` when it observes
+  /// stable bounds. Safe to call multiple times — only the first call hides.
+  private func tryHideUnlockSplash() {
+    guard let splash = unlockSplash, let shownAt = unlockSplashShownAt else { return }
+    let elapsed = Date().timeIntervalSince(shownAt)
+    let minDisplay: TimeInterval = 1.5
+    let maxDisplay: TimeInterval = 3.0
+
+    if (layoutConfirmed && elapsed >= minDisplay) || elapsed >= maxDisplay {
+      hideUnlockSplash()
+      layoutConfirmed = false
+      unlockSplashShownAt = nil
+      return
+    }
+    // Not ready yet — retry shortly.
+    let work = DispatchWorkItem { [weak self] in self?.tryHideUnlockSplash() }
     unlockSplashHideWork = work
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
   }
 
   private func hideUnlockSplash() {
@@ -305,7 +333,10 @@ class SceneDelegate: FlutterSceneDelegate {
       link.invalidate(); relayoutWatch = nil; return
     }
     for window in scene.windows where !window.isHidden {
-      guard let rootView = window.rootViewController?.viewIfLoaded else { continue }
+      // Use `.view` (forces load) rather than `viewIfLoaded`, matching
+      // `forceFlutterViewRelayout`: the root view might not be loaded yet on
+      // the first tick after foreground.
+      guard let rootView = window.rootViewController?.view else { continue }
       let target = window.bounds
       if target.width <= 0 || target.height <= 0 { continue }
       if rootView.bounds.width != target.width || rootView.bounds.height != target.height {
@@ -322,6 +353,11 @@ class SceneDelegate: FlutterSceneDelegate {
         rootView.frame = target
         rootView.setNeedsLayout()
         rootView.layoutIfNeeded()
+      } else {
+        // Bounds match the window — the stretch fix has taken effect.
+        layoutConfirmed = true
+        // If the splash is up, try to hide it (enforces the 1.5s minimum).
+        tryHideUnlockSplash()
       }
     }
   }
