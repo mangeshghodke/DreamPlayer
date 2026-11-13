@@ -25,6 +25,7 @@ import '../services/playback_modes.dart';
 import '../services/auto_play_store.dart';
 import '../services/decoder_mode.dart';
 import '../services/smb_client.dart';
+import '../services/http_stream_proxy.dart';
 import '../services/resume_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -59,6 +60,7 @@ import '../utils/screen_orientation.dart';
 import '../utils/mpv_audio_select.dart';
 import '../utils/mpv_hdr_mode.dart';
 import '../utils/mpv_interpolation.dart';
+import '../utils/mpv_http_headers.dart';
 import '../utils/mpv_volume.dart';
 import '../utils/subtitle_text_style.dart';
 import 'download_screen.dart';
@@ -267,6 +269,20 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Active SMB loopback-bridge token (see [SmbHttpProxy] / `startLoopback`);
   /// null when the fallback's current source isn't served through the bridge.
   String? _mpvProxyToken;
+  /// Active http(s) loopback-bridge token (see [HttpStreamProxyClient]).
+  String? _mpvHttpProxyToken;
+  /// The loopback URL the current http(s) source is served from, once the
+  /// bridge has been engaged. Null = the direct URL is used.
+  String? _mpvHttpBridgeUrl;
+  /// The ORIGINAL (remote) source the bridge is serving. Paired with
+  /// [_mpvHttpBridgeUrl] so a bridge left over from another file is never
+  /// used for a different source, and so error messages can show the real URL
+  /// instead of the loopback one.
+  String? _mpvHttpBridgeSource;
+  /// Resume key of the file whose http(s) source has already been retried
+  /// through the bridge — one retry per file, so a permanently broken link
+  /// does not spin.
+  String? _mpvHttpBridgeTriedKey;
   /// Serializes wid attaches — surfaceReady/surfaceChanged can fire back-to-back
   /// and each vo=null→wid→vo=gpu swap reconfigures MediaCodec. Overlapping
   /// attaches leave the decoder bound to a NULL surface (black video).
@@ -1494,6 +1510,10 @@ Future<void> _offerVc1Mpv() async {
     _mpvLastWid = 0;
     _mpvLastW = 0;
     _mpvLastH = 0;
+    // A fresh MPV session: drop any http(s) bridge left over from a previous
+    // file and re-arm the one-shot bridge retry for this file.
+    await _stopMpvHttpBridge();
+    _mpvHttpBridgeTriedKey = null;
     try {
       // Idempotent: loads the bundled libmpv native library.
       MediaKit.ensureInitialized();
@@ -2982,6 +3002,24 @@ Future<void> _offerVc1Mpv() async {
       }
       if (!mounted) return;
     }
+    // Remote http(s) sources: once the direct open has failed, the URL is
+    // served through the OkHttp-backed loopback bridge (see
+    // [_maybeMpvHttpBridgeRetry]) — the same HTTP stack Media3 uses, which is
+    // what the origin accepts. The bridge for THIS source is kept; a bridge
+    // left over from another file is torn down.
+    var viaHttpBridge = false;
+    if (_isHttpSource(src)) {
+      final bridged = _mpvHttpBridgeUrl;
+      if (bridged != null && bridged.isNotEmpty && _mpvHttpBridgeSource == src) {
+        playable = bridged;
+        viaHttpBridge = true;
+        debugPrint('mpv: opening via the local media bridge: $bridged');
+      } else {
+        await _stopMpvHttpBridge();
+      }
+    } else {
+      await _stopMpvHttpBridge();
+    }
     // Detect transport-stream / MPEG-PS extensions BEFORE opening so we can
     // force the lavf demuxer. mpv's native TS demuxer can't handle Blu-ray
     // m2ts packets (192-byte with 4-byte timestamp prefix) — it gets stuck
@@ -3029,6 +3067,13 @@ Future<void> _offerVc1Mpv() async {
         }
       }
       await _applyMpvHwdec(player);
+      // The source's own HTTP headers (WebDAV Basic auth, a Jellyfin token, a
+      // `Referer`) were dropped on this path, and ffmpeg's default
+      // `User-Agent: Lavf/…` is refused by a lot of CDNs — both are sent
+      // before the open so a direct open has the same odds as Media3's.
+      if (!viaHttpBridge) {
+        await _applyMpvHttpHeaders(player, video);
+      }
       await player.open(
         Media(playable, start: startMs > 0 ? start : null),
         play: false,
@@ -3227,10 +3272,137 @@ Future<void> _offerVc1Mpv() async {
   Future<void> _stopMpvProxy() async {
     final t = _mpvProxyToken;
     _mpvProxyToken = null;
-    if (t == null || t.isEmpty || _inTests) return;
+    if (t != null && t.isNotEmpty && !_inTests) {
+      try {
+        await SmbClient.instance.stopLoopback(t);
+      } catch (_) {}
+    }
+  }
+
+  /// Tears down the http(s) loopback bridge (if any).
+  ///
+  /// Separate from [_stopMpvProxy] because the bridge is **kept** while the
+  /// same source is re-opened through it (the retry path re-opens the file
+  /// through the bridge it just started).
+  Future<void> _stopMpvHttpBridge() async {
+    final token = _mpvHttpProxyToken;
+    _mpvHttpProxyToken = null;
+    _mpvHttpBridgeUrl = null;
+    _mpvHttpBridgeSource = null;
+    if (token == null || token.isEmpty || _inTests) return;
     try {
-      await SmbClient.instance.stopLoopback(t);
+      await HttpStreamProxyClient.instance.stop(token);
     } catch (_) {}
+  }
+
+  /// True for a remote http(s) source.
+  static bool _isHttpSource(String src) {
+    final s = src.toLowerCase();
+    return s.startsWith('http://') || s.startsWith('https://');
+  }
+
+  /// Sends the source's HTTP headers (WebDAV Basic auth, a Jellyfin token, a
+  /// `Referer`, …) to mpv, plus a browser-ish `User-Agent`.
+  ///
+  /// Two bugs are fixed here:
+  ///  * `VideoItem.httpHeaders` was **dropped** on the mpv path, so every
+  ///    authenticated URL (WebDAV, Jellyfin) could never play on this engine.
+  ///  * ffmpeg's default `User-Agent: Lavf/…` is refused by a lot of CDNs, so
+  ///    links Media3 opened were rejected by mpv.
+  ///
+  /// mpv has dedicated options for `user-agent` and `referrer`; the rest go
+  /// through `http-header-fields` (a comma-separated list of "Name: value").
+  /// The mapping itself lives in `lib/utils/mpv_http_headers.dart` so it can
+  /// be unit-tested without a live mpv instance.
+  Future<void> _applyMpvHttpHeaders(Player player, VideoItem video) async {
+    if (_inTests) return;
+    final src = _mpvSourceFor(video);
+    if (!_isHttpSource(src)) return;
+    final platform = player.platform;
+    if (platform is! NativePlayer) return;
+    final opts = buildMpvHttpHeaderOptions(video.httpHeaders);
+    try {
+      await platform.setProperty('user-agent', opts.userAgent);
+      if (opts.referrer != null) {
+        await platform.setProperty('referrer', opts.referrer!);
+      }
+      if (opts.headerFields != null) {
+        await platform.setProperty('http-header-fields', opts.headerFields!);
+      }
+      debugPrint(
+          'mpv: http headers applied (user-agent set, ${opts.headerFields ?? ''})');
+    } catch (e) {
+      debugPrint('mpv: http headers unavailable: $e');
+    }
+  }
+
+  /// Makes an mpv error message readable by swapping the loopback bridge URL
+  /// back for the ORIGINAL remote URL.
+  ///
+  /// Without this the user sees "Failed to open http://127.0.0.1:54321/…"
+  /// — a local address that means nothing to them and hides which link
+  /// actually failed.
+  String _mpvReadableError(String msg) {
+    final bridged = _mpvHttpBridgeUrl;
+    final original = _mpvHttpBridgeSource;
+    if (bridged == null ||
+        bridged.isEmpty ||
+        original == null ||
+        original.isEmpty ||
+        !msg.contains(bridged)) {
+      return msg;
+    }
+    return msg.replaceAll(bridged, original);
+  }
+
+  /// Retries an http(s) source through the local OkHttp-backed media bridge.
+  ///
+  /// The mpv engine's own HTTP stack (ffmpeg + mbedtls, `Lavf/…` UA) is
+  /// refused by some CDNs while the Media3 engine's (OkHttp + Conscrypt) is
+  /// accepted — the reported case was a Cloudflare-fronted tracker host with a
+  /// client-bound token: "Failed to open https://…" on mpv, playing fine on
+  /// Media3. When the direct open fails, the URL is served from a loopback
+  /// bridge that fetches it with OkHttp — exactly the stack that already
+  /// works — and the open is retried once per file.
+  ///
+  /// Returns true when a retry was armed (the caller must not surface the
+  /// error); false when the error should surface as-is.
+  bool _maybeMpvHttpBridgeRetry(String msg) {
+    if (!Platform.isAndroid || _inTests) return false;
+    if (_mpvPlayer == null) return false; // engine gone — surface the error
+    final video = _current;
+    final src = _mpvSourceFor(video);
+    if (!_isHttpSource(src)) return false;
+    if (_mpvHttpBridgeTriedKey == _resumeKey) return false; // already retried
+    if (_mpvHttpBridgeUrl != null) return false; // the bridge is already in use
+    _mpvHttpBridgeTriedKey = _resumeKey;
+    final pos = _position.inMilliseconds;
+    debugPrint(
+        'mpv: direct open failed ($msg) — retrying via the local media bridge');
+    unawaited(_startMpvHttpBridge(video, pos, msg));
+    return true;
+  }
+
+  /// Starts the loopback bridge for [video]'s source and re-opens through it.
+  Future<void> _startMpvHttpBridge(
+      VideoItem video, int pos, String originalError) async {
+    final src = _mpvSourceFor(video);
+    final bridged = await HttpStreamProxyClient.instance.start(
+      url: src,
+      headers: video.httpHeaders,
+      allowSelfSigned: video.allowSelfSigned,
+    );
+    if (!mounted) return;
+    if (bridged == null || bridged.isEmpty) {
+      debugPrint('mpv: the local media bridge could not be started');
+      _markMpvFailed('Fallback player error: $originalError');
+      return;
+    }
+    _mpvHttpBridgeUrl = bridged;
+    _mpvHttpBridgeSource = src;
+    _mpvHttpProxyToken = Uri.parse(bridged).pathSegments.firstOrNull;
+    debugPrint('mpv: retrying through the local media bridge: $bridged');
+    await _reloadMpv(video, pos);
   }
 
   /// Auto-retry with software decode when mpv surfaces a mid-stream codec
@@ -3498,7 +3670,11 @@ Future<void> _offerVc1Mpv() async {
       // whose MediaCodec decoder dies a few frames in) — auto-reload in
       // software before surfacing the terminal error.
       if (_maybeMpvSoftwareRetry(msg)) return;
-      _markMpvFailed('Fallback player error: $msg');
+      // A remote http(s) source that mpv's own HTTP stack (ffmpeg + mbedtls)
+      // could not open, while Media3 opened it fine — retry once through the
+      // OkHttp-backed loopback bridge before giving up.
+      if (_maybeMpvHttpBridgeRetry(msg)) return;
+      _markMpvFailed('Fallback player error: ${_mpvReadableError(msg)}');
     }));
     _mpvSubs.add(player.stream.log.listen((l) {
       // mpv's own log lines — invaluable when a file won't open.
@@ -4708,6 +4884,9 @@ Future<void> _offerVc1Mpv() async {
     ThermalMonitor.instance.stop();
     unawaited(_mpvPlayer?.dispose());
     unawaited(_stopMpvProxy());
+    // Tear down the http(s) loopback bridge too — it holds a live upstream
+    // connection, so it must not outlive the player.
+    unawaited(_stopMpvHttpBridge());
     // Tell the native pip bridge the fallback engine is gone (clears its
     // auto-entry state) and drop the callbacks so a disposed screen is never
     // called back into.

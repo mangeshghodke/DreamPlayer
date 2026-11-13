@@ -543,6 +543,11 @@ A video player app supporting:
     side: `SmbClient.startLoopback`/`stopLoopback`. `_mpvOpen` calls
     `startLoopback` for any `smb://` source and stores the token in
     `_mpvProxyToken` so the next `stopLoopback` is exact.
+  - **Http(s) → loopback HTTP bridge (`HttpStreamProxy.kt` + `HttpStreamProxyClient`)**: a remote `http(s)` URL that Media3 opens fine can be refused by the mpv engine ("Failed to open https://…"). The two HTTP stacks differ — Media3 = OkHttp + Conscrypt (`User-Agent: okhttp/4.x`); libmpv = ffmpeg http + bundled mbedtls (`User-Agent: Lavf/63.1.100`). CDNs in front of private trackers (Cloudflare-fronted host with a client-bound `?selection=` token) refuse `Lavf/…` and mbedtls fingerprints.
+    **Fix (layered, non-regressive):**
+    1. The direct open now sends `user-agent` (browser UA, not `Lavf/…`) plus `referrer` + `http-header-fields` from `VideoItem.httpHeaders` — so `VideoItem.httpHeaders` actually reaches mpv (WebDAV Basic auth, Jellyfin token, `Referer`) and `user-agent`/`referrer` are set on their own mpv properties while everything else goes through the comma-separated `http-header-fields` list (commas inside values are escaped as `\,`). The mapping lives in `lib/utils/mpv_http_headers.dart` so it can be unit-tested.
+    2. If the direct open still fails on an http(s) source, the URL is retried once per file through the new OkHttp-backed loopback bridge (`http://127.0.0.1:<port>/<token>`, channel `dreamplayer/httpproxy`) — the same stack Media3 uses — forwarded as `start({url, headers, allowSelfSigned})`. The bridge is a fallback only; direct open first, bridge only as fallback. The retry is keyed by resume key (`_mpvHttpBridgeTriedKey`) so a broken link spins once, error text rewrites the loopback URL back to the original (`_mpvReadableError`), and `dispose()` tears the bridge down.
+    Channel registered in `MainActivity.kt` (`HttpStreamProxy.configure(...)`). Pinned by `test/mpv_http_source_test.dart` (header mapping, ordering, channel contract, range/status mirroring).
   - **External subtitles (`_attachMpvExternalSubtitles`)**: mpv's own
     `sub-auto=exact` only scans sidecars next to a local video file — for
     SMB loopback URLs / http(s) sources there is no directory to scan, so the

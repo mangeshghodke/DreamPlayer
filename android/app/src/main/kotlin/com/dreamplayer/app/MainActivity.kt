@@ -142,6 +142,12 @@ class MainActivity : FlutterActivity() {
         ThermalMonitor(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ThermalMonitor.CHANNEL),
         )
+        // Loopback HTTP bridge for the libmpv engine: remote http(s) sources
+        // are fetched with the SAME OkHttp stack the Media3 engine uses, so a
+        // CDN that accepts one accepts the other.
+        HttpStreamProxy.configure(
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, HttpStreamProxy.CHANNEL),
+        )
         intentChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "dreamplayer/intent",

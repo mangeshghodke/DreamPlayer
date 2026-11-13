@@ -6,6 +6,18 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 This file is **Android-only** — it feeds the GitHub Releases (APKs). iOS changes are
 documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
+## 0.5.8
+
+### Added
+
+- **libmpv plays remote `https://` links that Media3 already plays** (fixes "Fallback player error: Failed to open https://…"). libmpv's own HTTP stack (ffmpeg + mbedtls, `User-Agent: Lavf/63.1.100`) is refused by CDNs that accept Media3's OkHttp/Conscrypt stack — e.g. a Cloudflare-fronted tracker host with a client-bound `?selection=` token. Two fixes, both non-regressive:
+  - The direct open now sends a browser-ish `User-Agent` (not `Lavf/…`) plus `referrer` and `http-header-fields` from `VideoItem.httpHeaders` (WebDAV Basic auth, Jellyfin token, `Referer`) so `VideoItem.httpHeaders` finally reaches mpv. `user-agent`/`referrer` go on their own mpv properties; everything else goes through `http-header-fields` with commas inside values escaped as `\,`. The mapping is unit-tested in `lib/utils/mpv_http_headers.dart`.
+  - If the direct open still fails on an `http(s)` source, the URL is retried once per file through a new OkHttp-backed loopback bridge (`http://127.0.0.1:<port>/<token>`, channel `dreamplayer/httpproxy`) that reproduces Media3's exact network stack. Direct open first, bridge only as fallback; the retry is keyed per file, the loopback URL is rewritten back to the original in error text, and `dispose()` tears the bridge down. Pinned by `test/mpv_http_source_test.dart`.
+
+### Fixed
+
+- **MPV error text now names the real URL** — a failed bridge open shows the original `https://…` link instead of `http://127.0.0.1:<port>/<token>` (`_mpvReadableError`).
+
 ## 0.5.7
 
 ### Fixed
