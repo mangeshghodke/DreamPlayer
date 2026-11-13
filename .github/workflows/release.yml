@@ -35,6 +35,12 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # PINNED, not latest stable: on 2026-11-13 unpinned stable moved to a
+          # Gradle minimum (9.3.1) above this project's wrapper (9.1.0) and every
+          # release build failed with "Gradle version lower than Flutter's
+          # minimum". Bump this pin together with android/gradle/wrapper when
+          # the wrapper is upgraded; must match the local dev toolchain.
+          version: '3.47.2'
 
       - name: Fetch dependencies
         run: flutter pub get
