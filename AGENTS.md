@@ -4178,6 +4178,50 @@ The home library shows **only folders the user explicitly adds** — nothing is 
 - **Bundle ID (iOS)**: `com.dreamplayer.app`. **App display name**: `DreamPlayer`.
 - **Android**: app label `DreamPlayer`; package `com.dreamplayer.app` (matches iOS bundle ID `com.dreamplayer.app`). Build/test locally on the phone.
 
+### iOS competitive gap analysis (2026-11-14) — features competitors have that we lack
+
+Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, SenPlayer, Streamyfin, Swiftfin, FE File Explorer Pro, Documents by Readdle**. DreamPlayer already leads on: DV/HDR10+ on Android (Media3 hybrid composition), all audio codecs via FFmpeg, in-app SMB on libsmb2 (iOS) + jcifs-ng/libsmb2 (Android), TMDB+TheTVDB+external providers, skip intro/credits (TheIntroDB+AniSkip), OpenSubtitles search, download-to-device, MPV second engine, Android TV leanback, AirPlay button, unlock splash. The gaps below are what competitors ship that we don't.
+
+**🔴 HIGH-IMPACT (Phase 1-2 roadmap):**
+
+| # | Feature | Competitors that have it | Notes |
+|---|---|---|---|
+| 1 | **WiFi/web upload server** — built-in HTTP server on LAN; user opens `http://<device-ip>:<port>` in PC browser, drag-drops videos INTO the phone | VLC, Infuse, VidHub, FE, Documents, Outplayer | We only download TO device from network. Upload TO phone currently needs Files/iTunes. Store in Documents/DreamPlayer/ (iOS) or Download/DreamPlayer/ (Android) |
+| 2 | **Trakt sync** — 2-way watched history, ratings, scrobbling | Infuse, Vireko | We have Jellyfin server sync + SIMKL (TMDB-only). Trakt is the cross-service standard |
+| 3 | **iCloud cross-device sync** (iPhone ↔ iPad) — watch state, resume, library, settings via CloudKit or iCloud Drive JSON | Infuse Pro, VidHub, SenPlayer | User owns both iPhone and iPad Pro M2 — progress should follow them |
+| 4 | **IPTV M3U/M3U8 player + EPG** — import playlist URL, channel list with logos, XMLTV guide grid, favorites, groups | SenPlayer, MovoHub, Vireko | Whole user segment. Jellyfin can proxy it server-side but a direct player is expected |
+| 5 | **Trickplay/chapter thumbnails on seek bar** | Streamyfin, Infuse (live previews) | We removed frame thumbnails (black on HDR Android). Jellyfin server-side trickplay + iOS AVAssetImageGenerator on SDR local files work |
+| 6 | **Chromecast / Google Cast (iOS)** | Infuse Pro, nPlayer, Streamyfin | We only have AirPlay on iOS. Huge for non-Apple TVs |
+| 7 | **Server transcoding quality picker** — long-press Play on Jellyfin/Plex → choose 1080p/720p/low bitrate | Infuse 8.5 | Request optimized stream from server when bandwidth is limited |
+| 8 | **App lock (Face ID / passcode) + per-folder lock** | VLC, SenPlayer, nPlayer | Privacy for shared devices |
+| 9 | **Extras / deleted scenes / behind-the-scenes on details page** | Infuse 8.4 | TMDB extras + Infuse naming convention (`-trailer`, `-deleted`, `-behindthescenes`, `-featurette`, `-interview`, `-scene`, `-short`, `-other`) |
+| 10 | **Hide spoilers** — blur unwatched episode thumbnails/descriptions | Infuse | QoL for binge watchers |
+
+**🟡 MEDIUM-VALUE (Phase 3-4 roadmap):**
+
+| # | Feature | Competitors |
+|---|---|---|
+| 11 | **In-app web browser** with download manager (find stream URLs, IPTV playlists) | nPlayer, Documents |
+| 12 | **NFS protocol** alongside SMB/WebDAV/FTP/UPnP | nPlayer, Infuse, VLC |
+| 13 | **External audio tracks** (sidecar .mka/.flac auto-pair) | Infuse 8.4 |
+| 14 | **3D video modes** (SBS / Top-Bottom / OU) | nPlayer |
+| 15 | **Screen flip** (horizontal/vertical mirror) | nPlayer |
+| 16 | **Screenshot button/gesture during playback** | VidHub, Outplayer |
+| 17 | **Video color controls on ALL engines** (brightness/contrast/saturation/hue), not just MPV | nPlayer, VidHub |
+| 18 | **Audio equalizer** | VidHub, nPlayer (DTS Headphone:X EQ) |
+| 19 | **Deinterlacing** (Bwdif) toggle | Infuse 8.4.2, Android Media3 |
+| 20 | **Rename / move / create folder in file browser** (we only have delete) | nPlayer, FE |
+| 21 | **Dialogue boost** (center channel emphasis) | Streamyfin 0.55 |
+| 22 | **Remember audio/subtitle choice per series** | Streamyfin |
+| 23 | **Custom auth headers** (Jellyfin behind Cloudflare Zero Trust / reverse proxy) | Streamyfin |
+| 24 | **Siri Shortcuts / App Intents** ("Resume last video", "Play URL") | VLC 4.0 |
+| 25 | **Share extension** (receive files from other apps) | VLC 4.0 beta |
+| 26 | **Background download Live Activity** (iOS 26+) | Infuse 8.5.1 |
+
+**🟢 Lower priority (different app category — belongs to Documents/VLC, not a video player):** CarPlay video (parked only, Apple-restricted), podcasts, radio stations, PDF editor/scanner, photo Smart Eraser, format conversion, Jellyseerr request integration, admin session view.
+
+**Suggested implementation order:** Phase 1 = WiFi upload server (#1) + iCloud sync (#3) + Trakt (#2). Phase 2 = trickplay (#5) + transcode picker (#7) + Chromecast (#6) + extras (#9) + hide spoilers (#10). Phase 3 = IPTV M3U/EPG (#4) + app lock (#8) + NFS (#12) + in-app browser (#11). Phase 4 = screenshot (#16) + color controls on Media3 (#17) + deinterlacing (#19) + rename/move (#20) + Siri shortcuts (#24).
+
 ## Repository / Git
 
 - Remote: `https://github.com/mangeshghodke/DreamPlayer.git`
