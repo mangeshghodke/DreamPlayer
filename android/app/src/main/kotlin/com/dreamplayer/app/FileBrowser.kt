@@ -29,6 +29,7 @@ class FileBrowser(private val activity: MainActivity) {
         const val REQ_PICK_FOLDER = 9001
         const val REQ_PICK_SUBTITLE = 9002
         const val REQ_PICK_MPV_CONFIG = 9003
+        const val REQ_PICK_FONT = 9004
 
         private const val PREFS = "dreamplayer.folderBookmarks"
         private const val BOOKMARK_PREFIX = "bm."
@@ -45,6 +46,7 @@ class FileBrowser(private val activity: MainActivity) {
     private var pendingFolderResult: MethodChannel.Result? = null
     private var pendingSubtitleResult: MethodChannel.Result? = null
     private var pendingMpvConfigResult: MethodChannel.Result? = null
+    private var pendingFontResult: MethodChannel.Result? = null
 
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
@@ -84,6 +86,8 @@ class FileBrowser(private val activity: MainActivity) {
                 "pickLibraryFolder" -> pickLibraryFolder(result)
                 "pickSubtitle" -> pickSubtitle(result)
                 "pickMpvConfig" -> pickMpvConfig(result)
+                "pickFontFile" -> pickFontFile(result)
+                "copyFontFile" -> copyFontFile(call, result)
                 "readTextFile" -> {
                     val uri = call.argument<String>("uri")
                     if (uri == null) {
@@ -903,6 +907,112 @@ class FileBrowser(private val activity: MainActivity) {
         } catch (_: Exception) {
         }
         result.success(mapOf("uri" to uri.toString(), "name" to name))
+    }
+
+    // MARK: - Font file picker (custom subtitle font from device storage)
+
+    /// Picks a font file (.ttf/.otf/.ttc/.woff) from anywhere SAF can reach
+    /// (SD card, Downloads, third-party providers). The grant is persisted
+    /// where possible, but Dart copies the file into the app's own storage
+    /// anyway (see [copyFontFile]) because provider grants die with the host.
+    private fun pickFontFile(result: MethodChannel.Result) {
+        if (pendingFontResult != null) {
+            result.error("busy", "A file picker is already open", null)
+            return
+        }
+        val fontMimes = arrayOf(
+            "font/ttf", "font/otf", "font/collection",
+            "application/x-font-ttf", "application/x-font-otf",
+            "application/x-font-truetype", "application/x-font-opentype",
+            "application/vnd.ms-fontobject", "font/woff", "font/woff2",
+        )
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, fontMimes)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        pendingFontResult = result
+        try {
+            activity.startActivityForResult(intent, REQ_PICK_FONT)
+        } catch (_: Exception) {
+            pendingFontResult = null
+            result.error("no_picker", "No file picker available", null)
+        }
+    }
+
+    fun onFontPicked(resultCode: Int, data: Intent?) {
+        val result = pendingFontResult ?: return
+        pendingFontResult = null
+        if (resultCode != Activity.RESULT_OK || data?.data == null) {
+            result.success(null)
+            return
+        }
+        val uri = data.data!!
+        try {
+            activity.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        } catch (_: Exception) {
+        }
+        var name = uri.lastPathSegment?.substringAfterLast('/') ?: "font.ttf"
+        try {
+            activity.contentResolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null, null, null,
+            )?.use { c ->
+                if (c.moveToFirst()) {
+                    c.getString(0)?.takeIf { it.isNotBlank() }?.let { name = it }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        // Only accept actual font extensions — the picker allows */* so the
+        // user can reach any provider; anything else is rejected here.
+        val lower = name.lowercase()
+        if (!lower.endsWith(".ttf") && !lower.endsWith(".otf") &&
+            !lower.endsWith(".ttc") && !lower.endsWith(".woff") &&
+            !lower.endsWith(".woff2")
+        ) {
+            result.error("not_a_font", "$name is not a font file", null)
+            return
+        }
+        result.success(mapOf("uri" to uri.toString(), "name" to name))
+    }
+
+    /// Copies the picked font at [uri] to [destPath] in the app's own storage.
+    /// Fonts are a few MB at most, so a straight stream copy on the calling
+    /// thread is fine (the channel handler runs on the platform thread).
+    private fun copyFontFile(call: MethodCall, result: MethodChannel.Result) {
+        val uriString = call.argument<String>("uri")
+        val destPath = call.argument<String>("destPath")
+        if (uriString.isNullOrEmpty() || destPath.isNullOrEmpty()) {
+            result.error("bad_args", "copyFontFile needs uri and destPath", null)
+            return
+        }
+        try {
+            val uri = android.net.Uri.parse(uriString)
+            val stream = when (uri.scheme) {
+                null, "file" -> java.io.File(uri.path ?: uriString).takeIf { it.isFile }?.inputStream()
+                else -> activity.contentResolver.openInputStream(uri)
+            }
+            if (stream == null) {
+                result.success(false)
+                return
+            }
+            val dest = java.io.File(destPath)
+            dest.parentFile?.mkdirs()
+            stream.use { input ->
+                dest.outputStream().use { out -> input.copyTo(out) }
+            }
+            result.success(dest.exists() && dest.length() > 0)
+        } catch (e: Exception) {
+            android.util.Log.w("FileBrowser", "copyFontFile failed", e)
+            result.success(false)
+        }
     }
 
     /// Reads up to [maxBytes] of a text file from a content:// / file:// URI or

@@ -1,7 +1,8 @@
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show ByteData, FontLoader;
 import 'package:google_fonts/google_fonts.dart';
 
 import '../services/subtitle_style.dart';
@@ -74,6 +75,34 @@ TextStyle subtitleTextStyle(
         style.hasBackground ? style.effectiveBackgroundColorValue : null,
     shadows: subtitleShadows(style.edge),
   );
+  // A user-picked font FILE wins over any family name. Flutter can register
+  // an arbitrary TTF via FontLoader, so the preview shows the real typeface.
+  final customPath = style.customFontPath;
+  if (customPath != null && customPath.isNotEmpty) {
+    final family = style.customFontName ?? 'DreamPlayerCustomFont';
+    if (_isTest) return base.copyWith(fontFamily: family);
+    try {
+      final loader = FontLoader(family);
+      loader.addFont(Future(() async {
+        final file = File(customPath);
+        if (!await file.exists()) {
+          throw StateError('custom font file missing: $customPath');
+        }
+        final bytes = await file.readAsBytes();
+        return ByteData.view(bytes.buffer);
+      }));
+      // FontLoader.load() must be called to register; the returned future is
+      // fire-and-forget for the first paint, the next frame uses the font.
+      loader.load();
+      return base.copyWith(
+        fontFamily: family,
+        fontFamilyFallback: [base.fontFamily ?? 'sans-serif'],
+        fontWeight: FontWeight.w400,
+      );
+    } catch (_) {
+      return base;
+    }
+  }
   final google = style.googleFont;
   if (google == null || google.isEmpty) return base;
   // In a widget test the package would start a real font load (disk/HTTP) from

@@ -53,6 +53,8 @@ class SubtitleStyle {
     this.sizeMultiplier = 1.0,
     this.font = SubtitleFont.system,
     this.googleFont,
+    this.customFontPath,
+    this.customFontName,
     this.colorValue = 0xFFFFFFFF,
     this.textOpacity = 255,
     this.backgroundColorValue = 0x80000000,
@@ -72,6 +74,17 @@ class SubtitleStyle {
   /// set. The nine bundled families work offline; any other family is fetched
   /// on demand and cached by `google_fonts`.
   final String? googleFont;
+
+  /// Absolute path to a user-picked `.ttf`/`.otf` copied into the app's
+  /// `subtitle_fonts/` dir (see `SubtitleFonts.registerCustomFont`). When set
+  /// it wins over [font] and [googleFont] — it is a real file the native
+  /// renderers (Media3 `Typeface.createFromFile`, iOS CoreText, libass
+  /// `sub-fonts-dir`) can register directly.
+  final String? customFontPath;
+
+  /// Display name for the custom font, read from the TTF's own `name` table
+  /// at pick time (the file name is not a reliable family name).
+  final String? customFontName;
 
   /// Text color (RGB; opacity lives in [textOpacity]).
   final int colorValue;
@@ -125,7 +138,12 @@ class SubtitleStyle {
   bool get hasBackground => backgroundColorValue >> 24 != 0;
 
   /// What the settings row shows for the current font choice.
-  String get fontLabel => googleFont ?? font.label;
+  String get fontLabel =>
+      customFontName ?? googleFont ?? font.label;
+
+  /// True when a custom font FILE (not a family name) is the active choice.
+  bool get hasCustomFontFile =>
+      customFontPath != null && customFontPath!.isNotEmpty;
 
   /// Retained for callers that only need "is any edge drawn".
   bool get outline => edge != SubtitleEdge.none;
@@ -135,6 +153,9 @@ class SubtitleStyle {
     SubtitleFont? font,
     String? googleFont,
     bool clearGoogleFont = false,
+    String? customFontPath,
+    String? customFontName,
+    bool clearCustomFont = false,
     int? colorValue,
     int? textOpacity,
     int? backgroundColorValue,
@@ -147,6 +168,11 @@ class SubtitleStyle {
         sizeMultiplier: sizeMultiplier ?? this.sizeMultiplier,
         font: font ?? this.font,
         googleFont: clearGoogleFont ? null : (googleFont ?? this.googleFont),
+        customFontPath:
+            clearCustomFont ? null : (customFontPath ?? this.customFontPath),
+        customFontName: clearCustomFont
+            ? null
+            : (customFontName ?? this.customFontName),
         colorValue: colorValue ?? this.colorValue,
         textOpacity: textOpacity ?? this.textOpacity,
         backgroundColorValue:
@@ -161,6 +187,8 @@ class SubtitleStyle {
         'size': sizeMultiplier,
         'font': font.wire,
         if (googleFont != null) 'googleFont': googleFont,
+        if (customFontPath != null) 'customFontPath': customFontPath,
+        if (customFontName != null) 'customFontName': customFontName,
         'color': colorValue,
         'textOpacity': textOpacity,
         'bg': backgroundColorValue,
@@ -180,6 +208,14 @@ class SubtitleStyle {
         googleFont: json['googleFont'] is String &&
                 (json['googleFont'] as String).isNotEmpty
             ? json['googleFont'] as String
+            : null,
+        customFontPath: json['customFontPath'] is String &&
+                (json['customFontPath'] as String).isNotEmpty
+            ? json['customFontPath'] as String
+            : null,
+        customFontName: json['customFontName'] is String &&
+                (json['customFontName'] as String).isNotEmpty
+            ? json['customFontName'] as String
             : null,
         colorValue: json['color'] is int ? json['color'] as int : 0xFFFFFFFF,
         textOpacity:

@@ -35,6 +35,13 @@ true of the intended build but not of the one that was reviewed. Verify with
 
 ---
 
+## 0.5.8
+
+New:
+• Pick a subtitle font file from device storage: the subtitle font picker (CC → Subtitle settings → Font) has a "Pick a font file from this device…" row — choose any `.ttf` / `.otf` / `.ttc` / `.woff` from Files, iCloud Drive, Downloads or any provider. The font is copied into the app and its own name is read from the file, so it works offline and shows correctly in the preview and during playback.
+
+---
+
 ## 0.5.7
 
 New:

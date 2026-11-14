@@ -66,13 +66,42 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
       builder: (_) => _SubtitleFontSheet(
         selectedFont: _style.font,
         selectedGoogle: _style.googleFont,
+        selectedCustomName: _style.customFontName,
+        hasCustomFont: _style.hasCustomFontFile,
       ),
     );
     if (picked == null) return;
+    if (picked is _PickFontFromDevice) {
+      // Pick a .ttf/.otf from device storage (SD card, Files, iCloud…): the
+      // file is copied into the app's own subtitle_fonts dir and its own
+      // name table gives the display family. Null = cancelled or not a font.
+      final registered = await SubtitleFonts.registerCustomFont();
+      if (registered == null || !mounted) return;
+      await _update(
+        _style.copyWith(
+          customFontPath: registered.path,
+          customFontName: registered.displayName,
+          clearGoogleFont: true,
+        ),
+      );
+      return;
+    }
+    if (picked is _ClearCustomFont) {
+      await _update(_style.copyWith(clearCustomFont: true));
+      return;
+    }
+    if (picked is _SelectCustomFont) {
+      // Re-tapped the active custom font row — nothing to change.
+      return;
+    }
     if (picked is SubtitleFont) {
-      await _update(_style.copyWith(font: picked, clearGoogleFont: true));
+      await _update(
+        _style.copyWith(font: picked, clearGoogleFont: true, clearCustomFont: true),
+      );
     } else if (picked is String && picked.isNotEmpty) {
-      await _update(_style.copyWith(googleFont: picked));
+      await _update(
+        _style.copyWith(googleFont: picked, clearCustomFont: true),
+      );
     }
   }
 
@@ -112,9 +141,11 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
                       style: subtitleFontPreview(_style),
                     ),
                     subtitle: Text(
-                      _style.googleFont == null
-                          ? 'Built-in'
-                          : 'Google Fonts',
+                      _style.hasCustomFontFile
+                          ? 'From device'
+                          : _style.googleFont == null
+                              ? 'Built-in'
+                              : 'Google Fonts',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _openFontPicker,
@@ -464,13 +495,33 @@ class _SubtitleFontSheet extends StatefulWidget {
   const _SubtitleFontSheet({
     required this.selectedFont,
     required this.selectedGoogle,
+    this.selectedCustomName,
+    this.hasCustomFont = false,
   });
 
   final SubtitleFont selectedFont;
   final String? selectedGoogle;
+  final String? selectedCustomName;
+  final bool hasCustomFont;
 
   @override
   State<_SubtitleFontSheet> createState() => _SubtitleFontSheetState();
+}
+
+/// Sentinel the font sheet pops with when the user taps "From device…".
+class _PickFontFromDevice {
+  const _PickFontFromDevice();
+}
+
+/// Sentinel the font sheet pops with when the user clears the custom font.
+class _ClearCustomFont {
+  const _ClearCustomFont();
+}
+
+/// Sentinel the font sheet pops with when the user re-taps the already-active
+/// custom font row (keeps the current custom font — a no-op selection).
+class _SelectCustomFont {
+  const _SelectCustomFont();
 }
 
 class _SubtitleFontSheetState extends State<_SubtitleFontSheet> {
@@ -505,6 +556,11 @@ class _SubtitleFontSheetState extends State<_SubtitleFontSheet> {
 
     final entries = <_FontEntry>[];
     if (q.isEmpty) {
+      entries.add(const _FontEntry.header('From device'));
+      entries.add(const _FontEntry.pickFromDevice());
+      if (widget.hasCustomFont && widget.selectedCustomName != null) {
+        entries.add(_FontEntry.custom(widget.selectedCustomName!));
+      }
       entries.add(const _FontEntry.header('Built-in'));
       for (final f in SubtitleFont.values) {
         entries.add(_FontEntry.system(f));
@@ -518,6 +574,14 @@ class _SubtitleFontSheetState extends State<_SubtitleFontSheet> {
         entries.add(_FontEntry.google(name));
       }
     } else {
+      if ('from device'.contains(q) || q.contains('device')) {
+        entries.add(const _FontEntry.pickFromDevice());
+      }
+      if (widget.hasCustomFont &&
+          widget.selectedCustomName != null &&
+          widget.selectedCustomName!.toLowerCase().contains(q)) {
+        entries.add(_FontEntry.custom(widget.selectedCustomName!));
+      }
       for (final f in SubtitleFont.values) {
         if (f.label.toLowerCase().contains(q)) entries.add(_FontEntry.system(f));
       }
@@ -578,30 +642,67 @@ class _SubtitleFontSheetState extends State<_SubtitleFontSheet> {
                           ),
                         );
                       }
+                      if (entry.pickFromDevice) {
+                        return ListTile(
+                          leading: const Icon(Icons.folder_open_outlined),
+                          title: const Text('Pick a font file from this device…'),
+                          subtitle: const Text('.ttf / .otf / .ttc — SD card, Downloads, Files'),
+                          onTap: () => Navigator.of(context).pop(
+                            const _PickFontFromDevice(),
+                          ),
+                        );
+                      }
                       final system = entry.font;
                       final google = entry.google;
-                      final selected = google != null
-                          ? widget.selectedGoogle == google
-                          : widget.selectedGoogle == null &&
-                              widget.selectedFont == system;
-                      final label = google ?? system!.label;
-                      final style = google != null
-                          ? _googlePreview(google)
-                          : TextStyle(
-                              fontFamily: subtitleFontFamily(system!),
+                      final custom = entry.custom;
+                      final selected = custom != null
+                          ? widget.hasCustomFont && widget.selectedCustomName == custom
+                          : google != null
+                              ? widget.selectedGoogle == google &&
+                                  !widget.hasCustomFont
+                              : widget.selectedGoogle == null &&
+                                  !widget.hasCustomFont &&
+                                  widget.selectedFont == system;
+                      final label = custom ?? google ?? system!.label;
+                      final style = custom != null
+                          ? TextStyle(
+                              fontFamily: custom,
                               fontSize: 18,
-                            );
+                            )
+                          : google != null
+                              ? _googlePreview(google)
+                              : TextStyle(
+                                  fontFamily: subtitleFontFamily(system!),
+                                  fontSize: 18,
+                                );
                       return ListTile(
                         title: Text(label, style: style),
-                        trailing: selected
-                            ? Icon(
+                        subtitle: custom != null
+                            ? const Text('Custom font file')
+                            : null,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (custom != null && selected)
+                              IconButton(
+                                tooltip: 'Remove custom font',
+                                icon: const Icon(Icons.delete_outline, size: 20),
+                                onPressed: () => Navigator.of(context).pop(
+                                  const _ClearCustomFont(),
+                                ),
+                              ),
+                            if (selected)
+                              Icon(
                                 Icons.check,
                                 size: 20,
                                 color: theme.colorScheme.primary,
-                              )
-                            : null,
+                              ),
+                          ],
+                        ),
                         onTap: () => Navigator.of(context).pop(
-                          google ?? system,
+                          custom != null
+                              ? const _SelectCustomFont()
+                              : google ?? system,
                         ),
                       );
                     },
@@ -613,20 +714,40 @@ class _SubtitleFontSheetState extends State<_SubtitleFontSheet> {
   }
 }
 
-/// One row in the subtitle font sheet: a section header, a built-in family, or
-/// a Google Fonts family.
+/// One row in the subtitle font sheet: a section header, a built-in family, a
+/// Google Fonts family, the "pick from device" action, or the active custom
+/// font file.
 class _FontEntry {
   const _FontEntry.header(this.header)
       : font = null,
-        google = null;
+        google = null,
+        custom = null,
+        pickFromDevice = false;
   _FontEntry.system(SubtitleFont this.font)
       : header = null,
-        google = null;
+        google = null,
+        custom = null,
+        pickFromDevice = false;
   _FontEntry.google(String this.google)
       : header = null,
-        font = null;
+        font = null,
+        custom = null,
+        pickFromDevice = false;
+  const _FontEntry.pickFromDevice()
+      : header = null,
+        font = null,
+        google = null,
+        custom = null,
+        pickFromDevice = true;
+  _FontEntry.custom(String this.custom)
+      : header = null,
+        font = null,
+        google = null,
+        pickFromDevice = false;
 
   final String? header;
   final SubtitleFont? font;
   final String? google;
+  final String? custom;
+  final bool pickFromDevice;
 }

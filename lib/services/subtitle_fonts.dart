@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../utils/ttf_names.dart';
 import 'app_debug_log.dart';
+import 'file_browser.dart';
 
 /// Resolves a Google Fonts family to a **font file** the native subtitle
 /// renderers can register.
@@ -154,6 +155,66 @@ class SubtitleFonts {
     try {
       GoogleFonts.getFont(family);
     } catch (_) {}
+  }
+
+  /// Lets the user pick a font FILE from device storage (SD card, Files,
+  /// iCloud Drive, Downloads) and registers it as the custom subtitle font.
+  ///
+  /// The picked file is copied into `<app support>/subtitle_fonts/` (a real
+  /// path the native renderers can open) and its own `name` table is read for
+  /// the display family name — the file name is not a reliable family name.
+  /// Returns the registered `{path, displayName}`, or null when the user
+  /// cancelled / the copy failed / the file is not a font.
+  static Future<({String path, String displayName})?> registerCustomFont() async {
+    if (_isTest) return null;
+    try {
+      final picked = await FileBrowserService.instance.pickFontFile();
+      if (picked == null) return null;
+      final ext = picked.name.toLowerCase().endsWith('.otf')
+          ? '.otf'
+          : picked.name.toLowerCase().endsWith('.ttc')
+              ? '.ttc'
+              : '.ttf';
+      final stem = picked.name
+          .substring(0, picked.name.length - ext.length)
+          .replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
+      final dirPath = await directoryPath();
+      if (dirPath == null) return null;
+      final dest = File('$dirPath/custom_$stem$ext');
+      final ok = await FileBrowserService.instance
+          .copyFontFile(picked.uri, dest.path);
+      if (!ok || !await dest.exists() || await dest.length() == 0) {
+        AppDebugLog.mark('SUBFONT custom -> copy failed (${picked.name})');
+        return null;
+      }
+      // Read the family name from the font's own name table; fall back to the
+      // file stem. A non-font file yields no names, which we reject.
+      final names = ttfNameTableNames(await dest.readAsBytes());
+      final display = names.isNotEmpty ? names.first : stem;
+      if (names.isEmpty) {
+        AppDebugLog.mark('SUBFONT custom -> no name table (${picked.name})');
+        await dest.delete();
+        return null;
+      }
+      AppDebugLog.mark('SUBFONT custom -> $display (${dest.path})');
+      return (path: dest.path, displayName: display);
+    } catch (error) {
+      AppDebugLog.mark('SUBFONT custom -> failed: $error');
+      return null;
+    }
+  }
+
+  /// The custom font path is stored directly on `SubtitleStyle` — it is
+  /// already a real file, so resolution is just an existence check (the source
+  /// provider may be gone, which is why the copy in `registerCustomFont`
+  /// matters).
+  static Future<String?> customFontPathIfValid(String? path) async {
+    if (path == null || path.isEmpty || _isTest) return null;
+    try {
+      final f = File(path);
+      if (await f.exists() && await f.length() > 0) return path;
+    } catch (_) {}
+    return null;
   }
 
   /// The `.ttf`/`.otf` files `google_fonts` has cached, whatever they are

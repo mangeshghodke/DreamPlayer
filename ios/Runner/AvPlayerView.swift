@@ -934,6 +934,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // never raise MissingPluginException.
                     SBMLog.log("setAudioDelay: ignored on iOS (no engine hook)")
                     result(nil)
+                case "setPictureAdjustments":
+                    // Brightness/contrast/saturation via Media3 GL effects is
+                    // Android-only for now; the engine exposes no video-filter
+                    // hook on the AVPlayer path. Accept and ignore so the
+                    // queued call never raises MissingPluginException. The
+                    // `pictureEffectsArmed` open arg is likewise ignored.
+                    SBMLog.log("setPictureAdjustments: ignored on iOS (no engine hook)")
+                    result(nil)
                 case "getState":
                     // Push a fresh snapshot to the event stream and return the
                     // current state; Dart uses it after a background/foreground

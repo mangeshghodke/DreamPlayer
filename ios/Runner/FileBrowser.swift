@@ -54,7 +54,7 @@ final class FileBrowser: NSObject {
 
     /// What the currently presented system picker returns.
     private enum PickerMode {
-        case folder, libraryFolder, file, subtitle
+        case folder, libraryFolder, file, subtitle, font
     }
 
     static func register(with messenger: FlutterBinaryMessenger) {
@@ -87,6 +87,13 @@ final class FileBrowser: NSObject {
             presentLibraryFolderPicker(result)
         case "pickSubtitle":
             presentSubtitlePicker(result)
+        case "pickFontFile":
+            presentFontPicker(result)
+        case "copyFontFile":
+            let args = call.arguments as? [String: Any]
+            let uri = args?["uri"] as? String ?? ""
+            let destPath = args?["destPath"] as? String ?? ""
+            result(copyFontFile(uri: uri, destPath: destPath))
         case "openFilesHome":
             presentFilePicker(result)
         case "resolveImportedPath":
@@ -392,6 +399,45 @@ final class FileBrowser: NSObject {
         presentPicker(result, mode: .subtitle, contentTypes: subtitleTypes)
     }
 
+    /// Picks a font file (.ttf/.otf/.ttc/.woff/.woff2) from anywhere the
+    /// document picker can reach (Files, iCloud Drive, Downloads, providers).
+    private func presentFontPicker(_ result: @escaping FlutterResult) {
+        let fontTypes: [UTType] = [
+            .font,
+            UTType(filenameExtension: "ttf") ?? .font,
+            UTType(filenameExtension: "otf") ?? .font,
+            UTType(filenameExtension: "ttc") ?? .font,
+            UTType(filenameExtension: "woff") ?? .font,
+            UTType(filenameExtension: "woff2") ?? .font,
+        ]
+        presentPicker(result, mode: .font, contentTypes: fontTypes)
+    }
+
+    /// Copies a picked font to `destPath` inside the app's own storage, so the
+    /// subtitle renderers can read it without a live security scope (iCloud
+    /// files may not be resident; the picked scope is released when the
+    /// picker closes). Returns true on success.
+    private func copyFontFile(uri: String, destPath: String) -> Bool {
+        guard !uri.isEmpty, !destPath.isEmpty else { return false }
+        guard let url = URL(string: uri) else { return false }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let dest = URL(fileURLWithPath: destPath)
+        do {
+            try? FileManager.default.removeItem(at: dest)
+            if let parent = dest.deletingLastPathComponent().path.isEmpty ? nil : dest.deletingLastPathComponent() {
+                try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+            }
+            try FileManager.default.copyItem(at: url, to: dest)
+            let attrs = try FileManager.default.attributesOfItem(atPath: destPath)
+            let size = (attrs[.size] as? NSNumber)?.intValue ?? 0
+            return size > 0
+        } catch {
+            SBMLog.log("copyFontFile failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
     private func presentPicker(_ result: @escaping FlutterResult,
                                mode: PickerMode,
                                contentTypes: [UTType]) {
@@ -554,6 +600,13 @@ extension FileBrowser: UIDocumentPickerDelegate {
             // On iOS the security scope must be held for the playback session;
             // keep it in activeSecurityScopedURLs via startAccess.
             completion(url.absoluteString)
+        case .font:
+            // The copy into the app's own storage happens in `copyFontFile`;
+            // here we just hand back the URL + display name.
+            completion([
+                "uri": url.absoluteString,
+                "name": url.lastPathComponent,
+            ])
         }
     }
 

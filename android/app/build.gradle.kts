@@ -139,6 +139,11 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.10.1")
     implementation("androidx.media3:media3-ui:1.10.1")
     implementation("androidx.media3:media3-common:1.10.1")
+    // GL video effects for the in-player picture controls (brightness /
+    // contrast / saturation) applied via ExoPlayer.setVideoEffects. Must be
+    // the SAME version as the other media3 modules (setVideoEffects requires
+    // the effect module on the runtime classpath).
+    implementation("androidx.media3:media3-effect:1.10.1")
     // MediaSessionCompat + MediaStyle notification for background playback
     // (notification transport controls, lock screen, headset/Bluetooth keys).
     implementation("androidx.media:media:1.7.0")

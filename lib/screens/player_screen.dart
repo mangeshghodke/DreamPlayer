@@ -42,6 +42,7 @@ import '../services/mpv_downmix_store.dart';
 import '../services/mpv_interpolation_store.dart';
 import '../services/mpv_user_config.dart';
 import '../services/tone_map_store.dart';
+import '../services/picture_profile_store.dart';
 import '../services/subtitle_fonts.dart';
 import '../services/subtitle_style.dart';
 import '../services/downloaded_subtitles_store.dart';
@@ -258,6 +259,17 @@ class _PlayerScreenState extends State<PlayerScreen>
   int _selectedAudioTrackBeforeSwitch = -1;
   Future<void>? _mpvPictureApplyChain;
   double _mpvZoomScale = 1.0;
+  // ---- Media3 (native engine) picture controls + profiles ----
+  /// Media3 picture adjustments (-100…100, 0 = neutral), session-only, applied
+  /// via GL video effects (Android only). The panel is shared with profiles.
+  double _exoPictureBrightness = 0;
+  double _exoPictureContrast = 0;
+  double _exoPictureSaturation = 0;
+  bool _picturePanelOpen = false;
+  /// False when the current content is HDR/DV (GL effects would strip the
+  /// native HDR/DV layer) or on iOS (no engine filter hook) — the panel then
+  /// shows a note instead of sliders.
+  bool _media3PictureAvailable = false;
   /// Last hwdec value applied to the mpv instance ('mediacodec',
   /// 'no'). Displayed in the ⓘ info sheet so the user can see
   /// whether mpv is using hardware or software decoding.
@@ -643,6 +655,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
     if (!_inTests) {
       _init();
+      // Picture profiles are shared by the MPV and Media3 panels.
+      unawaited(PictureProfileStore.instance.load());
     }
   }
 
@@ -998,6 +1012,15 @@ class _PlayerScreenState extends State<PlayerScreen>
         await IosUpscaleStore().effectiveEnabled();
       } catch (_) {}
     }
+    // Media3 picture controls: session-only values, reset per open; profiles
+    // (PictureProfileStore) are what persist across sessions. The effect
+    // pipeline is armed only for SDR content — HDR/DV keeps the direct
+    // decoder→SurfaceView passthrough (the GL pipeline would strip it).
+    _exoPictureBrightness = 0;
+    _exoPictureContrast = 0;
+    _exoPictureSaturation = 0;
+    _media3PictureAvailable =
+        Platform.isAndroid && video.hdrFormat == HdrFormat.sdr;
     try {
       await _exo?.open(
         video.path ?? '',
@@ -1011,6 +1034,10 @@ class _PlayerScreenState extends State<PlayerScreen>
         externalSubtitles: externalSubs,
         decoderMode: _decoderMode.storageString,
         readingLanguage: readingLang,
+        pictureEffectsArmed: _media3PictureAvailable,
+        pictureBrightness: _exoPictureBrightness,
+        pictureContrast: _exoPictureContrast,
+        pictureSaturation: _exoPictureSaturation,
       );
       // Re-apply the user's persisted fit mode + speed + audio filters.
       _exo?.setFitMode(_fitMode);
@@ -1724,6 +1751,7 @@ Future<void> _offerVc1Mpv() async {
     if (mounted) {
       setState(() {
         if (_mpvPictureControlsOpen) _mpvPictureControlsOpen = false;
+        _picturePanelOpen = false;
       });
     }
   }
@@ -2032,6 +2060,9 @@ Future<void> _offerVc1Mpv() async {
       if (fontDir != null) {
         await platform.setProperty('sub-fonts-dir', fontDir);
       }
+      // A user-picked font file is already in that dir (custom_<stem>.ttf) —
+      // just make sure it is still there; sub-fonts-dir + sub-font resolve it.
+      final customFont = await SubtitleFonts.customFontPathIfValid(s.customFontPath);
       if (s.googleFont != null) {
         await SubtitleFonts.resolvePath(s.googleFont);
       }
@@ -2056,9 +2087,12 @@ Future<void> _offerVc1Mpv() async {
         await platform.setProperty('sub-back-color', '#00000000');
       }
       // Font family. mpv resolves these names through its font provider and
-      // falls back to its default when a family is missing. A Google family
-      // wins because it is the more explicit choice.
-      final mpvFont = s.googleFont ?? switch (s.font) {
+      // falls back to its default when a family is missing. A custom font
+      // FILE wins (its own name-table family, found via sub-fonts-dir), then
+      // a Google family, then the built-in choice.
+      final mpvFont = customFont != null
+          ? (s.customFontName ?? 'sans-serif')
+          : s.googleFont ?? switch (s.font) {
         SubtitleFont.serif => 'serif',
         SubtitleFont.monospace => 'monospace',
         SubtitleFont.system ||
@@ -2750,6 +2784,123 @@ Future<void> _offerVc1Mpv() async {
     await _applyMpvPictureAdjustments();
     final player = _mpvPlayer;
     if (player != null) await _applyMpvVideoToggles(player);
+  }
+
+  // ---- Media3 (native engine) picture controls + profiles ----
+
+  void _openPicturePanel() {
+    if (_inPip || _touchLocked) return;
+    _showControls();
+    _hideTimer?.cancel();
+    if (mounted) setState(() => _picturePanelOpen = true);
+  }
+
+  void _closePicturePanel() {
+    if (!mounted || !_picturePanelOpen) return;
+    setState(() => _picturePanelOpen = false);
+    _restartHideTimer();
+  }
+
+  void _updateExoPicture(String property, double value) {
+    final normalized = normalizeMpvPictureAdjustment(value);
+    switch (property) {
+      case 'brightness':
+        _exoPictureBrightness = normalized;
+      case 'contrast':
+        _exoPictureContrast = normalized;
+      case 'saturation':
+        _exoPictureSaturation = normalized;
+    }
+    if (mounted) setState(() {});
+    unawaited(_pushExoPicture());
+  }
+
+  Future<void> _pushExoPicture() async {
+    final exo = _exo;
+    if (exo == null || !_media3PictureAvailable) return;
+    try {
+      await exo.setPictureAdjustments(
+        brightness: _exoPictureBrightness,
+        contrast: _exoPictureContrast,
+        saturation: _exoPictureSaturation,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _resetExoPicture() async {
+    _exoPictureBrightness = 0;
+    _exoPictureContrast = 0;
+    _exoPictureSaturation = 0;
+    if (mounted) setState(() {});
+    await _pushExoPicture();
+  }
+
+  /// Applies a saved profile: to MPV when that engine is active, else Media3
+  /// (gamma is MPV-only; Media3 applies the other three).
+  Future<void> _applyPictureProfile(PictureProfile p) async {
+    if (_mpvActive) {
+      _mpvPictureBrightness = p.brightness;
+      _mpvPictureContrast = p.contrast;
+      _mpvPictureSaturation = p.saturation;
+      _mpvPictureGamma = p.gamma;
+      if (mounted) setState(() {});
+      await _applyMpvPictureAdjustments();
+    } else {
+      _exoPictureBrightness = p.brightness;
+      _exoPictureContrast = p.contrast;
+      _exoPictureSaturation = p.saturation;
+      if (mounted) setState(() {});
+      await _pushExoPicture();
+    }
+  }
+
+  Future<void> _saveCurrentPictureProfile() async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Save picture profile'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Profile name',
+              hintText: 'e.g. Cinema',
+            ),
+            onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+    if (name == null || name.isEmpty || !mounted) return;
+    final profile = PictureProfile(
+      name: name,
+      brightness:
+          _mpvActive ? _mpvPictureBrightness : _exoPictureBrightness,
+      contrast: _mpvActive ? _mpvPictureContrast : _exoPictureContrast,
+      saturation: _mpvActive ? _mpvPictureSaturation : _exoPictureSaturation,
+      gamma: _mpvActive ? _mpvPictureGamma : 0,
+    );
+    final ok = await PictureProfileStore.instance.save(profile);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? 'Saved profile "$name"' : 'Could not save (name empty or store full)',
+        ),
+      ),
+    );
   }
 
   /// Deband / dither toggles from the MPV picture panel (session-only).
@@ -3449,6 +3600,8 @@ Future<void> _offerVc1Mpv() async {
     if (mounted) {
       setState(() {
         _mpvPictureControlsOpen = false;
+      _picturePanelOpen = false;
+        _picturePanelOpen = false;
       });
     }
     debugPrint('mpv: failed: $message');
@@ -3855,6 +4008,8 @@ Future<void> _offerVc1Mpv() async {
       if (inPip) {
         _controlsVisible = false;
         _mpvPictureControlsOpen = false;
+      _picturePanelOpen = false;
+        _picturePanelOpen = false;
       }
     });
   }
@@ -4065,6 +4220,10 @@ Future<void> _offerVc1Mpv() async {
         externalSubtitles: externalSubs,
         decoderMode: _decoderMode.storageString,
         readingLanguage: await SubtitlePrefs.loadReadingLanguage(),
+        pictureEffectsArmed: _media3PictureAvailable,
+        pictureBrightness: _exoPictureBrightness,
+        pictureContrast: _exoPictureContrast,
+        pictureSaturation: _exoPictureSaturation,
       );
       _exo?.setFitMode(_fitMode);
       _exo?.setSpeed(_playbackSpeed);
@@ -4293,6 +4452,16 @@ Future<void> _offerVc1Mpv() async {
       // keep previous _liveHdr (DV stays DV)
     } else {
       _liveHdr = newHdr;
+    }
+    // When live detection reveals HDR/DV content on the Media3 engine, the GL
+    // picture-effect pipeline must not stay engaged (it would strip the
+    // native HDR/DV layer from the surface) — the native side clears the
+    // effects; here we just retire the panel.
+    if (_liveHdr != HdrFormat.sdr && _media3PictureAvailable) {
+      _media3PictureAvailable = false;
+      if (_picturePanelOpen && !_mpvActive) {
+        _picturePanelOpen = false;
+      }
     }
     // HDR gate: only re-gate on an actual transition INTO the playing
     // state (auto-play on open, resume, etc.) — re-checking on every
@@ -9224,12 +9393,14 @@ if (mounted) setState(_applySwipeValue);
                                  color: Colors.white,
                                  onFocusChange: (_) => _showControls(),
                                ),
-                             if (_mpvReady) ...[
+                             if (_mpvReady || _exo != null) ...[
                                SizedBox(width: 4),
                                _TvControlButton(
                                  onPressed: _touchLocked
                                      ? null
-                                     : _openMpvPictureControls,
+                                     : (_mpvActive || _mpvReady)
+                                         ? _openMpvPictureControls
+                                         : _openPicturePanel,
                                  icon: const Icon(Icons.tune),
                                  color: Colors.white,
                                  onFocusChange: (_) => _showControls(),
@@ -9576,12 +9747,45 @@ if (mounted) setState(_applySwipeValue);
                           onInterpolationChanged: _setMpvInterpolationConfig,
                           onReset: _resetMpvPictureControls,
                           onClose: _closeMpvPictureControls,
+                           profiles: _PictureProfilesSection(
+                             onApply: _applyPictureProfile,
+                             onSaveCurrent: _saveCurrentPictureProfile,
+                           ),
                         ),
 
                      ),
                    ),
                  ),
                ),
+              if (_picturePanelOpen && !_mpvActive && !_inPip)
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: _closePicturePanel,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          16, 16, 16,
+                          MediaQuery.paddingOf(context).bottom + 92,
+                        ),
+                        child: _Media3PictureControls(
+                          available: _media3PictureAvailable,
+                          brightness: _exoPictureBrightness,
+                          contrast: _exoPictureContrast,
+                          saturation: _exoPictureSaturation,
+                          onChanged: _updateExoPicture,
+                          onReset: _resetExoPicture,
+                          onClose: _closePicturePanel,
+                          profiles: _PictureProfilesSection(
+                            onApply: _applyPictureProfile,
+                            onSaveCurrent: _saveCurrentPictureProfile,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
            ],
          ),
        ),
@@ -9618,6 +9822,7 @@ class _MpvPictureControls extends StatelessWidget {
     required this.onInterpolationChanged,
     required this.onReset,
     required this.onClose,
+    this.profiles,
   });
 
   final double brightness;
@@ -9646,6 +9851,7 @@ class _MpvPictureControls extends StatelessWidget {
       onInterpolationChanged;
   final Future<void> Function() onReset;
   final VoidCallback onClose;
+  final Widget? profiles;
 
   @override
   Widget build(BuildContext context) {
@@ -9978,6 +10184,10 @@ class _MpvPictureControls extends StatelessWidget {
                   value: dither,
                   onChanged: (v) => onVideoToggleChanged('dither', v),
                 ),
+                if (profiles != null) ...[
+                  const SizedBox(height: 8),
+                  profiles!,
+                ],
                 const SizedBox(height: 4),
 
 
@@ -10535,4 +10745,239 @@ class _ChapterTickPainter extends CustomPainter {
       old.max != max ||
       old.trackWidth != trackWidth ||
       !listEquals(old.chapters, chapters);
+}
+
+/// Picture panel for the Media3 (native) engine: brightness / contrast /
+/// saturation via GL video effects (`ExoPlayer.setVideoEffects`), plus the
+/// shared profiles section. Gamma is MPV-only (Media3 has no gamma effect).
+/// When [available] is false (HDR/DV content or iOS) the sliders are replaced
+/// by a note explaining why — the native HDR/DV passthrough is preserved.
+class _Media3PictureControls extends StatelessWidget {
+  const _Media3PictureControls({
+    required this.available,
+    required this.brightness,
+    required this.contrast,
+    required this.saturation,
+    required this.onChanged,
+    required this.onReset,
+    required this.onClose,
+    this.profiles,
+  });
+
+  final bool available;
+  final double brightness;
+  final double contrast;
+  final double saturation;
+  final void Function(String property, double value) onChanged;
+  final Future<void> Function() onReset;
+  final VoidCallback onClose;
+  final Widget? profiles;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.76),
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 420,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Picture',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close),
+                    color: Colors.white70,
+                    tooltip: 'Close',
+                  ),
+                ],
+              ),
+              if (!available) ...[
+                const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.white54, size: 16),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Picture adjustments are available for SDR video only — '
+                        'this content is HDR / Dolby Vision, and the native '
+                        'passthrough to the panel is kept instead. Use the MPV '
+                        'engine for tone-mapped SDR adjustments.',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ] else ...[
+                _pictureSlider('brightness', 'Brightness', brightness),
+                _pictureSlider('contrast', 'Contrast', contrast),
+                _pictureSlider('saturation', 'Saturation', saturation),
+                const SizedBox(height: 4),
+              ],
+              if (profiles != null) ...[
+                const SizedBox(height: 8),
+                profiles!,
+              ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: available
+                      ? () {
+                          onReset();
+                        }
+                      : null,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Reset'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pictureSlider(String property, String label, double value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ),
+            Text(
+              value.round().toString(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: value,
+          min: mpvPictureAdjustmentMin,
+          max: mpvPictureAdjustmentMax,
+          divisions: 200,
+          label: value.round().toString(),
+          onChanged: (next) => onChanged(property, next),
+        ),
+      ],
+    );
+  }
+}
+
+/// Saved picture profiles (brightness/contrast/saturation/gamma), shared by
+/// the MPV and Media3 panels. Tap a profile to apply it; the trash icon
+/// deletes it; "Save current as…" stores the panel's current slider values.
+class _PictureProfilesSection extends StatelessWidget {
+  const _PictureProfilesSection({
+    required this.onApply,
+    required this.onSaveCurrent,
+  });
+
+  final Future<void> Function(PictureProfile profile) onApply;
+  final Future<void> Function() onSaveCurrent;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: PictureProfileStore.instance,
+      builder: (context, _) {
+        final store = PictureProfileStore.instance;
+        final profiles = store.profiles;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Profiles',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    unawaited(onSaveCurrent());
+                  },
+                  icon: const Icon(Icons.save_outlined, size: 16),
+                  label: const Text('Save current as…'),
+                ),
+              ],
+            ),
+            if (profiles.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 2, bottom: 6),
+                child: Text(
+                  'No saved profiles yet.',
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+              )
+            else
+              for (final p in profiles)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.bookmark_outline,
+                    color: Colors.white70,
+                    size: 20,
+                  ),
+                  title: Text(
+                    p.name,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    'B ${p.brightness.round()} · C ${p.contrast.round()} · '
+                    'S ${p.saturation.round()}'
+                    '${p.gamma != 0 ? ' · G ${p.gamma.round()}' : ''}',
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Delete profile',
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    color: Colors.white54,
+                    onPressed: () {
+                      unawaited(store.remove(p.name));
+                    },
+                  ),
+                  onTap: () {
+                    unawaited(onApply(p));
+                  },
+                ),
+          ],
+        );
+      },
+    );
+  }
 }

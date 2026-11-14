@@ -501,6 +501,20 @@ abstract class PlaybackController {
     List<VideoExternalSub>? externalSubtitles,
     String? decoderMode,
     String? readingLanguage,
+    bool pictureEffectsArmed = false,
+    double pictureBrightness = 0,
+    double pictureContrast = 0,
+    double pictureSaturation = 0,
+  });
+
+  /// Live picture adjustments (brightness / contrast / saturation, each
+  /// −100…100, 0 = neutral). Android Media3 applies them as GL video effects
+  /// (`ExoPlayer.setVideoEffects`); iOS answers a logged no-op. MPV is driven
+  /// separately through its own properties (see player_screen).
+  Future<void> setPictureAdjustments({
+    required double brightness,
+    required double contrast,
+    required double saturation,
   });
 
   Future<void> play();
@@ -654,6 +668,10 @@ class ExoPlayerController implements PlaybackController {
     List<VideoExternalSub>? externalSubtitles,
     String? decoderMode,
     String? readingLanguage,
+    bool pictureEffectsArmed = false,
+    double pictureBrightness = 0,
+    double pictureContrast = 0,
+    double pictureSaturation = 0,
   }) => _send('open', {
     if (uri != null && uri.isNotEmpty) 'uri': uri else 'path': path,
     if (path.isNotEmpty) 'path': path,
@@ -672,7 +690,29 @@ class ExoPlayerController implements PlaybackController {
       'decoderMode': decoderMode,
     if (readingLanguage != null && readingLanguage.isNotEmpty)
       'readingLanguage': readingLanguage,
+    // Picture adjustments: armed only for SDR content (HDR/DV keeps the
+    // direct decoder→SurfaceView path so the panel still gets real HDR).
+    // The initial values ride along with `open` because Media3 requires
+    // `setVideoEffects` to be called at least once BEFORE `prepare()`.
+    if (pictureEffectsArmed) ...{
+      'pictureEffectsArmed': true,
+      'pictureBrightness': pictureBrightness,
+      'pictureContrast': pictureContrast,
+      'pictureSaturation': pictureSaturation,
+    },
   });
+
+  @override
+  Future<void> setPictureAdjustments({
+    required double brightness,
+    required double contrast,
+    required double saturation,
+  }) =>
+      _send('setPictureAdjustments', {
+        'brightness': brightness,
+        'contrast': contrast,
+        'saturation': saturation,
+      });
 
   @override
   Future<void> play() => _send('play');
@@ -740,9 +780,13 @@ class ExoPlayerController implements PlaybackController {
 
   @override
   Future<void> setSubtitleStyle(SubtitleStyle style) async {
-    // Media3 and AVFoundation cannot look a Google Fonts family up by name, so
-    // the family is resolved to a TTF path first (bundled assets work offline).
-    final fontPath = await SubtitleFonts.resolvePath(style.googleFont);
+    // A user-picked font file wins over any family name: it is already a real
+    // TTF/OTF in the app's own storage, so Media3 (`Typeface.createFromFile`)
+    // and iOS CoreText can register it directly. Otherwise a Google Fonts
+    // family is resolved to a TTF path first (bundled assets work offline).
+    final fontPath = await SubtitleFonts.customFontPathIfValid(
+            style.customFontPath) ??
+        await SubtitleFonts.resolvePath(style.googleFont);
     await _send('setSubtitleStyle', style.toChannelArgs(fontPath: fontPath));
   }
 

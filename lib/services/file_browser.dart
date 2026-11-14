@@ -286,6 +286,44 @@ class FileBrowserService {
     return (uri: uri, name: name is String && name.isNotEmpty ? name : uri);
   }
 
+  /// Presents the system file picker for a font file (`.ttf` / `.otf` / `.ttc`
+  /// / `.woff`), offered from anywhere the user stores fonts (SD card, Files,
+  /// iCloud Drive, Downloads). Returns `{uri, name}` or null if cancelled.
+  /// Implemented on both platforms (Android SAF `ACTION_OPEN_DOCUMENT`,
+  /// iOS `UIDocumentPickerViewController` with font UTIs).
+  Future<({String uri, String name})?> pickFontFile() async {
+    try {
+      final result = await _channel.invokeMethod<Map>('pickFontFile');
+      if (result == null) return null;
+      final uri = result['uri'];
+      final name = result['name'];
+      if (uri is! String || uri.isEmpty) return null;
+      return (uri: uri, name: name is String && name.isNotEmpty ? name : uri);
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// Copies the picked font at [uri] (content:// / file:// / plain path) to
+  /// [destPath] inside the app's own storage, so the subtitle renderers can
+  /// read it without a live provider grant (CX/SMB providers die with their
+  /// host app; iCloud files may not be resident). Returns true on success.
+  Future<bool> copyFontFile(String uri, String destPath) async {
+    try {
+      final ok = await _channel.invokeMethod<bool>('copyFontFile', {
+        'uri': uri,
+        'destPath': destPath,
+      });
+      return ok == true;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   /// Reads a text file (content:// / file:// / plain path) up to 1 MiB.
   /// Android-only. Returns null when unreadable.
   Future<String?> readTextFile(String uri) async {

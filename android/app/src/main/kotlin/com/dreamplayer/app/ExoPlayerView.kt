@@ -26,8 +26,12 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
+import androidx.media3.common.Effect
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.Brightness
+import androidx.media3.effect.Contrast
+import androidx.media3.effect.HslAdjustment
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.BaseDataSource
@@ -644,6 +648,7 @@ class ExoPlayerView(
         }
 
         override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+            enforcePictureEffectsHdrGate()
             emit()
             matchRefreshRate()
         }
@@ -751,6 +756,72 @@ class ExoPlayerView(
     /// for HW, `c2.android.hevc.decoder` for SW). Updated via
     /// `AnalyticsListener.onVideoDecoderInitialized`.
     @Volatile private var currentVideoDecoderName: String? = null
+
+    // ---- In-player picture controls (Media3 GL video effects) ----
+    // Wire range shared with the MPV panel: -100…100, 0 = neutral. Mapped to
+    // Media3 effects: Brightness/Contrast take -1…1, HslAdjustment saturation
+    // takes -100…100 directly. Gamma has no Media3 effect and stays MPV-only.
+    // Armed per-open by Dart (`pictureEffectsArmed`) only for SDR content —
+    // for HDR/DV the effect pipeline would strip the native HDR/DV layer from
+    // the surface, so setVideoEffects is never called and passthrough wins.
+    @Volatile private var picBrightness = 0f
+    @Volatile private var picContrast = 0f
+    @Volatile private var picSaturation = 0f
+    @Volatile private var pictureEffectsArmed = false
+
+    /// Builds the current effect list. Empty when everything is neutral.
+    private fun buildPictureEffects(): List<Effect> {
+        val effects = mutableListOf<Effect>()
+        if (picBrightness != 0f) effects.add(Brightness(picBrightness / 100f))
+        if (picContrast != 0f) effects.add(Contrast(picContrast / 100f))
+        if (picSaturation != 0f) {
+            effects.add(HslAdjustment.Builder().adjustSaturation(picSaturation).build())
+        }
+        return effects
+    }
+
+    /// Applies the current picture adjustments to the player. Skipped for
+    /// HDR/DV content: the GL effect pipeline tone-maps to SDR and drops the
+    /// DV RPU, so the direct decoder→SurfaceView path is kept instead.
+    private fun applyPictureEffects(tag: String) {
+        val p = player
+        val fmt = p.videoFormat
+        val ct = fmt?.colorInfo?.colorTransfer
+        val isHdr = ct == C.COLOR_TRANSFER_ST2084 || ct == C.COLOR_TRANSFER_HLG ||
+            (fmt?.codecs?.startsWith("dv") == true)
+        if (isHdr) {
+            Log.i("ExoPlayerView", "picture effects skipped ($tag): HDR/DV content keeps direct passthrough")
+            return
+        }
+        try {
+            p.setVideoEffects(buildPictureEffects())
+        } catch (e: Exception) {
+            Log.w("ExoPlayerView", "setVideoEffects failed ($tag)", e)
+        }
+    }
+
+    /// Once the real video format is known (onVideoSizeChanged fires right
+    /// after it), a file that looked SDR at open() but is actually HDR/DV must
+    /// not keep the GL effect pipeline: clear the effects so the frame
+    /// processor passes frames through unmodified. (The pipeline itself
+    /// cannot be removed after prepare, but an empty/no-op effect list is
+    /// skipped by Media3 via the isNoOp hint, so colors are preserved.)
+    private fun enforcePictureEffectsHdrGate() {
+        if (!pictureEffectsArmed) return
+        val fmt = player.videoFormat ?: return
+        val ct = fmt.colorInfo?.colorTransfer
+        val isHdr = ct == C.COLOR_TRANSFER_ST2084 || ct == C.COLOR_TRANSFER_HLG ||
+            (fmt.codecs?.startsWith("dv") == true)
+        if (isHdr) {
+            pictureEffectsArmed = false
+            Log.i("ExoPlayerView", "content turned out HDR/DV (${fmt.codecs}) — clearing picture effects to keep passthrough")
+            try {
+                player.setVideoEffects(emptyList())
+            } catch (e: Exception) {
+                Log.w("ExoPlayerView", "clearing picture effects failed", e)
+            }
+        }
+    }
 
     /// Scans the first video samples for an HDR10+ SEI (ITU-T T.35 user data,
     /// country 0xB5 / provider 0x003C = ST 2094-40) on a background thread and
@@ -1524,6 +1595,25 @@ class ExoPlayerView(
                         .build()
                     player.setMediaItem(mediaItem)
                     applyReadingLanguage(readingLanguage)
+                    // Picture controls (Media3 GL video effects): setVideoEffects
+                    // must be called at least once BEFORE prepare() to set up
+                    // the effect pipeline. Armed only when Dart says the content
+                    // is not HDR/DV (a filename/probe hint) — HDR keeps the
+                    // direct decoder→SurfaceView passthrough. The initial slider
+                    // values ride along in the open args so an applied profile
+                    // is active from the first frame.
+                    pictureEffectsArmed = call.argument<Boolean>("pictureEffectsArmed") == true
+                    picBrightness = (call.argument<Number>("pictureBrightness")?.toFloat() ?: 0f).coerceIn(-100f, 100f)
+                    picContrast = (call.argument<Number>("pictureContrast")?.toFloat() ?: 0f).coerceIn(-100f, 100f)
+                    picSaturation = (call.argument<Number>("pictureSaturation")?.toFloat() ?: 0f).coerceIn(-100f, 100f)
+                    if (pictureEffectsArmed) {
+                        try {
+                            player.setVideoEffects(buildPictureEffects())
+                        } catch (e: Exception) {
+                            Log.w("ExoPlayerView", "arming picture effects failed", e)
+                            pictureEffectsArmed = false
+                        }
+                    }
                     player.prepare()
                     if (startMs > 0L) player.seekTo(startMs)
                     player.play()
@@ -1646,6 +1736,20 @@ class ExoPlayerView(
                 "setAudioTrack" -> {
                     val index = call.argument<Number>("index")?.toInt() ?: -1
                     selectAudioTrack(index)
+                    result.success(null)
+                }
+                "setPictureAdjustments" -> {
+                    // Live picture controls (brightness/contrast/saturation,
+                    // -100…100). No-op for HDR/DV content: applyPictureEffects
+                    // keeps the direct passthrough path there.
+                    picBrightness = (call.argument<Number>("brightness")?.toFloat() ?: 0f).coerceIn(-100f, 100f)
+                    picContrast = (call.argument<Number>("contrast")?.toFloat() ?: 0f).coerceIn(-100f, 100f)
+                    picSaturation = (call.argument<Number>("saturation")?.toFloat() ?: 0f).coerceIn(-100f, 100f)
+                    if (pictureEffectsArmed) {
+                        applyPictureEffects("setPictureAdjustments")
+                    } else {
+                        Log.i("ExoPlayerView", "setPictureAdjustments ignored: effect pipeline not armed for this content")
+                    }
                     result.success(null)
                 }
                 "setSubtitles" -> {
