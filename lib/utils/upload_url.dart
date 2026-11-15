@@ -1,6 +1,7 @@
 /// Pure helpers for the WiFi upload server (competitor-gap #1): filename
 /// sanitizing and URL building. No Flutter, no IO — unit-tested in
 /// `test/upload_url_test.dart`.
+library;
 
 /// The port the upload server tries first (then port+1 … port+9, then an
 /// ephemeral port).
