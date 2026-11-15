@@ -1,0 +1,7 @@
+Fixed
+
+- Hardware SDR tone-mapping (Settings > Player) now also works for plain
+  HDR10 on Qualcomm phones: the video renders into a TextureView while the
+  setting is on, which makes the decoder perform the on-chip HDR-to-SDR
+  conversion (previously only Dolby Vision was affected). The request is
+  never sent to 8-bit H.264, which could freeze the picture.

@@ -15,7 +15,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.AttributeSet
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.SurfaceControl
 import android.view.View
 import androidx.media3.common.C
@@ -85,11 +87,44 @@ class ExoPlayerView(
     messenger: BinaryMessenger,
 ) : PlatformView {
 
-    private val playerView = ForcedAspectPlayerView(activity).apply {
+    private val playerView = createPlayerView(activity).apply {
         useController = false
         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         setShutterBackgroundColor(android.graphics.Color.BLACK)
         setKeepContentOnPlayerReset(true)
+    }
+
+    /// True when [playerView] was created with a TextureView sink because the
+    /// "Hardware SDR tone-mapping" setting was ON at view-creation time.
+    private val textureBacked: Boolean =
+        HwSdrToneMap.isEnabled(activity)
+
+    /// Picks the surface the decoder renders into.
+    ///
+    /// Issue #64: on Qualcomm, `c2.qti.hevc.decoder` ignores
+    /// `KEY_COLOR_TRANSFER_REQUEST` (= SDR_VIDEO) while rendering straight
+    /// into a SurfaceView (hardware overlay), but performs the on-chip
+    /// HDR→SDR conversion when its output sink is a SurfaceTexture
+    /// (TextureView) — verified on a OnePlus Pad 2 by comparing against
+    /// mpv-infinity: `request_sdr_video=true output_standard=1
+    /// output_transfer=3 source_transfer=6`. `c2.qti.dv.decoder` honours the
+    /// request either way, which is why Dolby Vision already worked.
+    ///
+    /// The surface type is fixed at `PlayerView` creation (there is no public
+    /// runtime setter), so the setting is read here: toggling it applies from
+    /// the next player screen, because this platform view is recreated per
+    /// `PlayerScreen`. When the setting is OFF the plain SurfaceView is used
+    /// and native HDR/DV passthrough is untouched.
+    private fun createPlayerView(activity: Activity): ForcedAspectPlayerView {
+        if (HwSdrToneMap.isEnabled(activity)) {
+            Log.i(
+                "ExoPlayerView",
+                "hardware SDR tone-map ON: using TextureView-backed player view (issue #64)",
+            )
+            return LayoutInflater.from(activity)
+                .inflate(R.layout.dream_texture_player_view, null) as ForcedAspectPlayerView
+        }
+        return ForcedAspectPlayerView(activity)
     }
 
     /// Last value handed to `Window.setDesiredHdrHeadroom`, to avoid re-setting
@@ -1341,6 +1376,20 @@ class ExoPlayerView(
                         val currentMode = call.argument<String>("decoderMode")
                             ?.takeIf { it.isNotEmpty() }
                             ?: PlayerCodecs.decoderMode(activity)
+                        // Issue #64: the TextureView/SurfaceView choice is fixed
+                        // at view creation, so a setting toggle only fully applies
+                        // from the next player screen. The codec-level request
+                        // still applies live per open; log the mismatch so it
+                        // is diagnosable from logcat.
+                        val toneMapNow = HwSdrToneMap.isEnabled(activity)
+                        if (toneMapNow != textureBacked) {
+                            Log.i(
+                                "ExoPlayerView",
+                                "hwSdrToneMap setting is now $toneMapNow but this view is " +
+                                    "${if (textureBacked) "TextureView" else "SurfaceView"}-backed; " +
+                                    "the surface switch applies on the next player screen",
+                            )
+                        }
                         if (currentMode != lastDecoderMode) {
                             val previousMode = lastDecoderMode
                             Log.i("ExoPlayerView", "Decoder mode changed: $lastDecoderMode -> $currentMode (from open channel), recreating player.")
@@ -2391,16 +2440,22 @@ class ExoPlayerView(
         val colorTransfer = videoFormat?.colorInfo?.colorTransfer
         val codecs = videoFormat?.codecs
         val isDolbyVision = codecs?.let { Regex("dv(?:he|h1|av)\\.").containsMatchIn(it) } == true
-        // Hardware SDR tone-mapping (issue #55): when the user asked the
-        // decoder to output standard SDR, the video layer is NOT an HDR layer
-        // any more — pushing the window into COLOR_MODE_HDR, asking for
-        // headroom or tagging the surface as BT2020_PQ would be wrong (the
-        // buffer is 709 now). Skip the whole HDR-window machinery and let the
-        // system colour modes apply to a normal SDR picture.
-        val hwSdrToneMap = HwSdrToneMap.isEnabled(activity) && HwSdrToneMap.requested
+        // Hardware SDR tone-mapping (issue #55/#64): when the SETTING is on,
+        // the video layer is not an HDR layer — pushing the window into
+        // COLOR_MODE_HDR, asking for headroom or tagging the surface as
+        // BT2020_PQ would be wrong. Skip the whole HDR-window machinery and
+        // let the system colour modes apply to a normal SDR picture. This is
+        // gated on the setting alone (not on `requested`): `requested` is
+        // only set once the codec exists, and with the TextureView sink
+        // (issue #64) the window HDR path must be off from the very first
+        // frame — plus a track that never got the request (e.g. 8-bit AVC,
+        // which must never receive it) must not push the window into HDR
+        // either.
+        val hwSdrToneMapSetting = HwSdrToneMap.isEnabled(activity)
+        val hwSdrToneMap = hwSdrToneMapSetting && HwSdrToneMap.requested
         applyHdrHeadroom(
             when {
-                hwSdrToneMap -> 1.0f
+                hwSdrToneMapSetting -> 1.0f
                 colorTransfer == C.COLOR_TRANSFER_ST2084 ||
                     colorTransfer == C.COLOR_TRANSFER_HLG -> 5.0f
                 isDolbyVision -> 5.0f
@@ -2408,7 +2463,7 @@ class ExoPlayerView(
                 else -> 1.0f
             },
             colorTransfer ?: -1,
-            skipWindowHdr = isDolbyVision || hwSdrToneMap,
+            skipWindowHdr = isDolbyVision || hwSdrToneMapSetting,
         )
 
         // Override colorTransfer for the Dart chip when we detected HDR10 via
@@ -2982,8 +3037,16 @@ class ExoPlayerView(
 /// (16:9 / 4:3). Media3 doesn't expose an aspect override on `PlayerView`, but
 /// `onContentAspectRatioChanged` hands us the internal `AspectRatioFrameLayout`
 /// on every video-size change, so we can force its ratio after the fact.
+///
+/// Public with all three constructors because it is also inflated from
+/// `res/layout/dream_texture_player_view.xml` (TextureView surface for the
+/// hardware SDR tone-map setting, issue #64).
 @UnstableApi
-private class ForcedAspectPlayerView(context: Context) : PlayerView(context) {
+class ForcedAspectPlayerView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0,
+) : PlayerView(context, attrs, defStyleAttr) {
 
     /// When non-null, the content frame is forced to this ratio (and the caller
     /// typically pairs it with `RESIZE_MODE_ZOOM` so overflow is cropped).

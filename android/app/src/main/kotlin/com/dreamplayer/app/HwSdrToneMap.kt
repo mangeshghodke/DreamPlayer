@@ -108,8 +108,10 @@ object HwSdrToneMap {
     ///   codec string; a DV MKV without the Colour element has NO
     ///   `colorInfo` at all, so the colour check alone would miss it.
     /// * [colorTransfer] — the declared transfer characteristic, or null when
-    ///   the container does not carry one (again: the DV-without-Colour
-    ///   case).
+    ///   the container does not carry one (the DV-without-Colour case, and
+    ///   HDR10 MKVs whose PQ lives only in the HEVC SPS VUI — for those the
+    ///   request is allowed only for HEVC Main10, never for 8-bit AVC, see
+    ///   issue #64).
     fun shouldRequest(
         enabled: Boolean,
         sdkInt: Int,
@@ -121,7 +123,22 @@ object HwSdrToneMap {
         if (sdkInt < Build.VERSION_CODES.S) return false
         if (mimeType?.startsWith("video/") != true) return false
         if (isDolbyVision(mimeType, codecs)) return true
-        return colorTransfer == 6 || colorTransfer == 7
+        if (colorTransfer == 6 || colorTransfer == 7) return true
+        // GitHub issue #64: plain HDR10 MKVs often omit the MKV `Colour`
+        // element, so `colorTransfer` is null even though the HEVC SPS VUI
+        // carries PQ (the SEI probe reports those as HDR10 for the chip, but
+        // this decision runs before/independent of it). Only HEVC Main10
+        // (`hvc1.2…` / `hev1.2…`) can be HDR10 — and the request must NEVER
+        // go to 8-bit AVC: on Qualcomm that froze the pipeline with
+        // `QC2PipelinedEntity … failed to queueInputs, err 38` (grey picture,
+        // audio kept playing) while an unrequested AVC file in the same
+        // TextureView played fine.
+        if (colorTransfer == null && mimeType == "video/hevc") {
+            return codecs == null ||
+                codecs.startsWith("hvc1.2") ||
+                codecs.startsWith("hev1.2")
+        }
+        return false
     }
 
     /// Dolby Vision detection that does not need a colour info.

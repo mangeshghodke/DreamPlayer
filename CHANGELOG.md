@@ -19,6 +19,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 ### Fixed
 
 - **MPV error text now names the real URL** — a failed bridge open shows the original `https://…` link instead of `http://127.0.0.1:<port>/<token>` (`_mpvReadableError`).
+- **Hardware SDR tone-mapping (Settings → Player) now works for plain HDR10 on Qualcomm phones** (issue #64). The decoder ignores the SDR request while rendering into a SurfaceView overlay, but performs the on-chip HDR→SDR conversion when its output is a TextureView — so while the setting is ON the player now uses a TextureView-backed view (new `res/layout/dream_texture_player_view.xml`), and the window HDR/headroom path is skipped from the first frame. HDR10 MKVs without a `Colour` element (transfer unknown) are now covered too, restricted to HEVC Main10 — the request is never sent to 8-bit H.264, which could freeze the picture (`queueInputs err 38`). Setting OFF keeps the SurfaceView and native HDR/Dolby Vision passthrough untouched. Applies from the next player screen after toggling.
 
 ## 0.5.7
 

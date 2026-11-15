@@ -55,7 +55,48 @@ class HwSdrToneMapTest {
     @Test
     fun `sdr content is left alone`() {
         assertFalse(request(colorTransfer = 2))
-        assertFalse(request(colorTransfer = null))
+        // 8-bit AVC with no colour info must NEVER get the request: on
+        // Qualcomm it froze the pipeline (`queueInputs, err 38`, grey
+        // picture) — issue #64.
+        assertFalse(
+            request(
+                mimeType = "video/avc",
+                codecs = "avc1.640028",
+                colorTransfer = null,
+            ),
+        )
+        // 8-bit HEVC Main (not Main10) with no colour info is not HDR10.
+        assertFalse(
+            request(
+                mimeType = "video/hevc",
+                codecs = "hev1.1.6.L120.90",
+                colorTransfer = null,
+            ),
+        )
+    }
+
+    @Test
+    fun `hdr10 mkv without colour element requests only for hevc main10`() {
+        // Issue #64: many HDR10 MKVs omit the `Colour` element, so
+        // colorTransfer is null; the PQ info lives only in the HEVC SPS VUI.
+        assertTrue(
+            request(mimeType = "video/hevc", codecs = "hev1.2.4.L153.B0", colorTransfer = null),
+        )
+        assertTrue(
+            request(mimeType = "video/hevc", codecs = "hvc1.2.4.L153.B0", colorTransfer = null),
+        )
+        // Unknown codec string on HEVC is allowed (can't tell 8- vs 10-bit).
+        assertTrue(
+            request(mimeType = "video/hevc", codecs = null, colorTransfer = null),
+        )
+        // But never AVC (see `sdr content is left alone`) and never 8-bit
+        // HEVC Main.
+        assertFalse(
+            request(mimeType = "video/avc", codecs = null, colorTransfer = null),
+        )
+        assertFalse(
+            request(mimeType = "video/av01", codecs = "av01.0.08M.10", colorTransfer = null),
+        )
     }
 
     @Test

@@ -786,7 +786,42 @@ A video player app supporting:
     the `COLOR_MODE_HDR` + headroom + `setDataSpace(BT2020_PQ)` machinery —
     the existing `skipWindowHdr = true` branch (the Dolby Vision one) already
     resets the window to `COLOR_MODE_DEFAULT` / headroom 1.0 / dataspace 0,
-    so the toggle just ORs into it (`ExoPlayerView.stateMap`).
+    so the toggle just ORs into it (`ExoPlayerView.stateMap`). **Since issue
+    #64 the skip is gated on the SETTING alone, not on `requested`** —
+    `requested` is only set once the codec exists, and with the TextureView
+    sink (next bullet) the window HDR path must be off from the first frame.
+    The emitted `hwSdrToneMap` map value still means "setting AND request
+    injected" so the Dart chip stays honest.
+  - **Issue #64 (2026-11-15, reporter Chikya2929, OnePlus Pad 2): the request
+    only works into a SurfaceTexture.** Qualcomm's `c2.qti.hevc.decoder`
+    IGNORES `KEY_COLOR_TRANSFER_REQUEST` while rendering straight into a
+    SurfaceView (hardware overlay) — plain HDR10 stayed unmapped PQ
+    (transfer=6) — but honours it when its output sink is a GLES
+    SurfaceTexture (TextureView): `request_sdr_video=true output_standard=1
+    output_transfer=3 source_transfer=6`, matching mpv-infinity by eye.
+    `c2.qti.dv.decoder` honours it either way, which is why DV already
+    worked. Fix: while the setting is ON, `ExoPlayerView` inflates
+    `res/layout/dream_texture_player_view.xml` (`app:surface_type=
+    "texture_view"`, `ForcedAspectPlayerView` made public with all three
+    constructors) instead of constructing a SurfaceView-backed view. The
+    surface type is fixed at PlayerView creation (no public runtime setter)
+    and the platform view is recreated per PlayerScreen, so toggling the
+    setting applies from the next player screen; `open()` logs a line when
+    the pref no longer matches the view's creation-time surface. All
+    `videoSurfaceView` uses are `as? SurfaceView`-guarded and become no-ops
+    under TextureView. Setting OFF ⇒ plain SurfaceView ⇒ native HDR/DV
+    passthrough untouched.
+  - **Issue #64: never send the request to 8-bit AVC.** With an earlier
+    "request whenever colorTransfer == null" rule, 8-bit x264 files froze to
+    a grey picture ~3 s in while audio kept playing — Qualcomm logged
+    `QC2PipelinedEntity: [pipeEn_avcD_...] BufferTracking pipelineid=100
+    failed to queueInputs, err 38` on every session; an unrequested AVC file
+    in the same TextureView played fine. `shouldRequest` therefore only
+    allows a null-transfer request for `video/hevc` AND Main10 codec strings
+    (`hvc1.2…`/`hev1.2…`, or codecs unknown) — this covers HDR10 MKVs without
+    a `Colour` element, whose PQ lives only in the HEVC SPS VUI (the same
+    class of file the SEI probe already handles for the chip). Unit-pinned in
+    `HwSdrToneMapTest.kt`.
   - **The label must be honest.** Media3 does NOT copy the codec's output
     colour info back into `Format.colorInfo` (checked
     `MediaCodecVideoRenderer.onOutputFormatChanged` — it only takes
