@@ -6,12 +6,20 @@
 <title>Privacy Policy — DreamPlayer</title>
 <meta name="description" content="How DreamPlayer handles your data. No accounts, no analytics, no advertising — and exactly what leaves your device when you choose to use an optional third-party service.">
 <meta name="theme-color" content="#0E0E11">
+<meta name="color-scheme" content="dark">
 <link rel="icon" href="assets/img/icon.png">
 <link rel="apple-touch-icon" href="assets/img/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css">
+<script type="speculationrules">
+{
+  "prefetch": [
+    { "where": { "href_matches": "/*" }, "eagerness": "conservative" }
+  ]
+}
+</script>
 </head>
 <body>
 
@@ -238,6 +246,6 @@
   </div>
 </footer>
 
-<script src="assets/js/main.js"></script>
+<script src="assets/js/main.js" defer></script>
 </body>
 </html>

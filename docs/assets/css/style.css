@@ -6,6 +6,10 @@
    ========================================================================== */
 
 :root {
+  /* Dark-only site: declare it so UA form controls, scrollbars and the
+     overscroll glow render dark instead of light. */
+  color-scheme: dark;
+
   --bg: #0e0e11;
   --bg-alt: #0a0a0d;
   --card: #16161a;
@@ -577,6 +581,8 @@ p { margin: 0 0 1.1em; }
 
 /* ------------------------------------------------------------ lightbox -- */
 
+/* Native <dialog> (showModal): focus trap + Esc come free. Reset the UA
+   dialog chrome — the dialog element itself paints the full-viewport dim. */
 .lightbox {
   position: fixed;
   inset: 0;
@@ -587,8 +593,13 @@ p { margin: 0 0 1.1em; }
   padding: 32px;
   background: rgba(6, 6, 9, 0.93);
   backdrop-filter: blur(8px);
+  border: none;
+  max-width: none;
+  max-height: none;
+  color: inherit;
 }
-.lightbox.is-open { display: flex; }
+.lightbox[open] { display: flex; }
+.lightbox::backdrop { background: transparent; }
 .lightbox img {
   max-width: 100%;
   max-height: 88vh;
