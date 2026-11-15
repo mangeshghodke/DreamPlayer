@@ -86,8 +86,8 @@
   var boxClose = document.getElementById("lightboxClose");
 
   function closeBox() {
-    if (!box || !box.open) return;
-    box.close();
+    if (!box) return;
+    box.classList.remove("is-open");
     document.body.style.overflow = "";
   }
 
@@ -96,23 +96,20 @@
       shot.addEventListener("click", function () {
         var src = shot.dataset.full;
         var img = shot.querySelector("img");
-        if (!src || box.open) return;
+        if (!src) return;
         boxImg.src = src;
         boxImg.alt = img ? img.alt : "";
-        // Native modal <dialog>: focus trap and Esc-to-close are built in.
-        box.showModal();
+        box.classList.add("is-open");
         document.body.style.overflow = "hidden";
       });
     });
 
-    // Light-dismiss: a click on the dialog's own padding (the backdrop area
-    // behind the image) closes it. Esc is handled natively by <dialog>.
     box.addEventListener("click", function (e) {
       if (e.target === box || e.target === boxClose) closeBox();
     });
-    box.addEventListener("close", function () {
-      document.body.style.overflow = "";
-      boxImg.removeAttribute("src");
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeBox();
     });
   }
 })();
