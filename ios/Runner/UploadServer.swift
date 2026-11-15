@@ -170,14 +170,14 @@ final class UploadServer {
         let headerTimeout = DispatchTime.now() + .milliseconds(headerTimeoutMs)
 
         func readMore() {
-            connection.receive(minimumIncompleteLength: 1, maximumLength: maxHeader - head.count,
+            connection.receive(minimumIncompleteLength: 1, maximumLength: self.maxHeader - head.count,
                                completion: { data, context, isComplete, error in
                 if let data = data, !data.isEmpty {
                     head.append(data)
                     if head.range(of: Data("\r\n\r\n".utf8)) != nil {
                         headComplete = true
                         self.handleRequest(connection: connection, head: head)
-                    } else if head.count >= maxHeader {
+                    } else if head.count >= self.maxHeader {
                         self.respond(connection: connection, code: 431, contentType: "text/plain",
                                      body: Data("header too large".utf8))
                     } else {
@@ -271,7 +271,7 @@ final class UploadServer {
             return
         }
         let name = sanitizeName(rawName)
-        let existing = (try? FileManager.default.contentsOfDirectory(at: dest, includingPropertiesForKeys: nil))
+        let existing = (try? FileManager.default.contentsOfDirectory(at: dest, includingPropertiesForKeys: nil))?
             .map { $0.lastPathComponent } ?? []
         let finalName = dedupe(name, Set(existing))
         let file = dest.appendingPathComponent(finalName)
@@ -287,7 +287,7 @@ final class UploadServer {
             let semaphore = DispatchSemaphore(value: 0)
 
             func readChunk() {
-                connection.receive(minimumIncompleteLength: 1, maximumLength: min(ioChunk, remaining),
+                connection.receive(minimumIncompleteLength: 1, maximumLength: min(self.ioChunk, remaining),
                                    completion: { data, context, isComplete, error in
                     if let data = data, !data.isEmpty {
                         do { try handle.write(contentsOf: data) } catch { readError = error }
