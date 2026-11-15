@@ -41,11 +41,14 @@ import '../services/mpv_user_config.dart';
 import '../services/file_browser.dart';
 import '../services/app_icon_service.dart';
 import '../services/app_updater.dart';
+import '../services/wifi_upload.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/crash_report_note.dart';
 import '../services/tone_map_store.dart';
 import '../config/simkl_keys.dart';
+import '../config/trakt_keys.dart';
 import '../services/simkl_client.dart';
+import '../services/trakt_client.dart';
 import '../services/tmdb_client.dart';
 import '../services/the_tvdb_client.dart';
 import '../services/watched_store.dart';
@@ -94,6 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _audioDownmix = false;
   bool _simklConnected = false;
   DateTime? _simklLastSync;
+  bool _traktConnected = false;
   String? _osUsername;
   int? _osRemaining;
   bool _osLoggedIn = false;
@@ -150,6 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadMpvUserConfig();
     _loadAudioFilters();
     _loadSimkl();
+    unawaited(_loadTrakt());
     _loadOpensubtitles();
     _loadSubtitlePrefs();
     _loadBadgePrefs();
@@ -159,6 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadAutoExpandFolders();
     _loadAutoCheckUpdates();
     _loadIosUpscaleSupport();
+    unawaited(_loadWifiUpload());
   }
 
   Future<void> _loadOtherVideos() async {
@@ -179,6 +185,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _simklConnected = connected;
           _simklLastSync = lastSync;
         });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadTrakt() async {
+    final client = TraktClient();
+    if (!client.isConfigured) return;
+    try {
+      final connected = await client.isAuthenticated;
+      if (mounted) {
+        setState(() => _traktConnected = connected);
       }
     } catch (_) {}
   }
@@ -230,6 +247,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadAutoCheckUpdates() async {
     final enabled = await AppUpdater.autoCheckEnabled();
     if (mounted) setState(() => _autoCheckUpdates = enabled);
+  }
+
+  Future<void> _loadWifiUpload() async {
+    await WifiUploadService.instance.load();
+    // mounted is checked by ListenableBuilder below; no setState needed here.
   }
 
   /// The MetalFX upscale stage needs iOS 26+; the toggle is only offered there.
@@ -1406,6 +1428,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   onTap: _pickDownloadDir,
                 ),
+                // WiFi upload server: send videos from a PC browser over LAN
+                // (competitor-gap #1). Files land in the download directory.
+                ListenableBuilder(
+                  listenable: WifiUploadService.instance,
+                  builder: (context, _) {
+                    final s = WifiUploadService.instance;
+                    final subtitle = s.running
+                        ? (s.urls.isNotEmpty ? s.urls.first : '')
+                        : s.error != null
+                            ? 'Error: ${s.error}'
+                            : 'Turn on to receive videos from a PC on the same Wi-Fi';
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SwitchListTile(
+                          secondary: const Icon(Icons.wifi_tethering),
+                          title: const Text('WiFi upload to this device'),
+                          subtitle: Text(
+                            subtitle,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          value: s.enabled,
+                          onChanged: (v) => unawaited(s.setEnabled(v)),
+                        ),
+                        if (s.enabled)
+                          ListTile(
+                            leading: const Icon(Icons.input),
+                            title: const Text('Port'),
+                            subtitle: Text('${s.port}'),
+                            trailing: SizedBox(
+                              width: 110,
+                              child: TextField(
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.right,
+                                controller: TextEditingController(text: '${s.port}'),
+                                onSubmitted: (v) async {
+                                  final p = int.tryParse(v);
+                                  if (p != null && p > 0 && p < 65536) {
+                                    await s.setPort(p);
+                                    if (s.enabled) {
+                                      await s.stop();
+                                      await s.start();
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
                 // Debug: simulate free user (debug builds only).
                 if (kDebugMode) ...[
                   ListenableBuilder(
@@ -2265,6 +2340,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                 ],
               ),
+            // === Trakt ===
+            if (traktClientId.isNotEmpty)
+              ExpansionTile(
+                leading: const Icon(Icons.sync),
+                title: const Text('Trakt'),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  if (_traktConnected) ...[
+                    TvTile(
+                      leading: const Icon(Icons.sync),
+                      title: Text(AppLocalizations.of(context).settingsTraktSync),
+                      subtitle: Text(AppLocalizations.of(context).settingsTraktSyncDesc),
+                      onTap: _syncTrakt,
+                    ),
+                    TvTile(
+                      leading: const Icon(Icons.link_off),
+                      title: Text(AppLocalizations.of(context).settingsTraktDisconnect),
+                      subtitle: Text(AppLocalizations.of(context).settingsTraktDisconnectDesc),
+                      onTap: () async {
+                        await TraktClient().clear();
+                        if (mounted) {
+                          setState(() => _traktConnected = false);
+                        }
+                      },
+                    ),
+                  ] else
+                    TvTile(
+                      leading: const Icon(Icons.link),
+                      title: Text(AppLocalizations.of(context).settingsTraktConnect),
+                      subtitle: Text(AppLocalizations.of(context).settingsTraktConnectDesc),
+                      onTap: _connectTrakt,
+                    ),
+                ],
+              ),
             // === About ===
             ExpansionTile(
               leading: const Icon(Icons.info_outline),
@@ -2556,6 +2665,147 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
     return items;
+  }
+
+  Future<void> _connectTrakt() async {
+    final client = TraktClient();
+    try {
+      final code = await client.deviceCode();
+      if (!mounted) return;
+      final granted = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => _TraktConnectDialog(code: code),
+      );
+      if (granted == true) {
+        await client.deviceToken(code.deviceCode);
+        await _loadTrakt();
+      }
+    } on TraktException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
+  Future<void> _syncTrakt() async {
+    final client = TraktClient();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final items = await _collectTraktItems();
+      await client.markWatched(items
+          .map((e) => {
+                'ids': {'tmdb': e.tmdbId},
+                'watched_at': e.watchedAt.toUtc().toIso8601String()
+              })
+          .toList());
+      if (mounted) {
+        final l = AppLocalizations.of(context);
+        messenger.showSnackBar(SnackBar(
+            content: Text(l.settingsTraktSyncedCount(items.length))));
+      }
+    } on TraktException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  Future<List<_TraktWatchItem>> _collectTraktItems() async {
+    final keys = await WatchedStore.load();
+    final items = <_TraktWatchItem>[];
+    for (final key in keys) {
+      final meta = TmdService.instance.metaFor(key);
+      if (meta == null) continue;
+      final movie = meta.movie;
+      if (movie.id == 0) continue;
+      items.add(_TraktWatchItem(tmdbId: movie.id, watchedAt: DateTime.now()));
+    }
+    return items;
+  }
+}
+
+/// A watched movie record to send to Trakt.
+class _TraktWatchItem {
+  const _TraktWatchItem({required this.tmdbId, required this.watchedAt});
+  final int tmdbId;
+  final DateTime watchedAt;
+}
+
+/// Device-flow dialog: shows the user code + activation URL and polls.
+class _TraktConnectDialog extends StatefulWidget {
+  const _TraktConnectDialog({required this.code});
+  final TraktPinCode code;
+
+  @override
+  State<_TraktConnectDialog> createState() => _TraktConnectDialogState();
+}
+
+class _TraktConnectDialogState extends State<_TraktConnectDialog> {
+  String _status = 'Waiting for authorization…';
+  bool _done = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _poll();
+  }
+
+  Future<void> _poll() async {
+    final client = TraktClient();
+    final TraktPinCode code = widget.code;
+    final deadline = DateTime.now().add(Duration(seconds: code.expiresIn));
+    while (DateTime.now().isBefore(deadline) && !_done && mounted) {
+      await Future.delayed(Duration(seconds: code.interval.clamp(1, 30)));
+      if (!mounted) return;
+      try {
+        await client.deviceToken(code.deviceCode);
+        if (mounted) setState(() { _done = true; _status = 'Authorized!'; });
+        if (mounted) Navigator.of(context).pop(true);
+        return;
+      } on TraktException {
+        // pending authorization — keep polling
+      } catch (_) {
+        return;
+      }
+    }
+    if (mounted && !_done) {
+      setState(() => _status = 'Authorization timed out.');
+      if (mounted) Navigator.of(context).pop(false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l.settingsTraktAuthTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l.settingsTraktGoToAddress),
+          const SizedBox(height: 8),
+          Text(widget.code.verificationUrl,
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          Text('Enter the code:', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 4),
+          SelectableText(widget.code.userCode,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  )),
+          const SizedBox(height: 12),
+          Text(_status, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _done ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
   }
 }
 

@@ -91,6 +91,7 @@ import Network
     UpnpClient.register(with: messenger)
     MediaProbe.register(with: messenger)
     DownloadClient.register(with: messenger)
+    UploadServer.shared.configure(messenger: messenger)
     IconSwitcher.configure(with: messenger)
     TrialStore.register(with: messenger)
     // Same channel as Android's MainActivity: device facts. iOS answers the

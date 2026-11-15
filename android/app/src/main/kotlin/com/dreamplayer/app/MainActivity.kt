@@ -148,6 +148,11 @@ class MainActivity : FlutterActivity() {
         HttpStreamProxy.configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, HttpStreamProxy.CHANNEL),
         )
+        // WiFi upload server: LAN HTTP server that receives videos from a PC
+        // browser into the download directory (competitor-gap #1).
+        UploadServer(this).configure(
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UploadServer.CHANNEL),
+        )
         intentChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "dreamplayer/intent",

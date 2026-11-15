@@ -1460,6 +1460,72 @@ abstract class AppLocalizations {
   /// **'Connected!'**
   String get settingsConnected;
 
+  /// Trakt sync button
+  ///
+  /// In en, this message translates to:
+  /// **'Sync watched to Trakt'**
+  String get settingsTraktSync;
+
+  /// Trakt sync subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Push watched movie history to Trakt'**
+  String get settingsTraktSyncDesc;
+
+  /// Trakt disconnect button
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect from Trakt'**
+  String get settingsTraktDisconnect;
+
+  /// Trakt disconnect subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Remove the stored access token'**
+  String get settingsTraktDisconnectDesc;
+
+  /// Trakt connect button
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to Trakt'**
+  String get settingsTraktConnect;
+
+  /// Trakt connect subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Authorize DreamPlayer to read/write your Trakt watched history'**
+  String get settingsTraktConnectDesc;
+
+  /// Trakt sync result message
+  ///
+  /// In en, this message translates to:
+  /// **'Synced {count} item(s) to Trakt'**
+  String settingsTraktSyncedCount(Object count);
+
+  /// Trakt auth dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to Trakt'**
+  String get settingsTraktAuthTitle;
+
+  /// Trakt auth instruction
+  ///
+  /// In en, this message translates to:
+  /// **'Go to the address below and enter this code:'**
+  String get settingsTraktGoToAddress;
+
+  /// Trakt auth waiting state
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for authorization…'**
+  String get settingsTraktWaitingAuth;
+
+  /// Trakt auth connected state
+  ///
+  /// In en, this message translates to:
+  /// **'Authorized!'**
+  String get settingsTraktConnected;
+
   /// OpenSubtitles section header
   ///
   /// In en, this message translates to:
