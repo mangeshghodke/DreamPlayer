@@ -93,9 +93,15 @@ Copyright (C) 2026 Mangesh Ghodke. Released under the [GNU General Public Licens
 
 ## Support
 
-If DreamPlayer is useful to you, consider supporting the project:
+If DreamPlayer is useful to you, consider supporting the project — scan the QR with any UPI app (BHIM), or open the [payment link](https://rzp.io/rzp/cZ5afqVG) for UPI, cards, or netbanking:
 
-- [Razorpay](https://rzp.io/rzp/cZ5afqVG) — UPI, cards, or netbanking (India)
+<p align="center">
+  <a href="https://rzp.io/rzp/cZ5afqVG">
+    <img src="https://dreamplayer.isroot.in/assets/img/upi-qrcode.png" width="200" alt="Scan &amp; pay with any UPI app">
+  </a><br>
+  <sub>Scan &amp; pay with any UPI app · click the QR for the Razorpay payment page</sub>
+</p>
+
 - [GitHub Sponsors](https://github.com/sponsors/mangeshghodke/) — recurring support
 
 Both are also in the app under **Settings → Support**.
