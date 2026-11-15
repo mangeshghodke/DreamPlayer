@@ -30,7 +30,7 @@ final class UploadServer {
 
     private let maxHeader = 64 * 1024
     private let ioChunk = 256 * 1024
-    private let headerTimeoutMs: Int64 = 30_000
+    private let headerTimeoutMs = 30_000
     private let maxNameLen = 120
 
     private var listener: NWListener?
@@ -179,7 +179,7 @@ final class UploadServer {
                         self.handleRequest(connection: connection, head: head)
                     } else if head.count >= maxHeader {
                         self.respond(connection: connection, code: 431, contentType: "text/plain",
-                                     body: "header too large")
+                                     body: Data("header too large".utf8))
                     } else {
                         readMore()
                     }
@@ -206,7 +206,7 @@ final class UploadServer {
         let separator = Data("\r\n\r\n".utf8)
         let sepRange = head.range(of: separator)
         guard let sepEnd = sepRange?.upperBound else {
-            respond(connection: connection, code: 400, contentType: "text/plain", body: "bad request")
+            respond(connection: connection, code: 400, contentType: "text/plain", body: Data("bad request".utf8))
             return
         }
         let headerData = head[..<sepEnd]
@@ -214,12 +214,12 @@ final class UploadServer {
 
         let text = String(data: headerData, encoding: .utf8) ?? ""
         guard let requestLine = text.split(separator: "\r\n", maxSplits: 1).first else {
-            respond(connection: connection, code: 400, contentType: "text/plain", body: "bad request")
+            respond(connection: connection, code: 400, contentType: "text/plain", body: Data("bad request".utf8))
             return
         }
         let parts = requestLine.split(separator: " ", omittingEmptySubsequences: false)
         guard parts.count >= 2 else {
-            respond(connection: connection, code: 400, contentType: "text/plain", body: "bad request")
+            respond(connection: connection, code: 400, contentType: "text/plain", body: Data("bad request".utf8))
             return
         }
         let method = String(parts[0])
@@ -231,7 +231,7 @@ final class UploadServer {
         let t = token
         if path == "/u/\(t)" || path == "/u/\(t)/" {
             guard method == "GET" else {
-                respond(connection: connection, code: 405, contentType: "text/plain", body: "method")
+                respond(connection: connection, code: 405, contentType: "text/plain", body: Data("method not allowed".utf8))
                 return
             }
             let page = pageHtml().data(using: .utf8) ?? Data()
@@ -247,12 +247,12 @@ final class UploadServer {
         }
         if path == "/u/\(t)/upload" {
             guard method == "POST" else {
-                respond(connection: connection, code: 405, contentType: "text/plain", body: "method")
+                respond(connection: connection, code: 405, contentType: "text/plain", body: Data("method not allowed".utf8))
                 return
             }
             guard let lengthStr = headers["content-length"],
                   let length = Int(lengthStr), length >= 0 else {
-                respond(connection: connection, code: 411, contentType: "text/plain", body: "Content-Length required")
+                respond(connection: connection, code: 411, contentType: "text/plain", body: Data("Content-Length required".utf8))
                 return
             }
             let nameParam = query.split(separator: "&").first { $0.hasPrefix("name=") }?
@@ -261,7 +261,7 @@ final class UploadServer {
             saveUpload(connection: connection, length: length, rawName: rawName, bodyPrefix: Data(bodyPrefix))
             return
         }
-        respond(connection: connection, code: 404, contentType: "text/plain", body: "not found")
+        respond(connection: connection, code: 404, contentType: "text/plain", body: Data("not found".utf8))
     }
 
     private func saveUpload(connection: NWConnection, length: Int, rawName: String, bodyPrefix: Data) {
@@ -409,29 +409,26 @@ final class UploadServer {
 
     // First non-loopback IPv4 address of any `en*` interface (Wi-Fi / Ethernet).
     private func localIPv4Addresses() -> [String] {
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return [] }
+        var ifaddr: UnsafeMutablePointer<ifaddrs>? = nil
+        guard getifaddrs(&ifaddr) == 0 else { return [] }
+        guard let first = ifaddr else { return [] }
         defer { freeifaddrs(first) }
 
         var out: [String] = []
-        var ptr = first
+        var ptr: UnsafeMutablePointer<ifaddrs>? = first
         while let current = ptr {
-            let addr = current.pointee.ifa_addr
-            guard addr != nil, addr!.pointee.sa_family == UInt8(AF_INET) else {
-                ptr = current.pointee.ifa_next
-                continue
-            }
+            defer { ptr = current.pointee.ifa_next }
+            guard let addr = current.pointee.ifa_addr,
+                  addr.pointee.sa_family == UInt8(AF_INET) else { continue }
             let name = String(cString: current.pointee.ifa_name)
-            if name.hasPrefix("en") {
-                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                getnameinfo(addr, socklen_t(addr!.pointee.sa_len), &host, socklen_t(host.count),
-                            nil, 0, NI_NUMERICHOST)
-                let addrStr = String(cString: host)
-                if !addrStr.isEmpty, !addrStr.hasPrefix("127.") {
-                    out.append(addrStr)
-                }
+            guard name.hasPrefix("en") else { continue }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host, socklen_t(host.count),
+                        nil, 0, NI_NUMERICHOST)
+            let addrStr = String(cString: host)
+            if !addrStr.isEmpty, !addrStr.hasPrefix("127.") {
+                out.append(addrStr)
             }
-            ptr = current.pointee.ifa_next
         }
         return out
     }
