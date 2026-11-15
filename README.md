@@ -83,6 +83,10 @@ flutter run --dart-define-from-file=.env
 
 **If the app froze or crashed**, open **Settings → "App crashed?"** and tap it — an in-app form lists the debug logs that exist on your device (on Android the tap first dumps logcat, which is the only log that captures native crashes) with checkboxes, a message box, and **Submit** to upload or share them.
 
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=mangeshghodke/DreamPlayer&type=Date)](https://star-history.com/#mangeshghodke/DreamPlayer&Date)
+
 ## License
 
 Copyright (C) 2026 Mangesh Ghodke. Released under the [GNU General Public License v3.0](LICENSE).
