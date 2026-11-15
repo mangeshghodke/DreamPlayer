@@ -103,6 +103,19 @@ void main() {
       expect(SkipSegments.promptable(segs, 96000), isNull); // past intro, far from credits
       expect(SkipSegments.promptable(segs, 1296000)?.kind, SkipSegmentKind.credits); // 4 s before credits
     });
+
+    test('an intro starting at 00:00 is promptable at position 0 (issue #65)', () {
+      // Remote intro segments frequently start at exactly 0 (TheIntroDB null
+      // start = 0). The playhead sits at 0 while playback buffers, so the
+      // pill must not depend on the position having advanced.
+      const zeroStart = [
+        SkipSegment(startMs: 0, endMs: 90000, kind: SkipSegmentKind.intro),
+      ];
+      expect(SkipSegments.inside(zeroStart, 0)?.kind, SkipSegmentKind.intro);
+      expect(SkipSegments.promptable(zeroStart, 0)?.kind, SkipSegmentKind.intro);
+      expect(SkipSegments.promptable(zeroStart, 89999)?.kind, SkipSegmentKind.intro);
+      expect(SkipSegments.promptable(zeroStart, 90000), isNull); // end exclusive
+    });
   });
 
   group('SkipSegment json', () {

@@ -493,6 +493,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// covers. Cached in AniskipStore, so SMB/USB/offline playback reuses them.
   List<SkipSegment> _remoteSegments = const [];
   bool _remoteSkipLookedUp = false;
+  // Issue #65: on a cold cache the lookup must be allowed to re-fire when the
+  // TMDB match / seasons land, so the "looked up" latch only sticks on a
+  // definitive decision. These two latches keep the re-fires cheap: at most
+  // one remote fetch in flight, at most one legacy-IntroDB fallback.
+  bool _remoteSkipInFlight = false;
+  bool _introDbFallbackFired = false;
 
   /// Skip intro/recap/credits mode (Settings → Player), loaded per open.
   SkipMode _skipMode = SkipMode.prompt;
@@ -666,6 +672,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (fresh != _tmdbMeta) {
       setState(() => _tmdbMeta = fresh);
       _pushNowPlayingMetadata();
+      // Issue #65: on a cold-cache first play the first playback event fired
+      // _maybeRemoteSkipLookup before this match existed, so it bailed without
+      // latching. Re-fire now that metadata (and possibly seasons) landed.
+      _maybeRemoteSkipLookup();
     }
   }
 
@@ -907,6 +917,9 @@ class _PlayerScreenState extends State<PlayerScreen>
             if (m != null && mounted) {
               setState(() => _tmdbMeta = m);
               _pushNowPlayingMetadata();
+              // Issue #65: the in-flight resolve landing is what unblocks the
+              // skip-segment lookup on a first (cold-cache) play.
+              _maybeRemoteSkipLookup();
             }
           })
           .catchError((_) {}));
@@ -917,6 +930,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     _hdrPaywallShowing = false;
     _remoteSegments = const [];
     _remoteSkipLookedUp = false;
+    _remoteSkipInFlight = false;
+    _introDbFallbackFired = false;
     _autoSkippedStarts.clear();
     unawaited(AniskipStore.loadMode().then((m) {
       if (mounted) setState(() => _skipMode = m);
@@ -7947,35 +7962,52 @@ if (mounted) setState(_applySwipeValue);
   }
 
   void _maybeRemoteSkipLookup() {
-    if (_remoteSkipLookedUp) return;
-    _remoteSkipLookedUp = true;
-    if (_skipMode == SkipMode.off) return;
+    if (_remoteSkipLookedUp || _remoteSkipInFlight) return;
+    if (_skipMode == SkipMode.off) {
+      _remoteSkipLookedUp = true;
+      return;
+    }
     // Chapter names already cover every kind — no network call.
     final chapterSegs = SkipSegments.fromChapters(_chapters);
     final covered = SkipSegmentKind.values
         .every((k) => chapterSegs.any((s) => s.kind == k));
-    if (covered) return;
+    if (covered) {
+      _remoteSkipLookedUp = true;
+      return;
+    }
     final meta = _tmdbMeta;
     final tmdbId = meta?.movie.tmdbId;
     if (meta == null || tmdbId == null) {
-      _introDbFallback();
+      // Issue #65 cold-cache race: on a first play the TMDB resolve is still
+      // in flight when the first playback event fires this. Do NOT latch —
+      // _onTmdbChanged / the resolve callback re-fire once the match lands,
+      // and latching here is exactly why the pill only appeared on the
+      // second play.
       return;
     }
     final durMs =
         _duration.inMilliseconds > 0 ? _duration.inMilliseconds : null;
     if (meta.movie.kind == TmdKind.tv) {
+      final wide = TmdService.instance.metaWithSeasons(meta);
       final ep = resolvedPlayerEpisode(
         title: _current.title,
         seasonNumber: _current.seasonNumber,
         episodeNumber: _current.episodeNumber,
         folderSeason: meta.folderSeason,
-        firstAvailableSeason:
-            _firstCachedSeason(TmdService.instance.metaWithSeasons(meta)),
+        firstAvailableSeason: _firstCachedSeason(wide),
       );
       if (ep == null) {
+        if (wide != null && wide.seasons.isEmpty) {
+          // Seasons are not cached yet (new show, first episode) — same race
+          // one level down: retry when the season fetch lands, don't latch.
+          return;
+        }
+        _remoteSkipLookedUp = true;
         _introDbFallback();
         return;
       }
+      _remoteSkipLookedUp = true;
+      _remoteSkipInFlight = true;
       // TheIntroDB v4 first (TMDB-keyed, covers live-action TV), AniSkip
       // second (MAL-keyed, anime). Both cached per episode.
       unawaited(_mergeRemoteSegments([
@@ -7995,6 +8027,8 @@ if (mounted) setState(_applySwipeValue);
       ]));
     } else {
       // Movie: TheIntroDB is TMDB-keyed and covers movies directly.
+      _remoteSkipLookedUp = true;
+      _remoteSkipInFlight = true;
       unawaited(_mergeRemoteSegments([
         IntroDbClient().mediaSegments(tmdbId: tmdbId, durationMs: durMs),
       ]));
@@ -8018,19 +8052,28 @@ if (mounted) setState(_applySwipeValue);
         }
       }
       if (merged.isNotEmpty) {
+        // Issue #65: the setState re-evaluates _promptSegment against the
+        // CURRENT playhead, so the pill pops up the moment the in-flight
+        // fetch lands — even when playback started at 00:00 while the
+        // request was still running.
         setState(() => _remoteSegments = merged);
       } else {
         _introDbFallback();
       }
     } catch (_) {
       if (mounted) _introDbFallback();
+    } finally {
+      _remoteSkipInFlight = false;
     }
   }
 
   /// Legacy opt-in IntroDB lookup (--dart-define=INTRODB_BASE_URL), used only
-  /// when AniSkip has nothing for the title.
+  /// when AniSkip has nothing for the title. Fires at most once per open
+  /// (issue #65: the lookup is no longer latched while metadata is missing, so
+  /// this needs its own latch).
   void _introDbFallback() {
-    if (!IntroDb.available) return;
+    if (!IntroDb.available || _introDbFallbackFired) return;
+    _introDbFallbackFired = true;
     final title = _displayTitle;
     final durMs = _duration.inMilliseconds;
     unawaited(IntroDb.lookup(

@@ -40,6 +40,9 @@ true of the intended build but not of the one that was reviewed. Verify with
 New:
 • Pick a subtitle font file from device storage: the subtitle font picker (CC → Subtitle settings → Font) has a "Pick a font file from this device…" row — choose any `.ttf` / `.otf` / `.ttc` / `.woff` from Files, iCloud Drive, Downloads or any provider. The font is copied into the app and its own name is read from the file, so it works offline and shows correctly in the preview and during playback.
 
+Fixed:
+• The "Skip intro / recap / credits" button now appears on the first watch of a new episode or movie, not only on the second play — the lookup waited for title metadata that arrives a moment after playback starts on a fresh title, and now re-checks as soon as it lands.
+
 ---
 
 ## 0.5.7
