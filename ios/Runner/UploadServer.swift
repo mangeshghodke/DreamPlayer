@@ -1,3 +1,4 @@
+import AVFoundation
 import Flutter
 import Foundation
 import Network
@@ -190,11 +191,13 @@ final class UploadServer: NSObject, FlutterStreamHandler {
                     continue
                 }
                 if case .some(.ready) = outcome {
-                    // Accepted: swap in the logging-only handler for the
-                    // lifetime of the listener.
-                    l.stateUpdateHandler = { state in
+                    // Accepted: swap in the handler for the lifetime of the
+                    // listener. If it later fails, the server is dead: stop
+                    // the keep-alive and tell Dart so the UI flips to stopped.
+                    l.stateUpdateHandler = { [weak self] state in
                         if case .failed(let error) = state {
                             print("[UploadServer] listener on port \(candidate) failed: \(error)")
+                            self?.stop()
                         }
                     }
                     listener = l
@@ -214,6 +217,8 @@ final class UploadServer: NSObject, FlutterStreamHandler {
         self.running = true
         self.receivedCount = 0
         self.receivedBytes = 0
+        // Keep the process alive while the screen is locked (see below).
+        startKeepAlive()
 
         let addresses = localIPv4Addresses()
         let urls = addresses.map { "http://\($0):\(boundPort)\(Self.pathPrefix)/" }
@@ -228,6 +233,7 @@ final class UploadServer: NSObject, FlutterStreamHandler {
 
     private func stop() {
         running = false
+        stopKeepAlive()
         listener?.cancel()
         listener = nil
         port = -1
@@ -507,6 +513,67 @@ final class UploadServer: NSObject, FlutterStreamHandler {
         respond(connection: connection, code: 200, contentType: "application/json", body: body)
     }
 
+    // MARK: - background keep-alive
+
+    /// iOS suspends an app when the screen locks unless one of its declared
+    /// background modes is actually active. Info.plist declares `audio`, but
+    /// that only keeps the process alive while audio is PLAYING - an idle
+    /// session is not enough, so the NWListener would stop accepting the
+    /// moment the iPad locks. While the upload server runs we therefore play a
+    /// looping silent buffer through an active playback session; with
+    /// `.mixWithOthers` it is inaudible and does not interrupt video playback
+    /// or another app's audio. stop() stops the player, which ends the
+    /// sustained background execution again.
+    private var keepAlivePlayer: AVAudioPlayer?
+
+    private func startKeepAlive() {
+        guard keepAlivePlayer == nil else { return }
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+            let player = try AVAudioPlayer(data: Self.silentWav(seconds: 2, sampleRate: 8000),
+                                           fileTypeHint: AVFileType.wav)
+            player.numberOfLoops = -1
+            player.volume = 0
+            player.prepareToPlay()
+            player.play()
+            keepAlivePlayer = player
+        } catch {
+            // Foreground-only fallback: the server still works, it just gets
+            // suspended on lock like any non-background app.
+            print("[UploadServer] keep-alive audio failed (server runs foreground-only): \(error)")
+        }
+    }
+
+    private func stopKeepAlive() {
+        keepAlivePlayer?.stop()
+        keepAlivePlayer = nil
+        // Deliberately do NOT setActive(false) here: the video engine shares
+        // this session and deactivating would pause its audio.
+    }
+
+    /// A minimal silent WAV (PCM 16-bit mono) generated in memory - no asset
+    /// file needed.
+    private static func silentWav(seconds: Int, sampleRate: Int) -> Data {
+        let channels = 1
+        let bitsPerSample = 16
+        let bytesPerSample = bitsPerSample / 8
+        let frameCount = sampleRate * seconds
+        let dataSize = frameCount * channels * bytesPerSample
+        var d = Data()
+        func str(_ s: String) { d.append(s.data(using: .ascii)!) }
+        func u16(_ v: UInt16) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 2)) }
+        func u32(_ v: UInt32) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 4)) }
+        str("RIFF"); u32(UInt32(36 + dataSize)); str("WAVE")
+        str("fmt "); u32(16); u16(1); u16(UInt16(channels)); u32(UInt32(sampleRate))
+        u32(UInt32(sampleRate * channels * bytesPerSample))
+        u16(UInt16(channels * bytesPerSample)); u16(UInt16(bitsPerSample))
+        str("data"); u32(UInt32(dataSize))
+        d.append(Data(count: dataSize)) // all zeros = silence
+        return d
+    }
+
     // MARK: - helpers
 
     private func parseHeaders(_ text: String) -> [String: String] {
@@ -746,7 +813,7 @@ private func pageHtml() -> String {
         html += "    </div>\n"
         html += "  </div>\n"
         html += "  <p class=\"foot\">Files are saved to this device's download folder and appear in DreamPlayer automatically.\n"
-        html += "     The page is reachable while the transfer service is on in the app.</p>\n"
+        html += "     The page is reachable while the transfer service is on in the app, even when the screen is locked.</p>\n"
         html += "</div>\n"
         html += "<script>\n"
         html += "(function () {\n"

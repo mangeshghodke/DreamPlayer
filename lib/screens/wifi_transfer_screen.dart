@@ -351,7 +351,8 @@ class _RunningCard extends StatelessWidget {
             Text(
               'Open this address in a PC browser on the same Wi-Fi. The browser '
               'asks for your username and password each time. Uploaded videos '
-              'appear in DreamPlayer automatically.',
+              'appear in DreamPlayer automatically. The server keeps running '
+              'while the screen is locked.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 height: 1.4,

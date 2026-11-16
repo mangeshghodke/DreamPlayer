@@ -675,7 +675,7 @@ private const val MAX_NAME_LEN = 120
     </div>
   </div>
   <p class="foot">Files are saved to this device's download folder and appear in DreamPlayer automatically.
-     The page is reachable while the transfer service is on in the app.</p>
+     The page is reachable while the transfer service is on in the app, even when the screen is locked.</p>
 </div>
 <script>
 (function () {
