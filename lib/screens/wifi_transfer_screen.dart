@@ -321,18 +321,7 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
                       height: 52,
                       child: OutlinedButton.icon(
                         onPressed: running && !_picking ? _sendFilesToComputer : null,
-                        icon: _picking
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    colorScheme.primary,
-                                  ),
-                                ),
-                              )
-                            : const Icon(Icons.send, size: 20),
+                        icon: const Icon(Icons.send, size: 20),
                         label: const Text(
                           'Send files',
                           style: TextStyle(fontWeight: FontWeight.w600),
