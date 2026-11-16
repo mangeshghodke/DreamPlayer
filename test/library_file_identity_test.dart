@@ -6,9 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// A library FILE entry's metadata identity has to be the same string the
 /// resolved VideoItem carries as its resume key.
 ///
-/// Keying it `folder:<id>` instead gave one film several separate slots — the
+/// Keying it `folder:<id>` instead gave one film several separate slots - the
 /// home card, the SMB browser's details page and Continue Watching each had their
-/// own — so a poster picked in one place never appeared in another. The home card
+/// own - so a poster picked in one place never appeared in another. The home card
 /// and Continue Watching looked synced only because resume is stored against the
 /// resumeKey, which is one string both of them shared.
 void main() {

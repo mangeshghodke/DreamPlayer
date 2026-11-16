@@ -7,7 +7,7 @@ import 'cached_image.dart';
 
 /// What a Fix match dialog returns: the pinned title plus the optional season
 /// the user picked (or that was auto-matched from the folder name). [season]
-/// null means "series only / movie" — no [TmdMeta.folderSeason].
+/// null means "series only / movie" - no [TmdMeta.folderSeason].
 class TmdbFixMatchPick {
   const TmdbFixMatchPick({required this.movie, this.season});
 
@@ -17,13 +17,13 @@ class TmdbFixMatchPick {
 
 /// Shared Fix match / Get Info dialog (issue #22): title search, Movie/TV
 /// toggle, **id lookup** when the query is numeric (movie and TV ids are
-/// separate namespaces — both are probed and shown), and a **season picker**
+/// separate namespaces - both are probed and shown), and a **season picker**
 /// for multi-season shows so "Railgun S" can pin to Season 2 instead of only
 /// the main show. When [folderName] uniquely matches one season, that season
 /// is returned immediately without the extra step.
 ///
 /// Search runs across every configured metadata provider (TMDB, TheTVDB) and
-/// shows one merged, de-duplicated result list — the user adds their own API
+/// shows one merged, de-duplicated result list - the user adds their own API
 /// keys in Settings → Metadata and never picks a provider here.
 ///
 /// Returns null on cancel.
@@ -168,7 +168,7 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
     if (!mounted) return;
     final seasons = names;
     if (seasons.length <= 1) {
-      // Single season (or no names) — no picker needed.
+      // Single season (or no names) - no picker needed.
       Navigator.of(context).pop(
         TmdbFixMatchPick(
         movie: movie,
@@ -182,7 +182,7 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
         ? null
         : TmdService.matchFolderToSeasonName(auto, names);
     if (autoSeason != null && names.containsKey(autoSeason)) {
-      // Folder name uniquely identifies a season (suffix / exact match) —
+      // Folder name uniquely identifies a season (suffix / exact match) -
       // skip the extra tap (issue #22 Railgun S → Season 2).
       Navigator.of(
         context,
@@ -295,7 +295,7 @@ class _TmdbFixMatchDialogState extends State<TmdbFixMatchDialog> {
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       'Enable a metadata provider in Settings → Metadata to '
-                      'search — add a TMDB or TheTVDB API key, or turn on '
+                      'search - add a TMDB or TheTVDB API key, or turn on '
                       'AVDb or r18.dev (no key needed).',
                       textAlign: TextAlign.center,
                       style:

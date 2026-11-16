@@ -8,7 +8,7 @@ import 'package:dream_player/screens/settings_screen.dart';
 
 /// The hardware SDR tone-mapping toggle (issue #55) drives the ANDROID video
 /// codec (MediaCodec's `KEY_COLOR_TRANSFER_REQUEST`), so it must not appear
-/// on iOS — where playback runs through AetherEngine and the setting would
+/// on iOS - where playback runs through AetherEngine and the setting would
 /// resolve to nothing.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

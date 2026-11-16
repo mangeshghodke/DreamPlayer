@@ -200,7 +200,7 @@ class _VideoCardState extends State<VideoCard> {
                               ),
                             ),
                             child: Center(
-                              // Play glyph only when there is no art at all —
+                              // Play glyph only when there is no art at all -
                               // embedded cover-art or TMDB backdrop replaces
                               // it. Hidden while the art lookup is in flight.
                               child: (!_thumbChecked ||

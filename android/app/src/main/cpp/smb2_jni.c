@@ -15,7 +15,7 @@
 #include <sys/prctl.h>
 #include <smb2/smb2.h>
 
-/* Disable Android tagged pointers (MTE) for this library — libsmb2 stores
+/* Disable Android tagged pointers (MTE) for this library - libsmb2 stores
  * pointers in fields that may be 32-bit, and tagged pointers truncate them. */
 __attribute__((constructor))
 static void disable_tagged_pointers(void) {
@@ -93,7 +93,7 @@ Java_com_dreamplayer_app_Smb2Native_openSession(JNIEnv *env, jclass cls,
         /* Do NOT call smb2_disconnect_share / smb2_destroy_context here:
          * on a failed connect the context's fd state is partial and
          * destroying it crashes (smb2_close_connecting_fds SIGSEGV).
-         * Leak the context on the error path — acceptable for a video player. */
+         * Leak the context on the error path - acceptable for a video player. */
         (*env)->ReleaseStringUTFChars(env, jhost, host);
         (*env)->ReleaseStringUTFChars(env, juser, user);
         (*env)->ReleaseStringUTFChars(env, jpass, pass);
@@ -124,7 +124,7 @@ Java_com_dreamplayer_app_Smb2Native_closeSession(JNIEnv *env, jclass cls, jlong 
              * handle is still open on that tree) its disconnect_cb_1 returns
              * early and NEVER closes the fd. The TCP connection and the
              * server-side session then stay alive for the life of the
-             * process — and the NAS's per-user session limit is small, so
+             * process - and the NAS's per-user session limit is small, so
              * after a handful of leaked sessions every new connect fails.
              * That is exactly what broke the MPV loopback proxy: one
              * request served, then nothing. Close the socket ourselves when
@@ -135,7 +135,7 @@ Java_com_dreamplayer_app_Smb2Native_closeSession(JNIEnv *env, jclass cls, jlong 
             }
         }
         /* smb2_destroy_context crashes in smb2_free_pdu on some contexts
-         * (heap corruption from pending PDUs). Leak the context instead —
+         * (heap corruption from pending PDUs). Leak the context instead -
          * the OS reclaims it when the app exits. */
         s->ctx = NULL;
     }

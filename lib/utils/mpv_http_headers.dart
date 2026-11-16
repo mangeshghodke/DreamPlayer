@@ -11,11 +11,11 @@
 ///
 /// Two things were broken on the mpv path:
 ///
-///  1. **`VideoItem.httpHeaders` was dropped entirely** — so every
+///  1. **`VideoItem.httpHeaders` was dropped entirely** - so every
 ///     authenticated URL (WebDAV Basic auth, a Jellyfin token) could never
 ///     play on this engine.
 ///  2. ffmpeg's default `User-Agent: Lavf/…` identifies itself as a media
-///     ripper and is refused by a lot of CDNs — which is why a link Media3
+///     ripper and is refused by a lot of CDNs - which is why a link Media3
 ///     opened was rejected by mpv.
 ///
 /// This file owns the mapping; `player_screen.dart` only applies it.
@@ -36,7 +36,7 @@ class MpvHttpHeaderOptions {
     this.headerFields,
   });
 
-  /// mpv's `user-agent` property. Never empty — the browser UA is the
+  /// mpv's `user-agent` property. Never empty - the browser UA is the
   /// fallback when the source does not supply one.
   final String userAgent;
 
@@ -59,7 +59,7 @@ class MpvHttpHeaderOptions {
 ///  * Everything else → the `http-header-fields` list.
 ///
 /// mpv splits `http-header-fields` on **commas**, so a comma inside a value
-/// has to be escaped as `\,` (and a backslash as `\\`) — otherwise
+/// has to be escaped as `\,` (and a backslash as `\\`) - otherwise
 /// `Authorization: Basic dXNlcjpwYXNz` style values, or a cookie list, get
 /// split into bogus headers.
 MpvHttpHeaderOptions buildMpvHttpHeaderOptions(

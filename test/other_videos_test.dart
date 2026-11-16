@@ -48,7 +48,7 @@ void main() {
     });
 
     test('does not prefix-match a sibling folder with a shared name', () {
-      // "/Movies" must not swallow "/MoviesArchive" — a classic bug when
+      // "/Movies" must not swallow "/MoviesArchive" - a classic bug when
       // comparing with a bare startsWith.
       final result = otherVideosExcludingLibrary(
         [

@@ -46,6 +46,6 @@ Future<void> openSupportUrl(String url) async {
       throw PlatformException(code: 'cannot_open_url', message: url);
     }
   } catch (_) {
-    // url_launcher not available on this platform — silently ignore.
+    // url_launcher not available on this platform - silently ignore.
   }
 }

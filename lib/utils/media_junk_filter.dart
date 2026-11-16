@@ -12,7 +12,7 @@ library;
 /// Directory names that never contain the actual movie/episode.
 ///
 /// Matched case-insensitively against the whole directory name, after
-/// normalising spaces/dots/underscores to single spaces — so `Special
+/// normalising spaces/dots/underscores to single spaces - so `Special
 /// Features`, `special_features` and `Special.Features` all hit.
 const Set<String> junkDirectoryNames = {
   // Extras / bonus material
@@ -100,8 +100,8 @@ bool isJunkFile(String name) {
   if (base.isEmpty) return true;
 
   // A junk *prefix* only wins when what follows it is a number or a short
-  // qualifier, so `Trailer 1` is filtered while `Trailer Park Boys` — a real
-  // feature film — is not.
+  // qualifier, so `Trailer 1` is filtered while `Trailer Park Boys` - a real
+  // feature film - is not.
   for (final prefix in junkFilePrefixes) {
     if (base == prefix) return true;
     if (!base.startsWith('$prefix ')) continue;

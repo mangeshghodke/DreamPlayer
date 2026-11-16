@@ -14,11 +14,11 @@ import 'webdav_client.dart';
 ///
 /// Library file entries carry synthetic paths for network sources
 /// (`webdav:<serverId><path>`, `ftp:<serverId><path>`,
-/// `jellyfin:<serverUrl>_<itemId>`) — the real playable URL is rebuilt here
+/// `jellyfin:<serverUrl>_<itemId>`) - the real playable URL is rebuilt here
 /// at tap time: WebDAV via server lookup + auth header, Jellyfin via
 /// `streamUrl`, UPnP via a parent re-browse (res URLs rotate per session),
 /// SMB/local directly. Returns null when a source can't be resolved
-/// (no saved server, entry gone) — the caller surfaces that.
+/// (no saved server, entry gone) - the caller surfaces that.
 class NetworkVideoResolver {
   /// Resolves [folder] (a file entry) to a playable [VideoItem], or null.
   static Future<VideoItem?> resolve(LibraryFolder folder) async {
@@ -100,7 +100,7 @@ class NetworkVideoResolver {
         final uri = 'ftp://${folder.networkServerId}${_encodePath(path)}';
         return build(uri: uri, resumeKey: folder.path);
       case LibraryFolderSource.upnp:
-        // Res URLs rotate per session and are not stored — re-browse the
+        // Res URLs rotate per session and are not stored - re-browse the
         // parent container and match the entry by name (best-effort).
         try {
           final serverId = folder.networkServerId ?? '';

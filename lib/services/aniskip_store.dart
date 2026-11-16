@@ -10,7 +10,7 @@ enum SkipMode { off, prompt, auto }
 
 /// Local cache for community skip timestamps (AniSkip) and the skip mode
 /// (issue #60). Everything lives in one JSON map under `dreamplayer.aniskip`
-/// so a playback session works fully offline — including from SMB/USB —
+/// so a playback session works fully offline - including from SMB/USB -
 /// once the title was resolved once online. Negative results are cached too
 /// (`found: false`), so a show AniSkip doesn't know isn't re-queried per
 /// episode.

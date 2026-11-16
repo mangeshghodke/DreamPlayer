@@ -411,6 +411,13 @@
             android:name=".DownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync"/>
+        <!-- WiFi file transfer foreground service: keeps a big upload running
+             with the app in the background and hosts the progress + Cancel
+             notification. -->
+        <service
+            android:name=".UploadForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"/>
         <!-- Routes headset / Bluetooth media-button events to the session
              (also the restart target of notification action PendingIntents). -->
         <receiver

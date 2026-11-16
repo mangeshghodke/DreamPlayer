@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Subtitle styling is a paywalled iOS feature (#36), and the caption font
-/// picker — the six built-ins, the nine bundled families and the whole Google
-/// Fonts catalog — lives inside `SubtitleSettingsScreen`. So the screen is the
+/// picker - the six built-ins, the nine bundled families and the whole Google
+/// Fonts catalog - lives inside `SubtitleSettingsScreen`. So the screen is the
 /// chokepoint: one ungated route and every font becomes free.
 ///
 /// Android must stay immune (hardcoded `advanced = true` in `Entitlements`),
@@ -25,7 +25,7 @@ void main() {
     for (final file in otherSources) {
       final text = file.readAsStringSync();
       expect(text, isNot(contains('_SubtitleFontSheet')),
-          reason: '${file.path} reaches the font sheet directly — it must be '
+          reason: '${file.path} reaches the font sheet directly - it must be '
               'opened only from the gated SubtitleSettingsScreen');
     }
 
@@ -76,7 +76,7 @@ void main() {
   test('_gate consults the single entitlement authority', () {
     final start = player.indexOf('Future<bool> _gate()');
     expect(start, isNonNegative);
-    // Read the whole method body — a fixed character window silently stops
+    // Read the whole method body - a fixed character window silently stops
     // covering the body as soon as a comment is added to it.
     final end = player.indexOf('\n  }', start);
     expect(end, greaterThan(start));

@@ -53,7 +53,7 @@ void main() {
         m.fromCounters(160, DateTime(2026).add(const Duration(seconds: 1))),
         closeTo(60, 1),
       );
-      // A reopen resets the cumulative counter — the next sample must keep
+      // A reopen resets the cumulative counter - the next sample must keep
       // the last good reading, never compute a huge negative fps.
       expect(
         m.fromCounters(5, DateTime(2026).add(const Duration(seconds: 2))),
@@ -182,7 +182,7 @@ void main() {
 
   group('HUD wiring (source-reading pins)', () {
     // The player screen needs a live platform view, so it cannot be pumped
-    // as a widget — pin the wiring from the sources instead.
+    // as a widget - pin the wiring from the sources instead.
     late String screenSrc;
     late String nativeSrc;
 

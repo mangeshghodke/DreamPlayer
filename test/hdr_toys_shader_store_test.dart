@@ -38,7 +38,7 @@ void main() {
   test('the shaders are copied to real files inside the support dir', () async {
     // Regression: the copy used `'$root.path$separator$version'`, and Dart
     // interpolates `$root` (the Directory OBJECT) and then the literal text
-    // ".path" — so the directory was created under a garbage relative path
+    // ".path" - so the directory was created under a garbage relative path
     // and every profile failed with "Could not load shaders".
     final paths = await HdrToysShaderStore.pathsFor(HdrToysProfile.pq);
     expect(paths, hasLength(HdrToysProfile.pq.assetPaths.length));

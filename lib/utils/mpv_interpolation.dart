@@ -18,14 +18,14 @@
 ///    a 47.94 fps source on a 48 fps target do nothing. -1 turns that logic
 ///    off.
 enum MpvInterpolationFilter {
-  /// mpv's `oversample` filter — the one usually known as **SmoothMotion**
+  /// mpv's `oversample` filter - the one usually known as **SmoothMotion**
   /// (AMD FSR 1.0 style). The sharpest of the three.
   oversample('oversample'),
 
-  /// Linear blend — softer edges, more ghosting on fast motion.
+  /// Linear blend - softer edges, more ghosting on fast motion.
   linear('linear'),
 
-  /// Bicubic — the smoothest and blurriest; the safest on clean animation.
+  /// Bicubic - the smoothest and blurriest; the safest on clean animation.
   bicubic('bicubic');
 
   const MpvInterpolationFilter(this.mpvName);
@@ -90,7 +90,7 @@ class MpvOption {
 ///
 /// The target frame rate is not in this list: its option name differs
 /// between mpv versions and the old name doubles as a read-only property,
-/// so it is applied separately — see [mpvDisplayFpsOptionNames].
+/// so it is applied separately - see [mpvDisplayFpsOptionNames].
 List<MpvOption> mpvInterpolationOptions(MpvInterpolationConfig config) {
   if (!config.enabled) {
     return const [
@@ -111,7 +111,7 @@ List<MpvOption> mpvInterpolationOptions(MpvInterpolationConfig config) {
 /// mpv keeps the *option* value and the *detected* refresh rate apart: the
 /// detected one is the read-only `display-fps` property, while the option
 /// value lives in `override-display-fps` ("the reported value and the option
-/// value are cleanly separated (override-display-fps for the option value)" —
+/// value are cleanly separated (override-display-fps for the option value)" -
 /// mpv's manual). The user-facing option was renamed from `--display-fps` to
 /// `--display-fps-override` along the way, so all three names are tried and
 /// every one of them is read back before it counts.

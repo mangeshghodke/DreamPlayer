@@ -4,7 +4,7 @@ import '../utils/server_failover.dart';
 import 'server_alt_store.dart';
 
 /// A saved SMB server (see `SMBClient.swift` / `SMBClient.kt`). Passwords
-/// never cross to Dart — only `hasPassword` (native sides keep them in
+/// never cross to Dart - only `hasPassword` (native sides keep them in
 /// Keychain / Keystore).
 class SmbServer {
   const SmbServer({
@@ -117,11 +117,11 @@ class SmbDiscovered {
   ///
   /// Only present once the native side completed a real SMB negotiate
   /// (libsmb2 against IPC$), which is also what qualifies a host to appear here
-  /// at all — a bare TCP connect to 445 no longer adds a server. Android's
+  /// at all - a bare TCP connect to 445 no longer adds a server. Android's
   /// jcifs-ng sweep has no equivalent handshake, so it stays null there.
   final String? dialect;
 
-  /// The server's SMB GUID — a stable identity for a host whose IP may change.
+  /// The server's SMB GUID - a stable identity for a host whose IP may change.
   final String? serverGuid;
 
   factory SmbDiscovered.fromMap(Map<dynamic, dynamic> m) {
@@ -247,7 +247,7 @@ class SmbClient {
   /// True only when the server *answered definitively* that the path is gone
   /// (native maps the SMB NT not-found statuses / libsmb2 ENOENT-ENOTDIR to
   /// the `smb_not_found` code). NEVER true on a network, timeout or auth
-  /// failure — callers prune stored entries on this alone, so an offline NAS
+  /// failure - callers prune stored entries on this alone, so an offline NAS
   /// must never satisfy it.
   static bool isNotFound(PlatformException e) => e.code == 'smb_not_found';
 
@@ -316,7 +316,7 @@ class SmbClient {
 
   /// Invalidate the native directory-listing cache for a server (or all servers
   /// when [serverId] is null). Called after server/share changes or on
-  /// pull-to-refresh — the listing itself is cached for 60 s on the native
+  /// pull-to-refresh - the listing itself is cached for 60 s on the native
   /// side so re-visiting a folder is instant.
   Future<void> invalidateListingCache({String? serverId}) async {
     await _channel.invokeMethod<void>('invalidateListingCache', {
@@ -364,7 +364,7 @@ class SmbClient {
 
   /// Runs [op] against the saved server; on a channel failure, if an
   /// alternate address is stored for this server, the saved server is
-  /// re-pointed at it (password is kept — empty password means "keep stored"
+  /// re-pointed at it (password is kept - empty password means "keep stored"
   /// on both platforms) and [op] retried. If the alt also fails, the primary
   /// address is restored and the original error rethrown.
   /// Returns the result plus the *effective* server (re-pointed on failover).
@@ -383,7 +383,7 @@ class SmbClient {
       },
       persistAlt: (a) async {
         // Called with the alt before runAlt (already re-pointed there) and
-        // with null when runAlt failed — restore the primary address then.
+        // with null when runAlt failed - restore the primary address then.
         if (a == null) await _repoint(server, server.host, server.port);
       },
     );
@@ -412,7 +412,7 @@ class SmbClient {
   }
 
   /// Starts a loopback HTTP bridge (`http://127.0.0.1:<port>/<token>`) that
-  /// serves [path] on [share] of [serverId] with byte-range support — the
+  /// serves [path] on [share] of [serverId] with byte-range support - the
   /// libmpv fallback engine cannot read `smb://`, so Android serves the same
   /// jcifs-ng handle over HTTP. Returns the playable URL.
   Future<String> startLoopback(String serverId, String share, String path) async {

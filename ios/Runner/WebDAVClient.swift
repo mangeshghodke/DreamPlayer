@@ -11,7 +11,7 @@ import AetherEngineSMB
 /// end to end (AetherEngine's own HTTP stack cannot bypass TLS validation).
 ///
 /// Saved servers (name + base URL + credentials) are stored in UserDefaults;
-/// passwords go to the Keychain and never cross to Dart — only `hasPassword`
+/// passwords go to the Keychain and never cross to Dart - only `hasPassword`
 /// is exposed, and Dart asks for the ready-made `Authorization` header via
 /// `authorizationHeader`.
 final class WebDAVClient: NSObject {
@@ -163,7 +163,7 @@ final class WebDAVClient: NSObject {
         var request = URLRequest(url: u)
         request.httpMethod = "GET"
         if let server {
-            // Saved-server credentials never cross to Dart — build auth natively.
+            // Saved-server credentials never cross to Dart - build auth natively.
             request.setValue(server.authorizationHeader, forHTTPHeaderField: "Authorization")
             for (k, v) in extraHeaders { request.setValue(v, forHTTPHeaderField: k) }
             let session = server.allowSelfSigned ? permissiveSession : standardSession
@@ -365,7 +365,7 @@ final class WebDAVClient: NSObject {
     }
 
     /// Sends a WebDAV request (PROPFIND by default) with Basic auth and returns
-    /// body + response. Never throws on HTTP status codes — only on transport
+    /// body + response. Never throws on HTTP status codes - only on transport
     /// errors, so callers inspect `.statusCode`.
     private func webdavRequest(
         url: String,
@@ -426,7 +426,7 @@ final class WebDAVClient: NSObject {
 
     private func entry(from builder: EntryBuilder, basePath: String, requestedPath: String) -> [String: Any]? {
         guard let href = builder.href, let url = URL(string: href) else { return nil }
-        // URL.path is already percent-decoded (and keeps a literal `+` intact —
+        // URL.path is already percent-decoded (and keeps a literal `+` intact -
         // do NOT use URLComponents/removingPercentEncoding-style decoding that
         // would turn `+` into a space and 404 names like "224kbps + English").
         let decoded = url.path
@@ -504,7 +504,7 @@ private final class PermissiveTrustDelegate: NSObject, URLSessionDelegate {
 /// Serves byte ranges of a WebDAV file over HTTP(S) as the engine's custom
 /// `ByteRangeSource` (wrapped by `BufferedSMBReader` for read-ahead buffering).
 /// Each read is an independent HTTP Range request, so concurrent readers
-/// (demux + scrub) are safe. `close()` is a no-op — there is no persistent
+/// (demux + scrub) are safe. `close()` is a no-op - there is no persistent
 /// connection; the session owns nothing per-source.
 final class WebDAVByteRangeSource: ByteRangeSource, @unchecked Sendable {
 

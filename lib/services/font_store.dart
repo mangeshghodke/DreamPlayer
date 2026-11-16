@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Two things this must survive, both learned the hard way:
 ///  * A font that cannot be loaded must NOT break the theme. `google_fonts`
 ///    throws when it cannot fetch/parse a family, and a media player is used
-///    on offline LANs — so every application is guarded and falls back to the
+///    on offline LANs - so every application is guarded and falls back to the
 ///    platform font.
 ///  * Fetched fonts are cached on disk by the package, so a family only needs
 ///    a connection the first time it is chosen.
@@ -16,7 +16,7 @@ class FontStore {
 
   static const String _prefsKey = 'dreamplayer.fontFamily';
 
-  /// Null means "use the platform font" — the default and the safe fallback.
+  /// Null means "use the platform font" - the default and the safe fallback.
   static String? _family;
 
   static String? get family => _family;
@@ -46,7 +46,7 @@ class FontStore {
   static const bool _isTest = bool.fromEnvironment('FLUTTER_TEST');
 
   /// google_fonts 9.x has no error hook: a failed load debugPrints and
-  /// rethrows from an async body, so the surrounding try/catch cannot see it —
+  /// rethrows from an async body, so the surrounding try/catch cannot see it -
   /// it escapes as an unhandled zone error and fails a test. The fix is to not
   /// ask for the bytes at all under test, which [_buildTextTheme] does by
   /// reading the registered family name straight out of the catalog.
@@ -78,7 +78,7 @@ class FontStore {
   /// Applies the chosen family to [base].
   ///
   /// Returns [base] untouched when there is no choice, when the family is not
-  /// in the catalog, or when the font fails to load — a broken font must never
+  /// in the catalog, or when the font fails to load - a broken font must never
   /// leave the app with unrenderable text.
   static TextTheme apply(TextTheme base) {
     _installErrorHandler();

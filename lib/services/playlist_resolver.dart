@@ -98,7 +98,7 @@ class PlaylistResolver {
 
   /// Resolves a .strm/.m3u library card to the VideoItem it points at
   /// (an .m3u card plays its first entry). Returns null when unreadable or
-  /// not a playlist file — callers then fall back to the raw entry.
+  /// not a playlist file - callers then fall back to the raw entry.
   static Future<VideoItem?> resolveToVideoItem({
     required String name,
     required String selfRef,
@@ -146,7 +146,7 @@ class PlaylistResolver {
 
   /// Handles a tapped entry that may be a .strm or .m3u/.m3u8.
   ///
-  /// [fetchTextAt] reads a pointer/playlist file — pass the entry's own
+  /// [fetchTextAt] reads a pointer/playlist file - pass the entry's own
   /// path/URL first, and resolved refs after (screens implement per source:
   /// local file, smb path, webdav/ftp URL, upnp URL).
   /// [baseForRelative] is the entry's own absolute URL/URI (directory form),

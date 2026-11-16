@@ -23,7 +23,7 @@ class ImageCacheService {
   /// Every metadata resolve fans poster + backdrop + stills + cast profiles out
   /// through `prefetchImages`, and one folder listing (or a home-screen pass)
   /// can resolve dozens of entries at once. Unbounded, that produced hundreds
-  /// of simultaneous downloads — each on its OWN `HttpClient`, i.e. its own TCP
+  /// of simultaneous downloads - each on its OWN `HttpClient`, i.e. its own TCP
   /// + TLS handshake, each ending in an fsync'd write. On iOS that starved the
   /// raster pipeline hard enough to delay the *next* screen's first frame by up
   /// to 60 s (symptom: the details screen's spinner turning for a minute with
@@ -129,7 +129,7 @@ class ImageCacheService {
   }
 
   /// Returns cached image bytes for [url], or null if not cached.
-  /// Checks memory first, then disk — never hits the network.
+  /// Checks memory first, then disk - never hits the network.
   Future<Uint8List?> getCached(String url) async {
     if (!_enabled) return null;
     final mem = _memory[url];

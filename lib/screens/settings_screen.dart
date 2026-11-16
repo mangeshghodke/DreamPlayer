@@ -41,7 +41,6 @@ import '../services/mpv_user_config.dart';
 import '../services/file_browser.dart';
 import '../services/app_icon_service.dart';
 import '../services/app_updater.dart';
-import '../services/wifi_upload.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/crash_report_note.dart';
 import '../services/tone_map_store.dart';
@@ -164,7 +163,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadAutoExpandFolders();
     _loadAutoCheckUpdates();
     _loadIosUpscaleSupport();
-    unawaited(_loadWifiUpload());
   }
 
   Future<void> _loadOtherVideos() async {
@@ -249,16 +247,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) setState(() => _autoCheckUpdates = enabled);
   }
 
-  Future<void> _loadWifiUpload() async {
-    await WifiUploadService.instance.load();
-    // mounted is checked by ListenableBuilder below; no setState needed here.
-  }
-
   /// The MetalFX upscale stage needs iOS 26+; the toggle is only offered there.
   Future<void> _loadIosUpscaleSupport() async {
     final supported = await isIos26OrLater();
     // The engine reads the pref straight from UserDefaults, so a lapsed
-    // entitlement has to be corrected here too — the switch must show the
+    // entitlement has to be corrected here too - the switch must show the
     // truth and the correction must be persisted before the next open.
     final effective = await IosUpscaleStore().effectiveEnabled();
     if (mounted) {
@@ -684,7 +677,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// Returns true if a gated Settings feature is allowed, or shows the paywall.
-  /// Mirrors `PlayerScreen._gate` — Android is always advanced, so this is a
+  /// Mirrors `PlayerScreen._gate` - Android is always advanced, so this is a
   /// guaranteed no-op there (iOS-only monetization).
   Future<bool> _settingsGate() => settingsGate(context);
 
@@ -693,7 +686,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// gets it straight away.
   Future<bool> _spatialAudioGate() async {
     final ent = Entitlements.instance;
-    // Wait for the first entitlement read — a paying user must never be shown
+    // Wait for the first entitlement read - a paying user must never be shown
     // the paywall because the StoreKit query had not answered yet.
     await ent.awaitReady();
     if (spatialAudioMayBeEnabled(
@@ -707,7 +700,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadTmdbKey() async {
-    // Read only the user's SAVED key from prefs — NOT effectiveApiKey(),
+    // Read only the user's SAVED key from prefs - NOT effectiveApiKey(),
     // which falls through to the compile-time TMDB_API_KEY define (injected
     // by --dart-define-from-file=.env). If we used effectiveApiKey here, the
     // build-time default would always show "Set (…)" and the Remove button
@@ -770,7 +763,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final changed = await showDialog<bool>(
       context: context,
       // `dialogContext` is the dialog's own context. It must be used for
-      // anything looked up from inside the dialog — calling
+      // anything looked up from inside the dialog - calling
       // `AppLocalizations.of(context)` with the SCREEN's context here builds a
       // widget in the dialog subtree that depends on an InheritedElement
       // outside it, which trips `assert(_dependents.isEmpty)` in
@@ -875,13 +868,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-    // `showDialog`'s future completes when the route is POPPED — i.e. at the
+    // `showDialog`'s future completes when the route is POPPED - i.e. at the
     // START of the exit animation, not when it has finished. The dialog's
     // subtree (and its EditableText) therefore keeps rebuilding for a few more
     // frames. Disposing the controllers immediately made that rebuild hit
     // "A TextEditingController was used after being disposed", which corrupts
     // the element tree and makes the subsequent teardown assert
-    // `_dependency.isEmpty` in InheritedElement.debugDeactivated — the red
+    // `_dependency.isEmpty` in InheritedElement.debugDeactivated - the red
     // screen this dialog used to show on saving a key.
     // Regression test: test/tvdb_dialog_save_test.dart
     await Future<void>.delayed(const Duration(milliseconds: 400));
@@ -1066,12 +1059,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadAudioFilters() async {
     try {
-      // The iOS DSP trio is paywall-gated — same correction
+      // The iOS DSP trio is paywall-gated - same correction
       // `SpatialAudioStore.effectiveEnabled` applies, so a lapsed
       // entitlement shows (and keeps) the truth instead of a stale ON.
       final night = effectiveDspSetting(await NightModeStore.load());
       // iOS has no volume boost (see the row below): the boost is engine DSP
-      // there and every DSP change rebuilds the audio session — a video
+      // there and every DSP change rebuilds the audio session - a video
       // reload. The stored value is ignored on iOS.
       final boostEnabled = defaultTargetPlatform == TargetPlatform.iOS
           ? false
@@ -1232,7 +1225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            // Premium section — shown when paywall is effective (iOS builds
+            // Premium section - shown when paywall is effective (iOS builds
             // with PAYWALL_ENABLED, or Android debug with simulate-free-user).
             if (Entitlements.instance.effectivePaywallEnabled) ...[
               ListenableBuilder(
@@ -1241,7 +1234,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   final e = Entitlements.instance;
                   final entitled = e.isEntitled;
                   // While the store has not answered yet, we do NOT know
-                  // whether the customer is subscribed — saying "Unlock"
+                  // whether the customer is subscribed - saying "Unlock"
                   // would be a lie that shows up as a paywall for someone
                   // who has been paying for months (the first StoreKit
                   // query after an update took 3.5s on the iPad). Show
@@ -1428,59 +1421,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   onTap: _pickDownloadDir,
                 ),
-                // WiFi upload server: send videos from a PC browser over LAN
-                // (competitor-gap #1). Files land in the download directory.
-                ListenableBuilder(
-                  listenable: WifiUploadService.instance,
-                  builder: (context, _) {
-                    final s = WifiUploadService.instance;
-                    final subtitle = s.running
-                        ? (s.urls.isNotEmpty ? s.urls.first : '')
-                        : s.error != null
-                            ? 'Error: ${s.error}'
-                            : 'Turn on to receive videos from a PC on the same Wi-Fi';
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SwitchListTile(
-                          secondary: const Icon(Icons.wifi_tethering),
-                          title: const Text('WiFi upload to this device'),
-                          subtitle: Text(
-                            subtitle,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                          value: s.enabled,
-                          onChanged: (v) => unawaited(s.setEnabled(v)),
-                        ),
-                        if (s.enabled)
-                          ListTile(
-                            leading: const Icon(Icons.input),
-                            title: const Text('Port'),
-                            subtitle: Text('${s.port}'),
-                            trailing: SizedBox(
-                              width: 110,
-                              child: TextField(
-                                keyboardType: TextInputType.number,
-                                textAlign: TextAlign.right,
-                                controller: TextEditingController(text: '${s.port}'),
-                                onSubmitted: (v) async {
-                                  final p = int.tryParse(v);
-                                  if (p != null && p > 0 && p < 65536) {
-                                    await s.setPort(p);
-                                    if (s.enabled) {
-                                      await s.stop();
-                                      await s.start();
-                                    }
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
                 // Debug: simulate free user (debug builds only).
                 if (kDebugMode) ...[
                   ListenableBuilder(
@@ -1490,8 +1430,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: const Text('Debug: simulate free user', style: TextStyle(color: Colors.orange)),
                       subtitle: Text(
                         Entitlements.instance.debugFreeUser
-                            ? 'ON — paywall + gates active on Android'
-                            : 'OFF — Android = advanced (no paywall)',
+                            ? 'ON - paywall + gates active on Android'
+                            : 'OFF - Android = advanced (no paywall)',
                         style: const TextStyle(fontSize: 12),
                       ),
                       value: Entitlements.instance.debugFreeUser,
@@ -1503,10 +1443,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (context, _) {
                       final e = Entitlements.instance;
                       final sub = e.debugTrialExpired
-                          ? 'ON — trial expired, gates fire (7-day trial bypassed)'
+                          ? 'ON - trial expired, gates fire (7-day trial bypassed)'
                           : e.trialActive
-                              ? 'OFF — 7-day trial active, ${e.trialRemaining.inHours}h left'
-                              : 'OFF — no active trial';
+                              ? 'OFF - 7-day trial active, ${e.trialRemaining.inHours}h left'
+                              : 'OFF - no active trial';
                       return SwitchListTile(
                         secondary: const Icon(Icons.event_busy, color: Colors.orange),
                         title: const Text('Debug: simulate trial expired', style: TextStyle(color: Colors.orange)),
@@ -1561,7 +1501,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     secondary: const Icon(Icons.auto_awesome),
                     title: const Text('Video upscaling (MetalFX)'),
                     subtitle: const Text(
-                      'Upscale SDR SD/720p/1080p video to the display — '
+                      'Upscale SDR SD/720p/1080p video to the display - '
                       'iOS 26+, Apple Silicon. 4K and HDR/DV stay native.',
                     ),
                     value: _iosUpscale,
@@ -1747,9 +1687,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     leading: const Icon(Icons.memory),
                     title: Text(AppLocalizations.of(context).settingsVideoDecoder),
                     subtitle: Text(switch (_decoderMode) {
-                      DecoderMode.hw => 'Hardware — fastest, HDR passthrough',
-                      DecoderMode.sw => 'Software — compatibility fallback',
-                      _ => 'Auto — hardware when available',
+                      DecoderMode.hw => 'Hardware - fastest, HDR passthrough',
+                      DecoderMode.sw => 'Software - compatibility fallback',
+                      _ => 'Auto - hardware when available',
                     }),
                     onTap: () async {
                       final picked = await showDialog<DecoderMode>(
@@ -1954,7 +1894,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // === Audio ===
             // Android has the engine-level audio DSP (downmix, boost, night
             // mode, HDMI passthrough); iOS has the spatial-audio opt-in.
-            // Gate the ROW, never the section — a blanket platform gate on a
+            // Gate the ROW, never the section - a blanket platform gate on a
             // section silently takes every later row with it.
             if (defaultTargetPlatform == TargetPlatform.android ||
                 defaultTargetPlatform == TargetPlatform.iOS)
@@ -1993,12 +1933,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // and mpv `audio-channels=stereo` on the MPV engine. iOS:
                   // the stereo audio-session lever (Apple's own downmix keeps
                   // the centre). Applies on the next playback; bitstream
-                  // passthrough over HDMI is untouched — the processors only
+                  // passthrough over HDMI is untouched - the processors only
                   // run on decoded PCM.
                   //
                   // Deliberately NOT paywall-gated: downmix is about AUDIO
                   // channel count, and most 5.1/7.1 content is ordinary SDR
-                  // that free users can already play — gating it would lock
+                  // that free users can already play - gating it would lock
                   // a basic stereo-listening fix behind the paywall. Only the
                   // HDR/DV *video* path and the iOS DSP trio stay premium.
                   SwitchListTile(
@@ -2042,7 +1982,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   //
                   // iOS has NO boost: there it is make-up gain in the engine's
                   // AudioShaping, and every DSP change rebuilds the audio
-                  // session at the playhead — a video reload — so a boost that
+                  // session at the playhead - a video reload - so a boost that
                   // rode the volume swipe reloaded the picture on every step.
                   // The row is hidden rather than offered as a control that
                   // would fight the playback.
@@ -2084,8 +2024,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: Text(AppLocalizations.of(context).settingsAudioPassthrough),
                       subtitle: Text(
                         _passthrough
-                            ? 'Auto — passthrough when HDMI detected'
-                            : 'Off — decode to PCM (default)',
+                            ? 'Auto - passthrough when HDMI detected'
+                            : 'Off - decode to PCM (default)',
                       ),
                       value: _passthrough,
                       onChanged: (value) async {
@@ -2110,7 +2050,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? 'Add OPENSUBTITLES_API_KEY in .env and rebuild'
                         : _osLoggedIn
                             ? 'Signed in as ${_osUsername ?? ''}${_osRemaining != null ? ' · $_osRemaining remaining' : ''}'
-                            : 'Anonymous — 5/day, sign in for 20/day',
+                            : 'Anonymous - 5/day, sign in for 20/day',
                   ),
                   onTap: !OpensubtitlesClient.instance.hasApiKey
                       ? null
@@ -2291,7 +2231,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    title: const Text('TheIntroDB API key (optional)'),
                    subtitle: Text(
                      _introDbKey.isEmpty
-                         ? 'Not set — keyless access is on by default'
+                         ? 'Not set - keyless access is on by default'
                          : 'Set (${_introDbKey.substring(0, 4)}…${_introDbKey.substring(_introDbKey.length - 4)})',
                    ),
                    onTap: _editIntroDbKey,
@@ -2413,7 +2353,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: TextStyle(color: Colors.orange),
                       ),
                       subtitle: const Text(
-                        'Debug only — sample release notes, no download',
+                        'Debug only - sample release notes, no download',
                       ),
                       onTap: _previewUpdateDialog,
                     ),
@@ -2484,10 +2424,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.play_circle_outline,
                     question: 'Which playback engine should I use?',
                     answer: 'DreamPlayer offers two engines on Android:\n\n'
-                        '• Media3 (default) — hardware-accelerated, supports '
+                        '• Media3 (default) - hardware-accelerated, supports '
                         'Dolby Vision, HDR10, HDR10+, and all audio codecs via '
                         'FFmpeg. Best for most users.\n\n'
-                        '• libmpv — software fallback using FFmpeg. Slower but '
+                        '• libmpv - software fallback using FFmpeg. Slower but '
                         'handles some edge-case formats Media3 cannot decode. '
                         'Does not support Dolby Vision or HDR passthrough.\n\n'
                         'Use Media3 unless a specific file fails to play, in '
@@ -2523,7 +2463,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _FaqTile(
                   icon: Icons.travel_explore,
                   question: 'Do I need TMDB, or can I use TheTVDB only?',
-                  answer: 'Either one works on its own — you can use TMDB only, '
+                  answer: 'Either one works on its own - you can use TMDB only, '
                       'TheTVDB only, or both.\n\n'
                       'TMDB stays the primary provider because it covers movies '
                       'and series most completely. TheTVDB is optional and kicks '
@@ -2534,7 +2474,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'To set one up, go to Settings → Metadata. Get a free TMDB '
                       'key at themoviedb.org → Settings → API → Create, and a '
                       'TheTVDB v4 key at thetvdb.com/api. TheTVDB also asks for a '
-                      'Subscriber PIN on some accounts — leave it blank if yours '
+                      'Subscriber PIN on some accounts - leave it blank if yours '
                       'does not need one.\n\n'
                       'Keys are stored in the platform secure store (Android '
                       'Keystore / iOS Keychain), never in plain text.\n\n'
@@ -2546,13 +2486,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            // "App crashed?" — both platforms: hands the debug logs the app
+            // "App crashed?" - both platforms: hands the debug logs the app
             // already writes (plus a fresh logcat dump on Android, the only
             // log that carries native crashes) out to support via the in-app
             // report form or the share sheet (mailto: cannot carry
             // attachments).
             if (CrashReportNote.isSupported) const CrashReportNote(),
-            // Restore Purchases — always visible when paywall is effective.
+            // Restore Purchases - always visible when paywall is effective.
             // Opens the paywall sheet so the user can see which product is
             // active and explicitly tap Restore there.
             if (Entitlements.instance.effectivePaywallEnabled) ...[
@@ -2763,7 +2703,7 @@ class _TraktConnectDialogState extends State<_TraktConnectDialog> {
         if (mounted) Navigator.of(context).pop(true);
         return;
       } on TraktException {
-        // pending authorization — keep polling
+        // pending authorization - keep polling
       } catch (_) {
         return;
       }
@@ -2830,7 +2770,7 @@ class _SimklConnectDialogState extends State<_SimklConnectDialog> {
     try {
       final ok = await widget.client.pollForToken(widget.code);
       if (!mounted) return;
-      setState(() => _status = ok ? 'Connected!' : 'Timed out — try again.');
+      setState(() => _status = ok ? 'Connected!' : 'Timed out - try again.');
       if (ok) {
         await Future<void>.delayed(const Duration(milliseconds: 800));
         if (mounted) Navigator.of(context).pop();
@@ -2885,7 +2825,7 @@ class _SimklConnectDialogState extends State<_SimklConnectDialog> {
   }
 }
 
-/// Compact badge toggle row — icon + label + optional subtitle + switch.
+/// Compact badge toggle row - icon + label + optional subtitle + switch.
 /// Much lighter than a full CheckboxListTile: 40px height, no checkbox.
 class _BadgeToggle extends StatelessWidget {
   const _BadgeToggle({
@@ -2927,7 +2867,7 @@ class _BadgeToggle extends StatelessWidget {
   }
 }
 
-/// Expandable FAQ tile — icon + question header, expands to show answer text.
+/// Expandable FAQ tile - icon + question header, expands to show answer text.
 class _FaqTile extends StatelessWidget {
   const _FaqTile({
     required this.icon,
@@ -2964,10 +2904,10 @@ class _FaqTile extends StatelessWidget {
 /// Top level because the gated rows are NOT all in this State's build method:
 /// the Appearance block lives in [_LayoutSection], a separate StatelessWidget.
 /// Duplicating the check there would be exactly the kind of second copy that
-/// drifts — and `Entitlements.advanced` being the single chokepoint is what
+/// drifts - and `Entitlements.advanced` being the single chokepoint is what
 /// keeps Android free, so there must not be a second one.
 Future<bool> settingsGate(BuildContext context) async {
-  // Wait for the first entitlement read before deciding — see
+  // Wait for the first entitlement read before deciding - see
   // `Entitlements.awaitReady`. Deciding on a half-read state would flash the
   // paywall at a paying user right after launch or an app update.
   await Entitlements.instance.awaitReady();
@@ -3014,10 +2954,10 @@ class _LayoutSection extends StatelessWidget {
             ListTile(
               title: Text(_thumbSizeLabel(s)),
               subtitle: Text(switch (s) {
-                EpisodeThumbSize.small => 'Current size — densest list',
+                EpisodeThumbSize.small => 'Current size - densest list',
                 EpisodeThumbSize.medium => 'Bigger artwork, still compact',
                 EpisodeThumbSize.large =>
-                  'Best on tablets — automatically reduced on narrow phones',
+                  'Best on tablets - automatically reduced on narrow phones',
               }),
               trailing:
                   s == store.thumbSize ? const Icon(Icons.check, size: 20) : null,
@@ -3045,7 +2985,7 @@ class _LayoutSection extends StatelessWidget {
                 LibraryViewMode.poster =>
                   'Full poster cards with title and subtitle',
                 LibraryViewMode.compact =>
-                  'Smaller artwork and a shorter text block — fit more titles',
+                  'Smaller artwork and a shorter text block - fit more titles',
                 LibraryViewMode.list =>
                   'One wide row per title with artwork on the left',
               }),
@@ -3261,13 +3201,13 @@ class _LayoutSection extends StatelessWidget {
                 //
                 // Gated as an ADDITIVE of the existing Pro unlock (which is
                 // already anchored on Dolby Vision / HDR), NOT as a standalone
-                // cosmetic paywall — a reviewer's first reaction to "pay to
+                // cosmetic paywall - a reviewer's first reaction to "pay to
                 // change your icon" is a 2.3.x flag. Bundled, the cosmetics
                 // ride along with a real feature instead of standing alone.
                 //
                 // Nothing new is sold: the gate reads the same `advanced`
                 // boolean as every other one, so existing subscribers already
-                // have it and get this immediately. Android is untouched —
+                // have it and get this immediately. Android is untouched -
                 // `Entitlements.advanced` is unconditionally true there.
                 if (!isTvMode(context))
                   ListenableBuilder(
@@ -3383,7 +3323,7 @@ class _FontPickerSheetState extends State<_FontPickerSheet> {
                       // family (e.g. "Poppins_regular") and kicks off the
                       // load. A raw TextStyle(fontFamily: name) asks the
                       // engine for a family literally called "Poppins",
-                      // which is never registered — so every row silently
+                      // which is never registered - so every row silently
                       // rendered in the default font and the list looked
                       // uniform. The subtitle stays in the app font so the
                       // family name is still readable while it downloads.
@@ -3446,7 +3386,7 @@ class _ScrollableRadioList extends StatelessWidget {
 }
 
 
-/// A single box divided into equal cells — one per metadata provider.
+/// A single box divided into equal cells - one per metadata provider.
 ///
 /// Not a row of separate chips and not a `SegmentedButton`. Both of those were
 /// tried and both failed the same requirement: three options that read as ONE

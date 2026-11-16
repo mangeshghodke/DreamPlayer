@@ -16,7 +16,7 @@ import 'test_helper.dart';
 ///
 ///  * the shared menu opens the chooser and the choice is applied + persisted;
 ///  * the SMB browser really renders the grid (folders AND files) once Grid is
-///    picked — a menu that works but is never wired to a browser would look
+///    picked - a menu that works but is never wired to a browser would look
 ///    finished and change nothing.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -175,7 +175,7 @@ void main() {
       await tester.tap(find.text('NAS'));
       await tester.pumpAndSettle();
 
-      // The shares list is an entry list, so the view switch belongs here —
+      // The shares list is an entry list, so the view switch belongs here -
       // not only after a share has been opened.
       expect(find.byType(BrowserViewMenu), findsOneWidget);
       expect(find.text('downloads'), findsOneWidget);

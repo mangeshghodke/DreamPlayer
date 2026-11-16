@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Long-press to select, then act from the three-dot overflow — the delete flow
+/// Long-press to select, then act from the three-dot overflow - the delete flow
 /// asked for in issue #48's follow-up.
 ///
 /// Delete is destructive and irreversible, so what is pinned here is that it
@@ -271,11 +271,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pumpAndSettle();
 
-    // The dialog must be gone either way — confirming dismisses it.
+    // The dialog must be gone either way - confirming dismisses it.
     expect(find.text('Delete 2 items?'), findsNothing);
 
     // `FileBrowserService.deleteLocalFile` returns early unless
-    // `Platform.isAndroid`, and `Platform` is dart:io — so
+    // `Platform.isAndroid`, and `Platform` is dart:io - so
     // `debugDefaultTargetPlatformOverride` cannot make a Linux test host take
     // the Android path. Assert the channel calls only where they can happen,
     // rather than stubbing around the guard and claiming coverage that does not
@@ -373,7 +373,7 @@ void main() {
     // `copyLocalToDownloads` returns early unless `Platform.isAndroid` (dart:io,
     // not overridable from a test), so the channel call itself is only
     // observable on an Android host. On this host, assert that the button did
-    // NOT produce a failure snackbar — which is the exact regression.
+    // NOT produce a failure snackbar - which is the exact regression.
     expect(find.textContaining('failed'), findsNothing);
     expect(
       find.textContaining('could not be copied'),

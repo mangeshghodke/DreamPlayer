@@ -54,7 +54,7 @@ Future<void> main() async {
   // it is a legal formality, not something the UI waits for.
   unawaited(LibSmb2ObjectCode.install());
   // StoreKit entitlement + 7-day trial state (iOS-only monetization; Android
-  // stays permanently advanced — see Entitlements). Safe to run everywhere.
+  // stays permanently advanced - see Entitlements). Safe to run everywhere.
   unawaited(Entitlements.instance.init());
   // External metadata providers (issue #46 part 2). Registered here so the
   // Settings "External" segment appears as soon as an adapter exists; the
@@ -81,7 +81,7 @@ Future<void> main() async {
 }
 
 /// Writes the boot line into `app_debug.log`, stamped with the real build
-/// number so a shared log identifies which build produced it — the same thing
+/// number so a shared log identifies which build produced it - the same thing
 /// `SBMLog.boot()` does for `smb_debug.log`.
 Future<void> _logBoot() async {
   var version = 'unknown';

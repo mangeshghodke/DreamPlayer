@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// The boost is engine DSP on iOS, and every DSP change makes the engine
 /// rebuild the audio session at the playhead (`reanchorForAudioShaping` ->
-/// `reloadAtCurrentPosition`) — which reloads the video. A boost that rides
+/// `reloadAtCurrentPosition`) - which reloads the video. A boost that rides
 /// the volume swipe therefore reloaded the picture on every step above 100%
 /// (the user report: "as I increase volume above 100% every volume number
 /// reloads the video").
@@ -18,7 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// So the iOS gesture stops at 100%, the Settings row is gone, the native
 /// shaping carries no make-up gain and no low shelf, and both channel
 /// methods are logged no-ops. Night mode and spatial audio stay.
-/// Android keeps its boost and bass — there the boost is a PCM gain in the
+/// Android keeps its boost and bass - there the boost is a PCM gain in the
 /// audio sink (live, with a peak limiter) and the bass is a session effect.
 ///
 /// The rules are read out of the source instead of pumped as a widget: the

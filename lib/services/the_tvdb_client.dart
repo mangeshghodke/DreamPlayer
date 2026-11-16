@@ -544,7 +544,7 @@ class TheTvdbClient {
   /// backdrops, for the "Change poster" / "Change backdrop" picker.
   ///
   /// Reads the same `/series|movies/{id}/extended` record [extended] already
-  /// fetches — the v4 `artworks` array is a single flat list mixing posters,
+  /// fetches - the v4 `artworks` array is a single flat list mixing posters,
   /// backdrops, logos, banners and clearlogos, so entries are classified by
   /// their `type` (1 = poster, 2 = backdrop) and fall back to aspect ratio when
   /// the provider omits it.

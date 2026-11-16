@@ -7,7 +7,7 @@ import 'dart:typed_data';
 /// card shows the back cover. When the adult-content metadata toggle is on,
 /// poster cards align such images to the RIGHT (the front cover) instead.
 ///
-/// Supports PNG, JPEG, GIF and WebP (VP8/VP8L/VP8X) — everything TMDB and
+/// Supports PNG, JPEG, GIF and WebP (VP8/VP8L/VP8X) - everything TMDB and
 /// the external adapters serve. Pure and synchronous so it can run on
 /// already-cached bytes with no decode.
 class ImageSize {

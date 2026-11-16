@@ -3,7 +3,7 @@
      "Hardware SDR tone-mapping" setting is ON (issue #55/#64): Qualcomm's
      c2.qti.hevc.decoder ignores KEY_COLOR_TRANSFER_REQUEST while rendering
      straight into a SurfaceView (hardware overlay), but honours it when its
-     output sink is a SurfaceTexture — verified on a OnePlus Pad 2 against
+     output sink is a SurfaceTexture - verified on a OnePlus Pad 2 against
      mpv-infinity ("codec output transfer=3 (SDR (709))"). The SurfaceView
      path remains the default so native HDR/DV passthrough is untouched when
      the setting is OFF. -->

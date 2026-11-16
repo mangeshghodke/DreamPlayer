@@ -296,7 +296,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
       }
     }
     if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
-    // Anime bracket numbering — default to season 1.
+    // Anime bracket numbering - default to season 1.
     if (seasonsNeeded.isEmpty && episodes.isNotEmpty) {
       seasonsNeeded.add(1);
     }
@@ -463,7 +463,7 @@ class _WebDavScreenState extends State<WebDavScreen> {
         await LibraryFoldersStore.saveScanRoot(rootFolder);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Bookmarked $folderName to Home — ${expanded.length} items (WebDAV · ${server.name})')),
+            SnackBar(content: Text('Bookmarked $folderName to Home - ${expanded.length} items (WebDAV · ${server.name})')),
           );
         }
         return;

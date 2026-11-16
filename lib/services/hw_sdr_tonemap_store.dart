@@ -16,7 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// The preference is stored through shared_preferences, so on Android it
 /// lands in `FlutterSharedPreferences` under
-/// `flutter.dreamplayer.hwSdrToneMap` — the key the native side reads live
+/// `flutter.dreamplayer.hwSdrToneMap` - the key the native side reads live
 /// (the codec is created per open, so a change applies to the next video).
 class HwSdrToneMapStore {
   HwSdrToneMapStore._();

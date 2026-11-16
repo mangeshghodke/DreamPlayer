@@ -32,7 +32,7 @@ class MediaProbe(private val context: Context) {
                         try {
                             val info = probe(path, uri, headers, allowSelfSigned)
                             // MethodChannel.Result callbacks must run on the
-                            // platform thread — see FileBrowser.kt's
+                            // platform thread - see FileBrowser.kt's
                             // getThumbnail for the same pattern.
                             mainHandler.post { result.success(info) }
                         } catch (e: Exception) {
@@ -43,7 +43,7 @@ class MediaProbe(private val context: Context) {
                 }
                 "probeFile" -> {
                     // Probe a local temp file (used for FTP/SFTP where MediaExtractor
-                    // can't open the URI directly — Dart downloads a prefix to temp).
+                    // can't open the URI directly - Dart downloads a prefix to temp).
                     val filePath = call.argument<String>("filePath")
                     executor.execute {
                         try {

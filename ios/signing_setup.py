@@ -45,7 +45,7 @@ def main():
 
     # Add signing settings to every Runner target config.
     # Runner target configs have PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;
-    # (RunnerTests has com.dreamplayer.app.RunnerTests — won't match the semicolon)
+    # (RunnerTests has com.dreamplayer.app.RunnerTests - won't match the semicolon)
     signing_block = (
         f'\t\t\t\tCODE_SIGN_STYLE = Manual;\n'
         f'\t\t\t\tCODE_SIGN_IDENTITY = "Apple Distribution";\n'
@@ -86,9 +86,9 @@ def main():
         '--dart-define=PAYWALL_ENABLED=true',
     ]
 
-    # Pass dart-defines from env — OPENSUBTITLES_API_KEY + SIMKL_CLIENT_ID +
+    # Pass dart-defines from env - OPENSUBTITLES_API_KEY + SIMKL_CLIENT_ID +
     # the crash-report endpoint/secret (the in-app "App crashed?" upload).
-    # TMDB_API_KEY is NOT baked into production builds — users enter it via Settings.
+    # TMDB_API_KEY is NOT baked into production builds - users enter it via Settings.
     for key in ('OPENSUBTITLES_API_KEY', 'SIMKL_CLIENT_ID',
                 'CRASH_REPORT_ENDPOINT', 'CRASH_REPORT_SECRET'):
         val = os.environ.get(key, '').strip()

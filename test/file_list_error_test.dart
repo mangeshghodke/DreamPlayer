@@ -36,7 +36,7 @@ void main() {
       await svc.listDirectory('/d');
       expect(svc.lastListError, 'not_found');
 
-      // A good listing clears it — a stale error must not leak forward.
+      // A good listing clears it - a stale error must not leak forward.
       await mockList([
         {'name': 'a.mkv', 'path': '/d/a.mkv', 'isDirectory': false, 'size': 1},
       ]);

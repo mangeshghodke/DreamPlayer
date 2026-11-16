@@ -37,7 +37,7 @@ class ChapterNav {
     return index + 1 < chapters.length ? chapters[index + 1] : null;
   }
 
-  /// The PREVIOUS chapter — or a restart of the current one when playback is
+  /// The PREVIOUS chapter - or a restart of the current one when playback is
   /// already past its start.
   ///
   /// That grace window is what makes a second press walk backwards instead of

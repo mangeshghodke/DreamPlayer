@@ -6,7 +6,7 @@ import 'package:dream_player/utils/storage_path.dart';
 /// Deciding "is this removable?" gates both the Download-to-device button and
 /// the new Add-to-library action, so the two copies of this rule that existed
 /// (a private getter on the details screen, inline logic in the file browser)
-/// are now one — and these pin the answer for the shapes that actually occur.
+/// are now one - and these pin the answer for the shapes that actually occur.
 void main() {
   group('isOnRemovableStorage', () {
     test('a USB drive on a UUID mount point is removable', () {

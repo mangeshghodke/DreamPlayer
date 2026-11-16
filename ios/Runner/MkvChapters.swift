@@ -4,7 +4,7 @@ import Foundation
 /// Media3 / AetherEngine don't surface MKV `Chapters`, so we parse the EBML
 /// tree ourselves: SeekHead -> Chapters -> EditionEntry -> ChapterAtom.
 ///
-/// Used for every MKV/WebM on iOS — local Documents and bookmarked Files-app
+/// Used for every MKV/WebM on iOS - local Documents and bookmarked Files-app
 /// SMB shares (file:// via security-scoped bookmark). The provider mounts the
 /// share at a local path, so a plain `FileHandle` read is sufficient.
 enum MkvChapters {

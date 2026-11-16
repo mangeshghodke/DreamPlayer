@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The details header preferred the *season's* poster over the movie's, and
-/// `withArtwork` only patches `movie` and `details` — never `seasons[]`. So a
+/// `withArtwork` only patches `movie` and `details` - never `seasons[]`. So a
 /// poster picked from the ⋮ menu updated the home card and left the details
 /// page showing the season's own artwork. An explicit pick has to win.
 void main() {

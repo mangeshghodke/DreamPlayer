@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 /// Hosts a method channel (`dreamplayer/system`) that handles the brightness
 /// (per-app window brightness) and system media volume setters/getters
 /// without going through any playback engine. Used by the MPV fallback
-/// engine — when mpv is active there is no [ExoPlayerController] platform
+/// engine - when mpv is active there is no [ExoPlayerController] platform
 /// view to dispatch through, but the brightness/volume controls must still
 /// target the OS, not just the Flutter texture overlay (so they work the
 /// same way as Media3).
@@ -43,7 +43,7 @@ class SystemControls {
     try {
       await _channel.invokeMethod<void>('setBrightness', {'brightness': value});
     } on Exception {
-      // Activity not ready, or channel absent (iOS) — nothing to restore.
+      // Activity not ready, or channel absent (iOS) - nothing to restore.
     }
   }
 
@@ -62,7 +62,7 @@ class SystemControls {
     try {
       await _channel.invokeMethod<void>('setSystemVolume', {'volume': value});
     } on Exception {
-      // Activity gone (player closed mid-gesture) — ignore.
+      // Activity gone (player closed mid-gesture) - ignore.
     }
   }
 

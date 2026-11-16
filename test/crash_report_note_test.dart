@@ -12,7 +12,7 @@ import 'package:dream_player/services/crash_log_share.dart';
 import 'package:dream_player/screens/settings_screen.dart';
 import 'package:dream_player/widgets/crash_report_note.dart';
 
-/// The Settings "App crashed?" note — which logs exist and how they are
+/// The Settings "App crashed?" note - which logs exist and how they are
 /// handed to the user's mail app via the system share sheet.
 
 class _FakePathProvider extends PathProviderPlatform {
@@ -95,7 +95,7 @@ void main() {
     'the note opens the share sheet with the existing logs attached',
     (tester) async {
       // Reset before the binding verifies foundation invariants
-      // (addTearDown runs too late — after _verifyInvariants).
+      // (addTearDown runs too late - after _verifyInvariants).
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       final shareCalls = <Map<Object?, Object?>>[];
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -146,7 +146,7 @@ void main() {
     'the note attempts no share when no log file exists',
     (tester) async {
       // Reset before the binding verifies foundation invariants
-      // (addTearDown runs too late — after _verifyInvariants).
+      // (addTearDown runs too late - after _verifyInvariants).
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       final shareCalls = <Map<Object?, Object?>>[];
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -207,7 +207,7 @@ void main() {
   testWidgets('Settings shows the crash note below the FAQ on iOS',
       (tester) async {
     // Reset before the binding verifies foundation invariants
-    // (addTearDown runs too late — after _verifyInvariants).
+    // (addTearDown runs too late - after _verifyInvariants).
     SharedPreferences.setMockInitialValues({});
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
 

@@ -6,7 +6,7 @@ import AetherEngineSMB
 ///
 /// Until now iOS only parsed chapters from a `FileHandle`, because both
 /// chapter parsers took a local path. That made chapters a local-files-only
-/// feature here while Android had them on every source — the same
+/// feature here while Android had them on every source - the same
 /// "whichever engine/source you happened to use" trap that hit #40 on Android.
 ///
 /// Android solves this by issuing its own ranged HTTP GETs. iOS already has
@@ -35,8 +35,8 @@ enum ChapterProbe {
     ///
     /// Needed for FTP/SFTP, which reach the engine as a `BufferedSMBReader`
     /// (a cursor with a read-ahead ring) rather than a `ByteRangeSource`. The
-    /// caller must pass a reader it is NOT already streaming from — seeking the
-    /// engine's live reader would drag playback's position along with it —
+    /// caller must pass a reader it is NOT already streaming from - seeking the
+    /// engine's live reader would drag playback's position along with it -
     /// which is what `makeIndependentReader()` exists for.
     ///
     /// Size comes from `AVSEEK_SIZE` (whence 65536): `BufferedSMBReader.fileSize`
@@ -93,7 +93,7 @@ enum ChapterProbe {
         }
         guard !head.isEmpty else { return [] }
 
-        // Whole file already in hand (or smaller than one window) — no tail.
+        // Whole file already in hand (or smaller than one window) - no tail.
         if UInt64(head.count) >= totalU {
             return parse(head: head, tail: nil, total: totalU, ext: ext)
         }
@@ -104,7 +104,7 @@ enum ChapterProbe {
         if tailLen > 0, let data = try? await byteSource.read(at: Int64(tailStart), length: tailLen) {
             if !data.isEmpty { tail = data }
         } else {
-            SBMLog.log("chapters: tail read failed for .\(ext) — parsing head only")
+            SBMLog.log("chapters: tail read failed for .\(ext) - parsing head only")
         }
         let began = Date()
         let maps = parse(head: head, tail: tail, total: totalU, ext: ext)
@@ -116,7 +116,7 @@ enum ChapterProbe {
         return maps
     }
 
-    /// Parses from a synchronous, *positional* cursor — in-app SMB, where
+    /// Parses from a synchronous, *positional* cursor - in-app SMB, where
     /// `smb2_pread` means a seek lands exactly on the target offset. No gap to
     /// model and no tail to guess at, so this skips the window dance entirely.
     static func probe(cursor: ChapterSeekable, ext: String) -> [[String: Any]] {
@@ -129,7 +129,7 @@ enum ChapterProbe {
         let maps: [[String: Any]]
         // Rewind first. The walk starts by reading the EBML header (or the MP4
         // box) at the cursor's CURRENT position, and the previous walk left it
-        // wherever it ended — so a second probe (after a reload) found
+        // wherever it ended - so a second probe (after a reload) found
         // nothing at all and the chapter markers vanished from the seekbar.
         // The cursor is a separate reader over the same handle, so rewinding
         // it cannot disturb playback.
@@ -147,7 +147,7 @@ enum ChapterProbe {
     }
 
     /// Dispatches on container. Unknown extensions are skipped rather than
-    /// guessed at — both walks start by validating their own magic, so a wrong
+    /// guessed at - both walks start by validating their own magic, so a wrong
     /// guess costs a pointless 16 MiB of reads.
     static func parse(head: Data, tail: Data?, total: UInt64, ext: String) -> [[String: Any]] {
         let ext = ext.lowercased()

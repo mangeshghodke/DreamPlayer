@@ -9,7 +9,7 @@ import 'package:dream_player/services/tmdb_client.dart';
 ///
 /// `TmdService.detailsFor` dispatched on `theTvdb ? TheTVDB : TMDB`, so an
 /// **external** movie fell into the TMDB branch. An adapter's id space is its
-/// own — AVDb's #495175 is not TMDB's #495175 — so the app fetched an
+/// own - AVDb's #495175 is not TMDB's #495175 - so the app fetched an
 /// unrelated TMDB film and wrote its synopsis and poster over the AVDb match.
 ///
 /// The adapter is asked for its own record instead.

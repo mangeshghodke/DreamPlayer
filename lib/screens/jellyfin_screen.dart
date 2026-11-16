@@ -158,7 +158,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
       await _refreshWatched();
       // Jellyfin items carry structured values: when this level holds episodes
       // (parentIndexNumber/indexNumber), resolve the SEASON folders' meta
-      // directly and fetch the seasons present — no filename parsing needed.
+      // directly and fetch the seasons present - no filename parsing needed.
       _detectAndLoadSeasonLevel();
     } on JellyfinException catch (e) {
       if (!mounted) return;
@@ -245,7 +245,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   }
 
   /// Best-effort TV-series detection for the current level. Jellyfin items are
-  /// structured — playables with `parentIndexNumber`/`indexNumber` are episodes
+  /// structured - playables with `parentIndexNumber`/`indexNumber` are episodes
   /// in a season; the season folder is one crumb down (`_crumbs.last`), and the
   /// show itself is the series folder two crumbs down. Resolve that series'
   /// TMDB meta (with details + stars) and fetch every season present.
@@ -255,8 +255,8 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
     final episodes = _items.where((i) =>
         !i.isFolder && i.parentIndexNumber != null && i.indexNumber != null);
     if (episodes.isEmpty) return;
-    // The series is `_crumbs[_crumbs.length - 2]` — the crumb above the
-    // season — named e.g. "House" with the Series folder's parent id.
+    // The series is `_crumbs[_crumbs.length - 2]` - the crumb above the
+    // season - named e.g. "House" with the Series folder's parent id.
     final seriesCrumb = _crumbs[_crumbs.length - 2];
     final seriesKey = 'jellyfin:${server.urlHost}/${seriesCrumb.parentId}';
     if (seriesKey.isEmpty) return;
@@ -314,15 +314,15 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   Future<void> _openItem(JellyfinItem item) async {
     if (item.isFolder) {
       // Season folders get the rich season view (same UI as a bookmarked
-      // season card on Home) — header, season poster, cast, episode list
-      // with stills — instead of a plain file list.
+      // season card on Home) - header, season poster, cast, episode list
+      // with stills - instead of a plain file list.
       if (item.type == 'Season') {
         final server = _browsing;
         if (server != null) {
           final parentName = _crumbs.isNotEmpty ? _crumbs.last.title : '';
           final seasonNum = item.indexNumber ??
               ParsedFileName.parse(item.name).season;
-          // TMDB query uses the PARENT series name — 'House Season02'
+          // TMDB query uses the PARENT series name - 'House Season02'
           // doesn't parse (the parser's season tag needs a space) and
           // returns 0 results, leaving the season view header-less with no
           // episode stills (reads as a plain list). The season number still
@@ -405,9 +405,9 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   }
 
   /// Adds the currently browsed folder (a TV-show/library folder) to the home
-  /// library. The server URL + item id are persisted; the token is never — the
+  /// library. The server URL + item id are persisted; the token is never - the
   // Jellyfin is browsed directly (no Home bookmark). The library stays
-  // server-driven — add-to-library removed per user request.
+  // server-driven - add-to-library removed per user request.
 
   // ---------------------------------------------------------------------------
   // Auth + server persistence
@@ -670,7 +670,7 @@ class _JellyfinScreenState extends State<JellyfinScreen> {
   }
 
   /// Libraries level of a server: a grid of artwork cards using the server's
-  /// own backdrop (16:9) or primary poster, with the library name overlaid —
+  /// own backdrop (16:9) or primary poster, with the library name overlaid -
   /// the Infuse-style "your libraries" look instead of raw folder rows.
   Widget _libraryGrid(BuildContext context) {
     final server = _browsing!;
@@ -861,7 +861,7 @@ class _JellyfinTile extends StatelessWidget {
   final VoidCallback? onToggleWatched;
   final double? resumeProgress;
 
-  /// Server-provided artwork (backdrop ?? primary) — the Infuse-style source
+  /// Server-provided artwork (backdrop ?? primary) - the Infuse-style source
   /// when no TMDB/episode still exists.
   final String? artworkUrl;
 
@@ -1102,7 +1102,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
         _testing = false;
         _resultSuccess = true;
         _resultMessage =
-            'Connected — ${info.serverName} (${info.version})';
+            'Connected - ${info.serverName} (${info.version})';
       });
     } on Exception catch (e) {
       if (!mounted) return;

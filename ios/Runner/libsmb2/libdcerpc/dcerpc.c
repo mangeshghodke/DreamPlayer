@@ -441,7 +441,7 @@ struct dcerpc_pdu {
         uint16_t unicode_max_length;
 
 #ifdef HAVE_DCERPC_FULL
-        /* YAML/JSON text codecs — full libdcerpc only */
+        /* YAML/JSON text codecs - full libdcerpc only */
         int yaml_indentation;
         int yaml_array_prefix; /* next key is the first field of a list item */
         char *yaml_key;
@@ -3177,7 +3177,7 @@ _dcerpc_RPC_UNICODE_STRING_coder(char *name, struct dcerpc_context *dce,
         }
         /*
          * Unique Buffer: always pass the caller's stable char ** (ptr).
-         * Never a stack temporary — Buffer is often deferred (e.g.
+         * Never a stack temporary - Buffer is often deferred (e.g.
          * LookupNames2 name arrays) and must still be valid when flushed.
          * Empty/NULL *ptr still uses ptr so the unique header is present
          * and the utf16 coder encodes an empty (or single-NUL) array.
@@ -3554,7 +3554,7 @@ ndr_uint8_coder(char *name, struct dcerpc_context *ctx, struct dcerpc_pdu *pdu,
 }
 
 /*
- * [size_is(len)] byte data[] — conformant byte array.
+ * [size_is(len)] byte data[] - conformant byte array.
  * Wire: max_count, then max_count bytes. ptr is struct dcerpc_bytes *.
  */
 static int
@@ -3607,7 +3607,7 @@ ndr_bytes_coder(char *name, struct dcerpc_context *ctx, struct dcerpc_pdu *pdu,
 }
 
 /*
- * [size_is(max_count), length_is(len)] byte data[] — conformant-varying
+ * [size_is(max_count), length_is(len)] byte data[] - conformant-varying
  * byte array. Wire: max_count, offset, actual_count, then actual_count
  * bytes. ptr is struct dcerpc_varying_bytes *.
  */

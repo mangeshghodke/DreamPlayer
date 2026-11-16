@@ -22,7 +22,7 @@ void main() {
   });
 
   test('the manifest is copied into the app bundle', () {
-    // A file reference alone is not enough — it has to be in the Runner
+    // A file reference alone is not enough - it has to be in the Runner
     // target's Resources phase or it never reaches the .app.
     expect(pbxproj().existsSync(), isTrue);
     final pbx = pbxproj().readAsStringSync();

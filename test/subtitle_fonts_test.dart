@@ -11,7 +11,7 @@ void main() {
       for (final entry in SubtitleFonts.bundled.entries) {
         expect(entry.value, startsWith('assets/fonts/'));
         // google_fonts recognises an asset as this family's Regular file only
-        // when the path minus its extension ends with "<Family>-Regular" —
+        // when the path minus its extension ends with "<Family>-Regular" -
         // the family name VERBATIM, spaces and case included ("Playfair
         // Display-Regular.ttf"). A tidied-up filename silently downloads
         // instead of using the bundled copy.

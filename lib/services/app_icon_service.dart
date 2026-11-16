@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// The launcher icon variants shipped with the app (issue #23).
 enum AppIconStyle {
-  /// The logo alone. **This is the default icon since 0.5.7** — Android
+  /// The logo alone. **This is the default icon since 0.5.7** - Android
   /// already prints the app name under the icon, so the wordmark is
   /// redundant there.
   markOnly,
@@ -56,7 +56,7 @@ extension AppIconStyleLabel on AppIconStyle {
   };
 
   String get description => switch (this) {
-    AppIconStyle.markOnly => 'Just the logo, without the "DreamPlayer" text — the default',
+    AppIconStyle.markOnly => 'Just the logo, without the "DreamPlayer" text - the default',
     AppIconStyle.defaultIcon => 'The original DreamPlayer icon: logo plus wordmark',
     AppIconStyle.red => 'The logo in red',
     AppIconStyle.green => 'The logo in green',

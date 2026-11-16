@@ -35,7 +35,7 @@ class OpensubtitlesResult {
   final String language; // e.g. 'en'
   final int downloads;
   final double ratings;
-  final String url; // not the download link — use POST /download
+  final String url; // not the download link - use POST /download
   final String? release;
   final String? comments;
   final String? uploaderName;
@@ -133,14 +133,14 @@ class OpensubtitlesClient {
         }
         return jsonDecode(body) as Map<String, dynamic>;
       } on SocketException catch (e) {
-        if (attempt == 1) throw OpensubtitlesException('Network error — check connection and retry (${e.osError?.message ?? e.message})');
+        if (attempt == 1) throw OpensubtitlesException('Network error - check connection and retry (${e.osError?.message ?? e.message})');
         await Future<void>.delayed(const Duration(milliseconds: 400));
       } on TimeoutException {
-        if (attempt == 1) throw OpensubtitlesException('Search timed out — retry');
+        if (attempt == 1) throw OpensubtitlesException('Search timed out - retry');
         await Future<void>.delayed(const Duration(milliseconds: 400));
       }
     }
-    throw OpensubtitlesException('Network error — retry');
+    throw OpensubtitlesException('Network error - retry');
   }
 
   Future<Map<String, dynamic>> _postJson(Uri uri, Map<String, dynamic> payload,
@@ -158,14 +158,14 @@ class OpensubtitlesClient {
         }
         return body.isEmpty ? <String, dynamic>{} : jsonDecode(body) as Map<String, dynamic>;
       } on SocketException catch (e) {
-        if (attempt == 1) throw OpensubtitlesException('Network error — check connection and retry (${e.osError?.message ?? e.message})');
+        if (attempt == 1) throw OpensubtitlesException('Network error - check connection and retry (${e.osError?.message ?? e.message})');
         await Future<void>.delayed(const Duration(milliseconds: 400));
       } on TimeoutException {
-        if (attempt == 1) throw OpensubtitlesException('Download timed out — retry');
+        if (attempt == 1) throw OpensubtitlesException('Download timed out - retry');
         await Future<void>.delayed(const Duration(milliseconds: 400));
       }
     }
-    throw OpensubtitlesException('Network error — retry');
+    throw OpensubtitlesException('Network error - retry');
   }
 
   String _friendlyGetError(int code, String body) {
@@ -174,8 +174,8 @@ class OpensubtitlesClient {
       final m = j['message'] as String?;
       if (m != null && m.isNotEmpty) return m;
     } catch (_) {}
-    if (code == 401) return 'Invalid API key — check OPENSUBTITLES_API_KEY';
-    if (code == 429) return 'Too many requests — try again shortly';
+    if (code == 401) return 'Invalid API key - check OPENSUBTITLES_API_KEY';
+    if (code == 429) return 'Too many requests - try again shortly';
     return 'Search failed ($code)';
   }
 
@@ -185,14 +185,14 @@ class OpensubtitlesClient {
       final m = j['message'] as String?;
       if (m != null && m.isNotEmpty) {
         if (m.toLowerCase().contains('quota') || m.toLowerCase().contains('download limit')) {
-          return 'Daily download limit reached — sign in for 20/day (or wait 24h for anonymous 5/day)';
+          return 'Daily download limit reached - sign in for 20/day (or wait 24h for anonymous 5/day)';
         }
         return m;
       }
     } catch (_) {}
     if (code == 401) return 'Sign in required for this download (daily anonymous limit reached)';
-    if (code == 403) return 'Daily download limit reached — sign in for 20/day';
-    if (code == 429) return 'Too many requests — try again shortly';
+    if (code == 403) return 'Daily download limit reached - sign in for 20/day';
+    if (code == 429) return 'Too many requests - try again shortly';
     return 'Download failed ($code)';
   }
 
@@ -205,7 +205,7 @@ class OpensubtitlesClient {
     final uri = Uri.https(_host, '/api/v1/login');
     final j = await _postJson(uri, {'username': username, 'password': password});
     final token = j['token'] as String? ?? '';
-    if (token.isEmpty) throw OpensubtitlesException('Login failed — check username/password');
+    if (token.isEmpty) throw OpensubtitlesException('Login failed - check username/password');
     _tokenCache.token = token;
     _tokenCache.expiry = DateTime.now().add(const Duration(hours: 23));
     _cachedUsername = username;
@@ -232,7 +232,7 @@ class OpensubtitlesClient {
     } catch (_) {}
   }
 
-  /// Fetch user info (remaining downloads etc.) — requires login.
+  /// Fetch user info (remaining downloads etc.) - requires login.
   Future<Map<String, dynamic>> fetchUserInfo() async {
     await _ensureLoaded();
     final tok = cachedToken;
@@ -251,7 +251,7 @@ class OpensubtitlesClient {
     int page = 1,
   }) async {
     await _ensureLoaded();
-    if (!hasApiKey) throw OpensubtitlesException('Missing OPENSUBTITLES_API_KEY — add it to .env');
+    if (!hasApiKey) throw OpensubtitlesException('Missing OPENSUBTITLES_API_KEY - add it to .env');
     if (query.trim().isEmpty && (movieHash == null || movieHash.isEmpty)) {
       throw OpensubtitlesException('Enter a search term');
     }
@@ -326,14 +326,14 @@ class OpensubtitlesClient {
         if (bytes.isEmpty) throw OpensubtitlesException('Empty subtitle file');
         return bytes;
       } on SocketException catch (e) {
-        if (attempt == 1) throw OpensubtitlesException('Network error — check connection and retry (${e.osError?.message ?? e.message})');
+        if (attempt == 1) throw OpensubtitlesException('Network error - check connection and retry (${e.osError?.message ?? e.message})');
         await Future<void>.delayed(const Duration(milliseconds: 400));
       } on TimeoutException {
-        if (attempt == 1) throw OpensubtitlesException('Download timed out — retry');
+        if (attempt == 1) throw OpensubtitlesException('Download timed out - retry');
         await Future<void>.delayed(const Duration(milliseconds: 400));
       }
     }
-    throw OpensubtitlesException('Network error — retry');
+    throw OpensubtitlesException('Network error - retry');
   }
 
   void dispose() => _client.close(force: true);
@@ -348,7 +348,7 @@ class DownloadInfo {
 }
 
 /// File name stems that OpenSubtitles returns for files the uploader didn't
-/// name meaningfully — numeric upload ids (`1324.srt`) or boilerplate. These
+/// name meaningfully - numeric upload ids (`1324.srt`) or boilerplate. These
 /// would otherwise surface in the CC sheet as "1324" or "Subtitle".
 const Set<String> _meaninglessSubtitleStems = {
   'subtitle',
@@ -372,7 +372,7 @@ bool _isMeaninglessSubtitleName(String stem) {
 
 /// Derives a human-friendly file name for a downloaded subtitle when the
 /// OpenSubtitles API's `file_name` is a meaningless upload id (e.g. `1324.srt`)
-/// or generic boilerplate — the "Random 4-digit number.srt" users see in the
+/// or generic boilerplate - the "Random 4-digit number.srt" users see in the
 /// subtitle picker. Real, informative names pass through untouched.
 ///
 /// The derived name is built from the [videoTitle] (cleaned to file-safe

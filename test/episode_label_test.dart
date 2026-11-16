@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Issue #38 follow-up: with no connection there is no TMDB name, and the old
 /// fallback was `ParsedFileName.title`, which for `Dark.S01E05.mkv` is the SHOW
-/// name — so every episode in a season rendered as "Dark".
+/// name - so every episode in a season rendered as "Dark".
 void main() {
   group('episodeRowTitle', () {
     test('uses the TMDB name when available', () {

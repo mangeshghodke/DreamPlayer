@@ -26,11 +26,11 @@ String thumbnailFileName(String identityKey) {
 }
 
 /// Embedded cover-art thumbnails (poster images stored inside the media file
-/// itself — MKV attachments / MP4 `covr` atoms).
+/// itself - MKV attachments / MP4 `covr` atoms).
 ///
 /// Reading them is a metadata-only operation on the native side
 /// (`MediaMetadataRetriever.getEmbeddedPicture()` / AVAsset artwork), so it is
-/// safe for DV/HDR content — unlike frame extraction, which returns black
+/// safe for DV/HDR content - unlike frame extraction, which returns black
 /// frames on Qualcomm decoders. Files without embedded art keep the gradient
 /// placeholder.
 class ThumbnailStore {
@@ -59,7 +59,7 @@ class ThumbnailStore {
   }
 
   /// Cover-art bytes for [video], or null when it has none. Local sources
-  /// only — remote http(s) streams rely on TMDB posters instead. Results are
+  /// only - remote http(s) streams rely on TMDB posters instead. Results are
   /// cached in memory and on disk keyed by the same stable identity the TMDB
   /// cache uses, so a lookup is one disk read after the first time.
   static Future<Uint8List?> artFor(VideoItem video) {
@@ -71,7 +71,7 @@ class ThumbnailStore {
     if (memo != null) return Future.value(memo);
     final pending = _inFlight[key];
     if (pending != null) return pending;
-    // NOTE: block body, not arrow — `() => _inFlight.remove(key)` would
+    // NOTE: block body, not arrow - `() => _inFlight.remove(key)` would
     // RETURN the removed future (the map value is this very future), making
     // whenComplete wait on itself → deadlock.
     final future = _load(key, video).whenComplete(() {
@@ -92,7 +92,7 @@ class ThumbnailStore {
 
   /// Only plain files / content URIs / SAF trees are readable by the native
   /// metadata reader. Bookmark-relative synthetic paths (`tree:`), SMB/FTP/
-  /// WebDAV/Jellyfin keys etc. are not — they fall back to their TMDB poster.
+  /// WebDAV/Jellyfin keys etc. are not - they fall back to their TMDB poster.
   static bool _isLocal(VideoItem v) {
     final path = v.path;
     final uri = v.uri;

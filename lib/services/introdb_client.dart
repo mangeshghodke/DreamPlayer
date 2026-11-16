@@ -9,7 +9,7 @@ import 'aniskip_store.dart';
 /// Optional user API key for TheIntroDB (stored in shared_preferences under
 /// `dreamplayer.introdbApiKey`). The v4 API works KEYLESS out of the box
 /// (30 req/window anonymous); a key only adds the requester's own pending
-/// submissions and raises the limit — so the Settings field is optional.
+/// submissions and raises the limit - so the Settings field is optional.
 class IntroDbKeyStore {
   IntroDbKeyStore._();
 
@@ -30,12 +30,12 @@ class IntroDbKeyStore {
   }
 }
 
-/// TheIntroDB v4 (https://theintrodb.org) — community skip timestamps for
+/// TheIntroDB v4 (https://theintrodb.org) - community skip timestamps for
 /// **mainstream movies and TV**, keyed by TMDB id (which DreamPlayer already
 /// resolves), so no MAL bridge is needed. Keyless by default; an optional
 /// `Authorization: Bearer <key>` (Settings → Metadata) lifts the rate limit.
 ///
-/// `GET /v4/media?tmdb_id=<id>[&season=<s>&episode=<e>]` — season+episode
+/// `GET /v4/media?tmdb_id=<id>[&season=<s>&episode=<e>]` - season+episode
 /// together = TV episode, neither = movie. Response groups segments by type
 /// (`intro`/`recap`/`credits`/`preview`), each a list of `{start_ms, end_ms}`
 /// where `start_ms` null means "from 0" and `end_ms` null means "to the end".
@@ -108,7 +108,7 @@ class IntroDbClient {
     }
   }
 
-  /// Parse a `/v4/media` 200 body into segments. Pure — unit-tested against
+  /// Parse a `/v4/media` 200 body into segments. Pure - unit-tested against
   /// live-measured responses. `preview` segments are dropped (no UI for them).
   /// Null start = 0; null end = durationMs (credits run to the file end).
   static List<SkipSegment> parseMediaResponse(String body, {int? durationMs}) {

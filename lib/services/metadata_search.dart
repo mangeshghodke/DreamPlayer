@@ -9,19 +9,19 @@ import 'the_tvdb_client.dart';
 ///
 /// The user never picks a provider. Every provider that has credentials is
 /// queried, the results are merged into one list, and near-duplicates are
-/// collapsed — so a title that exists in both TMDB and TheTVDB appears once.
+/// collapsed - so a title that exists in both TMDB and TheTVDB appears once.
 /// TMDB is listed first because it stays the primary provider; TheTVDB
 /// contributes anything TMDB didn't return (and takes over entirely when no
 /// TMDB key is configured).
 ///
 /// This mirrors the preference order the automatic resolver already uses
 /// (`TmdService` tries TMDB first, then falls back to TheTVDB when there is
-/// no confident match) — the dialogs now simply *look* like that too.
+/// no confident match) - the dialogs now simply *look* like that too.
 ///
 /// **External adapters count as providers too** (issue #52). AVDb needs no API
 /// key, so a user who enabled it and holds no TMDB/TheTVDB key used to be
 /// told to "add an API key" by this very dialog while the adapter sat
-/// registered and configured — the automatic resolver could reach it, the
+/// registered and configured - the automatic resolver could reach it, the
 /// manual one could not. The adapters are now searched alongside the
 /// built-ins, and they lead the list when the user picked the external
 /// provider in Settings → Metadata, exactly like `providerOrderFor` does for
@@ -56,7 +56,7 @@ class MetadataSearch {
     try {
       return await _theTvdb.isConfiguredAsync;
     } catch (_) {
-      // Secure storage unavailable — treat as "not configured" so the dialog
+      // Secure storage unavailable - treat as "not configured" so the dialog
       // degrades to a clear "add a key" message instead of an error.
       return false;
     }
@@ -150,17 +150,17 @@ class MetadataSearch {
           final hit = await _theTvdb.byId(id, kind: probeKind);
           if (hit != null) results.add(hit);
         } catch (_) {
-          // Same — keep whatever the other provider returned.
+          // Same - keep whatever the other provider returned.
         }
       }
       // An adapter's own id space is not TMDB's, so the id is handed over as
-      // TEXT and the adapter decides what it means with it — AVDb routes a
+      // TEXT and the adapter decides what it means with it - AVDb routes a
       // numeric term to `ids=` and anything else to a title search.
       for (final adapter in adapters) {
         try {
           results.addAll(await adapter.search('$id', kind: probeKind));
         } catch (_) {
-          // Same — keep whatever the other provider returned.
+          // Same - keep whatever the other provider returned.
         }
       }
     }
@@ -272,7 +272,7 @@ class MetadataSearch {
     return dedupe(lists.expand((l) => l));
   }
 
-  /// A provider that throws must not fail the whole search — the other
+  /// A provider that throws must not fail the whole search - the other
   /// provider's results (or an empty list) are still worth showing.
   Future<List<TmdMovie>> _guard(Future<List<TmdMovie>> Function() run) async {
     try {
@@ -315,7 +315,7 @@ class MetadataSearch {
 /// A provider the dialog can search, in a form that carries its own call.
 ///
 /// The two built-ins need the search's own clients (TMDB's key, TheTVDB's
-/// credentials), while an adapter is self-contained — so the target owns the
+/// credentials), while an adapter is self-contained - so the target owns the
 /// dispatch instead of a `switch` over the provider enum, which would have
 /// needed a second case for every adapter that is ever added.
 class _SearchTarget {

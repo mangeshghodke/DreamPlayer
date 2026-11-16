@@ -12,7 +12,7 @@ import '../widgets/group_poster_dialog.dart';
 import 'tmd_details_screen.dart';
 import '../widgets/thetvdb_attribution.dart';
 
-/// Movie-group detail screen — mirrors the [SeriesSeasonsScreen] layout:
+/// Movie-group detail screen - mirrors the [SeriesSeasonsScreen] layout:
 /// backdrop hero app bar, header card (poster + overview + rating + genres),
 /// cast row, trailers, then the grouped folders as poster cards below.
 class MovieGroupScreen extends StatefulWidget {
@@ -21,10 +21,10 @@ class MovieGroupScreen extends StatefulWidget {
     required this.group,
 
     /// User-picked TMDB metadata for the group's poster (chosen at group
-    /// creation) — wins over any member's cached meta in the header/backdrop.
+    /// creation) - wins over any member's cached meta in the header/backdrop.
     this.posterMeta,
 
-    /// The manual group's store id — drives the Fix match / Remove-info
+    /// The manual group's store id - drives the Fix match / Remove-info
     /// buttons on the header (posterMeta persisted via
     /// [ManualGroupsStore.setPosterMeta]).
     this.manualGroupId,
@@ -120,7 +120,7 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
     setState(() => _details = d);
   }
 
-  /// Fix match — TMDB search dialog (query prefilled with the group name);
+  /// Fix match - TMDB search dialog (query prefilled with the group name);
   /// the picked [TmdMeta] becomes the group's poster (persisted via
   /// [ManualGroupsStore.setPosterMeta]) and the header/backdrop refresh.
   Future<void> _fixMatch() async {
@@ -143,7 +143,7 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
     });
   }
 
-  /// Remove info — clears the user-picked poster so the group falls back to
+  /// Remove info - clears the user-picked poster so the group falls back to
   /// any member's cached meta (or just the cards when no member has any).
   Future<void> _removeInfo() async {
     final id = widget.manualGroupId;
@@ -157,7 +157,7 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
   }
 
   /// Opens a single-file entry in VIDEO mode. File entries carry synthetic
-  /// paths for network sources — [NetworkVideoResolver] rebuilds the real
+  /// paths for network sources - [NetworkVideoResolver] rebuilds the real
   /// playable URL per source (WebDAV server lookup + auth, Jellyfin
   /// streamUrl, SMB/local direct, UPnP parent re-browse).
   Future<void> _openFileEntry(LibraryFolder folder) async {
@@ -166,7 +166,7 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
     if (video == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Can't open this file — its source is unavailable."),
+          content: Text("Can't open this file - its source is unavailable."),
           duration: Duration(seconds: 3),
         ),
       );
@@ -227,7 +227,7 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             sliver: SliverToBoxAdapter(
-              // Header card only when a member has TMDB info — random groups
+              // Header card only when a member has TMDB info - random groups
               // with no metadata show a Get Info escape hatch (small card).
               child: _meta == null
                   ? Card(
@@ -317,7 +317,7 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
                       final hasMeta =
                           meta != null && meta.movie.title.isNotEmpty;
                       // Season poster/name when the folder's meta carries a
-                      // folderSeason (e.g. Strike the Blood II → Season 2) —
+                      // folderSeason (e.g. Strike the Blood II → Season 2) -
                       // each card inside the group represents ONE folder, so
                       // the season art shows instead of the series' Season-1
                       // poster. Movie parts (folderSeason null) keep the
@@ -351,7 +351,7 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
                         year: meta?.movie.year,
                         onTap: () {
                           // Single-file entries open VIDEO mode (like the
-                          // home screen's single-file cards) — folder mode
+                          // home screen's single-file cards) - folder mode
                           // lists a directory, which a file entry doesn't
                           // have ("no videos here" + dead Play button).
                           if (folder.isFile) {
@@ -378,7 +378,7 @@ class _MovieGroupScreenState extends State<MovieGroupScreen> {
   }
 }
 
-/// Header card — poster + title + year + overview (expandable) + rating +
+/// Header card - poster + title + year + overview (expandable) + rating +
 /// genres + Fix match/Remove buttons. Mirrors the `_SeriesHeader` layout in
 /// series_seasons_screen.dart.
 class _Header extends StatefulWidget {
@@ -574,7 +574,7 @@ class _HeaderState extends State<_Header> {
 
 }
 
-/// Horizontal scrollable cast row — mirrors `_CastRow` in
+/// Horizontal scrollable cast row - mirrors `_CastRow` in
 /// series_seasons_screen.dart.
 class _CastRow extends StatelessWidget {
   const _CastRow({required this.cast});
@@ -671,7 +671,7 @@ class _CastRow extends StatelessWidget {
   }
 }
 
-/// Horizontal trailers row — mirrors the `_TrailersCard` layout.
+/// Horizontal trailers row - mirrors the `_TrailersCard` layout.
 class _TrailersRow extends StatelessWidget {
   const _TrailersRow({required this.trailers, required this.onLaunch});
 

@@ -11,7 +11,7 @@ void main() {
     tester,
   ) async {
     // The test host is not iOS, so this also pins that the widget never asks
-    // for a UiKitView the host cannot provide — a widget test would otherwise
+    // for a UiKitView the host cannot provide - a widget test would otherwise
     // hang on a platform-view creation that never answers.
     expect(AirPlayButton.isSupported, isFalse);
 

@@ -16,7 +16,7 @@ import 'package:dream_player/screens/settings_screen.dart';
 ///
 /// An earlier fix swapped the Save label's `AppLocalizations.of(context)` for
 /// the dialog's own context and did NOT resolve it, so the real cause is
-/// elsewhere — this test exists to produce the full stack instead of guessing.
+/// elsewhere - this test exists to produce the full stack instead of guessing.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

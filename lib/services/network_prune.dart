@@ -13,7 +13,7 @@ import 'smb_client.dart';
 ///
 /// HARD SAFETY RULE: only a *definitive not-found from a live server* prunes
 /// ([SmbClient.isNotFound]). A network error, timeout or auth failure leaves
-/// every entry alone — an offline NAS must never wipe the library or the
+/// every entry alone - an offline NAS must never wipe the library or the
 /// Continue Watching row.
 ///
 /// SMB resume keys have the shape SMB-COLON-SERVERID-SLASH-SHARE-SLASH-PATH
@@ -55,7 +55,7 @@ String smbResumeKey(String serverId, String share, String path) =>
     'smb:$serverId/$share/$path';
 
 /// CW/resume keys that live DIRECTLY inside [dirPath] on this server/share
-/// and whose file name is not in [listingNames] — i.e. deleted on the server.
+/// and whose file name is not in [listingNames] - i.e. deleted on the server.
 /// Keys in subfolders are untouched (they get pruned when their own folder is
 /// listed or probed).
 List<String> missingFileKeys({
@@ -109,7 +109,7 @@ class NetworkPrune {
 
   /// Reconciles Continue Watching against a fresh SUCCESSFUL listing of
   /// [dirPath]: entries for direct-child files no longer present are removed
-  /// (with their resume positions). Free — the listing already happened.
+  /// (with their resume positions). Free - the listing already happened.
   /// Returns the number of entries pruned. Never throws.
   static Future<int> pruneMissingFromListing({
     required String serverId,

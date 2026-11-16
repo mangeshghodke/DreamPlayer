@@ -52,7 +52,7 @@ class SidecarSubtitleService {
   /// Looks up the sidecar subtitle files for [video], based on its source
   /// URI scheme:
   /// - `smb://<serverId>/<share>/<path>` → SMB list of the parent folder
-  ///   (**Android only** — iOS SMB was retired, 2026-08).
+  ///   (**Android only** - iOS SMB was retired, 2026-08).
   /// - `http(s)://<serverId>@…/<path>` or `https://…` with WebDAV headers
   ///   on the VideoItem → WebDAV PROPFIND/GET of the parent folder.
   /// - `ftp://` or `sftp://` → FTP LIST of the parent folder.
@@ -94,7 +94,7 @@ class SidecarSubtitleService {
   /// Nova-parity: copies every **remote** external subtitle to a local cache
   /// file and returns the list rewritten with `file://` URIs, so the engine
   /// reads sidecars locally (AVP issue #1605) instead of re-streaming the
-  /// remote URL (which is fragile — auth reflows, connectivity drops,
+  /// remote URL (which is fragile - auth reflows, connectivity drops,
   /// redirects). Scheme dispatch:
   ///
   /// - `http(s)://` → GET (Jellyfin DeliveryUrls / UPnP res URLs / generic).
@@ -220,7 +220,7 @@ class SidecarSubtitleService {
 
   /// Finds sidecar subtitles for an `http(s)`/WebDAV video the Nova way:
   /// instead of reverse-engineering a parent-folder listing (which is fragile
-  /// — the WebDAV base-path / trailing-slash / auth dance commonly throws
+  /// - the WebDAV base-path / trailing-slash / auth dance commonly throws
   /// 403s), we guess each candidate "same-name" subtitle URL next to the video
   /// and probe it with an authenticated GET. The first hit is **downloaded to a
   /// local cache file** and attached as a `file://` track, so the engine reads
@@ -249,10 +249,10 @@ class SidecarSubtitleService {
     // endpoint issues several blocking GETs to the server *before* playback
     // even starts, hanging the player ("does not work at all"). WebDAV carries
     // the server identity so `listDirectory`-style pairing is reliable; generic
-    // stream URLs have no discoverable sibling names — skip them entirely.
+    // stream URLs have no discoverable sibling names - skip them entirely.
     if (webdavId == null || webdavId.isEmpty) {
       // ignore: avoid_print
-      print('[SidecarDBG] _findWebDavOrHttp: no WebDAV identity — skipping probe');
+      print('[SidecarDBG] _findWebDavOrHttp: no WebDAV identity - skipping probe');
       return const [];
     }
 
@@ -286,7 +286,7 @@ class SidecarSubtitleService {
 
     // Work from the parsed URI: `Uri.path` is decoded, so a playback URL that
     // is percent-encoded (`Test%20Video.en.mp4`) yields a clean `Test Video.en`
-    // base here — and when we rebuild a candidate via `Uri.replace(path:)`
+    // base here - and when we rebuild a candidate via `Uri.replace(path:)`
     // Dart re-encodes each `%`/space exactly once. (A naive string-level
     // swap re-encodes an already-encoded `%20` into `%2520` and misses every
     // space-named file.)
@@ -337,7 +337,7 @@ class SidecarSubtitleService {
     if (parsed == null) return const [];
     // `pathSegments` are DECODED (`Test Video.en.mp4`, not `Test%20...`), and
     // `.../`drops the leading slash. We rebuild from these decoded pieces via
-    // `Uri.replace(path:)`, which percent-encodes exactly once — so an encoded
+    // `Uri.replace(path:)`, which percent-encodes exactly once - so an encoded
     // playback URL (`%20`) yields clean decoded names here and a single-encoded
     // fetch URL (never `%2520`).
     final segments = parsed.pathSegments;
@@ -387,7 +387,7 @@ class SidecarSubtitleService {
     final (scheme, serverId, path) = parsed;
     // The FTP browser percent-encodes each path segment when it builds the
     // playback URI (`ftp://<serverId><encoded path>`), while the native
-    // `listDirectory` takes and returns **decoded** names — Nova's
+    // `listDirectory` takes and returns **decoded** names - Nova's
     // `RawListerFactory` compares them decoded, so encode the URI path back
     // to raw before listing/pairing or a `Test Video` sidecar never matches
     // `Test%20Video`.
@@ -395,7 +395,7 @@ class SidecarSubtitleService {
     final dir = _parentDir(decoded);
     if (dir == null) return const [];
     // Nova-parity sidecar enumeration: the *full* parent listing (videos AND
-    // subtitles) — the regular `listDirectory` filters to video extensions
+    // subtitles) - the regular `listDirectory` filters to video extensions
     // and would strip the `.srt` so `_findFtp` never pairs it.
     final entries = await FtpClient.instance.listDirectoryAll(serverId, dir);
     return _buildSubs(
@@ -462,7 +462,7 @@ class SidecarSubtitleService {
 
     if (preferred.isEmpty) return const [];
 
-    // Cap to 8 matches — anything beyond is noise (a folder full of dub tracks
+    // Cap to 8 matches - anything beyond is noise (a folder full of dub tracks
     // makes the CC sheet unreadable).
     final chosen = preferred.length > 8 ? preferred.sublist(0, 8) : preferred;
 
@@ -516,7 +516,7 @@ class SidecarSubtitleService {
   /// Pulls the WebDAV serverId off the VideoItem. We don't store it on
   /// `VideoItem` directly today, so fall back to a private hook in the
   /// `exo_player.dart` open path. For now, this returns null and the
-  /// discovery is skipped on WebDAV — the WebDAV browser screens already
+  /// discovery is skipped on WebDAV - the WebDAV browser screens already
   /// pre-populate `externalSubtitles` from their own listings.
   String? _webdavServerIdFor(VideoItem video) {
     return video.webdavServerId;

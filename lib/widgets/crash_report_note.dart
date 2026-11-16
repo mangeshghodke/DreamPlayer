@@ -8,14 +8,14 @@ import 'crash_report_dialog.dart';
 /// The "App crashed?" note shown beneath the FAQ in Settings: names the
 /// debug logs that may exist on the device and sends them from an in-app
 /// popup (file checkboxes + message + Submit) to the configured upload
-/// endpoint. When no endpoint is configured — or the upload fails — it
+/// endpoint. When no endpoint is configured - or the upload fails - it
 /// falls back to the platform share sheet, so they can be attached to an
 /// email from the user's own mail app.
 ///
 /// Both platforms: on iOS the reports answer App Store Connect crashes; on
 /// Android the note first dumps the app's own logcat (`logcat_dump.log`),
 /// which is the only log that carries native/Java crashes (decoder SIGSEGV,
-/// NoSuchMethodError) — CrashLog's Dart handlers never see those.
+/// NoSuchMethodError) - CrashLog's Dart handlers never see those.
 class CrashReportNote extends StatelessWidget {
   const CrashReportNote({super.key});
 

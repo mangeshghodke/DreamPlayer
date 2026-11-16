@@ -607,7 +607,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsSpatialAudioDesc =>
-      'Premium — spatial sound on AirPods Pro and other compatible devices';
+      'Premium - spatial sound on AirPods Pro and other compatible devices';
 
   @override
   String get settingsVideoDecoder => 'Video decoder';
@@ -629,7 +629,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsHwSdrToneMapDesc =>
-      'Convert HDR/Dolby Vision to SDR in hardware — no real HDR on the panel.';
+      'Convert HDR/Dolby Vision to SDR in hardware - no real HDR on the panel.';
 
   @override
   String get settingsTmdbKey => 'TMDB API key';
@@ -1005,7 +1005,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get smbDomainHint => 'WORKGROUP';
 
   @override
-  String get smbGuest => 'Guest — no username/password';
+  String get smbGuest => 'Guest - no username/password';
 
   @override
   String smbBookmarkAdded(String folder, String server) {
@@ -1545,7 +1545,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sleepEndOfVideo => 'End of current video';
 
   @override
-  String get sleepFinished => 'Sleep timer finished — playback paused';
+  String get sleepFinished => 'Sleep timer finished - playback paused';
 
   @override
   String get volumeOff => 'Off';
@@ -1701,15 +1701,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playerVideoDecodeRetrySw =>
-      'The hardware decoder failed to decode this video — retrying with software decoding.';
+      'The hardware decoder failed to decode this video - retrying with software decoding.';
 
   @override
   String get playerSleepTimerFinished =>
-      'Sleep timer finished — playback paused';
+      'Sleep timer finished - playback paused';
 
   @override
   String get playerVolumeBoostWarning =>
-      'Above 100% can damage your speakers — use at your own risk';
+      'Above 100% can damage your speakers - use at your own risk';
 
   @override
   String get playerBrightnessBatteryWarning =>
@@ -1755,7 +1755,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeTitle => 'DreamPlayer';
 
   @override
-  String get homeNothingYet => 'No videos yet — tap + to begin';
+  String get homeNothingYet => 'No videos yet';
 
   @override
   String get homeDownloaded => 'Downloaded';
@@ -1822,7 +1822,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsMpvUserConfigHint =>
-      'Your mpv.conf is applied on top of DreamPlayer\'s MPV settings (options only — scripts and profiles are ignored). vo/wid are protected so the video surface stays attached.';
+      'Your mpv.conf is applied on top of DreamPlayer\'s MPV settings (options only - scripts and profiles are ignored). vo/wid are protected so the video surface stays attached.';
 
   @override
   String get playerSecondarySubtitleTop => 'Secondary subtitle (top)';

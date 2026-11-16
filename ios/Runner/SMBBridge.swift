@@ -9,7 +9,7 @@ import Security
 /// libsmb2 (LGPL 2.1, vendored under `Runner/libsmb2`) does everything: it
 /// connects, lists shares and directories, stats and fetches small files, and
 /// serves playback reads through a synchronous `smb2_pread` reader. The
-/// `SMBClient` package that used to drive browsing here has been removed — it
+/// `SMBClient` package that used to drive browsing here has been removed - it
 /// was the reason browsing and playback behaved differently, and it is why the
 /// old transport needed an async-to-sync reader adaptation that deadlocked.
 ///
@@ -40,7 +40,7 @@ final class SMBBridge: NSObject {
         /// Share names the user added by hand. Enumeration omits hidden (`$`)
         /// shares, so `listShares` always probes these and merges the ones that
         /// connect. Optional so servers saved before this field existed still
-        /// decode — a synthesized `Codable` ignores a declared default for a
+        /// decode - a synthesized `Codable` ignores a declared default for a
         /// missing key.
         var addedShares: [String]?
     }
@@ -73,7 +73,7 @@ final class SMBBridge: NSObject {
     private var playback: [String: SMBPlayback] = [:]
     /// Servers a live player is reading from. The browser's dispose calls
     /// closeShare, which must NOT tear the socket out from under a player that
-    /// is still using it — the old build had exactly this latch and dropping it
+    /// is still using it - the old build had exactly this latch and dropping it
     /// stops playback the moment the browsing screen goes away.
     private var playerActive: Set<String> = []
     private var tokenCounter: UInt64 = 0
@@ -290,7 +290,7 @@ final class SMBBridge: NSObject {
 
     /// Like [withServer], but the reply carries an explicit error code, so
     /// callers can signal `smb_not_found` (path deleted on the server) apart
-    /// from `smb_error` (unreachable / auth / other) — Dart only prunes on the
+    /// from `smb_error` (unreachable / auth / other) - Dart only prunes on the
     /// former.
     private func withServerCoded(
         _ id: String?,
@@ -319,7 +319,7 @@ final class SMBBridge: NSObject {
     }
 
     /// True when the libsmb2 error is a definitive "path does not exist"
-    /// (ENOENT / ENOTDIR — the NT statuses for a deleted file or folder map to
+    /// (ENOENT / ENOTDIR - the NT statuses for a deleted file or folder map to
     /// ENOENT via nterror_to_errno). Network and auth failures return false.
     private static func isNotFound(_ error: Error) -> Bool {
         let ns = error as NSError
@@ -353,7 +353,7 @@ final class SMBBridge: NSObject {
         lock.unlock()
         return list
             // Servers saved before the write-time fallback keep an empty name, so
-            // resolve it on the way out too — otherwise the list shows a blank
+            // resolve it on the way out too - otherwise the list shows a blank
             // row until every server is deleted and re-entered.
             .map { meta -> (ServerMeta, String) in
                 (meta, meta.name.isEmpty ? meta.host : meta.name)
@@ -417,7 +417,7 @@ final class SMBBridge: NSObject {
     /// Mutates one saved server in place and re-persists the set.
     ///
     /// `saveServer` rebuilds a `ServerMeta` from the dialog's arguments, so it
-    /// cannot be used for a field the dialog does not know about — hand-added
+    /// cannot be used for a field the dialog does not know about - hand-added
     /// share names would be wiped on every edit of the server.
     private func updateServer(_ id: String, _ mutate: (inout ServerMeta) -> Void) {
         loadServersIfNeeded()
@@ -569,7 +569,7 @@ final class SMBBridge: NSObject {
         let lower = (error.localizedDescription + " " + String(describing: error)).lowercased()
         if lower.contains("logon failure") || lower.contains("authentication")
             || lower.contains("credential") || code == 0xC000006D {
-            return "Login failed — check username, password and domain"
+            return "Login failed - check username, password and domain"
         }
         if lower.contains("timed out") || lower.contains("timeout") {
             return "Timed out reaching \(host). Is SMB enabled on the NAS?"
@@ -578,7 +578,7 @@ final class SMBBridge: NSObject {
             return "Can't reach \(host) on the SMB port"
         }
         if lower.contains("status_logon_failure") {
-            return "Login failed — check username, password and domain"
+            return "Login failed - check username, password and domain"
         }
         let message = error.localizedDescription
         return message.isEmpty ? "SMB error on \(host)" : message
@@ -700,7 +700,7 @@ final class SMBBridge: NSObject {
             // SMB contexts for hosts that plausibly speak SMB at all.
             let candidates = box.snapshot()
             SBMLog.log(
-                "discover: sweep done in \(SBMLog.since(started)) — "
+                "discover: sweep done in \(SBMLog.since(started)) - "
                 + "\(candidates.count) host(s) answered 445: "
                 + (candidates.map(\.host).joined(separator: ", "))
             )
@@ -718,7 +718,7 @@ final class SMBBridge: NSObject {
             let byHost = Dictionary(
                 uniqueKeysWithValues: identified.map { ($0.host, $0) })
             SBMLog.log(
-                "discover: SMB identify done in \(SBMLog.since(started)) — "
+                "discover: SMB identify done in \(SBMLog.since(started)) - "
                 + "\(byHost.count)/\(candidates.count) completed an SMB negotiate")
 
             await MainActor.run {
@@ -780,7 +780,7 @@ final class SMBBridge: NSObject {
     /// Required, not best-effort, and there is deliberately no second session
     /// here: running two meant two negotiates, two session setups, two tree
     /// connects and two file handles per play, with the spare one never read
-    /// from — which also spent a server-side open-session slot and held the
+    /// from - which also spent a server-side open-session slot and held the
     /// credentials twice.
     private static func openLibSMB2(
         host: String,
@@ -844,7 +844,7 @@ final class SMBBridge: NSObject {
     /// TCP reachability over Network.framework.
     ///
     /// A raw BSD connect() to a LAN address returns EPERM on iOS: Local Network
-    /// privacy gates it, and the denial is immediate — which is why the first
+    /// privacy gates it, and the denial is immediate - which is why the first
     /// sweep returned 0 hosts in 2 ms. Network.framework is the transport the
     /// rest of the app already uses successfully, so the probe uses it too rather
     /// than being refused by a gate the app has already been granted.
@@ -856,7 +856,7 @@ final class SMBBridge: NSObject {
     /// early on success: when the timer won, the loop carried on waiting for the
     /// connection, and NWConnection sits in `.waiting` indefinitely for a
     /// filtered or unrouted address without ever calling back. One blackholed
-    /// host in the /24 therefore hung the whole sweep — which is why discovery
+    /// host in the /24 therefore hung the whole sweep - which is why discovery
     /// never returned a single result.
     private static func port445OpenNW(host: String, timeout: TimeInterval) async -> Bool {
         await nwConnect(host: host, timeout: timeout) == .open
@@ -864,8 +864,8 @@ final class SMBBridge: NSObject {
 
     /// One NWConnection attempt with its own hard deadline.
     ///
-    /// Always resolves within `timeout`: whichever gets there first — `.ready`,
-    /// `.failed`, `.cancelled`, or the timer — wins, and `ProbeOnce` keeps the
+    /// Always resolves within `timeout`: whichever gets there first - `.ready`,
+    /// `.failed`, `.cancelled`, or the timer - wins, and `ProbeOnce` keeps the
     /// continuation to a single resume.
     private static func nwConnect(host: String, timeout: TimeInterval) async -> ProbeOutcome {
         await withCheckedContinuation {
@@ -1133,7 +1133,7 @@ final class SMBBridge: NSObject {
             .filter { Self.isDotEntry($0.name) == false }
             .filter { $0.isDirectory || !Self.isJunk($0.name) }
 
-        // Folders before files, each group alphabetical — the same order
+        // Folders before files, each group alphabetical - the same order
         // Android's SMBClient produces (sorted dirs + sorted files), so a
         // folder lists identically on both platforms. libsmb2 hands the
         // entries back in server order, which mixes the two.
@@ -1183,7 +1183,7 @@ final class SMBBridge: NSObject {
 
     /// Case-insensitive name order. Swift's `lowercased()` is locale
     /// independent (unlike `lowercased(with:)`), so this matches Android's
-    /// `Locale.ROOT` sort rather than picking up the user's locale — a Turkish
+    /// `Locale.ROOT` sort rather than picking up the user's locale - a Turkish
     /// locale would otherwise order `i` after `h`. The raw comparison is the
     /// tie-break because Swift's sort is not stable, so two names that differ
     /// only by case would otherwise come back in an arbitrary order.
@@ -1220,9 +1220,9 @@ final class SMBBridge: NSObject {
     private static func isDotEntry(_ name: String) -> Bool {
         if name == "." || name == ".." { return true }
         // A Samba administrative share: print$, IPC$, admin$, homes$ … The
-        // share `type` filter in listShares does not catch these reliably —
+        // share `type` filter in listShares does not catch these reliably -
         // print$ in particular arrives tagged like a normal disk share on some
-        // servers — so the trailing `$` is the dependable signal.
+        // servers - so the trailing `$` is the dependable signal.
         return name.hasSuffix("$")
     }
 
@@ -1259,7 +1259,7 @@ final class SMBBridge: NSObject {
         Task.detached(priority: .utility) {
             var sizes: [String: Int] = [:]
             // One session for the whole batch: each stat is a tiny query, and
-            // re-authenticating per path would be absurd. Best effort — paths
+            // re-authenticating per path would be absurd. Best effort - paths
             // that fail simply stay absent and render as size 0.
             if let session = try? LibSMB2.openSession(
                 toHost: server.host,

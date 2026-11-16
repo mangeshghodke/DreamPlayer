@@ -6,7 +6,7 @@ import 'package:dream_player/services/tmdb_client.dart';
 import 'package:dream_player/services/the_tvdb_client.dart';
 
 /// The Get info / Fix match / Group poster dialogs no longer show a provider
-/// picker — they search every configured provider and present one merged,
+/// picker - they search every configured provider and present one merged,
 /// de-duplicated list. These tests cover the merge contract.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -116,7 +116,7 @@ void main() {
   group('cross-provider dedupe', () {
     test('a TMDB hit and its TheTVDB twin collapse to one row (TMDB wins)',
         () {
-      // Same title, year and kind from both providers — the dialog must show
+      // Same title, year and kind from both providers - the dialog must show
       // one entry. TMDB is listed first, so it wins the tie.
       final merged = MetadataSearch.dedupe([
         movie(27205, 'Dune', year: 2021, provider: MetadataProvider.tmdb),

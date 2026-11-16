@@ -1,5 +1,5 @@
 /* ==========================================================================
-   DreamPlayer — website styles
+   DreamPlayer - website styles
    Palette lifted verbatim from lib/theme/app_theme.dart:
      seed/primary  #7C4DFF   scaffold #0E0E11   card #16161A
      raised        #1C1C21   divider   #232329   muted #8A8A93
@@ -106,7 +106,7 @@ p { margin: 0 0 1.1em; }
 
 /* ------------------------------------------------------------ backdrop -- */
 
-/* The soft violet bloom behind the hero — mirrors the app's accent glow. */
+/* The soft violet bloom behind the hero - mirrors the app's accent glow. */
 .hero::before {
   content: "";
   position: absolute;
@@ -293,7 +293,7 @@ p { margin: 0 0 1.1em; }
 .hero__note span { display: inline-flex; align-items: center; gap: 7px; }
 .hero__note svg { width: 15px; height: 15px; color: var(--green); flex: none; }
 
-/* Phone frame around the hero shot — screenshot only, no fake hardware. */
+/* Phone frame around the hero shot - screenshot only, no fake hardware. */
 .hero__shot {
   position: relative;
   justify-self: end;
@@ -390,7 +390,7 @@ p { margin: 0 0 1.1em; }
 
 .card:hover { border-color: #35353d; transform: translateY(-3px); }
 
-/* Accent hairline that lights up on hover — the app's focus accent. */
+/* Accent hairline that lights up on hover - the app's focus accent. */
 .card::before {
   content: "";
   position: absolute;
@@ -933,7 +933,7 @@ p { margin: 0 0 1.1em; }
   .hero__cta .btn { flex: 1 1 100%; }
   .footer__inner { flex-direction: column; }
 
-  /* Comfortable touch targets — .tab was 36px, under the 44px guideline. */
+  /* Comfortable touch targets - .tab was 36px, under the 44px guideline. */
   .tab { padding: 12px 18px; }
   .faq summary { padding: 22px 0; }
 
@@ -948,7 +948,7 @@ p { margin: 0 0 1.1em; }
 }
 
 /* The chips hang outside the screenshot on purpose. body has overflow-x hidden,
-   so past this width they were being clipped, not just tight — pull them in. */
+   so past this width they were being clipped, not just tight - pull them in. */
 @media (max-width: 600px) {
   .chip { font-size: 0.7rem; padding: 6px 11px; }
   .hero__shot .chip--dv { top: 10%; left: 4px; }

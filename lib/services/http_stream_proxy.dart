@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 ///  * libmpv → ffmpeg's own http protocol (bundled mbedtls,
 ///    `User-Agent: Lavf/63.1.100`).
 ///
-/// CDNs in front of private trackers routinely refuse one of the two — the
+/// CDNs in front of private trackers routinely refuse one of the two - the
 /// reported case was a Cloudflare-fronted host with a client-bound
 /// `?selection=` token that libmpv could not open while Media3 played it
 /// fine. `HttpStreamProxy` (Android) fetches the URL with **the same OkHttp
@@ -44,7 +44,7 @@ class HttpStreamProxyClient {
       if (bridged == null || bridged.isEmpty) return null;
       return bridged;
     } on MissingPluginException {
-      // Not Android (or an older build) — the caller keeps the direct URL.
+      // Not Android (or an older build) - the caller keeps the direct URL.
       return null;
     } catch (_) {
       return null;

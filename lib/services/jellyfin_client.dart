@@ -118,7 +118,7 @@ class JellyfinExternalSub {
   final String deliveryUrl;
   final String language;
 
-  /// The exact subtitle file name Jellyfin exposes (its `Title` — usually the
+  /// The exact subtitle file name Jellyfin exposes (its `Title` - usually the
   /// `.srt`/`.ass` file name, e.g. `Show.S01E01.eng.srt`).
   final String title;
 
@@ -147,13 +147,13 @@ class JellyfinExternalSub {
         _ => 'srt',
       };
 
-  /// Display name for the subtitle picker — always the *exact* subtitle file
+  /// Display name for the subtitle picker - always the *exact* subtitle file
   /// name when Jellyfin provides one (previously empty/Jellyfin `DisplayTitle`
   /// only surfaced generic names like "English" or "Track N").
   ///
   /// Resolution order:
-  /// 1. [title] — Jellyfin's `Title` (the file name for external subs).
-  /// 2. basename of [path] — the real `.srt`/`.ass` name on the server.
+  /// 1. [title] - Jellyfin's `Title` (the file name for external subs).
+  /// 2. basename of [path] - the real `.srt`/`.ass` name on the server.
   /// 3. [language]'s full English name (e.g. `eng` → `English`).
   /// 4. neutral `External subtitle N` fallback (never "undefined").
   String get displayTitle {
@@ -252,11 +252,11 @@ class JellyfinItem {
   /// (100 ns units), or null when the server has none.
   final int? playbackPositionTicks;
 
-  /// `ImageTags` map (e.g. `Primary`, `Logo`, `Thumb`) — used to build
+  /// `ImageTags` map (e.g. `Primary`, `Logo`, `Thumb`) - used to build
   /// server artwork URLs (Infuse-style library cards).
   final Map<String, String> imageTags;
 
-  /// `BackdropImageTags` list — 16:9 artwork for library tiles.
+  /// `BackdropImageTags` list - 16:9 artwork for library tiles.
   final List<String> backdropImageTags;
 
   /// Server-side resume position as a [Duration] ('' ticks -> zero).
@@ -324,7 +324,7 @@ class JellyfinItem {
       // Parse chapters that Jellyfin extracted from the container.
       // Jellyfin puts them at `Item.Chapters` when `Fields=Chapters` is
       // requested (top-level), not always inside `MediaSources[0].Chapters`
-      // — check both. Each entry: {Name, StartPositionTicks} (100 ns units).
+      // - check both. Each entry: {Name, StartPositionTicks} (100 ns units).
       // Chapters live at Item.Chapters when Fields=Chapters is requested.
       final topChapters = json['Chapters'] as List?;
       List<dynamic> rawChapters = const [];
@@ -441,7 +441,7 @@ class JellyfinItemInfo {
   }
 
   /// Builds the model from a Jellyfin API item response. Image URLs carry the
-  /// session token, so they're constructed here — they can go stale after a
+  /// session token, so they're constructed here - they can go stale after a
   /// re-login, which is why callers refresh the cache on open.
   factory JellyfinItemInfo.fromApi(
     Map<String, dynamic> json, {
@@ -548,7 +548,7 @@ class JellyfinClient {
   ///
   /// Uses the **stable** per-install [deviceId]. It previously used
   /// `DateTime.now()` here, which minted a brand-new DeviceId on *every*
-  /// request — the server saw each call as a different device, sessions never
+  /// request - the server saw each call as a different device, sessions never
   /// lined up, and the device list in Jellyfin filled with junk entries.
   Future<String> get _authHeader async {
     return 'MediaBrowser Client="DreamPlayer", Device="DreamPlayer", '
@@ -576,7 +576,7 @@ class JellyfinClient {
     return client;
   }
 
-  /// GET and decode JSON as `dynamic` — the raw response (a JSON object for
+  /// GET and decode JSON as `dynamic` - the raw response (a JSON object for
   /// most Jellyfin endpoints, a JSON array for e.g. `/Items/{id}/Ancestors`).
   Future<dynamic> _getJsonRaw(
     String url, {
@@ -593,7 +593,7 @@ class JellyfinClient {
       final res = await req.close().timeout(Duration(seconds: timeoutSeconds));
       final body = await res.transform(utf8.decoder).join();
       if (res.statusCode == 401) {
-        throw const JellyfinException('Session expired — sign in again.');
+        throw const JellyfinException('Session expired - sign in again.');
       }
       if (res.statusCode >= 400) {
         throw JellyfinException('Server error ${res.statusCode}');
@@ -647,7 +647,7 @@ class JellyfinClient {
       final res = await req.close().timeout(Duration(seconds: timeoutSeconds));
       final text = await res.transform(utf8.decoder).join();
       if (res.statusCode == 401) {
-        throw const JellyfinException('Login failed — check username and password.');
+        throw const JellyfinException('Login failed - check username and password.');
       }
       if (res.statusCode >= 400) {
         throw JellyfinException('Server error ${res.statusCode}');
@@ -667,7 +667,7 @@ class JellyfinClient {
     }
   }
 
-  /// GET /System/Info/Public — works without authentication.
+  /// GET /System/Info/Public - works without authentication.
   Future<JellyfinConnectionInfo> testConnection(String rawUrl, {bool allowSelfSigned = false}) async {
     final url = normalizeUrl(rawUrl);
     if (url.isEmpty) {
@@ -682,7 +682,7 @@ class JellyfinClient {
     );
   }
 
-  /// POST /Users/AuthenticateByName — returns a server with token + userId.
+  /// POST /Users/AuthenticateByName - returns a server with token + userId.
   Future<JellyfinServer> authenticate(
     JellyfinServer server, {
     required String username,
@@ -695,13 +695,13 @@ class JellyfinClient {
       '${server.url}/Users/AuthenticateByName',
       allowSelfSigned: server.allowSelfSigned,
       headers: {
-        // Standard `Authorization: MediaBrowser ...` — supported by Jellyfin
+        // Standard `Authorization: MediaBrowser ...` - supported by Jellyfin
         // core since **10.8**, so one code path covers every version.
         //
         // Do NOT send `X-Emby-Authorization` (alone or alongside). Jellyfin
         // 10.12 flipped `EnableLegacyAuthorization` to false by default and
         // 12.0's migration force-disables it even on servers upgraded from
-        // 10.x — which makes the legacy header return a bare 400 "Error
+        // 10.x - which makes the legacy header return a bare 400 "Error
         // processing request." before credentials are even examined. Legacy is
         // slated for permanent removal in 10.13+.
         //
@@ -717,7 +717,7 @@ class JellyfinClient {
     final user = json['User'] as Map<String, dynamic>? ?? const {};
     final token = json['AccessToken'] as String?;
     if (token == null || token.isEmpty) {
-      throw const JellyfinException('Login failed — check username and password.');
+      throw const JellyfinException('Login failed - check username and password.');
     }
     return server.copyWith(
       username: username,
@@ -786,7 +786,7 @@ class JellyfinClient {
   /// Why: Jellyfin's DLNA endpoint refuses direct-play for items carrying
   /// external subtitles (no subtitle delivery in its default profile) and
   /// falls back to a live HEVC→H.264 MPEG-TS **transcode** (`CI=1`, chunked,
-  /// `Accept-Ranges: none`) — unseekable, probe-hostile on both players, and
+  /// `Accept-Ranges: none`) - unseekable, probe-hostile on both players, and
   /// it silently strips Dolby Vision/HDR. The saved-server path plays the
   /// original container bytes and delivers sidecars as proper sub tracks.
   Future<VideoItem?> upgradeDlnaUrl({
@@ -829,7 +829,7 @@ class JellyfinClient {
   }
 
   /// Matches a URL against saved Jellyfin servers by scheme+host+port (never
-  /// by raw string — trailing slashes / default ports must not break the
+  /// by raw string - trailing slashes / default ports must not break the
   /// match). Returns null when nothing matches.
   Future<JellyfinServer?> _serverByOrigin(String url) async {
     String originOf(String raw) {
@@ -867,8 +867,8 @@ class JellyfinClient {
     r'^https?://[^/]+/Videos/([^/]+)(?:/[^/]+)?/stream',
   );
 
-  /// Enriches a Jellyfin direct-play URL — the kind Jellyfin hands to
-  /// "Open in external player" — with the item's metadata **and external
+  /// Enriches a Jellyfin direct-play URL - the kind Jellyfin hands to
+  /// "Open in external player" - with the item's metadata **and external
   /// subtitles** when the host matches a saved Jellyfin server.
   ///
   /// Without this, a video opened from the Jellyfin app via "Open with" /
@@ -878,7 +878,7 @@ class JellyfinClient {
   /// same way in-app Jellyfin playback does.
   ///
   /// Best-effort: any failure (no saved server, unknown item, network error)
-  /// returns null so the caller plays the raw URL — never blocks playback.
+  /// returns null so the caller plays the raw URL - never blocks playback.
   Future<VideoItem?> enrichJellyfinStreamVideoItem({
     required String url,
     required String title,
@@ -895,7 +895,7 @@ class JellyfinClient {
       return VideoItem(
         id: video.id,
         title: title.isNotEmpty ? title : video.title,
-        // Play exactly what Jellyfin handed us — the URL carries a valid
+        // Play exactly what Jellyfin handed us - the URL carries a valid
         // token and is what the user actually opened.
         uri: url,
         resumeKey: video.resumeKey,
@@ -914,7 +914,7 @@ class JellyfinClient {
   }
 
   /// Fetches the full metadata (overview, year, genres, rating, artwork URLs)
-  /// for a single item — used for library folders bookmarked from the browser
+  /// for a single item - used for library folders bookmarked from the browser
   /// so the home card + details screen can show the show's real info without
   /// waiting on a TMDB lookup.
   Future<JellyfinItemInfo?> getItemInfo(JellyfinServer server, String itemId) async {
@@ -935,7 +935,7 @@ class JellyfinClient {
     );
   }
 
-  /// Parent chain of an item (immediate parent first) — season/folder →
+  /// Parent chain of an item (immediate parent first) - season/folder →
   /// series → library. Raw `BaseItemDto` maps (each carries `Id` + `Type`),
   /// or `[]` on any failure. Used to resolve the real Series behind a
   /// bookmarked folder, since a plain Jellyfin folder has no poster of its own.
@@ -963,7 +963,7 @@ class JellyfinClient {
       }
       return const [];
     } catch (_) {
-      // Best-effort — a failure just means we keep the folder's own info.
+      // Best-effort - a failure just means we keep the folder's own info.
       return const [];
     }
   }
@@ -972,7 +972,7 @@ class JellyfinClient {
   /// itself when it is a Series/Movie, otherwise the nearest Series ancestor.
   /// Jellyfin answers `/Items/{folderId}/Images/Primary` with a random child
   /// image for a folder without its own poster, so bookmarking must resolve
-  /// the show — otherwise the home card shows a random still from the series
+  /// the show - otherwise the home card shows a random still from the series
   /// instead of the main poster.
   Future<JellyfinItemInfo?> getPrimaryPosterInfo(
     JellyfinServer server,
@@ -1022,7 +1022,7 @@ class JellyfinClient {
   /// A playable item as a [VideoItem] ready for the player/details screen.
   VideoItem videoItem(JellyfinServer server, JellyfinItem item) {
     // Build full delivery URLs for external subtitles. Jellyfin's
-    // DeliveryUrl is a relative path without the token — append ApiKey
+    // DeliveryUrl is a relative path without the token - append ApiKey
     // so Media3 / AetherEngine can fetch it without extra headers.
     final externalSubsRaw = item.externalSubtitles.map((sub) {
       String url;
@@ -1086,7 +1086,7 @@ class JellyfinClient {
   /// Server-transcoded HLS URL. The Jellyfin backend re-encodes the file to
   /// H.264 + a broadly-supported audio codec in an HLS live playlist, so files
   /// whose codecs the device can't decode natively still play. Hitting
-  /// `master.m3u8` directly starts the transcode job — no PlaybackInfo round
+  /// `master.m3u8` directly starts the transcode job - no PlaybackInfo round
   /// trip needed. [maxBitrateBps] caps the output quality; [devId] tags the
   /// server-side job so [stopActiveEncoding] can find it later.
   String transcodeUrl(
@@ -1131,7 +1131,7 @@ class JellyfinClient {
   // Media-server sync (Infuse-style): resume position and watched state are
   // kept on the SERVER via the Sessions + PlayedItems APIs, so every device
   // signed into the same account sees the same progress. All calls are
-  // best-effort — a sync failure must never break playback.
+  // best-effort - a sync failure must never break playback.
   // ---------------------------------------------------------------------------
 
   Future<String> _authHeaderFor(JellyfinServer server) async {
@@ -1155,7 +1155,7 @@ class JellyfinClient {
       final res = await req.close().timeout(Duration(seconds: timeoutSeconds));
       await res.drain<void>();
       if (res.statusCode == 401) {
-        throw const JellyfinException('Session expired — sign in again.');
+        throw const JellyfinException('Session expired - sign in again.');
       }
       if (res.statusCode >= 400) {
         throw JellyfinException('Server error ${res.statusCode}');
@@ -1194,7 +1194,7 @@ class JellyfinClient {
     } catch (_) {}
   }
 
-  /// POST /Sessions/Playing — announces playback start (creates the server
+  /// POST /Sessions/Playing - announces playback start (creates the server
   /// session that later progress/stopped reports attach to).
   Future<void> reportPlaybackStart(
     JellyfinServer server,
@@ -1223,7 +1223,7 @@ class JellyfinClient {
     } catch (_) {}
   }
 
-  /// POST /Sessions/Playing/Progress — periodic position report (also what
+  /// POST /Sessions/Playing/Progress - periodic position report (also what
   /// stores the server-side resume position).
   Future<void> reportPlaybackProgress(
     JellyfinServer server,
@@ -1249,7 +1249,7 @@ class JellyfinClient {
     } catch (_) {}
   }
 
-  /// POST /Sessions/Playing/Stopped — ends the server session at [positionTicks].
+  /// POST /Sessions/Playing/Stopped - ends the server session at [positionTicks].
   Future<void> reportPlaybackStopped(
     JellyfinServer server,
     String itemId,
@@ -1346,7 +1346,7 @@ class JellyfinClient {
         client.close(force: true);
       }
     } catch (_) {
-      // Best-effort — the job also dies when the session times out.
+      // Best-effort - the job also dies when the session times out.
     }
   }
 
@@ -1413,7 +1413,7 @@ class JellyfinClient {
   /// has an [JellyfinServer.altUrl], the saved server is re-pointed at it and
   /// [op] retried with the alt server. If the alt also fails, the primary URL
   /// is restored in the saved list and the original error rethrown.
-  /// "Session expired" is NOT a failover trigger — that means re-login.
+  /// "Session expired" is NOT a failover trigger - that means re-login.
   Future<({T value, JellyfinServer server})> withAltFailover<T>(
     JellyfinServer server,
     Future<T> Function(JellyfinServer server) op,
@@ -1491,7 +1491,7 @@ class JellyfinClient {
 
   // ---------------------------------------------------------------------------
   // Discovery: Jellyfin UDP-7359 broadcast probe + mDNS (_jellyfin._tcp /
-  // _emby._tcp for legacy Emby — Jellyfin removed its mDNS responder, so the
+  // _emby._tcp for legacy Emby - Jellyfin removed its mDNS responder, so the
   // broadcast probe is the reliable path for a modern server).
   // ---------------------------------------------------------------------------
 
@@ -1512,7 +1512,7 @@ class JellyfinClient {
       }
     } catch (_) {}
 
-    // mDNS discovery — multicast_dns may throw MissingPluginException on
+    // mDNS discovery - multicast_dns may throw MissingPluginException on
     // platforms without native mDNS; the try/catch handles that gracefully,
     // and the 7359 broadcast probe above is the primary discovery path for
     // modern Jellyfin servers anyway.
@@ -1534,7 +1534,7 @@ class JellyfinClient {
         }
       } catch (_) {
         // Multicast may be unavailable (Android Wi-Fi, no network). Return what
-        // was found so far — manual add remains the fallback.
+        // was found so far - manual add remains the fallback.
       } finally {
         if (lockHeld) {
           await _multicastReleased();
@@ -1570,7 +1570,7 @@ class JellyfinClient {
             autoDiscovered: true,
           ));
         } catch (_) {
-          // Unreachable/unauth'd probe — skip.
+          // Unreachable/unauth'd probe - skip.
         }
       }
     }
@@ -1657,13 +1657,13 @@ class JellyfinClient {
   /// Maps low-level IO errors to plain-language messages.
   static String friendlyError(Object e) {
     if (e is HandshakeException) {
-      return 'Certificate not trusted — enable "Allow self-signed".';
+      return 'Certificate not trusted - enable "Allow self-signed".';
     }
     if (e is SocketException) {
-      return 'Can\'t connect — check the address.';
+      return 'Can\'t connect - check the address.';
     }
     if (e is TimeoutException) {
-      return 'Timed out — is the server on and the port right?';
+      return 'Timed out - is the server on and the port right?';
     }
     if (e is JellyfinException) return e.message;
     return 'Something went wrong ($e)';

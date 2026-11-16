@@ -20,7 +20,7 @@ void main() {
       locale: const Locale('en'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      // SettingsScreen is a tab body (no own Scaffold) — Material ancestor
+      // SettingsScreen is a tab body (no own Scaffold) - Material ancestor
       // required by ExpansionTile/ListTile.
       home: Scaffold(body: child),
     );
@@ -53,7 +53,7 @@ void main() {
     expect(find.byType(SettingsScreen), findsOneWidget);
     expect(find.text(toneMapTitle(tester)), findsNothing);
     // Reset before the binding verifies foundation invariants (addTearDown
-    // runs too late — after _verifyInvariants).
+    // runs too late - after _verifyInvariants).
     debugDefaultTargetPlatformOverride = null;
   });
 

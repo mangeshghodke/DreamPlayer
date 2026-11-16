@@ -8,7 +8,7 @@ import '../widgets/cached_image.dart';
 ///
 /// Shows every candidate from every configured provider in one grid, grouped by
 /// provider, and persists the tap through [TmdService.setArtwork] so the pick
-/// is applied at read time by `metaFor` — i.e. it sticks across re-resolution
+/// is applied at read time by `metaFor` - i.e. it sticks across re-resolution
 /// and reaches every card and header that shows this item, not just the screen
 /// it was made on.
 class ArtworkPickerSheet extends StatefulWidget {
@@ -148,7 +148,7 @@ class _ArtworkPickerSheetState extends State<ArtworkPickerSheet> {
   }
 
   Widget _buildGrid(BuildContext context, List<MetaImage> images, List<String> notes) {
-    // Group by provider so a title with art from both is readable — the user
+    // Group by provider so a title with art from both is readable - the user
     // asked for "every configured provider" in one list, and Nova separates
     // them the same way.
     final byProvider = <MetadataProvider, List<MetaImage>>{};

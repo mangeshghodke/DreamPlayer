@@ -206,7 +206,7 @@ void main() {
     });
 
     test('children directly under the tree root give an unnamed seed', () {
-      // Correct path, but no display name — and such a root is never trusted
+      // Correct path, but no display name - and such a root is never trusted
       // with removals, so a wrong guess cannot delete a library.
       final root = LocalLibraryRescan.reconstructRoot('b', [
         scanned('tree:b/House', name: 'House'),

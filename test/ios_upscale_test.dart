@@ -32,7 +32,7 @@ void main() {
     expect(av, contains('"upscaleActive"'));
     expect(av, contains('"upscaleSource"'));
     expect(av, contains('"upscaleTarget"'));
-    // The channel case persists only — NO mid-session reload (a reload did
+    // The channel case persists only - NO mid-session reload (a reload did
     // not engage the stage live); it applies on the next open.
     final caseStart = av.indexOf('case "setUpscale"');
     final caseBlock =
@@ -93,7 +93,7 @@ void main() {
     expect(await store.load(), isTrue);
 
     // Entitlement lapses: the engine reads the pref straight from
-    // UserDefaults, so a stale ON would keep the paid feature on for free —
+    // UserDefaults, so a stale ON would keep the paid feature on for free -
     // it must be corrected AND persisted.
     await Entitlements.instance.setDebugFreeUser(true);
     expect(await store.effectiveEnabled(), isFalse);
@@ -113,7 +113,7 @@ void main() {
     expect(trial, contains("'Video upscaling (MetalFX)'"));
   });
 
-  test('player shows only the status chip — no popup toggle or live push', () {
+  test('player shows only the status chip - no popup toggle or live push', () {
     final player = File('lib/screens/player_screen.dart').readAsStringSync();
     // The toggle lives in Settings -> Player only: no panel, no top-bar
     // button, no setUpscale call from the player screen.

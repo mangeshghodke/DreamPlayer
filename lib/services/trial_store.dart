@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 ///
 /// **Why this exists:** `SharedPreferences` lives in the app container and is
 /// deleted with the app. A user who deletes DreamPlayer and reinstalls from
-/// the App Store got a brand-new 7-day trial every time — the "redownload"
+/// the App Store got a brand-new 7-day trial every time - the "redownload"
 /// loop visible in App Store Connect analytics. The Keychain item survives app
 /// deletion (it only goes away if the user erases the device or removes the
 /// item), so the trial resumes exactly where it stopped instead of restarting
@@ -27,13 +27,13 @@ class TrialStore {
   static const MethodChannel _channel = MethodChannel('dreamplayer/trial');
 
   /// Tri-state probe: null = not tried yet, false = channel missing. Static
-  /// because the channel is a process-wide singleton — the probe result is too.
+  /// because the channel is a process-wide singleton - the probe result is too.
   static bool? _channelAvailable;
 
   /// Forget the cached channel-availability probe. Called by
   /// `Entitlements.resetForTest()` (and directly by tests) so each test starts
   /// from an unprobed state. Not `@visibleForTesting` because
-  /// `Entitlements.resetForTest` — itself test-only — needs to call it.
+  /// `Entitlements.resetForTest` - itself test-only - needs to call it.
   static void resetProbeForTest() {
     _channelAvailable = null;
   }
@@ -43,13 +43,13 @@ class TrialStore {
     if (_channelAvailable != null) return _channelAvailable!;
     try {
       // `getTrialStartedAt` on an empty keychain legitimately returns null,
-      // so success here means "the channel answered" — not "a value exists".
+      // so success here means "the channel answered" - not "a value exists".
       await _channel.invokeMethod<void>('getTrialStartedAt');
       _channelAvailable = true;
     } on MissingPluginException {
       _channelAvailable = false;
     } catch (_) {
-      // Any other failure (locked keychain, entitlement issue) — treat the
+      // Any other failure (locked keychain, entitlement issue) - treat the
       // store as unavailable rather than blocking app start.
       _channelAvailable = false;
     }
@@ -75,7 +75,7 @@ class TrialStore {
     try {
       await _channel.invokeMethod<void>('setTrialStartedAt', ms);
     } catch (_) {
-      // Best effort — SharedPreferences still holds the value, so a failed
+      // Best effort - SharedPreferences still holds the value, so a failed
       // Keychain write degrades to the old (reinstall-vulnerable) behavior
       // rather than losing the trial entirely.
     }
@@ -85,8 +85,8 @@ class TrialStore {
   ///
   /// This is the missing half of Restore Purchases: the StoreKit 2
   /// implementation in `in_app_purchase_storekit` only enumerates the local
-  /// transaction cache and never calls `AppStore.sync()`. After a reinstall —
-  /// or after the cache was cleared — that cache can be empty even though the
+  /// transaction cache and never calls `AppStore.sync()`. After a reinstall -
+  /// or after the cache was cleared - that cache can be empty even though the
   /// account owns the product, and only `sync()` goes to the App Store (and
   /// prompts for the owning Apple ID when the device is signed in with a
   /// different one).

@@ -14,11 +14,11 @@ import 'package:dream_player/utils/mpv_http_headers.dart';
 ///  1. **Different HTTP stacks.** Media3 uses OkHttp (Conscrypt TLS,
 ///     `User-Agent: okhttp/4.x`); libmpv uses ffmpeg's own http protocol
 ///     (bundled mbedtls, `User-Agent: Lavf/63.1.100`). The reported host was
-///     Cloudflare-fronted with a client-bound `?selection=` token — `Lavf/…`
+///     Cloudflare-fronted with a client-bound `?selection=` token - `Lavf/…`
 ///     is on a lot of blocklists and mbedtls fingerprints get rejected.
 ///  2. **`VideoItem.httpHeaders` was dropped on the mpv path**, so every
 ///     authenticated URL (WebDAV Basic auth, a Jellyfin token) could never
-///     play on this engine — even though Media3 received the same map.
+///     play on this engine - even though Media3 received the same map.
 ///
 /// ## The fix (layered, non-regressive)
 ///
@@ -49,7 +49,7 @@ void main() {
     test('a source with no headers still gets a browser user-agent', () {
       final opts = buildMpvHttpHeaderOptions(const {});
       expect(opts.userAgent, mpvBrowserUserAgent);
-      // Not the ffmpeg default — that is what CDNs refuse.
+      // Not the ffmpeg default - that is what CDNs refuse.
       expect(opts.userAgent, isNot(contains('Lavf')));
       expect(opts.referrer, isNull);
       expect(opts.headerFields, isNull);
@@ -124,7 +124,7 @@ void main() {
     });
 
     test('the retry happens BEFORE the error is surfaced', () {
-      // Scope to the mpv error LISTENER — there is another
+      // Scope to the mpv error LISTENER - there is another
       // `_markMpvFailed('Fallback player error: …')` in the bridge-start
       // failure path, which is a different (correct) call site.
       final listenAt = player.indexOf('player.stream.error.listen(');
@@ -154,7 +154,7 @@ void main() {
     });
 
     test('the SMB loopback path is NOT affected by the http bridge', () {
-      // `_stopMpvProxy` only stops the SMB token — the http bridge has its
+      // `_stopMpvProxy` only stops the SMB token - the http bridge has its
       // own teardown, because the retry re-opens the file THROUGH the bridge
       // it just started (stopping it there would kill the retry).
       final stopProxyAt = player.indexOf('Future<void> _stopMpvProxy()');
@@ -222,7 +222,7 @@ void main() {
     });
 
     test('it forwards the client Range upstream', () {
-      // mpv seeks by issuing Range requests — the bridge must pass them on
+      // mpv seeks by issuing Range requests - the bridge must pass them on
       // so the origin answers 206 + Content-Range exactly like it does for
       // Media3.
       expect(proxyKt.contains('clientHeaders["range"]?.let'), isTrue);
@@ -242,7 +242,7 @@ void main() {
       expect(proxyKt.contains('body.byteStream()'), isTrue);
     });
 
-    test('it fetches with OkHttp — the same stack Media3 uses', () {
+    test('it fetches with OkHttp - the same stack Media3 uses', () {
       expect(proxyKt.contains('okhttp3.OkHttpClient'), isTrue);
       expect(proxyKt.contains('client.newCall('), isTrue);
     });

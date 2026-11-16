@@ -7,7 +7,7 @@ import Network
 ///
 /// Discovery is SSDP M-SEARCH to 239.255.255.250:1900; browsing is SOAP
 /// ContentDirectory#Browse against the device's controlURL. HTTP is plain
-/// URLSession — DLNA servers are LAN http.
+/// URLSession - DLNA servers are LAN http.
 final class UpnpClient: NSObject {
 
     static let shared = UpnpClient()
@@ -17,7 +17,7 @@ final class UpnpClient: NSObject {
     private var serverCache: [String: UpnpServer] = [:]
     private let cacheQueue = DispatchQueue(label: "dreamplayer.upnp.cache")
 
-    /// Last discovery diagnostics — surfaced to the Dart UI via
+    /// Last discovery diagnostics - surfaced to the Dart UI via
     /// `getDiagnostics` so failures are visible on-device (no Mac console).
     private static var lastDiag: [String] = []
     private static func diag(_ line: String) {
@@ -106,7 +106,7 @@ final class UpnpClient: NSObject {
         // iOS multicast may be blocked without the entitlement (or on a
         // simulator where the 239.255.255.250 route is missing). If SSDP
         // found nothing, synthesize a DLNA entry from any saved Jellyfin
-        // server — Jellyfin's DLNA publisher is at
+        // server - Jellyfin's DLNA publisher is at
         // http://<host>:8096/dlna/<uuid>/description.xml (uuid from
         // /System/Info/Public) and is the DLNA service running on this
         // LAN (Rogscar-Ubuntu). This at least makes 192.168.1.16 show up
@@ -128,7 +128,7 @@ final class UpnpClient: NSObject {
     /// JSON string) and probes each host's DLNA description.xml. If no saved
     /// hosts exist (fresh install, never opened Jellyfin screen), it falls
     /// back to the Jellyfin 7359 UDP broadcast (same as JellyfinDiscovery) to
-    /// find 192.168.1.16 on the LAN and probes its DLNA — so Rogscar-Ubuntu
+    /// find 192.168.1.16 on the LAN and probes its DLNA - so Rogscar-Ubuntu
     /// shows even on a fresh iPad without any prior Jellyfin setup.
     private func jellyfinDLNAFallback() async -> [UpnpServer] {
         let key = "flutter.dreamplayer.jellyfinServers"
@@ -153,7 +153,7 @@ final class UpnpClient: NSObject {
         } else {
             Self.diag("Jellyfin prefs: none (key \(key))")
         }
-        // No saved hosts or none had DLNA — discover via 7359 broadcast like
+        // No saved hosts or none had DLNA - discover via 7359 broadcast like
         // JellyfinDiscovery (SO_BROADCAST to 255.255.255.255:7359, no multicast
         // entitlement needed). The host at 192.168.1.16 answers with
         // {"Address":"192.168.1.16:8096","Name":"Rogscar-Ubuntu",...}
@@ -490,7 +490,7 @@ final class UpnpClient: NSObject {
         }
         let didlEscaped = String(xml[startRange.upperBound..<endRange.lowerBound])
         Self.diag("SOAP didl escaped len=\(didlEscaped.count)")
-        // Single-pass entity decode — no XMLParser round-trip needed.
+        // Single-pass entity decode - no XMLParser round-trip needed.
         let didl = Self.unescapeEntities(didlEscaped)
         guard let didlData = didl.data(using: .utf8) else { return [] }
         let entries = parseDidl(data: didlData)
@@ -663,7 +663,7 @@ private final class DidlParser: NSObject, XMLParserDelegate {
         } else if Self.matches(elementName, "res") {
             if !value.isEmpty {
                 // Servers like Jellyfin advertise MULTIPLE res elements per
-                // item — video plus one per external subtitle (DeliveryUrl
+                // item - video plus one per external subtitle (DeliveryUrl
                 // …/Subtitles/N/0/Stream.srt). Keep the VIDEO res; fall back
                 // to the first-seen res otherwise.
                 let isVideoRes = pendingProtoInfo?.lowercased().contains("video/") == true
@@ -673,7 +673,7 @@ private final class DidlParser: NSObject, XMLParserDelegate {
                     currentResSize = pendingResSize
                     currentResIsVideo = isVideoRes
                 } else if !isVideoRes {
-                    // A text/* subtitle advertised next to the video —
+                    // A text/* subtitle advertised next to the video -
                     // collect it as an attachable track.
                     let parts = pendingProtoInfo?.split(separator: ":") ?? []
                     var mime = parts.count > 2 ? String(parts[2]).lowercased() : ""

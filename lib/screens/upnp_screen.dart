@@ -158,7 +158,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
     await _browse(server, _crumbs.last.id);
   }
 
-  // DLNA is browsed directly (no Home bookmark) — add-to-library removed per user request.
+  // DLNA is browsed directly (no Home bookmark) - add-to-library removed per user request.
 
   /// Best-effort TMDB prefetch for the current folder's video files.  ///
   /// Bounded + deferred, and cancelled on folder change. This used to fire one
@@ -274,7 +274,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
       }
     }
     if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
-    // Anime bracket numbering — default to season 1.
+    // Anime bracket numbering - default to season 1.
     if (seasonsNeeded.isEmpty && episodes.isNotEmpty) {
       seasonsNeeded.add(1);
     }
@@ -364,7 +364,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
         resumeKey: key,
         duration: Duration.zero,
         sizeBytes: entry.size,
-        // Server declared DLNA.ORG_CI=1 — this URL is a live transcode.
+        // Server declared DLNA.ORG_CI=1 - this URL is a live transcode.
         isTranscoded: entry.transcoded,
         // Server-advertised subtitle resources (Jellyfin DeliveryUrls) become
         // selectable tracks even on the raw DLNA path.

@@ -612,7 +612,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get settingsSpatialAudioDesc =>
-      'Premium — son spatial sur AirPods Pro et autres appareils compatibles';
+      'Premium - son spatial sur AirPods Pro et autres appareils compatibles';
 
   @override
   String get settingsVideoDecoder => 'Décodeur vidéo';
@@ -634,7 +634,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get settingsHwSdrToneMapDesc =>
-      'Convertit HDR/Dolby Vision en SDR matériellement — pas de vrai HDR sur l\'écran.';
+      'Convertit HDR/Dolby Vision en SDR matériellement - pas de vrai HDR sur l\'écran.';
 
   @override
   String get settingsTmdbKey => 'Clé API TMDB';
@@ -1017,7 +1017,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get smbDomainHint => 'WORKGROUP';
 
   @override
-  String get smbGuest => 'Invité — sans nom d\'utilisateur ni mot de passe';
+  String get smbGuest => 'Invité - sans nom d\'utilisateur ni mot de passe';
 
   @override
   String smbBookmarkAdded(String folder, String server) {
@@ -1562,7 +1562,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get sleepEndOfVideo => 'Fin de la vidéo en cours';
 
   @override
-  String get sleepFinished => 'Minuterie de veille terminée — lecture en pause';
+  String get sleepFinished => 'Minuterie de veille terminée - lecture en pause';
 
   @override
   String get volumeOff => 'Désactivé';
@@ -1724,15 +1724,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get playerVideoDecodeRetrySw =>
-      'Le décodeur matériel n\'a pas pu décoder cette vidéo — nouvelle tentative en décodage logiciel.';
+      'Le décodeur matériel n\'a pas pu décoder cette vidéo - nouvelle tentative en décodage logiciel.';
 
   @override
   String get playerSleepTimerFinished =>
-      'Minuterie de veille terminée — lecture en pause';
+      'Minuterie de veille terminée - lecture en pause';
 
   @override
   String get playerVolumeBoostWarning =>
-      'Au-delà de 100 %, vos enceintes peuvent être endommagées — à vos risques et périls';
+      'Au-delà de 100 %, vos enceintes peuvent être endommagées - à vos risques et périls';
 
   @override
   String get playerBrightnessBatteryWarning =>
@@ -1778,8 +1778,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get homeTitle => 'DreamPlayer';
 
   @override
-  String get homeNothingYet =>
-      'Aucune vidéo pour le moment — touchez + pour commencer';
+  String get homeNothingYet => 'Pas de vidéos';
 
   @override
   String get homeDownloaded => 'Téléchargé';
@@ -1847,7 +1846,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get settingsMpvUserConfigHint =>
-      'Votre mpv.conf est appliqué par-dessus les réglages MPV de DreamPlayer (options uniquement — scripts et profils sont ignorés). vo/wid sont protégés pour garder la surface vidéo attachée.';
+      'Votre mpv.conf est appliqué par-dessus les réglages MPV de DreamPlayer (options uniquement - scripts et profils sont ignorés). vo/wid sont protégés pour garder la surface vidéo attachée.';
 
   @override
   String get playerSecondarySubtitleTop => 'Sous-titre secondaire (haut)';

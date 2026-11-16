@@ -3,10 +3,10 @@ name: Release
 # Publishing a release is just tagging: `git tag v0.1.0 && git push origin v0.1.0`.
 # This workflow builds the Android split-per-abi APKs and creates a GitHub
 # Release on the tag with them attached. No iOS artifact is built or attached
-# here — unsigned IPA sideloading is retired (DPLA 7.6/3.2(g): iOS apps may
+# here - unsigned IPA sideloading is retired (DPLA 7.6/3.2(g): iOS apps may
 # only be distributed via the App Store, TestFlight, or Ad Hoc). Signed
 # TestFlight builds come from the separate ios.yml workflow.
-# (No AAB — Play Store publishing isn't set up yet.)
+# (No AAB - Play Store publishing isn't set up yet.)
 on:
   push:
     tags:

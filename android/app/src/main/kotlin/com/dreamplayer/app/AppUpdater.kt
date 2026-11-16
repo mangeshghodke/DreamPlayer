@@ -14,7 +14,7 @@ import java.io.File
  *
  * Dart checks the release feed and downloads the APK into the cache; this class
  * only turns that file into a package-installer intent (FileProvider URI). The
- * intent is always fired — when the "install unknown apps" grant is missing,
+ * intent is always fired - when the "install unknown apps" grant is missing,
  * the system PackageInstaller shows its own popup with a Settings button.
  */
 class AppUpdater(private val activity: Activity) {
@@ -38,7 +38,7 @@ class AppUpdater(private val activity: Activity) {
                     // shows the "For your security" popup with its own
                     // Settings button, which opens the per-app "Allow from
                     // this source" toggle. That grant is kept by the OS per
-                    // app, survives updates, and is wiped on uninstall —
+                    // app, survives updates, and is wiped on uninstall -
                     // exactly the one-time behaviour wanted.
                     try {
                         installApk(fileName)

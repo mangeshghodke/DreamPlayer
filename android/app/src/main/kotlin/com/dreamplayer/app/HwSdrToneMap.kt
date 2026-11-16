@@ -22,7 +22,7 @@ import android.util.Log
 /// what the codec ACTUALLY produced (see [outputTransfer]) instead of
 /// pretending the conversion happened.
 ///
-/// The key only exists from API 31 (S) — on older devices the request is
+/// The key only exists from API 31 (S) - on older devices the request is
 /// impossible and the setting is a no-op.
 object HwSdrToneMap {
 
@@ -33,7 +33,7 @@ object HwSdrToneMap {
     private const val PREFS = "FlutterSharedPreferences"
     private const val PREF_KEY = "flutter.dreamplayer.hwSdrToneMap"
 
-    /// `MediaFormat.COLOR_TRANSFER_SDR_VIDEO` (3) — the value the codec
+    /// `MediaFormat.COLOR_TRANSFER_SDR_VIDEO` (3) - the value the codec
     /// reports when it really tone-mapped the stream to standard SDR.
     const val COLOR_TRANSFER_SDR = 3
 
@@ -100,16 +100,16 @@ object HwSdrToneMap {
     /// request? Kept separate from the codec plumbing so it can be unit
     /// tested without a device.
     ///
-    /// * [enabled] — the user's setting.
-    /// * [sdkInt] — the Android API level of the device.
-    /// * [mimeType] / [codecs] — the video track's mime type and codec
+    /// * [enabled] - the user's setting.
+    /// * [sdkInt] - the Android API level of the device.
+    /// * [mimeType] / [codecs] - the video track's mime type and codec
     ///   string. Dolby Vision is matched on both because Media3 reports
     ///   `video/dolby-vision` for DV tracks and the `dvhe`/`dvh1`/`dvav`
     ///   codec string; a DV MKV without the Colour element has NO
     ///   `colorInfo` at all, so the colour check alone would miss it.
-    /// * [colorTransfer] — the declared transfer characteristic, or null when
+    /// * [colorTransfer] - the declared transfer characteristic, or null when
     ///   the container does not carry one (the DV-without-Colour case, and
-    ///   HDR10 MKVs whose PQ lives only in the HEVC SPS VUI — for those the
+    ///   HDR10 MKVs whose PQ lives only in the HEVC SPS VUI - for those the
     ///   request is allowed only for HEVC Main10, never for 8-bit AVC, see
     ///   issue #64).
     fun shouldRequest(
@@ -128,7 +128,7 @@ object HwSdrToneMap {
         // element, so `colorTransfer` is null even though the HEVC SPS VUI
         // carries PQ (the SEI probe reports those as HDR10 for the chip, but
         // this decision runs before/independent of it). Only HEVC Main10
-        // (`hvc1.2…` / `hev1.2…`) can be HDR10 — and the request must NEVER
+        // (`hvc1.2…` / `hev1.2…`) can be HDR10 - and the request must NEVER
         // go to 8-bit AVC: on Qualcomm that froze the pipeline with
         // `QC2PipelinedEntity … failed to queueInputs, err 38` (grey picture,
         // audio kept playing) while an unrequested AVC file in the same

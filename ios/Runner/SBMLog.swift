@@ -13,7 +13,7 @@ import os
 enum SBMLog {
     private static let lock = NSLock()
     private static let queue = DispatchQueue(label: "app.dreamplayer.smb.log")
-    /// Rotate rather than grow without bound — a long browsing session would
+    /// Rotate rather than grow without bound - a long browsing session would
     /// otherwise fill the device.
     private static let maxBytes = 4 * 1024 * 1024
     private static var booted = false

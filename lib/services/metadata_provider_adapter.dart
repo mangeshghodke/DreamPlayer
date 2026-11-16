@@ -53,8 +53,8 @@ abstract class MetadataProviderAdapter {
   /// Seasons and episodes. Optional: a provider that cannot supply them may
   /// return an empty list, and the season screen falls back to filename parsing.
   ///
-  /// Defaulted (rather than abstract) so a single-film catalogue — AVDb, or any
-  /// source with no notion of a season — is four methods, not six.
+  /// Defaulted (rather than abstract) so a single-film catalogue - AVDb, or any
+  /// source with no notion of a season - is four methods, not six.
   Future<List<TmdSeason>> seasons(TmdMovie movie) async => const [];
 
   /// Per-episode detail, including stills and cast where available.
@@ -133,7 +133,7 @@ abstract class MetadataProviderAdapter {
   /// The catalogue code in a file name, e.g. `SVFLA-012` or `MIAA-818`.
   ///
   /// The JAV catalogues (AVDb, r18.dev) are keyed by a studio code, and the
-  /// file name is the only place that code appears — so a provider can only
+  /// file name is the only place that code appears - so a provider can only
   /// resolve such a file if it sees the ORIGINAL name.
   ///
   /// The parsed title cannot be used: the filename parser treats a trailing

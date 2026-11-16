@@ -781,7 +781,7 @@
   "@settingsSpatialAudio": {
     "description": "Spatial audio section title"
   },
-  "settingsSpatialAudioDesc": "Premium — spatial sound on AirPods Pro and other compatible devices",
+  "settingsSpatialAudioDesc": "Premium - spatial sound on AirPods Pro and other compatible devices",
   "@settingsSpatialAudioDesc": {
     "description": "Spatial audio subtitle"
   },
@@ -809,7 +809,7 @@
   "@settingsHwSdrToneMap": {
     "description": "Hardware SDR tone-mapping toggle label"
   },
-  "settingsHwSdrToneMapDesc": "Convert HDR/Dolby Vision to SDR in hardware — no real HDR on the panel.",
+  "settingsHwSdrToneMapDesc": "Convert HDR/Dolby Vision to SDR in hardware - no real HDR on the panel.",
   "@settingsHwSdrToneMapDesc": {
     "description": "Hardware SDR tone-mapping toggle subtitle"
   },
@@ -1299,7 +1299,7 @@
   "@smbDomainHint": {
     "description": "Domain field hint"
   },
-  "smbGuest": "Guest — no username/password",
+  "smbGuest": "Guest - no username/password",
   "@smbGuest": {
     "description": "Guest access label"
   },
@@ -2009,7 +2009,7 @@
   "@sleepEndOfVideo": {
     "description": "End-of-video timer"
   },
-  "sleepFinished": "Sleep timer finished — playback paused",
+  "sleepFinished": "Sleep timer finished - playback paused",
   "@sleepFinished": {
     "description": "Timer expired message"
   },
@@ -2225,15 +2225,15 @@
   "@playerVideoNotSupported": {
     "description": "Video not supported by built-in player"
   },
-  "playerVideoDecodeRetrySw": "The hardware decoder failed to decode this video — retrying with software decoding.",
+  "playerVideoDecodeRetrySw": "The hardware decoder failed to decode this video - retrying with software decoding.",
   "@playerVideoDecodeRetrySw": {
     "description": "Hardware decoder failed mid-stream, retrying with software"
   },
-  "playerSleepTimerFinished": "Sleep timer finished — playback paused",
+  "playerSleepTimerFinished": "Sleep timer finished - playback paused",
   "@playerSleepTimerFinished": {
     "description": "Sleep timer finished message"
   },
-  "playerVolumeBoostWarning": "Above 100% can damage your speakers — use at your own risk",
+  "playerVolumeBoostWarning": "Above 100% can damage your speakers - use at your own risk",
   "@playerVolumeBoostWarning": {
     "description": "Warning shown when the volume gesture crosses above 100% into boost"
   },
@@ -2294,7 +2294,7 @@
   "@homeTitle": {
     "description": "App title in drawer/header"
   },
-  "homeNothingYet": "No videos yet — tap + to begin",
+  "homeNothingYet": "No videos yet",
   "@homeNothingYet": {
     "description": "Empty continue watching message"
   },
@@ -2380,7 +2380,7 @@
   "@settingsMpvUserConfigChange": {
     "description": "Dialog action to pick a different config file"
   },
-  "settingsMpvUserConfigHint": "Your mpv.conf is applied on top of DreamPlayer's MPV settings (options only — scripts and profiles are ignored). vo/wid are protected so the video surface stays attached.",
+  "settingsMpvUserConfigHint": "Your mpv.conf is applied on top of DreamPlayer's MPV settings (options only - scripts and profiles are ignored). vo/wid are protected so the video surface stays attached.",
   "@settingsMpvUserConfigHint": {
     "description": "Explanation under the custom MPV config row"
   },

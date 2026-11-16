@@ -19,7 +19,7 @@ import org.json.JSONObject
 /// The lock lets the Dart-side mDNS scan (multicast_dns) actually receive
 /// multicast on Android; without it the Wi-Fi driver silently drops multicast
 /// frames. The probe is Jellyfin's proprietary discovery protocol
-/// ("who is JellyfinServer?" → JSON {"Address","Id","Name"} on port 7359) —
+/// ("who is JellyfinServer?" → JSON {"Address","Id","Name"} on port 7359) -
 /// modern Jellyfin ships NO mDNS responder, so this broadcast is the only
 /// LAN scan that finds it.
 class MulticastLockManager(private val context: Context) {

@@ -17,13 +17,13 @@ import java.lang.reflect.Method
 
 /**
  * Hybrid-composition platform view that owns a single [SurfaceView] for the
- * libmpv engine. Distinct from `dreamplayer/exo_player` — the two views are
+ * libmpv engine. Distinct from `dreamplayer/exo_player` - the two views are
  * never mounted together (player_screen disposes Media3 before this attaches).
  *
  * On [surfaceCreated], creates a JNI global ref of the [android.view.Surface]
  * (via media_kit_libs' `MediaKitAndroidHelper`, same as media_kit's texture
  * path) and reports it to Dart as mpv `--wid`. Does NOT create a Flutter
- * texture — video is a real SurfaceFlinger layer.
+ * texture - video is a real SurfaceFlinger layer.
  */
 class MpvSurfaceViewFactory(
     private val activity: Activity,
@@ -95,7 +95,7 @@ class MpvSurfaceView(
         // without media-overlay z-order the framework interposes an opaque
         // LayerDim between them and the rendered video is covered → black video
         // even though mpv decodes/presents (wid ok, decoder busies, no vo error).
-        // NEVER setBackgroundColor on the SurfaceView itself — same punch-hole fill.
+        // NEVER setBackgroundColor on the SurfaceView itself - same punch-hole fill.
         surfaceView.setZOrderMediaOverlay(true)
         surfaceView.holder.addCallback(this)
         channel.setMethodCallHandler { call, result ->
@@ -132,7 +132,7 @@ class MpvSurfaceView(
             } catch (_: Throwable) {
             }
         }
-        // Delay delete like media_kit VideoOutput — mpv may still hold the ref
+        // Delay delete like media_kit VideoOutput - mpv may still hold the ref
         // for a moment after the surface goes away.
         mainHandler.postDelayed({
             try {
@@ -155,7 +155,7 @@ class MpvSurfaceView(
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (disposed) return
         wid = createWid(holder.surface)
-        // Surface live — drop the shutter (black here covers the video hole).
+        // Surface live - drop the shutter (black here covers the video hole).
         frameLayout.setBackgroundColor(android.graphics.Color.TRANSPARENT)
         val frame = holder.surfaceFrame
         val w = if (frame.width() > 0) frame.width() else surfaceView.width
@@ -192,7 +192,7 @@ class MpvSurfaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        // Shutter on — same as PlayerView.setShutterBackgroundColor(BLACK).
+        // Shutter on - same as PlayerView.setShutterBackgroundColor(BLACK).
         // Do NOT set visibility GONE: that destroys/recreates the surface
         // (layer stack churn) and leaves a hole that shows the details route.
         frameLayout.setBackgroundColor(android.graphics.Color.BLACK)

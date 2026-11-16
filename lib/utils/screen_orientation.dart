@@ -34,7 +34,7 @@ import 'package:flutter/services.dart';
 ///     || orientation == SCREEN_ORIENTATION_SENSOR_PORTRAIT) {
 /// ```
 ///
-/// So with rotation **locked** — the default on many phones — the request is
+/// So with rotation **locked** - the default on many phones - the request is
 /// overridden by the lock and the screen does not move. `LANDSCAPE` and
 /// `PORTRAIT` are deliberately absent from that sensor list and are exempted in
 /// the lock branch below it, so they always rotate.

@@ -11,11 +11,11 @@ import 'package:dream_player/services/iap_logger.dart';
 ///
 /// Shows on Android only when `debugFreeUser` override is active (debug builds).
 ///
-/// [closeOnEntitlement] — close the sheet by itself when the entitlement
+/// [closeOnEntitlement] - close the sheet by itself when the entitlement
 /// arrives. That is right for a GATE (a premium feature was tapped while the
 /// store had not answered yet: the paywall must not stay in front of a
 /// paying user) and wrong for a sheet the user opened ON PURPOSE to use the
-/// Restore button — that one closed itself instantly and left the customer
+/// Restore button - that one closed itself instantly and left the customer
 /// with nothing to tap (seen in the iPad log, build 67: two "Restore
 /// Purchases" taps, two instantly closed sheets).
 Future<bool> showPaywall(BuildContext context,
@@ -63,7 +63,7 @@ class PaywallSheet extends StatefulWidget {
   /// Whether the sheet closes itself when the entitlement arrives.
   ///
   /// False for a sheet the user opened on purpose (the "Restore Purchases"
-  /// row) — it must stay up so the Restore button can be used.
+  /// row) - it must stay up so the Restore button can be used.
   final bool closeOnEntitlement;
 
   @override
@@ -103,13 +103,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
       if (!mounted) return;
       if (Entitlements.instance.isAdvanced) {
         if (!widget.closeOnEntitlement) {
-          // The user opened this sheet on purpose (to use Restore) — it stays.
+          // The user opened this sheet on purpose (to use Restore) - it stays.
           IapLog.instance.log(
-              'PAYWALL', 'entitlement arrived — keeping the sheet open');
+              'PAYWALL', 'entitlement arrived - keeping the sheet open');
           setState(() {});
           return;
         }
-        IapLog.instance.log('PAYWALL', 'entitlement arrived — closing the sheet');
+        IapLog.instance.log('PAYWALL', 'entitlement arrived - closing the sheet');
         _closeWith(true);
       } else {
         setState(() {});
@@ -117,7 +117,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
     };
     Entitlements.instance.addListener(_entitlementListener!);
     // The entitlement can also arrive BETWEEN the gate's check and this
-    // sheet opening (the store answered in that window) — then nothing
+    // sheet opening (the store answered in that window) - then nothing
     // notifies the listener, so the sheet would sit in front of a paying
     // user. Check once the first frame is up.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -126,13 +126,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
         if (!widget.closeOnEntitlement) {
           IapLog.instance.log(
             'PAYWALL',
-            'entitlement was already there — keeping the sheet open',
+            'entitlement was already there - keeping the sheet open',
           );
           return;
         }
         IapLog.instance.log(
           'PAYWALL',
-          'entitlement was already there when the sheet opened — closing it',
+          'entitlement was already there when the sheet opened - closing it',
         );
         _closeWith(true);
       }
@@ -201,7 +201,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
         if (match.isNotEmpty) {
           products.add(match.first);
         } else {
-          IapLog.instance.log('PAYWALL', 'MISSING product: $id — using placeholder');
+          IapLog.instance.log('PAYWALL', 'MISSING product: $id - using placeholder');
           products.add(ProductDetails(
             id: id,
             title: id,
@@ -245,7 +245,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
     IapLog.instance.log('BUY', 'setExpectedProduct(${product.id}), starting purchase listener');
     Entitlements.instance.startPurchaseListener();
     try {
-      // Sweep unfinished transactions BEFORE the purchase — per Apple's
+      // Sweep unfinished transactions BEFORE the purchase - per Apple's
       // docs, unfinished transactions short-circuit Product.purchase()
       // (StoreKit returns the existing unfinished transaction instead of
       // displaying the confirmation sheet). Finishing them first
@@ -254,13 +254,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
       IapLog.instance.log('BUY', 'pre-purchase sweep finished $swept unfinished transaction(s)');
       final param = PurchaseParam(productDetails: product);
       IapLog.instance.log('BUY', 'calling buyNonConsumable... (Apple confirmation sheet should appear)');
-      // Mark buy initiated BEFORE the call — StoreKit can deliver the purchase
+      // Mark buy initiated BEFORE the call - StoreKit can deliver the purchase
       // update synchronously during the call, before buyNonConsumable returns.
       Entitlements.instance.markBuyInitiated();
       final launched = await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
       IapLog.instance.log('BUY', 'buyNonConsumable returned: $launched');
       if (!launched) {
-        IapLog.instance.log('BUY', 'buyNonConsumable returned false — could not start purchase');
+        IapLog.instance.log('BUY', 'buyNonConsumable returned false - could not start purchase');
         Entitlements.instance.clearBuyInitiated();
         if (!mounted) return;
         setState(() { _purchasingId = null; _error = 'Could not start purchase'; });
@@ -286,13 +286,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
       // already delivered the update and set a flag BEFORE we got here.
       if (!completer.isCompleted) {
         if (Entitlements.instance.isAdvanced) {
-          IapLog.instance.log('BUY', 'RACE: isAdvanced already true — completing immediately');
+          IapLog.instance.log('BUY', 'RACE: isAdvanced already true - completing immediately');
           completer.complete();
         } else if (Entitlements.instance.purchaseCanceled) {
-          IapLog.instance.log('BUY', 'RACE: purchaseCanceled already true — completing immediately');
+          IapLog.instance.log('BUY', 'RACE: purchaseCanceled already true - completing immediately');
           completer.complete();
         } else if (Entitlements.instance.purchaseFailed) {
-          IapLog.instance.log('BUY', 'RACE: purchaseFailed already true — completing immediately');
+          IapLog.instance.log('BUY', 'RACE: purchaseFailed already true - completing immediately');
           completer.complete();
         }
       }
@@ -384,7 +384,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
     IapLog.instance.log('RESTORE', '_restorePurchases called from paywall');
     final messenger = ScaffoldMessenger.of(context);
     Entitlements.instance.startPurchaseListener();
-    // The verdict comes from the store scan inside restorePurchases() — never
+    // The verdict comes from the store scan inside restorePurchases() - never
     // from the cached flag, which was saying "Active" on the very sheet this
     // button was pressed on.
     ({bool restored, bool storeEmpty}) outcome;
@@ -395,7 +395,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
       IapLog.instance.log('RESTORE', 'restorePurchases threw: $e');
       if (!mounted) return;
       messenger.showSnackBar(
-        const SnackBar(content: Text('Restore failed — try again later')),
+        const SnackBar(content: Text('Restore failed - try again later')),
       );
       return;
     }
@@ -694,7 +694,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
                 color: Colors.greenAccent.withValues(alpha: 0.9), size: 20),
             const SizedBox(width: 8),
             const Text(
-              'Free Trial Active — All Features Unlocked',
+              'Free Trial Active - All Features Unlocked',
               style: TextStyle(
                 color: Colors.greenAccent,
                 fontSize: 15,
@@ -872,9 +872,9 @@ class _ProductTile extends StatelessWidget {
       case 'dp_premium_monthly_2026':
         return 'Monthly';
       case 'dp_premium_yearly_2026':
-        return 'Yearly — Best Value';
+        return 'Yearly - Best Value';
       case 'dp_premium_lifetime_2026':
-        return 'Lifetime — One-time purchase';
+        return 'Lifetime - One-time purchase';
       default:
         return product.id;
     }

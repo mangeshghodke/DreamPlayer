@@ -26,11 +26,11 @@ final class FileBrowser: NSObject {
 
     /// Library-folder bookmarks ("Add folder to library") live in their own
     /// UserDefaults key so a library folder never shows up as a file-browser
-    /// root — Internal storage stays for browsing individual files only.
+    /// root - Internal storage stays for browsing individual files only.
     private static let libraryBookmarksKey = "dreamplayer.libraryFolderBookmarks"
 
     /// Synthetic path of the virtual "Files" root. Tapping it opens the system
-    /// document picker (the real Files-app home), so it is never listed — Dart
+    /// document picker (the real Files-app home), so it is never listed - Dart
     /// routes it to `openFilesHome` via the `isFilesHome` flag.
     static let filesHomePath = "dreamplayer/files-home"
 
@@ -324,7 +324,7 @@ final class FileBrowser: NSObject {
         let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale)
         if isStale, let url {
             // A stale bookmark still resolves, but on a removable volume the
-            // scope it carries is usually no longer valid — which is why an
+            // scope it carries is usually no longer valid - which is why an
             // external drive kept failing while internal storage worked.
             // The URL is still the truth right now, so re-issue a fresh
             // bookmark from it and report the staleness for diagnostics.
@@ -460,7 +460,7 @@ final class FileBrowser: NSObject {
     // MARK: - Imported videos
 
     /// Embedded cover-art bytes for a local file (metadata-only read via
-    /// AVAsset's `commonKeyArtwork` — never decodes video, so HDR content is
+    /// AVAsset's `commonKeyArtwork` - never decodes video, so HDR content is
     /// safe). MP4/MOV carry `covr` atoms; MKV attachments aren't readable by
     /// AVFoundation, so those files simply return nil (TMDB poster fallback).
     private func embeddedArtwork(path: String?, uri: String?) -> Data? {
@@ -473,7 +473,7 @@ final class FileBrowser: NSObject {
         guard let url = fileURL else { return nil }
         let asset = AVURLAsset(url: url)
         // "itsk" = the common-key artwork identifier (AVMetadataKey
-        // .commonKeyArtwork) — matched via rawValue so the lookup is stable
+        // .commonKeyArtwork) - matched via rawValue so the lookup is stable
         // across SDK spellings. Metadata-only: never decodes video.
         for item in asset.commonMetadata where item.identifier?.rawValue == "itsk" {
             if let data = item.dataValue, !data.isEmpty { return data }

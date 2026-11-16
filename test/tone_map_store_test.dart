@@ -39,7 +39,7 @@ void main() {
 
   test('no mode leaves a stale target primary or transfer curve', () {
     // The bug this guards: "SDR tone-map" set target-prim/target-trc, and
-    // "Native HDR/DV" only set target-colorspace-hint — so the native mode
+    // "Native HDR/DV" only set target-colorspace-hint - so the native mode
     // inherited BT.709/BT.1886 and kept tone-mapping to SDR while the UI
     // claimed a passthrough.
     for (final mode in ToneMapMode.values) {

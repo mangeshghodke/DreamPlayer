@@ -153,7 +153,7 @@ static struct dcerpc_uint32_pretty_printer server_type_pp = {
         },
 };
 
-/* PLATFORM_ID_* (SERVER_INFO_*.platform_id) — enum, exact match */
+/* PLATFORM_ID_* (SERVER_INFO_*.platform_id) - enum, exact match */
 static struct dcerpc_uint32_pretty_printer platform_id_pp = {
         .fmt = "%u",
         .bitfields = {

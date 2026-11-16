@@ -6,13 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// The same film kept three identities at once, which is why a poster picked in
 /// one place never showed up in another:
 ///
-///   1. the library file card on Home  — `folder:<fileCardId>`
-///   2. the Continue Watching entry    — the file's resumeKey
-///   3. the enclosing folder card     — `folder:<parentId>`
+///   1. the library file card on Home  - `folder:<fileCardId>`
+///   2. the Continue Watching entry    - the file's resumeKey
+///   3. the enclosing folder card     - `folder:<parentId>`
 ///
 /// Opening the details page from (1) uses (1) as its identity key; opening the
-/// same film from (2) used (2). Two slots for one film, so artwork picks — and
-/// fix-match results — diverged. The fix is not more syncing machinery but one
+/// same film from (2) used (2). Two slots for one film, so artwork picks - and
+/// fix-match results - diverged. The fix is not more syncing machinery but one
 /// identity: Continue Watching has to resolve to the file card's key whenever the
 /// file has one.
 void main() {
@@ -74,13 +74,13 @@ void main() {
       expect(found, isNotNull);
       expect(found!.metadataKey, card.metadataKey);
       // A file entry keys on its resume key, so the card and the
-      // continue-watching entry are the same slot — which is what makes a pick
+      // continue-watching entry are the same slot - which is what makes a pick
       // on one surface show up on the other.
       expect(found.metadataKey, TmdStore.identityKeyFor(video));
     });
 
     test('a folder entry is never mistaken for the file card', () {
-      // The folder card is a prefix, not an exact match — mistaking it for the
+      // The folder card is a prefix, not an exact match - mistaking it for the
       // file would point the details page at the wrong film.
       final found = matching(
           [folderCard('p1', 'smb:server1/Downloads/Video/Movies')], video);

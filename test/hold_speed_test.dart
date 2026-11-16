@@ -80,7 +80,7 @@ void main() {
     expect(
       code,
       isNot(contains('PlaybackSpeedStore')),
-      reason: 'the boost is session state — the saved preference must not '
+      reason: 'the boost is session state - the saved preference must not '
           'learn about 2x',
     );
     expect(

@@ -10,7 +10,7 @@ import 'package:dream_player/services/audio_downmix_store.dart';
 ///
 /// The feature folds 5.1/7.1 audio into 2.0 so the centre channel (dialogue)
 /// stays loud on stereo headphones/speakers. It is deliberately FREE on both
-/// platforms — NOT paywall-gated like the iOS DSP trio — because it applies
+/// platforms - NOT paywall-gated like the iOS DSP trio - because it applies
 /// to any 5.1/7.1 file, including ordinary SDR content that free users can
 /// already play. These tests pin that decision and the wiring:
 ///
@@ -64,7 +64,7 @@ void main() {
 
     test('NOT entitlement-corrected, even on iOS without entitlement', () async {
       // The setting is free: a saved ON must survive with no entitlement,
-      // on iOS too — unlike the gated DSP trio which uses effectiveDspSetting.
+      // on iOS too - unlike the gated DSP trio which uses effectiveDspSetting.
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       try {
         SharedPreferences.setMockInitialValues({});
@@ -90,7 +90,7 @@ void main() {
           rowStart, rowEnd == -1 ? rowStart + 400 : rowEnd);
       expect(block.contains('AudioDownmixStore.save(value)'), isTrue);
       expect(block.contains('_settingsGate'), isFalse,
-          reason: 'downmix must stay free on iOS — no paywall gate');
+          reason: 'downmix must stay free on iOS - no paywall gate');
     });
 
     test('paywall feature list does not include downmix', () {

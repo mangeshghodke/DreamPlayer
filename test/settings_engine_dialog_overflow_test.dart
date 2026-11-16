@@ -83,7 +83,7 @@ void main() {
 }
 
 extension on WidgetTester {
-  /// pumpAndSettle with a guard — the settings screen has a live disk-size
+  /// pumpAndSettle with a guard - the settings screen has a live disk-size
   /// refresh post-frame callback, which can keep the scheduler busy.
   Future<void> pumpAndettleSafe() => pump(const Duration(milliseconds: 300));
 }

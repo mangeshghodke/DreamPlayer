@@ -8,14 +8,14 @@
 /// nothing, and the player quietly falls back to the system font.
 ///
 /// So the file itself is asked what family it carries. Pure function over
-/// bytes — unit-tested against the bundled TTFs, no file IO here.
+/// bytes - unit-tested against the bundled TTFs, no file IO here.
 library;
 
 import 'dart:typed_data';
 
 /// Family-ish names declared by the font: name IDs 1 (family), 16
 /// (typographic family), 4 (full) and 6 (PostScript name). Empty on any
-/// malformed input — a corrupt font must never throw.
+/// malformed input - a corrupt font must never throw.
 List<String> ttfNameTableNames(Uint8List bytes) {
   try {
     return _parse(bytes);
@@ -57,7 +57,7 @@ const _styleWords = {
 /// True when [declared] (a name from the file) can stand for [family].
 ///
 /// Exact family match, or the family followed only by style words. A prefix
-/// test alone would let `Roboto Mono` satisfy `Roboto` — and since the winner
+/// test alone would let `Roboto Mono` satisfy `Roboto` - and since the winner
 /// is copied into `<stem>.ttf` and reused forever, one loose match would stick.
 bool fontNameMatches(String declared, String family) {
   final d = normaliseFontName(declared);

@@ -11,11 +11,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// The fixtures are TRIMMED from live responses captured 2026-10-25 against
 /// `https://r18.dev`:
 ///
-/// * `GET /videos/vod/movies/detail/-/dvd_id=SVFLA-012/json` — the CODE
+/// * `GET /videos/vod/movies/detail/-/dvd_id=SVFLA-012/json` - the CODE
 ///   lookup. A small record: `content_id`, `title`, `release_date`,
 ///   `runtime_minutes`, `images.jacket_image.large2`, `actresses`,
 ///   `categories`, `maker`.
-/// * `GET /videos/vod/movies/detail/-/combined=1svfla012/json` — the FULL
+/// * `GET /videos/vod/movies/detail/-/combined=1svfla012/json` - the FULL
 ///   record: `jacket_full_url`, `gallery`, `actresses`/`directors` with
 ///   names, `categories` with English + Japanese names, `maker_name_ja`,
 ///   `release_date`, `runtime_mins`, `title_en`/`title_ja`.
@@ -179,12 +179,12 @@ void main() {
       expect(log.single.path, contains('dvd_id=SVFLA-012'));
     });
 
-    test('a title finds nothing — there is no free-text search', () async {
+    test('a title finds nothing - there is no free-text search', () async {
       final adapter = await enabled();
       expect(await adapter.search('Some Movie'), isEmpty);
     });
 
-    test('TV is refused — it is a movie catalogue', () async {
+    test('TV is refused - it is a movie catalogue', () async {
       final adapter = await enabled();
       expect(await adapter.search('SVFLA-012', kind: TmdKind.tv), isEmpty);
     });

@@ -7,7 +7,7 @@ import '../services/tone_map_store.dart';
 /// mode that only sets what it needs inherits whatever the previous mode
 /// left behind. The concrete symptom was the "Native HDR/DV" mode still
 /// forcing BT.709/BT.1886 output, because the previous "SDR tone-map" mode
-/// had set `target-prim`/`target-trc` and native never reset them — so the
+/// had set `target-prim`/`target-trc` and native never reset them - so the
 /// picture stayed tone-mapped and SDR while the UI claimed otherwise.
 ///
 /// The set is asserted in the unit test: every mode must produce exactly
@@ -75,7 +75,7 @@ Map<String, String> mpvHdrProperties(ToneMapMode mode) {
         'hdr-compute-peak': 'yes',
       },
     // The hdr-toys profiles: the GLSL chain owns transfer, gamut and tone,
-    // so gpu-next must NOT negotiate a second HDR transform on top of it —
+    // so gpu-next must NOT negotiate a second HDR transform on top of it -
     // that is why the colorspace hint is off and the tone-mapping is
     // "clip" (the shaders do the work).
     ToneMapMode.pq => _hdrToys('bt.2020', 'pq'),

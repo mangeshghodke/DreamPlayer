@@ -28,12 +28,12 @@ const Duration trialDuration = Duration(days: 7);
 
 /// Single source of truth for "is the user advanced?".
 ///
-/// Android: `advanced` is ALWAYS `true` — the getter ORs the platform in,
+/// Android: `advanced` is ALWAYS `true` - the getter ORs the platform in,
 /// so no code path can make Android "not advanced".
 /// iOS: reads StoreKit 2 `Transaction.currentEntitlements` (via the purchase
 /// stream). Initially false until a purchase is confirmed.
 /// Debug override: when `debugFreeUser == true`, `isAdvanced` is `false` on
-/// ALL platforms — lets us test the paywall on Android without an Apple account.
+/// ALL platforms - lets us test the paywall on Android without an Apple account.
 class Entitlements extends ChangeNotifier {
   Entitlements._();
   static final Entitlements instance = Entitlements._();
@@ -61,18 +61,18 @@ class Entitlements extends ChangeNotifier {
   /// after a sign-in ("Clear the purchase history cache on the device").
   /// During that window the app did not know what the customer owns, so the
   /// Settings screen showed "Unlock" and a gated feature could open the
-  /// paywall — for someone who had been paying for months.
+  /// paywall - for someone who had been paying for months.
   ///
   /// **What it is not.** It is NOT a Keychain item, so it does NOT survive a
   /// reinstall: a fresh install still asks the store from scratch (the
-  /// customer's requirement — the paywall may appear there). An app UPDATE
+  /// customer's requirement - the paywall may appear there). An app UPDATE
   /// keeps the data container, so the entitlement is known INSTANTLY and no
   /// "Unlock" state is shown at all.
   ///
   /// It is only ever WRITTEN when the store itself confirmed a purchase, and
   /// it is cleared the moment the store says the purchase no longer entitles
   /// (a lapsed subscription, a refund). So it can only make the app wait for
-  /// the store's answer — never grant something the store has refused.
+  /// the store's answer - never grant something the store has refused.
   static const String _kLastEntitledProduct = 'dreamplayer.lastEntitledProduct';
 
   /// The product ID restored from the cache (null = none).
@@ -84,7 +84,7 @@ class Entitlements extends ChangeNotifier {
   /// Whether the STORE has told us what the customer owns.
   ///
   /// False until the first scan answers. While it is false the app must not
-  /// claim "not entitled" — the answer may still be on its way.
+  /// claim "not entitled" - the answer may still be on its way.
   bool _storeAnswered = false;
 
   /// Whether the STORE confirmed an entitlement (not the cached one).
@@ -95,7 +95,7 @@ class Entitlements extends ChangeNotifier {
   ///
   /// The Settings row uses this to show "Checking…" instead of a false
   /// "Unlock" while the store is still thinking. When the paywall is off
-  /// there is nothing to check — every feature is free — so the state counts
+  /// there is nothing to check - every feature is free - so the state counts
   /// as known.
   bool get entitlementKnown =>
       !effectivePaywallEnabled ||
@@ -103,12 +103,12 @@ class Entitlements extends ChangeNotifier {
       _storeAnswered ||
       _ready.isCompleted;
 
-  /// The store is still being asked — the app does not know yet.
+  /// The store is still being asked - the app does not know yet.
   ///
   /// This is the window the customer saw: StoreKit's first `Transaction.all`
   /// in a fresh process took 3.5s on the iPad, and until it answered the app
   /// showed "Unlock" to someone who had been paying for months. The row
-  /// shows "Checking…" here instead — and the window is bounded (the gate
+  /// shows "Checking…" here instead - and the window is bounded (the gate
   /// timeout closes it), so the Unlock button always comes back.
   bool get entitlementChecking =>
       effectivePaywallEnabled && _initialised && !entitlementKnown;
@@ -125,7 +125,7 @@ class Entitlements extends ChangeNotifier {
     IapLog.instance.log('ENTITLE', 'cached entitlement: $productId');
   }
 
-  /// Forget the cached product — the store says it no longer entitles.
+  /// Forget the cached product - the store says it no longer entitles.
   Future<void> _forgetEntitledProduct() async {
     if (_cachedProductId == null) return;
     _cachedProductId = null;
@@ -143,7 +143,7 @@ class Entitlements extends ChangeNotifier {
   /// Transaction ids finished by the unfinished-transaction sweep.
   ///
   /// StoreKit can deliver a transaction we just finished through the purchase
-  /// stream — an Ask to Buy request that was still pending, for instance.
+  /// stream - an Ask to Buy request that was still pending, for instance.
   /// Such a transaction was never completed, so it must NOT grant an
   /// entitlement (the sweep declined it). The ids are remembered here so the
   /// stream handler can tell those apart from a real re-delivery of a
@@ -164,12 +164,12 @@ class Entitlements extends ChangeNotifier {
 
   /// Wall-clock 7-day free trial. Starts on the first launch where the paywall
   /// is actually active (real builds on iOS, or the debug-simulated build on
-  /// Android) — later launches that have the paywall off never start a trial.
+  /// Android) - later launches that have the paywall off never start a trial.
   bool get trialActive {
     final start = _trialStartedAtMs;
     if (start == null || _debugTrialExpired) return false;
     if (defaultTargetPlatform == TargetPlatform.android && !_debugFreeUser) {
-      // Android (real) is always advanced — the trial never matters there.
+      // Android (real) is always advanced - the trial never matters there.
       return false;
     }
     return DateTime.now().millisecondsSinceEpoch - start < trialDuration.inMilliseconds;
@@ -220,16 +220,16 @@ class Entitlements extends ChangeNotifier {
   /// and put the paywall in front of a paying user.
   Completer<void> _ready = Completer<void>();
 
-  /// Waits for the first entitlement read — bounded, so a slow or missing
+  /// Waits for the first entitlement read - bounded, so a slow or missing
   /// StoreKit can never block a gate. On timeout the gate simply uses the
   /// current state.
   Future<void> awaitReady() async {
-    // The cached entitlement already answers the question — there is nothing
+    // The cached entitlement already answers the question - there is nothing
     // to wait for. This is what makes an app UPDATE instant: the customer
     // who owns the app is entitled before StoreKit has even been asked.
     if (_entitlementFromCache) return;
     if (_ready.isCompleted) return;
-    // Nothing is going to complete it (init() was never called) — waiting
+    // Nothing is going to complete it (init() was never called) - waiting
     // would only stall the gate.
     if (!_initialised) return;
     try {
@@ -237,7 +237,7 @@ class Entitlements extends ChangeNotifier {
     } on TimeoutException {
       IapLog.instance.log('ENTITLE', 'awaitReady: timed out, using current state');
       // The store did not answer in time. Close the "Checking…" window so
-      // the Unlock button comes back — a free user must never be stuck
+      // the Unlock button comes back - a free user must never be stuck
       // behind a spinner they cannot dismiss.
       if (!_ready.isCompleted) _ready.complete();
     }
@@ -254,7 +254,7 @@ class Entitlements extends ChangeNotifier {
       _debugTrialExpired = prefs.getBool(_kDebugTrialExpired) ?? false;
       // The entitlement this install was last told about by the store. It
       // survives an app UPDATE (the data container is preserved) and dies
-      // with a reinstall (the container is deleted) — which is exactly the
+      // with a reinstall (the container is deleted) - which is exactly the
       // distinction the customer asked for.
       final cached = prefs.getString(_kLastEntitledProduct);
       if (cached != null && _productIds.contains(cached) && !_debugFreeUser) {
@@ -278,7 +278,7 @@ class Entitlements extends ChangeNotifier {
     // update or a reinstall ("the app automatically has all transactions
     // available to it upon initial launch"), and for purchases completed on
     // another device. The listener has to be running BEFORE that happens or
-    // the plan never comes back on its own — the user would have to tap
+    // the plan never comes back on its own - the user would have to tap
     // Restore Purchases after every update, which is exactly the complaint
     // this fixes.
     if (effectivePaywallEnabled) {
@@ -289,13 +289,13 @@ class Entitlements extends ChangeNotifier {
       // And RE-READ it more than once: a single launch scan is not
       // authoritative. StoreKit hydrates its transaction cache
       // asynchronously, and the plugin's `Transaction.all` is a one-shot
-      // read of that cache — right after an app update it can come back
+      // read of that cache - right after an app update it can come back
       // EMPTY ("store empty") or PARTIAL (only the expired subscription,
       // no lifetime), even though the customer owns the purchase. Measured
       // in iap_debug.log on 2026-11-01: 12:14:23 → empty, 12:14:13 →
       // empty, 12:13:15 → the expired monthly only, 12:16:52 → complete.
       // One empty read therefore does NOT mean "no purchase", it means "not
-      // known yet" — and the gates would put the paywall in front of an
+      // known yet" - and the gates would put the paywall in front of an
       // entitled customer for those few seconds.
       await _resolveEntitlementAtLaunch();
     }
@@ -306,7 +306,7 @@ class Entitlements extends ChangeNotifier {
   ///
   /// The whole schedule has to finish inside `awaitReady`'s 3s budget: the
   /// gates give up waiting after 3s and open the paywall, so a slower
-  /// schedule would not help an entitled customer — it would only delay a
+  /// schedule would not help an entitled customer - it would only delay a
   /// free user's paywall. The first attempt is immediate; the retries cover
   /// the window in which StoreKit fills its cache.
   static const List<Duration> entitlementScanSchedule = [
@@ -315,7 +315,7 @@ class Entitlements extends ChangeNotifier {
     Duration(milliseconds: 1700),
   ];
 
-  /// The schedule actually used — tests replace it with a fast one.
+  /// The schedule actually used - tests replace it with a fast one.
   @visibleForTesting
   static List<Duration> launchScanSchedule = entitlementScanSchedule;
 
@@ -343,7 +343,7 @@ class Entitlements extends ChangeNotifier {
       if (offset != launchScanSchedule.last) {
         IapLog.instance.log(
           'ENTITLE',
-          'launch scan at ${offset.inMilliseconds}ms: nothing entitled yet — '
+          'launch scan at ${offset.inMilliseconds}ms: nothing entitled yet - '
           'retrying (StoreKit may not have hydrated its transaction cache)',
         );
       }
@@ -354,8 +354,8 @@ class Entitlements extends ChangeNotifier {
   ///
   /// SharedPreferences is read first so an existing install keeps the value it
   /// already has (and is backfilled into the Keychain so a later reinstall is
-  /// covered). When SharedPreferences is empty — a fresh install, or a
-  /// reinstall after the app was deleted — the Keychain is consulted, which is
+  /// covered). When SharedPreferences is empty - a fresh install, or a
+  /// reinstall after the app was deleted - the Keychain is consulted, which is
   /// what makes the trial *resume* instead of restarting at day 0.
   Future<void> _loadTrialStart() async {
     int? fromPrefs;
@@ -432,8 +432,8 @@ class Entitlements extends ChangeNotifier {
   /// The entitlement facts carried by a purchase-stream event.
   ///
   /// The plugin puts StoreKit's canonical `jsonRepresentation` into
-  /// `verificationData.localVerificationData` — the same payload the history
-  /// query returns — so a stream event can be judged by exactly the same
+  /// `verificationData.localVerificationData` - the same payload the history
+  /// query returns - so a stream event can be judged by exactly the same
   /// product/expiry/revocation rules as a history read.
   ///
   /// Returns null when the payload is missing or unreadable; the caller then
@@ -572,7 +572,7 @@ class Entitlements extends ChangeNotifier {
   ///
   /// A customer can own BOTH a subscription and the lifetime unlock (a
   /// Sandbox account often has leftovers). The first entiting transaction in
-  /// the history is not necessarily the best one to remember — and what we
+  /// the history is not necessarily the best one to remember - and what we
   /// remember is what the next launch trusts. A monthly subscription would
   /// expire while the customer still owns the lifetime, so the lifetime (no
   /// expiry) wins, and between two subscriptions the later expiry wins.
@@ -590,7 +590,7 @@ class Entitlements extends ChangeNotifier {
         continue;
       }
       if (expiry == null) {
-        // No expiry = never ends — the most durable one there is.
+        // No expiry = never ends - the most durable one there is.
         best = c.productId;
         bestExpiry = null;
       } else if (bestExpiry != null && expiry > bestExpiry) {
@@ -608,7 +608,7 @@ class Entitlements extends ChangeNotifier {
   ///
   /// The rule is deliberately CONSERVATIVE: the entitlement is only revoked
   /// when the account's history NAMES the product we granted as no longer
-  /// entitled — the transaction is present with a past `expirationDate` (a
+  /// entitled - the transaction is present with a past `expirationDate` (a
   /// lapsed subscription) or a `revocationDate` (a refunded lifetime). That is
   /// the store saying, about the exact purchase we hold, that it is gone.
   ///
@@ -616,7 +616,7 @@ class Entitlements extends ChangeNotifier {
   /// is a PARTIAL cache, not an answer: measured in iap_debug.log on
   /// 2026-11-01, a right-after-update read returned only the expired monthly
   /// (20:07:51) while the lifetime landed 21 s later (20:08:12). An EMPTY
-  /// history is equally ambiguous — "not known yet". Neither may revoke an
+  /// history is equally ambiguous - "not known yet". Neither may revoke an
   /// entitlement; locking a paying customer out over a transient cache is a
   /// far worse failure. The one authoritative sign-out signal is an
   /// `AppStore.sync()` (the Restore button's sign-in prompt), and that is
@@ -632,7 +632,7 @@ class Entitlements extends ChangeNotifier {
   ///
   /// A subscription that lapsed while the app was in the background must stop
   /// being premium, and a purchase made elsewhere (the Apple Store tab, a
-  /// redemption code) must start being premium — without either needing a
+  /// redemption code) must start being premium - without either needing a
   /// restart.
   Future<void> revalidate({String reason = 'revalidate'}) async {
     if (defaultTargetPlatform == TargetPlatform.android) return;
@@ -659,7 +659,7 @@ class Entitlements extends ChangeNotifier {
         nonEntitled: scan.nonEntitled,
       ) &&
           _advanced) {
-        // The store's history names the purchase we hold as gone — a lapsed
+        // The store's history names the purchase we hold as gone - a lapsed
         // subscription or a refunded lifetime.
         IapLog.instance.log(
           reason,
@@ -676,8 +676,8 @@ class Entitlements extends ChangeNotifier {
       IapLog.instance.log(
         reason,
         scan.count == 0
-            ? 'no transactions — keeping the current entitlement'
-            : 'partial history — keeping the current entitlement '
+            ? 'no transactions - keeping the current entitlement'
+            : 'partial history - keeping the current entitlement '
                 '(entitled=${_activeProductId ?? _cachedProductId ?? 'none'}, '
                 'transactions: ${scan.seen.join(', ')})',
       );
@@ -704,13 +704,13 @@ class Entitlements extends ChangeNotifier {
       IapLog.instance.log('LISTENER', 'paywall not enabled and not debug, skip');
       return;
     }
-    // Sweep unfinished transactions right away (fire-and-forget — the
+    // Sweep unfinished transactions right away (fire-and-forget - the
     // paywall's product loading covers the wait). Per Apple's docs the
     // updates listener receives unfinished transactions once at launch;
     // finishing them keeps the queue clean so no later purchase can
     // short-circuit the Apple confirmation sheet.
     // The RELIABLE sweep (direct SK2 unfinished list) runs again before
-    // every buyNonConsumable — see sweepUnfinishedTransactions().
+    // every buyNonConsumable - see sweepUnfinishedTransactions().
     unawaited(sweepUnfinishedTransactions());
     purchaseSub =
         InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
@@ -728,7 +728,7 @@ class Entitlements extends ChangeNotifier {
   /// attempt.
   ///
   /// Per Apple's docs (Transaction.unfinished / Transaction.finish):
-  /// unfinished transactions short-circuit Product.purchase() — StoreKit
+  /// unfinished transactions short-circuit Product.purchase() - StoreKit
   /// returns the existing unfinished transaction instead of displaying the
   /// confirmation sheet. Finishing them first guarantees the Apple sheet
   /// appears for every buy tap. This is a direct LIST query (not the
@@ -861,7 +861,7 @@ class Entitlements extends ChangeNotifier {
         // Purchases.
         //
         // What is still rejected: a transaction for a product we do not sell,
-        // a refunded/revoked one, and an expired subscription — all of them
+        // a refunded/revoked one, and an expired subscription - all of them
         // fail `isEntitledTransaction`. Only when the payload cannot be read
         // at all does the old "the user just tapped Buy" heuristic apply.
         final tx = _entitlementFromDetails(p);
@@ -911,7 +911,7 @@ class Entitlements extends ChangeNotifier {
         _debugFreeUser = false;
         _purchaseFailed = false;
         _purchaseCanceled = false;
-        // The store confirmed it — remember it for the next launch of this
+        // The store confirmed it - remember it for the next launch of this
         // install, so an app UPDATE never shows a false "Unlock".
         await _rememberEntitledProduct(_activeProductId!);
         if (p.pendingCompletePurchase) {
@@ -924,7 +924,7 @@ class Entitlements extends ChangeNotifier {
       if (p.status == PurchaseStatus.canceled) {
         IapLog.instance.log('PURCHASE_UPDATE', 'CANCELED: productID=${p.productID}');
         _purchaseCanceled = true;
-        // Sandbox: StoreKit can fire canceled before purchased — don't
+        // Sandbox: StoreKit can fire canceled before purchased - don't
         // treat as terminal immediately; give purchased a short window.
         // Complete so StoreKit clears the transaction.
         if (p.pendingCompletePurchase) {
@@ -973,7 +973,7 @@ class Entitlements extends ChangeNotifier {
   /// Start the 7-day free trial (called from the paywall "Start free trial" button).
   ///
   /// Restores rather than restarts when a start time already exists (from
-  /// SharedPreferences OR the iOS Keychain) — this is the guard that closes
+  /// SharedPreferences OR the iOS Keychain) - this is the guard that closes
   /// the delete-and-reinstall loop: after a reinstall the Keychain still holds
   /// the original timestamp, so the remaining days are honored instead of a
   /// fresh 7 days being handed out.
@@ -995,7 +995,7 @@ class Entitlements extends ChangeNotifier {
       return;
     }
     // Already started. Re-persist anyway (idempotent) so an install that
-    // predates the Keychain store gets its start time written there — without
+    // predates the Keychain store gets its start time written there - without
     // this, a pre-Keychain user would keep getting a fresh trial on every
     // reinstall because nothing ever backfills the surviving store.
     await _persistTrialStart(_trialStartedAtMs!);
@@ -1018,7 +1018,7 @@ class Entitlements extends ChangeNotifier {
 
   /// Mark that buyNonConsumable() has actually been called and returned.
   /// Only after this flag is true will _onPurchaseUpdate accept `purchased`
-  /// status — preventing orphaned pending transactions from being accepted
+  /// status - preventing orphaned pending transactions from being accepted
   /// before the user taps a product.
   void markBuyInitiated() {
     _buyInitiated = true;
@@ -1053,18 +1053,18 @@ class Entitlements extends ChangeNotifier {
     return success;
   }
 
-  /// Restore purchases — explicit user action only.
+  /// Restore purchases - explicit user action only.
   ///
   /// The verdict comes from the STORE, never from the cached flag: the
   /// paywall must not claim "Purchase restored!" over state that was true
   /// before the button was pressed (measured in iap_debug.log 2026-11-01,
-  /// 20:09:15 — the store returned 0 transactions and the sheet still closed
+  /// 20:09:15 - the store returned 0 transactions and the sheet still closed
   /// with a success message read off the cache).
   ///
   /// Returns `restored` only when THIS restore's history read found a purchase
   /// that entitles. `storeEmpty` is true only when
   /// `AppStore.sync()` completed (Apple's sign-in prompt was shown and the
-  /// account settled) and the history read back EMPTY — the one authoritative
+  /// account settled) and the history read back EMPTY - the one authoritative
   /// "signed out / different account / nothing owned" answer, on which the
   /// cached entitlement is revoked per Apple's guidance that signing out of
   /// Media & Purchases removes access to purchased content.
@@ -1081,7 +1081,7 @@ class Entitlements extends ChangeNotifier {
     // account owns the product; AppStore.sync() is what re-fetches it (and
     // prompts for the owning Apple ID if the device is signed in with a
     // different one). A completion is the authentication we need before an
-    // empty history may mean "this account owns nothing" — a cancellation
+    // empty history may mean "this account owns nothing" - a cancellation
     // (the wrapper answers false) means the account did not settle and an
     // empty read stays ambiguous.
     final synced = await TrialStore.instance.syncPurchasesWithAppStore();
@@ -1099,7 +1099,7 @@ class Entitlements extends ChangeNotifier {
     // delivers them through the purchase stream; it never calls
     // `AppStore.sync()`. Re-derive from `Transaction.all` on a short poll so
     // the verdict reflects the STORE, including a history that needed a
-    // moment to hydrate. This is a read-only query — it cannot grant an
+    // moment to hydrate. This is a read-only query - it cannot grant an
     // entitlement that StoreKit does not already report.
     final deadline = DateTime.now().add(const Duration(seconds: 12));
     var maxCount = 0;
@@ -1157,13 +1157,13 @@ class Entitlements extends ChangeNotifier {
             IapLog.instance.log(
               'RESTORE',
               'store returned ${scan.count} transaction(s) but none entitled '
-              '(${scan.seen.join(', ')}) — no purchase restored; the '
+              '(${scan.seen.join(', ')}) - no purchase restored; the '
               'transient partial cache never revokes',
             );
           } else {
             IapLog.instance.log(
               'RESTORE',
-              'store answered empty without a completed sync — ambiguous, '
+              'store answered empty without a completed sync - ambiguous, '
               'the current entitlement is kept',
             );
           }
@@ -1173,7 +1173,7 @@ class Entitlements extends ChangeNotifier {
       }
     } catch (e) {
       thrown = true;
-      // A StoreKit read error mid-restore must not crash the Restore tap —
+      // A StoreKit read error mid-restore must not crash the Restore tap -
       // and an unreadable history is ambiguous by definition, so the cached
       // entitlement is kept.
       IapLog.instance.log('RESTORE', 'store poll ERROR: $e');
@@ -1230,7 +1230,7 @@ class Entitlements extends ChangeNotifier {
     _trialStartedAtMs = at?.millisecondsSinceEpoch;
   }
 
-  /// Test-only: the raw StoreKit entitlement — WITHOUT the Android immunity
+  /// Test-only: the raw StoreKit entitlement - WITHOUT the Android immunity
   /// and without the debug override.
   ///
   /// `advanced` / `isAdvanced` are deliberately unusable for asserting what
@@ -1266,9 +1266,9 @@ enum GateResult { notRequired, available, paywallNeeded }
 
 /// Check if a gated feature is available.
 ///
-/// [gateEnabled] — whether this feature is gated (all 7 are gated).
-/// [advanced] — Entitlements.instance.isEntitled (paying OR in-trial).
-/// [paywallActive] — Entitlements.instance.effectivePaywallEnabled.
+/// [gateEnabled] - whether this feature is gated (all 7 are gated).
+/// [advanced] - Entitlements.instance.isEntitled (paying OR in-trial).
+/// [paywallActive] - Entitlements.instance.effectivePaywallEnabled.
 GateResult checkGate({
   required bool gateEnabled,
   required bool advanced,
@@ -1281,9 +1281,9 @@ GateResult checkGate({
 
 /// Pure decision: may a persisted DSP setting stay ON?
 ///
-/// [saved] — the stored value (for the bass level, `level > 0`).
-/// [advanced] — Entitlements.instance.isEntitled.
-/// [paywallActive] — Entitlements.instance.effectivePaywallEnabled.
+/// [saved] - the stored value (for the bass level, `level > 0`).
+/// [advanced] - Entitlements.instance.isEntitled.
+/// [paywallActive] - Entitlements.instance.effectivePaywallEnabled.
 ///
 /// Mirrors `spatialAudioMayBeEnabled`: the gate is on turning a premium
 /// feature ON, so a saved ON survives only while the user is entitled.
@@ -1297,8 +1297,8 @@ bool dspSettingMayStayEnabled({
   return advanced;
 }
 
-/// Correction for a persisted iOS DSP setting — night mode, or a bass level
-/// stored as `saved > 0` — the exact shape
+/// Correction for a persisted iOS DSP setting - night mode, or a bass level
+/// stored as `saved > 0` - the exact shape
 /// `SpatialAudioStore.effectiveEnabled` applies to spatial audio.
 ///
 /// The value a user turned ON stays on across restarts while they are

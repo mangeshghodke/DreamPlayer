@@ -8,7 +8,7 @@ import Foundation
 // AVURLAsset-based probing returns nothing for every .mkv. This mirrors the
 // Android MkvChapters.kt EBML walk to extract the info-card metadata directly
 // from the container: duration (Info), video/audio codec + resolution/fps +
-// channels + language (Tracks). Best-effort — any structural surprise yields
+// channels + language (Tracks). Best-effort - any structural surprise yields
 // whatever was collected, never affects playback.
 
 private struct MkvInfo {
@@ -86,7 +86,7 @@ private struct MkvReader {
             mask >>= 1
         }
         if mask == 0 {
-            // Malformed — skip all remaining bytes of what we consumed so far.
+            // Malformed - skip all remaining bytes of what we consumed so far.
             return nil
         }
         var val = UInt64(b & (mask - 1))
@@ -141,7 +141,7 @@ private func mkvProbe(path: String) -> MkvInfo {
     // Skip the EBML header (0x1A45DFA3) and any leading elements until we
     // reach the Segment (0x18538067), whose children we walk for Info/Tracks.
     // MKV Segment elements almost always use undefined/unknown size
-    // (all-ones VINT), so readSize returns nil — that means "extends to EOF".
+    // (all-ones VINT), so readSize returns nil - that means "extends to EOF".
     let scanLimit = min(reader.fileSize, 64 * 1024)
     while reader.pos + 4 <= scanLimit {
         let id = reader.readID() ?? 0
@@ -344,7 +344,7 @@ private func mkvCodecToMime(_ codecId: String) -> String? {
 
 // MARK: - MediaProbe
 
-/// Native media probe for iOS — extracts video/audio codec, resolution, fps,
+/// Native media probe for iOS - extracts video/audio codec, resolution, fps,
 /// duration, language, and channel count from any URL. AVURLAsset handles the
 /// containers AVFoundation supports (mp4/mov/m4v/ts/m2ts); MKV is parsed
 /// directly from the EBML container since AVFoundation can't open .mkv.

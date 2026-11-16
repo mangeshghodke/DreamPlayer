@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// The native side splits `smb:<serverId>/<share>/<path>` and treats the FIRST
 /// segment as the share. Any producer that forgets the share therefore does not
-/// fail loudly — it silently connects to a share named after the first folder.
+/// fail loudly - it silently connects to a share named after the first folder.
 ({String id, String share, String path})? parseSmbResumeKey(String? key) {
   if (key == null || !key.startsWith('smb:')) return null;
   final segments = key

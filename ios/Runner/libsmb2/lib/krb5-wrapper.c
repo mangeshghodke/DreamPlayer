@@ -853,7 +853,7 @@ krb5_renew_server_credentials(struct smb2_server *server)
         /*
          * server->auth_data is only a private_auth_data when we initialized
          * Kerberos with a keytab. Otherwise it may be NULL or (historically)
-         * some other app pointer — never dereference keytab without a keytab
+         * some other app pointer - never dereference keytab without a keytab
          * path set by the server.
          */
         if (server == NULL || server->keytab_path[0] == '\0') {

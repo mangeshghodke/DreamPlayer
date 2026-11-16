@@ -14,7 +14,7 @@ import 'package:dream_player/screens/credential_dialogs.dart';
 /// so the Column overflowed the bottom of the box. Both now wrap their
 /// content in a `SingleChildScrollView`.
 ///
-/// Asserts on [TextField] geometry, NOT on label text heights — a floating
+/// Asserts on [TextField] geometry, NOT on label text heights - a floating
 /// label Text is naturally ~16 px and is not a valid size proxy.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

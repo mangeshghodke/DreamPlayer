@@ -19,7 +19,7 @@ import io.flutter.plugin.common.MethodChannel
 /// `SurfaceView` and the live `ExoPlayer` instance. In fallback mode that
 /// platform view is NOT mounted (the video is a Flutter texture rendered by
 /// media_kit's `Video` widget), and `ExoPlayerView.enterPipInternal` gates on
-/// `player.isPlaying` of an idle ExoPlayer — so the pip request would silently
+/// `player.isPlaying` of an idle ExoPlayer - so the pip request would silently
 /// bail out.
 ///
 /// Entering pip is an Activity-level operation, so the same
@@ -28,7 +28,7 @@ import io.flutter.plugin.common.MethodChannel
 /// already hides every control while `_inPip` is set, so only the video shows.
 ///
 /// The auto-entry decision happens in `onUserLeaveHint`, which cannot wait for
-/// a round-trip to Dart — so Dart PUSHES its playback state here
+/// a round-trip to Dart - so Dart PUSHES its playback state here
 /// (`setMpvState`) whenever it changes, and this object answers synchronously.
 ///
 /// The pip window's own transport controls are [RemoteAction]s (rewind / play
@@ -72,7 +72,7 @@ class PipManager(private val activity: Activity) {
     private var mpvPlaying = false
 
     /// Video aspect (width / height) reported by the fallback engine, or 0 when
-    /// unknown — then 16:9 is assumed.
+    /// unknown - then 16:9 is assumed.
     @Volatile
     private var mpvAspect = 0f
 
@@ -84,7 +84,7 @@ class PipManager(private val activity: Activity) {
     @Volatile
     private var pipSeen = false
 
-    /// True while the app is actually in the pip window — the action buttons
+    /// True while the app is actually in the pip window - the action buttons
     /// are only rebuilt in that state (`setPictureInPictureParams` outside pip
     /// is wasted work).
     @Volatile
@@ -112,7 +112,7 @@ class PipManager(private val activity: Activity) {
                     }
                     result.success(null)
                 }
-                // Explicit user action from the ⋮ sheet — ignores the Settings
+                // Explicit user action from the ⋮ sheet - ignores the Settings
                 // toggle (which only gates automatic entry), like the main
                 // engine's `enterPip`.
                 "enterPip" -> result.success(enterPip(auto = false))
@@ -128,7 +128,7 @@ class PipManager(private val activity: Activity) {
         return enterPip(auto = true)
     }
 
-    /// True when the fallback engine currently owns playback — the Activity
+    /// True when the fallback engine currently owns playback - the Activity
     /// uses this to route its lifecycle callbacks to the right engine.
     fun isMpvActive(): Boolean = mpvActive
 
@@ -291,7 +291,7 @@ class PipManager(private val activity: Activity) {
     }
 
     /// The `flutter.dreamplayer.pipEnabled` pref (Settings toggle, default
-    /// true) read natively — same key and default as the main engine.
+    /// true) read natively - same key and default as the main engine.
     private fun pipSettingEnabled(): Boolean = try {
         activity.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             .getBoolean("flutter.dreamplayer.pipEnabled", true)

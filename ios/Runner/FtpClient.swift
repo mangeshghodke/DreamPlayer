@@ -317,7 +317,7 @@ final class FtpClient: NSObject {
     }
 
     /// Full directory listing (videos AND sidecar subtitle files) without the
-    /// video-only filter the browser uses — mirrors the Android
+    /// video-only filter the browser uses - mirrors the Android
     /// `listDirectoryAll` so the Dart sidecar service can pair `.srt`/`.ass`
     /// files by name (Nova `RawListerFactory.getFileList()`).
     static func listDirectoryAll(serverId: String, requestedPath: String) async throws -> [[String: Any]] {
@@ -521,7 +521,7 @@ final class FtpClient: NSObject {
         let text = ns.localizedDescription
         if text.lowercased().contains("auth") || text.lowercased().contains("password") ||
             text.lowercased().contains("530") {
-            return "Login failed — check username/password."
+            return "Login failed - check username/password."
         }
         return text.isEmpty ? "Connection failed" : text
     }
@@ -537,7 +537,7 @@ enum FtpError: Error {
     var message: String {
         switch self {
         case .badRequest(let m): return m
-        case .authFailed: return "Login failed — check username/password."
+        case .authFailed: return "Login failed - check username/password."
         case .timeout: return "Timed out connecting to the server."
         case .protocolError(let m): return m
         case .notFound(let m): return m
@@ -624,7 +624,7 @@ actor FtpControlConnection {
         guard r.code == 213 else {
             throw FtpError.protocolError("Server did not report file size (\(r.code))")
         }
-        // `reply()` returns the whole line ("213 30042485") — drop the
+        // `reply()` returns the whole line ("213 30042485") - drop the
         // 3-char code prefix before parsing the payload.
         let payload = r.text.dropFirst(3).trimmingCharacters(in: .whitespaces)
         if let n = Int64(payload) { return n }
@@ -654,7 +654,7 @@ actor FtpControlConnection {
     }
 
     /// Reads up to [maxLength] bytes at [offset] via REST + RETR. Stateless
-    /// per call — BufferedSMBReader issues sequential chunks, so cost is one
+    /// per call - BufferedSMBReader issues sequential chunks, so cost is one
     /// PASV+RETR round-trip per chunk.
     func retrieve(path: String, offset: Int64, maxLength: Int) async throws -> Data {
         let endpoint = try await pasv()
@@ -834,7 +834,7 @@ final class TcpConnection: @unchecked Sendable {
             }
             Darwin.close(sock)
         }
-        throw FtpError.badRequest("Can't reach \(host):\(port) — \(lastErr)")
+        throw FtpError.badRequest("Can't reach \(host):\(port) - \(lastErr)")
     }
 
     /// Dedicated thread running a blocking recv() loop; chunks are marshalled
@@ -882,7 +882,7 @@ final class TcpConnection: @unchecked Sendable {
     }
 
     /// Resumes queued readers with whatever is buffered (or EOF/error).
-    /// Drains the inbox — both this and `readSome`'s fast path must hand off
+    /// Drains the inbox - both this and `readSome`'s fast path must hand off
     /// exactly once, or bytes would be delivered twice.
     private func serveWaiters() {
         while !waiters.isEmpty {
@@ -1091,7 +1091,7 @@ final class SftpSession: @unchecked Sendable {
 // MARK: - ByteRangeSource for the engine
 
 /// Minimal async counting semaphore. FTP control connections allow only ONE
-/// transfer at a time — concurrent PASV/REST/RETR streams from a background
+/// transfer at a time - concurrent PASV/REST/RETR streams from a background
 /// chunk fill + an engine seek cross replies on the shared control socket and
 /// corrupt the session (observed on-device: two RESTs, the tail transfer won,
 /// probe died). This gates all plain-FTP reads to one in-flight RETR.
@@ -1192,7 +1192,7 @@ final class FtpByteRangeSource: ByteRangeSource, @unchecked Sendable {
         guard let ftpConn, let ftpPath else {
             throw FtpError.badRequest("Source closed")
         }
-        // Reads at/past EOF: answer empty without a server round-trip — a
+        // Reads at/past EOF: answer empty without a server round-trip - a
         // RETR from REST >= fileSize is rejected by servers (4xx), which
         // would surface an end-of-stream playback error.
         let off = max(0, offset)

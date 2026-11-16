@@ -13,7 +13,7 @@ import java.util.Properties
 /// `sftp://…` remote file, used by the chapter probes ([MkvChapters] /
 /// [Mp4Chapters]). Credentials resolve from [FtpClient.FtpStore] like
 /// [FtpDataSource]. One control connection is reused; every out-of-order
-/// read reissues REST/RETR (FTP) or an offset `get` (SFTP) — chapter parsing
+/// read reissues REST/RETR (FTP) or an offset `get` (SFTP) - chapter parsing
 /// performs only a handful of small reads, so the churn is fine.
 internal class FtpSeekSource private constructor(
     private val isSftp: Boolean,

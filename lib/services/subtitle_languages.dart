@@ -3,7 +3,7 @@
 //
 // Nova uses ISO 639-2/B three-letter codes (system, eng, fre, ger, … pob for
 // Brazilian Portuguese, zho for Chinese) and shows full language names in the UI
-// — never raw ISO codes. DreamPlayer mirrors that: the UI shows `displayName`,
+// - never raw ISO codes. DreamPlayer mirrors that: the UI shows `displayName`,
 // prefs store `novaCode`, and the OpenSubtitles download path maps to the REST
 // API's expected code via [openSubsCode].
 //

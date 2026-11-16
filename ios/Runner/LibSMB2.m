@@ -94,7 +94,7 @@ static NSString *LibSMB2NativePath(NSString *path) {
 - (nullable LibSMB2File *)openFile:(NSString *)relativePath
                               error:(NSError *_Nullable *_Nullable)error {
   // The CREATE request's Name is relative to the tree connect, so the path must
-  // be share-relative with backslash separators and NO leading separator —
+  // be share-relative with backslash separators and NO leading separator -
   // libsmb2 hands the string to the server untouched. Prepending a backslash
   // made every open fail with STATUS_INVALID_PARAMETER (0xc000000d).
   NSString *trimmed = relativePath;
@@ -316,7 +316,7 @@ static NSString *LibSMB2NativePath(NSString *path) {
     NSUInteger remaining = want - out.length;
     uint32_t ask = (uint32_t)MIN((NSUInteger)_maxReadSize, remaining);
     // pread is synchronous, so this loop is a sequence of blocking round-trips
-    // rather than a chain of suspended tasks — which is what makes it safe to
+    // rather than a chain of suspended tasks - which is what makes it safe to
     // call straight from the engine's demux thread.
     int got = smb2_pread(_ctx, _fh, chunk, ask, (uint64_t)(offset + out.length));
     if (got < 0) {
@@ -533,7 +533,7 @@ static NSString *LibSMB2NativePath(NSString *path) {
 /// This is the SMB2 way to list shares (the protocol itself has no enumerate
 /// command, but Windows/Samba both implement NetrShareEnum on the IPC$ tree) and
 /// it is what jcifs-ng does on Android. Without it, shares whose names are not
-/// in [commonShareNames] — e.g. a Samba share called "Linux Downloads" — were
+/// in [commonShareNames] - e.g. a Samba share called "Linux Downloads" - were
 /// invisible on iOS while Android showed them.
 ///
 /// Returns an empty array when enumeration is unavailable (IPC$ denied, RPC

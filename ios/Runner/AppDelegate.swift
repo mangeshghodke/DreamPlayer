@@ -5,7 +5,7 @@ import Network
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
 
-  /// iOS has no API to request Local Network permission on demand — the
+  /// iOS has no API to request Local Network permission on demand - the
   /// dialog appears once, triggered by the first local-network access.
   /// Browsing any Bonjour service deterministically triggers that evaluation,
   /// so we fire it as soon as the app is active instead of mid-flow (e.g.
@@ -32,7 +32,7 @@ import Network
     browser.start(queue: .main)
     lnProbeBrowser = browser
     // Empty Home must not keep a live NWBrowser if the network never
-    // transitions to ready/failed — that keeps the NW stack hot. Cancel
+    // transitions to ready/failed - that keeps the NW stack hot. Cancel
     // after 3 s when no dialog was needed (permission already decided).
     DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
       if self?.lnProbeBrowser === browser {

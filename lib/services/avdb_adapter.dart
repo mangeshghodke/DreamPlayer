@@ -12,10 +12,10 @@ import 'tmdb_client.dart';
 const String avdbBaseUrl = 'https://avdbapi.com/api.php/provide/vod';
 const String avdbPrefsKey = 'dreamplayer.avdbEnabled';
 
-/// AVDb (avdbapi.com) as a [MetadataProviderAdapter] — issue #46, part 2.
+/// AVDb (avdbapi.com) as a [MetadataProviderAdapter] - issue #46, part 2.
 ///
 /// Verified live before writing (2026-10-11): the service is up, needs **no
-/// API key**, and speaks the Maccms/苹果CMS `provide/vod` shape — `code`/`msg`/
+/// API key**, and speaks the Maccms/苹果CMS `provide/vod` shape - `code`/`msg`/
 /// `page`/`total`/`list`. Relevant fields, which are NOT uniform across
 /// endpoints:
 ///
@@ -32,7 +32,7 @@ const String avdbPrefsKey = 'dreamplayer.avdbEnabled';
 ///
 /// Scope, deliberately: AVDb is a **movie** catalogue, so this resolves
 /// `TmdKind.movie` and returns empty for TV. `seasons()` and `episode()` are
-/// left at their defaults — there are no seasons to invent, and a row with no
+/// left at their defaults - there are no seasons to invent, and a row with no
 /// still falls back to the poster (issue #47) rather than needing one.
 ///
 /// There is no API key, so the Settings control is an on/off switch rather
@@ -43,7 +43,7 @@ class AvdbAdapter extends MetadataProviderAdapter {
   /// A singleton because the enabled flag is CACHED: Settings used to build a
   /// fresh `AvdbAdapter()` per call while the registry held its own, so
   /// flipping the switch wrote the preference but left the registered
-  /// adapter reporting the old value — the provider stayed invisible for the
+  /// adapter reporting the old value - the provider stayed invisible for the
   /// rest of the session, and the Settings segment kept reading stale state.
   static final AvdbAdapter instance = AvdbAdapter();
 
@@ -71,7 +71,7 @@ class AvdbAdapter extends MetadataProviderAdapter {
 
   @override
   String get credentialsHelp =>
-      'avdbapi.com needs no API key — just enable it.';
+      'avdbapi.com needs no API key - just enable it.';
 
   Future<bool> isEnabled() async {
     if (_loaded) return _enabled ?? false;
@@ -128,7 +128,7 @@ class AvdbAdapter extends MetadataProviderAdapter {
   /// A catalogue code in the ORIGINAL name is an exact lookup (issue #52):
   /// AVDb's `wd=` matches `movie_code`, but the parsed title drops the code
   /// (`SVFLA-012.mkv` parses to the title "SVFLA"), so the base
-  /// implementation — which searches the parsed title — could never use it.
+  /// implementation - which searches the parsed title - could never use it.
   @override
   Future<TmdMatch?> bestMatch(ParsedFileName parsed) async {
     if (!await isConfigured()) return null;
@@ -241,7 +241,7 @@ class AvdbAdapter extends MetadataProviderAdapter {
   /// AVDb returns absolute image URLs, while `posterPath`/`backdropPath` are
   /// host-less paths that `metadataImageUrl` prefixes with TMDB's image host.
   /// Storing a full URL works because `metadataImageUrl` passes anything
-  /// already absolute straight through — verified in its own branch — but it is
+  /// already absolute straight through - verified in its own branch - but it is
   /// checked here so a future change there fails loudly in this adapter's
   /// tests instead of silently pointing every poster at image.tmdb.org.
   static TmdMovie? parseMovie(Map<String, dynamic> item) {
@@ -333,7 +333,7 @@ class AvdbAdapter extends MetadataProviderAdapter {
     return match == null ? null : int.tryParse(match.group(1)!);
   }
 
-  /// AVDb's `time` is a duration "HH:MM:SS" (or "MM:SS"), NOT a release date —
+  /// AVDb's `time` is a duration "HH:MM:SS" (or "MM:SS"), NOT a release date -
   /// the release date is `vod_pubdate`/`created_at`.
   /// Visible for tests: the duration parsing is subtle enough (a duration,
   /// not a clock time) to be worth pinning directly.

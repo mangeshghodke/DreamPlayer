@@ -80,8 +80,8 @@ class TvTile extends StatelessWidget {
 /// `ActivateIntent` cannot fire the primary action mid-hold.
 ///
 /// Public (rather than private to this file) because `EpisodeRow` (issue #38)
-/// is a custom row that cannot use [ListTile] — its leading is capped at 56 px
-/// by `maxIconHeightConstraint` — and must keep exactly this focus chrome,
+/// is a custom row that cannot use [ListTile] - its leading is capped at 56 px
+/// by `maxIconHeightConstraint` - and must keep exactly this focus chrome,
 /// which is the only thing making D-pad focus visible on TV.
 class TvFocusWrap extends StatefulWidget {
   const TvFocusWrap({

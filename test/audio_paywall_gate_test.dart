@@ -20,7 +20,7 @@ import 'package:dream_player/services/exo_player.dart';
 ///
 /// Android is never gated. `Entitlements.advanced` returns true
 /// unconditionally there, so every gate resolves to "available" and the
-/// paywall sheet can never open — that is the immunity guarantee the whole
+/// paywall sheet can never open - that is the immunity guarantee the whole
 /// Android sideload distribution depends on.
 ///
 /// What this file pins is the WIRING, because the decision layer is already
@@ -80,7 +80,7 @@ void main() {
   /// would.
   ///
   /// The sheet ticks a countdown timer every second, so `pumpAndSettle`
-  /// never settles while it is open — pump explicitly instead.
+  /// never settles while it is open - pump explicitly instead.
   Future<void> dismissPaywall(WidgetTester tester) async {
     final navigator = tester.state<NavigatorState>(find.byType(Navigator).last);
     navigator.pop();
@@ -149,7 +149,7 @@ void main() {
 
     testWidgets('turning night mode OFF is always free', (tester) async {
       // A saved ON (from an earlier entitled session) must be switchable
-      // off without a paywall — the gate is on turning the feature ON.
+      // off without a paywall - the gate is on turning the feature ON.
       await NightModeStore.save(true);
 
       await tester.pumpWidget(wrap(const SettingsScreen()));

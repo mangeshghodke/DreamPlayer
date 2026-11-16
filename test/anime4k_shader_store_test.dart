@@ -58,7 +58,7 @@ void main() {
   });
 
   test('judges the vertical video by pixel count, not by dimension', () {
-    // 1080x2160 is the same pixel count as 1920x1080 — fine.
+    // 1080x2160 is the same pixel count as 1920x1080 - fine.
     expect(
       isAnime4kSupportedResolution(width: 1080, height: 2160),
       isTrue,
@@ -70,7 +70,7 @@ void main() {
     );
   });
 
-  test('allows an unknown size — it means "not measured yet"', () {
+  test('allows an unknown size - it means "not measured yet"', () {
     expect(isAnime4kSupportedResolution(), isTrue);
     expect(isAnime4kSupportedResolution(width: 1920), isTrue);
     expect(isAnime4kSupportedResolution(width: 0, height: 0), isTrue);

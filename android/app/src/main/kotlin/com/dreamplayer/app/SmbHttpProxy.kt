@@ -16,7 +16,7 @@ import kotlin.concurrent.thread
  * Minimal loopback HTTP server that exposes an in-app SMB file over HTTP with
  * byte-range support. Purpose: give the libmpv fallback engine a URL it can
  * read (`http://127.0.0.1:<port>/<token>`) when the source is the in-app SMB
- * stack — libmpv cannot read `smb://` directly.
+ * stack - libmpv cannot read `smb://` directly.
  *
  * Android ships no `com.sun.net.httpserver`, so this is a tiny hand-rolled
  * HTTP/1.1 server: a daemon `ServerSocket` accept loop + one daemon thread per
@@ -24,7 +24,7 @@ import kotlin.concurrent.thread
  * `bytes=start-`, `bytes=-suffix`); every connection is closed after its
  * response.
  *
- * The bytes come from [SmbDataSource] — the SAME libsmb2-backed reader with
+ * The bytes come from [SmbDataSource] - the SAME libsmb2-backed reader with
  * the parallel read-ahead ring that the Media3 engine uses. Two things matter
  * here and neither is optional:
  *
@@ -37,7 +37,7 @@ import kotlin.concurrent.thread
  *     thread-safe, so each reader owns its sessions. A leaked session (a file
  *     handle left open makes the server refuse TREE_DISCONNECT with
  *     STATUS_BUSY, and libsmb2 then skips the socket close) eats one of the
- *     NAS's few per-user session slots — after a handful of them every new
+ *     NAS's few per-user session slots - after a handful of them every new
  *     connect fails and playback dies with "one request served, then
  *     nothing". See [Smb2Native] / `smb2_jni.c`.
  */
@@ -67,7 +67,7 @@ object SmbHttpProxy {
     private const val PREFETCH_THREADS = 3
 
     /// Socket write chunk. This is the HTTP-side write size, not the SMB read
-    /// size — the ring hands us whatever is buffered.
+    /// size - the ring hands us whatever is buffered.
     private const val WRITE_CHUNK = 256 * 1024
 
     @Synchronized
@@ -100,7 +100,7 @@ object SmbHttpProxy {
 
     /// Starts serving [path] on [share] of server [serverId] and returns the
     /// HTTP URL a ffmpeg/mpv reader can open, or null when the file can't be
-    /// opened (bad credentials / not found / server not reachable — the same
+    /// opened (bad credentials / not found / server not reachable - the same
     /// conditions the Media3 SMB path would surface).
     @Synchronized
     fun start(context: Context, serverId: String, share: String, path: String): String? {
@@ -242,7 +242,7 @@ object SmbHttpProxy {
     ///
     /// The bytes come from [SmbDataSource], which prefetches in parallel into a
     /// ring buffer, so this loop only ever copies from memory into the socket
-    /// — the NAS is never on the critical path of the write.
+    /// - the NAS is never on the critical path of the write.
     private fun streamBody(
         out: java.io.OutputStream,
         handle: Handle,

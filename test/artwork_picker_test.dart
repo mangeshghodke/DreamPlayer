@@ -342,7 +342,7 @@ void artworkRegressionTests() {
 
 /// Cross-provider id pairs (issue #33 tightening). The map only ever holds
 /// strictly-verified pairs, so it must never be able to point at a different
-/// show — and it must survive a restart.
+/// show - and it must survive a restart.
 void crossProviderTests() {
   group('normaliseMetaTitle', () {
     test('collapses punctuation, case and spacing', () {

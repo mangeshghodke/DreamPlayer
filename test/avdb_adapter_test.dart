@@ -9,14 +9,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// AVDb adapter for issue #46 part 2.
 ///
 /// The fixtures below are TRIMMED from live responses captured 2026-10-11
-/// against `https://avdbapi.com/api.php/provide/vod` — deliberately keeping
+/// against `https://avdbapi.com/api.php/provide/vod` - deliberately keeping
 /// the fields that differ between endpoints, because that difference is what
 /// the adapter has to survive:
 ///
 /// * `ac=list` returns no `poster_url`/`description` at all.
 /// * `ac=detail&wd=` returns everything, and wraps it in Maccms `code`/`list`.
 /// * `time` is a DURATION "01:58:34", while the release date lives in
-///   `created_at`/`vod_pubdate` — reading one as the other is a real bug.
+///   `created_at`/`vod_pubdate` - reading one as the other is a real bug.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -133,7 +133,7 @@ void main() {
       },
     );
 
-    test('refuses TV — AVDb is a movie catalogue', () async {
+    test('refuses TV - AVDb is a movie catalogue', () async {
       final adapter = buildAdapter();
       expect(await adapter.search('anything', kind: TmdKind.tv), isEmpty);
     });
@@ -180,7 +180,7 @@ void main() {
       expect(seen!.queryParameters['wd'], 'miaa 818');
     });
 
-    // Issue #52: the reporter typed the catalogue code three ways —
+    // Issue #52: the reporter typed the catalogue code three ways -
     // "SVFLA-012", "SVFLA012" and "SVFLA 012". Measured live against
     // avdbapi.com: the hyphen and the space both match, the separator-less
     // spelling matches NOTHING. The adapter therefore retries the

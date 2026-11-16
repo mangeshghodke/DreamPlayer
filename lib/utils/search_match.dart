@@ -117,9 +117,9 @@ bool searchMatches(String query, Iterable<String?> fields) {
 
 /// Match rank for ordering results, or `null` when [query] does not match.
 ///
-/// 0 — [primary] starts with the whole query (the entry the user is typing).
-/// 1 — [primary] contains it somewhere.
-/// 2 — only a secondary field (episode code, original title, member folder)
+/// 0 - [primary] starts with the whole query (the entry the user is typing).
+/// 1 - [primary] contains it somewhere.
+/// 2 - only a secondary field (episode code, original title, member folder)
 ///     matched.
 int? searchRank(
   String query, {

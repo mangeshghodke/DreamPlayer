@@ -10,11 +10,11 @@ import androidx.media3.common.util.UnstableApi
 /// Inside Matroska, `S_VOBSUB` block data is *already* a bare run of DVD
 /// subtitle packets, which is what `VobsubParser` consumes. A sidecar `.sub`
 /// is instead a whole MPEG-Program-Stream, and one cue's packet is **fragmented
-/// across several PES frames** — the reporter's file splits a 6198-byte cue into
+/// across several PES frames** - the reporter's file splits a 6198-byte cue into
 /// four ~2028-byte frames. Handing the parser the file verbatim yields nothing.
 ///
 /// **Structure, as written by every VobSub muxer:**
-///   `00 00 01 BA`  MPEG-2 pack header — a *fixed* 14 bytes. It has no stuffing
+///   `00 00 01 BA`  MPEG-2 pack header - a *fixed* 14 bytes. It has no stuffing
 ///                  field; reading one produced a 248-byte skip that derailed
 ///                  the walk entirely.
 ///   `00 00 01 BD`  PES packet, private stream 1, then a 2-byte length that
@@ -34,7 +34,7 @@ import androidx.media3.common.util.UnstableApi
 @UnstableApi
 object VobSubPayloadExtractor {
 
-    /// MPEG-2 pack header length. Fixed — there is no stuffing count to read.
+    /// MPEG-2 pack header length. Fixed - there is no stuffing count to read.
     private const val PACK_HEADER_LENGTH = 14
 
     /// First-fragment PES header: `0x81 0x80` + 5-byte PTS + substream id pair.

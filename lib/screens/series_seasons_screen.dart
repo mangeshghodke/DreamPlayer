@@ -90,7 +90,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   /// The metadata key of the season-folder that owns [season], or null.
   ///
   /// `widget.group.primary.metadataKey` is the SHOW's key, and every season row
-  /// used to render that single meta — so an artwork pick made on any season
+  /// used to render that single meta - so an artwork pick made on any season
   /// rewrote the whole group, including the parent (issue #33). Each season
   /// folder carries its own key in `_folders`, so an override can be scoped to
   /// just that season; a season with no pick keeps the show's default artwork.
@@ -206,7 +206,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     final current = _meta;
     if (current != null && meta != null && meta.movie.providerKey == current.movie.providerKey) {
       if (meta.seasons.length <= current.seasons.length) {
-        // Group unchanged — but a standalone movie card may have just
+        // Group unchanged - but a standalone movie card may have just
         // resolved (it reuses the same notify channel). Force a rebuild
         // so its poster appears.
         if (_folders.any((f) => f.metadataKey != _groupKey && TmdService.instance.metaFor(f.metadataKey) != null)) {
@@ -215,7 +215,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         return;
       }
     }
-    // detailsFor is async — fire and forget; if it returns, refresh again.
+    // detailsFor is async - fire and forget; if it returns, refresh again.
     TmdService.instance.detailsFor(_groupKey).then((d) {
       if (!mounted) return;
       setState(() => _details = d);
@@ -269,7 +269,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         for (final e in entries) {
           if (!_isFolder(e)) continue;
           final subName = _nameOf(e);
-          // Skip subdirectories that are already group members — they will
+          // Skip subdirectories that are already group members - they will
           // be processed in their own iteration below.
           if (groupFolderNames.contains(subName)) continue;
           final subFolderId = '${folder.id}_${subName.hashCode}';
@@ -373,7 +373,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             ));
           }
         } else {
-          // Flat folder — single entry. Filter out subdirectories that are
+          // Flat folder - single entry. Filter out subdirectories that are
           // already group members (they appear as their own entries).
           final flatEntries = entries.where((e) {
             if (!_isFolder(e)) return true;
@@ -392,7 +392,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       }
       if (!mounted) return;
 
-      // Show files immediately — no TMDB yet.
+      // Show files immediately - no TMDB yet.
       setState(() {
         _folders
           ..clear()
@@ -427,7 +427,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
 
         // Ensure season names are loaded from the API for the refine pass
         // below. We seed first (for offline fallback), then hit the API to
-        // get the FULL season list — the API result overwrites the partial
+        // get the FULL season list - the API result overwrites the partial
         // seed data. If offline, the seed data stays.
         service.seedSeasonNamesFromCache();
         await service.fetchSeasonNames(meta?.movie);
@@ -438,10 +438,10 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           try {
             // Resolve the folder's own metadata. This warms the season-name
             // cache for the base show AND gives standalone folders (e.g.
-            // "Strike the Blood Kieta Seisou Hen" — a movie, not a season)
+            // "Strike the Blood Kieta Seisou Hen" - a movie, not a season)
             // their own poster at render time. Season assignment is the sole
             // job of the refine pass below, which validates against the BASE
-            // show — a plainly non-season folder must never inherit a season
+            // show - a plainly non-season folder must never inherit a season
             // from its own stale meta or the old scan default (issue #6: Kieta
             // used to be lumped into "Season 5 · Strike the Blood Final").
             var fMeta = service.metaFor(f.metadataKey);
@@ -464,12 +464,12 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         if (mounted) setState(() {});
 
         // Refine folderSeason using TMDB season names (if available).
-        // Skip when a mapping was applied — the mapping already set correct
+        // Skip when a mapping was applied - the mapping already set correct
         // folderSeason values and per-folder metadata.
         if (meta?.movie.id != null) {
           // Movie collections (e.g. Girls und Panzer das Finale Parts 1–4):
           // all folders are standalone movies with no season evidence. Skip
-          // the refine pass entirely — matchFolderToSeason could match folder
+          // the refine pass entirely - matchFolderToSeason could match folder
           // names like "FINALE 01" to a TV season, collapsing all 4 folders
           // into one season and breaking the poster-card grid into a flat
           // episode list. A movie collection must keep its standalone cards.
@@ -480,7 +480,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           if (!isMovieCollection) {
             bool changed = false;
             // When season names are NOT cached (offline restart before any
-            // season fetch), matchFolderToSeason returns null for everything —
+            // season fetch), matchFolderToSeason returns null for everything -
             // in that case keep the scan/file-evidence season rather than
             // ungrouping every folder blindly.
             final namesAvailable = service.hasSeasonNames(
@@ -500,7 +500,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
               } else if (!namesAvailable) {
                 eff = f.folderSeason;
               } else {
-                // Names ARE available and the folder name matches NO season —
+                // Names ARE available and the folder name matches NO season -
                 // it is a standalone title ("Strike the Blood Kieta Seisou
                 // Hen" is the 2021 movie), NOT a season. Ungroup it.
                 eff = null;
@@ -516,7 +516,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
           await _fetchSeasonData(meta);
         }
       } catch (_) {
-        // TMDB offline — files already shown, metadata stays null.
+        // TMDB offline - files already shown, metadata stays null.
       }
     } catch (e) {
       if (!mounted) return;
@@ -536,7 +536,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     // Collect all unique season numbers needed:
     // 1. From folderSeason values (e.g. "Strike the Blood II" → Season 2).
     // 2. From entry filenames (e.g. "House.S02E04..." → season 2).
-    // Always scan file entries to discover ALL seasons — a folder with
+    // Always scan file entries to discover ALL seasons - a folder with
     // folderSeason=1 might also contain S02E0x files that need their
     // season poster fetched.
     final seasonsNeeded = <int>{};
@@ -880,12 +880,12 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         .toList();
     final slivers = <Widget>[];
 
-      // Series header — poster + meta, only when TMDB resolved.
+      // Series header - poster + meta, only when TMDB resolved.
       final meta = _meta;
       if (meta != null && meta.movie.title.isNotEmpty) {
         // Show season-specific info ONLY when there's a single season
         // displayed (e.g. user added "Strike the Blood Final" directly,
-        // which has no subdirectories — _folders has 0-1 entries).
+        // which has no subdirectories - _folders has 0-1 entries).
         // When there are multiple seasons (_folders.length > 1), show the
         // series-level poster/info instead.
         TmdSeason? seasonInfo;
@@ -954,7 +954,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
         );
       }
 
-    // Naming hint when no TMDB metadata resolved — tell the user to
+    // Naming hint when no TMDB metadata resolved - tell the user to
     // name files with SxxExx patterns so the parser can find them.
     if (meta == null || meta.movie.title.isEmpty) {
       slivers.add(
@@ -996,7 +996,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       );
     }
 
-    // Cast row (Nova-style) — above seasons.
+    // Cast row (Nova-style) - above seasons.
     if (_details != null && _details!.cast.isNotEmpty) {
       slivers.add(
         SliverPadding(
@@ -1008,7 +1008,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       );
     }
 
-    // Season poster cards grid (Nova-style) — shown when there are multiple
+    // Season poster cards grid (Nova-style) - shown when there are multiple
     // seasons OR standalone (unseasoned) folders. A standalone folder is its
     // own card (e.g. the "Strike the Blood Kieta Seisou Hen" movie), never a
     // season. Single-season-only groups skip straight to episodes.
@@ -1046,7 +1046,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             delegate: SliverChildBuilderDelegate(
               (context, index) {
                 if (index >= sortedSeasons.length) {
-                  // Standalone folder card — its own title + poster. The
+                  // Standalone folder card - its own title + poster. The
                   // card and its detail screen must share the same cache key
                   // (see _load unified metadataKey). Fall back to the folder's
                   // own key for entries cached under the legacy '_sub_' key.
@@ -1237,7 +1237,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       }
     }
 
-    // Standalone (unseasoned) folders — e.g. the "Strike the Blood Kieta
+    // Standalone (unseasoned) folders - e.g. the "Strike the Blood Kieta
     // Seisou Hen" movie grouped inside Strike the Blood. When the card grid
     // is already shown above (gridCount > 1) each standalone card opens its
     // own folder view on tap, so we only list episodes inline here in the
@@ -1314,7 +1314,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
   /// When the season is a synthetic subdirectory of a single real library
   /// folder (created on-the-fly by [_load]), the season is added to the
   /// persisted hidden-seasons list so it stops appearing here; the real
-  /// parent folder — and therefore the show card on the home screen — stays.
+  /// parent folder - and therefore the show card on the home screen - stays.
   Future<void> _removeSeason(LibraryFolder folder) async {
     // Check if this folder is a real library entry or a synthetic subfolder.
     final isReal = widget.group.folders.any((f) => f.id == folder.id);
@@ -1376,7 +1376,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
       await _saveHiddenSeasons();
     }
 
-    // Stay on this screen — just drop the removed season card. Home screen
+    // Stay on this screen - just drop the removed season card. Home screen
     // re-reads the store when the user backs out (didPopNext), so the show
     // card reflects the removal there too.
     if (!mounted) return;
@@ -1404,7 +1404,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
     );
     if (picked == null || !mounted) return;
     // Group key is show-level: only pin folderSeason when the user (or the
-    // dialog's auto-match) picked one — the group spans multiple folders.
+    // dialog's auto-match) picked one - the group spans multiple folders.
     await TmdService.instance.setManualFolder(
       _groupKey,
       picked.movie,

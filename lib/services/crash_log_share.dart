@@ -6,9 +6,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Debug logs worth sending home after a crash, by name in the app's
-/// documents folder — PER PLATFORM: iOS logs are written by the Swift bridges
+/// documents folder - PER PLATFORM: iOS logs are written by the Swift bridges
 /// (`smb_debug.log` by SBMLog, `iap_debug.log` by StoreKit), Android's only
-/// extra is `logcat_dump.log`, written on demand by [dumpLogcatIfAndroid] —
+/// extra is `logcat_dump.log`, written on demand by [dumpLogcatIfAndroid] -
 /// the only log that can carry a NATIVE crash (SIGSEGV in a decoder,
 /// NoSuchMethodError), because CrashLog's Dart handlers never see those.
 /// `dreamplayer_crash.log` (uncaught Dart errors, via CrashLog) and
@@ -39,9 +39,9 @@ const MethodChannel _deviceChannel = MethodChannel('dreamplayer/device');
 /// On Android, asks the native side to dump this app's own logcat into the
 /// documents folder as `logcat_dump.log` (apps can read their own logs
 /// without READ_LOGS since API 16), so the "App crashed?" report can attach
-/// it — that is the only place a native/Java crash stack (decoder SIGSEGV,
+/// it - that is the only place a native/Java crash stack (decoder SIGSEGV,
 /// NoSuchMethodError) survives. No-op elsewhere; never throws (a missing
-/// handler on iOS/other platforms is fine — the file simply won't exist and
+/// handler on iOS/other platforms is fine - the file simply won't exist and
 /// the report form lists only files that do).
 Future<String?> dumpLogcatIfAndroid() async {
   if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return null;
@@ -82,7 +82,7 @@ Future<ShareResult?> shareCrashLogs(List<String> paths) async {
   return SharePlus.instance.share(
     ShareParams(
       subject: 'DreamPlayer crash report',
-      text: 'DreamPlayer debug logs — reply to $supportEmail.',
+      text: 'DreamPlayer debug logs - reply to $supportEmail.',
       files: paths.map(XFile.new).toList(),
     ),
   );

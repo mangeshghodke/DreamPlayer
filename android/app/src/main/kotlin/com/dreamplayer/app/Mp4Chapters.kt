@@ -32,7 +32,7 @@ internal object Mp4Chapters {
         val endMs: Long?,
     )
 
-    /// Head/tail windows for a remote probe — see [SparseReader].
+    /// Head/tail windows for a remote probe - see [SparseReader].
     private const val HEAD_RANGE_BYTES = 8L * 1024 * 1024
     private const val TAIL_RANGE_BYTES = 8L * 1024 * 1024
 

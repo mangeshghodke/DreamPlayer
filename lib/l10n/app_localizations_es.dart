@@ -612,7 +612,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get settingsSpatialAudioDesc =>
-      'Premium — sonido espacial en AirPods Pro y otros dispositivos compatibles';
+      'Premium - sonido espacial en AirPods Pro y otros dispositivos compatibles';
 
   @override
   String get settingsVideoDecoder => 'Video decoder';
@@ -634,7 +634,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get settingsHwSdrToneMapDesc =>
-      'Convert HDR/Dolby Vision to SDR in hardware — no real HDR on the panel.';
+      'Convert HDR/Dolby Vision to SDR in hardware - no real HDR on the panel.';
 
   @override
   String get settingsTmdbKey => 'TMDB API key';
@@ -1011,7 +1011,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get smbDomainHint => 'WORKGROUP';
 
   @override
-  String get smbGuest => 'Guest — no username/password';
+  String get smbGuest => 'Guest - no username/password';
 
   @override
   String smbBookmarkAdded(String folder, String server) {
@@ -1552,7 +1552,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sleepEndOfVideo => 'End of current video';
 
   @override
-  String get sleepFinished => 'Sleep timer finished — playback paused';
+  String get sleepFinished => 'Sleep timer finished - playback paused';
 
   @override
   String get volumeOff => 'Off';
@@ -1715,7 +1715,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get playerSleepTimerFinished =>
-      'Temporizador terminado — reproducción pausada';
+      'Temporizador terminado - reproducción pausada';
 
   @override
   String get playerVolumeBoostWarning =>
@@ -1765,7 +1765,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get homeTitle => 'DreamPlayer';
 
   @override
-  String get homeNothingYet => 'Aún nada — toca + para empezar';
+  String get homeNothingYet => 'Sin videos';
 
   @override
   String get homeDownloaded => 'Descargados';

@@ -9,7 +9,7 @@ import 'package:dream_player/screens/settings_screen.dart';
 ///
 /// The engine picker, decoder mode, auto-play-next, PiP and the on-screen
 /// badges are all TV-relevant. Only the touch-only swipe-gestures row is
-/// hidden there — a blanket "hide the whole section on TV" gate took the
+/// hidden there - a blanket "hide the whole section on TV" gate took the
 /// engine picker with it.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

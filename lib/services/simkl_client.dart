@@ -161,7 +161,7 @@ class SimklClient {
     } on SimklException {
       rethrow;
     } on SocketException {
-      throw const SimklException("Can't reach SIMKL — check your connection.");
+      throw const SimklException("Can't reach SIMKL - check your connection.");
     } on TimeoutException {
       throw const SimklException('SIMKL request timed out.');
     } on FormatException {
@@ -197,11 +197,11 @@ class SimklClient {
           await _persistToken({'access_token': token, 'expires_in': expiresIn});
           return true;
         }
-        // Still pending without explicit KO — continue.
+        // Still pending without explicit KO - continue.
       } on SimklException {
         rethrow;
       } on SocketException {
-        // Transient — keep polling until deadline.
+        // Transient - keep polling until deadline.
         continue;
       } on TimeoutException {
         continue;
@@ -288,7 +288,7 @@ class SimklClient {
 
   // MARK: - Sync reads
 
-  /// Activities check (cheap) — returns raw activities map or null on failure.
+  /// Activities check (cheap) - returns raw activities map or null on failure.
   Future<Map<String, dynamic>?> getActivities() async {
     try {
       final res = await _get('/sync/activities', auth: true);
@@ -316,7 +316,7 @@ class SimklClient {
       final res = await req.close().timeout(const Duration(seconds: 30));
       final body = await res.transform(utf8.decoder).join();
       if (res.statusCode == 401) {
-        throw const SimklException('SIMKL session expired — sign in again.');
+        throw const SimklException('SIMKL session expired - sign in again.');
       }
       if (res.statusCode >= 400) {
         throw SimklException(_friendlyStatus(res.statusCode, body));
@@ -328,7 +328,7 @@ class SimklClient {
     } on SimklException {
       rethrow;
     } on SocketException {
-      throw const SimklException("Can't reach SIMKL — check your connection.");
+      throw const SimklException("Can't reach SIMKL - check your connection.");
     } on TimeoutException {
       throw const SimklException('SIMKL request timed out.');
     } on FormatException {
@@ -391,7 +391,7 @@ class SimklClient {
     return SimklWatched(movieIds: movieIds, showSeasons: showSeasons);
   }
 
-  /// Watchlist (plantowatch) — TMDB ids for movies + shows.
+  /// Watchlist (plantowatch) - TMDB ids for movies + shows.
   Future<Set<int>> getWatchlist() async {
     final data = await _get('/sync/all-items', auth: true);
     // Without extended, the response groups by type; collect plantowatch items.
@@ -447,7 +447,7 @@ class SimklClient {
       final res = await req.close().timeout(const Duration(seconds: 30));
       final body = await res.transform(utf8.decoder).join();
       if (res.statusCode == 401 && auth) {
-        throw const SimklException('SIMKL session expired — sign in again.');
+        throw const SimklException('SIMKL session expired - sign in again.');
       }
       if (res.statusCode >= 400) {
         throw SimklException(_friendlyStatus(res.statusCode, body));
@@ -458,7 +458,7 @@ class SimklClient {
     } on SimklException {
       rethrow;
     } on SocketException {
-      throw const SimklException("Can't reach SIMKL — check your connection.");
+      throw const SimklException("Can't reach SIMKL - check your connection.");
     } on TimeoutException {
       throw const SimklException('SIMKL request timed out.');
     } on FormatException {
@@ -486,7 +486,7 @@ class SimklClient {
       final res = await req.close().timeout(const Duration(seconds: 30));
       final text = await res.transform(utf8.decoder).join();
       if (res.statusCode == 401 && auth) {
-        throw const SimklException('SIMKL session expired — sign in again.');
+        throw const SimklException('SIMKL session expired - sign in again.');
       }
       if (res.statusCode >= 400) {
         throw SimklException(_friendlyStatus(res.statusCode, text));
@@ -498,7 +498,7 @@ class SimklClient {
     } on SimklException {
       rethrow;
     } on SocketException {
-      throw const SimklException("Can't reach SIMKL — check your connection.");
+      throw const SimklException("Can't reach SIMKL - check your connection.");
     } on TimeoutException {
       throw const SimklException('SIMKL request timed out.');
     } on FormatException {
@@ -527,7 +527,7 @@ class SimklClient {
       case 412:
         return 'SIMKL client_id is wrong or disabled.';
       case 429:
-        return 'SIMKL rate limit reached — try again shortly.';
+        return 'SIMKL rate limit reached - try again shortly.';
       default:
         return 'SIMKL returned an error ($code).';
     }

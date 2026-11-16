@@ -35,11 +35,11 @@ private const val TAG = "WebDAVClient"
 ///
 /// Networking goes through OkHttp, because Android's `HttpURLConnection`
 /// restricts request methods to `OPTIONS GET HEAD POST PUT DELETE TRACE
-/// PATCH` — it throws `ProtocolException` on `PROPFIND` ("Expected one of
+/// PATCH` - it throws `ProtocolException` on `PROPFIND` ("Expected one of
 /// [...] but was PROPFIND"). OkHttp allows arbitrary methods.
 ///
 /// Saved servers (name + base URL + credentials) are stored in app-private
-/// SharedPreferences. The password never crosses to Dart — only a `hasPassword`
+/// SharedPreferences. The password never crosses to Dart - only a `hasPassword`
 /// flag is returned; Dart requests the ready-made `Authorization` header via
 /// [WebDAVClient.authorizationHeader].
 class WebDAVClient(private val context: Context) {
@@ -58,7 +58,7 @@ class WebDAVClient(private val context: Context) {
             "strm", "m3u", "m3u8",
         )
 
-        /// Reasonable cap for a downloaded subtitle sidecar (50 MiB — far larger
+        /// Reasonable cap for a downloaded subtitle sidecar (50 MiB - far larger
         /// than any real .srt/.ass/.vtt/.sub; protects against a misconfigured
         /// server answering a wrong URL with a huge file, mirroring Nova's
         /// MAX_SUB_SIZE guard).
@@ -253,7 +253,7 @@ class WebDAVClient(private val context: Context) {
         )
     }
 
-    /// Server metadata (name, URL, username) — not sensitive, plain prefs.
+    /// Server metadata (name, URL, username) - not sensitive, plain prefs.
     private fun serverPrefs(): android.content.SharedPreferences =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -379,7 +379,7 @@ class WebDAVClient(private val context: Context) {
         val root = path == "/" || path.isEmpty()
         // Always request slash-terminated directory URLs. Some servers (and
         // reverse proxies in front of them) emit a 301 Location for a missing
-        // trailing slash that can be malformed (dropped port/scheme) — sending
+        // trailing slash that can be malformed (dropped port/scheme) - sending
         // the slash up front sidesteps the redirect entirely.
         val base = baseUrl.trimEnd('/')
         val requestUrl = if (root) "$base/" else "$base$path".let {
@@ -463,8 +463,8 @@ class WebDAVClient(private val context: Context) {
         selfSigned: Boolean,
     ): ByteArray? {
         // Best-effort by contract (it probes/downloads sidecar subtitles, never
-        // plays or tests a user-visible connection): any network failure —
-        // timeout, refused, unknown host, TLS — returns null so the caller
+        // plays or tests a user-visible connection): any network failure -
+        // timeout, refused, unknown host, TLS - returns null so the caller
         // falls back to "no subtitle data" instead of aborting playback with a
         // PlatformException("webdav", ...). A dead/slow server must never take
         // a Jellyfin video down with it.

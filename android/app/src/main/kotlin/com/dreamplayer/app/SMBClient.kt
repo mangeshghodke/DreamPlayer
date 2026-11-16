@@ -80,7 +80,7 @@ object SmbEngine {
         p["jcifs.smb.client.connTimeout"] = "15000"
         p["jcifs.smb.client.soTimeout"] = "20000"
         p["jcifs.smb.client.responseTimeout"] = "30000"
-        // Never tear the transport down while a playback session is paused —
+        // Never tear the transport down while a playback session is paused -
         // the prefetch thread keeps the ring full, but a long pause would
         // otherwise kill the connection under the default idle timeout.
         p["jcifs.smb.client.disableIdleTimeout"] = "true"
@@ -98,7 +98,7 @@ object SmbEngine {
         // transaction_buf_size is deliberately LEFT AT THE DEFAULT (65535).
         // It is the cap on a single SMB2 READ request, and the NAS refuses
         // reads larger than its negotiated MaxReadSize with
-        // STATUS_INVALID_PARAMETER — 1 MB was already too big for this NAS.
+        // STATUS_INVALID_PARAMETER - 1 MB was already too big for this NAS.
         // jcifs-ng now only browses directories and fetches small sidecar
         // files (the playback read path is libsmb2), so the default costs
         // nothing and cannot provoke a rejected read.
@@ -132,7 +132,7 @@ data class SmbCredentials(
 }
 
 /// AES-GCM (AndroidKeyStore) password encryption so SMB passwords are never
-/// stored in plaintext — they stay encrypted in SharedPreferences.
+/// stored in plaintext - they stay encrypted in SharedPreferences.
 private object SmbCrypto {
     private const val ALIAS = "dreamplayer_smb_key"
 
@@ -289,7 +289,7 @@ class SMBClient(private val context: Context) {
         private const val SCAN_TIMEOUT_MS = 500
         private const val PROBE_TIMEOUT_MS = 1500
 
-        /// Cap for a fetched sidecar subtitle file (50 MiB — far larger than any
+        /// Cap for a fetched sidecar subtitle file (50 MiB - far larger than any
         /// real .srt/.ass/.vtt; protects against a misread/wrong file).
         private const val MAX_ALT_SUB_BYTES = 50 * 1024 * 1024
 
@@ -305,7 +305,7 @@ class SMBClient(private val context: Context) {
     }
 
     // 4-thread pool: directory listings + share probes + open-share can run in
-    // parallel. SingleThread was the stall source — browsing a folder queued
+    // parallel. SingleThread was the stall source - browsing a folder queued
     // behind a slow listShares probe. Nova's FileCoreLibrary uses a cached pool
     // for the same reason (jcifs-ng CIFSContext child per call is thread-safe).
     private val executor = Executors.newFixedThreadPool(4)
@@ -332,7 +332,7 @@ class SMBClient(private val context: Context) {
     private fun cacheKey(serverId: String, shareName: String, path: String): String =
         "$serverId|$shareName|${path.replace(Regex("/+"), "/").trim('/')}"
 
-    /// NT statuses that mean "this path does not exist on the server" — as
+    /// NT statuses that mean "this path does not exist on the server" - as
     /// opposed to unreachable/auth/timeout. The Dart side uses this to prune
     /// bookmarked / continue-watching entries for files deleted on the NAS,
     /// and the safety rule is that ONLY these prune: an offline server must
@@ -355,7 +355,7 @@ class SMBClient(private val context: Context) {
     private fun replyError(result: MethodChannel.Result, e: Exception) {
         when (e) {
             is jcifs.smb.SmbAuthException ->
-                result.error("smb_auth", "Login failed — check username/password/domain", null)
+                result.error("smb_auth", "Login failed - check username/password/domain", null)
             else ->
                 if (isNotFoundError(e)) {
                     result.error("smb_not_found", e.message, null)
@@ -428,7 +428,7 @@ class SMBClient(private val context: Context) {
                             try {
                                 result.success(listShares(id))
                             } catch (e: jcifs.smb.SmbAuthException) {
-                                result.error("smb_auth", "Login failed — check username/password/domain", null)
+                                result.error("smb_auth", "Login failed - check username/password/domain", null)
                             } catch (e: Exception) {
                                 result.error("smb_error", e.message, null)
                             }
@@ -462,7 +462,7 @@ class SMBClient(private val context: Context) {
                 }
                 // Existence probe used to prune deleted files from bookmarks /
                 // Continue Watching. `smb_not_found` = the server answered that
-                // the path is gone; `smb_error` = unreachable/other — Dart only
+                // the path is gone; `smb_error` = unreachable/other - Dart only
                 // prunes on smb_not_found.
                 "statPath" -> {
                     val id = call.argument<String>("id")
@@ -484,7 +484,7 @@ class SMBClient(private val context: Context) {
                 // listing (videos AND subtitle sidecars) without the native
                 // subtitle-attachment logic, so the sidecar service can pair
                 // by name. The regular `listDirectory` filters to videos and
-                // only attaches subtitles to their video entry — which would
+                // only attaches subtitles to their video entry - which would
                 // hide the `.srt` from the sidecar fallback.
                 "listDirectoryAll" -> {
                     val id = call.argument<String>("id")
@@ -522,7 +522,7 @@ class SMBClient(private val context: Context) {
                         }
                     }
                 }
-                // Android returns an smb:// URI — ExoPlayer's SmbDataSource
+                // Android returns an smb:// URI - ExoPlayer's SmbDataSource
                 // resolves it to the saved server + encrypted credentials.
                 "openShare" -> {
                     val id = call.argument<String>("id")
@@ -536,7 +536,7 @@ class SMBClient(private val context: Context) {
                         result.success(uri)
                     }
                 }
-                // No per-share teardown needed on Android — SmbDataSource
+                // No per-share teardown needed on Android - SmbDataSource
                 // closes its handles on close(); SmbClient owns the
                 // credential store lifetime.
                 "closeShare" -> {
@@ -587,7 +587,7 @@ class SMBClient(private val context: Context) {
                             try {
                                 result.success(altSubBytes(id, share, path ?: "", maxBytes))
                             } catch (e: jcifs.smb.SmbAuthException) {
-                                result.error("smb_auth", "Login failed — check username/password/domain", null)
+                                result.error("smb_auth", "Login failed - check username/password/domain", null)
                             } catch (e: Exception) {
                                 result.error("smb_error", e.message, null)
                             }
@@ -610,7 +610,7 @@ class SMBClient(private val context: Context) {
                             try {
                                 result.success(fetchSizes(id, share, paths.filterIsInstance<String>()))
                             } catch (e: jcifs.smb.SmbAuthException) {
-                                result.error("smb_auth", "Login failed — check username/password/domain", null)
+                                result.error("smb_auth", "Login failed - check username/password/domain", null)
                             } catch (e: Exception) {
                                 result.error("smb_error", e.message, null)
                             }
@@ -699,13 +699,13 @@ class SMBClient(private val context: Context) {
                         break
                     }
                 } catch (e: jcifs.smb.SmbAuthException) {
-                    return mapOf("ok" to false, "error" to "Login failed — check username/password/domain")
+                    return mapOf("ok" to false, "error" to "Login failed - check username/password/domain")
                 } catch (e: jcifs.CIFSException) {
-                    // Authenticated, but this share doesn't exist / is denied —
+                    // Authenticated, but this share doesn't exist / is denied -
                     // keep probing so we don't report a bad share as a bad login.
                     reachable = true
                 } catch (_: Exception) {
-                    // Unreachable or DNS failure — fall through to the summary.
+                    // Unreachable or DNS failure - fall through to the summary.
                 }
             }
             return if (ok || reachable) {
@@ -722,7 +722,7 @@ class SMBClient(private val context: Context) {
         val creds = SmbStore.resolve(context, serverId)
             ?: throw IllegalStateException("Unknown server")
         val ctx = creds.context()
-        // Case-insensitive dedup — "Videos" and "videos" are the same share
+        // Case-insensitive dedup - "Videos" and "videos" are the same share
         // on Windows/SMB. Preserve the first-seen casing (usually the server's
         // real name from enumeration).
         android.util.Log.d("SMBClient", "listShares: serverId=$serverId host=${creds.host} port=${creds.port}")
@@ -743,7 +743,7 @@ class SMBClient(private val context: Context) {
             files?.forEach { f ->
                 val raw = f.name.trimEnd('/', '\\')
                 if (raw.isEmpty() || raw == "." || raw == "..") return@forEach
-                // Filter IPC$ / admin hidden shares — not browsable media.
+                // Filter IPC$ / admin hidden shares - not browsable media.
                 if (raw.equals("IPC\$", ignoreCase = true)) return@forEach
                 if (raw.endsWith("$")) return@forEach
                 addName(raw)
@@ -754,7 +754,7 @@ class SMBClient(private val context: Context) {
             authFailed = true
         } catch (e: Exception) {
             android.util.Log.d("SMBClient", "listShares: enumeration failed ${e.message}")
-            // Enumeration not supported / denied — fall through to probing.
+            // Enumeration not supported / denied - fall through to probing.
         }
         for (name in COMMON_SHARES) {
             val lower = name.lowercase(Locale.ROOT)
@@ -766,17 +766,17 @@ class SMBClient(private val context: Context) {
                 }
             } catch (e: jcifs.smb.SmbAuthException) {
                 android.util.Log.d("SMBClient", "listShares: probe $name authFailed")
-                // Wrong/empty credentials get SmbAuthException — remember it and
+                // Wrong/empty credentials get SmbAuthException - remember it and
                 // keep probing, but report a bad login if nothing was found.
                 authFailed = true
             } catch (e: Exception) {
                 android.util.Log.d("SMBClient", "listShares: probe $name failed ${e.message}")
-                // not a disk share / no access — skip
+                // not a disk share / no access - skip
             }
         }
         android.util.Log.d("SMBClient", "listShares: final lowerToName=${lowerToName.keys} authFailed=$authFailed")
         if (authFailed && lowerToName.isEmpty()) {
-            throw IllegalStateException("Login failed — check username/password/domain")
+            throw IllegalStateException("Login failed - check username/password/domain")
         }
         return lowerToName.values.sortedBy { it.lowercase(Locale.ROOT) }
             .map { name ->
@@ -840,7 +840,7 @@ class SMBClient(private val context: Context) {
             if (isDir) {
                 dirs.add(entryMap(name, relPath, true, 0L, 0L))
             } else if (isVideo(name)) {
-                // Skip per-file length()/lastModified() — each is a separate
+                // Skip per-file length()/lastModified() - each is a separate
                 // SMB GetInfo round-trip; for large folders this adds minutes.
                 // Size is reported as 0 here; the streaming path fetches it.
                 videos.add(
@@ -985,7 +985,7 @@ class SMBClient(private val context: Context) {
 
     /// Finds SMB hosts on the local LAN: TCP-ports-445 subnet scan (capped at a
     /// /24 window so big subnets stay quick), then resolves each open host's
-    /// display name via reverse DNS. jcifs-ng has no NetBIOS/SMB1 discovery —
+    /// display name via reverse DNS. jcifs-ng has no NetBIOS/SMB1 discovery -
     /// SMB2/3 only.
     private fun discoverServers(): List<Map<String, Any?>> {
         val subnet = localSubnet() ?: return emptyList()

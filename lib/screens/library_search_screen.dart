@@ -45,7 +45,7 @@ class _Hit {
   String get sortKey => title.toLowerCase();
 }
 
-/// Search across everything the home library already knows about — series
+/// Search across everything the home library already knows about - series
 /// folders, the file entries the scanner expanded from them, and manual
 /// groups.
 ///
@@ -53,7 +53,7 @@ class _Hit {
 /// `LibraryFoldersStore`, which is exactly what Home renders, so no network
 /// listing runs while the user types. Searching *inside* a folder that was
 /// never expanded would cost one round-trip per folder on every keystroke
-/// (SMB/WebDAV/FTP/UPnP), so it is not done here — a folder result opens that
+/// (SMB/WebDAV/FTP/UPnP), so it is not done here - a folder result opens that
 /// folder instead.
 class LibrarySearchScreen extends StatefulWidget {
   const LibrarySearchScreen({super.key});
@@ -253,7 +253,7 @@ class _LibrarySearchScreenState extends State<LibrarySearchScreen> {
       if (video == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Can't open this file — its source is unavailable."),
+            content: Text("Can't open this file - its source is unavailable."),
             duration: Duration(seconds: 3),
           ),
         );

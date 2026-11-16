@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// NOT paywall-gated on iOS, unlike the DSP trio (spatial/night/bass):
 /// downmix is about the audio channel count, and most 5.1/7.1 content is
-/// ordinary SDR that free users can already play — gating it would lock a
+/// ordinary SDR that free users can already play - gating it would lock a
 /// basic stereo-listening fix behind the paywall. So no entitlement
 /// correction is applied here either; the saved value is used as-is.
 class AudioDownmixStore {
@@ -30,6 +30,6 @@ class AudioDownmixStore {
     await prefs.setBool(prefsKey, enabled);
   }
 
-  /// The saved value, uncorrected — the setting is free on every platform.
+  /// The saved value, uncorrected - the setting is free on every platform.
   static Future<bool> effectiveEnabled() async => load();
 }

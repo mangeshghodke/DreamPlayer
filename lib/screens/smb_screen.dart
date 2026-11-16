@@ -76,7 +76,7 @@ class _SmbScreenState extends State<SmbScreen> {
   bool _opening = false;
 
   /// Watched marks keyed by the same `smb:$id/$_share/${path}` used for
-  /// `TmdService.resolve` and `VideoItem.resumeKey` — shows a green check
+  /// `TmdService.resolve` and `VideoItem.resumeKey` - shows a green check
   /// on every file row.
   Set<String> _watchedKeys = {};
 
@@ -313,7 +313,7 @@ class _SmbScreenState extends State<SmbScreen> {
     }
 
     // Scan found nothing listable (empty folder, or the source could not be
-    // walked) — fall back to bookmarking the folder itself.
+    // walked) - fall back to bookmarking the folder itself.
     await LibraryFoldersStore.add(folder);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -403,7 +403,7 @@ class _SmbScreenState extends State<SmbScreen> {
         _fileSizes.clear();
       });
       // Reconcile Continue Watching with this fresh listing: files deleted on
-      // the server since the last visit are pruned. Free — the listing already
+      // the server since the last visit are pruned. Free - the listing already
       // happened, and it only ever prunes on a real listing result.
       unawaited(NetworkPrune.pruneMissingFromListing(
         serverId: res.server.id,
@@ -473,7 +473,7 @@ class _SmbScreenState extends State<SmbScreen> {
       // At the shares level there is no SMB tree to open: `listDirectory`
       // with an empty share asks libsmb2 to read the server root, which
       // always fails ("Could not read that folder"). Refresh the share list
-      // instead — the pull gesture is on `_flatFileList`, which doubles as
+      // instead - the pull gesture is on `_flatFileList`, which doubles as
       // the shares view.
       await _openServer(server);
       return;
@@ -591,7 +591,7 @@ class _SmbScreenState extends State<SmbScreen> {
     // Trigger series view only when the folder looks like a series
     // (episode tags or sequential numbering). A mixed / misc folder with
     // unrelated movies/demos (e.g. "Miscellaneous") must stay in the flat
-    // list — otherwise _seriesFolderBody filters to episodes only and the
+    // list - otherwise _seriesFolderBody filters to episodes only and the
     // non-episode videos disappear (bookmark via FolderScreen groups ALL
     // videos so they stay visible there).
     final isSeries = episodes.isNotEmpty || hasSequentialNumbering;
@@ -644,7 +644,7 @@ class _SmbScreenState extends State<SmbScreen> {
     // Fetch season data for locally-present seasons.
     final seasonsNeeded = <int>{};
     // When folderSeason is set (from TMDB season-name matching), always
-    // fetch that season — the parsed season from filenames may be 0
+    // fetch that season - the parsed season from filenames may be 0
     // (e.g. `[01]` anime numbering maps to season 0 in the parser).
     if (meta.folderSeason != null) {
       seasonsNeeded.add(meta.folderSeason!);
@@ -682,7 +682,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
     // Pattern 1: E01 / EP01 / E1 / EP1 style (most common for anime/TV rips)
     final epPattern = RegExp(r'\bE(?:P)?(\d{1,3})\b', caseSensitive: false);
-    // Pattern 2: Standalone number (01, 02, 1, 2) — must NOT be preceded by
+    // Pattern 2: Standalone number (01, 02, 1, 2) - must NOT be preceded by
     // a letter (avoids codec tags like x265) and must NOT be followed by a
     // letter (avoids resolution like 1080p).
     final numPattern = RegExp(r'(?<![a-zA-Z])(\d{1,3})(?![a-zA-Z])');
@@ -690,7 +690,7 @@ class _SmbScreenState extends State<SmbScreen> {
     final numbers = <int>[];
     for (final entry in videoEntries) {
       final name = entry.name;
-      // Try E01/EP01 pattern first — highest confidence.
+      // Try E01/EP01 pattern first - highest confidence.
       final epMatch = epPattern.firstMatch(name);
       if (epMatch != null) {
         final n = int.tryParse(epMatch.group(1)!);
@@ -760,7 +760,7 @@ class _SmbScreenState extends State<SmbScreen> {
     if (server == null || _opening) return;
 
     // Only the tapped video's stream URL is needed (play-next was removed), so
-    // open just it and navigate immediately — the folder loop that opened every
+    // open just it and navigate immediately - the folder loop that opened every
     // video up-front made TMDB details feel slow (ring spinner while N serial
     // openShare round-trips ran).
     final index = _entries.indexWhere((e) => !e.isDirectory && e.path == entry.path);
@@ -823,7 +823,7 @@ class _SmbScreenState extends State<SmbScreen> {
         }
         if (subs.isNotEmpty) {
           externalSubs = subs;
-          // Don't set subtitleUrl — externalSubs already carries all tracks.
+          // Don't set subtitleUrl - externalSubs already carries all tracks.
           // Setting both would duplicate the first track in CC (1 + N).
           subtitleUrl = null;
         }
@@ -867,7 +867,7 @@ class _SmbScreenState extends State<SmbScreen> {
     // actually an episode of that series (mirrors FolderScreen /
     // TmdDetailsScreen folder mode). For standalone movies/demos in a
     // mixed folder like Miscellaneous, the video must resolve its own
-    // title — otherwise parentMetadataKey forces _identityKey to the
+    // title - otherwise parentMetadataKey forces _identityKey to the
     // folder's show and every file shows "Miscellaneous" details.
     final folderKey =
         'smb_folder:${server.id}/$_share/${_path.replaceAll('//', '/').replaceAll(RegExp(r'/+$'), '')}';
@@ -1118,7 +1118,7 @@ class _SmbScreenState extends State<SmbScreen> {
       );
     }
     if (_browsing == null) return _serverList(context);
-    // Empty folder state — still wrap in RefreshIndicator so user can
+    // Empty folder state - still wrap in RefreshIndicator so user can
     // pull-to-refresh after adding files on the NAS/PC.
     if (_entries.isEmpty && !_isSeriesFolder) {
       return RefreshIndicator(
@@ -1163,14 +1163,14 @@ class _SmbScreenState extends State<SmbScreen> {
     final server = _browsing!;
 
     if (_loadingSeriesMeta) {
-      // TMDB metadata is still resolving — do NOT block the file list behind
+      // TMDB metadata is still resolving - do NOT block the file list behind
       // a spinner. Files are the first priority; the Nova-style series header
       // (poster/title/overview) arrives as soon as the fetch completes and
       // this body swaps over via setState.
       return _flatFileList(context);
     }
 
-    // No metadata resolved — fall back to flat file list so the user can
+    // No metadata resolved - fall back to flat file list so the user can
     // still browse and play files. Add a "Get Info" escape hatch.
     if (meta == null) {
       return _flatFileListWithGetInfo(context);
@@ -1283,7 +1283,7 @@ class _SmbScreenState extends State<SmbScreen> {
 
         // ── Non-episode videos in this series folder (movies / demos) ──
         // Without this, a series folder that also contains stand-alone videos
-        // hides them — the old code grouped only episodes. The bookmark path
+        // hides them - the old code grouped only episodes. The bookmark path
         // (FolderScreen) groups ALL videos so they stay visible there, which
         // is why Miscellaneous showed files via bookmark but not via SMB browse.
         if (movies.isNotEmpty)
@@ -1477,7 +1477,7 @@ class _SmbScreenState extends State<SmbScreen> {
     );
   }
 
-  /// Fix match for the series folder — opens the TMDB search dialog and
+  /// Fix match for the series folder - opens the TMDB search dialog and
   /// re-resolves metadata for the current folder.
   Future<void> _fixMatchSeries(String folderName) async {
     final server = _browsing;
@@ -2110,7 +2110,7 @@ class _SmbSeasonExpansion extends StatelessWidget {
     if (!parsed.isEpisode) return null;
     final ep = seasonData.episode(parsed.episode);
     if (ep != null) return ep;
-    // Anime bracket numbering ([01]/[02]) — `parsed.season` is 0, so the
+    // Anime bracket numbering ([01]/[02]) - `parsed.season` is 0, so the
     // expansion is grouped under season 0 but the TMDB data was fetched
     // for the actual season (e.g. 1). Fall back to scanning cachedMeta's
     // seasons for the episode number.
@@ -2137,7 +2137,7 @@ class _SmbSeasonExpansion extends StatelessWidget {
   }
 }
 
-/// An episode tile for the SMB series folder view — shows a still thumbnail,
+/// An episode tile for the SMB series folder view - shows a still thumbnail,
 /// SxxExx badge, episode name, and optional rating + overview.
 class _SmbEpisodeTile extends StatelessWidget {
   const _SmbEpisodeTile({
@@ -2863,7 +2863,7 @@ class _ServerFormDialogState extends State<_ServerFormDialog> {
                       controlAffinity: ListTileControlAffinity.leading,
                       dense: true,
                       activeThumbColor: theme.colorScheme.primary,
-                      title: const Text('Guest — no username/password',
+                      title: const Text('Guest - no username/password',
                           style: TextStyle(fontSize: 14)),
                       value: _guest,
                       onChanged: (v) => setState(() => _guest = v),

@@ -8,7 +8,7 @@ import 'tv_tile.dart';
 ///
 /// The menu is mounted by five browser screens, and a browser must never
 /// crash because a widget test (or an embedder) left the localization
-/// delegates out — `AppLocalizations.of` force-unwraps, so the lookup is done
+/// delegates out - `AppLocalizations.of` force-unwraps, so the lookup is done
 /// through [Localizations.of] instead.
 AppLocalizations? _l10n(BuildContext context) =>
     Localizations.of<AppLocalizations>(context, AppLocalizations);

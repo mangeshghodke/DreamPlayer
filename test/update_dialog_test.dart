@@ -55,7 +55,7 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 
-  test('install always fires the installer intent — no permission pre-check', () async {
+  test('install always fires the installer intent - no permission pre-check', () async {
     TestWidgetsFlutterBinding.ensureInitialized();
     final calls = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

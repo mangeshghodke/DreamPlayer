@@ -4,8 +4,8 @@ import Foundation
 ///
 /// This used to be declared **twice**, as a `private protocol SeekableReader`
 /// with its own `FileReader`, inside `MkvChapters.swift` and
-/// `Mp4Chapters.swift`. The two copies had already drifted — MP4's carried an
-/// extra `length` member that MKV's lacked — so unifying them here is what lets
+/// `Mp4Chapters.swift`. The two copies had already drifted - MP4's carried an
+/// extra `length` member that MKV's lacked - so unifying them here is what lets
 /// one reader serve every source on every platform the way Android's does.
 ///
 /// Engine-free on purpose: `IOReader` (AetherEngine) and `ByteRangeSource`
@@ -128,7 +128,7 @@ final class ChapterWindowReader: ChapterSeekable {
         }
         let (window, offset) = hit
         guard offset + count <= window.bytes.count else {
-            // Ran off the end of this window — into the gap, or past EOF.
+            // Ran off the end of this window - into the gap, or past EOF.
             throw NSError(domain: "ChapterReader", code: 3)
         }
         pos += UInt64(count)
@@ -143,7 +143,7 @@ final class ChapterWindowReader: ChapterSeekable {
     var length: UInt64 { total }
 }
 
-/// Wraps a **synchronous cursor** that already exists — in-app SMB's
+/// Wraps a **synchronous cursor** that already exists - in-app SMB's
 /// `SMBSourceReader`, and FTP/SFTP's `BufferedSMBReader`.
 ///
 /// Used instead of head+tail windows because those cursors seek natively:
@@ -154,7 +154,7 @@ final class ChapterWindowReader: ChapterSeekable {
 ///
 /// The container walks are byte-at-a-time: `readId`, `readSize` and `readUInt`
 /// each pull a **single** byte through `readByte()`. Neither underlying cursor
-/// buffers for us — `SMBSourceReader.read` is a bare `smb2_pread` per call — so
+/// buffers for us - `SMBSourceReader.read` is a bare `smb2_pread` per call - so
 /// an unbuffered adapter turns a 40-chapter file into *thousands* of single-byte
 /// SMB round trips. On a LAN that is minutes of background work, which is exactly
 /// how the first build shipped a feature that looked like it did nothing at all.
@@ -162,7 +162,7 @@ final class ChapterWindowReader: ChapterSeekable {
 /// A 64 KiB window collapses that to a handful of reads: fill near the Segment
 /// header, let the walk consume it, seek to the Chapters offset, fill again.
 /// Seeks *within* the window are free, which is why [seek] deliberately does not
-/// invalidate the buffer — `buffered(_:)` re-fills only when the target falls
+/// invalidate the buffer - `buffered(_:)` re-fills only when the target falls
 /// outside what is already held.
 final class ChapterCursorReader: ChapterSeekable {
     private let seekTo: (UInt64) -> Bool
@@ -191,7 +191,7 @@ final class ChapterCursorReader: ChapterSeekable {
             return true
         }
         // A request wider than the window goes straight to the cursor instead of
-        // evicting what we already hold — `readFully` handles that path.
+        // evicting what we already hold - `readFully` handles that path.
         guard count <= ChapterCursorReader.windowBytes, seekTo(pos) else {
             return false
         }

@@ -1,4 +1,4 @@
-/// Crash-report upload endpoint — a Cloudflare Worker (or any HTTPS server)
+/// Crash-report upload endpoint - a Cloudflare Worker (or any HTTPS server)
 /// that accepts a multipart/form-data POST and forwards the logs, e.g. to
 /// the support inbox.
 ///

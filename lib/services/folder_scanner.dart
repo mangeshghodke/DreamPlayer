@@ -19,7 +19,7 @@ import 'webdav_client.dart';
 /// Used by the add-folder / bookmark flows to populate the home grid with
 /// expanded poster cards (like the existing 1-level auto-expand, but deeper).
 ///
-/// The scanner is **cancellable** — set [cancel] to `true` from any isolate
+/// The scanner is **cancellable** - set [cancel] to `true` from any isolate
 /// to abort the scan gracefully (entries discovered so far are still returned).
 class FolderScanner {
   FolderScanner({int? maxDepth}) : maxDepth = maxDepth ?? _defaultScanDepth();
@@ -31,7 +31,7 @@ class FolderScanner {
   /// Returns the user-configured scan depth from SharedPreferences.
   /// Falls back to 5 (the default).
   static int _defaultScanDepth() {
-    // Synchronous fallback — the caller should use savedScanDepth() for
+    // Synchronous fallback - the caller should use savedScanDepth() for
     // the actual user-configured value.
     return 5;
   }
@@ -54,7 +54,7 @@ class FolderScanner {
   /// Number of directories scanned so far (for progress reporting).
   int scannedDirs = 0;
 
-  /// Number of directories whose listing FAILED — unreachable share, revoked
+  /// Number of directories whose listing FAILED - unreachable share, revoked
   /// permission, unmounted SD card. Zero does not mean "empty": a rescan that
   /// treats an unreadable directory as an empty one deletes the library, so
   /// callers gate their destructive half on this (see `LocalLibraryRescan`).
@@ -94,7 +94,7 @@ class FolderScanner {
     try {
       children = await _listDirectory(current);
     } catch (_) {
-      // Network source unreachable or permission denied — skip, don't kill scan.
+      // Network source unreachable or permission denied - skip, don't kill scan.
       // Counted so a rescan can tell "empty" from "could not read".
       failedDirs++;
       return;
@@ -104,7 +104,7 @@ class FolderScanner {
     //
     // A `Featurettes/` subfolder inside a movie folder would otherwise make the
     // movie look like a container (it has subdirs), so the movie never becomes
-    // its own library card — and every trailer inside it fires its own doomed
+    // its own library card - and every trailer inside it fires its own doomed
     // TMDB search. Hidden entries (`.thumbnails`) and artwork/resume sidecars
     // are removed for the same reason.
     final visible = children
@@ -127,7 +127,7 @@ class FolderScanner {
 
     // Only add this directory as a library entry if it is a leaf folder
     // (has videos but no subdirs). Mixed/container folders are expanded
-    // into their children instead — otherwise a loose file like
+    // into their children instead - otherwise a loose file like
     // TV Shows/lanterns s01e05.mkv would be hidden behind the parent card.
     // The root itself (depth 0) is never added.
     if (depth > 0 && hasVideoFiles && !hasSubdirs) {
@@ -149,14 +149,14 @@ class FolderScanner {
         final childRelativePath = _relativePath(current, root);
         var childId =
             '${root.id}_${childRelativePath.isEmpty ? name : "$childRelativePath/$name".hashCode}';
-        // Jellyfin: item ids are stable server ids — use them directly so two
+        // Jellyfin: item ids are stable server ids - use them directly so two
         // seasons/episodes with the same name never collide.
         if (isJellyfinTree) {
           final jid = _jellyfinItemId(child);
           if (jid.isNotEmpty) childId = '${root.id}_$jid';
         }
 
-        // Build the child folder entry — it will be added inside its own
+        // Build the child folder entry - it will be added inside its own
         // _scanRecursive call if it is a leaf.
         final childFolder = _buildFolderEntry(
           root: current,
@@ -272,7 +272,7 @@ class FolderScanner {
     final items = await client
         .getItems(server, folder.jellyfinItemId ?? '')
         .timeout(const Duration(seconds: 15));
-    // Jellyfin items are JellyfinItem objects — wrap as-is; _nameOf/_isDirectory handle them.
+    // Jellyfin items are JellyfinItem objects - wrap as-is; _nameOf/_isDirectory handle them.
     return items;
   }
 
@@ -287,7 +287,7 @@ class FolderScanner {
   }) {
     // For season subfolders, prefix the show name and use a non-strippable
     // season tag (Season02 without space) so each season stays a separate
-    // card on Home — auto-grouping strips " Season 02"/"S02" but not
+    // card on Home - auto-grouping strips " Season 02"/"S02" but not
     // "Season02", so "House Season02" and "House Season03" keep distinct
     // baseNames and the user can manually group them.
     var effectiveName = name;
@@ -297,7 +297,7 @@ class FolderScanner {
       // Strip the season number from the child name to see if there's a
       // meaningful show name left (e.g. "komi-san season01" → "komi-san").
       // If so, keep the child's own show name and make the season tag
-      // non-strippable — don't override with the parent folder name.
+      // non-strippable - don't override with the parent folder name.
       // Only prefix when the child is a bare season tag ("Season 01", "S02")
       // or its text content is the root name itself.
       final stripped = name
@@ -309,13 +309,13 @@ class FolderScanner {
         // Bare season tag or same as root → prefix with root name.
         effectiveName = '${root.name} Season${seasonNum.toString().padLeft(2, '0')}';
       } else if (name.contains(RegExp(r'Season\s+\d+', caseSensitive: false))) {
-        // Already prefixed but with a strippable space — make it non-strippable.
+        // Already prefixed but with a strippable space - make it non-strippable.
         effectiveName = name.replaceAll(
           RegExp(r'Season\s+(\d+)', caseSensitive: false),
           'Season${seasonNum.toString().padLeft(2, '0')}',
         );
       } else {
-        // Child has its own show name (e.g. "komi-san season01") — keep it
+        // Child has its own show name (e.g. "komi-san season01") - keep it
         // and make the season tag non-strippable so it stays a distinct card.
         effectiveName = '$stripped Season${seasonNum.toString().padLeft(2, '0')}';
       }

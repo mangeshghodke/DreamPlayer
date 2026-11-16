@@ -85,7 +85,7 @@ class MainActivity : FlutterActivity() {
             "dreamplayer/exo_player",
             ExoPlayerViewFactory(this, flutterEngine.dartExecutor.binaryMessenger),
         )
-        // libmpv second engine — distinct viewType; never mounted with exo_player.
+        // libmpv second engine - distinct viewType; never mounted with exo_player.
         flutterEngine.platformViewsController.registry.registerViewFactory(
             "dreamplayer/mpv_player",
             MpvSurfaceViewFactory(this, flutterEngine.dartExecutor.binaryMessenger),
@@ -149,9 +149,11 @@ class MainActivity : FlutterActivity() {
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, HttpStreamProxy.CHANNEL),
         )
         // WiFi upload server: LAN HTTP server that receives videos from a PC
-        // browser into the download directory (competitor-gap #1).
+        // browser into the download directory (competitor-gap #1). The event
+        // channel carries per-transfer progress for the transfer screen.
         UploadServer(this).configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UploadServer.CHANNEL),
+            flutterEngine.dartExecutor.binaryMessenger,
         )
         intentChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -198,12 +200,12 @@ class MainActivity : FlutterActivity() {
                 "isTv" -> result.success(isTvBox(this))
                 "osMajorVersion" -> result.success(Build.VERSION.SDK_INT)
                 // Settings "App crashed?" on Android: dump this app's own
-                // logcat (no READ_LOGS needed since API 16 — logcat run from
+                // logcat (no READ_LOGS needed since API 16 - logcat run from
                 // the app uid only sees the app's lines) into the Documents
                 // dir the Dart side passed, so the report form can attach it.
                 // This is what catches NATIVE/Java crashes (SIGSEGV in a
                 // decoder, NoSuchMethodError) that CrashLog's Dart handlers
-                // cannot reach — the OS-side crash dialogs are exactly those.
+                // cannot reach - the OS-side crash dialogs are exactly those.
                 "dumpLogcat" -> {
                     val dir = call.argument<String>("dir")
                     if (dir == null) {
@@ -234,7 +236,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        // Engine-agnostic OS controls — brightness (per-app window brightness)
+        // Engine-agnostic OS controls - brightness (per-app window brightness)
         // and system media volume. Used by the MPV engine when ExoPlayerView
         // is not the active surface (mpv owns its own MpvSurfaceView).
         systemChannel = MethodChannel(
@@ -306,7 +308,7 @@ class MainActivity : FlutterActivity() {
         setIntent(intent)
         // Launcher taps after unlock deliver a MAIN intent (singleTop);
         // intentPayload is null for non-VIDEO intents, so don't tell Dart to
-        // open anything — the home screen stays put.
+        // open anything - the home screen stays put.
         intentPayload(intent)?.let { payload ->
             intentChannel?.invokeMethod("open", payload)
         }
@@ -319,7 +321,7 @@ class MainActivity : FlutterActivity() {
     ///
     /// Two engines can own playback: the native Media3 platform view
     /// ([ExoPlayerView]) or the libmpv SurfaceView (pip via [PipManager]).
-    /// The fallback gets first refusal — when it is active the ExoPlayer
+    /// The fallback gets first refusal - when it is active the ExoPlayer
     /// instance is idle and its own pip path would bail.
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
@@ -349,7 +351,7 @@ class MainActivity : FlutterActivity() {
     override fun onStop() {
         super.onStop()
         // PiP dismissed from its window chrome: pause so audio doesn't keep
-        // playing invisibly (plain background keeps playing — handled by the
+        // playing invisibly (plain background keeps playing - handled by the
         // foreground service; this only covers the pip-dismiss path).
         val pip = PipManager.instance
         if (pip?.isMpvActive() == true) {

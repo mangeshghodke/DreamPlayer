@@ -10,7 +10,7 @@ import 'tv_tile.dart';
 /// clamps `leading` to **56 px** tall (`maxIconHeightConstraint` in
 /// `list_tile.dart`), so users actually saw a 48x56 image and the extra 16 px
 /// was silently discarded. `ListTileTheme.minTileHeight` does *not* lift that
-/// cap — it is hardcoded, independent of `minTileHeight` — which is why these
+/// cap - it is hardcoded, independent of `minTileHeight` - which is why these
 /// rows cannot be `ListTile`s and are built from a `Row` instead.
 extension EpisodeThumbGeometry on EpisodeThumbSize {
   /// Wide TMDB **episode still** (16:9) used by the network browsers and the
@@ -33,8 +33,8 @@ extension EpisodeThumbGeometry on EpisodeThumbSize {
         EpisodeThumbSize.large => (w: 96, h: 144),
       };
 
-  /// Minimum row height. `small` is pinned to 56 px — exactly what a non-dense
-  /// `ListTile` produced — so enabling nothing changes nothing. Larger sizes
+  /// Minimum row height. `small` is pinned to 56 px - exactly what a non-dense
+  /// `ListTile` produced - so enabling nothing changes nothing. Larger sizes
   /// derive from the tallest thumbnail plus the vertical padding.
   double get rowMinHeight {
     if (this == EpisodeThumbSize.small) return 56;

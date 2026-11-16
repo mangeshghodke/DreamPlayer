@@ -28,7 +28,7 @@ Future<void> initTvMode() async {
 /// Whether the app is running on an Android TV / Fire TV device.
 ///
 /// Prefers the native check (Android TV ui mode, leanback/Fire TV feature
-/// flags — mirrors Just Player's `isTvBox()`), falling back to the screen
+/// flags - mirrors Just Player's `isTvBox()`), falling back to the screen
 /// width heuristic (960dp+ landscape) until [initTvMode] resolves and on
 /// non-Android platforms.
 bool isTvMode(BuildContext context) {
@@ -49,7 +49,7 @@ const kAudioPassthroughKey = 'dreamplayer.audioPassthrough';
 ///
 /// When enabled AND an HDMI output is detected, ExoPlayer routes
 /// compressed surround formats (AC3, E-AC3, DTS, DTS-HD, TrueHD)
-/// through AudioTrack passthrough mode — the encoded bitstream goes
+/// through AudioTrack passthrough mode - the encoded bitstream goes
 /// to the TV / soundbar / AVR for decoding.
 Future<bool> isAudioPassthroughEnabled() async {
   final prefs = await SharedPreferences.getInstance();
@@ -73,7 +73,7 @@ const kPipEnabledKey = 'dreamplayer.pipEnabled';
 
 /// Whether leaving the app while a video plays auto-enters picture-in-
 /// picture. Default true. Only the automatic HOME/recents entry respects
-/// this — the player ⋮-sheet row is an explicit user action and always
+/// this - the player ⋮-sheet row is an explicit user action and always
 /// enters.
 Future<bool> isPipEnabled() async {
   final prefs = await SharedPreferences.getInstance();

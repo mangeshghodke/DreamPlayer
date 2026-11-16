@@ -11,7 +11,7 @@ import kotlin.math.roundToInt
  *
  * Why this exists. Most movie/series audio is 5.1 or 7.1, and most people
  * listen on stereo headphones or speakers. A naive fold that just keeps
- * L/R drops the CENTRE channel — where the dialogue lives — so voices go
+ * L/R drops the CENTRE channel - where the dialogue lives - so voices go
  * quiet while effects stay loud. This processor applies the standard
  * downmix matrix instead: centre and surrounds are mixed into both fronts
  * at -3 dB (sqrt(1/2)), LFE is dropped (no sub on a stereo setup):
@@ -27,14 +27,14 @@ import kotlin.math.roundToInt
  * The output CHANNEL COUNT is fixed when the sink configures the chain, so
  * [enabled] is read in [configure] only: toggling the setting mid-playback
  * takes effect on the next track change / reopen (a sink reconfigure), not
- * mid-buffer — flipping the frame size under a live sink would corrupt it.
+ * mid-buffer - flipping the frame size under a live sink would corrupt it.
  *
  * The processor sits BEFORE [BoostLimiterProcessor] in the chain, so the
  * limiter catches any peak the downmix summing produces when boost is on.
  *
  * PCM16 only, like [AudioDelayProcessor] and [BoostLimiterProcessor]:
  * anything else throws `UnhandledAudioFormatException` so the sink uses
- * the raw path — which is how HDMI bitstream passthrough survives (a
+ * the raw path - which is how HDMI bitstream passthrough survives (a
  * bitstream is never decoded to PCM, so it is never downmixed here; the
  * receiver does its own downmix).
  */
@@ -146,7 +146,7 @@ class DownmixAudioProcessor : AudioProcessor {
         /**
          * Downmixes ONE interleaved frame of [channels] PCM16 samples to
          * stereo. [samples] holds exactly one frame (length == channels).
-         * Pure — unit-tested without a device.
+         * Pure - unit-tested without a device.
          */
         fun downmixFrame(samples: IntArray, channels: Int): IntArray {
             val g = MIX_GAIN

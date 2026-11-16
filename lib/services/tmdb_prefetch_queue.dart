@@ -10,14 +10,14 @@ import 'dart:async';
 /// `resolveFolder()`) per entry, **immediately and unbounded**. Folder entries
 /// additionally ran `ImageCacheService.prefetchImages()`, so opening a share
 /// root with a few hundred rows could kick off hundreds of TMDB searches and
-/// artwork downloads at once — each artwork write is `flush: true`, i.e. an
+/// artwork downloads at once - each artwork write is `flush: true`, i.e. an
 /// fsync. That burst starved the raster pipeline badly enough on iOS that the
 /// *next* screen's first frame was delayed by up to 60 s: the user taps a file,
 /// the details screen has its metadata ready in 2 ms, and yet the spinner keeps
 /// turning for a minute before the page appears. Reopening the same file is
 /// then 24 ms, because by then every lookup and every poster is cached.
 ///
-/// Metadata prefetch is genuinely worth keeping — it is what makes a tap a
+/// Metadata prefetch is genuinely worth keeping - it is what makes a tap a
 /// cache hit instead of a spinner. It just must never run ahead of the frame
 /// the user is waiting for, and it must never run unbounded.
 ///
@@ -45,7 +45,7 @@ class TmdbPrefetchQueue {
   final int maxConcurrent;
 
   /// Grace period before the speculative work starts. Speculative by
-  /// definition — it must never delay the frame the user is looking at.
+  /// definition - it must never delay the frame the user is looking at.
   final Duration startDelay;
 
   final List<_PrefetchTask> _pending = [];
@@ -103,7 +103,7 @@ class TmdbPrefetchQueue {
         try {
           await task.task();
         } catch (_) {
-          // Speculative work — a failed lookup must never surface.
+          // Speculative work - a failed lookup must never surface.
         } finally {
           _active--;
           _scheduleDrain();

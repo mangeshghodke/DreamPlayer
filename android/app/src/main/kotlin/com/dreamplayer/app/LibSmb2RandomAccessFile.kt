@@ -12,7 +12,7 @@ import java.io.IOException
  *
  * IMPORTANT: pass the [LibSmb2File] you already opened as [existing]. Opening
  * the file twice leaves a second `smb2fh` open on the same tree, and the
- * server then refuses the TREE_DISCONNECT with STATUS_BUSY — libsmb2 skips
+ * server then refuses the TREE_DISCONNECT with STATUS_BUSY - libsmb2 skips
  * the socket close in that case, so the whole SMB session (TCP connection
  * included) leaks. A handful of leaked sessions exhausts the NAS's per-user
  * session limit and every later connect fails.

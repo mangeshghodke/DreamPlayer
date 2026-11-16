@@ -14,9 +14,9 @@
 #   -DHAVE_CONFIG_H          include/config.h (upstream's include/apple/config.h)
 #                            carries the HAVE_* answers for Darwin.
 #   -D_U_=                   aes128ccm.c marks intentionally-unused variables
-#                            with OpenSSL's _U_. We do not link OpenSSL — SMB3
+#                            with OpenSSL's _U_. We do not link OpenSSL - SMB3
 #                            encryption is optional and aes_apple.c uses Apple's
-#                            CommonCrypto — so the macro is defined empty.
+#                            CommonCrypto - so the macro is defined empty.
 #   NO NEED_* DEFINES        NEED_READV / NEED_WRITEV / NEED_POLL /
 #                            NEED_GETADDRINFO / NEED_FREEADDRINFO select the
 #                            Amiga and console fallback implementations in
@@ -111,7 +111,7 @@ done
 echo "libsmb2: compiled $count translation units"
 
 if [ "$count" -lt 55 ]; then
-  echo "libsmb2: expected >=55 units, got $count — vendored sources look truncated" >&2
+  echo "libsmb2: expected >=55 units, got $count - vendored sources look truncated" >&2
   exit 1
 fi
 
@@ -134,7 +134,7 @@ for sym in \
   libsmb2_srvsvc_NetrShareEnum_rep_coder
 do
   if ! nm -gU "$OUT_DIR/libsmb2.a" 2>/dev/null | grep -qE " [A-Z] _${sym}$"; then
-    echo "libsmb2: archive is missing $sym — the share enumeration path will fail to link" >&2
+    echo "libsmb2: archive is missing $sym - the share enumeration path will fail to link" >&2
     exit 1
   fi
 done
@@ -145,7 +145,7 @@ done
 # of much later.
 size=$(stat -f%z "$OUT_DIR/libsmb2.a" 2>/dev/null || stat -c%s "$OUT_DIR/libsmb2.a")
 if [ "$size" -lt 200000 ]; then
-  echo "libsmb2: archive is only $size bytes — the compile step did not really run" >&2
+  echo "libsmb2: archive is only $size bytes - the compile step did not really run" >&2
   exit 1
 fi
 
@@ -184,7 +184,7 @@ cp "$SRC/LICENCE-LGPL-2.1.txt" "$STAGE/"
 cp -R "$SRC/lib" "$SRC/include" "$SRC/libdcerpc" "$SRC/shim" "$STAGE/source/"
 
 cat > "$STAGE/RELINK.txt" <<'RELINK'
-libsmb2 object code — relinking instructions
+libsmb2 object code - relinking instructions
 ===========================================
 
 This archive accompanies DreamPlayer because libsmb2 is licensed under the
@@ -241,7 +241,7 @@ trap - EXIT
 
 objects_size=$(stat -f%z "$OBJECTS_ZIP" 2>/dev/null || stat -c%s "$OBJECTS_ZIP")
 if [ "$objects_size" -lt 100000 ]; then
-  echo "libsmb2: object-code archive is only $objects_size bytes — the LGPL-2.1 relinking material did not really get packaged" >&2
+  echo "libsmb2: object-code archive is only $objects_size bytes - the LGPL-2.1 relinking material did not really get packaged" >&2
   exit 1
 fi
 echo "libsmb2: packaged object code for LGPL-2.1 relinking -> $OBJECTS_ZIP ($(du -h "$OBJECTS_ZIP" | cut -f1))"

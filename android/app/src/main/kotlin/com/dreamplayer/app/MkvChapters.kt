@@ -94,7 +94,7 @@ internal object MkvChapters {
     /// chapters from the in-memory buffer. Used for WebDAV and generic HTTP
     /// sources (Jellyfin direct-play is covered by the server API, but this
     /// is a fallback for any http MKV). Best-effort: needs only the EBML
-    /// header + Segment SeekHead + Chapters — all near the start.
+    /// header + Segment SeekHead + Chapters - all near the start.
     fun parseHttp(
         url: String,
         headers: Map<String, String>,
@@ -118,7 +118,7 @@ internal object MkvChapters {
      *
      * Matroska keeps the Chapters element at the END of the segment, so the
      * old single `Range: bytes=0-8M` read found chapters in exactly the files
-     * that do not have them — which is why chapters appeared for local files
+     * that do not have them - which is why chapters appeared for local files
      * and never for WebDAV / Jellyfin / UPnP. The EBML walk never touches the
      * gap: it starts at the Segment header, reads the SeekHead, then seeks
      * straight to the Chapters element, which is what the tail window is for.
@@ -170,7 +170,7 @@ internal object MkvChapters {
         val head = requestRange(url, headers, client, 0, HEAD_RANGE_BYTES - 1) ?: return null
         val total = head.totalSize
         // A server that ignored Range and streamed the whole body leaves us
-        // with no way to know where the end is — same behaviour as before.
+        // with no way to know where the end is - same behaviour as before.
         if (total <= 0L || head.data.size.toLong() >= total) {
             return ByteArrayReader(head.data)
         }
@@ -199,7 +199,7 @@ internal object MkvChapters {
             if (!resp.isSuccessful && resp.code != 206) return null
             val body = resp.body ?: return null
             // Cap the window even if the server ignores Range and sends the
-            // whole file — a 40 GB "range" would OOM.
+            // whole file - a 40 GB "range" would OOM.
             val bytes = body.bytes()
             val capped = if (bytes.size > HEAD_RANGE_BYTES) {
                 bytes.copyOf(HEAD_RANGE_BYTES.toInt())
@@ -330,7 +330,7 @@ internal object MkvChapters {
         val segmentDataStart = r.pos()
 
         // Bounded walk of top-level Segment children looking for the SeekHead
-        // (preferred — O(1) jump to Chapters) or a direct Chapters element.
+        // (preferred - O(1) jump to Chapters) or a direct Chapters element.
         var chaptersOffset = -1L
         var walked = 0
         while (walked++ < MAX_TOP_LEVEL_CHILDREN) {

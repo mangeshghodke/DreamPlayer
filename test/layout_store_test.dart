@@ -23,7 +23,7 @@ void main() {
       await store.setColumns(5);
       // Re-load from prefs: this is the regression guard for persisting the
       // enum itself ("LibraryViewMode.compact") instead of its value
-      // ("compact"), which fromString could never match — the setting then
+      // ("compact"), which fromString could never match - the setting then
       // silently reverted to poster on every app start.
       final reloaded = await LayoutStore.load();
       expect(reloaded.mode, LibraryViewMode.compact);

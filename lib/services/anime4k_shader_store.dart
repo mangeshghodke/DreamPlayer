@@ -17,7 +17,7 @@ bool isAnime4kSdrVideo({String? colorMatrix, String? gamma, double? sigPeak}) {
 
 /// Largest frame Anime4K is allowed to run on: 2560×1440 (≈3.7 MP).
 ///
-/// Anime4K upscales *up* — on a 4K/8K source there is nothing to upscale, and
+/// Anime4K upscales *up* - on a 4K/8K source there is nothing to upscale, and
 /// the chain would be paid per frame at 4K on a phone GPU, which is exactly
 /// how a shader chain turns into dropped frames and heat. The guard is on the
 /// **pixel count**, not on each dimension: a vertical 1080×2160 clip has the

@@ -55,7 +55,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
 
   /// Paths selected by long-press (issue #48 follow-up).
   ///
-  /// Selection is keyed by path, not by index, so it survives a rescan — the
+  /// Selection is keyed by path, not by index, so it survives a rescan - the
   /// roots list is rebuilt every time a drive is plugged in or the screen
   /// resumes.
   final Set<String> _selected = <String>{};
@@ -136,7 +136,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   ///
   /// Issue #48: a USB drive plugged in while the app was in the background
   /// never appeared, because the resume handler only re-ran `_init` when
-  /// access was missing — and a user with access already granted stayed on the
+  /// access was missing - and a user with access already granted stayed on the
   /// root list computed before the drive existed. Resuming is also the moment
   /// the platform finishes mounting the volume, so this is where a rescan
   /// belongs.
@@ -222,7 +222,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   Future<void> _openEntry(FileEntry entry) async {
     if (entry.isDirectory) {
       if (entry.isFilesHome) {
-        // iOS: the virtual "Files" root — open the system Files-app home and
+        // iOS: the virtual "Files" root - open the system Files-app home and
         // play whatever video the user picks.
         final picked = await _service.openFilesHome();
         if (picked == null || !mounted) return;
@@ -381,7 +381,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   /// Queues [entries] as downloads into `<Downloads>/DreamPlayer/`.
   ///
   /// DownloadManager runs them one at a time with a progress bar, a foreground
-  /// notification and a row on the home screen's downloads list — identical to
+  /// notification and a row on the home screen's downloads list - identical to
   /// an SMB download. Folders are skipped: a recursive copy is not a single
   /// file transfer, and queueing it as one job would report a size it does not
   /// know and cannot cancel meaningfully.
@@ -480,7 +480,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   }
 
   /// True when the current selection includes a folder, which makes the
-  /// delete confirmation say so explicitly — a recursive delete of a folder's
+  /// delete confirmation say so explicitly - a recursive delete of a folder's
   /// contents must never look like a plain file delete.
   bool get _containsFolder =>
       _selected.any((path) => _entries.any((e) => e.path == path && e.isDirectory));
@@ -528,7 +528,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       // bookmark while it did work from Home -> + -> Add folder. Adding the
       // root alone (no parentId) is also what keeps the refresh rescan away
       // from it: LocalLibraryRescan only reconciles children of a scan root,
-      // and a scan root is deliberately NOT recorded here — recording one
+      // and a scan root is deliberately NOT recorded here - recording one
       // would let a pull-to-refresh fan the folder back out into N cards.
       if (!await LibraryFoldersStore.isAutoExpandEnabled()) {
         // bulkAdd (not add) keeps the path-level dedupe this screen had
@@ -545,7 +545,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
       final expanded = await _scanWithProgress(scanner, root);
       if (scanner.cancel) {
         if (!mounted) return;
-        _toast('Scan cancelled — nothing was added.');
+        _toast('Scan cancelled - nothing was added.');
         return;
       }
       final added = expanded.isNotEmpty ? expanded : [root];

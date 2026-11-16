@@ -130,7 +130,7 @@ class SkipSegments {
   }
 
   /// The segment worth prompting for: the one the playhead is inside, else
-  /// the next one starting within [leadMs]. Null when nothing is near — the
+  /// the next one starting within [leadMs]. Null when nothing is near - the
   /// pill hides rather than showing "Skip intro" for the whole episode.
   static SkipSegment? promptable(
     List<SkipSegment> segments,

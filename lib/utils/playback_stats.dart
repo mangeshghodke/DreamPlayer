@@ -105,7 +105,7 @@ class RenderedFpsMeter {
     final elapsed = now.difference(_lastPoll!).inMilliseconds / 1000.0;
     if (elapsed <= 0) return _lastFps;
     if (rendered <= _lastRendered) {
-      // Paused, crashed or counters re-created on a reopen — keep the old
+      // Paused, crashed or counters re-created on a reopen - keep the old
       // reading and re-arm on the next movement.
       _lastRendered = rendered;
       _lastPoll = now;
@@ -122,7 +122,7 @@ class RenderedFpsMeter {
 /// Parses one MPV-side stats snapshot from the raw property strings.
 /// Every property is read with getProperty and may arrive empty / null /
 /// non-numeric (stock libmpv, paused state, demux not started), so the
-/// parser is tolerant — missing values are simply omitted from the HUD.
+/// parser is tolerant - missing values are simply omitted from the HUD.
 PlaybackStats statsFromMpvProperties({
   String? containerFps,
   String? estimatedVfFps,

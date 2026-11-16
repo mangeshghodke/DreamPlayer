@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Pins the Obtainium "add app" deep link.
 ///
 /// The link is `https://apps.obtainium.imranr.dev/redirect?r=<encoded>` where
-/// `<encoded>` is itself `obtainium://app/<encoded JSON>` — two layers of
+/// `<encoded>` is itself `obtainium://app/<encoded JSON>` - two layers of
 /// percent-encoding. Getting either layer wrong is silent: the redirect page
 /// loads, the app link does nothing, and the only symptom is a reader deciding
 /// the badge is broken. So the payload is decoded back here and checked.

@@ -23,7 +23,7 @@ android {
         jniLibs {
             // Custom libmpv (libplacebo/gpu-next, Phase 3) overrides media_kit's
             // stock .so from the AAR. Keep media_kit's libmediakitandroidhelper.so.
-            // FFmpeg is statically linked into this libmpv — do NOT ship shared
+            // FFmpeg is statically linked into this libmpv - do NOT ship shared
             // libav*.so (nextlib Media3 also NEEDs those; pickFirst would break it).
             pickFirsts +=("**/libmpv.so")
             pickFirsts +=("**/libc++_shared.so")
@@ -71,9 +71,9 @@ android {
         //
         // The "+N" in pubspec.yaml drives two different numbers with two
         // different rules:
-        //   - iOS CFBundleVersion — per marketing version, so it can restart
+        //   - iOS CFBundleVersion - per marketing version, so it can restart
         //     at any value and Apple treats it as opaque (we're on 0.5.0 (4)).
-        //   - Android versionCode — GLOBAL and must always increase, or Android
+        //   - Android versionCode - GLOBAL and must always increase, or Android
         //     refuses the APK as a downgrade. The published v0.5.0 release
         //     shipped 37.
         //
@@ -170,11 +170,11 @@ dependencies {
     // SubtitleFormats format-sniffing tests (issue #44). JUnit only -- the
     // logic under test is pure and needs no Android runtime.
     testImplementation("junit:junit:4.13.2")
-    // SMB2/3 client (jcifs-ng) — Nova and CX File Explorer's SMB library;
+    // SMB2/3 client (jcifs-ng) - Nova and CX File Explorer's SMB library;
     // measured ~75 MB/s on the real NAS vs ~4-6 MB/s for smbj.
     // jcifs-ng 2.1.10's ASN.1 SPNEGO parsing requires BouncyCastle 1.78+
     // (BC <1.77 has a broken DLApplicationSpecific cast that crashes share
-    // listing). Upgrade the transitive BC to 1.79 — the community-verified
+    // listing). Upgrade the transitive BC to 1.79 - the community-verified
     // combo (AgNO3/jcifs-ng#365). Keep it pinned so nothing downgrades.
     implementation("eu.agno3.jcifs:jcifs-ng:2.1.10") {
         exclude(group = "org.bouncycastle", module = "bcprov-jdk18on")

@@ -49,7 +49,7 @@ class FtpClient(private val context: Context) {
     /// Directory-listing cache: re-visiting a folder is instant.
     /// Key = "$serverId|$path|videoOnly", value = (entries, fetchedAtMs).
     /// TTL 60 s. For plain FTP each listing reconnects (one full PASV login),
-    /// for SFTP each directory is a fresh SFTP session — both benefit a lot
+    /// for SFTP each directory is a fresh SFTP session - both benefit a lot
     /// from caching on quick re-visits.
     private data class CachedListing(
         val entries: List<Map<String, Any?>>,
@@ -119,7 +119,7 @@ class FtpClient(private val context: Context) {
                     }
                 }
                 // Nova-parity: the sidecar service needs the *full* directory
-                // listing (videos AND sidecar subs) to pair by name — the
+                // listing (videos AND sidecar subs) to pair by name - the
                 // regular `listDirectory` filters to video extensions only and
                 // would strip the `.srt` so `_findFtp` never sees it.
                 "listDirectoryAll" -> {
@@ -257,7 +257,7 @@ class FtpClient(private val context: Context) {
             val msg = e.message ?: ""
             when {
                 msg.contains("Auth", ignoreCase = true) || msg.contains("password", ignoreCase = true) ->
-                    "Login failed — check username/password."
+                    "Login failed - check username/password."
                 msg.contains("UnknownHost", ignoreCase = true) -> "Can't reach the host. Check the address."
                 else -> msg.ifEmpty { "SFTP connection failed" }
             }
@@ -454,7 +454,7 @@ class FtpClient(private val context: Context) {
         try {
             ftp.connect(host, port)
             if (!ftp.login(username.ifEmpty { "anonymous" }, password.ifEmpty { "anonymous@" })) {
-                throw RuntimeException("Login failed — check username/password")
+                throw RuntimeException("Login failed - check username/password")
             }
             ftp.enterLocalPassiveMode()
             ftp.setFileType(FTP.BINARY_FILE_TYPE)
@@ -519,7 +519,7 @@ class FtpClient(private val context: Context) {
             val user = server.username.ifEmpty { "anonymous" }
             val pass = server.password.ifEmpty { "anonymous@" }
             if (!ftp.login(user, pass)) {
-                throw RuntimeException("Login failed — check username/password")
+                throw RuntimeException("Login failed - check username/password")
             }
             ftp.enterLocalPassiveMode()
             ftp.setFileType(FTP.BINARY_FILE_TYPE)

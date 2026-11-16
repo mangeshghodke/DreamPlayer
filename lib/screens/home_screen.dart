@@ -56,8 +56,9 @@ import 'tmd_details_screen.dart';
 import 'movie_group_screen.dart';
 import 'upnp_screen.dart';
 import 'webdav_screen.dart';
+import 'wifi_transfer_screen.dart';
 
-/// True under `flutter test` — skips network probes that leave pending Timers.
+/// True under `flutter test` - skips network probes that leave pending Timers.
 ///
 /// `bool.fromEnvironment('FLUTTER_TEST')` is false for app code compiled into
 /// widget tests on this Flutter version, so detect the test binding instead.
@@ -83,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen>
   List<ContinueWatchingEntry> _entries = const [];
 
   /// "Your library": the folders the user added (e.g. TV-show folders), most
-  /// recently added first. Nothing is auto-scanned — only these appear.
+  /// recently added first. Nothing is auto-scanned - only these appear.
   List<LibraryFolder> _folders = const [];
 
   /// Flux-style grouping: folders that share a base series name
@@ -168,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (enabled) await _scanOtherVideos();
   }
 
-  /// View density / column count changed in Settings — re-sliver the grids.
+  /// View density / column count changed in Settings - re-sliver the grids.
   void _onLayoutChanged() {
     if (mounted) setState(() {});
   }
@@ -254,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
-    // A play may have moved the resume position — refresh on return.
+    // A play may have moved the resume position - refresh on return.
     await _loadLibrary();
   }
 
@@ -297,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   /// A route pushed above Home popped (file browser, player, "Open with"), so
-  /// resume positions may have changed — refresh the continue-watching list.
+  /// resume positions may have changed - refresh the continue-watching list.
   @override
   void didPopNext() {
     _loadLibrary();
@@ -331,7 +332,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// lookups so each folder card can show the show's poster.
   Future<void> _loadLibraryFolders() async {
     var folders = await LibraryFoldersStore.load();
-    // Jellyfin/FTP/DLNA are now browsed directly — purge any legacy
+    // Jellyfin/FTP/DLNA are now browsed directly - purge any legacy
     // bookmarked entries left over from before the removal.
     final legacy = folders.where((f) =>
         f.source == LibraryFolderSource.jellyfin ||
@@ -346,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen>
     final metas = await _client.loadAllFolderMeta();
     final manual = await ManualGroupsStore.instance.load();
     // Prune stale manual groups (folder removed / id missing). Empty/single
-    // groups are dropped — they were already a single card before.
+    // groups are dropped - they were already a single card before.
     final aliveIds = folders.map((f) => f.id).toSet();
     final pruned = manual.where((g) {
       final alive = g.folderIds.where(aliveIds.contains).toList();
@@ -451,7 +452,7 @@ class _HomeScreenState extends State<HomeScreen>
     final defaultName = _deriveGroupName(selectedFolders);
     final name = await _promptGroupName(defaultName);
     if (name == null || name.trim().isEmpty) return;
-    // Optional TMDB poster picker — the user can pick a poster for the group
+    // Optional TMDB poster picker - the user can pick a poster for the group
     // (or skip and fall back to any member's cached meta).
     final posterMeta = await _pickGroupPoster(name.trim());
     final mg = ManualGroup(
@@ -580,7 +581,7 @@ class _HomeScreenState extends State<HomeScreen>
     _openGroup(g);
   }
 
-  /// The selected card as a local, deletable **file** — or null.
+  /// The selected card as a local, deletable **file** - or null.
   ///
   /// Selection can hold folders (many files, not deletable as one action) or
   /// network-backed entries, so the menu only offers the destructive option
@@ -649,7 +650,7 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
     );
-    // The dialog has been answered — leave selection mode either way, so a
+    // The dialog has been answered - leave selection mode either way, so a
     // cancel returns the user to where they started.
     _exitSelection();
     if (confirmed != true || !mounted) return;
@@ -662,14 +663,14 @@ class _HomeScreenState extends State<HomeScreen>
       messenger.showSnackBar(SnackBar(content: Text(failure)));
       return;
     }
-    // The card is a library entry in its own right — drop it by its store id
+    // The card is a library entry in its own right - drop it by its store id
     // (not the path) so the grid reflects the file actually being gone.
     await LibraryFoldersStore.remove(libraryId);
     await _loadLibrary();
   }
 
   void _onGroupLongPress(SeriesGroup g) {
-    // Long-press enters selection mode (tap toggles the whole group) — the
+    // Long-press enters selection mode (tap toggles the whole group) - the
     // top-right 3-dot menu then offers Group / Remove from library.
     if (_inSelectionMode) {
       _toggleGroupSelection(g);
@@ -678,7 +679,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Pull-to-refresh handler: reloads the whole home surface from scratch —
+  /// Pull-to-refresh handler: reloads the whole home surface from scratch -
   /// continue-watching positions, the library folders (added from SMB / WebDAV /
   /// FTP / UPnP / Jellyfin / local), their Jellyfin posters, and the TMDB
   /// metadata behind every card. Driven by the [RefreshIndicator] wrapping the
@@ -689,7 +690,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _entries = entries);
     // Issue #39: the library grid was a snapshot of the device tree taken when
     // a folder was bookmarked, so anything added or deleted outside the app
-    // stayed invisible until the folder was removed and re-added — even though
+    // stayed invisible until the folder was removed and re-added - even though
     // pull-to-refresh looked like it should cover it. Local folders only: a
     // network source costs a round-trip per subfolder, and a refresh that
     // stalls for seconds on a NAS is worse than the staleness it fixes.
@@ -745,7 +746,7 @@ class _HomeScreenState extends State<HomeScreen>
           });
         }
       } catch (_) {
-        // Best-effort — the card falls back to the folder name / TMDB lookup.
+        // Best-effort - the card falls back to the folder name / TMDB lookup.
       }
     }
   }
@@ -776,7 +777,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (connectivity.every(
       (result) => result.isEmpty || result.first.rawAddress.isEmpty,
     )) {
-      debugPrint('Metadata _resolveFolderMeta: offline — skipping resolution');
+      debugPrint('Metadata _resolveFolderMeta: offline - skipping resolution');
       return;
     }
     // Regex to detect season-like folder names (S01, Season N, roman numerals).
@@ -794,7 +795,7 @@ class _HomeScreenState extends State<HomeScreen>
       var needsResolve = existing == null ||
           (hasSeasonTag && existing.folderSeason == null &&
               existing.movie.kind != TmdKind.movie);
-      // Movie-part staleness: folder "FINALE 02" cached as "Part I" — force
+      // Movie-part staleness: folder "FINALE 02" cached as "Part I" - force
       // re-resolve so the correct numbered query (02 → Part II) can win.
       // Delegate the actual comparison to the service's helpers via a local
       // check to avoid importing parsing logic here.
@@ -825,7 +826,7 @@ class _HomeScreenState extends State<HomeScreen>
       debugPrint('TMDB _resolveFolderMeta: folder="${folder.name}" key="$key" existing=${existing != null ? 'meta(${existing.movie.title}, fs=${existing.folderSeason})' : 'null'} needsResolve=$needsResolve');
       if (needsResolve) {
         // List the folder's children so resolveFolder can detect episode/season
-        // markers in file OR subfolder names (e.g. S02E05, s02, s03) — without
+        // markers in file OR subfolder names (e.g. S02E05, s02, s03) - without
         // this, a plain folder name always resolves as a movie because
         // parsed.isEpisode is false.
         List<String>? fileNames;
@@ -885,7 +886,7 @@ class _HomeScreenState extends State<HomeScreen>
         debugPrint('TMDB _resolveFolderMeta: resolveFolder OK for "$key", post-resolve meta=${service.metaFor(key) != null ? 'meta(${service.metaFor(key)!.movie.title}, fs=${service.metaFor(key)!.folderSeason})' : 'null'}');
         // Cache episode metadata for ALL locally-present seasons so that
         // episode titles, stills, overviews and ratings are available offline.
-        // Without this, only folderSeason episodes are cached — other seasons
+        // Without this, only folderSeason episodes are cached - other seasons
         // fail when the user opens the folder without a network connection.
         final postMeta = service.metaFor(key);
         if (postMeta != null &&
@@ -901,7 +902,7 @@ class _HomeScreenState extends State<HomeScreen>
           if (postMeta.folderSeason != null) {
             seasonsNeeded.add(postMeta.folderSeason!);
           }
-          // Anime bracket numbering ([01]/[02]) — parsed seasons are all 0
+          // Anime bracket numbering ([01]/[02]) - parsed seasons are all 0
           // and folderSeason may be null.  Always fetch season 1 so episode
           // stills resolve to the first (only) season on TMDB.
           if (seasonsNeeded.isEmpty) seasonsNeeded.add(1);
@@ -919,7 +920,7 @@ class _HomeScreenState extends State<HomeScreen>
         } catch (_) {}
       }
       // Pull the full details (backdrop/overview/cast) right away so the
-      // folder's details screen is complete the moment it's opened — metadata
+      // folder's details screen is complete the moment it's opened - metadata
       // is fetched when the folder is added, not when it's opened.
       try {
         await service.detailsFor(key);
@@ -945,7 +946,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   /// Presents the system folder picker and adds the picked folder to the
-  /// library. The folder becomes a card on home only — it is stored under its
+  /// library. The folder becomes a card on home only - it is stored under its
   /// own library bookmark, so it never shows up as an Internal-storage root;
   /// its videos stay in place.
   Future<void> _addFolderToLibrary() async {
@@ -1060,7 +1061,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// Opens a grouped folder (`Strike the Blood`, `Strike the Blood II`, etc
   /// collapsed into one card). A single-**file** card (an individual video
   /// bookmarked to Home) opens in video mode directly. A folder whose TMDB
-  /// match is a **movie** opens the movie details screen (with a Play bar) —
+  /// match is a **movie** opens the movie details screen (with a Play bar) -
   /// the season/episode view would render a lone film as "Episode 1" with no
   /// way to play it. Everything else opens [SeriesSeasonsScreen] for the
   /// Nova-style season poster grid UI.
@@ -1071,7 +1072,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _openGroup(SeriesGroup group) {
-    // Manual groups (user-selected cards) always open MovieGroupScreen —
+    // Manual groups (user-selected cards) always open MovieGroupScreen -
     // the grid-of-cards pattern, header only when a member has TMDB info.
     if (_isManualGroup(group)) {
       Navigator.of(context).push(
@@ -1086,7 +1087,7 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
     // Single-file entries open VIDEO mode via the per-source resolver
-    // (WebDAV/Jellyfin/UPnP file entries carry synthetic paths — the real
+    // (WebDAV/Jellyfin/UPnP file entries carry synthetic paths - the real
     // playable URL is rebuilt at tap time).
     if (group.primary.isFile) {
       _openFileEntry(group.primary, group.metadataKey);
@@ -1105,7 +1106,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Opens a library file entry (VIDEO mode) via [NetworkVideoResolver] —
+  /// Opens a library file entry (VIDEO mode) via [NetworkVideoResolver] -
   /// per-source playable URL (SMB/WebDAV/FTP/UPnP/Jellyfin/local).
   Future<void> _openFileEntry(LibraryFolder folder, String metadataKey) async {
     final video = await NetworkVideoResolver.resolve(folder);
@@ -1113,7 +1114,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (video == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Can't open this file — its source is unavailable."),
+          content: Text("Can't open this file - its source is unavailable."),
           duration: Duration(seconds: 3),
         ),
       );
@@ -1189,7 +1190,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
     // Only clear TMDB metadata when removing the whole group (or the last
     // folder). Removing a single folder from a multi-folder group must NOT
-    // clear the shared metadata key — the remaining folders still need it.
+    // clear the shared metadata key - the remaining folders still need it.
     if (foldersToRemove.length >= group.folders.length) {
       try {
         await TmdService.instance.clear(group.metadataKey);
@@ -1206,7 +1207,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Batch remove: removes every folder in [list] from the library (the
   /// selection-mode 3-dot menu's Remove from library). Same cleanup as
-  /// [_removeFolder] — manual-group drop, library bookmark release, and TMDB
+  /// [_removeFolder] - manual-group drop, library bookmark release, and TMDB
   /// clear for each removed group.
   Future<void> _removeFolders(List<LibraryFolder> list) async {
     final confirmed = await showDialog<bool>(
@@ -1374,7 +1375,7 @@ class _HomeScreenState extends State<HomeScreen>
               _parentFolderNameOf(video.path ?? video.uri ?? ''),
         );
         if (service.metaFor(key) != null) continue;
-        // File search missed — inherit the folder poster-card match.
+        // File search missed - inherit the folder poster-card match.
         final folder =
             _matchingLibraryFolder(folders, video.path ?? video.uri);
         if (folder == null) continue;
@@ -1406,7 +1407,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// every file its own card keyed `folder:<id>`, and the details page reached
   /// from that card uses that key as its identity. Opening the same film from
   /// Continue Watching has to use the same key or the two surfaces keep separate
-  /// artwork — and separate metadata — for one film.
+  /// artwork - and separate metadata - for one film.
   LibraryFolder? _matchingLibraryFileCard(VideoItem video) {
     // resumeKey first: a continue-watching entry restored from storage can have
     // a null path and uri, and for a network source the resume key is the only
@@ -1428,7 +1429,7 @@ class _HomeScreenState extends State<HomeScreen>
     return best;
   }
 
-  /// Every library folder containing [path], nearest first — for an episode of
+  /// Every library folder containing [path], nearest first - for an episode of
   /// a series that is its season folder and then the show folder.
   ///
   /// Ordered by path length so the nearest ancestor wins, which preserves the
@@ -1491,7 +1492,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// before/without a per-file resolve.
   TmdMeta? _metaForContinueVideo(VideoItem video) {
     // The folder this file lives under, so artwork inherits from it when the
-    // file has no pick of its own — otherwise the same film shows one poster on
+    // file has no pick of its own - otherwise the same film shows one poster on
     // its home card and another here, purely because playing it gave the file
     // its own metadata entry.
     final fileKey = TmdStore.identityKeyFor(video);
@@ -1555,7 +1556,7 @@ class _HomeScreenState extends State<HomeScreen>
         builder: (_) => TmdDetailsScreen(video: restored),
       ),
     );
-    // Resume positions may have changed while playing — refresh on return.
+    // Resume positions may have changed while playing - refresh on return.
     await _loadLibrary();
     // Scroll back to the top so the app-bar title and section heading are
     // visible (the watched card moves to index 0 after the list reorders,
@@ -1583,7 +1584,7 @@ class _HomeScreenState extends State<HomeScreen>
         final meta = service.metaFor(key);
         showId = meta?.movie.id.toString();
       }
-      // Each episode gets its own card — no series grouping.
+      // Each episode gets its own card - no series grouping.
       result.add(_GroupedContinueWatching(
         showTitle: video.title,
         showMeta: showId != null
@@ -1723,7 +1724,7 @@ class _HomeScreenState extends State<HomeScreen>
         child: RefreshIndicator(
           onRefresh: _refreshHome,
           // Pull down on the home list (from SMB / WebDAV / local / Jellyfin /
-          // any source) to reload the library — re-digit the persisted folders,
+          // any source) to reload the library - re-digit the persisted folders,
           // their Jellyfin posters, continue-watching positions, and the TMDB
           // metadata for every card.
           edgeOffset: 8,
@@ -2159,7 +2160,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (!File(job.destPath).existsSync()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('File not found — it may have been deleted.'),
+          content: Text('File not found - it may have been deleted.'),
           duration: Duration(seconds: 3),
         ),
       );
@@ -2300,7 +2301,7 @@ class _HomeScreenState extends State<HomeScreen>
           final itemWidth = (width - spacing * (columns - 1)) / columns;
           final itemHeight =
               itemWidth * 9 / 16 + layout.textBlockHeight(_textBlockHeight);
-          // List view: one wide row per title. Requires a rowBuilder — the
+          // List view: one wide row per title. Requires a rowBuilder - the
           // card builder alone cannot be reshaped into a row.
           if (layout.isList) {
             final rows = rowBuilder;
@@ -2485,6 +2486,12 @@ class _HomeScreenState extends State<HomeScreen>
                   subtitle: Text(AppLocalizations.of(context).homeBrowseFiles),
                   onTap: () => Navigator.of(context).pop('storage'),
                 ),
+                ListTile(
+                  leading: const Icon(Icons.wifi_tethering),
+                  title: const Text('WiFi file transfer'),
+                  subtitle: const Text('Send videos from a PC browser'),
+                  onTap: () => Navigator.of(context).pop('wifi-transfer'),
+                ),
                 const Divider(height: 1),
                 // ── Network sources (collapsed section) ──
                 ExpansionTile(
@@ -2592,6 +2599,10 @@ class _HomeScreenState extends State<HomeScreen>
       case 'storage':
         await Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const FileBrowserScreen()),
+        );
+      case 'wifi-transfer':
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const WifiTransferScreen()),
         );
       case 'play-url':
         await _playUrlDialog();

@@ -95,8 +95,8 @@ class TmdDetailsScreen extends StatefulWidget {
     this.inheritArtworkFrom = const [],
   }) : assert(video != null || folder != null);
 
-  /// Ancestor metadata keys for this file, nearest first — its season folder
-  /// then its show folder — consulted only when this file has no override of its
+  /// Ancestor metadata keys for this file, nearest first - its season folder
+  /// then its show folder - consulted only when this file has no override of its
   /// own for that artwork kind.
   ///
   /// Distinct from [parentMetadataKey]: that one *is* the identity key when the
@@ -115,7 +115,7 @@ class TmdDetailsScreen extends StatefulWidget {
 
   /// When set, use this key to look up cached TMDB metadata instead of the
   /// video's own identity key. Used when opening a single episode from a
-  /// series folder — the folder's metadata (with correct season/episode data)
+  /// series folder - the folder's metadata (with correct season/episode data)
   /// is already cached and should be reused.
   final String? parentMetadataKey;
 
@@ -125,8 +125,8 @@ class TmdDetailsScreen extends StatefulWidget {
 
 /// Poster for the details-page header.
 ///
-/// Prefers the season's poster when a specific season is resolved — that is the
-/// whole point of `folderSeason` posters — unless the user has explicitly chosen
+/// Prefers the season's poster when a specific season is resolved - that is the
+/// whole point of `folderSeason` posters - unless the user has explicitly chosen
 /// one. `withArtwork` patches the movie's and the details' poster but not
 /// `seasons[]`, so without this a pick made from the ⋮ menu updated the home
 /// card and left this header on the season's own artwork.
@@ -183,7 +183,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     if (clean.endsWith('/')) clean = clean.substring(0, clean.length - 1);
     final lastSlash = clean.lastIndexOf('/');
     if (lastSlash < 0) return '';
-    // Parent directory name — not the file basename (the old code returned
+    // Parent directory name - not the file basename (the old code returned
     // `file.mkv`, so parentFolderName never helped episode-only titles).
     final parent = clean.substring(0, lastSlash);
     final parentSlash = parent.lastIndexOf('/');
@@ -249,7 +249,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   List<JellyfinItem> _jellyfinEntries = const [];
 
   /// Server-side metadata for the folder (passed in from home when cached,
-  /// refreshed here on open) — shown when no TMDB match resolves.
+  /// refreshed here on open) - shown when no TMDB match resolves.
   JellyfinItemInfo? _jellyfinInfo;
 
   /// Watched marks and resume positions for per-season progress rings and the
@@ -264,7 +264,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// SIMKL cloud-done backfill (mirrors smb_screen.dart's sync button).
   bool _syncingSimkl = false;
 
-  /// Only for TV-show bookmarked folders — SIMKL backfill is meaningless for a
+  /// Only for TV-show bookmarked folders - SIMKL backfill is meaningless for a
   /// single movie or a plain file list.
   bool get _enableSimklSync =>
       widget.folder != null &&
@@ -282,7 +282,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   /// Times the open path. Issue #41-class reports ("the first details screen
   /// hangs, every one after it is instant") are indistinguishable from the SMB
-  /// log alone, which only sees the SMB channel — and `openShare` turned out to
+  /// log alone, which only sees the SMB channel - and `openShare` turned out to
   /// be 169ms cold / 57ms warm, i.e. innocent. These markers make the Dart side
   /// (metadata resolve, image cache, probe) measurable from the device console
   /// instead of inferred. All prefixed `TMD-OPEN` so one grep finds them.
@@ -355,7 +355,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     }
   }
 
-  /// The HDR presentation mode the MPV engine will use — it decides what the
+  /// The HDR presentation mode the MPV engine will use - it decides what the
   /// "Play with MPV" caption may honestly claim.
   Future<void> _loadToneMapMode() async {
     try {
@@ -393,7 +393,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// Irreversible delete of a **local** file, behind a confirmation that
   /// names the file and states plainly that it cannot be undone.
   ///
-  /// Only reachable for entries [FileBrowserService.canDelete] accepts — a
+  /// Only reachable for entries [FileBrowserService.canDelete] accepts - a
   /// local file, never a directory and never a network source.
   Future<void> _confirmDeleteFile(FileEntry entry) async {
     final theme = Theme.of(context);
@@ -587,7 +587,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// flat folder of standalone videos (and no episodes/subfolders) is treated
   /// as a movie so a keyless/offline build still plays it.
   /// Exception: folders with multiple video files (e.g. Miscellaneous with
-  /// random test files) are never movie folders — they must show the file list.
+  /// random test files) are never movie folders - they must show the file list.
   bool get _isMovieFolder {
     if (widget.folder == null || widget.folder!.isJellyfin) return false;
     final videoCount = _entries.where((e) => !e.isDirectory).length;
@@ -685,7 +685,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       'TMD-OPEN: first paint of cached state at ${_openWatch.elapsedMilliseconds}ms '
       '(cached=${_meta != null})',
     );
-    // First frame AFTER this build settles — the number that matches what the
+    // First frame AFTER this build settles - the number that matches what the
     // user perceives as "the screen finally appeared".
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AppDebugLog.mark('TMD-OPEN: first frame at ${_openWatch.elapsedMilliseconds}ms');
@@ -701,7 +701,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       // Files are the first priority: whatever the TMDB metadata state (not
       // cached yet, slow lookup, or failed), the folder's file list must be
       // visible. Never hold the full-screen spinner hostage to a metadata
-      // fetch — details/seasons enrich the header progressively.
+      // fetch - details/seasons enrich the header progressively.
       setState(() => _loading = false);
       // Movie folder: probe the movie file once its entry is known (video mode
       // probes from initState; here the entry only exists after the listing).
@@ -711,7 +711,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       }
     }
     // Server-side series info (poster/title/year/overview) for Jellyfin
-    // folders — refreshed on open so image URLs carry the current token.
+    // folders - refreshed on open so image URLs carry the current token.
     if (widget.folder?.isJellyfin ?? false) {
       await _refreshJellyfinInfo();
       if (!mounted) return;
@@ -798,7 +798,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       }
       await _service.carryMeta(best.metadataKey, _identityKey);
     } catch (_) {
-      // Non-fatal — details falls back to "No metadata loaded".
+      // Non-fatal - details falls back to "No metadata loaded".
     }
   }
 
@@ -960,7 +960,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       // Nova-style: background-resolve TMDB for all video files so metadata
       // is ready when the user taps a file.  Each file resolves independently
       // (no stagger) so the listener fires immediately per file and the tile
-      // shows its poster as soon as the TMDB match lands — same as v0.3.8.
+      // shows its poster as soon as the TMDB match lands - same as v0.3.8.
       for (final entry in entries) {
         if (entry.isDirectory) continue;
         _service.resolve(_toVideoItem(entry)).catchError((_) {
@@ -977,7 +977,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   /// Jellyfin folder mode: resolve the folder's saved server (by URL, so the
   /// current token is used) and list its children via the API. Folders first,
-  /// then playables, each sorted by name — same ordering as the Jellyfin
+  /// then playables, each sorted by name - same ordering as the Jellyfin
   /// browser.
   Future<void> _loadJellyfinEntries() async {
     final folder = widget.folder!;
@@ -986,7 +986,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           await _jellyfin.serverForUrl(folder.jellyfinServerUrl ?? '');
       if (server == null || !server.isAuthenticated) {
         throw const JellyfinException(
-          'Jellyfin server is not signed in — open the Jellyfin screen and '
+          'Jellyfin server is not signed in - open the Jellyfin screen and '
           'sign in first.',
         );
       }
@@ -1090,7 +1090,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     if (mounted) setState(() => _details = details);
     if (meta.movie.kind != TmdKind.tv) return;
     // The 30s freeze starts somewhere between here and the first frame, and the
-    // season markers never arrived — so bracket EVERY await from here on
+    // season markers never arrived - so bracket EVERY await from here on
     // rather than after the fact. A marker that prints tells us the step
     // completed; the first one that DOESN'T print is the blocker.
     AppDebugLog.mark(
@@ -1117,7 +1117,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       );
       if (!mounted) return;
     }
-    // Re-read meta from cache — seasonFor may have enriched it with poster
+    // Re-read meta from cache - seasonFor may have enriched it with poster
     // data.  The listener (_onServiceChanged) should fire, but the final
     // rebuild must happen here too to avoid a stale _meta when the last
     // seasonFor finishes and the widget is already idle.
@@ -1212,7 +1212,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         RegExp(r'\bSeason\s*(\d{1,2})\b', caseSensitive: false)
             .firstMatch(name);
     if (seasonMatch != null) return int.tryParse(seasonMatch.group(1)!);
-    // Season folders named by their TMDB title (roman numerals — "Strike the
+    // Season folders named by their TMDB title (roman numerals - "Strike the
     // Blood II" → 2). _seasonNameMap is loaded by _loadDetailsAndSeasons.
     final names = _seasonNameMap;
     if (names != null && names.isNotEmpty) {
@@ -1442,7 +1442,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   /// Picks the engine for a play/resume. An explicit [engine] button always
   /// wins. Otherwise a pinned Settings default (Media3 / libmpv) wins over
-  /// the sticky "last engine used for this file" — otherwise switching the
+  /// the sticky "last engine used for this file" - otherwise switching the
   /// default back to Media3 still resumes with MPV. Sticky last-engine only
   /// applies in Auto / Ask every time, so the per-engine playhead stays
   /// continuous.
@@ -1468,7 +1468,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     bool fromBeginning = false,
     PlayEngine? engine,
   }) async {
-    // Pref load is async — if Resume is tapped before it lands, a stale
+    // Pref load is async - if Resume is tapped before it lands, a stale
     // `ask` + sticky last-engine would reopen MPV after the user picked Media3.
     if (!_defaultEngineLoaded) {
       await _loadDefaultEngine();
@@ -1488,7 +1488,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     // can corrupt the Scaffold layout (bottom bar jumps to top) and crash.
     await Future<void>.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
-    // The playhead may have moved (or the video finished) — refresh the label.
+    // The playhead may have moved (or the video finished) - refresh the label.
     await _loadResume();
     // Also refresh progress bars for sibling episode tiles.
     await _refreshPositions();
@@ -1520,7 +1520,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   }
 
   /// The libmpv engine is Android-only (iOS playback is AetherEngine), so the
-  /// "Play with MPV" option only shows on Android — iOS keeps its single Play.
+  /// "Play with MPV" option only shows on Android - iOS keeps its single Play.
   /// When the user has set a default engine, only the "Ask every time" mode
   /// shows both buttons. Auto mode shows only Media3 (mpv is the silent
   /// fallback if Media3 fails).
@@ -1542,7 +1542,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final src = video.playbackSource;
     // FTP can't be downloaded (Dart HttpClient doesn't support ftp://).
     if (src == null || src == PlaybackSource.ftp) return false;
-    // A local file normally needs no download — but one on a USB drive or SD
+    // A local file normally needs no download - but one on a USB drive or SD
     // card does: it is on removable storage and invisible to anything reading
     // the device's own Downloads folder. Copying it into
     // `<Downloads>/DreamPlayer/` is the same action, through the same
@@ -1602,7 +1602,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   /// The secondary engine button: picks libmpv up front, before any Media3
   /// backend is created. mpv runs hardware-first (`hwdec=auto-safe`) and falls
-  /// back to its own FFmpeg software decode — a full second main player, not a
+  /// back to its own FFmpeg software decode - a full second main player, not a
   /// fallback. Renders SDR (Flutter texture): no Dolby Vision / HDR there.
   ///
   /// When the user previously played this video via mpv, the button is tinted
@@ -1658,10 +1658,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       const SizedBox(height: 4),
       Text(
         switch (_toneMapMode) {
-          ToneMapMode.sdr => 'SDR only — no Dolby Vision / HDR (Media3 handles those)',
+          ToneMapMode.sdr => 'SDR only - no Dolby Vision / HDR (Media3 handles those)',
           ToneMapMode.native =>
-            'Native HDR/DV passthrough — needs an HDR-capable display',
-          ToneMapMode.linear => 'Linear HDR — brighter, but not Dolby Vision',
+            'Native HDR/DV passthrough - needs an HDR-capable display',
+          ToneMapMode.linear => 'Linear HDR - brighter, but not Dolby Vision',
           ToneMapMode.pq => 'HDR10 tone-mapped in-engine (hdr-toys)',
           ToneMapMode.hlg => 'HLG tone-mapped in-engine (hdr-toys)',
           ToneMapMode.bt2020 => 'Wide-gamut tone-map in-engine (hdr-toys)',
@@ -1778,7 +1778,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       try {
         // Carry the folder's full meta (movie + details + seasons) onto the
         // episode's key so its details screen shows the episode's own
-        // name/overview/rating instantly — a bare `setManual` would drop the
+        // name/overview/rating instantly - a bare `setManual` would drop the
         // already-loaded season data and force a re-fetch on every tap.
         await _service.carryMeta(_identityKey, videoKey);
       } catch (_) {}
@@ -1815,7 +1815,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         id: 'smb_${widget.folder!.id}_${entry.path.hashCode}',
         title: entry.name,
         // Native Media3 (SmbDataSource) and the libmpv SMB loopback both
-        // resolve `smb://<serverId>/<share>/<path>` — the <serverId> is the
+        // resolve `smb://<serverId>/<share>/<path>` - the <serverId> is the
         // native server id whose saved credentials SmbStore resolves. Omitting
         // it (as `smb://<share>/<path>`) makes both engines fail to open.
         path: 'smb://$serverId/$share/$relPath',
@@ -1982,7 +1982,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         : (widget.folder?.name ?? widget.video!.title);
     final resume = _resumePosition;       // Media3 playhead
     final resumeMpv = _resumePositionMpv; // MPV playhead
-    // Label must match the engine [_play] will actually open — otherwise a
+    // Label must match the engine [_play] will actually open - otherwise a
     // Media3 default still shows the MPV playhead (or the reverse) after the
     // user switches engines in Settings.
     final playEngine = _resolveEngine();
@@ -1991,7 +1991,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     final hasAnyResume = resume != null || resumeMpv != null;
     // A matched movie folder / single video renders its own pinned
     // SliverAppBar hero (the SeriesSeasonsScreen-style backdrop + title), so
-    // the standard app bar is suppressed — otherwise the top of the screen
+    // the standard app bar is suppressed - otherwise the top of the screen
     // would carry two bars.
     final movieFolderHero = _useHero;
 
@@ -2128,7 +2128,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     );
   }
 
-  /// Folder mode: the bottom Play/Resume bar for a movie folder — mirrors the
+  /// Folder mode: the bottom Play/Resume bar for a movie folder - mirrors the
   /// video-mode bar but plays the folder's standalone movie file via
   /// [_playFolderMovie]. Series folders never render it (they use the
   /// episodes/seasons list, which has no bottom bar).
@@ -2251,16 +2251,16 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
         : null;
     // Movie folder: the standalone movie file to show Play/file-info/subtitle
     // affordances for. The folder's entries list itself is hidden for movie
-    // folders — they present as a single movie (SeriesSeasonsScreen-style
+    // folders - they present as a single movie (SeriesSeasonsScreen-style
     // hero), not a season/episode listing. The entry can still be null on the
-    // first frames (TMDB match cached, SMB listing in flight) — rebuild clean.
+    // first frames (TMDB match cached, SMB listing in flight) - rebuild clean.
     final folderMovie = widget.folder != null && _isMovieFolder && _folderMovieEntry != null
         ? _toVideoItem(_folderMovieEntry!)
         : null;
     final infoVideo = widget.video ?? folderMovie;
 
     // Prefer season poster when a specific season is resolved, else series poster
-    // — but never over a poster the user actually chose.
+    // - but never over a poster the user actually chose.
     //
     // `withArtwork` patches the movie's and the details' poster, not
     // `seasons[]`, so preferring the season poster here meant a pick made from
@@ -2280,7 +2280,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       posterOverridden: posterOverridden,
       // Only a season PAGE leads with the season's artwork. An episode infers
       // its season from the filename, so preferring it here made the header
-      // switch to the season poster a few seconds in — once season data landed —
+      // switch to the season poster a few seconds in - once season data landed -
       // and stop matching the card it was opened from, which shows the show
       // poster.
       preferSeasonPoster: widget.folder != null,
@@ -2338,7 +2338,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
               collapsed: _heroCollapsed,
             ),
             // The hero branch renders `appBar: null` and supplies its own
-            // SliverAppBar, so the ⋮ has to be declared here too — putting it
+            // SliverAppBar, so the ⋮ has to be declared here too - putting it
             // only in the plain AppBar left it invisible for exactly the
             // movie/series pages it was meant for.
             actions: [if (_meta != null) _artworkMenuButton()],
@@ -3265,14 +3265,14 @@ class _FactChip extends StatelessWidget {
   }
 }
 
-/// Nova-style file info card — shows every technical detail of the file,
+/// Nova-style file info card - shows every technical detail of the file,
 /// just as Nova Video Player does. Wired for **all** sources (local,
 /// SMB/WebDAV/FTP/UPnP/Jellyfin): name, location (smb:// / file:// /
 /// https://), duration, size, video codec · resolution · fps · HDR, and
 /// audio codec · channels · language.
 ///
 /// When [probe] is available (native MediaExtractor probe of the file
-/// header), its values override the filename-derived ones — exactly how
+/// header), its values override the filename-derived ones - exactly how
 /// Nova probes the container instead of parsing the filename.
 class _FileInfoCard extends StatelessWidget {
   const _FileInfoCard({required this.video, this.probe, this.probing = false});
@@ -3282,7 +3282,7 @@ class _FileInfoCard extends StatelessWidget {
 
   String _displayLocation(VideoItem v) {
     // Prefer the human-readable path (local absolute or smb:// share/path).
-    // For SMB bookmarks the playable uri is a temp http://127.0.0.1 loopback —
+    // For SMB bookmarks the playable uri is a temp http://127.0.0.1 loopback -
     // never show that; derive from resumeKey instead.
     final p = v.path ?? '';
     final u = v.uri ?? '';
@@ -3317,7 +3317,7 @@ class _FileInfoCard extends StatelessWidget {
     // Fallback to resumeKey formatting (stable, shows share/path for network)
     if (k.startsWith('smb:') || k.startsWith('smb_')) {
       final rest = k.replaceFirst(RegExp(r'^smb[:_]'), '');
-      // rest is like "serverId/share/path" or "share/path" — show share/path
+      // rest is like "serverId/share/path" or "share/path" - show share/path
       final parts = rest.split('/');
       if (parts.length >= 2) {
         // drop serverId if it looks like uuid/server host
@@ -3361,17 +3361,17 @@ class _FileInfoCard extends StatelessWidget {
       rows.add(const SizedBox(height: 8));
     }
 
-    // File name — always show (Nova header for file info)
+    // File name - always show (Nova header for file info)
     rows.add(_InfoRow(icon: Icons.description_outlined, label: video.title));
 
-    // Location — Nova shows the full SMB / file path under the file info.
+    // Location - Nova shows the full SMB / file path under the file info.
     // All sources wire the same card: local absolute, smb://share/…, https://
     // webdav, ftp://, content://, jellyfin server path via resumeKey fallback.
     if (location.isNotEmpty) {
       rows.add(_InfoRow(icon: Icons.folder_open, label: location));
     }
 
-    // Duration (when known — via probe for local/http like Nova, else after playback)
+    // Duration (when known - via probe for local/http like Nova, else after playback)
     if (duration > Duration.zero) {
       final label = Duration(milliseconds: duration.inMilliseconds).inHours > 0
           ? '${duration.inHours}:${(duration.inMinutes % 60).toString().padLeft(2, '0')}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}'
@@ -3398,7 +3398,7 @@ class _FileInfoCard extends StatelessWidget {
     }
 
     // Audio: codec · channels · language (Nova lists each track; we show the
-    // primary filename-derived track for all shares — local/SMB/WebDAV/FTP/UPnP).
+    // primary filename-derived track for all shares - local/SMB/WebDAV/FTP/UPnP).
     if (audioCodec != null && audioCodec.isNotEmpty) {
       final formatted = formatAudioCodec(audioCodec);
       final parts = <String>[formatted];
@@ -3586,7 +3586,7 @@ class _SubtitlesCard extends StatelessWidget {
   }
 }
 
-/// Nova-style trailers card — YouTube links.
+/// Nova-style trailers card - YouTube links.
 class _TrailersCard extends StatelessWidget {
   const _TrailersCard({required this.trailers});
   final List<TmdTrailer> trailers;
@@ -3950,7 +3950,7 @@ class _FolderEntryTile extends StatelessWidget {
     final posterUrl = stillUrl ?? posterUrlOf(tmdbMeta);
 
     // The RAW filename (e.g. House.S02E05.1080p...mkv) shown subdued on its
-    // own line — the title row leads with the SxxEyy badge + episode name so
+    // own line - the title row leads with the SxxEyy badge + episode name so
     // the list reads cleanly instead of shouting the full filename.
     // Per-child artwork action (issue #33). Previously the parent folder's
     // picker was the only entry point, so a folder and its season sub-folders

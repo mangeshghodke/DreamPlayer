@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// silently: the build script can stop packaging the objects, the pubspec can
 /// stop declaring the asset, the app can stop copying it somewhere the user
 /// can reach, and the CI gate can stop running. None of those break the
-/// build — they just quietly break the license.
+/// build - they just quietly break the license.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

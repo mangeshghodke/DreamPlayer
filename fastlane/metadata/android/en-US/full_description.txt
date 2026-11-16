@@ -2,7 +2,7 @@ DreamPlayer plays your own video files the way they were encoded. Dolby Vision, 
 
 **HDR that stays HDR**
 
-Video is rendered into a real hardware video surface, so Dolby Vision (profiles 7, 8 and 9, plus profile 4 on supported hardware), HDR10, HDR10+ and HLG arrive at the panel as PQ/BT.2020. The player shows what the file actually contains — HDR format, video and audio codec, resolution, decoder in use — so a mislabelled download is obvious.
+Video is rendered into a real hardware video surface, so Dolby Vision (profiles 7, 8 and 9, plus profile 4 on supported hardware), HDR10, HDR10+ and HLG arrive at the panel as PQ/BT.2020. The player shows what the file actually contains - HDR format, video and audio codec, resolution, decoder in use - so a mislabelled download is obvious.
 
 **Every source, built in**
 

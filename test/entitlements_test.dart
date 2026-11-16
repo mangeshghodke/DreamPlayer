@@ -101,7 +101,7 @@ void main() {
     test('effectiveDspSetting never touches Android (immunity guarantee)',
         () {
       // Flutter tests run with defaultTargetPlatform == android, where the
-      // paywall is not even active — a saved ON must stay ON.
+      // paywall is not even active - a saved ON must stay ON.
       expect(effectiveDspSetting(true), isTrue);
       expect(effectiveDspSetting(false), isFalse);
     });

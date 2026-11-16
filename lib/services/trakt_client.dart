@@ -37,7 +37,7 @@ class TraktWatched {
   final Set<int> movieIds;
 }
 
-/// Trakt API client (Standard API — free, no per-user fee).
+/// Trakt API client (Standard API - free, no per-user fee).
 ///
 /// Uses OAuth 2.0 device flow: the app shows a user code, the user authorizes
 /// at https://trakt.tv/activate, then the app polls for an access token.
@@ -214,7 +214,7 @@ class TraktClient {
     final expiresAt = state['expiresAt'] as int? ?? 0;
     if (expiresAt > 0 &&
         DateTime.now().millisecondsSinceEpoch > expiresAt - 60_000) {
-      // Token expired (or within 1 minute) — attempt a refresh.
+      // Token expired (or within 1 minute) - attempt a refresh.
       await _refreshToken(state['refreshToken'] as String? ?? '');
     }
     return (await _load())['accessToken'] as String;
@@ -238,7 +238,7 @@ class TraktClient {
           (data['expires_in'] as num).toInt(),
           data['scope'] as String? ?? '');
     } catch (_) {
-      // best-effort — keep the old token
+      // best-effort - keep the old token
     }
   }
 }

@@ -243,7 +243,7 @@ void main() {
       findsOneWidget,
     );
     // "Watch from beginning" is now an icon-only tonal button (the replay
-    // glyph) next to the filled Resume button — no text label.
+    // glyph) next to the filled Resume button - no text label.
     expect(find.byIcon(Icons.replay), findsOneWidget);
     expect(find.text('Watch from beginning'), findsNothing);
 

@@ -1,7 +1,7 @@
 /*
  * Platform shims for building libsmb2 on iOS.
  *
- * Neither of these is a workaround for a bug in libsmb2 — both are places where
+ * Neither of these is a workaround for a bug in libsmb2 - both are places where
  * the library expects a POSIX facility that iOS does not provide, and where its
  * own fallback in compat.c is written for a different platform.
  *
@@ -15,7 +15,7 @@
  *
  * 2. _U_
  *    lib/aes128ccm.c sprinkles `_U_` through its declarations. That macro comes
- *    from OpenSSL, which we deliberately do not link — SMB3 encryption is
+ *    from OpenSSL, which we deliberately do not link - SMB3 encryption is
  *    optional and aes_apple.c uses Apple's CommonCrypto. The build script
  *    passes -D_U_= for exactly the same reason; it is repeated here so this
  *    file documents the dependency.

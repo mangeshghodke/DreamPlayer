@@ -97,7 +97,7 @@ class OpenIntentService {
         'getInitialIntent',
       );
     } on MissingPluginException {
-      // No intent channel available — nothing to pick up.
+      // No intent channel available - nothing to pick up.
       initial = null;
     }
     if (initial != null) {

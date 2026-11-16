@@ -6,7 +6,7 @@ enum LibraryViewMode {
   /// Today's behaviour: responsive poster grid sized from the card aspect.
   poster('poster'),
 
-  /// Same grid, tighter cards and a shorter text block — fits more titles on
+  /// Same grid, tighter cards and a shorter text block - fits more titles on
   /// screen at the cost of smaller art.
   ///
   compact('compact'),
@@ -75,7 +75,7 @@ class LayoutStore extends ChangeNotifier {
   /// Thumbnail size for episode/file rows.
   EpisodeThumbSize get thumbSize => _thumbSize;
 
-  /// 0 means "automatic" — derive the column count from the width.
+  /// 0 means "automatic" - derive the column count from the width.
   int get columns => _columns;
 
   static Future<LayoutStore> load() async {
@@ -165,7 +165,7 @@ class LayoutStore extends ChangeNotifier {
 
   /// Column count to build for [width] honouring the user's override.
   ///
-  /// An explicit choice is honoured on any screen width — the request was
+  /// An explicit choice is honoured on any screen width - the request was
   /// "see more titles at once", so silently clamping "4" back to the 2 that a
   /// 360dp phone fits would make the setting look broken. Only the absolute
   /// bounds in [setColumns] apply.

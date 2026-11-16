@@ -101,7 +101,7 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
       return;
     }
     if (!OpensubtitlesClient.instance.hasApiKey) {
-      setState(() => _error = 'Missing OPENSUBTITLES_API_KEY — add it to .env and rebuild');
+      setState(() => _error = 'Missing OPENSUBTITLES_API_KEY - add it to .env and rebuild');
       return;
     }
     setState(() { _searching = true; _error = null; _results = const []; });
@@ -121,7 +121,7 @@ class _OpensubtitlesSheetState extends State<OpensubtitlesSheet> {
 
   Future<String?> _downloadToPersistent(OpensubtitlesResult r, {required String fileName, required List<int> bytes}) async {
     // OpenSubtitles often returns a meaningless upload id (`1324.srt`) as the
-    // file name — surface the real name derived from the video title + lang.
+    // file name - surface the real name derived from the video title + lang.
     final derived = meaningfulSubtitleFileName(
       apiFileName: fileName,
       language: r.language,

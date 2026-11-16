@@ -326,7 +326,7 @@ class ExoPlayerEvent {
   /// The transfer characteristic the codec ACTUALLY output (3 = SDR,
   /// 6 = PQ, 7 = HLG). Differs from [colorTransfer] (the container's
   /// declared value) when the decoder tone-mapped an HDR stream down to
-  /// SDR — the "hardware SDR tone-mapping" setting (issue #55). Null when
+  /// SDR - the "hardware SDR tone-mapping" setting (issue #55). Null when
   /// the codec did not report one.
   final int? videoOutputTransfer;
 
@@ -342,7 +342,7 @@ class ExoPlayerEvent {
   /// True when the native side found static HDR10 metadata (SEI payload
   /// types 137 = mastering display colour volume, 144 = content light level)
   /// in the video bitstream. This covers plain HDR10 files that omit the
-  /// MKV Colour element — Media3's MatroskaExtractor doesn't populate
+  /// MKV Colour element - Media3's MatroskaExtractor doesn't populate
   /// `Format.colorInfo`, so this bitstream probe restores the correct
   /// HDR10 label and engages the headroom path.
   final bool isHdr10;
@@ -551,7 +551,7 @@ abstract class PlaybackController {
 
   /// Manual A/V sync: shifts audio relative to video. Positive = audio
   /// later. Android retunes a PCM AudioProcessor live; iOS is a no-op
-  /// (AetherEngine exposes no audio-offset hook yet — UI hidden there).
+  /// (AetherEngine exposes no audio-offset hook yet - UI hidden there).
   Future<void> setAudioDelay(int ms);
 
   /// Enters picture-in-picture (Android only; no-op elsewhere or when
@@ -575,17 +575,17 @@ abstract class PlaybackController {
   /// Volume boost factor (1.0 = unity, 3.0 = +12 dB, peak-limited).
   Future<void> setAudioBoost(double boost);
 
-  /// Night Mode — dynamic range compression / loudness normalisation.
+  /// Night Mode - dynamic range compression / loudness normalisation.
   Future<void> setNightMode(bool enabled);
 
   /// Sets the bass boost level (0 off – 3 high). Android attaches a session
   /// BassBoost effect; iOS applies it as a low shelf in the engine's
-  /// AudioShaping (the AetherEngine fork) — see the paywall gate map.
+  /// AudioShaping (the AetherEngine fork) - see the paywall gate map.
   Future<void> setBassBoost(int level);
 
   /// Downmix to stereo: fold 5.1/7.1 audio into 2.0 (centre channel kept at
   /// -3 dB). Android Media3 retunes a PCM `AudioProcessor` (applies on the
-  /// next track/open — the output channel count is fixed at sink configure
+  /// next track/open - the output channel count is fixed at sink configure
   /// time); iOS applies the stereo audio-session lever. Bitstream passthrough
   /// is unaffected (processors only see decoded PCM).
   Future<void> setAudioDownmix(bool enabled);
@@ -648,7 +648,7 @@ class ExoPlayerController implements PlaybackController {
     for (final (name, args) in _pending) {
       // A method the native side does not implement (or a view torn down
       // between queueing and attaching) must not become an unhandled async
-      // error — it used to land in the crash log as a MissingPluginException
+      // error - it used to land in the crash log as a MissingPluginException
       // for every queued call the platform did not answer.
       unawaited(method.invokeMethod(name, args).catchError((Object _) {}));
     }
@@ -722,7 +722,7 @@ class ExoPlayerController implements PlaybackController {
 
   /// Queries the native player's current state directly, instead of relying on
   /// the last pushed event. Returns null when the platform view isn't attached
-  /// (e.g. mid background/foreground surface recreation) — callers can retry.
+  /// (e.g. mid background/foreground surface recreation) - callers can retry.
   @override
   Future<ExoPlayerEvent?> getState() async {
     final channel = _method;
@@ -744,7 +744,7 @@ class ExoPlayerController implements PlaybackController {
   /// Raw engine telemetry for the playback stats HUD (Infuse-style overlay):
   /// format fps/bitrate plus the cumulative video decoder counters. Returns
   /// null when the channel is not attached. Dart computes the RENDERED fps
-  /// from consecutive polls (see RenderedFpsMeter) — Media3 only exposes
+  /// from consecutive polls (see RenderedFpsMeter) - Media3 only exposes
   /// cumulative counts.
   Future<Map<Object?, Object?>?> getStats() async {
     final channel = _method;
@@ -905,7 +905,7 @@ class ExoPlayerController implements PlaybackController {
 /// Non-fixed modes fill the available space. Fixed-ratio modes get the largest
 /// centred box of that ratio; the native `videoGravity` then crops the video to
 /// that box instead of to the screen. Kept as a pure function so the arithmetic
-/// is unit-tested — a too-wide box silently turns "Crop to 16:9" into
+/// is unit-tested - a too-wide box silently turns "Crop to 16:9" into
 /// "letterbox to 16:9 on a wider screen".
 @visibleForTesting
 Size iosFitBoxSize(Size available, VideoFitMode mode) {
@@ -925,14 +925,14 @@ Size iosFitBoxSize(Size available, VideoFitMode mode) {
 /// Android: the ExoPlayer/Media3 [PlayerView]'s internal `SurfaceView` is
 /// rendered through Flutter's **hybrid composition** (`PlatformViewLink` +
 /// `PlatformViewsService.initExpensiveAndroidView`) so the video surface keeps
-/// its own SurfaceFlinger layer on the physical display — required for real
+/// its own SurfaceFlinger layer on the physical display - required for real
 /// HDR / Dolby Vision output.
 ///
 /// The default `AndroidView` widget uses Flutter's virtual-display + texture
 /// composition: the SurfaceView is composited into a non-HDR virtual display
 /// (`flutter-vd#1` in SurfaceFlinger), read back as a texture, and that
 /// SDR-flattened texture is what reaches the panel. Real HDR is impossible
-/// through that path — the PQ/HLG transfer and the BT.2020 dataspace are lost
+/// through that path - the PQ/HLG transfer and the BT.2020 dataspace are lost
 /// before the display ever sees them, so HDR/DV content renders washed out
 /// (verified on-device: the DV P8 `c884f7` SurfaceView composited as CLIENT
 /// into `flutter-vd#1` with `HWC Support: dv=false`, while Just Player's same

@@ -317,7 +317,7 @@ void main() {
     for (final surface in const [
       Size(320, 568), // small phone
       Size(390, 844), // phone
-      Size(1024, 768), // tablet portrait — the reporter's target
+      Size(1024, 768), // tablet portrait - the reporter's target
       Size(1366, 768), // tablet landscape
     ]) {
       for (final size in EpisodeThumbSize.values) {

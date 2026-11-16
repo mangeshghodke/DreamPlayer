@@ -15,7 +15,7 @@ final bool _isTest = Platform.environment.containsKey('FLUTTER_TEST');
 /// what the "Default" option means on all three renderers.
 ///
 /// The six built-ins used to return the web/CSS aliases (`sans-serif`, …),
-/// which Android resolves but iOS does **not** — so on iPad the settings
+/// which Android resolves but iOS does **not** - so on iPad the settings
 /// preview silently kept the system font while the native overlay (which maps
 /// to real UIFonts) changed, and the preview looked broken. Apple names are
 /// used there instead, matching `SubtitleOverlayView.styledFont`.
@@ -123,7 +123,7 @@ TextStyle subtitleTextStyle(
   }
 }
 
-/// The chosen font only — used to draw a font's own name in a picker row,
+/// The chosen font only - used to draw a font's own name in a picker row,
 /// without the caption's colours, box or edge treatment leaking into the UI.
 TextStyle subtitleFontPreview(SubtitleStyle style, {double fontSize = 16}) {
   final styled = subtitleTextStyle(

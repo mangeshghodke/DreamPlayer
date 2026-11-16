@@ -11,7 +11,7 @@ import 'package:dream_player/services/tmdb_client.dart';
 /// The folder card resolves through `resolveFolder`, whose candidates are the
 /// folder's own name and the CLEANED file names. The cleaned name of
 /// `SVFLA-012.mkv` is "SVFLA" (the parser strips a trailing number as a
-/// movie-part suffix), so the code never reached the adapter — the card stayed
+/// movie-part suffix), so the code never reached the adapter - the card stayed
 /// bare until the file was opened.
 class _CodeAdapter extends MetadataProviderAdapter {
   final List<String> queries = [];

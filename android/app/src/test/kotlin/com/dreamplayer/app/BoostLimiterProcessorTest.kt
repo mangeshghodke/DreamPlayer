@@ -11,7 +11,7 @@ import java.nio.ByteBuffer
 ///
 /// The OnePlus Pad 2 report: with Volume Boost above 100%, a 5.1 track played
 /// through the tablet's speakers lost its dialogue while the rest of the mix
-/// kept going. The cause was the fallback path, not the boost itself —
+/// kept going. The cause was the fallback path, not the boost itself -
 /// `LoudnessEnhancer` is hard-wired for stereo in AOSP, so attaching it to a
 /// six-channel session mangled the centre channel. The replacement is this
 /// processor: make-up gain plus a peak limiter, applied per channel on

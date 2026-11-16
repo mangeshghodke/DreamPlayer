@@ -7,14 +7,14 @@ import 'package:flutter/services.dart';
 /// The main Media3 engine handles pip inside its own platform view: it owns the
 /// `SurfaceView` and the live `ExoPlayer`, so the native side can decide alone.
 /// In mpv mode the native pip path still gates on ExoPlayer (idle), so it would
-/// silently refuse — this bridge takes over.
+/// silently refuse - this bridge takes over.
 ///
 /// Entering pip is an Activity-level operation: the whole Flutter window
 /// shrinks into the pip window, and the player screen already hides all chrome
 /// while `_inPip` is set.
 ///
 /// Automatic entry is decided in `onUserLeaveHint`, which cannot await a
-/// round-trip to Dart — so playback state is PUSHED down via [setState]
+/// round-trip to Dart - so playback state is PUSHED down via [setState]
 /// whenever it changes, and the native side answers synchronously.
 class MpvPipService {
   MpvPipService._();
@@ -27,7 +27,7 @@ class MpvPipService {
   /// engine owns playback.
   void Function(bool inPip)? onPipChanged;
 
-  /// Called when the user swipes the pip window away — the screen should pause.
+  /// Called when the user swipes the pip window away - the screen should pause.
   void Function()? onPipDismissed;
 
   /// The pip window's transport buttons. The floating window shows only the

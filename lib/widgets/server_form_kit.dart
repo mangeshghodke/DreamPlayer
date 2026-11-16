@@ -20,7 +20,7 @@ AlertDialog serverDialog({
     contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
     actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
     // Test button left, Cancel/Save right. NEVER put a Spacer()/Expanded()
-    // inside `actions` — AlertDialog lays them out in an OverflowBar, and a
+    // inside `actions` - AlertDialog lays them out in an OverflowBar, and a
     // Flex child there throws a parent-data type error while mounting that
     // kills the whole dialog form (fields silently vanish).
     actionsAlignment: MainAxisAlignment.spaceBetween,

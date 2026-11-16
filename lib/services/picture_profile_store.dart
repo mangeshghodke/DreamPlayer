@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Profiles are engine-agnostic: the MPV panel applies all four via mpv
 /// properties; the Media3 panel applies brightness/contrast/saturation via
 /// GL effects and ignores gamma (Media3 has no gamma effect). That asymmetry
-/// is deliberate — a profile saved on one engine still applies its applicable
+/// is deliberate - a profile saved on one engine still applies its applicable
 /// subset on the other instead of refusing to load.
 @immutable
 class PictureProfile {
@@ -40,7 +40,7 @@ class PictureProfile {
         gamma: _clamp(gamma),
       );
 
-  /// True when every adjustment is neutral — applying such a profile is a
+  /// True when every adjustment is neutral - applying such a profile is a
   /// no-op (and on Media3 must clear the GL effect pipeline).
   bool get isNeutral =>
       brightness == 0 && contrast == 0 && saturation == 0 && gamma == 0;
@@ -130,7 +130,7 @@ class PictureProfileStore extends ChangeNotifier {
         jsonEncode(_profiles.map((p) => p.toJson()).toList()),
       );
     } catch (_) {
-      // A profile store must never break playback — persistence is best-effort.
+      // A profile store must never break playback - persistence is best-effort.
     }
   }
 

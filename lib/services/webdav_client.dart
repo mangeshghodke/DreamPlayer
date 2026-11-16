@@ -4,7 +4,7 @@ import '../utils/server_failover.dart';
 import 'server_alt_store.dart';
 
 /// A saved WebDAV server (see `WebDAVClient.kt`). The password never crosses
-/// to Dart — only `hasPassword` is exposed; the ready-made `Authorization`
+/// to Dart - only `hasPassword` is exposed; the ready-made `Authorization`
 /// header is fetched via [WebDavClient.authorizationHeader].
 class WebDavServer {
   const WebDavServer({
@@ -125,7 +125,7 @@ class WebDavClient {
   }
 
   /// Invalidate the native listing cache for a server URL (or all servers
-  /// when [url] is null). Called after edits or pull-to-refresh — the
+  /// when [url] is null). Called after edits or pull-to-refresh - the
   /// listing itself is cached for 60 s on the native side so re-visiting
   /// a folder is instant.
   Future<void> invalidateListingCache({String? url}) async {

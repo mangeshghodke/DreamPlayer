@@ -178,7 +178,7 @@ class _FolderScreenState extends State<FolderScreen> {
   Future<void> _load() async {
     // Pre-populate series state from cache for the CURRENT subfolder path so
     // there's no stale-view flash when navigating between subfolders.  At root
-    // level, always start with _isSeriesFolder = false — root folders with
+    // level, always start with _isSeriesFolder = false - root folders with
     // subfolders are never series folders, and _detectAndLoadSeriesFolder will
     // set the correct state once it knows whether subfolders exist.
     final service = TmdService.instance;
@@ -276,10 +276,10 @@ class _FolderScreenState extends State<FolderScreen> {
       if (_isFolderEntry(e)) continue;
       videoNames.add(_nameOf(e));
     }
-    // Folder contains only subfolders (no direct video files) — check if they
+    // Folder contains only subfolders (no direct video files) - check if they
     // look like season folders and fetch TMDB metadata for the poster grid.
     if (hasSubfolders && videoNames.isEmpty) {
-      // Folder contains only subfolders — check if they look like seasons.
+      // Folder contains only subfolders - check if they look like seasons.
       final folderSeasons = <int>{};
       for (final e in entries) {
         if (!_isFolderEntry(e)) continue;
@@ -287,11 +287,11 @@ class _FolderScreenState extends State<FolderScreen> {
         if (s != null && s > 0) folderSeasons.add(s);
       }
       if (folderSeasons.isEmpty) {
-        // Subfolders don't look like seasons — stay in flat list.
+        // Subfolders don't look like seasons - stay in flat list.
         if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
         return;
       }
-      // Season subfolders detected — fetch TMDB metadata for poster grid.
+      // Season subfolders detected - fetch TMDB metadata for poster grid.
       final folderName = _subfolderName;
       final metadataKey = _atRoot
           ? widget.folder.metadataKey
@@ -348,18 +348,18 @@ class _FolderScreenState extends State<FolderScreen> {
         if (s != null && s > 0) folderSeasons.add(s);
       }
       if (folderSeasons.isEmpty) {
-        // Subfolders don't look like seasons — stay in flat list.
+        // Subfolders don't look like seasons - stay in flat list.
         if (_isSeriesFolder) setState(() => _isSeriesFolder = false);
         return;
       }
-      // Season subfolders detected — set series mode and fall through to
+      // Season subfolders detected - set series mode and fall through to
       // the normal series-folder path below.
       setState(() {
         _isSeriesFolder = true;
       });
     }
 
-    // Series detected — fetch TMDB metadata for the current folder, not
+    // Series detected - fetch TMDB metadata for the current folder, not
     // the root bookmark. When navigating into a subfolder, use its name.
     final folderName = _subfolderName;
     final metadataKey = _atRoot
@@ -382,7 +382,7 @@ class _FolderScreenState extends State<FolderScreen> {
 
     var meta = service.metaFor(metadataKey);
     if (meta != null && meta.folderSeason != null) {
-      // Cache hit with season data — use it directly.
+      // Cache hit with season data - use it directly.
     } else {
       setState(() => _loadingSeriesMeta = true);
       meta = await service.resolveFolder(
@@ -426,7 +426,7 @@ class _FolderScreenState extends State<FolderScreen> {
     // fetch that season's data even if parsed seasons are all 0 (anime [01]).
     if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
     if (seasonsNeeded.isEmpty && hasSequential) seasonsNeeded.add(1);
-    // Anime bracket numbering ([01]/[02]) — parsed seasons are all 0 and
+    // Anime bracket numbering ([01]/[02]) - parsed seasons are all 0 and
     // folderSeason may be null. Always fetch season 1 so episode stills
     // resolve to the first (only) season on TMDB.
     if (seasonsNeeded.isEmpty && episodeNames.isNotEmpty) {
@@ -441,7 +441,7 @@ class _FolderScreenState extends State<FolderScreen> {
     // new TmdMeta; the `meta` reference we held earlier is stale). Without
     // this, _episodeFor looks up an empty seasons map and per-episode
     // details (stills/names/ratings/overview) never appear until the user
-    // backs out and re-enters — the cache hit on re-entry uses the fresh
+    // backs out and re-enters - the cache hit on re-entry uses the fresh
     // meta and the UI populates.
     final freshMeta = service.metaFor(metadataKey) ?? meta;
     setState(() {
@@ -471,14 +471,14 @@ class _FolderScreenState extends State<FolderScreen> {
 
     // Pattern 1: E01 / EP01 / E1 / EP1 style (most common for anime/TV rips)
     final epPattern = RegExp(r'\bE(?:P)?(\d{1,3})\b', caseSensitive: false);
-    // Pattern 2: Standalone number (01, 02, 1, 2) — must NOT be preceded by
+    // Pattern 2: Standalone number (01, 02, 1, 2) - must NOT be preceded by
     // a letter (avoids matching codec tags like x265, h264) and must NOT be
     // followed by a letter (avoids matching res like 1080p).
     final numPattern = RegExp(r'(?<![a-zA-Z])(\d{1,3})(?![a-zA-Z])');
 
     final numbers = <int>[];
     for (final name in names) {
-      // Try E01/EP01 pattern first — highest confidence.
+      // Try E01/EP01 pattern first - highest confidence.
       final epMatch = epPattern.firstMatch(name);
       if (epMatch != null) {
         final n = int.tryParse(epMatch.group(1)!);
@@ -526,7 +526,7 @@ class _FolderScreenState extends State<FolderScreen> {
           await _jellyfin.serverForUrl(widget.folder.jellyfinServerUrl ?? '');
       if (server == null || !server.isAuthenticated) {
         throw const JellyfinException(
-          'Jellyfin server is not signed in — open the Jellyfin screen and '
+          'Jellyfin server is not signed in - open the Jellyfin screen and '
           'sign in first.',
         );
       }
@@ -1434,7 +1434,7 @@ class _FolderScreenState extends State<FolderScreen> {
       return;
     }
     // When opened from TmdDetailsScreen with an initialPath, the first back
-    // should pop back to TmdDetailsScreen — not navigate internally to root
+    // should pop back to TmdDetailsScreen - not navigate internally to root
     // and show the header/backdrop (which looks like a stale "still image").
     final parent = _parentOf(_currentPath);
     final fallback = _isNetworkFolder ? _networkPath : widget.folder.path;
@@ -1615,19 +1615,19 @@ class _FolderScreenState extends State<FolderScreen> {
     final metadataKey = widget.folder.metadataKey;
 
     if (_loadingSeriesMeta) {
-      // TMDB metadata is still resolving — do NOT block the file list behind
+      // TMDB metadata is still resolving - do NOT block the file list behind
       // a spinner. Files are the first priority; the Nova-style series header
       // (poster/title/overview) arrives as soon as the fetch completes and
       // this body swaps over via setState.
       return _regularBody(context);
     }
 
-    // No metadata — fall back to regular list.
+    // No metadata - fall back to regular list.
     if (meta == null) {
       return _regularBody(context);
     }
 
-    // Separate folders from videos — include ALL video files, not just
+    // Separate folders from videos - include ALL video files, not just
     // those matching SxxExx patterns, so single episodes (E01, numbered)
     // still appear in the series body.
     final entries = _currentEntries;
@@ -2043,7 +2043,7 @@ class _FolderScreenState extends State<FolderScreen> {
   }
 
   /// Irreversible delete, behind a confirmation that names the file and spells
-  /// out that it cannot be undone. Only offered for local files — see
+  /// out that it cannot be undone. Only offered for local files - see
   /// [FileBrowserService.canDelete].
   Future<void> _confirmDeleteFile(FileEntry entry) async {
     final theme = Theme.of(context);
@@ -2099,7 +2099,7 @@ class _FolderScreenState extends State<FolderScreen> {
     await _load();
   }
 
-  /// Fix match for the series folder — opens the TMDB search dialog.
+  /// Fix match for the series folder - opens the TMDB search dialog.
   Future<void> _fixMatchSeries() async {
     final metadataKey = widget.folder.metadataKey;
     final folderName = widget.folder.name;
@@ -2286,7 +2286,7 @@ class _FolderScreenState extends State<FolderScreen> {
     final movie = meta?.movie;
     final backdrop = movie?.backdropUrl();
     // Network folders (SMB/WebDAV) keep their entries in _smbEntries /
-    // _networkEntries, so read from the unified _currentEntries — never the
+    // _networkEntries, so read from the unified _currentEntries - never the
     // local _entries list (which is empty for them and would read "0 videos").
     final all = _currentEntries;
     final videoCount = all.where((e) => !_isFolderEntry(e)).length;
@@ -2320,7 +2320,7 @@ class _FolderScreenState extends State<FolderScreen> {
               ),
             ),
             // The AppBar already shows the title, so the header only carries
-            // the metadata line (year, kind, video/folder counts) — never a
+            // the metadata line (year, kind, video/folder counts) - never a
             // second copy of the title.
             child: Text(
               _headerSubtitle(movie, videoCount, folderCount),
@@ -2666,7 +2666,7 @@ class _SeriesHeader extends StatelessWidget {
         ? seasonName
         : movie.title;
 
-    // Season overview — show ONLY the season's own text. TMDB leaves most
+    // Season overview - show ONLY the season's own text. TMDB leaves most
     // seasons without an overview, so a season folder renders blank rather
     // than repeating the base show's synopsis.
     final seasonOverview = season?.overview ?? '';

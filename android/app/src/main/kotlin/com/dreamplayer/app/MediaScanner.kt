@@ -7,7 +7,7 @@ import android.provider.MediaStore
 import io.flutter.plugin.common.MethodChannel
 
 /// Queries the system MediaStore for every video file and pushes the results
-/// to Dart via a MethodChannel.  No background service — the scan runs on
+/// to Dart via a MethodChannel.  No background service - the scan runs on
 /// a daemon thread and delivers a single batch on completion.
 class MediaScanner(private val context: Context) {
 

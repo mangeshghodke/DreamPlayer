@@ -209,7 +209,7 @@ dcerpc_ACE_HEADER_coder(char *name, struct dcerpc_context *dce,
 }
 
 /*
- * MS-DTYP 2.4.3 ACCESS_MASK — standard / generic rights bitfield.
+ * MS-DTYP 2.4.3 ACCESS_MASK - standard / generic rights bitfield.
  * Object-specific bits in the low 16 bits are protocol-dependent and
  * are left as raw values.
  */
@@ -962,7 +962,7 @@ security_descriptor_fields_coder(char *name, struct dcerpc_context *dce,
                 return sd_ndr_decode(dce, pdu, iov, offset, sd);
         }
 
-        /* YAML / JSON — logical absolute form (no offsets / Sbz1) */
+        /* YAML / JSON - logical absolute form (no offsets / Sbz1) */
         if (dcerpc_pdu_direction(pdu) == DCERPC_ENCODE &&
             sd->Revision == 0) {
                 sd->Revision = 1;

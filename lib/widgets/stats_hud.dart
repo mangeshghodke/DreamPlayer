@@ -4,7 +4,7 @@ import '../utils/playback_stats.dart';
 
 /// Translucent overlay panel with the live playback performance: resolution,
 /// decoder, source/rendered fps, bitrates, dropped frames (Infuse-style
-/// playback stats HUD). Rendered inside the video Stack — above the video,
+/// playback stats HUD). Rendered inside the video Stack - above the video,
 /// above the transport chrome, but wrapped in [IgnorePointer] so it never
 /// steals a gesture from the playing surface.
 class PlaybackStatsHud extends StatelessWidget {

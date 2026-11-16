@@ -8,7 +8,7 @@ import 'package:dream_player/screens/settings_screen.dart';
 
 /// The Settings FAQ must render on BOTH platforms. The playback-engine entry
 /// is Android-only (iOS has a single AetherEngine path), but the rest are
-/// platform-agnostic — including the TheTVDB entry, which is what tells a user
+/// platform-agnostic - including the TheTVDB entry, which is what tells a user
 /// they can run on TheTVDB alone. The Metadata section that the FAQ refers to
 /// must also be present on iOS.
 void main() {
@@ -61,7 +61,7 @@ void main() {
   /// Scrolls the FAQ question into view, then taps it to expand.
   ///
   /// The settings list is a lazy ListView, so a long list (Android hides
-  /// nothing here but has more rows) may not have built the FAQ at all —
+  /// nothing here but has more rows) may not have built the FAQ at all -
   /// `ensureVisible` needs an existing finder, hence the scroll first.
   Future<void> expandFaq(WidgetTester tester, String question) async {
     final finder = find.text(question);

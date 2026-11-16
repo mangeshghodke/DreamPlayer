@@ -38,7 +38,7 @@ class LibSmb2ObjectCode {
   /// Copies the packaged archive into the app's Documents directory.
   ///
   /// Safe to call repeatedly: an existing archive is left alone. Never throws
-  /// — a missing archive is a licensing problem worth reporting in the UI,
+  /// - a missing archive is a licensing problem worth reporting in the UI,
   /// not a crash.
   static Future<LibSmb2ObjectCode> install() async {
     if (!Platform.isIOS) {

@@ -4,7 +4,7 @@ import 'entitlements.dart';
 
 /// iOS-only: request the AetherEngine MetalFX upscale stage (engine #846).
 ///
-/// The engine decides per load whether the stage applies — SDR content whose
+/// The engine decides per load whether the stage applies - SDR content whose
 /// smaller dimension is <= 1080 (SD / 720p / 1080p), 8-bit 4:2:0, on a
 /// MetalFX-capable Apple Silicon device running iOS 26+, with the display
 /// larger than the source. 4K and HDR/DV are never upscaled (the native
@@ -44,7 +44,7 @@ class IosUpscaleStore {
   /// The value the native side must act on: the saved preference, but only
   /// while the user is still entitled. The engine reads the pref directly
   /// from UserDefaults when building LoadOptions, so a lapsed subscription or
-  /// expired trial would otherwise leave the paid feature on for free — this
+  /// expired trial would otherwise leave the paid feature on for free - this
   /// turns it off and persists the correction before the next open.
   Future<bool> effectiveEnabled() async {
     final saved = await load();

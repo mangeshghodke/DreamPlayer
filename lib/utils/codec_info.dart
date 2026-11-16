@@ -40,7 +40,7 @@ bool isDolbyVisionCodec(String? codec) {
   final c = codec.toLowerCase();
   if (c.startsWith('dv')) return true;
   // Handle display labels that older builds / the filename extractor stored
-  // (e.g. "Dolby Vision") — dolbyVisionProfile returns null for generic
+  // (e.g. "Dolby Vision") - dolbyVisionProfile returns null for generic
   // "dolby vision" / "dovi" (no profile number), so the caller would
   // misclassify as non-DV.  Catch the label here directly.
   if (c.contains('dolby vision') || c.contains('dovi')) return true;
@@ -339,7 +339,7 @@ String languageName(String? code) {
   if (code == null || code.isEmpty) return code ?? '';
   final c = code.trim().toLowerCase();
   // "und" (undefined), "zxx" (no linguistic content), "mis" (uncoded),
-  // "qaa" (reserved) and similar mean "no real language" — render as empty
+  // "qaa" (reserved) and similar mean "no real language" - render as empty
   // so callers (e.g. the audio chip) fall back to just the codec/label.
   const noLanguage = {
     'und',
@@ -490,8 +490,8 @@ String formatLiveAudioLabel({
 ///
 /// Classifies on BOTH edges, not just the long one. A `maxDim >= 3840` test
 /// alone is wrong for the single most common shape of a 2160p release: the
-/// 2.39:1 scope crop. Real examples — 3832x1600, 3840x1600, 3840x1608,
-/// 4096x1716 — all carry a long edge a hair under 3840 (3832 is the classic
+/// 2.39:1 scope crop. Real examples - 3832x1600, 3840x1600, 3840x1608,
+/// 4096x1716 - all carry a long edge a hair under 3840 (3832 is the classic
 /// one) purely to save bits, and every one of them is 4K. Hence the second
 /// clause: a UHD-class long edge paired with a >= 1400px short edge is 4K
 /// regardless. Symmetrically, 2K accepts DCI's 2048x1080 rather than only
@@ -503,7 +503,7 @@ String friendlyResolution(int width, int height) {
   }
   final longEdge = width > height ? width : height;
   final shortEdge = width > height ? height : width;
-  // 8K first — 4320p / 7680x4320.
+  // 8K first - 4320p / 7680x4320.
   if (longEdge >= 7000) return '8K';
   // 4K: exact UHD long edge, OR a UHD-class crop (see the doc comment).
   if (longEdge >= 3840 || (longEdge >= 3000 && shortEdge >= 1400)) {

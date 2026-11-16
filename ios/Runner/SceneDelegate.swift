@@ -5,7 +5,7 @@ import UIKit
 /// On iPadOS the scene can be resized while the app is backgrounded/locked
 /// (Split View snapshot prep, flutter/flutter#128868). When that happens the
 /// window bounds change in the system's own layout pass, but the engine only
-/// re-creates its render surface from `viewDidLayoutSubviews` — and if the
+/// re-creates its render surface from `viewDidLayoutSubviews` - and if the
 /// view's frame was never re-set, the first frames after unlock are drawn
 /// into a stale surface and the whole UI reads as stretched for a moment.
 /// This swizzle forces the FlutterViewController's view to the window bounds
@@ -64,7 +64,7 @@ class SceneDelegate: FlutterSceneDelegate {
     super.sceneWillEnterForeground(scene)
     // Coming back from a real background/lock (not a quick app-switch):
     // cover the first frames with a soft-reload splash (app icon on black)
-    // so a stale surface is never presented — the whole UI used to read
+    // so a stale surface is never presented - the whole UI used to read
     // stretched for a moment here.
     if shouldShowUnlockSplash() {
       showUnlockSplash(scene)
@@ -73,7 +73,7 @@ class SceneDelegate: FlutterSceneDelegate {
     backgroundedAt = nil
     // The scene may already carry its new size here (iPadOS resizes it while
     // the app is backgrounded), so relayout BEFORE the first foreground frame
-    // is presented — otherwise that frame is drawn into a stale surface and
+    // is presented - otherwise that frame is drawn into a stale surface and
     // the whole UI reads as stretched for a moment.
     forceFlutterViewRelayout(scene)
     startRelayoutWatch(scene, for: 1.5)
@@ -121,7 +121,7 @@ class SceneDelegate: FlutterSceneDelegate {
   /// When the splash was first shown, so we can enforce a minimum display time.
   private var unlockSplashShownAt: Date?
   /// Set true once `relayoutTick` has observed root view bounds matching the
-  /// window bounds — i.e. the stretch fix has taken effect.
+  /// window bounds - i.e. the stretch fix has taken effect.
   private var layoutConfirmed = false
 
   /// The stretch is an unlock symptom, so only show the splash when the app
@@ -150,7 +150,7 @@ class SceneDelegate: FlutterSceneDelegate {
     // The app's theme colour instead of black, so the unlock reads as "the
     // app is coming back", not as a dead screen. This is the same pill colour
     // the NavigationBar paints behind the selected Library/Settings
-    // destination — `ColorScheme.primaryContainer` of the current accent,
+    // destination - `ColorScheme.primaryContainer` of the current accent,
     // computed in Dart and persisted to SharedPreferences (Material 3 tone
     // mapping is not re-implemented here).
     let accent = Self.currentSplashColor()
@@ -165,9 +165,9 @@ class SceneDelegate: FlutterSceneDelegate {
     // variant is the "AppIcon" alternate.
     //
     // NOTE: the icon comes from a dedicated *imageset* (SplashIcon…), not
-    // from the `.appiconset`. `UIImage(named:)` cannot load an app icon —
+    // from the `.appiconset`. `UIImage(named:)` cannot load an app icon -
     // the asset compiler treats app icons specially and they are not in the
-    // regular image namespace — so the old lookup returned nil and the
+    // regular image namespace - so the old lookup returned nil and the
     // splash showed as a blank (black) rectangle with no icon at all.
     let iconName = UIApplication.shared.alternateIconName ?? "AppIconMark"
     let imageSet = Self.splashImageSet(for: iconName)
@@ -186,7 +186,7 @@ class SceneDelegate: FlutterSceneDelegate {
                                     .flexibleTopMargin, .flexibleBottomMargin]
       splash.addSubview(imageView)
     } else {
-      // No icon is a packaging bug (missing imageset) — log it loudly
+      // No icon is a packaging bug (missing imageset) - log it loudly
       // instead of silently showing a bare coloured screen.
       SBMLog.log("unlock splash: ICON MISSING (imageSet=\(imageSet))")
     }
@@ -208,7 +208,7 @@ class SceneDelegate: FlutterSceneDelegate {
   /// minimum display time so the user never sees a flash of stretched UI.
   ///
   /// Called both on a retry timer and from `relayoutTick` when it observes
-  /// stable bounds. Safe to call multiple times — only the first call hides.
+  /// stable bounds. Safe to call multiple times - only the first call hides.
   private func tryHideUnlockSplash() {
     guard let splash = unlockSplash, let shownAt = unlockSplashShownAt else { return }
     let elapsed = Date().timeIntervalSince(shownAt)
@@ -221,7 +221,7 @@ class SceneDelegate: FlutterSceneDelegate {
       unlockSplashShownAt = nil
       return
     }
-    // Not ready yet — retry shortly.
+    // Not ready yet - retry shortly.
     let work = DispatchWorkItem { [weak self] in self?.tryHideUnlockSplash() }
     unlockSplashHideWork = work
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
@@ -292,7 +292,7 @@ class SceneDelegate: FlutterSceneDelegate {
   }
 
   /// Accent palette, kept in step with `AccentStore.accents`.
-  /// NOTE: the divisor is `255.0` (a floating-point literal) on purpose —
+  /// NOTE: the divisor is `255.0` (a floating-point literal) on purpose -
   /// `0x7C / 255` is INTEGER division in Swift and would be 0 (black).
   static func accentColor(for id: String?) -> UIColor {
     switch id {
@@ -340,7 +340,7 @@ class SceneDelegate: FlutterSceneDelegate {
       let target = window.bounds
       if target.width <= 0 || target.height <= 0 { continue }
       if rootView.bounds.width != target.width || rootView.bounds.height != target.height {
-        SBMLog.log("relayout watch: root \(rootView.bounds.size) != window \(target.size) — forcing")
+        SBMLog.log("relayout watch: root \(rootView.bounds.size) != window \(target.size) - forcing")
         rootView.frame = target
         rootView.setNeedsLayout()
         rootView.layoutIfNeeded()
@@ -354,7 +354,7 @@ class SceneDelegate: FlutterSceneDelegate {
         rootView.setNeedsLayout()
         rootView.layoutIfNeeded()
       } else {
-        // Bounds match the window — the stretch fix has taken effect.
+        // Bounds match the window - the stretch fix has taken effect.
         layoutConfirmed = true
         // If the splash is up, try to hide it (enforces the 1.5s minimum).
         tryHideUnlockSplash()
@@ -366,7 +366,7 @@ class SceneDelegate: FlutterSceneDelegate {
   /// `FlutterViewController` view is laid out again with changed bounds.
   /// iPadOS resizes the scene while the app is backgrounded/locked (Split View
   /// snapshot prep, flutter/flutter#128868), so on unlock the engine can keep
-  /// presenting a stale surface at the wrong size — the whole UI (library,
+  /// presenting a stale surface at the wrong size - the whole UI (library,
   /// Jellyfin/WebDAV lists, settings) renders stretched / aspect-mismatched
   /// until some unrelated later layout pass happens to re-measure it.
   /// Force a synchronous re-layout on foreground, nudging the frame so the
@@ -406,7 +406,7 @@ class SceneDelegate: FlutterSceneDelegate {
 /// shade of the same hue at the bottom, so the screen reads as branded
 /// instead of a flat black rectangle.
 ///
-/// The gradient layer is resized in `layoutSubviews` — the splash is added
+/// The gradient layer is resized in `layoutSubviews` - the splash is added
 /// straight to the window and the window can be resized (rotation, Split
 /// View) while it is up.
 final class DreamPlayerGradientView: UIView {
@@ -443,7 +443,7 @@ final class DreamPlayerGradientView: UIView {
 }
 
 extension UIColor {
-  /// Multiplies the RGB components by [factor] (alpha untouched) — used to
+  /// Multiplies the RGB components by [factor] (alpha untouched) - used to
   /// derive the darker end of the splash gradient from the accent colour.
   func dreamplayerDarker(by factor: CGFloat) -> UIColor {
     var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
@@ -451,7 +451,7 @@ extension UIColor {
     return UIColor(red: r * factor, green: g * factor, blue: b * factor, alpha: a)
   }
 
-  /// `#RRGGBB` — logged so the device log says which accent was used.
+  /// `#RRGGBB` - logged so the device log says which accent was used.
   var dreamplayerHex: String {
     var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
     guard getRed(&r, green: &g, blue: &b, alpha: &a) else { return "#000000" }

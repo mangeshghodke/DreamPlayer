@@ -58,7 +58,7 @@ class SubtitleFonts {
   static final Map<String, Future<String?>> _inFlight = {};
 
   /// Absolute path to a TTF for [family], or null when it cannot be resolved.
-  /// [resolve] never throws — a missing font must not break playback.
+  /// [resolve] never throws - a missing font must not break playback.
   static Future<String?> resolvePath(String? family) {
     if (family == null || family.isEmpty) return Future.value(null);
     return _inFlight.putIfAbsent(
@@ -92,7 +92,7 @@ class SubtitleFonts {
       final target = File('$dirPath/${_fileStem(family)}.ttf');
       if (await target.exists() && await target.length() > 0) {
         // A copy made earlier can be wrong (a loose match, a truncated
-        // write). Ask the file what it is instead of trusting its name —
+        // write). Ask the file what it is instead of trusting its name -
         // otherwise one bad copy is reused on every open, forever.
         final names = ttfNameTableNames(await target.readAsBytes());
         if (names.any((n) => fontNameMatches(n, family))) {
@@ -162,7 +162,7 @@ class SubtitleFonts {
   ///
   /// The picked file is copied into `<app support>/subtitle_fonts/` (a real
   /// path the native renderers can open) and its own `name` table is read for
-  /// the display family name — the file name is not a reliable family name.
+  /// the display family name - the file name is not a reliable family name.
   /// Returns the registered `{path, displayName}`, or null when the user
   /// cancelled / the copy failed / the file is not a font.
   static Future<({String path, String displayName})?> registerCustomFont() async {
@@ -204,7 +204,7 @@ class SubtitleFonts {
     }
   }
 
-  /// The custom font path is stored directly on `SubtitleStyle` — it is
+  /// The custom font path is stored directly on `SubtitleStyle` - it is
   /// already a real file, so resolution is just an existence check (the source
   /// provider may be gone, which is why the copy in `registerCustomFont`
   /// matters).

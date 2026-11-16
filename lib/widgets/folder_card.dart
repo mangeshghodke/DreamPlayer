@@ -30,7 +30,7 @@ class FolderCard extends StatefulWidget {
     this.groupCount,
     this.selected = false,
 
-    /// User-entered manual group name — wins over TMDB/folder titles when
+    /// User-entered manual group name - wins over TMDB/folder titles when
     /// set (this card represents a manual group the user created).
     this.displayNameOverride,
   });
@@ -47,7 +47,7 @@ class FolderCard extends StatefulWidget {
     /// Number of folders collapsed into this card (Flux-style series group).
   final int? groupCount;
 
-  /// User-entered manual group name — wins over TMDB/folder titles.
+  /// User-entered manual group name - wins over TMDB/folder titles.
   final String? displayNameOverride;
 
   /// Whether this card is currently selected in multi-select mode.

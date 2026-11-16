@@ -80,7 +80,7 @@ extern "C" {
 #define KEY_WRITE                    0x00020006
 #define KEY_EXECUTE                  0x00020019
 #define KEY_ALL_ACCESS               0x000F003F
-/* STANDARD_RIGHTS DELETE — needed for BaseRegDeleteKey */
+/* STANDARD_RIGHTS DELETE - needed for BaseRegDeleteKey */
 #define WINREG_DELETE                0x00010000
 
 struct dcerpc_context;
@@ -385,7 +385,7 @@ struct winreg_BaseRegSetValue_rep {
  * );
  *
  * lpValueNameIn: content ignored; MaximumLength is the name buffer size
- * (same EnumKey pattern — use plain RPC_UNICODE_STRING + max_length).
+ * (same EnumKey pattern - use plain RPC_UNICODE_STRING + max_length).
  * On request set cbData to the client data buffer capacity and point
  * lpData at a buffer of that size (may be zero-filled). cbLen is the
  * number of bytes transmitted (0 on request is fine).

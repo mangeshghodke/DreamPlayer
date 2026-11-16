@@ -1,5 +1,5 @@
 /// Pure helpers for the WiFi upload server (competitor-gap #1): filename
-/// sanitizing and URL building. No Flutter, no IO — unit-tested in
+/// sanitizing and URL building. No Flutter, no IO - unit-tested in
 /// `test/upload_url_test.dart`.
 library;
 
@@ -10,8 +10,16 @@ const int kWifiUploadDefaultPort = 8080;
 /// How many characters of a file name we keep (extension included).
 const int kUploadNameMaxLength = 120;
 
+/// The one path prefix the upload server serves. Deliberately short and
+/// token-free (user request): the URL a user types into a PC browser is
+/// `http://<ip>:<port>/wifi-transfer/`, the same shape as every other
+/// LAN file-transfer feature. The server only listens while the user turns
+/// it on, and it is bound to the LAN, so the trade is usability over
+/// secrecy - stated on the transfer screen itself.
+const String kUploadPathPrefix = '/wifi-transfer';
+
 /// Sanitizes a file name coming from the upload HTTP request into a safe local
-/// name. Strips path components (both `/` and `\` — a browser sends the bare
+/// name. Strips path components (both `/` and `\` - a browser sends the bare
 /// name, but a crafted request can send `../../x`), removes control
 /// characters, refuses the `.` / `..` / Windows-reserved names, caps the
 /// length (keeping the extension), and falls back when nothing is left.
@@ -22,14 +30,14 @@ String sanitizeUploadName(String raw) {
   final cut = slash > backslash ? slash : backslash;
   if (cut >= 0) name = name.substring(cut + 1);
 
-  // Drop control characters (0x00-0x1F, 0x7F) — they break file systems and
+  // Drop control characters (0x00-0x1F, 0x7F) - they break file systems and
   // can confuse log/parse code downstream.
   name = name.replaceAll(RegExp(r'[\x00-\x1f\x7f]'), '');
   name = name.trim();
 
   if (name.isEmpty || name == '.' || name == '..') return 'upload.bin';
 
-  // Windows-reserved base names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) — reject
+  // Windows-reserved base names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) - reject
   // even though we usually run on Linux/Android; the file may be synced to a
   // Windows machine via SMB later.
   final base = name.split('.').first.toUpperCase();
@@ -64,18 +72,28 @@ String dedupeUploadName(String name, Set<String> existingNames) {
 }
 
 /// Builds the browse URLs shown to the user (and opened in a PC browser):
-/// `http://<lan-ip>:<port>/u/<token>/` for each LAN address.
-List<String> buildUploadUrls(
-    List<String> addresses, int port, String token) {
+/// `http://<lan-ip>:<port>/wifi-transfer/` for each LAN address.
+List<String> buildUploadUrls(List<String> addresses, int port) {
   return addresses
       .where((a) => a.isNotEmpty)
-      .map((a) => 'http://$a:$port/u/$token/')
+      .map((a) => 'http://$a:$port$kUploadPathPrefix/')
       .toList();
 }
 
-/// The upload endpoint path for a given token: raw-body POST, file name in the
-/// query (avoids multipart parsing on both native servers).
-String uploadEndpointPath(String token, String fileName) {
+/// The upload endpoint path: raw-body POST, file name in the query (avoids
+/// multipart parsing on both native servers).
+String uploadEndpointPath(String fileName) {
   final enc = Uri.encodeComponent(fileName);
-  return '/u/$token/upload?name=$enc';
+  return '$kUploadPathPrefix/upload?name=$enc';
+}
+
+/// Human-readable size for the transfer progress rows (`1.4 GB`).
+String formatUploadBytes(int bytes) {
+  if (bytes < 0) return '?';
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+  if (bytes < 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
 }

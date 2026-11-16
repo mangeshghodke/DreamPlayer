@@ -73,7 +73,7 @@ class MetaImage {
 /// enrichment, TheTVDB re-fetch) replaces the cached [TmdMeta] wholesale, so an
 /// override stored inside it would be silently dropped on the next refresh. Here
 /// it is applied at read time by [TmdService.metaFor], so a pick survives every
-/// kind of re-resolution and — just as important — survives a "Fix match" that
+/// kind of re-resolution and - just as important - survives a "Fix match" that
 /// changes which film this key points at.
 class ArtworkOverrideStore {
   ArtworkOverrideStore._();
@@ -167,7 +167,7 @@ String normaliseMetaTitle(String title) =>
 ///
 /// The two providers share no ids, so finding one title in both means a title
 /// search. That search is strict (exact normalised-title match) and, for many
-/// real titles, simply misses — aliases, Japanese vs English names, subtitle
+/// real titles, simply misses - aliases, Japanese vs English names, subtitle
 /// variants. This store turns that into a one-off: a pair is recorded **only
 /// after a strict match has already succeeded**, so a map hit can never
 /// surface artwork from a different show. Every later open of that title is a

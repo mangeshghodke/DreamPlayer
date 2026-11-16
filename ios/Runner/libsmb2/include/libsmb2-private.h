@@ -742,7 +742,7 @@ int dcerpc_get_cr(struct dcerpc_pdu *pdu);
 
 int dcerpc_align_3264(struct dcerpc_context *ctx, int offset);
 
-/* YAML/JSON helpers — full libdcerpc only (not minimal libsmb2 share enum) */
+/* YAML/JSON helpers - full libdcerpc only (not minimal libsmb2 share enum) */
 #ifdef HAVE_DCERPC_FULL
 char *dcerpc_pdu_yaml_key(struct dcerpc_pdu *pdu);
 char *dcerpc_pdu_yaml_val(struct dcerpc_pdu *pdu);

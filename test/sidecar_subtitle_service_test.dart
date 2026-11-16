@@ -46,7 +46,7 @@ void main() {
       // it as a generic http(s) source and issued blocking sibling-subtitle
       // GET probes against the Jellyfin server *before* playback started,
       // hanging the player ("does not work at all"). This must resolve to
-      // empty without any network — just an empty webdavServerId.
+      // empty without any network - just an empty webdavServerId.
       final video = VideoItem(
         id: 'x',
         title: 'x',
@@ -75,7 +75,7 @@ void main() {
     });
 
     test('preserves server-flagged default', () {
-      // Even if "a" is listed first, "b" is already default — don't touch.
+      // Even if "a" is listed first, "b" is already default - don't touch.
       final subs = [
         _sub('a'),
         _sub('b', isDefault: true),
@@ -129,7 +129,7 @@ void main() {
     });
 
     test('strips a /dav mount prefix (leading-slash normalization)', () {
-      // urlBasePath yields `/dav`, _parseHttpUri yields `dav/Movies/...` —
+      // urlBasePath yields `/dav`, _parseHttpUri yields `dav/Movies/...` -
       // the ordering bug that hid all WebDAV sidecars on a /dav-mounted server.
       expect(
           SidecarSubtitleService.relativeToBasePath('/dav',
@@ -161,7 +161,7 @@ void main() {
 
     test('decoded video path pairs with decoded sidecar', () {
       // This is what `_findWebDavOrHttp` now produces after the
-      // `Uri.decodeComponent` fix — the two MOST match.
+      // `Uri.decodeComponent` fix - the two MOST match.
       final subs = SidecarSubtitleService.instance.buildSubs(
         source: [(decodedSidecar.split('/').last, decodedSidecar)],
         videoPath: decodedVideo,

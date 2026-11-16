@@ -66,7 +66,7 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> with WidgetsBindingObse
       final base = intent.toVideoItem();
       // Jellyfin "Open in external player": the raw stream URL carries no
       // external subtitle tracks, so re-match it to a saved server + item and
-      // attach the sidecars the same way in-app playback does. Best-effort —
+      // attach the sidecars the same way in-app playback does. Best-effort -
       // falls back to the raw URL on any failure.
       final video = await _enrichIntentVideo(base);
       if (!mounted) return;

@@ -28,7 +28,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     const message =
-        'Above 100% can damage your speakers — use at your own risk';
+        'Above 100% can damage your speakers - use at your own risk';
     await tester.pumpWidget(host(message));
     await tester.pumpAndSettle();
 
@@ -44,7 +44,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(host(
-      'Above 100% can damage your speakers — use at your own risk',
+      'Above 100% can damage your speakers - use at your own risk',
     ));
     await tester.pumpAndSettle();
 

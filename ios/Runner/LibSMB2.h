@@ -7,7 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// NSError domain used by every LibSMB2 failure, so Swift can check
 /// `error.domain == LibSMB2ErrorDomain` before trusting its `code` (which is
-/// the raw libsmb2 errno — ENOENT means the path was deleted on the server).
+/// the raw libsmb2 errno - ENOENT means the path was deleted on the server).
 extern NSString *const LibSMB2ErrorDomain;
 
 /// One SMB server identified on the LAN.
@@ -17,7 +17,7 @@ extern NSString *const LibSMB2ErrorDomain;
 /// Negotiated dialect, e.g. 0x0311 for SMB 3.1.1. 0 when the probe did not get
 /// far enough to negotiate.
 @property(nonatomic, assign) uint16_t dialect;
-/// Server GUID from the negotiate response — a stable identity for the host,
+/// Server GUID from the negotiate response - a stable identity for the host,
 /// unlike an IP that can change.
 @property(nonatomic, copy, nullable) NSString *serverGuid;
 /// `SMB 3.1.1`, `SMB 2.1`, … for display. Empty when unknown.
@@ -31,13 +31,13 @@ extern NSString *const LibSMB2ErrorDomain;
 ///
 /// Phase 1 is server identification only. The distinction that matters: a bare
 /// TCP connect to 445 proves something is listening, not that it is SMB. This
-/// completes a real SMB negotiate against IPC$ — the share every Windows and
-/// Samba server exposes and which normally permits anonymous access — and then
+/// completes a real SMB negotiate against IPC$ - the share every Windows and
+/// Samba server exposes and which normally permits anonymous access - and then
 /// reports back the negotiated dialect and the server's GUID.
 /// One open SMB file, read by explicit offset.
 ///
 /// `smb2_pread` is positional: it takes the offset as an argument and keeps no
-/// cursor. That is the property the whole playback design rests on — a source
+/// cursor. That is the property the whole playback design rests on - a source
 /// built over this can be thrown away and rebuilt at any moment, and the
 /// engine's container probe then reads real bytes instead of nothing. The
 /// previous ring-buffer reader was one-shot (drained, cursor at EOF by the time a
@@ -77,8 +77,8 @@ extern NSString *const LibSMB2ErrorDomain;
 
 /// A logged-in session with one tree connection, owning the `smb2_context`.
 ///
-/// The context is not thread-safe — libsmb2 keeps its message-id counter and
-/// credit state in plain struct fields — so every read goes through the caller's
+/// The context is not thread-safe - libsmb2 keeps its message-id counter and
+/// credit state in plain struct fields - so every read goes through the caller's
 /// lock rather than being made concurrent here.
 @interface LibSMB2Session : NSObject
 /// Takes ownership of an already-connected context. Private because a session
@@ -102,7 +102,7 @@ extern NSString *const LibSMB2ErrorDomain;
 /// Stats one path (file or directory) without keeping a handle. Blocking.
 /// On failure the error's `code` is the raw errno from libsmb2, so callers
 /// can tell ENOENT / ENOTDIR ("path deleted on the server") apart from a
-/// network failure — only the former may prune stored entries.
+/// network failure - only the former may prune stored entries.
 - (BOOL)statPath:(NSString *)relativePath
       isDirectory:(BOOL *)outIsDir
             error:(NSError *_Nullable *_Nullable)error;
@@ -132,7 +132,7 @@ extern NSString *const LibSMB2ErrorDomain;
 /// Identifies one host. Blocking; call from a background queue.
 ///
 /// `timeoutSeconds` bounds the whole attempt so a filtered port cannot stall the
-/// sweep — a host that drops packets (rather than refusing) is the common case
+/// sweep - a host that drops packets (rather than refusing) is the common case
 /// and would otherwise cost the full timeout each.
 + (LibSMB2Server *)probeHost:(NSString *)host
                        port:(uint16_t)port
@@ -156,13 +156,13 @@ extern NSString *const LibSMB2ErrorDomain;
                                      timeout:(int)timeoutSeconds
                                          error:(NSError *_Nullable *_Nullable)error;
 
-/// Share names to probe, because SMB2 has no share-enumeration call — the same
+/// Share names to probe, because SMB2 has no share-enumeration call - the same
 /// limitation Android works around the same way.
 + (NSArray<NSString *> *)commonShareNames;
 
 /// Probes each common share name and returns the ones that exist, in listing
 /// order. SMB2 cannot enumerate shares, so a share with an unusual name has to
-/// be added by hand — mirrored by the existing "Add share" affordance.
+/// be added by hand - mirrored by the existing "Add share" affordance.
 + (nullable NSArray<NSString *> *)listSharesForHost:(NSString *)host
                                                 port:(uint16_t)port
                                                 user:(nullable NSString *)user

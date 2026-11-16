@@ -281,7 +281,7 @@ object SubtitleFormats {
     /// Sibling `.sub` payload URI for a VobSub `.idx`, or null when [uri] is not
     /// an `.idx` at all.
     ///
-    /// Only the extension is rewritten — the directory, and any SAF tree or
+    /// Only the extension is rewritten - the directory, and any SAF tree or
     /// content authority in the URI, is preserved, so this works for local
     /// files and for tree-backed paths alike. Existence is not checked here;
     /// the caller decides how to handle an `.idx` with no payload beside it.

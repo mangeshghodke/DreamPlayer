@@ -10,7 +10,7 @@ import androidx.media3.common.C
  *
  * Positive delay = audio plays LATER (held back in a pending buffer);
  * negative delay = audio plays EARLIER (leading samples are dropped).
- * The delay is dynamic — changing it mid-stream takes effect immediately:
+ * The delay is dynamic - changing it mid-stream takes effect immediately:
  * increasing holds back more audio, reducing flushes the excess (audio jumps
  * forward), crossing into negative starts dropping.
  *
@@ -92,7 +92,7 @@ class AudioDelayProcessor : AudioProcessor {
             // Negative delay: drop the leading samples of the stream.
             // Audio still held back from a POSITIVE delay (the slider was
             // dragged straight through 0, e.g. +2000ms to -500ms, with no
-            // call landing on exactly 0) must be drained here too — this and
+            // call landing on exactly 0) must be drained here too - this and
             // the delay==0 branch above are the only places that read
             // `pending`, so without this the buffered audio was stranded
             // until one glitchy burst at end-of-stream, or silently lost if

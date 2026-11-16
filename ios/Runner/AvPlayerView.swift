@@ -136,7 +136,7 @@ private final class SubtitleOverlayView: UIView {
     }
 
     /// Registers a font file with CoreText for this process and returns its
-    /// PostScript name. Registration is idempotent — a duplicate returns false
+    /// PostScript name. Registration is idempotent - a duplicate returns false
     /// but the descriptors are still created, which is what we need. Never
     /// fatal: a missing/corrupt file just falls back to the built-in map.
     ///
@@ -144,7 +144,7 @@ private final class SubtitleOverlayView: UIView {
     /// TTFs carry `full = "Poppins Regular"` and `postscript =
     /// "Poppins-Regular"`; asking CoreText for `kCTFontNameAttribute` returns
     /// the FULL name, `UIFont(name: "Poppins Regular")` is nil, and the
-    /// renderer silently fell back to the system font — so a Google family
+    /// renderer silently fell back to the system font - so a Google family
     /// showed in the settings preview (Flutter resolves it itself) but not in
     /// the video. Try the PostScript name first and only accept a name that
     /// actually resolves to a font.
@@ -175,7 +175,7 @@ private final class SubtitleOverlayView: UIView {
             return nil
         }
         // `CTFontCopyPostScriptName` is the accessor that exists on every
-        // deployment target — there is no `kCTFontPostScriptNameAttribute`
+        // deployment target - there is no `kCTFontPostScriptNameAttribute`
         // constant in CoreText (the build fails with "cannot find in scope"),
         // and `kCTFontNameAttribute` is the FULL name, which is the wrong one.
         let font = CTFontCreateWithFontDescriptor(descriptor, 12, nil)
@@ -226,7 +226,7 @@ private final class SubtitleOverlayView: UIView {
         }
     }
 
-    /// Builds the attributed cue text — the iOS equivalent of what Media3's
+    /// Builds the attributed cue text - the iOS equivalent of what Media3's
     /// `CaptionStyleCompat` does (font, colors, and a real glyph stroke).
     private func styledText(_ text: String) -> NSAttributedString {
         let base = CGFloat(17 * styleSize.clamped(0.6...2.0))
@@ -451,7 +451,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     ///
     /// Profile 4 is single-layer IPTPQc2: unlike P7/P8 it carries **no
     /// backward-compatible HDR10 base layer**, so there is no plain-HEVC
-    /// fallback to degrade into — and AVFoundation does not decode P4 at all
+    /// fallback to degrade into - and AVFoundation does not decode P4 at all
     /// (Apple supports P8, and P5 on Apple Silicon). P4 is a broadcast/IPTV
     /// profile rather than a consumer-delivery one.
     private var dvUnsupportedProfile: String?
@@ -472,7 +472,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     // async (`ByteRangeSource`) or a live cursor (SMB `pread`). So we retain the
     // reader that playback is already using and read the chapter windows
     // through it after load, rather than opening a second connection.
-    /// WebDAV only — that source really is a `ByteRangeSource`. FTP/SFTP
+    /// WebDAV only - that source really is a `ByteRangeSource`. FTP/SFTP
     /// arrives as a `BufferedSMBReader` cursor and in-app SMB as an
     /// `IOReader`, so both use [chapterCursor] instead.
     private var chapterByteSource: ByteRangeSource?
@@ -517,7 +517,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
      /// Set when the app enters background; cleared on foreground.
      /// When play() is called while this is true, reload the session
-     /// instead of calling play() — iOS may have revoked file handles
+     /// instead of calling play() - iOS may have revoked file handles
      /// (security-scoped bookmarks) or killed network connections during sleep.
      private var needsReloadAfterBackground = false
      /// Final URL the engine was bound to (file URL for local paths, otherwise
@@ -529,7 +529,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
      /// the engine probe can drop DV info when loading with a start position,
      /// which would regress the badge to SDR. Only cleared when a different
      /// file is opened.
-     /// **Static** — survives across AvPlayerView recreations (navigating back
+     /// **Static** - survives across AvPlayerView recreations (navigating back
      /// and tapping the same card again creates a fresh instance).
      private static var lastOpenedKey: String?
 
@@ -546,7 +546,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private var isHdr10PlusContent = false
     private var isHdr10Content = false
 
-    /// Night Mode (DRC) — persisted in UserDefaults under the
+    /// Night Mode (DRC) - persisted in UserDefaults under the
     /// FlutterSharedPreferences key so Dart and native stay in sync.
     ///
     /// iOS has no volume boost (see `makeAudioShaping`), so there is no boost
@@ -601,7 +601,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     private var lastSystemVolume: Float?
 
     /// The AudioShaping the three DSP controls ask for. Boost is flat make-up
-    /// gain (ratio 1 — transparent; the graph's -1 dBFS alimiter caps the sum),
+    /// gain (ratio 1 - transparent; the graph's -1 dBFS alimiter caps the sum),
     /// night mode is the engine's own `Compressor.night` preset with the
     /// boost's make-up stacked on it (10 + ~9.5 dB max, inside the 24 dB
     /// clamp), and bass is the low shelf at 100 Hz. All three off returns the
@@ -613,7 +613,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         // NO volume boost and NO bass boost on iOS. Both are engine DSP here,
         // and every DSP change rebuilds the audio session at the playhead (the
         // engine's `reanchorForAudioShaping` -> `reloadAtCurrentPosition`),
-        // which reloads the video — so a boost that moved with the volume
+        // which reloads the video - so a boost that moved with the volume
         // gesture reloaded the picture on every step. The bass row was also
         // gated behind spatial audio being engaged, so it was unreachable for
         // anyone not wearing spatial-audio headphones.
@@ -648,7 +648,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         // DEBOUNCED, and the debounce must NOT be gated on the engine's
         // state: the rebuild itself puts the engine into .loading, so a
         // state-based check would let the NEXT change apply immediately and
-        // rebuild again — a video reload per gesture increment.
+        // rebuild again - a video reload per gesture increment.
         shapingWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
             self?.shapingWorkItem = nil
@@ -668,14 +668,14 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     ///
     /// Written by the Dart store (`dreamplayer.spatialAudio`);
     /// shared_preferences prefixes its keys with `flutter.` on iOS. Default
-    /// OFF — spatial audio is a paid feature, so a free user never has it on.
+    /// OFF - spatial audio is a paid feature, so a free user never has it on.
     private var spatialAudioEnabled: Bool {
         UserDefaults.standard.object(forKey: "flutter.dreamplayer.spatialAudio") as? Bool ?? false
     }
 
     /// Whether "Downmix to stereo" (Settings -> Audio) is on.
     ///
-    /// NOT a premium feature — unlike spatial audio it is not gated: it
+    /// NOT a premium feature - unlike spatial audio it is not gated: it
     /// applies to any 5.1/7.1 file, including ordinary SDR content that free
     /// users can already play, so no entitlement check is applied here.
     /// Written by the Dart store (`dreamplayer.audioDownmix`);
@@ -695,15 +695,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// The enforcement is per pipeline, and the pipeline decides which lever
     /// exists.
     ///
-    /// **Native AVPlayer path** — exact: the item's
+    /// **Native AVPlayer path** - exact: the item's
     /// `allowedAudioSpatializationFormats` is the opt-in, and an empty set
     /// disables spatialization WITHOUT downmixing, so 5.1/7.1 survives.
     ///
-    /// **Software path** — the engine's renderer opts itself into
+    /// **Software path** - the engine's renderer opts itself into
     /// `.multichannel` inside an internal `AudioOutput` the host cannot
     /// reach, so the audio session is the only lever: a session without
     /// multichannel support cannot spatialize, so it is asked for stereo.
-    /// That costs 5.1/7.1 on that route — the documented price of the gate.
+    /// That costs 5.1/7.1 on that route - the documented price of the gate.
     ///
     /// The session is NEVER touched on the native path, because a session
     /// without multichannel support would downmix the native path too and
@@ -711,7 +711,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     ///
     /// `setSupportsMultichannelContent` is an XPC round-trip to mediaserverd
     /// and must not run on the main thread while the session is active, so it
-    /// goes off-main — the engine declares its own pair the same way.
+    /// goes off-main - the engine declares its own pair the same way.
     ///
     /// Returns true when something was applied, so the caller only re-emits
     /// on a real change.
@@ -726,7 +726,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         lastDownmixApplied = downmix
 
         // Downmix ON wins over spatial: a stereo session cannot spatialize,
-        // and that is the point — the user asked for plain stereo output.
+        // and that is the point - the user asked for plain stereo output.
         if let item = findPlayerLayer()?.player?.currentItem {
             item.allowedAudioSpatializationFormats = (enabled && !downmix) ? .multichannel : []
             if downmix {
@@ -799,7 +799,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         eventChannel.setStreamHandler(self)
         // Keep the pip auto-inline flag in sync when the Settings toggle
         // changes while a player is alive. The token is kept so deinit can
-        // remove it — an unremoved block observer accumulates one entry per
+        // remove it - an unremoved block observer accumulates one entry per
         // player view for the whole session.
         notificationTokens.append(
             NotificationCenter.default.addObserver(
@@ -884,7 +884,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         if !reloaded, self.lastError != nil {
                             // A real failure (not a superseded reload): keep the
                             // flag so the next play tries to rebuild the source
-                            // again — the network may have come back.
+                            // again - the network may have come back.
                             self.needsReloadAfterBackground = true
                         }
                     } else {
@@ -923,7 +923,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 case "setRepeatMode":
                     // Repeat-one is handled in Dart on iOS: the engine's
                     // `.ended` is terminal, so the Dart ended-handler restarts
-                    // the file. There is nothing native to do — but the case
+                    // the file. There is nothing native to do - but the case
                     // has to exist, or the queued call comes back as a
                     // MissingPluginException.
                     SBMLog.log("setRepeatMode: ignored on iOS (handled in Dart)")
@@ -962,7 +962,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     if index >= 0 {
                         self.selectedAudioTrackFlatPos = index
                     }
-                    // Suppress error emission for 2 s — the in-place switch
+                    // Suppress error emission for 2 s - the in-place switch
                     // can transiently error during screen recording or a brief
                     // codec re-init, but AVPlayer recovers on its own.
                     self.audioSwitchSuppressUntil = Date().addingTimeInterval(2.0)
@@ -980,7 +980,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // A resumed network session reports a live playhead of ~0
                     // until `reassertPosition` lands it, so a reload aimed at the
                     // playhead would discard the resume. Prefer the position the
-                    // session is still trying to reach — but only while the
+                    // session is still trying to reach - but only while the
                     // playhead is still at the start, so a stale target can never
                     // yank the viewer back once playback has moved on.
                     let livePosition = self.engine?.currentTime ?? .zero
@@ -1001,7 +1001,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // Two cases need no reload on SMB:
                     //  * Dart auto-restores the saved audio track ~500 ms after
                     //    open, at position 0, while the initial load is still
-                    //    settling — reloading there is pure cost and raced the
+                    //    settling - reloading there is pure cost and raced the
                     //    load it was meant to fix.
                     //  * A genuine mid-playback switch still needs a fresh
                     //    reader, because the in-place attempt cannot rewind.
@@ -1017,12 +1017,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     let skipInPlace = self.isSMBStream && !atSessionStart
                     if atSessionStart && self.isSMBStream {
                         SBMLog.log(
-                            "selectAudioTrack: SMB — at session start, "
+                            "selectAudioTrack: SMB - at session start, "
                             + "taking the track in place")
                         self.engine?.selectAudioTrack(index: trackId)
                     } else if skipInPlace {
                         SBMLog.log(
-                            "selectAudioTrack: SMB — skipping the in-place "
+                            "selectAudioTrack: SMB - skipping the in-place "
                             + "attempt, reloading directly at \(resumeAt)s")
                     } else {
                         SBMLog.log("selectAudioTrack: in-place attempt at \(resumeAt)s")
@@ -1036,7 +1036,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // error (it can silently no-op the switch), so proactively
                     // reload the session from the position we captured above and
                     // re-apply the chosen track to guarantee the selection takes
-                    // effect. Local files are left alone — AVPlayer handles
+                    // effect. Local files are left alone - AVPlayer handles
                     // in-place track selection natively without a reload, which
                     // avoids conflicting with ReplayKit during screen recording.
                     let scheme = self.currentSourceURL?.scheme?.lowercased()
@@ -1050,8 +1050,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             guard let self, self.engine != nil else { return }
                             // Hold playback across a SESSION-START restore.
                             //
-                            // A custom source cannot switch tracks in place — the
-                            // engine must re-probe — so the saved track can only
+                            // A custom source cannot switch tracks in place - the
+                            // engine must re-probe - so the saved track can only
                             // be applied after a reload, and a reloaded session
                             // autoplays the container's default track. The viewer
                             // heard that default (Hindi) for the ~300ms before
@@ -1085,7 +1085,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             // autoplay: false so the reloaded session is paused
                             // the instant it exists; the defer above starts it once
                             // the saved track has been applied.
-                            // `reassertAudioTrack: false` — this path applies
+                            // `reassertAudioTrack: false` - this path applies
                             // the track itself, right below; the reload must not
                             // apply the previous one as well.
                             await self.reloadSession(
@@ -1114,7 +1114,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                             self.engine?.selectAudioTrack(index: trackId2)
                             // Re-applying the selection makes the engine
                             // re-probe the container, which drops the playhead
-                            // a second time — put it back where it was.
+                            // a second time - put it back where it was.
                             await self.reassertPosition(resumeAt, attempts: 3)
                             SBMLog.log("selectAudioTrack: reloaded + re-asserted")
                             self.emit()
@@ -1199,10 +1199,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 case "setAudioDownmix":
                     // Downmix to stereo: persist the pref (the load paths read
                     // it from UserDefaults) and re-apply the session levers.
-                    // Not paywalled — it applies to free SDR 5.1/7.1 too.
+                    // Not paywalled - it applies to free SDR 5.1/7.1 too.
                     let downmixOn = (args?["enabled"] as? Bool) ?? false
                     UserDefaults.standard.set(downmixOn, forKey: "flutter.dreamplayer.audioDownmix")
-                    SBMLog.log("setAudioDownmix: \(downmixOn) — stereo session lever applied")
+                    SBMLog.log("setAudioDownmix: \(downmixOn) - stereo session lever applied")
                     self.applySpatialAudio(force: true)
                     self.emit()
                     result(nil)
@@ -1210,7 +1210,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     // MetalFX upscale stage (engine #846) is a LOAD option: the
                     // engine decides per load whether the stage applies (SDR,
                     // SD/720p/1080p, MetalFX device, display larger). There is
-                    // no live mid-session toggle — a reload mid-playback did
+                    // no live mid-session toggle - a reload mid-playback did
                     // not actually engage the stage, so the pref is persisted
                     // and applies on the NEXT open/reload. open() reads the
                     // same pref when building LoadOptions.
@@ -1310,7 +1310,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             result(FlutterError(code: "engine_init", message: "AetherEngine failed to initialize", details: nil))
             return
         }
-         // New file is being opened — clear the background-reload flag so we
+         // New file is being opened - clear the background-reload flag so we
          // don't immediately reload a freshly-opened source.
          needsReloadAfterBackground = false
          let path = args?["path"] as? String
@@ -1319,7 +1319,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          // Carries the saved SMB server id ("smb:<id>/<share>/<path>"), which
          // is how a raw smb:// URI is matched back to its credentials.
          let resumeKey = args?["resumeKey"] as? String
-         // Identity of the source being opened — used to detect
+         // Identity of the source being opened - used to detect
          // same-file re-opens (resume/replay) where the engine probe
          // may drop DV info when loading with a start position.
          let newKey = (path ?? uri ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1369,13 +1369,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // A bookmarked folder card or Continue-Watching entry hands the
             // player its stored smb:// URI rather than a token, and the engine
             // has no smb scheme. Resolving it means a blocking SMB handshake,
-            // so it is built inside the load Task like the FTP/WebDAV paths —
+            // so it is built inside the load Task like the FTP/WebDAV paths -
             // doing it here froze the main thread on a spinner.
             //
             // The condition above tests `uri` with optional chaining, so it does
             // not bind it: unwrap here. A resumed item may also carry no `uri`
             // at all (path only), in which case the durable resume key is the
-            // only handle — synthesise an smb:// URI from it so the load Task
+            // only handle - synthesise an smb:// URI from it so the load Task
             // has something to work from.
             if let stored = uri {
                 smbUri = stored
@@ -1393,7 +1393,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         } else if let uri, uri.lowercased().hasPrefix("ftp://") || uri.lowercased().hasPrefix("sftp://") {
             // FTP/SFTP playback: the engine has no FTP stack, so serve it via
             // FtpClient's ByteRangeSource (plain-FTP REST reads or Citadel
-            // SFTP offset reads) wrapped in BufferedSMBReader read-ahead —
+            // SFTP offset reads) wrapped in BufferedSMBReader read-ahead -
             // the same shape as the WebDAV path below. Built inside the load
             // Task so the blocking handshake never touches the main thread.
             ftpUri = uri
@@ -1405,7 +1405,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // WebDAV playback: auth headers AND self-signed HTTPS can't go
             // through AetherEngine's own HTTP stack (no headers API, and its
             // TLS validation can't be bypassed), so serve the stream as a
-            // custom ByteRangeSource — each read is an independent HTTP Range
+            // custom ByteRangeSource - each read is an independent HTTP Range
             // request carrying the Authorization header on the permissive or
             // default-trust session. Wrapped in BufferedSMBReader for read-ahead (the
             // loopback producer starves on per-read network round-trips). The
@@ -1433,7 +1433,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          nativeSubtitleRenderingActive = false
          subtitleOverlay.isHidden = false
          // `engine` is non-optional here (bound by the guard at the top of
-         // open()), so no optional chaining — that is a compile error.
+         // open()), so no optional chaining - that is a compile error.
          engine.setNativeSubtitleRendering(false)
          // Probe/HDR state survives a re-open of the SAME file (resume/replay):
          // the engine probe can drop DV info when loading with a start position,
@@ -1460,7 +1460,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          chapterCursor = nil
          chapters = []
          // A new file starts on the container's default track until Dart
-         // restores the saved one — the remembered selection must not leak
+         // restores the saved one - the remembered selection must not leak
          // across files.
          selectedAudioTrackFlatPos = nil
          subtitleOverlay.clear()
@@ -1519,7 +1519,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             autoplay: true
         )
         // `load()` replaces the engine's options wholesale, so the boost /
-        // night / bass state must ride THIS LoadOptions — Dart pushes the
+        // night / bass state must ride THIS LoadOptions - Dart pushes the
         // values over the method channel before `open` is ever called.
         options.audioShaping = makeAudioShaping()
         // MetalFX upscale stage (engine #846): SDR SD/720p/1080p only, decided
@@ -1534,7 +1534,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
         // Armed here, BEFORE the load, and not after it. `engine.load` does not
         // return until the container is probed, and Dart's audio-track restore
-        // arrives ~75 ms into that window — before the post-load code ran, so
+        // arrives ~75 ms into that window - before the post-load code ran, so
         // the pending target was still 0 and the restore's reload pinned the
         // session to the start. Arming late made the fix a no-op on exactly the
         // case it was written for: a resume that also has a saved non-default
@@ -1549,7 +1549,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             guard let self, let engine = self.engine else { return }
             do {
                 if let pendingSmbUri = smbUri {
-                    // Blocking handshake (login + tree connect + stat) — keep it
+                    // Blocking handshake (login + tree connect + stat) - keep it
                     // off the main actor or the UI locks on a spinner. The
                     // server id is read here, on the actor, because touching
                     // main-actor state from inside the detached closure is an
@@ -1592,7 +1592,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                         // A second cursor on the SAME handle for the chapter
                         // probe. `pread` is positional, so the walk's one seek
                         // to the SeekHead offset lands on the byte instead of
-                        // streaming there — no head+tail guessing needed.
+                        // streaming there - no head+tail guessing needed.
                         self.chapterCursor = connection.makeChapterReader()
                         source = .custom(
                             connection.makeReader(),
@@ -1605,7 +1605,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     }
                 }
                 if let pendingFtpUri = ftpUri {
-                    // Handshake (login + PASV/SFTP open) is blocking I/O —
+                    // Handshake (login + PASV/SFTP open) is blocking I/O -
                     // keep it off the main actor like the WebDAV probe.
                     let buffered = try await Task.detached(priority: .userInitiated) {
                         try await FtpClient.makeByteRangeSource(uriText: pendingFtpUri)
@@ -1676,7 +1676,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                      self.isDolbyVision = probe.isDolbyVision || self.isDolbyVision
                      self.dvProfile = probe.dvProfile ?? self.dvProfile
                  }
-                // Dolby Vision Profile 4 cannot be decoded on iOS — reject it
+                // Dolby Vision Profile 4 cannot be decoded on iOS - reject it
                 // here, while we still know what the file is, so the user gets
                 // "Profile 4 is a broadcast format iOS does not decode" instead
                 // of the engine's opaque "playback failed" some seconds later.
@@ -1685,7 +1685,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     engine.pause()
                     lastError = dvUnsupportedProfile
                     self.emit()
-                    // Return from this Task only — the shared `result(nil)`
+                    // Return from this Task only - the shared `result(nil)`
                     // after the Task closes the Dart `open()` future. Do NOT
                     // call `result` here: it is a non-escaping parameter, and
                     // the Task would both fail to compile and double-send.
@@ -1696,9 +1696,9 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     engine.selectSubtitleTrack(index: pending)
                 }
                 self.pendingAutoSubtitleIndex = nil
-                // Fresh AVPlayer instance after load — re-apply the saved rate.
+                // Fresh AVPlayer instance after load - re-apply the saved rate.
                 self.applySpeed(self.pendingSpeed)
-                // Fresh player layer too — (re)arm picture-in-picture.
+                // Fresh player layer too - (re)arm picture-in-picture.
                 self.ensureAnyPipController()
                 // The engine re-declares its audio session on every load, so
                 // the spatial-audio opt-in has to be re-applied here too.
@@ -1712,7 +1712,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 // source type: the network path (Jellyfin direct-play, plain
                 // http(s)) goes through AetherEngine's own loopback producer
                 // rather than a local AVPlayer item, and there the start
-                // position is not always honoured — the session comes up at 0.
+                // position is not always honoured - the session comes up at 0.
                 // Re-assert it once the engine is actually ready so a tap on a
                 // Continue watching card lands where the viewer left off.
                 if let startPosition, startPosition > 0 {
@@ -1725,7 +1725,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 self.emit()
                 // Probe chapters for local / Files-app SMB files. The provider
                 // mounts SMB at a local path, so a FileHandle read suffices
-                // (HTTP/WebDAV MKVs don't need this — they have no browsable
+                // (HTTP/WebDAV MKVs don't need this - they have no browsable
                 // container on iOS either way). MKV via `MkvChapters`; MP4/MOV
                 // (`moov/udta/chpl` Nero) via the raw box scan (`Mp4Chapters`).
                 if let fileURL = self.lastLocalURL, fileURL.isFileURL {
@@ -1745,7 +1745,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     if ["mp4", "mov", "m4v", "m4b", "3gp"].contains(ext) {
                         let path = fileURL.path
                         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                            // Nero `chpl` box scan (Mp4Chapters) — the same
+                            // Nero `chpl` box scan (Mp4Chapters) - the same
                             // parser as Android (`Mp4Chapters.kt`). HandBrake /
                             // FFmpeg write chpl; AVFoundation's chapter API has
                             // no stable async property key, so the raw parser
@@ -1761,11 +1761,11 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     }
                     // Bitstream HDR probes (best-effort, like Android).
                     // Engine may already report .hdr10Plus, but plain HDR10 MKVs
-                    // that omit the Matroska Colour element report .sdr — the
+                    // that omit the Matroska Colour element report .sdr - the
                     // SEI 137/144 scan upgrades them to HDR10. Scan the first
                     // ~8 MiB for HEVC SEI NALs (prefix 39 / suffix 40, ITU-T T.35
                     // B5 00 3C for HDR10+, 137/144 for static HDR10).
-                    // Only run the byte-scan on HEVC-family codecs — an H.264
+                    // Only run the byte-scan on HEVC-family codecs - an H.264
                     // SDR file must never badge HDR10 via a random SEI alias
                     // (the old noteCodec heuristic counted 0x40/0x42 as HEVC).
                     let codecForHdr = (probe?.videoCodecName ?? "").lowercased()
@@ -1809,7 +1809,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 //
                 // `smbPlayback` is set by both paths and is not reset, so this
                 // single line covers the token path, the `smb://` resume path,
-                // and any future one — and shares the handle's recursive lock,
+                // and any future one - and shares the handle's recursive lock,
                 // so the probe never enters the libsmb2 context concurrently
                 // with playback.
                 if chapterCursor == nil, chapterByteSource == nil,
@@ -1824,8 +1824,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                 // Android had them everywhere. Two shapes, picked by what the
                 // source already gave us:
                 //
-                //   * SMB — a positional `pread` cursor, so the walk just seeks.
-                //   * Everything else — two 8 MiB ranged reads (head + tail),
+                //   * SMB - a positional `pread` cursor, so the walk just seeks.
+                //   * Everything else - two 8 MiB ranged reads (head + tail),
                 //     because Matroska keeps `Chapters` at the end of the
                 //     segment and MP4 keeps `moov` there.
                 //
@@ -1891,7 +1891,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     }
                 }
             } catch let error as CancellationError {
-                // Load superseded by a newer open/reload — not a playback failure.
+                // Load superseded by a newer open/reload - not a playback failure.
             } catch {
                 self.lastError = String(describing: error)
                 self.emit()
@@ -1910,7 +1910,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// Where this session is still trying to land, in seconds.
     ///
     /// `engine.load(startPosition:)` is ignored for network sources, so a resume
-    /// is applied asynchronously by `reassertPosition` — which sleeps ~900 ms
+    /// is applied asynchronously by `reassertPosition` - which sleeps ~900 ms
     /// before its first attempt. Anything that reloads the session in that
     /// window used to read the live playhead, still ~0, and so reload the whole
     /// session at 0. Dart's audio-track restore fires at ~85 ms, which is
@@ -1929,11 +1929,11 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// handle then reads nothing, the container probe fails ("custom source
     /// probe failed") and the player shows an error. The token-based
     /// connection is gone with the socket, so the ONLY way back is to re-open
-    /// the session from these parts — the same recovery the open path
+    /// the session from these parts - the same recovery the open path
     /// performs for a stale token.
     private var smbResumeParts: (id: String, share: String, path: String)?
 
-    /// Flat position of the audio track the viewer selected — the same
+    /// Flat position of the audio track the viewer selected - the same
     /// numbering the `audioTracks` map uses.
     ///
     /// A reloaded session starts on the container's DEFAULT track, and on a
@@ -1960,7 +1960,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     ) async -> Bool {
         // The Dart replay button sends seekTo(0) AND play() back-to-back; each
         // triggers a reload here. A second engine.load supersedes the first,
-        // which then throws CancellationError — so coalesce duplicates and let
+        // which then throws CancellationError - so coalesce duplicates and let
         // one reload run at a time.
         guard !reloadInFlight else { return false }
         reloadInFlight = true
@@ -1977,7 +1977,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             )
             return true
         } catch is CancellationError {
-            // Superseded by a newer load elsewhere — not a playback failure.
+            // Superseded by a newer load elsewhere - not a playback failure.
             SBMLog.log("reloadSession: cancelled (superseded)")
             return false
         } catch {
@@ -1985,12 +1985,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // A locked-away session loses its TCP socket: the SMB handle is
             // dead, so the container probe fails ("custom source probe
             // failed") and the player shows an error. Rebuild the session
-            // from the durable resume key and try once more — exactly what
+            // from the durable resume key and try once more - exactly what
             // the open path does for a stale token, and the recovery the
             // viewer needs after a lock/unlock cycle.
             if isSMBStream, await rebuildSMBConnection() {
                 SBMLog.log(
-                    "reloadSession: load failed (\(firstFailure)) — "
+                    "reloadSession: load failed (\(firstFailure)) - "
                     + "SMB session rebuilt, retrying")
                 do {
                     try await loadFreshSession(
@@ -2004,15 +2004,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     SBMLog.log("reloadSession: cancelled (superseded)")
                     return false
                 } catch {
-                    // `error` is the implicit binding of the generic catch —
+                    // `error` is the implicit binding of the generic catch -
                     // `retryError` only exists in the typed clause above.
                     lastError = String(describing: error)
-                    SBMLog.log("reloadSession: retry failed — \(lastError ?? "")")
+                    SBMLog.log("reloadSession: retry failed - \(lastError ?? "")")
                     return false
                 }
             }
             lastError = firstFailure
-            SBMLog.log("reloadSession: failed — \(firstFailure)")
+            SBMLog.log("reloadSession: failed - \(firstFailure)")
             return false
         }
     }
@@ -2023,13 +2023,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     @discardableResult
     private func rebuildSMBConnection() async -> Bool {
         guard let parts = smbResumeParts else {
-            SBMLog.log("reloadSession: no SMB resume key — cannot rebuild the session")
+            SBMLog.log("reloadSession: no SMB resume key - cannot rebuild the session")
             return false
         }
         SBMLog.log(
             "reloadSession: rebuilding the SMB session from the resume key "
             + "server=\(parts.id) share=\(parts.share)")
-        // Blocking handshake (login + tree connect + stat) — keep it off the
+        // Blocking handshake (login + tree connect + stat) - keep it off the
         // main actor, the same way the open path does it.
         let connection: SMBPlayback? = await Task.detached(priority: .userInitiated) {
             SMBBridge.shared.openSmb(
@@ -2042,7 +2042,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         }
         smbPlayback = connection
         isSMBStream = true
-        // A fresh handle needs a fresh chapter cursor as well — the old one
+        // A fresh handle needs a fresh chapter cursor as well - the old one
         // points into the dead connection.
         chapterCursor = connection.makeChapterReader()
         SBMLog.log(
@@ -2062,7 +2062,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         guard let engine else { return }
         let freshSource = try await buildFreshSource()
         guard let freshSource else {
-            SBMLog.log("reloadSession: buildFreshSource returned nil — aborting")
+            SBMLog.log("reloadSession: buildFreshSource returned nil - aborting")
             throw NSError(
                 domain: "DreamPlayer",
                 code: 1,
@@ -2093,15 +2093,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
          }
         // A failed attempt this reload recovered from latched `.error` on the
         // engine, and the error surface is driven by `lastError`. The new
-        // session is healthy, so clear it — otherwise the viewer is left
+        // session is healthy, so clear it - otherwise the viewer is left
         // staring at an error for a file that is playing again.
         if lastError != nil {
             lastError = nil
-            SBMLog.log("reloadSession: cleared the previous error — the session recovered")
+            SBMLog.log("reloadSession: cleared the previous error - the session recovered")
             emit()
         }
         // A reloaded session starts on the container's DEFAULT track. The
-        // viewer's selection has to be re-applied — and on a custom source
+        // viewer's selection has to be re-applied - and on a custom source
         // that means the engine re-probes the container, which drops the
         // playhead, so the position is re-asserted further down.
         if reassertAudioTrack, let flat = selectedAudioTrackFlatPos, flat >= 0 {
@@ -2114,7 +2114,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         if let activeSub, engine.subtitleTracks.contains(where: { $0.id == activeSub }) {
             engine.selectSubtitleTrack(index: activeSub)
         }
-        // Fresh AVPlayer instance after reload — re-apply the saved rate.
+        // Fresh AVPlayer instance after reload - re-apply the saved rate.
         applySpeed(pendingSpeed)
         // `load(startPosition:)` is not honoured for network sources, so a
         // reload from a saved position still comes up at 0. Re-assert it.
@@ -2217,7 +2217,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// Waits until the engine reaches a state that accepts track-switch
     /// commands (`.playing`/`.paused`/`.ended`, or `.error` to bail) with a
     /// timeout.  The engine's `PlaybackState` doesn't expose a `.ready`
-    /// case — once `engine.load(...)` finishes probing, it transitions to
+    /// case - once `engine.load(...)` finishes probing, it transitions to
     /// `.playing` (or `.paused` if `autoplay` was false).  Track switches
     /// issued during `.loading`/`.seeking` are silently ignored.
     private func waitForEngineReady(timeout: TimeInterval) async {
@@ -2245,7 +2245,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// the engine to re-probe the container.
     ///
     /// A seek issued the moment the engine reports ready is routinely
-    /// swallowed — the loopback producer is still filling and has no data at
+    /// swallowed - the loopback producer is still filling and has no data at
     /// that offset yet. A seek issued later on the same session works, which
     /// is why scrubbing by hand is reliable while resume is not. So this
     /// retries: seek, let the producer catch up, and re-issue while the
@@ -2298,7 +2298,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             // engine's container probe read nothing ("custom source probe
             // failed"). Ranged reads have no cursor to lose.
             SBMLog.log(
-                "buildFreshSource: SMB — new source on the live handle "
+                "buildFreshSource: SMB - new source on the live handle "
                 + "(\(playback.byteSize) bytes, hint=\(smbFormatHint ?? "none"))")
             return .custom(playback.makeReader(), formatHint: smbFormatHint)
         }
@@ -2340,7 +2340,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// 6 1.85:1, 7 2.39:1. The fixed ratios are physically boxed by Dart
     /// (`ExoPlayerView.fitMode`), so `.resizeAspectFill` here crops the video
     /// to that box. The FFmpeg custom-source path has no AVPlayerLayer, so it
-    /// keeps the engine's own aspect fit inside the box (no crop) — PiP and
+    /// keeps the engine's own aspect fit inside the box (no crop) - PiP and
     /// native containers are the cases this fully controls.
     private func setResizeMode(_ mode: Int) {
         guard let playerLayer = findPlayerLayer() else { return }
@@ -2378,7 +2378,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// native AVPlayer path, while AV1/VP9/VP8/MPEG-2/VC-1 and interlaced
     /// H.264 take the software path. A software session has no AVPlayerLayer,
     /// so it gets a sample-buffer controller over the engine's
-    /// `AVSampleBufferDisplayLayer` instead — see [softwarePipController].
+    /// `AVSampleBufferDisplayLayer` instead - see [softwarePipController].
     private var pipController: AVPictureInPictureController?
 
     /// Sample-buffer picture-in-picture for the engine's software path. The
@@ -2395,7 +2395,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// the video floats.
     private var inPip = false
 
-    /// Settings toggle `dreamplayer.pipEnabled` (default true) — read
+    /// Settings toggle `dreamplayer.pipEnabled` (default true) - read
     /// natively so HOME still works when Dart is backgrounded.
     private static func pipSettingEnabled() -> Bool {
         if UserDefaults.standard.object(forKey: "flutter.dreamplayer.pipEnabled") == nil {
@@ -2414,7 +2414,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         guard let controller else { return }
         // Pressing HOME while playing floats the video automatically (same
         // trigger as Android's onUserLeaveHint path). The Settings toggle
-        // gates this — when off, pipController stays nil.
+        // gates this - when off, pipController stays nil.
         controller.canStartPictureInPictureAutomaticallyFromInline = true
         controller.delegate = self
         pipController = controller
@@ -2473,10 +2473,10 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     // MARK: - Playback speed
 
     /// Last speed requested from Dart. Applied to the AVPlayerLayer's player
-    /// (native AVPlayer path — local files, DV/HDR) via `defaultRate`, so
+    /// (native AVPlayer path - local files, DV/HDR) via `defaultRate`, so
     /// play()/interruptions resume at the same rate; re-applied after every
     /// session load/reload since the engine builds a fresh player. The FFmpeg
-    /// custom-source path (WebDAV) has no AVPlayer — the call is a no-op there.
+    /// custom-source path (WebDAV) has no AVPlayer - the call is a no-op there.
     private var pendingSpeed: Float = 1.0
 
     private func applySpeed(_ speed: Float) {
@@ -2552,7 +2552,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     }
 
     /// Reads the most recent indicated bitrate from AVPlayerItemAccessLog
-    /// (the system's smoothed moving average — only populated for http/https
+    /// (the system's smoothed moving average - only populated for http/https
     /// sources; returns 0 for file://). Returns (currentBytesPerSec,
     /// peakBytesPerSec) computed from bits/sec divided by 8.
     private func stateMap() -> [String: Any] {
@@ -2613,13 +2613,13 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         }()
 
         let engineVideoFormat = engine.videoFormat
-        // DV: the engine's own .dolbyVision report is authoritative — the load
+        // DV: the engine's own .dolbyVision report is authoritative - the load
         // probe can be nil on resume/reload, which used to regress the badge
-        // to SDR. (.hdr10/.hdr10Plus are NOT DV — including them here would
+        // to SDR. (.hdr10/.hdr10Plus are NOT DV - including them here would
         // mislabel plain HDR10 files as Dolby Vision via the dvhe codec.)
         let isDVFromEngine = engineVideoFormat == .dolbyVision
         let effectiveIsDV = isDolbyVision || isDVFromEngine
-        // Fallback dimensions from the played item — `presentationSize` is a
+        // Fallback dimensions from the played item - `presentationSize` is a
         // synchronous non-blocking AVPlayerItem property; asset.tracks() can
         // block on network sources and must not run on the platform main
         // thread. Memoized back into videoWidth/videoHeight so the subtitle
@@ -2714,7 +2714,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
     /// Wires lock-screen and headset transport controls to the engine. The
     /// play/seek handlers mirror the method-channel cases (`.ended` is
-    /// terminal in AetherEngine — replay/scrub reloads the session).
+    /// terminal in AetherEngine - replay/scrub reloads the session).
     private func setupRemoteCommands() {
         let cc = MPRemoteCommandCenter.shared()
         remoteCommandTokens.append(
@@ -2909,8 +2909,8 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
     /// Latched state of the host→AVKit subtitle handoff.
     ///
-    /// While the picture is NOT on this device's own layer — an AirPlay
-    /// receiver, the PiP window, a wired external display — this view's
+    /// While the picture is NOT on this device's own layer - an AirPlay
+    /// receiver, the PiP window, a wired external display - this view's
     /// `SubtitleOverlayView` is not composited into the stream, so the host
     /// overlay alone means NO subtitles on the receiver (the reported bug).
     /// The engine's contract (AetherEngine docs/formats.md "recommended host
@@ -2920,7 +2920,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// overlay track to the matching AVKit legible rendition (bitmap tracks
     /// get an OCR-fed text rendition while the rendition is the display), so
     /// AVKit draws the subs on the receiver itself. Inert on the software
-    /// path — there is no AVPlayerItem — which is why the gate below also
+    /// path - there is no AVPlayerItem - which is why the gate below also
     /// requires a live player layer (software-path AirPlay is audio-only and
     /// the video, with the host overlay, stays on the device).
     private var nativeSubtitleRenderingActive = false
@@ -2934,7 +2934,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// True when the video is being shown somewhere other than the inline
     /// layer: PiP, AVPlayer external playback, or a wireless AirPlay route
     /// (the route check survives the item teardown the engine's own LAN-swap
-    /// reload causes — the player flag alone reads a transient false there).
+    /// reload causes - the player flag alone reads a transient false there).
     private var pictureOffDevice: Bool {
         if inPip { return true }
         if let player = findPlayerLayer()?.player, player.isExternalPlaybackActive { return true }
@@ -2943,7 +2943,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
     /// Recompute the handoff state; latched so the engine call fires only on
     /// a real edge. Called from the 0.25 s tick, the route-change observer,
-    /// the PiP delegate and after every load — cheap and idempotent.
+    /// the PiP delegate and after every load - cheap and idempotent.
     private func updateNativeSubtitleRendering() {
         let wants = nativePathLive && pictureOffDevice
         guard wants != nativeSubtitleRenderingActive else { return }
@@ -3089,7 +3089,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// MPVolumeView is the only public way to set the SYSTEM volume on iOS.
     /// Its internal UISlider is built asynchronously after the view lands in a
     /// window, so we retain the view for this player's lifetime and retry the
-    /// lookup with a bounded backoff — the naive synchronous `subviews.first`
+    /// lookup with a bounded backoff - the naive synchronous `subviews.first`
     /// search always returned nil, which made the volume gesture a no-op.
     private var mpVolumeView: MPVolumeView?
     private var mpVolumeRetries = 0
@@ -3098,7 +3098,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         // The gesture pins the system volume at max once it passes 100%, so
         // the same value arrives on every increment. Driving the MPVolumeView
         // slider again for an unchanged value is churn (and audible while it
-        // moves) — skip it.
+        // moves) - skip it.
         if let last = lastSystemVolume, abs(last - value) < 0.001 {
             return
         }
@@ -3118,7 +3118,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             if let slider = Self.findVolumeSlider(in: mpVolume) {
                 slider.value = value
             } else if self.mpVolumeRetries < 20 {
-                // Slider not materialized yet — retry shortly.
+                // Slider not materialized yet - retry shortly.
                 self.mpVolumeRetries += 1
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     self.setSystemVolume(value)
@@ -3151,15 +3151,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
 
         // Strict NAL-structure scan. Random compressed bytes must never be
         // able to fake an SEI, so every candidate has to clear four gates:
-        //   1. Structure — Annex-B start code (MKV/TS) or a chaining AVCC
+        //   1. Structure - Annex-B start code (MKV/TS) or a chaining AVCC
         //      length prefix (MP4/MOV).
-        //   2. Codec — the stream must show HEVC parameter sets (VPS 0x40 /
+        //   2. Codec - the stream must show HEVC parameter sets (VPS 0x40 /
         //      SPS 0x42 / PPS 0x44) and NO H.264 ones (SPS 0x67 / PPS 0x68 /
         //      IDR 0x65). H.264 MP4s are full of valid length chains whose
         //      header bytes occasionally alias HEVC types 39/40, which is how
         //      SDR phone recordings got HDR badges before this gate.
-        //   3. Prefix SEI only — HDR10+/ST 2086/CLL ride NAL type 39.
-        //   4. Payload-size windows — mastering display ≈ 24 B, CLL = 4 B,
+        //   3. Prefix SEI only - HDR10+/ST 2086/CLL ride NAL type 39.
+        //   4. Payload-size windows - mastering display ≈ 24 B, CLL = 4 B,
         //      ST 2094-40 ≥ 4 B with the ITU-T T.35 B5 003C head.
 
         var sawHevc = false
@@ -3192,7 +3192,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     foundPlus = true // ST 2094-40 (HDR10+) via ITU-T T.35
                 } else if ptype == 137, psize == 24 {
                     // ST 2086: 24 B payload, sanity-check max/min luminance
-                    // (DTS/AC3 bytes can fake the type+size pair — random luma
+                    // (DTS/AC3 bytes can fake the type+size pair - random luma
                     // values almost never fall in the HDR mastering window).
                     let b0 = Int(bytes[pos + 16]) << 24 | Int(bytes[pos + 17]) << 16
                         | Int(bytes[pos + 18]) << 8 | Int(bytes[pos + 19])
@@ -3228,7 +3228,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         while i < limit {
             if bytes[i] == 0, bytes[i + 1] == 0, bytes[i + 2] == 1 {
                 // Annex-B NAL begins after the 3-byte start code; ends at
-                // the next start code (capped — real SEIs are < 4 KB).
+                // the next start code (capped - real SEIs are < 4 KB).
                 let s = i + 3
                 if s < bytes.count { noteCodec(bytes[s]) }
                 var e = s
@@ -3245,7 +3245,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             }
             // AVCC: u32 length at i-4, NAL header at i, and the NEXT
             // segment's length field lands exactly at i+len with another
-            // sane length — three-way agreement that random bytes fail.
+            // sane length - three-way agreement that random bytes fail.
             if i >= 8 {
                 let len = be32(i - 4)
                 if len > 2, len <= bytes.count - i {
@@ -3283,7 +3283,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         UIApplication.shared.isIdleTimerDisabled = false
         // Release the SMB socket. The engine has already stopped above, so the
         // demux thread is done with the reader and this close cannot race an
-        // in-flight read — the ordering that crashed the retired build.
+        // in-flight read - the ordering that crashed the retired build.
         if let token = smbToken, !token.isEmpty {
             let serverId = SMBBridge.shared.serverId(forToken: token)
             // Releasing the latch also closes the socket, so no separate
@@ -3336,7 +3336,7 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
     /// bytes. FFmpeg's custom-source probe fails outright on a hint-less
     /// source, so an extensionless file would otherwise never open.
     /// libsmb2 playback variant. `readAtOffset` is already synchronous and
-    /// positional, so the head read needs no Task and no semaphore — the two
+    /// positional, so the head read needs no Task and no semaphore - the two
     /// constructs `readSyncHead` needs for an async ByteRangeSource.
     private static func sniffFormatFromSMB(_ file: LibSMB2File) -> String? {
         sniffContainerFormat(head: file.read(atOffset: 0, length: 16))
@@ -3397,7 +3397,7 @@ extension AvPlayerView: AVPictureInPictureControllerDelegate {
     ) {
         // The engine keeps the pipeline (and, on the software path, the video
         // decode) alive across the background transition only while this is
-        // set — the PiP window needs frames.
+        // set - the PiP window needs frames.
         engine?.pictureInPictureActive = true
         inPip = true
         updateNativeSubtitleRendering()
@@ -3416,7 +3416,7 @@ extension AvPlayerView: AVPictureInPictureControllerDelegate {
         ensureAnyPipController()
     }
 
-    /// User tapped the restore button on the pip window — the layer is back
+    /// User tapped the restore button on the pip window - the layer is back
     /// inline. The controller stays valid while its AVPlayerLayer keeps the
     /// same player, so it is NOT nilled here: nil-ing left no controller for
     /// the next HOME swipe (auto-start silently did nothing and the app just
@@ -3444,7 +3444,7 @@ extension AvPlayerView: AVPictureInPictureSampleBufferPlaybackDelegate {
         softwarePiPSource?.setPlaying(playing)
     }
 
-    /// Apple's signature is `completion: @escaping () -> Void` — there is no
+    /// Apple's signature is `completion: @escaping () -> Void` - there is no
     /// Bool result. The first version of this used `(Bool) -> Void`, which
     /// does not satisfy the protocol at all.
     func pictureInPictureController(
@@ -3457,7 +3457,7 @@ extension AvPlayerView: AVPictureInPictureSampleBufferPlaybackDelegate {
     }
 
     /// Required by the protocol: the PiP window's render size changed.
-    /// Nothing to do — the engine's display layer owns the video size.
+    /// Nothing to do - the engine's display layer owns the video size.
     func pictureInPictureController(
         _ pictureInPictureController: AVPictureInPictureController,
         didTransitionToRenderSize newRenderSize: CMVideoDimensions

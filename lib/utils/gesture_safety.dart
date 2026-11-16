@@ -31,13 +31,13 @@ const double kBrightnessWarningLevel = 0.8;
 /// [previous] and [next] are the gesture values before and after the step:
 /// 0-2 for volume (100% + boost) and 0-1 for brightness.
 ///
-/// Volume only warns ABOVE 100%, because that is the boost band — with the
+/// Volume only warns ABOVE 100%, because that is the boost band - with the
 /// setting off the gesture is clamped to 100% and never reaches it. The
 /// comparison is strict, so a gesture that tops out exactly at 100% (the
 /// system maximum, no boost) stays silent.
 ///
 /// Brightness warns from [kBrightnessWarningLevel] (80%) upwards, because a
-/// bright panel is what drains the battery — there is no "boost band" to
+/// bright panel is what drains the battery - there is no "boost band" to
 /// cross, just a level the user should know about. The comparison is
 /// inclusive there: reaching exactly 80% already counts.
 GestureSafetyWarning gestureSafetyWarning({

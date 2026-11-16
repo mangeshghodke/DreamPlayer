@@ -8,7 +8,7 @@ import 'watched_store.dart';
 /// SIMKL sync: two-phase (activities → delta) pull of watched state into
 /// [WatchedStore] for files whose TMDB metadata is already resolved.
 ///
-/// One-way (mark-only) SIMKL sync. Free unlimited — no item cap.
+/// One-way (mark-only) SIMKL sync. Free unlimited - no item cap.
 class SimklSync {
   SimklSync._();
 

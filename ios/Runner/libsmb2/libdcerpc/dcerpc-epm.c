@@ -159,7 +159,7 @@ epm_twr_STRUCT_coder(char *name, struct dcerpc_context *dce,
 
 /**********************
  * Annotation: [string] char annotation[64]
- * Wire (MIDL/Windows): varying string — offset, actual_count, bytes
+ * Wire (MIDL/Windows): varying string - offset, actual_count, bytes
  **********************/
 static int
 epm_annotation_coder(char *name, struct dcerpc_context *dce,

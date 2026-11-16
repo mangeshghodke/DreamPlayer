@@ -100,7 +100,7 @@ void main() {
     test('seriesName excludes stale Sxx tag when year is inside parens', () {
       // Regression: `Kakegurui Twin (2021) S01E01.mkv` used to yield
       // `seriesName = "Kakegurui Twin S01"` because the year strip shifted
-      // offsets, but the regex match positions stayed stale — so substring(0,
+      // offsets, but the regex match positions stayed stale - so substring(0,
       // m.start) leaked `S01` into the series name and TMDB search 404'd.
       final parsed = ParsedFileName.parse('Kakegurui Twin (2021) S01E01.mkv');
       expect(parsed.seriesName, 'Kakegurui Twin');
@@ -236,7 +236,7 @@ void main() {
     });
 
     test('ignores a year at the very start of the filename', () {
-      // `2001.A.Space.Odyssey` would falsely extract year 2001 — but the
+      // `2001.A.Space.Odyssey` would falsely extract year 2001 - but the
       // first character is the year itself, not a word boundary followed by
       // one. Reject year-at-position-0 so the parsed title stays intact.
       final parsed = ParsedFileName.parse('2001.ASpaceOdyssey.1080p.mkv');
@@ -268,7 +268,7 @@ void main() {
       });
 
       test('does NOT inherit when the file already has SxxExx', () {
-        // The file is explicit about its series via SxxExx — the parent
+        // The file is explicit about its series via SxxExx - the parent
         // folder name should not overwrite the file's seriesName.
         final parsed = ParsedFileName.parse(
           'Wrong.Show.S02E03.mkv',
@@ -316,7 +316,7 @@ void main() {
       });
     });
 
-    group('issue #11 — release-group folder names', () {
+    group('issue #11 - release-group folder names', () {
       test('bracket release-group folder name strips the group + codec/res tags', () {
         final parsed = ParsedFileName.parse(
           '[VCB-Studio] Toaru Kagaku no Railgun [Hi10p_1080p]',
@@ -691,14 +691,14 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final parsed = ParsedFileName.parse('Kakegurui Twin (2021) S01E01.mkv');
       // bestMatch calls _score internally; we test the observable result.
-      // Without a real API key, bestMatch returns null — but the parser
+      // Without a real API key, bestMatch returns null - but the parser
       // correctness is what matters (seriesName must be "Kakegurui Twin").
       expect(parsed.seriesName, 'Kakegurui Twin');
       expect(parsed.year, 2021);
       expect(parsed.isEpisode, isTrue);
     });
 
-    test('year tiebreaker: same title, different years — year matched wins', () async {
+    test('year tiebreaker: same title, different years - year matched wins', () async {
       // Verify that ParsedFileName extracts year correctly for the tiebreaker.
       final parsed = ParsedFileName.parse('Kakegurui Twin (2021) S01E01.mkv');
       expect(parsed.year, 2021);
@@ -709,7 +709,7 @@ void main() {
     });
 
     test('Live Action keyword sets the liveAction flag', () {
-      // Folder with explicit "Live Action" — flag should be set.
+      // Folder with explicit "Live Action" - flag should be set.
       final parsed =
           ParsedFileName.parse('Kakegurui Twin (2021) Live Action');
       expect(parsed.title.toLowerCase(), contains('kakegurui twin'));
@@ -805,7 +805,7 @@ void main() {
     test('non-season extra content yields no match (gradient card)', () {
       // Regression 2026-09: "Strike the Blood Kieta Seisou Hen" contains the
       // string "Strike the Blood" but is NOT a season of the show (TMDB lists
-      // no such season) — it used to be absorbed by Season 1's poster/name via
+      // no such season) - it used to be absorbed by Season 1's poster/name via
       // substring containment. Real content beyond any season title must win
       // out over the loose prefix, so the subfolder keeps its gradient card.
       expect(match('Strike the Blood Kieta Seisou Hen', names), isNull);
@@ -825,7 +825,7 @@ void main() {
     });
 
     test('suffix-style folder matches season name (issue #22 Railgun)', () {
-      // TMDB show 30977 — one show, seasons named with the full title.
+      // TMDB show 30977 - one show, seasons named with the full title.
       const railgun = {
         0: 'Specials',
         1: 'A Certain Scientific Railgun',
@@ -924,7 +924,7 @@ void main() {
   // Every case below was verified to produce a broken TMDB query before the
   // release-tail / year / language-code fixes.
   // ─────────────────────────────────────────────────────────────────────────
-  group('ParsedFileName — real library names', () {
+  group('ParsedFileName - real library names', () {
     test('does not eat a trailing 4-digit year as a file extension', () {
       // `2008` sits exactly where an extension would be. Stripping it threw
       // away the only year hint, so the search fell back to popularity order.

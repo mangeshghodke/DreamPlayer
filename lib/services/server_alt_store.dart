@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Dart-side store for the optional alternate address of a saved network
 /// server (SMB / WebDAV). The native server stores only round-trip the fields
 /// the dialog knows, so the alternate lives here, keyed `"<source>:<id>"`.
-/// Jellyfin does not need this — its servers are pure-Dart JSON and carry
+/// Jellyfin does not need this - its servers are pure-Dart JSON and carry
 /// `altUrl` directly.
 class ServerAltStore {
   ServerAltStore._();

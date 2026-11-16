@@ -11,19 +11,19 @@ import 'tmdb_client.dart';
 const String r18devBaseUrl = 'https://r18.dev';
 const String r18devPrefsKey = 'dreamplayer.r18devEnabled';
 
-/// r18.dev as a [MetadataProviderAdapter] — issue #52, second half.
+/// r18.dev as a [MetadataProviderAdapter] - issue #52, second half.
 ///
 /// The reporter asked for "a more reliable source for JAV metadata (poster,
 /// cast, release date, studio, genres)" and pointed at r18.dev's JSON API.
 /// The endpoint was verified live before writing (2026-10-25):
 ///
-/// * `GET /videos/vod/movies/detail/-/dvd_id=<code>/json` — the **code
+/// * `GET /videos/vod/movies/detail/-/dvd_id=<code>/json` - the **code
 ///   lookup**. The site strips spaces from what you type, so the code has to
 ///   be space-free; both `SVFLA-012` and `SVFLA012` resolve to the same
 ///   record. The reply is a small record: `content_id`, `title`,
 ///   `release_date`, `runtime_minutes`, `images.jacket_image.large2`,
 ///   `actresses`, `categories`, `maker`.
-/// * `GET /videos/vod/movies/detail/-/combined=<content_id>/json` — the
+/// * `GET /videos/vod/movies/detail/-/combined=<content_id>/json` - the
 ///   **full record**: `jacket_full_url`, `gallery`, `actresses`/`actors`/
 ///   `directors` with names, `categories` with English and Japanese names,
 ///   `maker_name_ja`/`label_name_ja` (the studio), `release_date`,
@@ -32,7 +32,7 @@ const String r18devPrefsKey = 'dreamplayer.r18devEnabled';
 /// Two things shaped the design:
 ///
 /// * **The catalogue is keyed by code, not by title.** There is no free-text
-///   search endpoint, so a title query finds nothing — only a catalogue code
+///   search endpoint, so a title query finds nothing - only a catalogue code
 ///   does. That is the common case for this kind of file anyway, because the
 ///   code is in the file name.
 /// * **`content_id` is a STRING** ("1svfla012"), while `TmdMovie.id` is an
@@ -43,7 +43,7 @@ const String r18devPrefsKey = 'dreamplayer.r18devEnabled';
 /// No API key is involved, so the Settings control is an on/off switch, like
 /// AVDb's.
 class R18DevAdapter extends MetadataProviderAdapter {
-  /// The one instance the app uses — the enabled flag is cached, so a fresh
+  /// The one instance the app uses - the enabled flag is cached, so a fresh
   /// instance per call would report a stale value (the same trap AVDb had).
   static final R18DevAdapter instance = R18DevAdapter();
 
@@ -70,7 +70,7 @@ class R18DevAdapter extends MetadataProviderAdapter {
   String get label => 'r18.dev';
 
   @override
-  String get credentialsHelp => 'r18.dev needs no API key — just enable it.';
+  String get credentialsHelp => 'r18.dev needs no API key - just enable it.';
 
   Future<bool> isEnabled() async {
     if (_loaded) return _enabled ?? false;
@@ -171,7 +171,7 @@ class R18DevAdapter extends MetadataProviderAdapter {
   /// The site accepts the code with or without its hyphen (`SVFLA-012` and
   /// `SVFLA012` are the same record) and strips spaces, so the code is
   /// normalised to upper case with no separator. A title that merely CONTAINS
-  /// a code is not enough — the code has to be the whole query, because
+  /// a code is not enough - the code has to be the whole query, because
   /// r18.dev has no partial-code search.
   ///
   /// Exposed for tests: recognising a code is the whole matching rule here.
@@ -299,7 +299,7 @@ class R18DevAdapter extends MetadataProviderAdapter {
       runtimeMinutes: _int(record['runtime_mins']),
       genres: genres,
       cast: cast,
-      // The studio is the "maker"/"label" — there is no studio field in
+      // The studio is the "maker"/"label" - there is no studio field in
       // TmdDetails, and the tagline is where the details screen shows it.
       tagline: _tagline(studio, directors),
       posterPath:
@@ -383,7 +383,7 @@ class R18DevAdapter extends MetadataProviderAdapter {
     return parts.isEmpty ? null : parts.join(' · ');
   }
 
-  /// "Sample Video" is not a genre — it is the site's own marker for the
+  /// "Sample Video" is not a genre - it is the site's own marker for the
   /// preview clip, and it comes back in the `categories` list of every record.
   static bool _isArtifactGenre(String value) {
     const artifacts = {'sample video', 'over 4 hours'};

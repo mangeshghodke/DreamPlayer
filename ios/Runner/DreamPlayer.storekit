@@ -4,12 +4,12 @@
 // Products defined below. Xcode auto-registers them for the local StoreKit sandbox.
 // To test: Product → Scheme → Edit Scheme → Run → Options → StoreKit Configuration → DreamPlayer.storekit
 //
-// IMPORTANT — product IDs must match the live App Store Connect products
+// IMPORTANT - product IDs must match the live App Store Connect products
 // exactly, because `paywall_sheet.dart` queries these IDs by name:
 //   dp_premium_monthly_2026, dp_premium_yearly_2026, dp_premium_lifetime_2026
 // (An earlier draft of this file used `advanced_*` IDs, which never existed in
 // ASC. That was harmless at runtime because the file only feeds the local
-// Xcode sandbox, but it made this config a misleading reference — always
+// Xcode sandbox, but it made this config a misleading reference - always
 // confirm against `lib/screens/paywall_sheet.dart` before editing.)
 
 configurations {
@@ -27,7 +27,7 @@ products {
     dp_premium_monthly_2026 {
         type: autoRenewableSubscription
         displayName: "Premium Monthly"
-        description: "Unlock all premium features — billed monthly."
+        description: "Unlock all premium features - billed monthly."
         subscriptionGroupID: dp_premium_group
         duration: 1 month
         price: INR 199.00
@@ -36,7 +36,7 @@ products {
     dp_premium_yearly_2026 {
         type: autoRenewableSubscription
         displayName: "Premium Yearly"
-        description: "Unlock all premium features — billed annually."
+        description: "Unlock all premium features - billed annually."
         subscriptionGroupID: dp_premium_group
         duration: 1 year
         price: INR 1499.00
@@ -47,7 +47,7 @@ products {
     dp_premium_lifetime_2026 {
         type: nonConsumable
         displayName: "Premium Lifetime"
-        description: "Unlock all premium features forever — one-time purchase."
+        description: "Unlock all premium features forever - one-time purchase."
         price: INR 4999.00
     }
 }

@@ -5,12 +5,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dream_player/app.dart';
 import 'package:dream_player/services/layout_store.dart';
 
-/// iPhone Duo (foldable) support — pins the three window shapes the article
+/// iPhone Duo (foldable) support - pins the three window shapes the article
 /// on foldable Flutter apps calls out, plus the width-based grid rule:
 ///
-///  * folded "cover" screen  — a short, WIDE phone (~852x393 logical)
-///  * open "inner" screen    — iPad-mini-ish 4:3 (~1100x850 logical)
-///  * inner screen in Split View — a narrow window (~430x850 logical)
+///  * folded "cover" screen  - a short, WIDE phone (~852x393 logical)
+///  * open "inner" screen    - iPad-mini-ish 4:3 (~1100x850 logical)
+///  * inner screen in Split View - a narrow window (~430x850 logical)
 ///
 /// The app must lay out from constraints (never device checks): no overflow
 /// at any of the three, and the home grid column count follows the width.

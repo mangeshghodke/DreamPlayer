@@ -65,7 +65,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 /*
  * MS-RRP RRP_UNICODE_STRING is the same type as dcerpc's
  * RPC_UNICODE_STRINGz (NUL-terminated Buffer). Use
- * dcerpc_RRP_UNICODE_STRING_coder / dcerpc_RPC_UNICODE_STRINGz_coder —
+ * dcerpc_RRP_UNICODE_STRING_coder / dcerpc_RPC_UNICODE_STRINGz_coder -
  * they are the same coder (macro alias).
  */
 
@@ -636,7 +636,7 @@ winreg_BaseRegCreateKey_req_coder(char *name, struct dcerpc_context *dce,
                                    &req->samDesired, &regsam_pp)) {
                 return -1;
         }
-        /* [in, unique] PRPC_SECURITY_ATTRIBUTES — always NULL */
+        /* [in, unique] PRPC_SECURITY_ATTRIBUTES - always NULL */
         if (dcerpc_ptr_coder("lpSecurityAttributes", dce, pdu, iov, offset,
                              NULL, PTR_UNIQUE, dcerpc_uint32_coder)) {
                 return -1;

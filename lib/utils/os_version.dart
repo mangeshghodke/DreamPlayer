@@ -23,7 +23,7 @@ Future<int?> osMajorVersion() async {
   }
 }
 
-/// True when the device runs iOS 26+ — the floor of the AetherEngine MetalFX
+/// True when the device runs iOS 26+ - the floor of the AetherEngine MetalFX
 /// upscale stage (`#available(iOS 26, ...)` in the engine), so the Settings
 /// toggle is only offered where it can actually do something.
 Future<bool> isIos26OrLater() async {

@@ -4,8 +4,8 @@ import UIKit
 
 /// Hosts the system's own `AVRoutePickerView` inside a Flutter platform view.
 ///
-/// `AVRoutePickerView` has no public "present the picker" API — the user has
-/// to tap the control itself — so a method-channel call that opened a sheet
+/// `AVRoutePickerView` has no public "present the picker" API - the user has
+/// to tap the control itself - so a method-channel call that opened a sheet
 /// from Dart is not possible. Embedding the real control is the only honest
 /// way to expose AirPlay, and it keeps Apple's route UI (and its active-route
 /// tint) exactly as the system draws it.

@@ -4,7 +4,7 @@ import android.content.Context
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
-/// Clears the app's on-disk cache (`context.cacheDir`) on demand — the UTF-8
+/// Clears the app's on-disk cache (`context.cacheDir`) on demand - the UTF-8
 /// subtitle re-encode temp files (`dreamplayer_sub_*.utf8`) and anything else
 /// the engine wrote there. Android may purge this directory at any time, so it
 /// is always safe to delete; ExoPlayer keeps no disk cache of its own. The

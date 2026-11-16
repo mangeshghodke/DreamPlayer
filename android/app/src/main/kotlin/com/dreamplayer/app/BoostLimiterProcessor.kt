@@ -8,7 +8,7 @@ import kotlin.math.exp
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
-/// PCM16 make-up gain with a peak limiter — the volume-boost path (issue #41).
+/// PCM16 make-up gain with a peak limiter - the volume-boost path (issue #41).
 ///
 /// Why this exists. `DynamicsProcessing` is the "supported" API for this, but it
 /// is a vendor HAL effect: this app's test phone creates it, the reporter's
@@ -16,11 +16,11 @@ import kotlin.math.roundToInt
 /// "AudioEffect: bad parameter value"). The old fallback on that failure was
 /// `LoudnessEnhancer`: a fixed, untunable compressor that AOSP hard-wires for
 /// STEREO. Attaching it to a 5.1 session on the Pad 2 mangled the centre
-/// channel — the dialogue — while the rest of the mix kept playing, so the
+/// channel - the dialogue - while the rest of the mix kept playing, so the
 /// reporter heard "background music continues, vocals disappear".
 ///
 /// So the boost lives here for every device, which also makes it the same
-/// mechanism MPV uses (plain gain, no effect chain) — and the reporter
+/// mechanism MPV uses (plain gain, no effect chain) - and the reporter
 /// confirmed MPV sounds correct on the same speakers.
 ///
 /// This processor runs INSIDE the sink, on whatever layout the decoder
@@ -28,7 +28,7 @@ import kotlin.math.roundToInt
 /// and the centre channel is never dropped or summed away.
 ///
 /// It is also a limiter, not a compressor. Only samples above the ceiling are
-/// attenuated, so the mix keeps its dynamics — which is the whole point of the
+/// attenuated, so the mix keeps its dynamics - which is the whole point of the
 /// rewrite away from `LoudnessEnhancer` (that one crushed the dialogue out of
 /// the mix, see issue #41).
 ///
@@ -91,7 +91,7 @@ class BoostLimiterProcessor : AudioProcessor {
 
     /// Always active: the processor is part of the sink's chain, and the
     /// boost value changes at gesture rate. Staying active means the chain is
-    /// configured once and the gain is a parameter write, not a rebuild —
+    /// configured once and the gain is a parameter write, not a rebuild -
     /// the same reasoning as the in-place gain move on the effect path.
     override fun isActive(): Boolean = true
 

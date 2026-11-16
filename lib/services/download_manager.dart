@@ -43,7 +43,7 @@ class DownloadJob {
   String? error;
   DateTime createdAt;
 
-  /// Transient: SMB loopback HTTP bridge token. Not persisted — only valid
+  /// Transient: SMB loopback HTTP bridge token. Not persisted - only valid
   /// while the app process is alive. Cleaned up in [_downloadFile]'s finally.
   String? loopbackToken;
 
@@ -172,7 +172,7 @@ class DownloadManager extends ChangeNotifier {
       //
       // This is what the file browser's "Download to device" now uses, so a
       // large USB copy gets the same foreground notification, progress bar and
-      // home-screen entry as an SMB download — rather than freezing the UI on a
+      // home-screen entry as an SMB download - rather than freezing the UI on a
       // long synchronous channel call.
       await _copyLocalFile(video, dir);
       return;
@@ -183,7 +183,7 @@ class DownloadManager extends ChangeNotifier {
         // Convert "smb:<serverId>/<share>/<path>" → "smb://<serverId>/<share>/<path>"
         sourceUri = 'smb://${rk.substring(4)}';
       } else if (rk.startsWith('folderbookmark:')) {
-        // iOS Files-app bookmarked folder — file is already local.
+        // iOS Files-app bookmarked folder - file is already local.
         // Copy directly instead of downloading over HTTP.
         await _copyLocalFile(video, dir);
         return;
@@ -194,7 +194,7 @@ class DownloadManager extends ChangeNotifier {
       sourceUri = video.uri ?? '';
     }
     if (sourceUri.isEmpty) {
-      throw Exception('Invalid URI — cannot download this source');
+      throw Exception('Invalid URI - cannot download this source');
     }
     final ext = _extension(video.title, video.uri);
     final safeName = _safeFileName(video.title);
@@ -259,6 +259,49 @@ class DownloadManager extends ChangeNotifier {
         .any((j) => j.id == id && j.status == DownloadStatus.completed);
   }
 
+  /// Registers a file that arrived OUTSIDE the downloader - the LAN upload
+  /// server (WiFi file transfer) - so it joins the same "Downloaded" grid,
+  /// the drawer and the Downloads screen as any other download. Keyed by the
+  /// file path: a re-upload of a file that was deleted from the list reuses
+  /// the entry instead of piling up duplicates.
+  ///
+  /// The file is already in the download directory (the upload server writes
+  /// there directly), so this only makes the entry visible.
+  Future<void> registerUploadedFile({
+    required String path,
+    int bytes = 0,
+  }) async {
+    if (path.isEmpty) return;
+    if (!File(path).existsSync()) return;
+    final title = path.split('/').last;
+    final id = 'upload_${path.hashCode.toRadixString(16)}';
+    final existing = downloads.where((j) => j.id == id).firstOrNull;
+    if (existing != null) {
+      existing
+        ..title = title
+        ..status = DownloadStatus.completed
+        ..destPath = path
+        ..error = null;
+      if (bytes > 0) {
+        existing.totalBytes = bytes;
+        existing.bytesCopied = bytes;
+      }
+    } else {
+      downloads.add(DownloadJob(
+        id: id,
+        title: title,
+        sourceUri: path,
+        sourceType: 'upload',
+        totalBytes: bytes > 0 ? bytes : -1,
+        bytesCopied: bytes,
+        status: DownloadStatus.completed,
+        destPath: path,
+      ));
+    }
+    await _save();
+    notifyListeners();
+  }
+
   String? localPathFor(String resumeKey) {
     final id = 'dl_${resumeKey.hashCode.toRadixString(16)}';
     final job = downloads
@@ -320,7 +363,7 @@ class DownloadManager extends ChangeNotifier {
       }
       job.totalBytes = await srcFile.length();
 
-      // Chunked async copy with progress — sync I/O blocks the event loop
+      // Chunked async copy with progress - sync I/O blocks the event loop
       // and causes UI stutter.
       const chunkSize = 256 * 1024; // 256 KB
       final raf = await srcFile.open(mode: FileMode.read);
@@ -344,7 +387,7 @@ class DownloadManager extends ChangeNotifier {
             await _updateNotification(job);
             notifyListeners();
           }
-          // Yield even when not updating — keeps the UI responsive.
+          // Yield even when not updating - keeps the UI responsive.
           await Future<void>.delayed(Duration.zero);
         }
       } finally {
@@ -352,7 +395,7 @@ class DownloadManager extends ChangeNotifier {
         await sink.close();
       }
       if (completer.isCompleted) {
-        // Cancelled — delete partial file.
+        // Cancelled - delete partial file.
         try { File(destPath).deleteSync(); } catch (_) {}
         return;
       }
@@ -395,7 +438,7 @@ class DownloadManager extends ChangeNotifier {
         'totalBytes': job.totalBytes,
       });
     } catch (e) {
-      // Log but don't swallow — helps debug missing iOS notifications.
+      // Log but don't swallow - helps debug missing iOS notifications.
       debugPrint('[DownloadManager] updateNotification failed: $e');
     }
   }
@@ -467,7 +510,7 @@ class DownloadManager extends ChangeNotifier {
           if (len > 0) job.totalBytes = len;
           await headRes.drain<void>();
         } catch (_) {
-          // HEAD not supported or failed — proceed without totalBytes.
+          // HEAD not supported or failed - proceed without totalBytes.
         }
       }
 
@@ -494,7 +537,7 @@ class DownloadManager extends ChangeNotifier {
       notifyListeners();
       await for (final chunk in response.timeout(
         const Duration(seconds: 60),
-        onTimeout: (_) => throw Exception('Download timed out — no data received for 60s'),
+        onTimeout: (_) => throw Exception('Download timed out - no data received for 60s'),
       )) {
         if (completer.isCompleted) break;
         sink.add(chunk);

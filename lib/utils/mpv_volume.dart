@@ -20,7 +20,7 @@
 //
 // MPV has no comparable hardware effect. Its gain therefore rides on mpv's own
 // `volume` property, which is the one placement known to actually reach the
-// speaker — a filter-based gain is discarded on an `audiotrack` output
+// speaker - a filter-based gain is discarded on an `audiotrack` output
 // (measured on-device: `af` reads back empty). The limiter is still attached
 // best-effort so a working build gets smoothing, but MPV must never *depend*
 // on the filter for the boost to exist.
@@ -62,7 +62,7 @@ double mpvVolumePercent({
 
 /// MPV has NO peak limiter, and cannot be given one.
 ///
-/// This is a measured, closed conclusion — five forms were tried against a real
+/// This is a measured, closed conclusion - five forms were tried against a real
 /// device and every one failed, two of them SILENTLY:
 ///
 /// | Form | Result |
@@ -75,17 +75,17 @@ double mpvVolumePercent({
 ///
 /// The last row is the decisive one. mpv parses everything after `lavfi=` as
 /// **sub-option name=value pairs**, so a value may be a single token with no
-/// `=` in it. `lavfi=anull` works for exactly that reason — one bare token,
+/// `=` in it. `lavfi=anull` works for exactly that reason - one bare token,
 /// which mpv maps onto the filter's `graph` sub-option. Any attempt to pass
 /// filter *options* turns the filter name into a sub-option name, and the
-/// whole `af` set is rejected — sometimes without a word of it.
+/// whole `af` set is rejected - sometimes without a word of it.
 ///
 /// So MPV's boost rides on `volume` alone (see [mpvVolumePercent]) and will
 /// CLIP at high settings rather than limit. That is a known, accepted limit,
 /// not an oversight. The engine that gets a proper peak limiter is the native
 /// one, via `BoostLimiterProcessor` in the audio sink, which is where boost is
 /// used by default. Adding a limiter to MPV would need a different
-/// filter-delivery mechanism — a Lua script or a custom libmpv — not another
+/// filter-delivery mechanism - a Lua script or a custom libmpv - not another
 /// `af` string.
 /// Do not add an `af` write to `_applyMpvVolume` without re-running the probe
 /// in that file first.
@@ -127,14 +127,14 @@ class VolumeSplit {
 /// different place depending on which side of 100% it is, so the base has to
 /// follow it:
 ///
-///   * boost above 1.0 — the system volume is pinned at max and [boost] is
+///   * boost above 1.0 - the system volume is pinned at max and [boost] is
 ///     what holds the level, so the base is [boost].
-///   * boost at 1.0 — the boost is not in play at all and the system volume IS
+///   * boost at 1.0 - the boost is not in play at all and the system volume IS
 ///     the level, so the base is [systemVolume].
 ///
 /// Two wrong versions of this shipped first, both from trying to be clever:
 /// reading only [boost] made every gesture start at 100%, and taking
-/// `max(systemVolume, boost)` did the same thing from the other side —
+/// `max(systemVolume, boost)` did the same thing from the other side -
 /// `max(0.3, 1.0)` is `1.0`, so any volume below 100% snapped upward. The
 /// lesson is that this is a question with a conditional answer, not a max.
 double volumeGestureBase({

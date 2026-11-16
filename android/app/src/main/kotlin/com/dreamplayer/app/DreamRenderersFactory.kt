@@ -30,7 +30,7 @@ class DreamRenderersFactory(private val appContext: Context) : DefaultRenderersF
 
         /// Volume boost: make-up gain + peak limiter on the decoded PCM. Shared
         /// so the player can move the gain at gesture rate without rebuilding
-        /// the sink, and because it is the ONLY boost path — no vendor audio
+        /// the sink, and because it is the ONLY boost path - no vendor audio
         /// effect is involved (issue #41).
         val audioBoostProcessor = BoostLimiterProcessor()
 
@@ -68,7 +68,7 @@ class DreamRenderersFactory(private val appContext: Context) : DefaultRenderersF
     /// `KEY_COLOR_TRANSFER_REQUEST` on `configuration.mediaFormat` here really
     /// reaches the decoder.
     ///
-    /// The request is advisory — a codec that does not implement it ignores
+    /// The request is advisory - a codec that does not implement it ignores
     /// the key and keeps its native PQ output. The created adapter is
     /// therefore wrapped so the ACTUAL output transfer can be reported back
     /// (the picture label must not claim an SDR conversion that never

@@ -1,6 +1,6 @@
 # iOS release notes (App Store Connect "What's New")
 
-**Use this file for App Store Connect What's New — NOT `CHANGELOG.md`.**
+**Use this file for App Store Connect What's New - NOT `CHANGELOG.md`.**
 
 `CHANGELOG.md` is written for the Android sideload audience (GitHub Releases)
 and deliberately contains things App Store review rejects. Guideline 2.3.10
@@ -38,27 +38,27 @@ true of the intended build but not of the one that was reviewed. Verify with
 ## 0.5.8
 
 New:
-• Pick a subtitle font file from device storage: the subtitle font picker (CC → Subtitle settings → Font) has a "Pick a font file from this device…" row — choose any `.ttf` / `.otf` / `.ttc` / `.woff` from Files, iCloud Drive, Downloads or any provider. The font is copied into the app and its own name is read from the file, so it works offline and shows correctly in the preview and during playback.
+• Pick a subtitle font file from device storage: the subtitle font picker (CC → Subtitle settings → Font) has a "Pick a font file from this device…" row - choose any `.ttf` / `.otf` / `.ttc` / `.woff` from Files, iCloud Drive, Downloads or any provider. The font is copied into the app and its own name is read from the file, so it works offline and shows correctly in the preview and during playback.
 
 Fixed:
-• The "Skip intro / recap / credits" button now appears on the first watch of a new episode or movie, not only on the second play — the lookup waited for title metadata that arrives a moment after playback starts on a fresh title, and now re-checks as soon as it lands.
+• The "Skip intro / recap / credits" button now appears on the first watch of a new episode or movie, not only on the second play - the lookup waited for title metadata that arrives a moment after playback starts on a fresh title, and now re-checks as soon as it lands.
 
 ---
 
 ## 0.5.7
 
 New:
-• Files deleted on your network storage are now cleaned up automatically: they disappear from Continue Watching and from any bookmarked folder on the home screen. Nothing is ever removed unless the server itself confirms the file is gone — if the server is just offline, everything stays.
+• Files deleted on your network storage are now cleaned up automatically: they disappear from Continue Watching and from any bookmarked folder on the home screen. Nothing is ever removed unless the server itself confirms the file is gone - if the server is just offline, everything stays.
 
 Fixed:
-• Using a swipe gesture (brightness/volume) no longer greys out the screen or stops the video — the swipe indicator was crashing the player frame on the first swipe.
+• Using a swipe gesture (brightness/volume) no longer greys out the screen or stops the video - the swipe indicator was crashing the player frame on the first swipe.
 
 Changed:
 • The default app icon is now the logo only; the logo with the "DreamPlayer" text is still available as a second choice in Settings.
-• The brightness/volume swipe pill now matches the app's look — a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
+• The brightness/volume swipe pill now matches the app's look - a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
 • Swiping up on brightness no longer shows a warning; only pushing volume past 100% flashes the short battery warning.
-• Unlocking the iPad no longer shows a stretched screen for a moment: you now see a brief soft reload — your app icon centred on the same colour as the selected tab at the bottom (it follows the accent colour you picked in Settings) — then the UI comes back the right size and playback continues where you left off.
-• Ready for the foldable iPhone: the app adapts to the folded cover screen, the large open inner screen, and Split View — no stretched or overflowing layout at any size, scroll position survives folding, and the inner display runs at its full 120 Hz refresh rate.
+• Unlocking the iPad no longer shows a stretched screen for a moment: you now see a brief soft reload - your app icon centred on the same colour as the selected tab at the bottom (it follows the accent colour you picked in Settings) - then the UI comes back the right size and playback continues where you left off.
+• Ready for the foldable iPhone: the app adapts to the folded cover screen, the large open inner screen, and Split View - no stretched or overflowing layout at any size, scroll position survives folding, and the inner display runs at its full 120 Hz refresh rate.
 
 ---
 
@@ -66,7 +66,7 @@ Changed:
 
 New:
 • A Shortcuts app action, "Play URL in DreamPlayer": run it from the Shortcuts
-  app — or share a video link to it — and the address opens straight into
+  app - or share a video link to it - and the address opens straight into
   playback.
 • Play .strm shortcut files and M3U/M3U8 playlists. A .strm file that holds a
   video link is followed automatically, and a playlist plays its entries in
@@ -76,8 +76,8 @@ New:
   server's movie and show libraries then appear with posters, and tapping an
   item plays it directly over your network.
 • Skip intro and skip credits now appear while the playhead is inside an
-  opening or closing chapter — matched from the chapter names, or from the
-  optional online intro database — as a row in the player's menu and as an
+  opening or closing chapter - matched from the chapter names, or from the
+  optional online intro database - as a row in the player's menu and as an
   on-screen pill.
 • Network servers (shared folders, WebDAV, Jellyfin) can now keep two
   addresses, one for your home network and one for when you are away, and the
@@ -98,7 +98,7 @@ New:
   versions can keep using the previous release.
 • List or Grid view in the shared-folder browsers. The three-dot menu at the
   top right of the SMB, WebDAV, FTP, DLNA and Jellyfin browsers now has a
-  View entry: List for the familiar rows, Grid for tiles with artwork —
+  View entry: List for the familiar rows, Grid for tiles with artwork -
   folders, films and episode images. The choice applies to every one of those
   browsers at once and is remembered.
 
@@ -106,8 +106,8 @@ New:
   drains the battery faster, the first time you cross that point.
 
 • Another key-free film catalogue is available in Settings → Metadata. It
-  matches a film by its catalogue code — SVFLA-012 and SVFLA012 are the same
-  film — and brings the poster, cast, release date, studio and genres.
+  matches a film by its catalogue code - SVFLA-012 and SVFLA012 are the same
+  film - and brings the poster, cast, release date, studio and genres.
 • Press and hold the picture to play at double speed; lift your finger to
   return to the speed you had set. A small "2x" badge appears at the top while
   the boost is active. It is part of the subscription, like the other
@@ -116,8 +116,8 @@ New:
 Fixed:
 • A subscription or lifetime unlock no longer has to be restored by hand
   after an app update or a reinstall. The app now picks the purchase up on
-  its own — the subscription screen steps out of the way by itself if it is
-  open — and the Restore button no longer reports "No previous purchase
+  its own - the subscription screen steps out of the way by itself if it is
+  open - and the Restore button no longer reports "No previous purchase
   found" for a purchase that is still on its way.
 • The Restore button now reports the store's own answer. It could say
   "Purchase restored!" based on what the app already knew in memory, even
@@ -127,7 +127,7 @@ Fixed:
   instead of claiming success.
 • Signing out of Media & Purchases now ends premium access. A purchase
   belongs to the Apple Account, so at the sign-in prompt the Restore button
-  raises, an empty purchase history afterwards now ends the entitlement —
+  raises, an empty purchase history afterwards now ends the entitlement -
   premium features stop and the subscription screen returns.
 • The subscription screen no longer flashes up in front of someone who has
   already paid.
@@ -138,7 +138,7 @@ Fixed:
 • The "Restore Purchases" sheet no longer closes itself the instant it opens.
   Opened on purpose, it now stays up so the Restore button can be used.
 • After an update, the app now waits for the store to answer before it
-  decides you have no purchase — so the unlock button no longer sits there
+  decides you have no purchase - so the unlock button no longer sits there
   for a few seconds at someone who is already subscribed.
 • A subscription that has expired while the app was in the background no
   longer unlocks the premium features, and a purchase made elsewhere (the App
@@ -147,11 +147,11 @@ Fixed:
 • The volume swipe no longer goes past 100% on iPhone and iPad, and the
   "Volume boost" setting is gone there. Pushing it past 100% had to rebuild
   the audio session, which reloaded the picture on every step of the swipe.
-• Bass boost is gone. It had the same problem — switching it rebuilt the
-  audio session and reloaded the picture — and it was only offered while
+• Bass boost is gone. It had the same problem - switching it rebuilt the
+  audio session and reloaded the picture - and it was only offered while
   spatial audio was switched on. Night mode and spatial audio are
   unchanged.
-• After unlocking the iPad — or coming back to the app — the interface no
+• After unlocking the iPad - or coming back to the app - the interface no
   longer looks stretched for a moment.
 • A file on a network share keeps playing after the iPad has been locked: the
   app reconnects to the share on its own, and the audio track you had chosen
@@ -169,8 +169,8 @@ Fixed:
 
 New:
 • Search your library from the Home screen. A search button matches shows,
-  seasons, episodes and films by title, file name or episode code as you type —
-  accents and capitals do not matter — and works without a connection. Every
+  seasons, episodes and films by title, file name or episode code as you type -
+  accents and capitals do not matter - and works without a connection. Every
   result opens the same page as the matching card on the Home screen.
 • Keyboard shortcuts when a hardware keyboard is attached: K or Space to play
   and pause, J and L to skip back and forward ten seconds, F for fullscreen,
@@ -181,8 +181,8 @@ New:
 • The Now Playing card on the lock screen and in Control Center now shows the
   matched poster instead of a blank tile, and its skip-back and skip-forward
   buttons jump ten seconds, stopping cleanly at either end. The card now also
-  shows the resolved title — with the season and episode (e.g. S02E05 · The
-  Long Way Home) — instead of the raw file name.
+  shows the resolved title - with the season and episode (e.g. S02E05 · The
+  Long Way Home) - instead of the raw file name.
 • The 4:3, 16:9, 1.85:1 and 2.39:1 choices in the aspect-ratio menu now give
   the video exactly that frame instead of approximating it on the full screen.
   Fit, Crop and Stretch are unchanged.
@@ -195,7 +195,7 @@ New:
 • The subtitle font list now includes the full Google Fonts catalogue, with
   search and every name previewed in its own typeface, plus nine families that
   are built into the app and work with no connection at all. A chosen family
-  applies to the video itself, not only to the preview — including while
+  applies to the video itself, not only to the preview - including while
   watching something from a shared folder.
 
 Fixed:
@@ -243,7 +243,7 @@ Fixed:
 
 ## 0.5.1
 
-• In-app SMB on iPhone and iPad — browse shares, pin folders to Home and
+• In-app SMB on iPhone and iPad - browse shares, pin folders to Home and
   play, without leaving the app.
 
 • Fixed a freeze that could make a title's details page hang for up to a

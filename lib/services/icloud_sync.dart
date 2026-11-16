@@ -17,7 +17,7 @@ import 'continue_watching.dart';
 /// iOS-ONLY by construction: on Android the service returns early before any
 /// channel call (the same immunity pattern as the paywall), and the native
 /// side does not exist there. The blob lives in the app's ubiquity container,
-/// so it follows the user's Apple ID to a new device — no account in the app.
+/// so it follows the user's Apple ID to a new device - no account in the app.
 ///
 /// Flow: every 30 s while foreground + on every resume-from-background, we
 /// pull the remote blob, merge it with local, apply the merged result locally
@@ -53,10 +53,10 @@ class ICloudSyncService extends ChangeNotifier {
   DateTime? get lastSyncAt => _lastSyncAt;
   String? get error => _error;
 
-  /// True only on iOS — everywhere else the service is a no-op.
+  /// True only on iOS - everywhere else the service is a no-op.
   bool get supported => Platform.isIOS;
 
-  /// Loads the persisted toggle. Prefs only — no channel, safe in tests.
+  /// Loads the persisted toggle. Prefs only - no channel, safe in tests.
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _enabled = prefs.getBool(prefsEnabledKey) ?? true;
@@ -92,7 +92,7 @@ class ICloudSyncService extends ChangeNotifier {
     }
     if (!_available) {
       // Not signed in to iCloud / container not provisioned: report and stop
-      // — never loop erroring.
+      // - never loop erroring.
       _error = 'iCloud unavailable (sign in to iCloud on this device)';
       notifyListeners();
       return;
@@ -134,7 +134,7 @@ class ICloudSyncService extends ChangeNotifier {
       final lastPushed = _lastPushed == null ? null : SyncBlob.decode(_lastPushed);
       if (remoteBlob.encode() == (lastPushed?.encode() ?? '') &&
           remoteBlob.updatedAtMs > 0) {
-        // Echo of our own push — nothing new.
+        // Echo of our own push - nothing new.
       } else {
         final merged = SyncBlob.merge(local, remoteBlob);
         await apply(prefs, merged);

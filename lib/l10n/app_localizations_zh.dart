@@ -602,7 +602,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsSpatialAudio => '空间音频';
 
   @override
-  String get settingsSpatialAudioDesc => '高级功能 — 在 AirPods Pro 及其他兼容设备上获得空间音效';
+  String get settingsSpatialAudioDesc => '高级功能 - 在 AirPods Pro 及其他兼容设备上获得空间音效';
 
   @override
   String get settingsVideoDecoder => 'Video decoder';
@@ -624,7 +624,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsHwSdrToneMapDesc =>
-      'Convert HDR/Dolby Vision to SDR in hardware — no real HDR on the panel.';
+      'Convert HDR/Dolby Vision to SDR in hardware - no real HDR on the panel.';
 
   @override
   String get settingsTmdbKey => 'TMDB API key';
@@ -1000,7 +1000,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get smbDomainHint => 'WORKGROUP';
 
   @override
-  String get smbGuest => 'Guest — no username/password';
+  String get smbGuest => 'Guest - no username/password';
 
   @override
   String smbBookmarkAdded(String folder, String server) {
@@ -1540,7 +1540,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sleepEndOfVideo => 'End of current video';
 
   @override
-  String get sleepFinished => 'Sleep timer finished — playback paused';
+  String get sleepFinished => 'Sleep timer finished - playback paused';
 
   @override
   String get volumeOff => 'Off';
@@ -1694,10 +1694,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerVideoDecodeRetrySw => '硬件解码器无法解码此视频，正在改用软件解码重试。';
 
   @override
-  String get playerSleepTimerFinished => '睡眠定时结束 — 播放已暂停';
+  String get playerSleepTimerFinished => '睡眠定时结束 - 播放已暂停';
 
   @override
-  String get playerVolumeBoostWarning => '超过 100% 可能损坏扬声器 — 请自行承担风险';
+  String get playerVolumeBoostWarning => '超过 100% 可能损坏扬声器 - 请自行承担风险';
 
   @override
   String get playerBrightnessBatteryWarning => '亮度超过 80% 会更快消耗电池';
@@ -1741,7 +1741,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homeTitle => 'DreamPlayer';
 
   @override
-  String get homeNothingYet => '暂无视频 — 点击 + 开始';
+  String get homeNothingYet => '暂无视频';
 
   @override
   String get homeDownloaded => '已下载';

@@ -64,7 +64,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'dark');
     await tester.pumpAndSettle();
 
-    // One row for the show folder, one for the file entry it contains —
+    // One row for the show folder, one for the file entry it contains -
     // the search works on what Home already renders, offline.
     expect(find.byType(LibraryListRow), findsNWidgets(2));
     expect(find.textContaining('Dune'), findsNothing);

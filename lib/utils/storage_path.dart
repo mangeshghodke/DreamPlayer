@@ -1,7 +1,7 @@
 /// Mount-point tests for Android storage paths.
 ///
 /// Internal storage is `/storage/emulated/...` (and the `/storage/self/...`
-/// symlink to it); every other real volume — SD card, USB drive — mounts at
+/// symlink to it); every other real volume - SD card, USB drive - mounts at
 /// `/storage/<UUID>`. Judging by the mount point rather than a platform flag is
 /// deliberate: `Environment.isExternalStorageManager()` says nothing about
 /// WHICH volume, and asking Dart for that per file would be a round trip for
@@ -12,7 +12,7 @@
 /// lives here and both call it.
 library;
 
-/// True when [path] is on a removable volume — an SD card or a USB drive.
+/// True when [path] is on a removable volume - an SD card or a USB drive.
 ///
 /// Unmounted or unknown paths (a SAF `content://` URI or a synthetic
 /// `tree:<id>`) are NOT removable: neither can be proven to be, and guessing

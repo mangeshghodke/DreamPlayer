@@ -10,7 +10,7 @@ import 'package:dream_player/services/entitlements.dart';
 /// Models the one behavior that matters: the value outlives the app being
 /// deleted, while SharedPreferences (mocked here) starts empty on reinstall.
 class FakeKeychain {
-  /// The "device" keychain — persists across app deletion.
+  /// The "device" keychain - persists across app deletion.
   final Map<String, Object?> items = {};
 
   /// Invoked so a test can simulate "user deleted the app".
@@ -137,7 +137,7 @@ void main() {
           DateTime.now().subtract(const Duration(days: 2)).millisecondsSinceEpoch;
       Entitlements.instance.resetForTest();
       final e = Entitlements.instance;
-      // Deliberately skip init() — the paywall path must be safe on its own.
+      // Deliberately skip init() - the paywall path must be safe on its own.
       await e.startTrial();
       expect(e.trialStarted!.millisecondsSinceEpoch,
           keychain.items['trialStartedAt'],
@@ -186,7 +186,7 @@ void main() {
       int probes() =>
           calls.where((c) => c.method == 'getTrialStartedAt').length;
       final afterFirst = probes();
-      // Repeated taps must not re-probe the channel — availability is cached
+      // Repeated taps must not re-probe the channel - availability is cached
       // for the process lifetime. (The idempotent re-write is expected.)
       await e.startTrial();
       await e.startTrial();
@@ -203,7 +203,7 @@ void main() {
       final e = Entitlements.instance;
       await e.setDebugFreeUser(true);
       await e.startTrial();
-      // The trial still works — it just isn't reinstall-proof on this build.
+      // The trial still works - it just isn't reinstall-proof on this build.
       expect(e.trialActive, isTrue);
       expect(keychain.items.containsKey('trialStartedAt'), isFalse);
       await e.setDebugFreeUser(false);
@@ -216,7 +216,7 @@ void main() {
       await e.setDebugFreeUser(true);
       await e.startTrial();
       expect(calls, isEmpty,
-          reason: 'Android is permanently advanced — no keychain round-trip');
+          reason: 'Android is permanently advanced - no keychain round-trip');
       await e.setDebugFreeUser(false);
     });
   });

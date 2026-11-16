@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart' show PlatformViewHitTestBehavior;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-/// Distinct viewType for the libmpv SurfaceView — never reuse
+/// Distinct viewType for the libmpv SurfaceView - never reuse
 /// [exoPlayerViewType] (`dreamplayer/exo_player`).
 const String mpvPlayerViewType = 'dreamplayer/mpv_player';
 
@@ -25,7 +25,7 @@ class MpvSurfaceViewController {
   /// Called when the Android Surface exists (or was recreated with a new size).
   void Function(int wid, int width, int height)? onSurfaceReady;
 
-  /// Called when the Surface is gone (destroy / dispose) — clear `--wid`.
+  /// Called when the Surface is gone (destroy / dispose) - clear `--wid`.
   void Function()? onSurfaceLost;
 
   int? get wid => _wid;
@@ -97,7 +97,7 @@ class MpvSurfaceViewController {
 }
 
 /// Embeds the libmpv [SurfaceView] via **hybrid composition**
-/// ([PlatformViewLink] + [PlatformViewsService.initExpensiveAndroidView]) —
+/// ([PlatformViewLink] + [PlatformViewsService.initExpensiveAndroidView]) -
 /// same pattern as [ExoPlayerView]. Never mounted alongside Media3.
 @immutable
 class MpvSurfaceView extends StatelessWidget {

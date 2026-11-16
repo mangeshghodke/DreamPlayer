@@ -57,7 +57,7 @@ import kotlin.concurrent.thread
  * `Range` header is forwarded upstream, and the upstream status line +
  * range/length headers are mirrored verbatim so mpv's demuxer sees exactly
  * what the origin said (206 + `Content-Range` for a ranged read, 200 for a
- * plain one). The body is streamed through — never buffered whole — and the
+ * plain one). The body is streamed through - never buffered whole - and the
  * response is framed with `Content-Length` when the origin gave one, or with
  * chunked encoding when it did not.
  */

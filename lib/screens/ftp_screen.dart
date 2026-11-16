@@ -272,7 +272,7 @@ class _FtpScreenState extends State<FtpScreen> {
       }
     }
     if (meta.folderSeason != null) seasonsNeeded.add(meta.folderSeason!);
-    // Anime bracket numbering — default to season 1.
+    // Anime bracket numbering - default to season 1.
     if (seasonsNeeded.isEmpty && episodes.isNotEmpty) {
       seasonsNeeded.add(1);
     }
@@ -369,8 +369,8 @@ class _FtpScreenState extends State<FtpScreen> {
 
   /// Bookmarks the current FTP/SFTP folder to the home library (with the
   /// auto-expand pattern: subfolders + video files become child cards when
-  /// enabled — same as SMB/WebDAV).
-  // FTP is browsed directly (no Home bookmark) — add-to-library removed per user request.
+  /// enabled - same as SMB/WebDAV).
+  // FTP is browsed directly (no Home bookmark) - add-to-library removed per user request.
 
   Future<void> _goUp() async {
     if (_browsing == null) {

@@ -26,7 +26,7 @@ extern "C" {
 /*
  * Minimal share-enum types and high-level API provided by libsmb2.
  * Full DCE/RPC (including SHARE_INFO_502 and other srvsvc ops) lives in
- * libdcerpc — see dcerpc/dcerpc-srvsvc.h.
+ * libdcerpc - see dcerpc/dcerpc-srvsvc.h.
  */
 
 /* Low 2 bits describe the share type (STYPE_*) */

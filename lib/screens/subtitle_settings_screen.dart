@@ -91,7 +91,7 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
       return;
     }
     if (picked is _SelectCustomFont) {
-      // Re-tapped the active custom font row — nothing to change.
+      // Re-tapped the active custom font row - nothing to change.
       return;
     }
     if (picked is SubtitleFont) {
@@ -257,7 +257,7 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
                   onChanged: (seconds) => _update(
                     _style.copyWith(delayMs: (seconds * 1000).round()),
                   ),
-                  hint: 'Positive values show subtitles later than authored — '
+                  hint: 'Positive values show subtitles later than authored - '
                       'use it to fix out-of-sync files.',
                 ),
               ],
@@ -489,7 +489,7 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
 
 /// Font picker for captions: the six built-ins, the families shipped in the
 /// app (usable offline), then the full Google Fonts catalog. Every row renders
-/// in its own typeface, which is what makes the choice meaningful — the same
+/// in its own typeface, which is what makes the choice meaningful - the same
 /// trick the app-wide font picker uses.
 class _SubtitleFontSheet extends StatefulWidget {
   const _SubtitleFontSheet({
@@ -519,7 +519,7 @@ class _ClearCustomFont {
 }
 
 /// Sentinel the font sheet pops with when the user re-taps the already-active
-/// custom font row (keeps the current custom font — a no-op selection).
+/// custom font row (keeps the current custom font - a no-op selection).
 class _SelectCustomFont {
   const _SelectCustomFont();
 }
@@ -646,7 +646,7 @@ class _SubtitleFontSheetState extends State<_SubtitleFontSheet> {
                         return ListTile(
                           leading: const Icon(Icons.folder_open_outlined),
                           title: const Text('Pick a font file from this device…'),
-                          subtitle: const Text('.ttf / .otf / .ttc — SD card, Downloads, Files'),
+                          subtitle: const Text('.ttf / .otf / .ttc - SD card, Downloads, Files'),
                           onTap: () => Navigator.of(context).pop(
                             const _PickFontFromDevice(),
                           ),

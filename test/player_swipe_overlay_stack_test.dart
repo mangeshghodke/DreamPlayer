@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The player screen needs a live platform view, so it cannot be pumped as a
-/// widget — these tests read the source, like player_transport_order_test.dart.
+/// widget - these tests read the source, like player_transport_order_test.dart.
 ///
 /// Regression pin for the 2026-11-12 iOS crash (dreamplayer_crash.log):
 /// the swipe overlay's `Positioned.fill` slider was placed inside a `Column`
 /// (a Flex). On mount, `Positioned.applyParentData` casts the child's
-/// FlexParentData to StackParentData and throws — the whole frame fails,
+/// FlexParentData to StackParentData and throws - the whole frame fails,
 /// the screen goes grey, the video platform view is lost and only audio
 /// keeps playing. `Positioned*` is only legal as a DIRECT child of a `Stack`.
 void main() {
@@ -52,7 +52,7 @@ void main() {
       }
       final body = src.substring(s, i);
       expect(body.contains(RegExp(r'\bPositioned(\.fill)?\(')), isFalse,
-          reason: 'Column at offset $s contains a Positioned — illegal, '
+          reason: 'Column at offset $s contains a Positioned - illegal, '
               'throws StackParentData cast on mount');
     }
   });

@@ -57,7 +57,7 @@ class HwSdrToneMapTest {
         assertFalse(request(colorTransfer = 2))
         // 8-bit AVC with no colour info must NEVER get the request: on
         // Qualcomm it froze the pipeline (`queueInputs, err 38`, grey
-        // picture) — issue #64.
+        // picture) - issue #64.
         assertFalse(
             request(
                 mimeType = "video/avc",

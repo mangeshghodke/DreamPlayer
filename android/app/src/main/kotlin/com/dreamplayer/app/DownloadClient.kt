@@ -89,7 +89,7 @@ class DownloadClient(private val context: Context) {
     private fun resolveLocalPath(uriStr: String, path: String): String? {
         // Plain filesystem path.
         if (path.isNotEmpty() && File(path).exists()) return path
-        // content:// URI — resolve via DocumentsContract.
+        // content:// URI - resolve via DocumentsContract.
         if (uriStr.isNotEmpty()) {
             try {
                 val uri = Uri.parse(uriStr)

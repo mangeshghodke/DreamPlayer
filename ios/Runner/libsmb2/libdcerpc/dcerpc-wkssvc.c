@@ -70,7 +70,7 @@ p_syntax_id_t wkssvc_interface = {
         {WKSSVC_UUID}, 1, 0
 };
 
-/* PLATFORM_ID_* (WKSTA_INFO_*.platform_id) — same values as MS-SRVS */
+/* PLATFORM_ID_* (WKSTA_INFO_*.platform_id) - same values as MS-SRVS */
 static struct dcerpc_uint32_pretty_printer platform_id_pp = {
         .fmt = "%u",
         .bitfields = {

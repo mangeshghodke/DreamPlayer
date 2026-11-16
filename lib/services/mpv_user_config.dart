@@ -18,7 +18,7 @@ const Set<String> mpvProtectedOptions = {
   'load-scripts',
   'script',
   'scripts-append',
-  // keep mpv alive after the playlist ends / between files — without these
+  // keep mpv alive after the playlist ends / between files - without these
   // a conf line could make the core quit and tear down the player mid-session.
   'idle',
   'keep-open',
@@ -64,7 +64,7 @@ class MpvConfParseResult {
 /// `include=path` (resolved through [includeFiles], keyed by path relative to
 /// [baseDir]; depth-capped). `[profile]` sections are skipped with a warning.
 ///
-/// Pure and synchronous — file IO happens in the caller, which passes the
+/// Pure and synchronous - file IO happens in the caller, which passes the
 /// included files' contents via [includeFiles] (tests pass a map).
 MpvConfParseResult parseMpvConf(
   String content, {

@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Pins the cold-cache skip-pill race (issue #65): on the FIRST play of a new
 /// episode/movie the TMDB match (and sometimes the season list) resolves
 /// AFTER the first playback event, so `_maybeRemoteSkipLookup` must not latch
-/// its "already looked up" flag while metadata is missing — it has to re-fire
+/// its "already looked up" flag while metadata is missing - it has to re-fire
 /// when the match lands, or the Skip pill only appears on the second play.
 ///
 /// The player screen needs a live platform view, so the contract is read out
@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final source = File('lib/screens/player_screen.dart').readAsStringSync();
 
-  /// Sections are resolved lazily inside each test — expect() may not run at
+  /// Sections are resolved lazily inside each test - expect() may not run at
   /// main() level.
   String section(String startMarker, String endMarker) {
     final start = source.indexOf(startMarker);
@@ -38,7 +38,7 @@ void main() {
       ));
 
   test('the lookup latch only sticks on a definitive decision', () {
-    // The latch must NOT be set before the early returns — the original bug
+    // The latch must NOT be set before the early returns - the original bug
     // set it on the first line, so a null _tmdbMeta on a cold first play
     // permanently killed the lookup.
     final lk = lookup();

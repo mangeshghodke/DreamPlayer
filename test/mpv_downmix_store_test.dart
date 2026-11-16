@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Issue #37: the MPV engine was noticeably quieter than Media3 for the same
 /// file, because `audio-normalize-downmix` was forced on. mpv's manual says of
 /// the enabled case that "the output might be too silent", and `no` is mpv's own
-/// default — so the off state has to be the default here too.
+/// default - so the off state has to be the default here too.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

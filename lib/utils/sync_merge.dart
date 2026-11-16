@@ -2,7 +2,7 @@ import 'dart:convert';
 
 /// Pure iCloud-sync blob logic (competitor-gap #3): encode / parse / merge the
 /// JSON blob that travels through NSUbiquitousKeyValueStore between the
-/// user's iPhone and iPad. No Flutter, no IO — unit-tested in
+/// user's iPhone and iPad. No Flutter, no IO - unit-tested in
 /// `test/icloud_sync_test.dart`.
 ///
 /// Blob shape (versioned so the format can evolve):
@@ -12,7 +12,7 @@ import 'dart:convert';
 /// ```
 ///
 /// Merge rule: watched is a UNION, resume keeps the FURTHER-ALONG position per
-/// key, continue-watching keeps the newest entry per video key — and a resume
+/// key, continue-watching keeps the newest entry per video key - and a resume
 /// entry whose base key is watched is DROPPED (playing to the end clears the
 /// resume; without the drop, the other device's older position would
 /// resurrect a finished video).
@@ -96,7 +96,7 @@ class SyncBlob {
     }
   }
 
-  /// The base resume key with any engine prefix (`media3:`/`mpv:`) stripped —
+  /// The base resume key with any engine prefix (`media3:`/`mpv:`) stripped -
   /// watched marks are stored against the base key.
   static String baseKeyOf(String storeKeySuffix) {
     for (final engine in const ['media3:', 'mpv:']) {
@@ -108,7 +108,7 @@ class SyncBlob {
   }
 
   /// Merge [a] and [b] (order irrelevant): union watched, max position per
-  /// resume key, newest cw entry per video key, max updatedAt — then drop
+  /// resume key, newest cw entry per video key, max updatedAt - then drop
   /// resume entries whose base key is watched.
   static SyncBlob merge(SyncBlob a, SyncBlob b) {
     final watched = {...a.watched, ...b.watched};

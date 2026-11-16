@@ -7,10 +7,10 @@ String episodeCode(int season, int episode) =>
 /// Title line for an episode / video row.
 ///
 /// Falls back progressively, because the TMDB name is only ever available when
-/// metadata resolved — and offline there is none:
+/// metadata resolved - and offline there is none:
 ///
 /// 1. The TMDB episode name ("Tarnished Cities").
-/// 2. `S01E05` — **not** `ParsedFileName.title`, which for a file like
+/// 2. `S01E05` - **not** `ParsedFileName.title`, which for a file like
 ///    `Dark.S01E05.mkv` is the *show* name, so every row in a season rendered
 ///    the same "Dark" and the list was unreadable without a connection.
 /// 3. The file name, for a movie or anything unparseable.
@@ -54,7 +54,7 @@ bool titleIsEpisodeCode({
 /// (`[01]`), and [firstAvailableSeason] is the last resort so a show with only
 /// season 4 cached labels `S04E01`, not `S01E01`.
 ///
-/// Returns null for anything that is not an episode — a movie's title line is
+/// Returns null for anything that is not an episode - a movie's title line is
 /// already complete. **It never invents a season**: `E05`/`[05]` names and
 /// anime folders carry none, and `seasonWithFallback` defaults to 1, which
 /// would label a season-4 file `S01E05`.

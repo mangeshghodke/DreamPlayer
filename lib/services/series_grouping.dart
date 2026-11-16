@@ -62,7 +62,7 @@ class SeriesGroup {
 /// collapsed) as the matching key.
 ///
 /// TMDB-merged folders (those that already share the same TMDB id via the
-/// `TmdStore`) are also collapsed even if their names differ — see
+/// `TmdStore`) are also collapsed even if their names differ - see
 /// [group] below.
 class SeriesGroupingService {
   const SeriesGroupingService();
@@ -310,7 +310,7 @@ class SeriesGroupingService {
     }
   }
 
-  /// Returns the base name for [folderName] — the series name without
+  /// Returns the base name for [folderName] - the series name without
   /// any trailing season tag, roman numeral, or ordinal marker.
   ///
   /// Examples:
@@ -340,7 +340,7 @@ class SeriesGroupingService {
     // Drop roman numerals that act as a suffix to the series name
     // (`Strike the Blood II` → `Strike the Blood`). Require a word character
     // immediately before the roman numeral AND at least one non-word
-    // character (whitespace / start) somewhere before — this way the
+    // character (whitespace / start) somewhere before - this way the
     // whole-name case (`VI`) is preserved but `Strike the Blood II` is
     // still cleaned.
     name = name.replaceAll(
@@ -383,7 +383,7 @@ class SeriesGroupingService {
       'bdrip', 'hdrip',
       'panda', 'subs', 'raw', 'internal', 'uncensored',
     ];
-    // Strip audio channel counts (5.1, 7.1, 2.0, etc.) — always noise.
+    // Strip audio channel counts (5.1, 7.1, 2.0, etc.) - always noise.
     name = name.replaceAll(RegExp(r'(?<!\w)\d+\.\d+(?!\w)'), ' ');
     for (final n in noise) {
       name = name.replaceAll(RegExp('(?<![\\w])${RegExp.escape(n)}(?![\\w])', caseSensitive: false), ' ');
@@ -397,7 +397,7 @@ class SeriesGroupingService {
     name = name.replaceAll(RegExp(r'[<>(){}\[\]"`]'), ' ');
     name = name.replaceAll(RegExp(r'\s+'), ' ').trim();
     // Final trailing number strip after normalization (catches cases like
-    // "house s02 1080p" that survived earlier passes — only when season tag).
+    // "house s02 1080p" that survived earlier passes - only when season tag).
     name = _conditionallyStripTrailingNumber(name).trim();
     return name;
   }

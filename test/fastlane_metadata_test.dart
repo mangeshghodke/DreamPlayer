@@ -10,14 +10,14 @@ import 'package:flutter_test/flutter_test.dart';
 /// truncated, a changelog is dropped, an icon is ignored), and two of them are
 /// easy to get wrong by hand:
 ///
-///  * `changelogs/<name>.txt` must be the **Android `versionCode`** — the
+///  * `changelogs/<name>.txt` must be the **Android `versionCode`** - the
 ///    hand-pinned value in `build.gradle.kts`, not pubspec's `+N` build number.
 ///    Renaming it to `54.txt` after a pubspec bump drops the changelog for the
 ///    release it was written for.
 ///  * the changelog is capped at **500 bytes** and must be plain ASCII.
 ///
 /// Image constraints (icon ≤512 px, featureGraphic 1024x500 or 512x250,
-/// screenshot ratio ≤2:1) are not checked here — run
+/// screenshot ratio ≤2:1) are not checked here - run
 /// `docker run --rm -v "$PWD:/github/workspace" -w /github/workspace \
 ///   ashutoshgngwr/validate-fastlane-supply-metadata:v2`
 /// which is the validator F-Droid/IzzyOnDroid recommend.

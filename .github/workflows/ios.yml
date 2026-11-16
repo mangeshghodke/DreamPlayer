@@ -202,7 +202,7 @@ jobs:
           mkdir -p ~/private_keys
           echo "$APPSTORE_API_KEY" > ~/private_keys/AuthKey_${APPSTORE_API_KEY_ID}.p8
 
-          # altool doesn't expand globs — find the actual IPA
+          # altool doesn't expand globs - find the actual IPA
           IPA_FILE=$(ls build/ios/ipa/*.ipa 2>/dev/null | head -1)
           if [ -z "$IPA_FILE" ]; then
             echo "ERROR: No IPA found in build/ios/ipa/"
@@ -213,7 +213,7 @@ jobs:
           # Retry the upload: App Store Connect occasionally drops the
           # connection mid-upload ("The Internet connection appears to be
           # offline", -1009) and the whole 14-minute build is lost with it.
-          # The failure is transient — the same IPA uploads fine on a rerun —
+          # The failure is transient - the same IPA uploads fine on a rerun -
           # so give it a few attempts before failing the job.
           for attempt in 1 2 3; do
             echo "Upload attempt $attempt/3"
@@ -226,7 +226,7 @@ jobs:
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
-              echo "Upload failed — retrying in 30s"
+              echo "Upload failed - retrying in 30s"
               sleep 30
             fi
           done

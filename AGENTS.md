@@ -5,14 +5,14 @@ A cross-platform video player built with Flutter.
 ## Goal
 
 A video player app supporting:
-- **Android** (primary, tested on user's Android phone — CPH2573, Android 16) and **iOS/iPad** (user's iPad Pro M2)
+- **Android** (primary, tested on user's Android phone - CPH2573, Android 16) and **iOS/iPad** (user's iPad Pro M2)
 - **All audio codecs**: DTS, DTS-HD, E-AC3, AC3, TrueHD, etc.
 - **Dolby Vision** where the display supports it
 - **FFmpeg-based** decoding engine
 
 ## Writing conventions
 
-- Use **single hyphens** (`-`), **not em-dashes** (`—`) in prose. Write `Wi-Fi upload server` instead of `Wi-Fi upload server — ...`, `10-foot UI` instead of `10-foot UI — ...`, etc. Em-dashes are reserved for code/API names only where they already exist.
+- Use **single hyphens** (`-`), **not em-dashes** (`-`) in prose. Write `Wi-Fi upload server` instead of `Wi-Fi upload server - ...`, `10-foot UI` instead of `10-foot UI - ...`, etc. Em-dashes are reserved for code/API names only where they already exist.
 - Keep sentences short and layman-friendly; avoid parenthetical em-dash clauses.
 
 ## Current status
@@ -30,7 +30,7 @@ A video player app supporting:
 - App **UI skeleton** done (library, player, settings; dark theme).
 - **iOS signed build + TestFlight upload working (2026-09-19)**: `ios.yml` workflow builds, signs, and uploads to App Store Connect via `flutter build ipa` + `ios/signing_setup.py`. Bundle ID: `com.dreamplayer.app`. First TestFlight build (0.4.7) uploaded successfully.
 - **HDR / codec on-screen display** done (Dolby Vision, HDR10+, HDR10, SDR; E-AC3, DTS-HD, TrueHD, AAC, ...).
-- **Responsive layout** — no overflow on phones/tablets/landscape/large text.
+- **Responsive layout** - no overflow on phones/tablets/landscape/large text.
 - **Native refresh rate** selected at startup (verified 120 Hz on device).
 - **MPV default audio + resume restore (2026-09-23, 0.4.8)**: on open, pin the
   container DEFAULT-flagged track (`pickMpvDefaultAudioId` + raw
@@ -42,11 +42,11 @@ A video player app supporting:
   outside `ringLock`, synchronous head/tail prefill in `SmbDataSource.open`,
   `MultiplexDataSource` reuses the same-URI SMB/FTP delegate. Large MKV over
   NAS no longer stalls at open. `FLAG_DISABLE_SEEK_FOR_CUES` was trialed in
-  0.4.8 and **removed in 0.4.9** — it broke seeking for every MKV (issue #25).
+  0.4.8 and **removed in 0.4.9** - it broke seeking for every MKV (issue #25).
 - **Media3 seek regression fix (2026-09-24, 0.4.9, issue #25)**: double-tap
   +10 s and seekbar both jumped to 00:00 on Media3 (MPV ok) on OnePlus 12R /
   Pad 2 for all files. Global `MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES`
-  was the cause — it strips the `Cues` timestamp→byte index. Fix: remove the
+  was the cause - it strips the `Cues` timestamp→byte index. Fix: remove the
   flag (`ExoPlayerView.kt:415`); cold-start is now covered by
   `MultiplexDataSource` + sync prefill.
 - **Filename-season grouping + metadata fix (2026-09-24, issue #26,
@@ -59,13 +59,13 @@ A video player app supporting:
   stay four independent movie cards and retain their existing TMDB part matches.
 - **Adult metadata + external providers (issue #46, 2026-10-11)**:
   - **Adult content is ONE parameter.** `tmdb_client.dart` had a hardcoded
-    `'include_adult': 'false'` — the only such site in the codebase. Nothing
+    `'include_adult': 'false'` - the only such site in the codebase. Nothing
     else filters adult results, so with it false TMDB never returns an adult
     title and the file resolves to no match. Measured live: `query=hentai`
     returns 20 results of which **0** are adult with it off, **4** with it on.
     Settings → Metadata → "Include adult content" (default off) flips it;
     `TmdApi.search(includeAdult:)` overrides it per call so tests need no
-    global state. Do NOT add a client-side adult filter — that would be a second
+    global state. Do NOT add a client-side adult filter - that would be a second
     place to keep in sync for no benefit.
   - **Providers are now an adapter seam** (`lib/services/metadata_provider.dart`
     → `metadata_provider_adapter.dart`). TheTVDB was added by teaching
@@ -79,72 +79,72 @@ A video player app supporting:
     fallback switch is re-pointed at it in that mode, because TMDB is no longer
     the resolver. `providerOrderFor(externalConfigured: false)` deliberately
     falls back to the built-ins rather than resolving nothing.
-  - **The Settings "External" cell is hidden until an adapter registers** — the
+  - **The Settings "External" cell is hidden until an adapter registers** - the
     `MetadataProviderRegistry.instance.register(AvdbAdapter.instance)` call is
     in `main()`. Offering a choice that resolves nothing is worse than not
     offering it, and the existing test `providerOrderFor` covers the
     unconfigured case as defence in depth.
-  - **AVDb (`lib/services/avdb_adapter.dart`)** — verified live before writing:
+  - **AVDb (`lib/services/avdb_adapter.dart`)** - verified live before writing:
     `avdbapi.com` used to LOOK dead (the bare domain serves an ISP redirect
     page) and resolve **IPv6-only**. **Both are stale as of 2026-10-17**: it is
     now behind Cloudflare with normal A *and* AAAA records, and a default
-    dual-stack request returns HTTP 200 — do not re-add `-4`/IPv6 workarounds.
+    dual-stack request returns HTTP 200 - do not re-add `-4`/IPv6 workarounds.
     It is free, needs **no key**, and
     speaks the Maccms `provide/vod` shape. **Its two endpoints are not uniform:**
     `ac=list` returns NO `poster_url`/`thumb_url`/`description`, while
-    `ac=detail&wd=` returns everything — so `search()` fetches a DETAIL
+    `ac=detail&wd=` returns everything - so `search()` fetches a DETAIL
     response. A list query returns titles with nothing else and every row renders
     bare. Movie-only (TV returns empty rather than inventing seasons) and **no
     ratings**, so `voteAverage` stays 0 and rows show no star rather than a
     fake score. `time` is a DURATION (`"01:58:34"`); the release date is
     `created_at`/`vod_pubdate`. Reading one as the other is a wrong runtime.
     **Field names are NOT standard Maccms** on this deployment: it returns
-    `name` (not `vod_name`) and `origin_name` (not `vod_sub`) — `parseMovie`
+    `name` (not `vod_name`) and `origin_name` (not `vod_sub`) - `parseMovie`
     reads `name` then falls back to `origin_name`. Measured live for #49:
     `wd=` matches `name`, `tag`/`category` AND `movie_code`
     (`wd=MIAA-818` → 1, `wd=Solowork` → 1000), so original-title and alias
-    search already work — `origin_name` differs from `name` only by a bracket
+    search already work - `origin_name` differs from `name` only by a bracket
     prefix such as `[UNCENSORED-LEAK]`, so there is **no separate parameter**
     to add for them. Only `ids=` was missing, so `search()` now routes a
     positive integer to `ids=` (`ids=604629` → exactly 1 record). **Do not
     report "AVDb title search is broken" from a `startswith()` probe**: names
     carry `[UNCENSORED-LEAK]`/`[ENGLISH-SUBTITLE]` prefixes, so a startswith
     check reports false misses (this happened during #49).
-    **`total` is unreliable — it reports 999 even for a query with zero
+    **`total` is unreliable - it reports 999 even for a query with zero
     results**, so never paginate off it. And it is a **JAV (Japanese adult
     video) catalogue**: `wd=The Matrix` → 0, correctly. A user reporting "no
     matches for adult titles" is usually hitting that scope, not a bug.
   - **`AvdbAdapter` is a SINGLETON (`AvdbAdapter.instance`)** because the
     enabled flag is cached. Settings used to build a fresh instance per call
     while the registry held its own, so toggling wrote the preference but the
-    registered adapter reported the old value for the rest of the session — the
+    registered adapter reported the old value for the rest of the session - the
     provider stayed invisible. `test/avdb_adapter_test.dart` reproduces that.
-  - **r18.dev (`lib/services/r18dev_adapter.dart`, issue #52, 2026-10-25)** —
+  - **r18.dev (`lib/services/r18dev_adapter.dart`, issue #52, 2026-10-25)** -
     verified live before writing, and it is a DIFFERENT shape from AVDb:
-    **there is no free-text search at all — the catalogue is keyed by CODE.**
+    **there is no free-text search at all - the catalogue is keyed by CODE.**
     `GET https://r18.dev/videos/vod/movies/detail/-/dvd_id=<code>/json` is the
     lookup (the site strips spaces and quotes from what you type, so
     `SVFLA-012` and `SVFLA012` are the same record; `SVFLA 012` 404s), and
     `GET .../combined=<content_id>/json` is the full record. It answers a
-    plain Dart `HttpClient` request — no Cloudflare challenge, no key, no
+    plain Dart `HttpClient` request - no Cloudflare challenge, no key, no
     cookie. **`content_id` is a STRING** ("1svfla012"), which is why
     `TmdMovie.providerId` exists: the integer `id` is only a stable FNV-1a
     hash of it, and the cache key is provider-qualified on the REAL id.
     The full record carries `jacket_full_url` (the poster), `gallery[]` (the
     sample-video frames → `TmdDetails.stills`), `actresses`/`actors`/
     `directors` with `name_romaji`/`name_kanji`/`name_kana`, `categories[]`
-    with `name_en`/`name_ja` (the genres — but **"Sample Video" and
+    with `name_en`/`name_ja` (the genres - but **"Sample Video" and
     "Over 4 Hours" are site markers, not genres**), `maker_name_*`/`label_name_*`
-    (the studio — it goes in the tagline, because `TmdDetails` has no studio
+    (the studio - it goes in the tagline, because `TmdDetails` has no studio
     field), `release_date` and `runtime_mins`. `maker_name_en` is usually
     **null** and only the Japanese name is populated; `title_en` is a machine
     translation (`title_en_is_machine_translation: true`) and
     `title_en_uncensored` is null. `comment_en` is null too, so the synopsis
     is empty. `jav.guru` was probed as an alternative: 301/404, so it would
-    need scraping — do not go there.
+    need scraping - do not go there.
   - **Two adapters, one "External" provider cell (issue #52).** `main()`
     registers **r18.dev FIRST, then AVDb**, and the consultation order is
-    registration order — so a JAV file resolves on r18.dev (code → rich
+    registration order - so a JAV file resolves on r18.dev (code → rich
     record) before AVDb (name → thin record). Both are behind the SAME
     Settings → Metadata → External cell, and each has its own on/off switch
     there. `MetadataProviderChoice.external` stays PRIMARY, not a fallback:
@@ -156,7 +156,7 @@ A video player app supporting:
     that could have used the provider. It now searches the registered
     adapters alongside the built-ins, and `hasAnyProvider` counts an enabled
     adapter. **`TmdService.detailsFor`/`detailsForMovie` must dispatch on the
-    movie's provider** — an external id handed to TMDB returns an unrelated
+    movie's provider** - an external id handed to TMDB returns an unrelated
     film, and that film's poster and synopsis were written over the adapter's
     match (a silent data corruption). Same for the season-name lookups.
   - **AVDb's `wd=` is a LITERAL match (issue #52).** Measured live:
@@ -168,16 +168,16 @@ A video player app supporting:
   - **Episode rows fall back to the show poster when there is no still (issue
   #47, 2026-10-11)**: `EpisodeStillThumb` already fell back to `posterUrl`, but
   **`folder_screen`, `series_seasons_screen` and `smb_screen` never passed one**,
-  so a row with no still rendered a bare icon — which reads as "the thumbnail
+  so a row with no still rendered a bare icon - which reads as "the thumbnail
   failed to load". The reported examples both had NO still to show: a
   movie-part folder (no episode ⇒ no still, and "Strike the Blood Final" has no
   TheTVDB record at all) and a new 2026 title with 1 still in 6. TheTVDB itself
-  is fine — measured 100% per-episode still coverage on Demon Slayer (79/79),
+  is fine - measured 100% per-episode still coverage on Demon Slayer (79/79),
   Fullmetal Alchemist (86/86), Steins;Gate (31/31) and Strike the Blood (61/61).
   **The contract now lives in `EpisodeRow`** (`stillUrl` + `posterUrl` fields and
   a default thumbnail) because seven duplicated call sites is how three of them
   drifted; `thumbBuilder` still overrides. The layout tests assert each label's
-  **RENDERED width against its intrinsic width** — `takeException()` alone does
+  **RENDERED width against its intrinsic width** - `takeException()` alone does
   NOT catch this, because a squeezed `SegmentedButton` clips silently rather
   than overflowing, which is exactly what cut off "TheTVDB".
 - **Optional TheTVDB metadata provider (2026-09-24, 0.4.9+36)**: TMDB remains
@@ -194,24 +194,24 @@ A video player app supporting:
   are applied through MPV's native equalizer properties, not Flutter filters;
   the controls are hidden for Media3 and PiP, and reapply after surface changes.
 - **MPV power-user features (2026-11-07, adapted from mpv-android which is
-  MIT — code/ideas portable with attribution)**: (1) **secondary/dual
-  subtitles** — the MPV CC sheet has a "Secondary subtitle (top)" section when
+  MIT - code/ideas portable with attribution)**: (1) **secondary/dual
+  subtitles** - the MPV CC sheet has a "Secondary subtitle (top)" section when
   >1 track exists; sets `secondary-sid` + `secondary-sub-visibility=yes` +
   `secondary-sub-pos=100` (`player_screen.dart`), session-only. (2) **Deband /
   Dither switches** in the MPV picture panel, live via `deband` /
-  `dither=ordered`. (3) **Custom MPV config** — Settings → Player → *Custom
+  `dither=ordered`. (3) **Custom MPV config** - Settings → Player → *Custom
   MPV config* picks a persistable `mpv.conf`; at every MPV open
   `_applyMpvUserConfig` reads it (`FileBrowserService.readTextFile`, 1 MiB
   cap) and applies it via `parseMpvConf` (`lib/services/mpv_user_config.dart`)
   AFTER our hardening, so user options win except the protected list
   (`vo`/`wid`/`force-window`/`gpu-context`/`config*`/`script*`/`input-conf`/
-  `idle`/`keep-open` — the SurfaceView attach and core liveness). Parser
+  `idle`/`keep-open` - the SurfaceView attach and core liveness). Parser
   supports `key=value`, `no-key`, bare keys, quotes, recursive `include=`
   (depth 5); profiles and init-only keys are skipped with a log line. Hostile
-  files are capped (200 options, 4 KB lines, option-name regex) — pinned by
+  files are capped (200 options, 4 KB lines, option-name regex) - pinned by
   `test/mpv_user_config_test.dart` (12 tests). Lua scripts are NOT loadable:
   libmpv reads them only at init and media_kit starts with `--config=no` and
-  exposes no init options — that needs our own JNI shim (roadmap).
+  exposes no init options - that needs our own JNI shim (roadmap).
 - **MPV SurfaceView path Phase 1+2 in tree (2026-09-23)**: `media_kit_video`
   removed; video → `MpvSurfaceView` (hybrid composition). Custom `libmpv.so`
   may live in `android/app/src/main/jniLibs/` (Gradle `pickFirsts`). See
@@ -228,23 +228,23 @@ A video player app supporting:
   `MethodChannel`/`EventChannel` per view. `ExoPlayerController.open()` issued
   before the platform view attaches is queued and flushed in `_attach`.
   **VIRTUAL-DISPLAY gotcha (2026-08, the REAL HDR blocker)**: the stock
-  `AndroidView` widget has NO hybrid composition — it uses Flutter's
+  `AndroidView` widget has NO hybrid composition - it uses Flutter's
   **virtual-display + texture** pipeline (`TextureAndroidViewController`). The
   video's `SurfaceView` is composited into a non-HDR virtual display
   (`flutter-vd#1` in `dumpsys SurfaceFlinger`, max 500 nits, `HWC Support:
   dv=false`), read back as a texture, and that SDR-flattened buffer is what
-  reaches the panel. Real HDR is physically impossible through that path — no
+  reaches the panel. Real HDR is physically impossible through that path - no
   amount of window color mode / headroom / dataspace forcing helps; the video
   layer reports `forceClientComposition=true clientType=UNSUPPORTDATASPACE`
   `whitePointNits=-1` and colors come out washed out. **Just Player (a pure
   native Activity) device-composites the same file (`forceClientComposition=false
-  whitePointNits=1249.99`) — same decoder, same dataspace, same metadata.** The
+  whitePointNits=1249.99`) - same decoder, same dataspace, same metadata.** The
   fix: render the platform view with hybrid composition (`PlatformViewLink` +
   `initExpensiveAndroidView`, i.e. HC). Verified on-device after the switch:
   `flutter-vd#1` gone, video layer `composition type=DEVICE`,
   `dataspace=BT2020_ITU_PQ` `hdr metadata types=9`, buffer format
   `Y_CBCR_420_TP10_UBWC` (10-bit PQ), display output `whitePointNits=1249.99`,
-  display color mode `DISPLAY_P3` — byte-for-byte the Just Player profile, and
+  display color mode `DISPLAY_P3` - byte-for-byte the Just Player profile, and
   colors match on screen. (Flutter HC is "expensive" (\> a view-composition
   host) but is the standard hybrid path; HCPP `initHybridAndroidView` needs
   Vulkan + API 34 and is not used.)
@@ -261,116 +261,116 @@ A video player app supporting:
   `BT2020_PQ` with `hdr metadata types=8` (DV decoder outputs the base
   HDR10-compatible layer). Panel: `supportedHdrTypes=[1,2,3,4]`,
   `  mMaxLuminance=1400`. (The `IMAX_SONIC_ANTHEM` mkv is actually SDR h264/BT.709
-  despite the name — its BT709 layer is correct.)
+  despite the name - its BT709 layer is correct.)
   **HDR window forcing must never be fatal (2026-11-06 user report)**: a user
   device crashed on HDR/DV open with `NoSuchMethodError: No virtual method
   setDesiredHdrHeadroom(F)V in class Landroid/view/Window;` from a
-  Handler-posted runnable — a hard main-thread crash, so the Dart
+  Handler-posted runnable - a hard main-thread crash, so the Dart
   software-decode fallback never ran and DV P7/P8 + HDR10+ all "failed" while
   Just Player played them. Every release since 0.1.4 gates `applyHdrHeadroom`
   at `SDK_INT >= TIRAMISU`, so the crashing device is a vendor ROM reporting a
-  high SDK_INT but shipping a stripped `Window` (or a stale build) — either
+  high SDK_INT but shipping a stripped `Window` (or a stale build) - either
   way R8 keeps the guarded call in the dex and the ROM throws at the call
   site. Fix: `applyHdrHeadroom` now wraps the whole body in
   `try/catch NoSuchMethodError` (delegating to `applyHdrHeadroomUnsafe`) and
   the API-31 headroom get/set go through `windowHeadroom`/`setWindowHeadroom`
   helpers that check `SDK_INT >= S` AND catch `NoSuchMethodError`. Without the
-  forcing, SurfaceFlinger auto-tone-maps HDR→SDR — exactly what Just Player
+  forcing, SurfaceFlinger auto-tone-maps HDR→SDR - exactly what Just Player
   does on the same device, so playback continues instead of crashing.
   **Follow-up (same report, Mi 11X / Android 13 and Moto Edge 20 Fusion /
   Android 15, both HDR10+ OLEDs, v0.5.5):** on API 33+ the API-31 method
   exists, so a crash there is some OTHER vendor throwable in the window/
-  surface forcing — the wrapper's second catch was broadened from
+  surface forcing - the wrapper's second catch was broadened from
   `Exception` to `Throwable` so no vendor Error escapes either, and it logs
   `applyHdrHeadroom failed on this ROM (SDK=…)` so the "App crashed?"
   `logcat_dump.log` names the real stack. **The fix is in main (0.5.6+), NOT
-  in the released v0.5.5** — verify on the affected devices with a 0.5.6
+  in the released v0.5.5** - verify on the affected devices with a 0.5.6
   build; if it still crashes there, the logcat dump from the report form is
   the evidence to read.
   **HDR EDR ramp engaged (2026-08, OnePlus)**: with the passthrough working, the
-  display was STILL not boosting — bright PQ skies clipped flat to white.
+  display was STILL not boosting - bright PQ skies clipped flat to white.
   Root cause: OPLUS only enters HDR mode when the *window* asks for headroom.
   `ExoPlayerView.applyHdrHeadroom` now (1) sets `window.setDesiredHdrHeadroom(5.0)`
-  for PQ/HLG content (incl. DV base layer) — the SurfaceView-layer API puts the
+  for PQ/HLG content (incl. DV base layer) - the SurfaceView-layer API puts the
   ratio on the video layer where OPLUS ignores it for the EDR ramp; (2) switches
   the window to `ActivityInfo.COLOR_MODE_HDR` (OPLUS gates the headroom/EDR ramp
-  on the window layer being in HDR color mode — Nova's dump shows DISPLAY_P3 +
+  on the window layer being in HDR color mode - Nova's dump shows DISPLAY_P3 +
   ratio, ours stayed V0_SRGB which is why headroom alone did nothing); (3) sets
   the video surface's dataspace CONSUMER-side via
   `SurfaceControl.Transaction.setDataSpace` (without it OPLUS HWC reports
   `UNSUPPORTDATASPACE` and SF falls back to client composition, which never
-  engages the EDR boost — `current hdr/sdr ratio` stuck at 1.0). Verified
+  engages the EDR boost - `current hdr/sdr ratio` stuck at 1.0). Verified
   on-device with the HDR10+ "lake" clip: `desired hdr/sdr ratio=5.0` on the
   window layer, SDR UI dimmed, video layer device-composited with the ratio
   ramping, no more white clipping. **DV-without-Colour-element gotcha (2026-08)**:
-  some DV profile-7/8 MKVs omit the MKV `Colour` element — the PQ/BT.2020 info
+  some DV profile-7/8 MKVs omit the MKV `Colour` element - the PQ/BT.2020 info
   lives only in the HEVC SPS VUI (ffprobe parses it, Media3's MatroskaExtractor
   does not), so `player.videoFormat?.colorInfo` is `null` and the headroom
   decision used to fall to SDR (`desired ratio=1.0`) even though the SF video
   layer composites as `BT2020_ITU_PQ`. Fix: `stateMap` treats any
-  `dvhe`/`dvh1`/`dvav` codec as HDR (DV is always HDR — profiles 4/7/8 base is
+  `dvhe`/`dvh1`/`dvav` codec as HDR (DV is always HDR - profiles 4/7/8 base is
   PQ BT.2020, profile 5 is IPTPQc2), matching the Dart `detectMedia3HdrFormat`
   `dv`-prefix heuristic that already labels the chip correctly. Since the
   hybrid-composition switch (see the VIRTUAL-DISPLAY gotcha above), DV content
   *skips* the window HDR/headroom machinery entirely (`skipWindowHdr`) and
-  device-composites with the decoder's native BT.2020 PQ dataspace — verified
+  device-composites with the decoder's native BT.2020 PQ dataspace - verified
   on-device (`dvhe.08.06` track): video layer `BT2020_ITU_PQ hdr metadata
   types=9`, `whitePointNits=1249.99`, display `DISPLAY_P3`, no forced dataspace
   or headroom needed. The `colorInfo=null` detection still matters only for the
   Dart HDR chip label.
   **API-gate gotcha (2026-08, Redmi Note 10 /
   MIUI API 31)**: the two-arg `SurfaceControl.Transaction.setDataSpace(
-  SurfaceControl, Int)` overload is **API 33+** — the single-arg
+  SurfaceControl, Int)` overload is **API 33+** - the single-arg
   `setDataSpace(Int)` is API 29, and the target-surface overload does NOT exist
   on API 29-32. Guarding the block with `SDK_INT >= Q` still compiled and R8
   kept the call, so on Android 12 devices it crashed at open with
   `NoSuchMethodError: setDataSpace(Landroid/view/SurfaceControl;I)`. Guard the
   two-arg overload with `SDK_INT >= TIRAMISU` (same gate as
   `setDesiredHdrHeadroom`).
-  **Non-DV / non-HDR devices (2026-08, Redmi Note 10 — HDR10 yes, DV no)**:
+  **Non-DV / non-HDR devices (2026-08, Redmi Note 10 - HDR10 yes, DV no)**:
   three behaviors keep DV/HDR correct across phones:
   (1) **DV P7/P8 → HEVC fallback**: `mediaCodecSelector` in `ExoPlayerView.kt`
   returns `video/dolby-vision` decoder infos when a DV decoder exists, otherwise
-  the **HEVC** (`MimeTypes.VIDEO_H265`) decoder infos — P7/P8 base layers ARE
+  the **HEVC** (`MimeTypes.VIDEO_H265`) decoder infos - P7/P8 base layers ARE
   HDR10 HEVC, so on DV-less devices they play as HDR10 (verified on-device:
   `Dolby-Core-Universe-Lossless-Uhd` decodes via `qcom.decoder.hevc` with
   `setColorMode(2)` engaged). (2) **DV Profile 5 rejection**: P5 (IPTPQc2 color,
   streaming/web rips like `dolby-vision-people`, codec string `dvhe.05.<level>`)
-  is NOT HDR10 HEVC and renders pink/green on any DV-less device — `emit()` calls
+  is NOT HDR10 HEVC and renders pink/green on any DV-less device - `emit()` calls
   `dvP5Rejection()` (lazy `MediaCodecList` check for `video/dolby-vision`;
   `dvRejectionShown` latch reset on `open()`) which `player.stop()`s and surfaces
   `error=UnsupportedDolbyVisionProfile5` → Dart `_friendlyError` shows "This
   device cannot decode Dolby Vision Profile 5…" (verified end-to-end on Redmi via
   uiautomator dump). (3) **SDR-only panels**: `applyHdrHeadroom` early-returns
-  when `display.hdrCapabilities?.supportedHdrTypes` is empty — pushing an SDR
+  when `display.hdrCapabilities?.supportedHdrTypes` is empty - pushing an SDR
   panel into `COLOR_MODE_HDR`/PQ dataspace would break SurfaceFlinger's automatic
   HDR→SDR tone mapping (washed-out colors). `Display.isHdrSupported` is API 34;
   use `hdrCapabilities?.supportedHdrTypes?.isNotEmpty() != true` (API 24+), and
   note `HdrCapabilities` has no `isHdrSupported` in the android-37 stub.
-- **Dolby Vision BLACK PICTURE on the Fire TV Stick (2026-10-26) — investigated,
+- **Dolby Vision BLACK PICTURE on the Fire TV Stick (2026-10-26) - investigated,
   then REVERTED. Read this before trying it again.** The stick (Fire OS 7.1,
   API 25) plays a DV profile 8 remux with a **black picture and working audio,
-  and NO error** — the "Dolby Vision" chip is shown, the panel stays dark.
+  and NO error** - the "Dolby Vision" chip is shown, the panel stays dark.
   **Root cause:** the device's MediaTek DV decoder
   (`OMX.MTK.VIDEO.DECODER.DVHE.STH`) ACCEPTS the stream, initializes, and then
   renders nothing. Media3 never notices: it takes the **first** decoder the
   `MediaCodecSelector` returns, creates the codec from it and never re-checks it
   (`enableDecoderFallback` only covers *init* failures, and a post-init
   `isFormatSupported` miss is only a log warning). A decoder can therefore claim
-  support and stay mute — **only watching for the first frame can catch it.**
+  support and stay mute - **only watching for the first frame can catch it.**
   **What was built and then reverted** (commit `9948d20`, reverted by
   `7bc1a8c` on the user's instruction): a 12 s first-frame watchdog in
   `ExoPlayerView` (renderer observer → no frame → reopen through the HEVC base
   layer), a codec-selector demotion to the base layer when no DV decoder can
   really decode the track, a per-profile "remembered fallback" in its own prefs
   file (`dreamplayer_dv`) and an honest chip (`dvBaseLayer` → HDR10).
-  **What the attempt proved — do not re-learn any of this:**
+  **What the attempt proved - do not re-learn any of this:**
     - **THE CODEC SELECTOR RUNS ON MEDIA3'S PLAYBACK THREAD.** A
       `MediaCodecSelector` that reads `player.videoFormat` throws
       `IllegalStateException: Player is accessed on the wrong thread` →
       `ERROR_CODE_FAILED_RUNTIME_CHECK` → **playback dies on the FIRST open of
       ANY file** (the provider is consulted for every video codec, not just
-      DV). The provider must read a **`@Volatile` format field only** — set it
+      DV). The provider must read a **`@Volatile` format field only** - set it
       SYNCHRONOUSLY in `onVideoInputFormatChanged`, because the renderer
       reports the format before it asks for a decoder. Every other player
       accessor stays on the app thread.
@@ -379,12 +379,12 @@ A video player app supporting:
       SAME black picture with audio. The line that gives it away is
       `auto-fallback: non-decode error "Playback failed
       (ERROR_CODE_FAILED_RUNTIME_CHECK). Unexpected runtime error", falling back
-      to mpv` — **read the log before blaming the decoder.**
+      to mpv` - **read the log before blaming the decoder.**
     - **libmpv CANNOT render Dolby Vision on the Fire Stick at all.** The stick
       is **armeabi-v7a**, so it gets media_kit's STOCK libmpv (no libplacebo, no
       `gpu-next`), and a DV profile 8 stream is a black picture there; the
       custom arm64 `libmpv.so` with libplacebo does not exist for armv7. On the
-      stick MPV is a dead end for DV — the fallback engine can only lose.
+      stick MPV is a dead end for DV - the fallback engine can only lose.
     - **Media3's own "no Dolby Vision display → decode the base layer" path is
       DISABLED on this stick.** `MediaCodecVideoRenderer.getDecoderInfos` only
       asks for the alternative-mime (HEVC) decoders when
@@ -392,7 +392,7 @@ A video player app supporting:
       stick is API 25, so Media3 falls straight through to
       `getDecoderInfosSoftMatch` and the DV decoder is always the first (and
       only) candidate. The base layer is reachable **only** if OUR selector
-      asks for it — which is exactly what the reverted attempt did.
+      asks for it - which is exactly what the reverted attempt did.
     - **Media3 1.11.1 does NOT fix the black picture** (checked upstream): the
       DV internals are identical to 1.10.1 (only `isVideoSizeAndRateSupportedV21`
       was renamed). **No version bump.**
@@ -407,7 +407,7 @@ A video player app supporting:
       per-profile prefs file, the honest chip), but it must be re-validated
       against the wrong-thread trap above before it is re-enabled.
 
-- **iOS/iPad playback via AetherEngine (2026-08)** — the raw **AVPlayer**
+- **iOS/iPad playback via AetherEngine (2026-08)** - the raw **AVPlayer**
   platform view was swapped for an **AetherEngine**-backed one
   (`ios/Runner/AvPlayerView.swift`, `UiKitView` on the Dart side) behind the
   exact same `dreamplayer/exo_<id>` method/event channel contract, so the Dart
@@ -417,16 +417,16 @@ A video player app supporting:
   path** for Apple containers. `engine.bind(view:)` mounts `AetherPlayerView`
   (own `AVPlayerLayer` → real HDR where the panel supports it; iPad Pro M2
   does). Engine added as an SPM dependency (`project.pbxproj`, pinned
-  `upToNextMajorVersion` from **6.38.0** (2026-08-24; was 6.21.0) — Xcode auto-resolves FFmpegBuild's
+  `upToNextMajorVersion` from **6.38.0** (2026-08-24; was 6.21.0) - Xcode auto-resolves FFmpegBuild's
   dynamic FFmpeg xcframeworks into the app bundle. **CI-green** (run on commit
   `82b3dd9`). **Verified on-device (2026-08):** local/Documents files play on the iPad Pro M2;
   SMB playback was REMOVED in 2026-08 (AMSMB2 was slow, wouldn't play every file, and
-  audio-switch could crash) and **restored in 0.5.1 on libsmb2** — see
+  audio-switch could crash) and **restored in 0.5.1 on libsmb2** - see
   "iOS in-app SMB on libsmb2" below. NAS files now reach the app through the in-app
   browser on both platforms, plus CX/Files "Open with", WebDAV and Jellyfin.
   **Minimum iOS 18.0** (`IPHONEOS_DEPLOYMENT_TARGET = 18.0`; 16.0 → 17.0 on
   2026-08 because Citadel (SFTP) requires iOS 17, then 17.0 → 18.0 on
-  2026-10-31 because the AetherEngine 7.x line REQUIRES iOS 18 — see the
+  2026-10-31 because the AetherEngine 7.x line REQUIRES iOS 18 - see the
   "iOS audio DSP" section: the package uses 17.2 / 17.4 / 18 APIs
   unconditionally, so the app's target has to follow the package's. Builds
   through the latest, iPhone and iPad). The App Store Connect listing's
@@ -443,8 +443,8 @@ A video player app supporting:
     every video, and an audio-track switch could crash. Browsing came back
     first on pure-Swift `SMBClient`; see "iOS in-app SMB on libsmb2" below for
     the current architecture and the playback transport.
-    `BufferedSMBReader.swift` STAYS — the WebDAV playback path
-    (`WebDAVByteRangeSource`) still wraps it for read-ahead — and the
+    `BufferedSMBReader.swift` STAYS - the WebDAV playback path
+    (`WebDAVByteRangeSource`) still wraps it for read-ahead - and the
     `AetherEngineSMB` SPM product STAYS because WebDAV's
     `ByteRangeSource`/`WebDAVByteRangeSource` live in that module.
   - **Subtitles render host-side**: AetherEngine decodes cues into
@@ -462,18 +462,18 @@ A video player app supporting:
     positioning moved INTO `SubtitleOverlayView` (it keeps the current cue + the
     coded `videoSize`); `layoutSubviews` recomputes the aspect-fit video rect and
     repositions the active cue on every bounds change, so text AND bitmap cues hug
-    the video's bottom edge and stay put through rotation — before, the text label
+    the video's bottom edge and stay put through rotation - before, the text label
     was Auto-Layout-pinned to the overlay (screen) bottom, so it sat in the
     letterbox bar at the edge of the screen in both orientations. Text cues are
     centered on the video rect, bottom-anchored 12 pt above it, capped to the
     rect's width. Sibling sidecar files (SRT/ASS/
     VTT) auto-pair as `ExternalSubtitleTrack`s (best filename match `isDefault`,
-    id = `externalSubtitleTrackIDBase` + ordinal) — like Android.
+    id = `externalSubtitleTrackIDBase` + ordinal) - like Android.
   - A Documents-folder file browser (`ios/Runner/FileBrowser.swift`, same
     `dreamplayer/files` contract) plus
     `UIFileSharingEnabled`/`LSSupportsOpeningDocumentsInPlace` mean videos are
     dropped into the app via the Files app ("On My iPad → DreamPlayer") and
-    played in-app. **iOS "Open with" works too** — `CFBundleDocumentTypes`
+    played in-app. **iOS "Open with" works too** - `CFBundleDocumentTypes`
     (system video UTIs) + **`UTImportedTypeDeclarations`** (custom UTIs mapping
     `mkv`/`ts`/`m2ts`/`webm`/`wmv`/`flv`/`ogv`/`rmvb`/`mpg`/`vob`… to
     `public.movie`, since iOS has no system UTI for those containers) put
@@ -486,11 +486,11 @@ A video player app supporting:
     auto-plays it: the intent pushes `PlayerScreen`, whose `open()` runs with
     `autoplay: true`.
 - **libmpv (media_kit) engine (2026-08-29 on-device verified; 2026-08-31 reworked
-  from "fallback" into a user-chosen SECOND engine)** — the same `PlayerScreen`
+  from "fallback" into a user-chosen SECOND engine)** - the same `PlayerScreen`
   can run either engine in one build: **Media3** (native ExoPlayer platform
   view, DV/HDR-capable) and **libmpv** (`media_kit: ^1.2.6` for `Player`
   control only + `media_kit_libs_android_video: ^1.3.8`; **`media_kit_video`
-  removed** — video renders into `MpvSurfaceView` hybrid composition, not a
+  removed** - video renders into `MpvSurfaceView` hybrid composition, not a
   Flutter `Texture`). Both
   drive the SAME UI (transport, seekbar, gestures, auto-hide, ended-routing,
   resume, PiP, chapters, CC sheet). The engine is chosen by the USER: the TMDb
@@ -516,16 +516,16 @@ A video player app supporting:
     `ao=opensles` (stereo-only on many SoCs). The bundled libmpv `.so` ships
     the Android **AudioTrack** output + the **spdif** decoder, so on mpv start
     `NativePlayer.setProperty` switches `ao='audiotrack'` (best-effort
-    try/catch — failure keeps opensles) and sets
+    try/catch - failure keeps opensles) and sets
     `audio-spdif='ac3,eac3,dts,dts-hd,truehd'` for Dolby Atmos / AC3 / DTS /
     DTS-HD / TrueHD passthrough on capable outputs; mpv transparently
     PCM-decodes when the sink can't take a bitstream. `NativePlayer` is reached
     via `player.platform` (public `Player` API has no `setProperty`).
   - **Limits (unchanged)**: stock libmpv is SDR-only by default (with tone-map
   mode the MPV path either native-hints HDR to the SurfaceView or intentionally
-  tone-maps to SDR via gpu-next — never a fake HDR texture). `Engine · libmpv`
+  tone-maps to SDR via gpu-next - never a fake HDR texture). `Engine · libmpv`
   in the info sheet and the details
-    row caption "SDR only — no Dolby Vision / HDR" keep the stock path honest, and
+    row caption "SDR only - no Dolby Vision / HDR" keep the stock path honest, and
     Media3 stays the DV/HDR engine. **iOS does NOT run mpv** (AetherEngine
     handles everything AetherEngine supports; iOS-only-codec AVPlayer failures
     bubble up normally).
@@ -539,7 +539,7 @@ A video player app supporting:
     connection, GET/HEAD + single `Range` bytes=) bound to `127.0.0.1` on a
     free port that hands out a `SmbRandomAccessFile` per token. Idle handles
     are parked in an `ArrayDeque` per file (re-opening an SMB handle costs a
-    tree-connect + create round-trip — mpv's probe fires ~15 ranges back to
+    tree-connect + create round-trip - mpv's probe fires ~15 ranges back to
     back, so closing every time is what made startup slow). Reads are
     serialized per file via a `ReentrantLock` because `SmbRandomAccessFile`
     is not thread-safe. Channel methods (`dreamplayer/smb`)
@@ -548,13 +548,13 @@ A video player app supporting:
     side: `SmbClient.startLoopback`/`stopLoopback`. `_mpvOpen` calls
     `startLoopback` for any `smb://` source and stores the token in
     `_mpvProxyToken` so the next `stopLoopback` is exact.
-  - **Http(s) → loopback HTTP bridge (`HttpStreamProxy.kt` + `HttpStreamProxyClient`)**: a remote `http(s)` URL that Media3 opens fine can be refused by the mpv engine ("Failed to open https://…"). The two HTTP stacks differ — Media3 = OkHttp + Conscrypt (`User-Agent: okhttp/4.x`); libmpv = ffmpeg http + bundled mbedtls (`User-Agent: Lavf/63.1.100`). CDNs in front of private trackers (Cloudflare-fronted host with a client-bound `?selection=` token) refuse `Lavf/…` and mbedtls fingerprints.
+  - **Http(s) → loopback HTTP bridge (`HttpStreamProxy.kt` + `HttpStreamProxyClient`)**: a remote `http(s)` URL that Media3 opens fine can be refused by the mpv engine ("Failed to open https://…"). The two HTTP stacks differ - Media3 = OkHttp + Conscrypt (`User-Agent: okhttp/4.x`); libmpv = ffmpeg http + bundled mbedtls (`User-Agent: Lavf/63.1.100`). CDNs in front of private trackers (Cloudflare-fronted host with a client-bound `?selection=` token) refuse `Lavf/…` and mbedtls fingerprints.
     **Fix (layered, non-regressive):**
-    1. The direct open now sends `user-agent` (browser UA, not `Lavf/…`) plus `referrer` + `http-header-fields` from `VideoItem.httpHeaders` — so `VideoItem.httpHeaders` actually reaches mpv (WebDAV Basic auth, Jellyfin token, `Referer`) and `user-agent`/`referrer` are set on their own mpv properties while everything else goes through the comma-separated `http-header-fields` list (commas inside values are escaped as `\,`). The mapping lives in `lib/utils/mpv_http_headers.dart` so it can be unit-tested.
-    2. If the direct open still fails on an http(s) source, the URL is retried once per file through the new OkHttp-backed loopback bridge (`http://127.0.0.1:<port>/<token>`, channel `dreamplayer/httpproxy`) — the same stack Media3 uses — forwarded as `start({url, headers, allowSelfSigned})`. The bridge is a fallback only; direct open first, bridge only as fallback. The retry is keyed by resume key (`_mpvHttpBridgeTriedKey`) so a broken link spins once, error text rewrites the loopback URL back to the original (`_mpvReadableError`), and `dispose()` tears the bridge down.
+    1. The direct open now sends `user-agent` (browser UA, not `Lavf/…`) plus `referrer` + `http-header-fields` from `VideoItem.httpHeaders` - so `VideoItem.httpHeaders` actually reaches mpv (WebDAV Basic auth, Jellyfin token, `Referer`) and `user-agent`/`referrer` are set on their own mpv properties while everything else goes through the comma-separated `http-header-fields` list (commas inside values are escaped as `\,`). The mapping lives in `lib/utils/mpv_http_headers.dart` so it can be unit-tested.
+    2. If the direct open still fails on an http(s) source, the URL is retried once per file through the new OkHttp-backed loopback bridge (`http://127.0.0.1:<port>/<token>`, channel `dreamplayer/httpproxy`) - the same stack Media3 uses - forwarded as `start({url, headers, allowSelfSigned})`. The bridge is a fallback only; direct open first, bridge only as fallback. The retry is keyed by resume key (`_mpvHttpBridgeTriedKey`) so a broken link spins once, error text rewrites the loopback URL back to the original (`_mpvReadableError`), and `dispose()` tears the bridge down.
     Channel registered in `MainActivity.kt` (`HttpStreamProxy.configure(...)`). Pinned by `test/mpv_http_source_test.dart` (header mapping, ordering, channel contract, range/status mirroring).
   - **External subtitles (`_attachMpvExternalSubtitles`)**: mpv's own
-    `sub-auto=exact` only scans sidecars next to a local video file — for
+    `sub-auto=exact` only scans sidecars next to a local video file - for
     SMB loopback URLs / http(s) sources there is no directory to scan, so the
     resolved external subs have to be added explicitly. Order: non-default
     subs first via raw `sub-add <uri> <title> <lang>` (so they populate mpv's
@@ -587,11 +587,11 @@ A video player app supporting:
     on-screen touches). `setMpvState` re-publishes the actions on every
     play-state transition while in pip, so the icon matches reality.
   - **Pip dismissal-latch**: same `pipSeen` + `onActivityStopped` pattern
-    as ExoPlayerView — swiping the pip window away delivers `onStop` while
+    as ExoPlayerView - swiping the pip window away delivers `onStop` while
     the system STILL reports `isInPictureInPictureMode=true`; without the
     latch the pause is skipped and audio plays invisibly. `onResumed()`
     clears it (real expand-back vs real backgrounding).
-  - **MpvPipService** (`lib/services/mpv_pip.dart`) — the Dart side of the
+  - **MpvPipService** (`lib/services/mpv_pip.dart`) - the Dart side of the
     bridge: handler for `pipChanged` / `pipDismissed` / `pipPlayPause` /
     `pipRewind` / `pipForward`, plus `setState({active, playing, aspect})`
     pushing into native and `enterPip()` for the explicit ⋮-sheet row
@@ -599,7 +599,7 @@ A video player app supporting:
     auto-entry pref). `clear()` drops all five callbacks on player dispose.
   - **Audio sources**: 24-bit multichannel FLAC, DTS-HD MA, TrueHD, and any
     other codec the hardware MediaCodec FLAC/E-AC3 fix-up doesn't cover all
-    play through libmpv's bundled FFmpeg software decoder — same trick VLC
+    play through libmpv's bundled FFmpeg software decoder - same trick VLC
     uses. Verified on-device (OnePlus CPH2573): an SDR file that refused to
     play on the native engine (post-software-fallback) opens in the
     fallback engine and plays smoothly.
@@ -608,14 +608,14 @@ A video player app supporting:
   `player_screen.dart`, and the APK (no more `libmpv.so`/mediakit libs; only
   `libflutter.so` + `libmedia3ext.so` remain).
   *(This block is outdated and superseded by the 2026-08-29 libmpv fallback
-  section above — kept here for the historical record. The current build
+  section above - kept here for the historical record. The current build
   DOES ship `libmpv.so` via `media_kit_libs_android_video`, but only as a fallback
   engine, never as the primary decoder.)*
 - **Subtitles done (embedded + sideloaded)**: every sibling subtitle file in
   the video's folder auto-attaches (SRT, SSA/ASS, WebVTT, TTML, SAMI, MicroDVD,
   MPL2, SubViewer via custom parsers), the best match auto-selects, and the CC
   button opens a full track picker over embedded + sideloaded tracks.
-- **Static HDR10 detection for MKV files without Colour element (2026-08)**: some HEVC MKVs omit the MKV `Colour` element — the PQ/BT.2020 mastering metadata lives only in the HEVC SEI (payload types 137 Mastering Display Colour Volume, 144 Content Light Level). `ExoPlayerView.kt` now probes the first ~10 MB of video samples on a background thread with `MediaExtractor`, scanning Annex-B / AVCC NALs for these SEI payloads. When found, `hdr10Content=true` is set and `stateMap` emits `desired=5.0` + `colorTransfer=6`, engaging the HDR headroom / window color mode path for true HDR10 passthrough even without container-level signalling. Verified on-device: a test MKV with no Colour element but with SEI 137/144 now shows the HDR10 chip and triggers the EDR ramp.
+- **Static HDR10 detection for MKV files without Colour element (2026-08)**: some HEVC MKVs omit the MKV `Colour` element - the PQ/BT.2020 mastering metadata lives only in the HEVC SEI (payload types 137 Mastering Display Colour Volume, 144 Content Light Level). `ExoPlayerView.kt` now probes the first ~10 MB of video samples on a background thread with `MediaExtractor`, scanning Annex-B / AVCC NALs for these SEI payloads. When found, `hdr10Content=true` is set and `stateMap` emits `desired=5.0` + `colorTransfer=6`, engaging the HDR headroom / window color mode path for true HDR10 passthrough even without container-level signalling. Verified on-device: a test MKV with no Colour element but with SEI 137/144 now shows the HDR10 chip and triggers the EDR ramp.
 - **New direction**: playback on Android via **ExoPlayer/Media3** in a Flutter
   **PlatformView + MethodChannel** (HDR/DV-capable native surface), modeled on
   **Nova Video Player** architecture. Keep the Flutter UI/shell, the rendering/
@@ -626,13 +626,13 @@ A video player app supporting:
 | Concern | Choice | Notes |
 |---|---|---|
 | Framework | Flutter (stable, 3.44.x) | Cross-platform, single codebase |
-| Playback engine (Android) | **ExoPlayer / Media3** (native, in hybrid-composition PlatformView) | HDR/DV passthrough-capable; working (`c2.qti.dv.decoder`). Hybrid composition (`PlatformViewLink`) keeps the video SurfaceView on the physical display — the stock `AndroidView` is virtual-display/texture and flattens HDR. |
+| Playback engine (Android) | **ExoPlayer / Media3** (native, in hybrid-composition PlatformView) | HDR/DV passthrough-capable; working (`c2.qti.dv.decoder`). Hybrid composition (`PlatformViewLink`) keeps the video SurfaceView on the physical display - the stock `AndroidView` is virtual-display/texture and flattens HDR. |
 | Playback engine (iOS/iPad) | **AetherEngine** (native, in PlatformView) | `AvPlayerView.swift` + `AetherEngine` SPM dep; FFmpeg demux/decode + native AVPlayer path for DV/HDR; cues drawn by host `SubtitleOverlayView`. |
 | SMB (iPad) | **`libsmb2` 7.0.0 for everything** | In-app SMB returned on iOS in 0.5.1 (2026-10) after AMSMB2 was retired in 2026-08. `SMBClient` drove browsing at first, then was removed too: **libsmb2 now does browsing, share listing, discovery, stat, sidecar fetch and playback** (vendored under `Runner/libsmb2`, built by `ios/libsmb2_build.sh`). Playback feeds the engine through a synchronous `smb2_pread` `IOReader`. The `SMBClient` package still arrives transitively via `AetherEngineSMB` and stays credited in the licences screen. |
-| Android audio decode | Media3 `FFmpegAudioRenderer` (ffmpeg extension) | DTS, DTS-HD, E-AC3, AC3, TrueHD — same bundled-FFmpeg approach Nova uses. |
+| Android audio decode | Media3 `FFmpegAudioRenderer` (ffmpeg extension) | DTS, DTS-HD, E-AC3, AC3, TrueHD - same bundled-FFmpeg approach Nova uses. |
 | Reference architecture | **Nova Video Player** (`nova-video-player/aos-AVP`) | See "Playback research notes". |
 | Metadata providers | **TMDB primary + optional TheTVDB v4** | TMDB remains the default resolver; TheTVDB can be a configured fallback or explicit Fix Match/Group Poster choice. Provider-qualified metadata is cached in the existing store; credentials use Android Keystore-backed preferences / iOS Keychain. SIMKL remains TMDB-only. |
-| **Second engine (Android)** | **media_kit + libmpv** (hardware-first via `hwdec=auto-safe`, FFmpeg software fallback, **`MpvSurfaceView` hybrid composition** — no Flutter Texture) | **User-chosen** second engine: `Play with MPV` on the TMDb details screen (or `Try with MPV` on the Media3 error surface). Video is a real SurfaceView (same pattern as Media3); media_kit `Player` is control-only (`media_kit_video` removed). Stock libmpv is SDR-only (tone-map no-ops safely); optional custom `libmpv.so` under `jniLibs/` (libplacebo/gpu-next) enables HDR tone-map. Ships `libmpv.so` via `media_kit_libs_android_video` — Android-only, so iOS doesn't pull in `Mpv.framework` (which breaks SideStore's `ldid` signer). iOS does not run mpv. |
+| **Second engine (Android)** | **media_kit + libmpv** (hardware-first via `hwdec=auto-safe`, FFmpeg software fallback, **`MpvSurfaceView` hybrid composition** - no Flutter Texture) | **User-chosen** second engine: `Play with MPV` on the TMDb details screen (or `Try with MPV` on the Media3 error surface). Video is a real SurfaceView (same pattern as Media3); media_kit `Player` is control-only (`media_kit_video` removed). Stock libmpv is SDR-only (tone-map no-ops safely); optional custom `libmpv.so` under `jniLibs/` (libplacebo/gpu-next) enables HDR tone-map. Ships `libmpv.so` via `media_kit_libs_android_video` - Android-only, so iOS doesn't pull in `Mpv.framework` (which breaks SideStore's `ldid` signer). iOS does not run mpv. |
 | Permissions | `permission_handler` | Runtime `READ_MEDIA_VIDEO` request on video open |
 | Refresh rate | `flutter_displaymode` | Selects highest refresh mode at startup |
 
@@ -650,44 +650,44 @@ A video player app supporting:
     PR #16818 pending). `hwdec:no` (software) gives correct colors but is too slow
     for 4K.
   - Flutter textures (what media_kit uses) have **no HDR path on any platform**
-    (media-kit issue #615) — the display only ever sees SDR.
+    (media-kit issue #615) - the display only ever sees SDR.
 - **New plan (ExoPlayer/Media3, Nova-style):**
   - Render video into a native Android `SurfaceView`/`SurfaceFlinger`-driven
     `PlatformView` so the display receives real HDR/DV signal (the panel supports
-    DV — `supportedHdrTypes` includes it).
+    DV - `supportedHdrTypes` includes it).
   - **Nova Video Player architecture** (`https://github.com/nova-video-player/aos-AVP`):
     entry-point repo with `default.xml` manifest. Sub-repos:
-    - `aos-Video` — Video UI (Kotlin, ExoPlayer-based playback)
-    - `aos-MediaLib` — media library / MediaStore scanning
-    - `aos-FileCoreLibrary` — file management (root/network)
-    - `aos-avos` — C core multimedia engine using FFmpeg (probing/decoding)
+    - `aos-Video` - Video UI (Kotlin, ExoPlayer-based playback)
+    - `aos-MediaLib` - media library / MediaStore scanning
+    - `aos-FileCoreLibrary` - file management (root/network)
+    - `aos-avos` - C core multimedia engine using FFmpeg (probing/decoding)
     - Uses ExoPlayer (`exoplayer.xml`) + FFmpeg audio extension for the lossless
       codecs. Building: `cd Video && ./gradlew -Puniversal assembleNoamazonRelease`
   - Android audio codecs map to Media3 `FFmpegAudioRenderer` extension modules;
     `dts`, `truehd`, `eac3`, `ac3` etc. are FFmpeg decoders.
 - **Nova buffering / read-ahead (how Nova smooths slow SMB/Wi-Fi; source = `aos-avos`)**:
-  - **48 MB ring buffer for network streams** — `Source/avos_mp_video.c:256`
+  - **48 MB ring buffer for network streams** - `Source/avos_mp_video.c:256`
     `stream_set_buffer_size(video->s, 48)`. Wiki "Buffering" history: 12→24 MB
     (2015, high-bitrate 4K) → 48 MB (2022, 2× speed). "Used as cache before the
     parser to tackle buffering issues." Local default is `STREAM_DEFAULT_BUFFER_SIZE`
     64 MB / `STREAM_LARGE_BUFFER_SIZE` 128 MB (`Include/stream.h:41-42`).
-  - **Ring buffer + dedicated background pthread** — `Source/stream_buffer.c:162`
+  - **Ring buffer + dedicated background pthread** - `Source/stream_buffer.c:162`
     `_buffer_thread` loops `pthread_mutex_trylock` → `buffer->buffer(buffer,1)`,
     sleeps 500 ms when full (`BUFFER_SLEEP`). It refills when the parsed-ahead
     media drops below `stream_drive_wake_sleep = 5000` (5 s, `stream_buffer.c:37`);
-    when actively playing it uses `stream_drive_wake_no_sleep = 2000` (s) — i.e.
+    when actively playing it uses `stream_drive_wake_no_sleep = 2000` (s) - i.e.
     keep the ring essentially **always full**.
-  - **Rate-aware refill threshold** — `_calc_buffer_threshold` (`stream_buffer.c:55`)
+  - **Rate-aware refill threshold** - `_calc_buffer_threshold` (`stream_buffer.c:55`)
     predicts seconds-ahead from the measured `vcurrent_rate`/`acurrent_rate`
     (min rate floor 250 kbit/s), not just free space. This informed the in-app
     SMB read-ahead design (see "SMB / network shares" roadmap section).
   - **Debugging**: `av.sh smb` prints the current max buffer size; `av.sh dbgv 2`
     shows fill rate.
   - **SMB library**: Nova's SMBv2/3 support is via **jcifs-ng** (wiki "SMBv2 3",
-    Apr 2020; earlier jcifs 1.3.19 was SMBv1-only) — **NOT smbj** (see Libraries
+    Apr 2020; earlier jcifs 1.3.19 was SMBv1-only) - **NOT smbj** (see Libraries
     table correction). Nova's C core has no SMB IO module (`stream_io_*.c` are all
     local); network files are opened by the Android app layer and fed to the engine.
-  - iOS/iPad DV is restricted by Apple APIs — ExoPlayer/Media3 is Android-only;
+  - iOS/iPad DV is restricted by Apple APIs - ExoPlayer/Media3 is Android-only;
     iOS will need a separate native path (AVPlayer). For now focus Android.
 
 ## Implemented features
@@ -695,14 +695,14 @@ A video player app supporting:
 - **MPV default audio track + resume restore (2026-09-23, 0.4.8)**: on open,
   pin the container's DEFAULT-flagged track instead of whatever media_kit
   lands on first (often a non-default language / commentary). Helper:
-  `lib/utils/mpv_audio_select.dart` — `pickMpvDefaultAudioId` prefers
+  `lib/utils/mpv_audio_select.dart` - `pickMpvDefaultAudioId` prefers
   `AudioTrack.isDefault` from the Dart tracks model; `parseMpvDefaultFlag`
   handles MPV flag strings. When the Dart flag was never parsed (media_kit
   only maps `MPV_FORMAT_FLAG` case `'default'`), `_pinMpvDefaultAudio`
   (`player_screen.dart` ~2135) probes libmpv's raw `track-list/<n>/default`
   properties and calls `setAudioTrack` with the winning id. Guards:
   `_mpvAudioDefaultApplied` (one pin per open) + `_mpvAudioPinInFlight`
-  (no re-entry) — the latch only sets after a **real** selection or a
+  (no re-entry) - the latch only sets after a **real** selection or a
   confirmed no-default, so an early tracks event with empty flags no longer
   sticks forever on the wrong track (latches reset at open ~1051/~1076/~1694;
   tracks listener ~1975-2001). User picks are saved per video + **engine**
@@ -732,17 +732,17 @@ A video player app supporting:
   `SmbDataSource.kt` + `ExoPlayerView.kt`: (1) secondary SMB handles open
   *outside* `ringLock` (each open is a tree-connect round-trip that used to
   block the first Media3 read); (2) a **synchronous head (or tail) fill** in
-  `SmbDataSource.open()` so `open()` never returns with an empty ring —
+  `SmbDataSource.open()` so `open()` never returns with an empty ring -
   short/cue probes only fill what was asked for; (3)
   `FLAG_DISABLE_SEEK_FOR_CUES` on the Matroska extractor so Media3 no longer
-  seeks to EOF during init (Cues live at the end of large files — that seek
+  seeks to EOF during init (Cues live at the end of large files - that seek
   used to reset the ring mid-startup). `MultiplexDataSource` also reuses the
   same-URI SMB/FTP delegate across `open()` so head→EOF→head cue maps don't
   tear down and rebuild the SMB session three times.
 - **MPV SurfaceView path (Phase 1+2, 2026-09-23)**: `media_kit_video`
   (Flutter `Texture` + `VideoController`) is **removed**; video output is
   `MpvSurfaceView.kt` / `lib/services/mpv_surface_view.dart` (viewType
-  `dreamplayer/mpv_player`, hybrid composition — same pattern as Media3's
+  `dreamplayer/mpv_player`, hybrid composition - same pattern as Media3's
   platform view). media_kit `Player` remains for control only. `_startMpvFallback`
   calls `_teardownExoForMpv()` first (exactly one SurfaceView). Custom
   `libmpv.so` may live under `android/app/src/main/jniLibs/` with Gradle
@@ -751,20 +751,20 @@ A video player app supporting:
   "MPV without media_kit" for on-device gates.
 - **MPV HDR tone-map mode (issue #21, 2026-09-23, 0.4.8)**: Settings → Player
   "HDR tone-map (MPV)" + the player's picture panel (top-right sliders
-  button) — **SDR tone-map** (libplacebo
+  button) - **SDR tone-map** (libplacebo
   `gpu-next` + spline / perceptual / BT.709 / BT.1886) vs **Native HDR/DV**.
   Custom arm64 `libmpv.so` with libplacebo ships in
   `android/app/src/main/jniLibs/` (Gradle `pickFirsts`). `_mpvGpuNextAvailable`
   probes `libplacebo-version`; stock libmpv no-ops to `vo=gpu` + bt.2390.
   Android-only; widget test: `test/settings_tone_map_platform_test.dart`.
-- **Hardware SDR tone-mapping (issue #55, 2026-10-29 — user request, verified
-  on-device)** — Settings → Player → "Hardware SDR tone-mapping" (Android,
+- **Hardware SDR tone-mapping (issue #55, 2026-10-29 - user request, verified
+  on-device)** - Settings → Player → "Hardware SDR tone-mapping" (Android,
   **OFF by default**). When on, the video codec is asked to output standard
   SDR instead of the source's HDR/Dolby-Vision signal, so Qualcomm's hardware
   tone-mapper converts on the chip (`YUV_709_NARROW_GAMMA`): the system colour
   modes (OxygenOS Vivid/Natural, white balance) apply again and **DV Profile 5
-  stops rendering green/purple**. The trade-off is deliberate — the picture
-  leaves the HDR path, so the panel no longer gets real Dolby Vision/HDR10 —
+  stops rendering green/purple**. The trade-off is deliberate - the picture
+  leaves the HDR path, so the panel no longer gets real Dolby Vision/HDR10 -
   which is why it is opt-in and labelled as such.
   - **Plumbing (verified against the shipped Media3 1.10.1, not assumed):**
     `DreamRenderersFactory.getCodecAdapterFactory()` is `protected` and IS
@@ -774,7 +774,7 @@ A video player app supporting:
     .Configuration.mediaFormat` is the **same** `MediaFormat` instance that
     reaches `MediaCodec.configure(...)` (`AsynchronousMediaCodecAdapter
     $Factory.createAdapter` passes `Configuration.mediaFormat` straight
-    through) — so `setInteger(KEY_COLOR_TRANSFER_REQUEST,
+    through) - so `setInteger(KEY_COLOR_TRANSFER_REQUEST,
     COLOR_TRANSFER_SDR_VIDEO)` on it really reaches the decoder.
     `MediaFormat.KEY_COLOR_TRANSFER_REQUEST` is **API 31+**
     (`COLOR_TRANSFER_SDR_VIDEO` is API 24) → the request is gated on
@@ -788,11 +788,11 @@ A video player app supporting:
     `android/app/src/test/.../HwSdrToneMapTest.kt`).
   - **Window headroom must be suppressed with it.** When the decoder outputs
     SDR the video layer is NOT an HDR layer, so `applyHdrHeadroom()` must skip
-    the `COLOR_MODE_HDR` + headroom + `setDataSpace(BT2020_PQ)` machinery —
+    the `COLOR_MODE_HDR` + headroom + `setDataSpace(BT2020_PQ)` machinery -
     the existing `skipWindowHdr = true` branch (the Dolby Vision one) already
     resets the window to `COLOR_MODE_DEFAULT` / headroom 1.0 / dataspace 0,
     so the toggle just ORs into it (`ExoPlayerView.stateMap`). **Since issue
-    #64 the skip is gated on the SETTING alone, not on `requested`** —
+    #64 the skip is gated on the SETTING alone, not on `requested`** -
     `requested` is only set once the codec exists, and with the TextureView
     sink (next bullet) the window HDR path must be off from the first frame.
     The emitted `hwSdrToneMap` map value still means "setting AND request
@@ -800,8 +800,8 @@ A video player app supporting:
   - **Issue #64 (2026-11-15, reporter Chikya2929, OnePlus Pad 2): the request
     only works into a SurfaceTexture.** Qualcomm's `c2.qti.hevc.decoder`
     IGNORES `KEY_COLOR_TRANSFER_REQUEST` while rendering straight into a
-    SurfaceView (hardware overlay) — plain HDR10 stayed unmapped PQ
-    (transfer=6) — but honours it when its output sink is a GLES
+    SurfaceView (hardware overlay) - plain HDR10 stayed unmapped PQ
+    (transfer=6) - but honours it when its output sink is a GLES
     SurfaceTexture (TextureView): `request_sdr_video=true output_standard=1
     output_transfer=3 source_transfer=6`, matching mpv-infinity by eye.
     `c2.qti.dv.decoder` honours it either way, which is why DV already
@@ -818,18 +818,18 @@ A video player app supporting:
     passthrough untouched.
   - **Issue #64: never send the request to 8-bit AVC.** With an earlier
     "request whenever colorTransfer == null" rule, 8-bit x264 files froze to
-    a grey picture ~3 s in while audio kept playing — Qualcomm logged
+    a grey picture ~3 s in while audio kept playing - Qualcomm logged
     `QC2PipelinedEntity: [pipeEn_avcD_...] BufferTracking pipelineid=100
     failed to queueInputs, err 38` on every session; an unrequested AVC file
     in the same TextureView played fine. `shouldRequest` therefore only
     allows a null-transfer request for `video/hevc` AND Main10 codec strings
-    (`hvc1.2…`/`hev1.2…`, or codecs unknown) — this covers HDR10 MKVs without
+    (`hvc1.2…`/`hev1.2…`, or codecs unknown) - this covers HDR10 MKVs without
     a `Colour` element, whose PQ lives only in the HEVC SPS VUI (the same
     class of file the SEI probe already handles for the chip). Unit-pinned in
     `HwSdrToneMapTest.kt`.
   - **The label must be honest.** Media3 does NOT copy the codec's output
     colour info back into `Format.colorInfo` (checked
-    `MediaCodecVideoRenderer.onOutputFormatChanged` — it only takes
+    `MediaCodecVideoRenderer.onOutputFormatChanged` - it only takes
     size/rotation), so the chip would still claim "Dolby Vision" while the
     picture is SDR. The adapter is therefore wrapped in Media3's public
     `ForwardingMediaCodecAdapter` and the REAL output transfer is read from
@@ -839,7 +839,7 @@ A video player app supporting:
   - **Preference contract:** Dart `HwSdrToneMapStore` writes
     `dreamplayer.hwSdrToneMap`; shared_preferences puts it in
     `FlutterSharedPreferences` as `flutter.dreamplayer.hwSdrToneMap`, which the
-    native side reads **live** (same pattern as `PlayerCodecs.decoderMode`) —
+    native side reads **live** (same pattern as `PlayerCodecs.decoderMode`) -
     the codec is created per open, so the change lands on the next video and
     needs no player re-instantiation.
   - **Verified on-device (OnePlus CPH2573, Snapdragon 8 Gen 3, Android 16):**
@@ -853,57 +853,57 @@ A video player app supporting:
     (no green/purple), and the chip reads "Tone-mapped SDR". OFF (same file) →
     no request, no transcoding, the layer is back to `dataspace=BT2020_PQ`,
     `hdr metadata types=8`, `forceClientComposition=false`,
-    `whitePointNits=458` — i.e. **native Dolby Vision passthrough is
+    `whitePointNits=458` - i.e. **native Dolby Vision passthrough is
     untouched**.
   - **Traps:** (a) the logcat ring buffer rolls in seconds on a 4K Dolby
-    Vision stream (`QC2V4l2Decoder` floods it) — capture to a file
+    Vision stream (`QC2V4l2Decoder` floods it) - capture to a file
     (`adb logcat -v time > file`) BEFORE opening the file, otherwise the
     evidence is gone; (b) a `file://` VIEW intent on an ALREADY-RUNNING app is
-    delivered to the top instance and does not always restart playback — open
+    delivered to the top instance and does not always restart playback - open
     a *different* file to force a fresh codec; (c) `DreamRenderersFactory`
     logs are on the app process, so filter by the app pid, not by `-s`.
 
-- **Movie-part folders stay separate + per-part TMDB matches (2026-09, 0.4.7)**: movie-part folders like `[VCB-Studio] GIRLS und PANZER das FINALE 01 [Ma10p_1080p]` (Parts 1–4) previously collapsed into one auto-group AND all matched the same movie. Three fixes: (1) `SeriesGroupingService.baseNameOf` strips trailing numbers ONLY when a season-like tag (`S01`, `Season N`, roman numeral — `_conditionallyStripTrailingNumber`) is present, so `FINALE 01`–`04` keep their numbers → each gets its own card; (2) `resolveFolder` tries the **numbered** query first (base `FINALE` as fallback, `candidates.addAll` not `insertAll(0)`) and threads the folder's trailing number as `desiredPart` through `_resolveFolderCandidates` → `_resolveFolderNow` → `TmdApi.bestForQuery` → `_queryScore`/`_score` (the effective part is `qPart ?? desiredPart`, so even the base query gets the part boost); part match `+0.45`, mismatch `-0.35`, query-has-part-but-title-has-none `-0.25` — `FINALE 01→474659`, `02→496891`, `03→746880`, `04→1051192` each win their own `Part` entry (`_partNumberFromTitle` parses `Part 2` AND Roman `Part II`); (3) stale movie-part caches are detected (folder trailing `02` vs cached title `Part I`) and re-resolved in both `TmdService` and `home_screen._resolveFolderMetadata` — log-only, the stale poster stays visible until the fresh fetch lands (no flash).
+- **Movie-part folders stay separate + per-part TMDB matches (2026-09, 0.4.7)**: movie-part folders like `[VCB-Studio] GIRLS und PANZER das FINALE 01 [Ma10p_1080p]` (Parts 1–4) previously collapsed into one auto-group AND all matched the same movie. Three fixes: (1) `SeriesGroupingService.baseNameOf` strips trailing numbers ONLY when a season-like tag (`S01`, `Season N`, roman numeral - `_conditionallyStripTrailingNumber`) is present, so `FINALE 01`–`04` keep their numbers → each gets its own card; (2) `resolveFolder` tries the **numbered** query first (base `FINALE` as fallback, `candidates.addAll` not `insertAll(0)`) and threads the folder's trailing number as `desiredPart` through `_resolveFolderCandidates` → `_resolveFolderNow` → `TmdApi.bestForQuery` → `_queryScore`/`_score` (the effective part is `qPart ?? desiredPart`, so even the base query gets the part boost); part match `+0.45`, mismatch `-0.35`, query-has-part-but-title-has-none `-0.25` - `FINALE 01→474659`, `02→496891`, `03→746880`, `04→1051192` each win their own `Part` entry (`_partNumberFromTitle` parses `Part 2` AND Roman `Part II`); (3) stale movie-part caches are detected (folder trailing `02` vs cached title `Part I`) and re-resolved in both `TmdService` and `home_screen._resolveFolderMetadata` - log-only, the stale poster stays visible until the fresh fetch lands (no flash).
 - **Manual grouping (2026-09, 0.4.7)**: the user selects 2+ cards on Home (long-press enters selection mode, tap toggles the whole group, ✕/back exits), then Group via the app-bar `library_add_check` button or the ⋮ menu → `_promptGroupNameDialog` asks for a name → one grouped card appears. `ManualGroup`/`ManualGroupsStore` (`lib/services/manual_groups.dart`, prefs `dreamplayer.manualGroups`); `_buildDisplayGroups(folders, manual)` renders manual groups FIRST (members collapsed into one `SeriesGroup`, remaining folders auto-group by name), prunes stale groups (folder removed / below 2 members → dissolved) and persists the pruning. `FolderCard.displayNameOverride` (the user-entered group name) wins over TMDB/folder titles on the card. Removing a folder from the library drops it from any manual group (`removeFolderId`). All manual groups open `MovieGroupScreen` (below); auto groups keep the `SeriesSeasonsScreen` flow.
-- **MovieGroupScreen (2026-09, 0.4.7)** (`lib/screens/movie_group_screen.dart`): the grouped-card detail screen, mirroring `SeriesSeasonsScreen`'s layout: backdrop hero `SliverAppBar` (clean backdrop when expanded, fades to toolbar title beside the back arrow when collapsed — same `_CollapsingBackdrop` pattern), `_Header` card (poster + title + year + expandable overview More/Less + star rating + genre chips), `_CastRow` (horizontal circular photos), `_TrailersRow` (up to 5 YouTube buttons), then the grouped folders as poster cards in a `SliverLayoutBuilder` grid using the SAME sizing as the home screen (`_columnsForWidth` 2/3/4/6, `itemWidth * 3/2 + 84`). Header shows only when a member has TMDB info (`_metaForDisplay()`: group key → any member's cached meta) — a random group with no metadata shows just the cards. Details load via `detailsFor` (group key → any member key with meta). Card taps: file entries (`isFile`) build a `VideoItem` from `videoPath`/`videoUri` + `extractFileInfo` and push `TmdDetailsScreen(video:, parentMetadataKey:)` (VIDEO mode — folder mode lists a directory, which a file entry doesn't have: "no videos here" + dead Play button); folder entries push `TmdDetailsScreen(folder:)`.
+- **MovieGroupScreen (2026-09, 0.4.7)** (`lib/screens/movie_group_screen.dart`): the grouped-card detail screen, mirroring `SeriesSeasonsScreen`'s layout: backdrop hero `SliverAppBar` (clean backdrop when expanded, fades to toolbar title beside the back arrow when collapsed - same `_CollapsingBackdrop` pattern), `_Header` card (poster + title + year + expandable overview More/Less + star rating + genre chips), `_CastRow` (horizontal circular photos), `_TrailersRow` (up to 5 YouTube buttons), then the grouped folders as poster cards in a `SliverLayoutBuilder` grid using the SAME sizing as the home screen (`_columnsForWidth` 2/3/4/6, `itemWidth * 3/2 + 84`). Header shows only when a member has TMDB info (`_metaForDisplay()`: group key → any member's cached meta) - a random group with no metadata shows just the cards. Details load via `detailsFor` (group key → any member key with meta). Card taps: file entries (`isFile`) build a `VideoItem` from `videoPath`/`videoUri` + `extractFileInfo` and push `TmdDetailsScreen(video:, parentMetadataKey:)` (VIDEO mode - folder mode lists a directory, which a file entry doesn't have: "no videos here" + dead Play button); folder entries push `TmdDetailsScreen(folder:)`.
 - **Player top bar TMDB title (2026-09, 0.4.7)**: the player screen's top bar shows the TMDB-fetched title instead of the raw file name (`cocktail 2.mkv` → `Cocktail 2`). `_tmdbMeta` resolved in `_openCurrent` per video (cache hit when the home screen pre-fetched, fire-and-forget `TmdService.resolve` for intent-opened files) + live refresh via a `TmdService` listener; `_displayTitle` getter (`player_screen.dart:416`) falls back to the raw video title with the extension stripped when there's no TMDB data.
 - **Global default playback engine (2026-09)**: Settings → Player → "Default playback engine" lets the user choose **Media3** (hardware-accelerated, Dolby Vision / HDR), **libmpv** (software-first, broader codec support, SDR only), or **Ask every time** (both buttons on the details screen). When a specific engine is set, the Play/Resume button uses it directly; the secondary engine button is hidden. The ⓘ info sheet and error surface still allow switching manually. Persisted as `dreamplayer.defaultEngine` (`DefaultEngineStore`, `lib/services/default_engine_store.dart`). The details screen reads the preference on init and passes the resolved engine to `PlayerScreen.initialEngine`.
-- **Auto-fallback on engine failure (2026-09)**: when Media3 reaches a terminal error (hardware decode fails, software decode also fails), the player now automatically tries NextLib's FFmpeg video extension **within Media3** first, then libmpv if that also fails. Three-step fallback in `_trySoftwareDecodeFallback` (`player_screen.dart`): (1) set `DecoderMode.ffmpegVideo` which forces `PlayerCodecs.kt` to return an empty video decoder list, making Media3 use the bundled `FfmpegVideoRenderer` extension (same NextLib FFmpeg used for DTS/TrueHD audio — fast, stays in Media3 pipeline); (2) if FFmpeg video also fails, hand off to libmpv's own bundled FFmpeg decode path; (3) terminal error if both engines fail. The `_ffmpegVideoRetried` latch prevents double-retrying per file. `ffmpegVideo` is an internal-only `DecoderMode` (hidden from Settings and player pickers). Reset per-file in `_restoreDecoderOverride`.
+- **Auto-fallback on engine failure (2026-09)**: when Media3 reaches a terminal error (hardware decode fails, software decode also fails), the player now automatically tries NextLib's FFmpeg video extension **within Media3** first, then libmpv if that also fails. Three-step fallback in `_trySoftwareDecodeFallback` (`player_screen.dart`): (1) set `DecoderMode.ffmpegVideo` which forces `PlayerCodecs.kt` to return an empty video decoder list, making Media3 use the bundled `FfmpegVideoRenderer` extension (same NextLib FFmpeg used for DTS/TrueHD audio - fast, stays in Media3 pipeline); (2) if FFmpeg video also fails, hand off to libmpv's own bundled FFmpeg decode path; (3) terminal error if both engines fail. The `_ffmpegVideoRetried` latch prevents double-retrying per file. `ffmpegVideo` is an internal-only `DecoderMode` (hidden from Settings and player pickers). Reset per-file in `_restoreDecoderOverride`.
 - **libmpv purple screen fix (2026-09)**: some HEVC Main10 anime files (10-bit encodes for banding reduction) rendered as a purple/magenta tint when played through the libmpv fallback engine. Root cause: `mediacodec-copy` decodes into P010 (10-bit YUV420P) buffers; mpv's video output must convert them to RGB for the host render path, but without color-space hints the conversion uses the wrong transfer function. Fix: set `target-colorspace-hint=yes` and `force-rgb-colorspace=yes` on the mpv context in `_configureMpvAudio` so the source color space is honored during conversion.
-- **libmpv auto-fallback to software on mid-stream codec death (2026-09, issue #7)**: some HEVC Main10 4:2:0 files play for ~0.5 s and then die with a terminal "Could not open codec." even though HEVC 12-bit 4:4:4 plays fine — the MediaCodec hardware decoder starts producing frames and then dies mid-stream. mpv's `hwdec-software-fallback` only rescues *decoder-init* failures, so this surfaces as a playback error (not a fallback trigger). `_maybeMpvSoftwareRetry` (`player_screen.dart`) now auto-reloads the same file in software (`hwdec=no`) at the current position when the error text mentions a codec/decoder/pixel-format/hardware problem (`mpvErrorLooksLikeCodec`, unit-tested in `test/mpv_retry_test.dart`), once per file via `_mpvSwRetriedKey` (keyed by resume key) — a later file still tries hardware first. `_applyMpvHwdec` forces `'no'` when `_mpvSwRetriedKey == _resumeKey`, so the software path survives the reload. Mirrors Media3's `_trySoftwareDecodeFallback`; the ⓘ info sheet's decoder line shows "software" after the retry engages. IO/network errors are never retried (wrong fix). **Verified on-device (2026-09-23)**: GuP FINALE 01 HEVC played 65+ s with `hwdec = mediacodec` applied *before* open (`_mpvOpen` order: surface wait → `_applyMpvHwdec` → `player.open`), `c2.qti.hevc.decoder` at 1920×1080 ~24 fps, no software retry fired — the gap that used to leave a stale `hwdec` across `_reloadMpv` is gone; `_applyMpvHwdec` call sites are the open/reload paths only.
-- **Continue-watching cards use the poster-card TMDB path (2026-09)**: CW entries resolve with the same tools as home poster cards — file-level `resolve(..., parentFolderName: <real parent dir>)` (base-query fallback in `bestMatch` for `FINALE 01` → 0 hits → strip trailing number → Part N ranking), then inherit the parent `LibraryFolder`'s `resolveFolder` meta via `carryMeta` when the file search still misses. Display uses `_metaForContinueVideo` (file key first, then folder key) so the grid paints before/without a per-file resolve. Details screen `_inheritLibraryFolderMeta` mirrors the same path-prefix rule. `_computeParentFolderName` fixed to return the parent *directory* (it used to return the file basename, so `parentFolderName` never helped episode-only titles).
+- **libmpv auto-fallback to software on mid-stream codec death (2026-09, issue #7)**: some HEVC Main10 4:2:0 files play for ~0.5 s and then die with a terminal "Could not open codec." even though HEVC 12-bit 4:4:4 plays fine - the MediaCodec hardware decoder starts producing frames and then dies mid-stream. mpv's `hwdec-software-fallback` only rescues *decoder-init* failures, so this surfaces as a playback error (not a fallback trigger). `_maybeMpvSoftwareRetry` (`player_screen.dart`) now auto-reloads the same file in software (`hwdec=no`) at the current position when the error text mentions a codec/decoder/pixel-format/hardware problem (`mpvErrorLooksLikeCodec`, unit-tested in `test/mpv_retry_test.dart`), once per file via `_mpvSwRetriedKey` (keyed by resume key) - a later file still tries hardware first. `_applyMpvHwdec` forces `'no'` when `_mpvSwRetriedKey == _resumeKey`, so the software path survives the reload. Mirrors Media3's `_trySoftwareDecodeFallback`; the ⓘ info sheet's decoder line shows "software" after the retry engages. IO/network errors are never retried (wrong fix). **Verified on-device (2026-09-23)**: GuP FINALE 01 HEVC played 65+ s with `hwdec = mediacodec` applied *before* open (`_mpvOpen` order: surface wait → `_applyMpvHwdec` → `player.open`), `c2.qti.hevc.decoder` at 1920×1080 ~24 fps, no software retry fired - the gap that used to leave a stale `hwdec` across `_reloadMpv` is gone; `_applyMpvHwdec` call sites are the open/reload paths only.
+- **Continue-watching cards use the poster-card TMDB path (2026-09)**: CW entries resolve with the same tools as home poster cards - file-level `resolve(..., parentFolderName: <real parent dir>)` (base-query fallback in `bestMatch` for `FINALE 01` → 0 hits → strip trailing number → Part N ranking), then inherit the parent `LibraryFolder`'s `resolveFolder` meta via `carryMeta` when the file search still misses. Display uses `_metaForContinueVideo` (file key first, then folder key) so the grid paints before/without a per-file resolve. Details screen `_inheritLibraryFolderMeta` mirrors the same path-prefix rule. `_computeParentFolderName` fixed to return the parent *directory* (it used to return the file basename, so `parentFolderName` never helped episode-only titles).
 - **MPV brightness restore on dispose (2026-09)**: `PlayerScreen.dispose` calls `SystemControls.setBrightness(-1)` on Android and resets `_mpvBrightness = 1.0` so a brightness gesture doesn't stick after the player closes; `system_controls.dart` catches `on Exception` on all four methods.
-- **MPV portrait subtitle size fix (2026-09)**: the Flutter subtitle overlay (`_mpvSubtitleLines` + `fontSize = h * 0.0533 * sizeMultiplier`) only rebuilt on an unrelated `setState` — after Subtitle settings returned, `_subtitleStyle` was updated with no rebuild, so the new size only landed on rotation (`_applyOrientation` → setState) or a playing position tick (why landscape “worked”). Also `.clamp(12.0, 300.0)` sat on the floor: in portrait the letterboxed 16:9 video height gives `h * 0.0533 ≈ 12`, so every shrink clamped back to 12. Fixes: `setState` after the settings-return style load (`player_screen.dart` ~4961) and after `_applySubtitleDelay`, and floor lowered to `clamp(1.0, 300.0)`.
-- **Download to device (2026-09)**: download video files from network sources (SMB, WebDAV, HTTP, Jellyfin, UPnP/DLNA) to local storage for offline playback. FTP download hidden (Dart `HttpClient` cannot handle `ftp://`). Kotlin foreground service (`DownloadService.kt`, `NOTIF_ID=4211`, `FOREGROUND_SERVICE_TYPE_DATA_SYNC`) + `DownloadClient.kt` method channel with cancel callback bridge to Dart. iOS: `DownloadClient.swift` with `UNUserNotificationCenter` — notification shows banner once at start, then silent progress updates every 5s; cancel action registered via `UNNotificationCategory` + forwards `jobId` to Dart via `onCancelFromNotification`; tap notification body fires `onNotificationTap` which opens the Downloads drawer. Dart `DownloadManager` singleton (`lib/services/download_manager.dart`) handles HTTP streaming (with HEAD probe for `Content-Length`), SMB via loopback proxy (`SmbHttpProxy`/`SmbClient.startLoopback`), local file copy via async chunked I/O (256 KB chunks, event-loop yield each chunk to avoid UI blocking), progress tracking, queue management (one at a time), and SharedPreferences history. Download screen (`lib/screens/download_screen.dart`) shows progress bars (indeterminate when size unknown), status badges, cancel/delete/play. UI triggers: player ⋮ sheet "Download to device" row (visible for network sources except FTP/files) + details screen bottom bar Download button (same filter). Home screen hamburger menu shows active downloads (spinner + bytes + ✕ cancel) and completed/failed downloads (tap to play / delete). Android: `/storage/emulated/0/Download/DreamPlayer/`; iOS: `Documents/DreamPlayer/`.
+- **MPV portrait subtitle size fix (2026-09)**: the Flutter subtitle overlay (`_mpvSubtitleLines` + `fontSize = h * 0.0533 * sizeMultiplier`) only rebuilt on an unrelated `setState` - after Subtitle settings returned, `_subtitleStyle` was updated with no rebuild, so the new size only landed on rotation (`_applyOrientation` → setState) or a playing position tick (why landscape “worked”). Also `.clamp(12.0, 300.0)` sat on the floor: in portrait the letterboxed 16:9 video height gives `h * 0.0533 ≈ 12`, so every shrink clamped back to 12. Fixes: `setState` after the settings-return style load (`player_screen.dart` ~4961) and after `_applySubtitleDelay`, and floor lowered to `clamp(1.0, 300.0)`.
+- **Download to device (2026-09)**: download video files from network sources (SMB, WebDAV, HTTP, Jellyfin, UPnP/DLNA) to local storage for offline playback. FTP download hidden (Dart `HttpClient` cannot handle `ftp://`). Kotlin foreground service (`DownloadService.kt`, `NOTIF_ID=4211`, `FOREGROUND_SERVICE_TYPE_DATA_SYNC`) + `DownloadClient.kt` method channel with cancel callback bridge to Dart. iOS: `DownloadClient.swift` with `UNUserNotificationCenter` - notification shows banner once at start, then silent progress updates every 5s; cancel action registered via `UNNotificationCategory` + forwards `jobId` to Dart via `onCancelFromNotification`; tap notification body fires `onNotificationTap` which opens the Downloads drawer. Dart `DownloadManager` singleton (`lib/services/download_manager.dart`) handles HTTP streaming (with HEAD probe for `Content-Length`), SMB via loopback proxy (`SmbHttpProxy`/`SmbClient.startLoopback`), local file copy via async chunked I/O (256 KB chunks, event-loop yield each chunk to avoid UI blocking), progress tracking, queue management (one at a time), and SharedPreferences history. Download screen (`lib/screens/download_screen.dart`) shows progress bars (indeterminate when size unknown), status badges, cancel/delete/play. UI triggers: player ⋮ sheet "Download to device" row (visible for network sources except FTP/files) + details screen bottom bar Download button (same filter). Home screen hamburger menu shows active downloads (spinner + bytes + ✕ cancel) and completed/failed downloads (tap to play / delete). Android: `/storage/emulated/0/Download/DreamPlayer/`; iOS: `Documents/DreamPlayer/`.
 - **External player handoff (2026-09)**: when both Media3 and libmpv fail (or user explicitly chooses), the error surface offers "Open in external player" via `Intent.createChooser` with `setDataAndType(uri, "video/*")`. VLC handles `smb://` natively (no loopback needed). WebDAV passes the HTTPS URL directly with auth headers. UPnP/DLNA and Jellyfin pass HTTP URLs directly. Android only (iOS has no external player intent system).
 - **Downloaded files on home grid + download directory picker (2026-09)**: completed downloads now appear in a "Downloaded" section on the home screen with a green checkmark badge, tap to play, long-press to delete. Settings → Downloads → "Download directory" lets the user choose where downloads are saved (native directory selector on Android, Files-app document picker on iOS). Default: `/storage/emulated/0/Download/DreamPlayer/` (Android), `Documents/DreamPlayer/` (iOS). Native `setDownloadDir`/`getDownloadDir` methods on both platforms store the custom path in SharedPreferences (Android) / UserDefaults (iOS).
 - **iOS: resume-after-lock fix (2026-09)**: locking the device for an extended period could revoke security-scoped bookmark access or kill network connections (SMB, WebDAV, FTP, Jellyfin, Files-app bookmarked folders). Previously, `play()` called `engine?.play()` on a dead source with no error. Fix: `needsReloadAfterBackground` flag set on `didEnterBackgroundNotification`; `play()` and `seekTo()` now call `reloadSession(at: currentPosition)` to re-establish the source. Flag cleared on reload completion and on new file open.
 - **iOS: stretched-video-after-unlock fix (2026-09)**: AetherEngine's internal `AVPlayerLayer` doesn't have `autoresizingMask`, so it keeps its initial frame when Flutter resizes the platform view after unlock. Fix: `PlayerContainerView` wrapper overrides `layoutSubviews` to call `engineView.layer.layoutSublayers()`, forcing the `AVPlayerLayer` to match the new container bounds immediately. Also: `UiKitView` wrapped in `SizedBox.expand` for tight Flutter constraints; `setState` on resume forces Flutter to rebuild with post-unlock dimensions. `findPlayerLayer()` and `setZoom()` target `engineView` (the inner `AetherPlayerView`), not `container` (the wrapper).
-- **iOS: whole-UI stretched after unlock (2026-09; timing hardened 2026-10-31)**: NOT the video layer — the entire Flutter UI (home / Jellyfin / WebDAV lists, settings) rendered stretched / aspect-mismatched after device lock → unlock, then self-corrected after an unrelated layout pass. Root cause: iPadOS resizes the scene while the app is backgrounded/locked (Split View snapshot prep, flutter/flutter#128868), and Flutter only re-creates its render surface when the `FlutterViewController` view is laid out again with changed bounds — so the engine kept presenting a stale surface at the wrong size until some later layout happened to re-measure it. Fix: `SceneDelegate.forceFlutterViewRelayout` (called from `sceneDidBecomeActive`) nudges the root view's frame by 0.5 pt and back with two synchronous `layoutIfNeeded()` passes, forcing `viewDidLayoutSubviews` to run and the engine to re-create the surface at the current window size immediately. (Same class as the Apple "improving app responsiveness" guidance: drive layout at the right lifecycle moment instead of waiting for a hitch/self-correction.)
-  - **The single call at `sceneDidBecomeActive` was not enough — the stretch was still visible for a moment (2026-10-31, user report), the fixed 0.05/0.2/0.5 s retries and then the CADisplayLink watch still left a one-frame stretch (2026-11-04, user report + `smb_debug.log`: at unlock the window/root bounds already matched, then a root view reported `(0.0, 0.0)` and only the per-frame watch caught it — i.e. frames were presented with a stale surface in between).** A tick-based fix always loses the race to the first presented frame, so the real fix is inside the system's own layout pass: `SceneDelegate` swizzles `UIViewController.viewDidLayoutSubviews` (guarded to `FlutterViewController`) to force `view.frame = window.bounds` on EVERY layout pass, so the engine re-creates its surface with correct viewport metrics before the frame is drawn. The CADisplayLink watch (1.5 s after `sceneWillEnterForeground`, 3 s after `sceneDidBecomeActive`) stays as a backstop for windows that appear late, and `forceFlutterViewRelayout` now uses `.view` (forces load) instead of `viewIfLoaded`, which silently skipped when the root view wasn't loaded yet at foreground time. All paths log via `SBMLog.log` into `smb_debug.log` ("viewDidLayoutSubviews: fixing flutter view …", "forceFlutterViewRelayout: window … root …", "relayout watch: root … != window … — forcing"), so the next report is answered from the log.
-  - **Unlock splash masks the last stale frame (2026-11-12, user request).** Even with the swizzle, a frame could still be presented with a stale surface before the watch caught it. So on a real background→foreground transition (≥ 2 s in background, i.e. lock/unlock — not a quick app-switch) `SceneDelegate` now shows a **soft-reload splash**: a full-window `UIView` in the app's **theme colour** with the currently-selected app icon centred (`UIApplication.shared.alternateIconName ?? "AppIcon"`), added to the window itself so it sits above the Flutter view and any video platform view. It is non-interactive (`isUserInteractionEnabled = false`) so the player's `needsReloadAfterBackground` reload/resume keeps working underneath, `forceFlutterViewRelayout` runs synchronously right after to re-create the surface, and the splash fades out after 0.6 s (capped so it can never stick). Result: the user sees icon-on-brand-colour → the correctly-sized UI, and playback continues from the saved position. Logs `unlock splash: shown/hiding` into `smb_debug.log`. No cold-launch splash (`wasInBackground` is false on first foreground).
-    - **The icon NEVER showed (reported 2026-11-12): `UIImage(named:)` cannot load an app icon.** The asset compiler treats `.appiconset` assets specially — they are compiled into the icon slots, not into the regular image namespace — so `UIImage(named: "AppIcon")` returns **nil** and `UIImageView(image: nil)` renders nothing. The splash was therefore a bare black rectangle. **Fix:** the splash artwork now lives in dedicated *imagesets* — `SplashIcon`, `SplashIconMark`, `SplashIconRed`, `SplashIconGreen`, `SplashIconCyan` (512 px PNGs copied from each `.appiconset`'s 1024 px master, ~560 KB total) — which `UIImage(named:)` CAN load. `SceneDelegate.splashImageSet(for:)` maps the selected launcher icon to its imageset; a missing image logs `unlock splash: ICON MISSING` instead of failing silently.
-    - **The background is the nav-pill colour, not a saturated accent (2026-11-13, user report "too purple").** The first version used the raw accent (#7C4DFF) as the splash background — far too loud. What the user actually sees as "the app's colour" is the pill the NavigationBar paints behind the selected Library/Settings destination: `NavigationBarThemeData.indicatorColor` = `ColorScheme.primaryContainer` of the dark scheme (violet → #4B3E76). Material 3 tone mapping is **not** re-implemented in Swift — Dart computes it (`AccentStore.indicatorColorFor`, persisted as `0xAARRGGBB` under `dreamplayer.accentIndicator`, i.e. `flutter.dreamplayer.accentIndicator` in UserDefaults) on load and on every accent change, and `SceneDelegate.currentSplashColor()` reads that pref with a hex parser (`color(fromHex:)`) and falls back to the raw accent mirror if it is missing. The splash is a vertical gradient from that colour to a 0.72× darker shade (`DreamPlayerGradientView`, a `CAGradientLayer` resized in `layoutSubviews`). `test/accent_store_test.dart` pins that `indicatorColorFor` IS the theme's indicator colour and that the persisted hex round-trips; `test/ios_unlock_splash_test.dart` pins the native read + fallback. **The Swift palette mirror stays as the fallback — `test/ios_unlock_splash_test.dart` parses `accent_store.dart` and asserts every accent's hex appears in `SceneDelegate.swift`.**
-- **Back navigation / SMB path / series-view fixes (2026-09)**: `PopScope.canPop: false` on all seven browse screens so swipe-back goes through `_goUp()` instead of popping the route. SMB trailing-slash normalization (`//` → `/`, strip trailing `/`). `_detectAndLoadSeriesFolder` guards on `hasSubfolders` — series view doesn't activate when the folder has subdirectories. TMDB subfolder name fix (use current subfolder, not root name). Focus highlight + episode poster race condition (generation counter prevents stale async results). Episode still fallback to `posterUrlOf(tmdbMeta)`. Stale `_seriesMeta` fix (re-read from cache after season fetch). Season collapse fix (`_expandedSeasons.clear()` on `_load()`).
-- **Offline image cache + backdrop hero + TMDB/season polish (2026-09, 0.4.5)**: `ImageCacheService` (`lib/services/image_cache_service.dart`) + `CachedImage` (`lib/widgets/cached_image.dart`) — permanent disk cache for TMDB posters/backdrops/stills/cast profiles, prefetched on `TmdService` resolve, `CachedImage` replaces `Image.network` across all browsers/folder/details/series screens; Settings shows live cache size with clear action. `SeriesSeasonsScreen` + `TmdDetailsScreen` now use a **backdrop hero** (clean backdrop when expanded, fades to toolbar title beside back arrow when collapsed). TMDB: movie sequel pattern (`Part N`/`Vol N`/`Movie N`/`Chapter N`) boosts movie matches for collections like `Girls und Panzer das Finale`; live-action vs anime disambiguation. Home `needsResolve` guard with `hasSeasonTag` so top-level show folders (e.g. `House`) don't re-resolve offline. TMDB season names seeded from cached `TmdMeta.seasons` on restart with `folderSeason` fallback. **SMB auto-expand**: bookmarked SMB folders now expand into individual folder/file cards with TMDB resolution (parity with local/WebDAV/FTP/UPnP/Jellyfin); file entries skip `listDirectory` and use `parsed.seriesName` so `Lanterns Lights Out` resolves. Home grid single-file cards open `TmdDetailsScreen(video:)` directly (no `SeriesSeasonsScreen` crash on file paths). **Series grouping**: prefix-based merge fallback for unstrippable suffixes (Japanese arc names like `Kieta Seisou Hen`) with tightened threshold `shared ≥ 10 && extra ≥ shared` to avoid `House`/`House of Cards` and `Kakegurui`/`Kakegurui Twin` false positives; standalone non-season folders (e.g. `Kieta Seisou Hen` movie) render as their own card/section — phase-2 refine is the single authority validated against cached season names. **Settings**: all groups collapsible via `ExpansionTile`; delete-sweep icons on `Your library` + `Continue watching` headers clear all with confirmation; folder cards drop watched ring/season badge overlays. **HDR fix**: Android SEI probe now validates luminance (`137` 24 B mastering display `max 50..10000 nits`, `144` 4 B content light `maxCLL 10..10000`) matching iOS parity. **Season discovery**: correct season numbers for standalone entries, TMDB episode details on first open, re-fetch of empty cached seasons. **Episode-level TMDB metadata cached for offline (issue #16)**: `_resolveFolderMetadata` in `home_screen.dart` now parses the folder's file names to discover which seasons are locally present, then calls `seasonFor(key, season)` for each. Previously, only `folderSeason` episodes were cached — when `folderSeason` was null (e.g. "Dark" doesn't match any TMDB season name), zero episodes were cached and episode titles/stills/overviews/ratings disappeared offline. After this fix, all locally-present seasons are fetched during the online prefetch and persist in SharedPreferences. Episode stills are also prefetched to the permanent disk cache (`ImageCacheService`).
+- **iOS: whole-UI stretched after unlock (2026-09; timing hardened 2026-10-31)**: NOT the video layer - the entire Flutter UI (home / Jellyfin / WebDAV lists, settings) rendered stretched / aspect-mismatched after device lock → unlock, then self-corrected after an unrelated layout pass. Root cause: iPadOS resizes the scene while the app is backgrounded/locked (Split View snapshot prep, flutter/flutter#128868), and Flutter only re-creates its render surface when the `FlutterViewController` view is laid out again with changed bounds - so the engine kept presenting a stale surface at the wrong size until some later layout happened to re-measure it. Fix: `SceneDelegate.forceFlutterViewRelayout` (called from `sceneDidBecomeActive`) nudges the root view's frame by 0.5 pt and back with two synchronous `layoutIfNeeded()` passes, forcing `viewDidLayoutSubviews` to run and the engine to re-create the surface at the current window size immediately. (Same class as the Apple "improving app responsiveness" guidance: drive layout at the right lifecycle moment instead of waiting for a hitch/self-correction.)
+  - **The single call at `sceneDidBecomeActive` was not enough - the stretch was still visible for a moment (2026-10-31, user report), the fixed 0.05/0.2/0.5 s retries and then the CADisplayLink watch still left a one-frame stretch (2026-11-04, user report + `smb_debug.log`: at unlock the window/root bounds already matched, then a root view reported `(0.0, 0.0)` and only the per-frame watch caught it - i.e. frames were presented with a stale surface in between).** A tick-based fix always loses the race to the first presented frame, so the real fix is inside the system's own layout pass: `SceneDelegate` swizzles `UIViewController.viewDidLayoutSubviews` (guarded to `FlutterViewController`) to force `view.frame = window.bounds` on EVERY layout pass, so the engine re-creates its surface with correct viewport metrics before the frame is drawn. The CADisplayLink watch (1.5 s after `sceneWillEnterForeground`, 3 s after `sceneDidBecomeActive`) stays as a backstop for windows that appear late, and `forceFlutterViewRelayout` now uses `.view` (forces load) instead of `viewIfLoaded`, which silently skipped when the root view wasn't loaded yet at foreground time. All paths log via `SBMLog.log` into `smb_debug.log` ("viewDidLayoutSubviews: fixing flutter view …", "forceFlutterViewRelayout: window … root …", "relayout watch: root … != window … - forcing"), so the next report is answered from the log.
+  - **Unlock splash masks the last stale frame (2026-11-12, user request).** Even with the swizzle, a frame could still be presented with a stale surface before the watch caught it. So on a real background→foreground transition (≥ 2 s in background, i.e. lock/unlock - not a quick app-switch) `SceneDelegate` now shows a **soft-reload splash**: a full-window `UIView` in the app's **theme colour** with the currently-selected app icon centred (`UIApplication.shared.alternateIconName ?? "AppIcon"`), added to the window itself so it sits above the Flutter view and any video platform view. It is non-interactive (`isUserInteractionEnabled = false`) so the player's `needsReloadAfterBackground` reload/resume keeps working underneath, `forceFlutterViewRelayout` runs synchronously right after to re-create the surface, and the splash fades out after 0.6 s (capped so it can never stick). Result: the user sees icon-on-brand-colour → the correctly-sized UI, and playback continues from the saved position. Logs `unlock splash: shown/hiding` into `smb_debug.log`. No cold-launch splash (`wasInBackground` is false on first foreground).
+    - **The icon NEVER showed (reported 2026-11-12): `UIImage(named:)` cannot load an app icon.** The asset compiler treats `.appiconset` assets specially - they are compiled into the icon slots, not into the regular image namespace - so `UIImage(named: "AppIcon")` returns **nil** and `UIImageView(image: nil)` renders nothing. The splash was therefore a bare black rectangle. **Fix:** the splash artwork now lives in dedicated *imagesets* - `SplashIcon`, `SplashIconMark`, `SplashIconRed`, `SplashIconGreen`, `SplashIconCyan` (512 px PNGs copied from each `.appiconset`'s 1024 px master, ~560 KB total) - which `UIImage(named:)` CAN load. `SceneDelegate.splashImageSet(for:)` maps the selected launcher icon to its imageset; a missing image logs `unlock splash: ICON MISSING` instead of failing silently.
+    - **The background is the nav-pill colour, not a saturated accent (2026-11-13, user report "too purple").** The first version used the raw accent (#7C4DFF) as the splash background - far too loud. What the user actually sees as "the app's colour" is the pill the NavigationBar paints behind the selected Library/Settings destination: `NavigationBarThemeData.indicatorColor` = `ColorScheme.primaryContainer` of the dark scheme (violet → #4B3E76). Material 3 tone mapping is **not** re-implemented in Swift - Dart computes it (`AccentStore.indicatorColorFor`, persisted as `0xAARRGGBB` under `dreamplayer.accentIndicator`, i.e. `flutter.dreamplayer.accentIndicator` in UserDefaults) on load and on every accent change, and `SceneDelegate.currentSplashColor()` reads that pref with a hex parser (`color(fromHex:)`) and falls back to the raw accent mirror if it is missing. The splash is a vertical gradient from that colour to a 0.72× darker shade (`DreamPlayerGradientView`, a `CAGradientLayer` resized in `layoutSubviews`). `test/accent_store_test.dart` pins that `indicatorColorFor` IS the theme's indicator colour and that the persisted hex round-trips; `test/ios_unlock_splash_test.dart` pins the native read + fallback. **The Swift palette mirror stays as the fallback - `test/ios_unlock_splash_test.dart` parses `accent_store.dart` and asserts every accent's hex appears in `SceneDelegate.swift`.**
+- **Back navigation / SMB path / series-view fixes (2026-09)**: `PopScope.canPop: false` on all seven browse screens so swipe-back goes through `_goUp()` instead of popping the route. SMB trailing-slash normalization (`//` → `/`, strip trailing `/`). `_detectAndLoadSeriesFolder` guards on `hasSubfolders` - series view doesn't activate when the folder has subdirectories. TMDB subfolder name fix (use current subfolder, not root name). Focus highlight + episode poster race condition (generation counter prevents stale async results). Episode still fallback to `posterUrlOf(tmdbMeta)`. Stale `_seriesMeta` fix (re-read from cache after season fetch). Season collapse fix (`_expandedSeasons.clear()` on `_load()`).
+- **Offline image cache + backdrop hero + TMDB/season polish (2026-09, 0.4.5)**: `ImageCacheService` (`lib/services/image_cache_service.dart`) + `CachedImage` (`lib/widgets/cached_image.dart`) - permanent disk cache for TMDB posters/backdrops/stills/cast profiles, prefetched on `TmdService` resolve, `CachedImage` replaces `Image.network` across all browsers/folder/details/series screens; Settings shows live cache size with clear action. `SeriesSeasonsScreen` + `TmdDetailsScreen` now use a **backdrop hero** (clean backdrop when expanded, fades to toolbar title beside back arrow when collapsed). TMDB: movie sequel pattern (`Part N`/`Vol N`/`Movie N`/`Chapter N`) boosts movie matches for collections like `Girls und Panzer das Finale`; live-action vs anime disambiguation. Home `needsResolve` guard with `hasSeasonTag` so top-level show folders (e.g. `House`) don't re-resolve offline. TMDB season names seeded from cached `TmdMeta.seasons` on restart with `folderSeason` fallback. **SMB auto-expand**: bookmarked SMB folders now expand into individual folder/file cards with TMDB resolution (parity with local/WebDAV/FTP/UPnP/Jellyfin); file entries skip `listDirectory` and use `parsed.seriesName` so `Lanterns Lights Out` resolves. Home grid single-file cards open `TmdDetailsScreen(video:)` directly (no `SeriesSeasonsScreen` crash on file paths). **Series grouping**: prefix-based merge fallback for unstrippable suffixes (Japanese arc names like `Kieta Seisou Hen`) with tightened threshold `shared ≥ 10 && extra ≥ shared` to avoid `House`/`House of Cards` and `Kakegurui`/`Kakegurui Twin` false positives; standalone non-season folders (e.g. `Kieta Seisou Hen` movie) render as their own card/section - phase-2 refine is the single authority validated against cached season names. **Settings**: all groups collapsible via `ExpansionTile`; delete-sweep icons on `Your library` + `Continue watching` headers clear all with confirmation; folder cards drop watched ring/season badge overlays. **HDR fix**: Android SEI probe now validates luminance (`137` 24 B mastering display `max 50..10000 nits`, `144` 4 B content light `maxCLL 10..10000`) matching iOS parity. **Season discovery**: correct season numbers for standalone entries, TMDB episode details on first open, re-fetch of empty cached seasons. **Episode-level TMDB metadata cached for offline (issue #16)**: `_resolveFolderMetadata` in `home_screen.dart` now parses the folder's file names to discover which seasons are locally present, then calls `seasonFor(key, season)` for each. Previously, only `folderSeason` episodes were cached - when `folderSeason` was null (e.g. "Dark" doesn't match any TMDB season name), zero episodes were cached and episode titles/stills/overviews/ratings disappeared offline. After this fix, all locally-present seasons are fetched during the online prefetch and persist in SharedPreferences. Episode stills are also prefetched to the permanent disk cache (`ImageCacheService`).
 
 - **Friendly error messages + software-decode auto-fallback on hardware-decode failure (2026-08-29)**:
-  - **Bug fix (every PlaybackException was showing the raw code)**: the Dart `_friendlyError` switch matched snake_case strings like `error_code_io_bad_http_status` / `error_code_decoder_init_failed`, but Media3's native `emit(errorCodeName = error.errorCodeName, …)` returns `ERROR_CODE_*` names (verified by disassembling `media3-common-1.10.1` — `PlaybackException.getErrorCodeName(int)` returns e.g. `"ERROR_CODE_DECODING_FAILED"`, `"ERROR_CODE_IO_BAD_HTTP_STATUS"`, etc.). The snake_case cases were **dead code** — every real error fell through to the generic `"Playback failed (ERROR_CODE_…).message"`, which is what the user reported as "code decoding failed". The mapping now lives in `lib/screens/player_error.dart` (`friendlyPlayerError` / `isRetryableIoError` / `isVideoDecodeError`) and is unit-tested in `test/player_error_test.dart` (9 new tests, full suite 212 passing). Same fix applied to the IO-retry predicate so the existing exponential-backoff auto-retry now actually fires.
-  - **Software-decode auto-fallback**: budget MediaTek/Qualcomm chips sometimes have a **hardware H.265/HEVC decoder that misreports 10-bit Main10 support and then fails at runtime** with `ERROR_CODE_DECODING_FAILED` — VLC/mpv play the same file fine because they use FFmpeg software decode. On any video-decode error (`ERROR_CODE_DECODING_FAILED`, `…_DECODER_INIT_FAILED`, `…_DECODER_QUERY_FAILED`, `…_DECODING_FORMAT_UNSUPPORTED`, `…_DECODING_FORMAT_EXCEEDS_CAPABILITIES`, `…_DECODING_RESOURCES_RECLAIMED`), `_trySoftwareDecodeFallback` in `player_screen.dart` saves the user's original `decoderMode` in `_decoderOverride`, writes `sw` to `DecoderModeStore` (which the native `MediaCodecSelector` lambda re-reads **live** on every query — see `PlayerCodecs.kt:91-94` "Read prefs LIVE on every query"), reopens at the current position with a brief "Hardware decoder failed — retrying with software…" overlay, and restores the user's original mode at the top of `_openCurrent` (next file) and in `dispose`. Override is per-file only. The decoder chip in the ⓘ info sheet shows "· software" so the user can see the fallback engaged. **Verified on user-reported case (Infinix Hot 50i, MediaTek G81)**: their HEVC Main10 10-bit MKV (`Strike the Blood Final [Ma10p_1080p][x265_flac].mkv`, 1080p, SDR) plays in mpv/VLC smoothly; with this fix DreamPlayer will too. **Updated (2026-09, issue #20)**: the fallback now tries FFmpeg video within Media3 first (via `DecoderMode.ffmpegVideo`) before escalating to mpv — see "Auto-fallback on engine failure" above.
+  - **Bug fix (every PlaybackException was showing the raw code)**: the Dart `_friendlyError` switch matched snake_case strings like `error_code_io_bad_http_status` / `error_code_decoder_init_failed`, but Media3's native `emit(errorCodeName = error.errorCodeName, …)` returns `ERROR_CODE_*` names (verified by disassembling `media3-common-1.10.1` - `PlaybackException.getErrorCodeName(int)` returns e.g. `"ERROR_CODE_DECODING_FAILED"`, `"ERROR_CODE_IO_BAD_HTTP_STATUS"`, etc.). The snake_case cases were **dead code** - every real error fell through to the generic `"Playback failed (ERROR_CODE_…).message"`, which is what the user reported as "code decoding failed". The mapping now lives in `lib/screens/player_error.dart` (`friendlyPlayerError` / `isRetryableIoError` / `isVideoDecodeError`) and is unit-tested in `test/player_error_test.dart` (9 new tests, full suite 212 passing). Same fix applied to the IO-retry predicate so the existing exponential-backoff auto-retry now actually fires.
+  - **Software-decode auto-fallback**: budget MediaTek/Qualcomm chips sometimes have a **hardware H.265/HEVC decoder that misreports 10-bit Main10 support and then fails at runtime** with `ERROR_CODE_DECODING_FAILED` - VLC/mpv play the same file fine because they use FFmpeg software decode. On any video-decode error (`ERROR_CODE_DECODING_FAILED`, `…_DECODER_INIT_FAILED`, `…_DECODER_QUERY_FAILED`, `…_DECODING_FORMAT_UNSUPPORTED`, `…_DECODING_FORMAT_EXCEEDS_CAPABILITIES`, `…_DECODING_RESOURCES_RECLAIMED`), `_trySoftwareDecodeFallback` in `player_screen.dart` saves the user's original `decoderMode` in `_decoderOverride`, writes `sw` to `DecoderModeStore` (which the native `MediaCodecSelector` lambda re-reads **live** on every query - see `PlayerCodecs.kt:91-94` "Read prefs LIVE on every query"), reopens at the current position with a brief "Hardware decoder failed - retrying with software…" overlay, and restores the user's original mode at the top of `_openCurrent` (next file) and in `dispose`. Override is per-file only. The decoder chip in the ⓘ info sheet shows "· software" so the user can see the fallback engaged. **Verified on user-reported case (Infinix Hot 50i, MediaTek G81)**: their HEVC Main10 10-bit MKV (`Strike the Blood Final [Ma10p_1080p][x265_flac].mkv`, 1080p, SDR) plays in mpv/VLC smoothly; with this fix DreamPlayer will too. **Updated (2026-09, issue #20)**: the fallback now tries FFmpeg video within Media3 first (via `DecoderMode.ffmpegVideo`) before escalating to mpv - see "Auto-fallback on engine failure" above.
 
 
-- **Picture-in-Picture (2026-08-26, user-requested — supersedes the 2026-08-22 rejection)**:
-  - **Android**: manifest `android:supportsPictureInPicture="true"` on `MainActivity`; **auto-enter** on HOME/recents while playing (`onUserLeaveHint` → `ExoPlayerView.enterPipIfPlaying`, aspect from `videoSize` clamped 0.42–2.39 → `Rational(n,1000)`); **⋮-sheet row** (explicit entry). **Settings toggle** "Picture-in-picture" (Player section, Android-only, pref `dreamplayer.pipEnabled`, default ON) gates **only auto-entry** — `enterPipInternal(auto)` reads the pref natively (`flutter.dreamplayer.pipEnabled` from `FlutterSharedPreferences`) because the decision happens in `onUserLeaveHint` before Dart could weigh in; the ⋮ row is an explicit user action and ignores the toggle. With PiP off, leaving the app **keeps background audio playing** (user decision — the toggle controls the floating window only; swipe-app-away still pause+stops). Pip window shows ONLY the video: every reveal path gated on `_inPip` (`_showControls`, `_syncControlsForPlaybackState`, gestures, TV key-reveal) and the format chips are transient (next bullet), so nothing leaks into the window. **Dismissal-pause gotcha**: swiping the pip away delivers `onStop` while the system STILL reports `isInPictureInPictureMode=true`, so a `currentlyInPip` guard skips the pause and audio plays on invisibly — `onActivityStopped()` instead pauses whenever the `pipSeen` latch is set (set in `onPipModeChanged(true)`, cleared ONLY in `onResumed()` = expand-back). Tap on the pip body = expand to fullscreen (standard). Verified on-device: HOME → pip playing clean (no chips/bars), swipe-dismiss → `state=PAUSED`.
-  - **iOS** (`AvPlayerView.swift`): `AVPictureInPictureController(playerLayer:)` (`canStartPictureInPictureAutomaticallyFromInline = true`), `enterPip` channel case, `AVPictureInPictureControllerDelegate` emits `inPip` + restores on expand. **Second-swipe fix (2026-08, `4d11555`)**: `restoreUserInterfaceForPictureInPictureStop` no longer nils `pipController` — it stays valid while its `AVPlayerLayer` is alive; `DidStop` re-arms via `ensurePipController` so HOME floats again.
-  - **iOS software path — sample-buffer PiP (2026-10-30)**: the engine routes by **CODEC, not by source type** — HEVC and progressive H.264 take the native AVPlayer path, while AV1/VP9/VP8/MPEG-2/VC-1 and interlaced H.264 take the software path (which has no `AVPlayerLayer`, so the player-layer controller had nothing to attach to and PiP was a silent no-op there). The software path now gets its own `AVPictureInPictureController(contentSource: .init(sampleBufferDisplayLayer: playbackDelegate:))` over the engine's published `softwarePiPSource.layer`, with the transport answered through `AVPictureInPictureSampleBufferPlaybackDelegate` (`setPlaying` → `SoftwarePiPSource.setPlaying`, skip → `skip(by:)`, `timeRange()`, `isPaused`). **The engine's `pictureInPictureActive` flag is host-set and load-bearing** — it keeps the pipeline (and the video decode) alive across the background transition, so it is set in `pictureInPictureControllerWillStart` and cleared in `DidStop`. The two controllers are mutually exclusive in practice: `findPlayerLayer()` is nil on the software path, so only one is ever armed. **The engine's route-sharing policy matters here**: on iOS it declares `.default` (tvOS declares `.longFormAudio`, which pins `AVPictureInPictureController.isPictureInPicturePossible` to false for any host-built controller) — so iOS is the platform where a host-built PiP controller is allowed at all.
-  - **The sample-buffer PiP delegate's EXACT signatures (build 60 failed to compile over this)** — `AVPictureInPictureSampleBufferPlaybackDelegate` requires five members, and two near-misses cost a 12-minute CI cycle: (1) the skip completion is `completion: @escaping () -> Void` — a `(Bool) -> Void` version does **not** satisfy the protocol (Apple declares no result); (2) `pictureInPictureController(_:didTransitionToRenderSize:)` is **required** and was simply missing. The compiler's only complaint is one line naming neither cause ("Type 'AvPlayerView' does not conform to protocol"), so the fix is looked up, not guessed — **read the protocol from Apple's docs JSON** (`developer.apple.com/tutorials/data/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate.json` → each symbol's `fragments` spell the declaration; the `required` flag marks the mandatory members). `tool/ios_native_check.py` now pins all five (presence + the `() -> Void` completion), so the next drift is caught on Linux instead of on CI.
-  - **Stale-build gotcha**: a failed gradle build leaves the PREVIOUS apk in `build/…` — `adb install -r` then installs old code and "fixed" behavior looks broken/random. After any failed build, compare APK mtime vs `adb shell dumpsys package com.dreamplayer.app | grep lastUpdateTime` before testing.
+- **Picture-in-Picture (2026-08-26, user-requested - supersedes the 2026-08-22 rejection)**:
+  - **Android**: manifest `android:supportsPictureInPicture="true"` on `MainActivity`; **auto-enter** on HOME/recents while playing (`onUserLeaveHint` → `ExoPlayerView.enterPipIfPlaying`, aspect from `videoSize` clamped 0.42–2.39 → `Rational(n,1000)`); **⋮-sheet row** (explicit entry). **Settings toggle** "Picture-in-picture" (Player section, Android-only, pref `dreamplayer.pipEnabled`, default ON) gates **only auto-entry** - `enterPipInternal(auto)` reads the pref natively (`flutter.dreamplayer.pipEnabled` from `FlutterSharedPreferences`) because the decision happens in `onUserLeaveHint` before Dart could weigh in; the ⋮ row is an explicit user action and ignores the toggle. With PiP off, leaving the app **keeps background audio playing** (user decision - the toggle controls the floating window only; swipe-app-away still pause+stops). Pip window shows ONLY the video: every reveal path gated on `_inPip` (`_showControls`, `_syncControlsForPlaybackState`, gestures, TV key-reveal) and the format chips are transient (next bullet), so nothing leaks into the window. **Dismissal-pause gotcha**: swiping the pip away delivers `onStop` while the system STILL reports `isInPictureInPictureMode=true`, so a `currentlyInPip` guard skips the pause and audio plays on invisibly - `onActivityStopped()` instead pauses whenever the `pipSeen` latch is set (set in `onPipModeChanged(true)`, cleared ONLY in `onResumed()` = expand-back). Tap on the pip body = expand to fullscreen (standard). Verified on-device: HOME → pip playing clean (no chips/bars), swipe-dismiss → `state=PAUSED`.
+  - **iOS** (`AvPlayerView.swift`): `AVPictureInPictureController(playerLayer:)` (`canStartPictureInPictureAutomaticallyFromInline = true`), `enterPip` channel case, `AVPictureInPictureControllerDelegate` emits `inPip` + restores on expand. **Second-swipe fix (2026-08, `4d11555`)**: `restoreUserInterfaceForPictureInPictureStop` no longer nils `pipController` - it stays valid while its `AVPlayerLayer` is alive; `DidStop` re-arms via `ensurePipController` so HOME floats again.
+  - **iOS software path - sample-buffer PiP (2026-10-30)**: the engine routes by **CODEC, not by source type** - HEVC and progressive H.264 take the native AVPlayer path, while AV1/VP9/VP8/MPEG-2/VC-1 and interlaced H.264 take the software path (which has no `AVPlayerLayer`, so the player-layer controller had nothing to attach to and PiP was a silent no-op there). The software path now gets its own `AVPictureInPictureController(contentSource: .init(sampleBufferDisplayLayer: playbackDelegate:))` over the engine's published `softwarePiPSource.layer`, with the transport answered through `AVPictureInPictureSampleBufferPlaybackDelegate` (`setPlaying` → `SoftwarePiPSource.setPlaying`, skip → `skip(by:)`, `timeRange()`, `isPaused`). **The engine's `pictureInPictureActive` flag is host-set and load-bearing** - it keeps the pipeline (and the video decode) alive across the background transition, so it is set in `pictureInPictureControllerWillStart` and cleared in `DidStop`. The two controllers are mutually exclusive in practice: `findPlayerLayer()` is nil on the software path, so only one is ever armed. **The engine's route-sharing policy matters here**: on iOS it declares `.default` (tvOS declares `.longFormAudio`, which pins `AVPictureInPictureController.isPictureInPicturePossible` to false for any host-built controller) - so iOS is the platform where a host-built PiP controller is allowed at all.
+  - **The sample-buffer PiP delegate's EXACT signatures (build 60 failed to compile over this)** - `AVPictureInPictureSampleBufferPlaybackDelegate` requires five members, and two near-misses cost a 12-minute CI cycle: (1) the skip completion is `completion: @escaping () -> Void` - a `(Bool) -> Void` version does **not** satisfy the protocol (Apple declares no result); (2) `pictureInPictureController(_:didTransitionToRenderSize:)` is **required** and was simply missing. The compiler's only complaint is one line naming neither cause ("Type 'AvPlayerView' does not conform to protocol"), so the fix is looked up, not guessed - **read the protocol from Apple's docs JSON** (`developer.apple.com/tutorials/data/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate.json` → each symbol's `fragments` spell the declaration; the `required` flag marks the mandatory members). `tool/ios_native_check.py` now pins all five (presence + the `() -> Void` completion), so the next drift is caught on Linux instead of on CI.
+  - **Stale-build gotcha**: a failed gradle build leaves the PREVIOUS apk in `build/…` - `adb install -r` then installs old code and "fixed" behavior looks broken/random. After any failed build, compare APK mtime vs `adb shell dumpsys package com.dreamplayer.app | grep lastUpdateTime` before testing.
 
-- **Embedded cover-art thumbnails (2026-08-26)**: video cards show the file's **embedded artwork** (MKV attached pictures / MP4 `covr`) instead of the plain gradient. `FileBrowser.getThumbnail` (`dreamplayer/files`) reads **metadata only** — `MediaMetadataRetriever.getEmbeddedPicture` (Android) / `AVURLAsset` `commonMetadata` `commonKeyArtwork` (iOS; MKV attachments unreadable there, MP4/MOV only) — never `getFrameAtTime`, which returns black frames for DV/HDR (do not add frame-extracting thumbnails). Local sources only (path / `file:` / `content:` / `tree:`); remote (SMB/WebDAV/Jellyfin/HTTP) skip the probe. `ThumbnailStore` (`lib/services/thumbnail_store.dart`) caches bytes in memory + disk (`<tmp>/cover_art/<fnv1a32hex>-<tail≤24>.img`), negative-cache in-memory only, keyed by `TmdStore.identityKeyFor` (same key as the details screen). TMDB backdrop still wins on continue-watching cards — embedded art renders only when there's no TMDB match. **Deadlock gotcha**: `future.whenComplete(() => map.remove(key))` DEADLOCKS — the arrow returns `Map.remove`'s value, which IS the same future (it waits on itself); use a block body `{ _inFlight.remove(key); }`. Probe failures/timeouts (10 s guard) just leave the gradient.
+- **Embedded cover-art thumbnails (2026-08-26)**: video cards show the file's **embedded artwork** (MKV attached pictures / MP4 `covr`) instead of the plain gradient. `FileBrowser.getThumbnail` (`dreamplayer/files`) reads **metadata only** - `MediaMetadataRetriever.getEmbeddedPicture` (Android) / `AVURLAsset` `commonMetadata` `commonKeyArtwork` (iOS; MKV attachments unreadable there, MP4/MOV only) - never `getFrameAtTime`, which returns black frames for DV/HDR (do not add frame-extracting thumbnails). Local sources only (path / `file:` / `content:` / `tree:`); remote (SMB/WebDAV/Jellyfin/HTTP) skip the probe. `ThumbnailStore` (`lib/services/thumbnail_store.dart`) caches bytes in memory + disk (`<tmp>/cover_art/<fnv1a32hex>-<tail≤24>.img`), negative-cache in-memory only, keyed by `TmdStore.identityKeyFor` (same key as the details screen). TMDB backdrop still wins on continue-watching cards - embedded art renders only when there's no TMDB match. **Deadlock gotcha**: `future.whenComplete(() => map.remove(key))` DEADLOCKS - the arrow returns `Map.remove`'s value, which IS the same future (it waits on itself); use a block body `{ _inFlight.remove(key); }`. Probe failures/timeouts (10 s guard) just leave the gradient.
 
 - **Episode identity beside the player title (2026-10-22)**: the top bar's
   title is the SHOW title, so an episode was anonymous once playback started.
-  The title line now reads `Dark` + `S01E01 · Tannhaus` — the code whenever the
+  The title line now reads `Dark` + `S01E01 · Tannhaus` - the code whenever the
   file is an episode, the name only when it is already cached, both on ONE line
   with the title (code brighter, name `white70`). This is unconditional; it is
   identity, not a badge preference, so there is no Settings toggle (an earlier
@@ -915,52 +915,52 @@ A video player app supporting:
   `E05`/`[01]` names need `folderSeason` or the first cached season **above 0**,
   because `seasonWithFallback` defaults to 1 and would label a season-4 file
   `S01E05` (`seasons.keys.first` can be season 0 = specials).
-  **The name is cached under the FOLDER key, not the file's — the bug that made
+  **The name is cached under the FOLDER key, not the file's - the bug that made
   build 50 show a bare code.** The details screen fetches seasons with
   `parentMetadataKey` (the season/show folder key), and `carryMeta` copies only
-  the show — title and artwork — onto the file's own key, so
+  the show - title and artwork - onto the file's own key, so
   `metaFor(fileKey).seasons` is empty. `TmdService.metaWithSeasons` widens the
   lookup to the cached entry for the same `movie.providerKey` that actually has
   episodes. No network call: with nothing cached the code alone is correct.
   Long names ellipsize (`maxLines: 1`) and the title keeps priority (flex 3 vs
   4) so the episode part never pushes the back/info buttons around.
-- **Transient format chips + Video info sheet (2026-08-26)**: the top-bar chips (HDR / video / audio / resolution / decoder / transcode / boost / night / spatial) no longer persist — they **flash for 5 s on the first STATE_READY per open** (`_flashChips`, `_chipsFlashedForOpen` latch reset in `_openCurrent`), fade via `AnimatedOpacity` + `IgnorePointer`, and are force-hidden on pip entry. The top-bar **ⓘ button** (right corner, `_TvControlButton` so the TV D-pad reaches it) opens a read-only **"Video info" sheet**: Title / HDR / Video / Audio (· Passthrough) / Resolution / **Decoder** (full component name + hardware/software — previously only in a chip tooltip) / Stream (server transcoding) / Spatial audio / Volume boost / Night mode / Bass boost. Motivation: persistent badges cluttered long sessions and leaked into the pip window. Labels shared with the chips through `_videoCodecInfoLabel` / `_audioInfoLabel` / `_resolutionInfoLabel` getters (DV dedup included).
+- **Transient format chips + Video info sheet (2026-08-26)**: the top-bar chips (HDR / video / audio / resolution / decoder / transcode / boost / night / spatial) no longer persist - they **flash for 5 s on the first STATE_READY per open** (`_flashChips`, `_chipsFlashedForOpen` latch reset in `_openCurrent`), fade via `AnimatedOpacity` + `IgnorePointer`, and are force-hidden on pip entry. The top-bar **ⓘ button** (right corner, `_TvControlButton` so the TV D-pad reaches it) opens a read-only **"Video info" sheet**: Title / HDR / Video / Audio (· Passthrough) / Resolution / **Decoder** (full component name + hardware/software - previously only in a chip tooltip) / Stream (server transcoding) / Spatial audio / Volume boost / Night mode / Bass boost. Motivation: persistent badges cluttered long sessions and leaked into the pip window. Labels shared with the chips through `_videoCodecInfoLabel` / `_audioInfoLabel` / `_resolutionInfoLabel` getters (DV dedup included).
 
-- **NEVER put `Spacer()`/`Expanded()` inside AlertDialog `actions` (2026-08 gotcha, broke every network-server dialog)**: `AlertDialog` lays `actions` out in an **OverflowBar**, not a Flex — a Flex child there throws `Incorrect use of ParentDataWidget … Expanded wants FlexParentData, found _OverflowBarParentData` while mounting and the whole dialog form dies (user-visible: "only the Test button, no input fields" on FTP/WebDAV/Jellyfin/SMB add-server dialogs). The four dialogs had a `const Spacer()` between Test and Cancel for push-right spacing; fix: removed them + `actionsAlignment: MainAxisAlignment.spaceBetween` in the shared `serverDialog()` helper (`lib/widgets/server_form_kit.dart`). Regression-tested in `test/server_dialog_layout_test.dart`, which pumps both dialogs at phone + iPad portrait/landscape sizes and asserts all 6 TextFields mount at full height (≥40 px) — this test is what caught the bug; label-Text heights are NOT a valid size proxy (a floating label is naturally ~16 px).
-- **NEVER put a `Positioned`/`Positioned.fill` inside a `Column`/`Row` (2026-11-12 iOS crash gotcha)**: `Positioned` is only legal as a DIRECT child of a `Stack`. Inside a Flex it throws `type 'FlexParentData' is not a subtype of type 'StackParentData' in type cast` from `Positioned.applyParentData` during the frame — the whole player screen goes grey, the video platform view is lost and only audio keeps playing (exactly the reported "gesture breaks the app, back to home = audio only"). The swipe-slider overlay had this; the fix hoists the `Positioned.fill` to the outer Stack via a `...[...]` spread. Pinned by `test/player_swipe_overlay_stack_test.dart`, which scans every `Column(` in `player_screen.dart` for a nested `Positioned`.
-- **Auto-prune deleted network files (2026-11-12)**: `lib/services/network_prune.dart` removes Continue-Watching entries and SMB library bookmarks whose path the server definitively reports gone. **The safety rule is load-bearing: only `smb_not_found` prunes — never `smb_error`/`smb_auth`/timeout.** Android maps the jcifs NT statuses via `SmbException.getNtStatus()` (`NT_STATUS_OBJECT_NAME_NOT_FOUND` / `..._PATH_NOT_FOUND` / `..._NO_SUCH_FILE`, jcifs-ng 2.1.10 — the constants live on `jcifs.smb.NtStatus`, NOT `CIFSException`, and `SmbFile` has no `stat()` — use `getAttributes()`, which throws on a missing path); iOS maps libsmb2's `-errno` return (NT→errno via `nterror_to_errno`, so deleted = `-ENOENT`) exposed as the NSError code in `LibSMB2Session.statPath`. Both platforms raise channel code `smb_not_found` (`SmbClient.isNotFound`), plus a `statPath` probe (`SmbClient.statPath` → `exists:false` on not-found, rethrows otherwise). Touchpoints: `smb_screen._loadDirectory` reconciles a fresh listing for free and prunes the bookmark + entries under a not-found path; `home_screen._loadLibrary` runs a throttled (10 min), server-online-gated background sweep of all SMB CW files. Pinned by `test/network_prune_test.dart` (9 tests).
-- **iPhone Duo (foldable) support (2026-11-12)**: the app targets all three Duo window shapes — folded cover (short+wide), open inner (~iPad-mini 4:3), inner in Split View — purely from constraints, never device checks. Concretely: `CADisableMinimumFrameDurationOnPhone=true` in Info.plist (120 Hz opt-in on the inner panel; it was missing despite an earlier note claiming it was set); grid columns follow width via `LayoutStore.autoColumnsForWidth` (≥1000→6, ≥760→4, ≥480→3, else 2); no global orientation lock (the player's fullscreen toggle already requests single forced orientations per direction); fold/unfold scene resizes ride the existing `SceneDelegate` viewDidLayoutSubviews swizzle + relayout watch (built for iPad Split View, same mechanism); home scroll survives folding via `PageStorageKey('home_scroll')`; `CachedImage` decodes at rendered size (`cacheWidth` = box width × DPR via a LayoutBuilder `_NetworkImage`); all `MediaQuery.of(context).size.*` reads in screens were replaced with `MediaQuery.sizeOf(context)` targeted getters so a fold doesn't rebuild the whole tree. Fold/camera *regions* are deliberately NOT plumbed: Flutter does not populate `MediaQuery.displayFeatures` on iOS and the fold plugins (`foldable`, `dual_screen_hinge`, `nitro_fold_duo`) are young and unverifiable without a Mac/device — revisit when Flutter ships native support. Pinned by `test/duo_layout_test.dart` (pumps the app shell at 852×393 folded, 1100×850 open, 430×850 Split-View logical sizes + the column rule). CI builds with the iOS 27 SDK on the `xcode-27` runner (workflow asserts ≥ 27); the iOS 27.1 fold APIs are not used.
+- **NEVER put `Spacer()`/`Expanded()` inside AlertDialog `actions` (2026-08 gotcha, broke every network-server dialog)**: `AlertDialog` lays `actions` out in an **OverflowBar**, not a Flex - a Flex child there throws `Incorrect use of ParentDataWidget … Expanded wants FlexParentData, found _OverflowBarParentData` while mounting and the whole dialog form dies (user-visible: "only the Test button, no input fields" on FTP/WebDAV/Jellyfin/SMB add-server dialogs). The four dialogs had a `const Spacer()` between Test and Cancel for push-right spacing; fix: removed them + `actionsAlignment: MainAxisAlignment.spaceBetween` in the shared `serverDialog()` helper (`lib/widgets/server_form_kit.dart`). Regression-tested in `test/server_dialog_layout_test.dart`, which pumps both dialogs at phone + iPad portrait/landscape sizes and asserts all 6 TextFields mount at full height (≥40 px) - this test is what caught the bug; label-Text heights are NOT a valid size proxy (a floating label is naturally ~16 px).
+- **NEVER put a `Positioned`/`Positioned.fill` inside a `Column`/`Row` (2026-11-12 iOS crash gotcha)**: `Positioned` is only legal as a DIRECT child of a `Stack`. Inside a Flex it throws `type 'FlexParentData' is not a subtype of type 'StackParentData' in type cast` from `Positioned.applyParentData` during the frame - the whole player screen goes grey, the video platform view is lost and only audio keeps playing (exactly the reported "gesture breaks the app, back to home = audio only"). The swipe-slider overlay had this; the fix hoists the `Positioned.fill` to the outer Stack via a `...[...]` spread. Pinned by `test/player_swipe_overlay_stack_test.dart`, which scans every `Column(` in `player_screen.dart` for a nested `Positioned`.
+- **Auto-prune deleted network files (2026-11-12)**: `lib/services/network_prune.dart` removes Continue-Watching entries and SMB library bookmarks whose path the server definitively reports gone. **The safety rule is load-bearing: only `smb_not_found` prunes - never `smb_error`/`smb_auth`/timeout.** Android maps the jcifs NT statuses via `SmbException.getNtStatus()` (`NT_STATUS_OBJECT_NAME_NOT_FOUND` / `..._PATH_NOT_FOUND` / `..._NO_SUCH_FILE`, jcifs-ng 2.1.10 - the constants live on `jcifs.smb.NtStatus`, NOT `CIFSException`, and `SmbFile` has no `stat()` - use `getAttributes()`, which throws on a missing path); iOS maps libsmb2's `-errno` return (NT→errno via `nterror_to_errno`, so deleted = `-ENOENT`) exposed as the NSError code in `LibSMB2Session.statPath`. Both platforms raise channel code `smb_not_found` (`SmbClient.isNotFound`), plus a `statPath` probe (`SmbClient.statPath` → `exists:false` on not-found, rethrows otherwise). Touchpoints: `smb_screen._loadDirectory` reconciles a fresh listing for free and prunes the bookmark + entries under a not-found path; `home_screen._loadLibrary` runs a throttled (10 min), server-online-gated background sweep of all SMB CW files. Pinned by `test/network_prune_test.dart` (9 tests).
+- **iPhone Duo (foldable) support (2026-11-12)**: the app targets all three Duo window shapes - folded cover (short+wide), open inner (~iPad-mini 4:3), inner in Split View - purely from constraints, never device checks. Concretely: `CADisableMinimumFrameDurationOnPhone=true` in Info.plist (120 Hz opt-in on the inner panel; it was missing despite an earlier note claiming it was set); grid columns follow width via `LayoutStore.autoColumnsForWidth` (≥1000→6, ≥760→4, ≥480→3, else 2); no global orientation lock (the player's fullscreen toggle already requests single forced orientations per direction); fold/unfold scene resizes ride the existing `SceneDelegate` viewDidLayoutSubviews swizzle + relayout watch (built for iPad Split View, same mechanism); home scroll survives folding via `PageStorageKey('home_scroll')`; `CachedImage` decodes at rendered size (`cacheWidth` = box width × DPR via a LayoutBuilder `_NetworkImage`); all `MediaQuery.of(context).size.*` reads in screens were replaced with `MediaQuery.sizeOf(context)` targeted getters so a fold doesn't rebuild the whole tree. Fold/camera *regions* are deliberately NOT plumbed: Flutter does not populate `MediaQuery.displayFeatures` on iOS and the fold plugins (`foldable`, `dual_screen_hinge`, `nitro_fold_duo`) are young and unverifiable without a Mac/device - revisit when Flutter ships native support. Pinned by `test/duo_layout_test.dart` (pumps the app shell at 852×393 folded, 1100×850 open, 430×850 Split-View logical sizes + the column rule). CI builds with the iOS 27 SDK on the `xcode-27` runner (workflow asserts ≥ 27); the iOS 27.1 fold APIs are not used.
 
-- **Volume Boost + Night Mode — Android path (REWRITTEN 2026-10-25, issue #41); the iOS path is "iOS audio DSP" below**: the boost is **PCM make-up gain + a peak limiter inside the audio sink** (`BoostLimiterProcessor.kt`, inserted by `DreamRenderersFactory.buildAudioSink` alongside `AudioDelayProcessor`). It runs on whatever layout the decoder produced, so it is channel-agnostic. **No audio effect is attached — do not reintroduce `LoudnessEnhancer` or `DynamicsProcessing`.**
-  - **Why both effects are banned.** `LoudnessEnhancer` is a FIXED, untunable compressor with no limiter, and **AOSP hard-wires it for STEREO** — attached to a 5.1 session it mangles the centre channel (the dialogue) while the rest of the mix keeps playing, which is exactly the reported "background music continues, vocals disappear". `DynamicsProcessing` was the replacement and works on the OnePlus 12R, but it is a **vendor HAL effect**: the reporter's OnePlus Pad 2 refuses to create it at all, failing in `setEngineArchitecture()` with `IllegalArgumentException: AudioEffect: bad parameter value` for both `ch=6` and `ch=2`. That throw comes from the `AudioEffect` base constructor, so **no `Config` shape can fix it** (the 1-arg ctor, `bandCount >= 1` and explicit 2.0 downmix were all tried by the reporter). Its failure path fell through to `LoudnessEnhancer`, which is how the stereo-only effect ended up on a 5.1 session in the first place.
+- **Volume Boost + Night Mode - Android path (REWRITTEN 2026-10-25, issue #41); the iOS path is "iOS audio DSP" below**: the boost is **PCM make-up gain + a peak limiter inside the audio sink** (`BoostLimiterProcessor.kt`, inserted by `DreamRenderersFactory.buildAudioSink` alongside `AudioDelayProcessor`). It runs on whatever layout the decoder produced, so it is channel-agnostic. **No audio effect is attached - do not reintroduce `LoudnessEnhancer` or `DynamicsProcessing`.**
+  - **Why both effects are banned.** `LoudnessEnhancer` is a FIXED, untunable compressor with no limiter, and **AOSP hard-wires it for STEREO** - attached to a 5.1 session it mangles the centre channel (the dialogue) while the rest of the mix keeps playing, which is exactly the reported "background music continues, vocals disappear". `DynamicsProcessing` was the replacement and works on the OnePlus 12R, but it is a **vendor HAL effect**: the reporter's OnePlus Pad 2 refuses to create it at all, failing in `setEngineArchitecture()` with `IllegalArgumentException: AudioEffect: bad parameter value` for both `ch=6` and `ch=2`. That throw comes from the `AudioEffect` base constructor, so **no `Config` shape can fix it** (the 1-arg ctor, `bandCount >= 1` and explicit 2.0 downmix were all tried by the reporter). Its failure path fell through to `LoudnessEnhancer`, which is how the stereo-only effect ended up on a 5.1 session in the first place.
   - **The PCM path is also what MPV does**, and the reporter confirmed MPV sounds correct on the same speakers after its gain fix. One mechanism, identical behaviour on both engines and every device, and no dependence on whether a vendor HAL implements an optional effect. `LoudnessEnhancer` also remains banned as a fallback.
-  - Boost is capped at **+12 dB** (`currentBoostDb()`: `20*log10(audioBoost) + 4 dB` for Night Mode, clamped 0..12). The gesture's 200% is 2.0× = +6.02 dB; Night Mode takes it to +10.02 dB. `ExoPlayerView.setAudioBoost` writes the gain through `applyBoostGain()` at gesture rate — a parameter write, never a sink rebuild, so the limiter's release envelope keeps running across the drag (rebuilding per frame reset it, which is why dialogue returned while dragging and vanished after release). Log line `volume boost via PCM gain+limiter at XdB` is gated on the last logged value (`boostLoggedDb`) so it appears once per real change, not once per frame.
-  - **`BoostLimiterProcessor.reset()` must keep the gain** — it recomputes `linearGain` from `boostDb` instead of forcing 1.0. Media3 calls `reset()` on sink teardown/reconfigure; zeroing the linear gain while `boostDb` still says 6 dB leaves the boost silently OFF, because `queueInput` gates on the linear value. `flush()` (seek/track change) resets only the envelope. Pinned by `android/app/src/test/.../BoostLimiterProcessorTest.kt` (6 tests).
-  - **Format contract**: PCM16 only, like `AudioDelayProcessor`; anything else throws `UnhandledAudioFormatException` so the sink uses the raw path — which is how HDMI bitstream passthrough survives the processor chain. `DefaultAudioSink`'s builder default is `setEnableFloatOutput(false)`, so the chain input really is PCM16 (verified on-device: HAL processing format `AUDIO_FORMAT_PCM_16_BIT`).
+  - Boost is capped at **+12 dB** (`currentBoostDb()`: `20*log10(audioBoost) + 4 dB` for Night Mode, clamped 0..12). The gesture's 200% is 2.0× = +6.02 dB; Night Mode takes it to +10.02 dB. `ExoPlayerView.setAudioBoost` writes the gain through `applyBoostGain()` at gesture rate - a parameter write, never a sink rebuild, so the limiter's release envelope keeps running across the drag (rebuilding per frame reset it, which is why dialogue returned while dragging and vanished after release). Log line `volume boost via PCM gain+limiter at XdB` is gated on the last logged value (`boostLoggedDb`) so it appears once per real change, not once per frame.
+  - **`BoostLimiterProcessor.reset()` must keep the gain** - it recomputes `linearGain` from `boostDb` instead of forcing 1.0. Media3 calls `reset()` on sink teardown/reconfigure; zeroing the linear gain while `boostDb` still says 6 dB leaves the boost silently OFF, because `queueInput` gates on the linear value. `flush()` (seek/track change) resets only the envelope. Pinned by `android/app/src/test/.../BoostLimiterProcessorTest.kt` (6 tests).
+  - **Format contract**: PCM16 only, like `AudioDelayProcessor`; anything else throws `UnhandledAudioFormatException` so the sink uses the raw path - which is how HDMI bitstream passthrough survives the processor chain. `DefaultAudioSink`'s builder default is `setEnableFloatOutput(false)`, so the chain input really is PCM16 (verified on-device: HAL processing format `AUDIO_FORMAT_PCM_16_BIT`).
   - **Verified on-device (OnePlus 12R, 2026-10-25)**: gesture to 200% logs `PCM gain+limiter at 6.02dB`; `dumpsys media.audio_flinger` shows **zero** `Dynamics Processing` / `Loudness Enhancer` entries (the only effect on the session is the OEM's pre-existing Dolby "Music Listener"), no `UnhandledAudioFormatException`, no crash. The Pad 2 speaker case is the reporter's to confirm.
-  - **The user-facing control is a GESTURE, not a slider.** Settings → Audio → **Volume boost** is an on/off toggle (default OFF). When on, the right-half swipe runs **0–200%**: 0–100% is system volume, and past 100% the system volume pins at max while the extra travel becomes boost (1.0×–2.0×). Both sliders were **deleted** (player ⋮ sheet and Settings → Audio) — a slider could only set a value the gesture then overwrites, which is the #41 "boost works until I touch volume" bug in a second location. All of it is `lib/utils/mpv_volume.dart` (`splitVolume`, `volumeCeiling`, `mpvVolumePercent`, `mpvBoostFilter`), unit-tested in `test/mpv_volume_test.dart`. **The boost VALUE is session state and is never persisted — the toggle is the only setting.** `PlaybackBoostStore` is deleted: a session that ended at 200% used to reopen at 200%, so every video starts from a known 100% and is deliberately swiped past. Dart no longer loads or saves it, and `ExoPlayerView.audioBoost` starts at `1.0f` instead of being seeded from (and written back to) `flutter.dreamplayer.audioBoost` — the native write has to go too, or the native side restores a value the Dart side no longer knows about, and a stale pref can cause a briefly boosted first frame before Dart pushes 1.0 down.
-  - **MPV gets NO limiter — this is measured and closed, do not retry.** Five `af` forms were tried on a real device; all failed, two SILENTLY: `lavfi='[alimiter=…]'` (the form mpv's own manual recommends) left `af` reading back EMPTY with no error; `lavfi-graph=…` does not exist and errors playback; `lavfi=graph=alimiter:a=1:b=2` is shredded because mpv splits sub-options on `:`; `lavfi=alimiter=limit=0.891` failed with *"Error while parsing lavfi parameter alimiter (limit)"*; and bare `lavfi=alimiter` IS accepted but with every default, i.e. `limit=1` — no limiting at all. **The root cause: mpv parses everything after `lavfi=` as sub-option name=value pairs, so the value may be a single token containing no `=`.** `lavfi=anull` works only for that reason. Any `=` turns the filter name into a sub-option name and the whole `af` set is rejected — sometimes silently. A limiter for MPV needs a different delivery mechanism (a Lua script, or a custom libmpv), not another `af` string.
+  - **The user-facing control is a GESTURE, not a slider.** Settings → Audio → **Volume boost** is an on/off toggle (default OFF). When on, the right-half swipe runs **0–200%**: 0–100% is system volume, and past 100% the system volume pins at max while the extra travel becomes boost (1.0×–2.0×). Both sliders were **deleted** (player ⋮ sheet and Settings → Audio) - a slider could only set a value the gesture then overwrites, which is the #41 "boost works until I touch volume" bug in a second location. All of it is `lib/utils/mpv_volume.dart` (`splitVolume`, `volumeCeiling`, `mpvVolumePercent`, `mpvBoostFilter`), unit-tested in `test/mpv_volume_test.dart`. **The boost VALUE is session state and is never persisted - the toggle is the only setting.** `PlaybackBoostStore` is deleted: a session that ended at 200% used to reopen at 200%, so every video starts from a known 100% and is deliberately swiped past. Dart no longer loads or saves it, and `ExoPlayerView.audioBoost` starts at `1.0f` instead of being seeded from (and written back to) `flutter.dreamplayer.audioBoost` - the native write has to go too, or the native side restores a value the Dart side no longer knows about, and a stale pref can cause a briefly boosted first frame before Dart pushes 1.0 down.
+  - **MPV gets NO limiter - this is measured and closed, do not retry.** Five `af` forms were tried on a real device; all failed, two SILENTLY: `lavfi='[alimiter=…]'` (the form mpv's own manual recommends) left `af` reading back EMPTY with no error; `lavfi-graph=…` does not exist and errors playback; `lavfi=graph=alimiter:a=1:b=2` is shredded because mpv splits sub-options on `:`; `lavfi=alimiter=limit=0.891` failed with *"Error while parsing lavfi parameter alimiter (limit)"*; and bare `lavfi=alimiter` IS accepted but with every default, i.e. `limit=1` - no limiting at all. **The root cause: mpv parses everything after `lavfi=` as sub-option name=value pairs, so the value may be a single token containing no `=`.** `lavfi=anull` works only for that reason. Any `=` turns the filter name into a sub-option name and the whole `af` set is rejected - sometimes silently. A limiter for MPV needs a different delivery mechanism (a Lua script, or a custom libmpv), not another `af` string.
   - **Consequence, stated plainly:** MPV's boost rides on `volume` alone and therefore **CLIPS at high settings instead of limiting**. The engine with a real peak limiter is the NATIVE one (`BoostLimiterProcessor`), which is also where boost is used by default. Do not represent MPV boost as distortion-free.
-  - The `af`-probe diagnostic that established all of this was REMOVED after use — it must not ship.
+  - The `af`-probe diagnostic that established all of this was REMOVED after use - it must not ship.
   - **This matches the reference mpv player, which is why it is closed rather than "unfinished".** [mpvEx](https://github.com/marlboro-advance/mpvEx) (2.7k stars, forked from mpv-android/mpvKt) does boost with exactly `setOptionString("volume-max", cap+100)` + `setPropertyInt("volume", …)` and has **no** limiter, `DynamicsProcessing`, `LoudnessEnhancer`, `softvol` or `alimiter` anywhere in the codebase. Its only `af` filter is a bare `dynaudnorm` (default +30% cap). A mature mpv player clips too. Their bare-token-only `af` usage independently confirms the mpv option-parser constraint found above.
-  - The gesture's overlay progress bar is **normalised by the active ceiling** — `LinearProgressIndicator` asserts `value` in 0..1 and the volume range now reaches 2.0.
-  - **Where a new swipe STARTS is a conditional, not a max** (`volumeGestureBase` in `mpv_volume.dart`, and it is pure + unit-tested because it broke twice in a row). The gesture is one continuous 0-200% range, but the level lives in a different place either side of 100%: above it the boost holds the level and the system volume is pinned at max; below it the boost is back at 1.0 and the **system volume is the level**. So `boost > 1.0 ? boost : systemVolume`. Two wrong versions shipped first — reading only the boost made every gesture start at 100%, and then `max(systemVolume, boost)` reproduced the identical bug from the other side, because `max(0.3, 1.0) == 1.0`, so any volume under 100% snapped upward. Symptom: lower to 30%, swipe down, and the next swipe restarts from 100%.
-  - **The gesture must not leave the phone's volume changed** — pushing past 100% drags the OS volume to max on the way, so `_systemVolumeAtOpen` is captured when the video opens and `_restoreSystemVolumeAfterSession()` puts it back on `dispose()`. It restores **only if the last value the gesture pushed is still what is actually set**: if the volume changed from the notification shade or a headset key while watching, that is deliberate and clobbering it would be worse than the leak being fixed. Mirrors the brightness restore already in `dispose()`.
-  - **Safety flash at the risky thresholds (2026-10-25).** The gesture shows ONE brief pill when it crosses a threshold where something can be damaged: volume **above 100%** ("Above 100% can damage your speakers — use at your own risk") and brightness **from 80%** ("Brightness above 80% drains the battery faster"). Both are `GestureSafetyWarning` from `lib/utils/gesture_safety.dart` — a PURE, unit-tested trigger (`test/gesture_safety_test.dart`) that only sees the previous and next gesture value. The pill itself is `GestureWarningPill` (`lib/widgets/gesture_warning_pill.dart`, widget-tested) and sits **above** the gesture's own level pill.
-    - **Two traps, both already handled.** (1) The check lives in `_updateSwipe`, NOT in `_applySwipeValue` — the latter also runs when the gesture BASE is seeded, so a gesture that starts while the boost is already engaged would read as a fresh crossing and warn about a threshold crossed long ago. (2) The two comparisons are deliberately **different**: the volume one is strict (`next > 1.0`), because with boost OFF the gesture clamps at exactly 100% and must stay silent — there is no boost band to warn about. The brightness one is inclusive (`previous < 0.8 && next >= 0.8`), because 80% is a level the user passes through, not a boundary that only exists while boost is on.
-    - **Both platforms.** The trigger and the pill are plain Flutter (no platform gate), and iOS brightness is the same 0-1 scale (`UIScreen.main.brightness` in `AvPlayerView.swift`), so the 80% warning fires identically on iPhone/iPad. The **volume** warning is Android-only in practice: iOS has no boost (`AVAudioSession.outputVolume` is 0-1 and `setSystemVolume` clamps to 1), so the iOS gesture can never cross 100% — correctly, because there is no boost band to warn about there.
+  - The gesture's overlay progress bar is **normalised by the active ceiling** - `LinearProgressIndicator` asserts `value` in 0..1 and the volume range now reaches 2.0.
+  - **Where a new swipe STARTS is a conditional, not a max** (`volumeGestureBase` in `mpv_volume.dart`, and it is pure + unit-tested because it broke twice in a row). The gesture is one continuous 0-200% range, but the level lives in a different place either side of 100%: above it the boost holds the level and the system volume is pinned at max; below it the boost is back at 1.0 and the **system volume is the level**. So `boost > 1.0 ? boost : systemVolume`. Two wrong versions shipped first - reading only the boost made every gesture start at 100%, and then `max(systemVolume, boost)` reproduced the identical bug from the other side, because `max(0.3, 1.0) == 1.0`, so any volume under 100% snapped upward. Symptom: lower to 30%, swipe down, and the next swipe restarts from 100%.
+  - **The gesture must not leave the phone's volume changed** - pushing past 100% drags the OS volume to max on the way, so `_systemVolumeAtOpen` is captured when the video opens and `_restoreSystemVolumeAfterSession()` puts it back on `dispose()`. It restores **only if the last value the gesture pushed is still what is actually set**: if the volume changed from the notification shade or a headset key while watching, that is deliberate and clobbering it would be worse than the leak being fixed. Mirrors the brightness restore already in `dispose()`.
+  - **Safety flash at the risky thresholds (2026-10-25).** The gesture shows ONE brief pill when it crosses a threshold where something can be damaged: volume **above 100%** ("Above 100% can damage your speakers - use at your own risk") and brightness **from 80%** ("Brightness above 80% drains the battery faster"). Both are `GestureSafetyWarning` from `lib/utils/gesture_safety.dart` - a PURE, unit-tested trigger (`test/gesture_safety_test.dart`) that only sees the previous and next gesture value. The pill itself is `GestureWarningPill` (`lib/widgets/gesture_warning_pill.dart`, widget-tested) and sits **above** the gesture's own level pill.
+    - **Two traps, both already handled.** (1) The check lives in `_updateSwipe`, NOT in `_applySwipeValue` - the latter also runs when the gesture BASE is seeded, so a gesture that starts while the boost is already engaged would read as a fresh crossing and warn about a threshold crossed long ago. (2) The two comparisons are deliberately **different**: the volume one is strict (`next > 1.0`), because with boost OFF the gesture clamps at exactly 100% and must stay silent - there is no boost band to warn about. The brightness one is inclusive (`previous < 0.8 && next >= 0.8`), because 80% is a level the user passes through, not a boundary that only exists while boost is on.
+    - **Both platforms.** The trigger and the pill are plain Flutter (no platform gate), and iOS brightness is the same 0-1 scale (`UIScreen.main.brightness` in `AvPlayerView.swift`), so the 80% warning fires identically on iPhone/iPad. The **volume** warning is Android-only in practice: iOS has no boost (`AVAudioSession.outputVolume` is 0-1 and `setSystemVolume` clamps to 1), so the iOS gesture can never cross 100% - correctly, because there is no boost band to warn about there.
     - The strings are localized (`playerVolumeBoostWarning` / `playerBrightnessBatteryWarning` in all four ARB files). The warning is cleared on the next open and its timer cancelled in `dispose()`.
   - Night Mode adds +4 dB on the native side and ×1.6 on MPV. iOS remains a **deliberate no-op** (`AVPlayer.volume` caps at 1.0, no public DRC-over-AVPlayer API) and both controls stay hidden on iOS.
-  - **Verified on-device (OnePlus 12R, 2026-10-25)** — see the block at the top of this section. The Pad 2 speaker A/B is the reporter's to confirm; that was the measurement gap that kept this issue open for three rounds, and it is now closed on the mechanism rather than on a vendor effect.
+  - **Verified on-device (OnePlus 12R, 2026-10-25)** - see the block at the top of this section. The Pad 2 speaker A/B is the reporter's to confirm; that was the measurement gap that kept this issue open for three rounds, and it is now closed on the mechanism rather than on a vendor effect.
 
-- **Bass Boost — Android-only (2026-08-25)**: `android.media.audiofx.BassBoost` attached to the same session in `applyAudioEffects` (independent of the loudness guard — applies even at 1.0× / night mode off); levels Off/Low/Medium/High → strength ~150–1000; persisted `flutter.dreamplayer.bassBoost`, live via `setBassBoost`, emitted as `bassBoost` in the event map. The ⋮ sheet row is **gated on `_liveSpatial == 'on'`** — it exists to offset HRTF low-end thinning during spatial virtualization, so it appears only while the teal Spatial chip is active and vanishes when routing/content changes. Works on any output (wired/USB/BT) since it's session-level DSP. iOS: AVPlayer exposes no public boost/DRC API, so iOS does the same three things in the engine's `AudioShaping` graph (see "iOS audio DSP" below). The `_liveSpatial == 'on'` gate this row depends on now works on iOS too — iOS spatial shipped in 0.5.5 — which is the correct behavior: the row exists to offset HRTF low-end thinning.
+- **Bass Boost - Android-only (2026-08-25)**: `android.media.audiofx.BassBoost` attached to the same session in `applyAudioEffects` (independent of the loudness guard - applies even at 1.0× / night mode off); levels Off/Low/Medium/High → strength ~150–1000; persisted `flutter.dreamplayer.bassBoost`, live via `setBassBoost`, emitted as `bassBoost` in the event map. The ⋮ sheet row is **gated on `_liveSpatial == 'on'`** - it exists to offset HRTF low-end thinning during spatial virtualization, so it appears only while the teal Spatial chip is active and vanishes when routing/content changes. Works on any output (wired/USB/BT) since it's session-level DSP. iOS: AVPlayer exposes no public boost/DRC API, so iOS does the same three things in the engine's `AudioShaping` graph (see "iOS audio DSP" below). The `_liveSpatial == 'on'` gate this row depends on now works on iOS too - iOS spatial shipped in 0.5.5 - which is the correct behavior: the row exists to offset HRTF low-end thinning.
 
 ### iOS MetalFX video upscaling (2026-11-04, 0.5.6, user-verified on iPad)
 
 - **The stage is the engine's, not ours.** Upstream AetherEngine already ships
   a MetalFX upscale stage (`AetherEngine+Upscale.swift`, `Video/FrameUpscaler.swift`,
   `Video/UpscaleRouteDecision.swift`, load option `upscalesLowResolutionVideo`,
-  engine issue #846). We do NOT build a host-side CAMetalLayer presenter — that
+  engine issue #846). We do NOT build a host-side CAMetalLayer presenter - that
   would replace the display-layer presentation and cost DV/HDR passthrough on
   the native AVPlayer path (same trade rejected for Media3 on Android).
 - **Fork change (tag `7.53.5`, branch `dreamplayer`):** the route gate
@@ -971,10 +971,10 @@ A video player app supporting:
 - **Stage floor is iOS 26+, not the MetalFX API floor.** `MTLFXTemporalScaler`
   itself is iOS 16+, but the engine wraps the stage in `#available(iOS 26, ...)`
   (it chains VideoToolbox ML super-resolution before MetalFX). The app's
-  `IPHONEOS_DEPLOYMENT_TARGET = 18.0` is unchanged and must stay 18 — on
+  `IPHONEOS_DEPLOYMENT_TARGET = 18.0` is unchanged and must stay 18 - on
   iOS 18–25 the route returns `.notTaken(.unsupportedOS)` and playback is
   normal. The Settings toggle is only shown when the device reports iOS 26+
-  (`osMajorVersion` on the `dreamplayer/device` channel — added on both
+  (`osMajorVersion` on the `dreamplayer/device` channel - added on both
   platforms; Dart `lib/utils/os_version.dart` `isIos26OrLater()`).
 - **Engine-side eligibility (all automatic, no app logic):** SDR only, not DV,
   8-bit 4:2:0 only, MetalFX-capable Apple Silicon device, display larger than
@@ -988,36 +988,36 @@ A video player app supporting:
   the player shows a passive "Upscaled · WxH → WxH" chip. Android answers
   `setUpscale` as a logged no-op (Media3 renders at native resolution).
 - **Deliberately NO live player toggle.** An earlier build had a top-right
-  popup switch whose `setUpscale` reloaded the session at the playhead — but a
+  popup switch whose `setUpscale` reloaded the session at the playhead - but a
   mid-session reload does NOT engage the stage (it's a load option), so the
   video reloaded without upscaling until the next open. Reverted in build 7:
   the toggle lives in Settings only and applies on the next open; the player
   screen has no button/panel. Pinned by `test/ios_upscale_test.dart`.
-- **Tests:** `test/ios_upscale_test.dart` (8) — store default/persist, native
+- **Tests:** `test/ios_upscale_test.dart` (8) - store default/persist, native
   pref→LoadOptions + emit + no-reload case, Android no-op, osMajorVersion
   channel both platforms, Settings row gated iOS-26+ + paywalled, player has
   no toggle but keeps the chip.
 
-### Downmix to stereo — 5.1/7.1 → 2.0 (2026-11-08, FREE on both platforms)
+### Downmix to stereo - 5.1/7.1 → 2.0 (2026-11-08, FREE on both platforms)
 
 - **One toggle**: Settings → Audio → "Downmix to stereo" (`AudioDownmixStore`,
   pref `dreamplayer.audioDownmix`, default off). **NOT paywall-gated on iOS**
   (deliberate, user decision 2026-11-08): downmix is about the *audio channel
   count*, and most 5.1/7.1 content is ordinary SDR that free users can already
-  play — gating it would lock a basic stereo-listening fix behind the paywall.
+  play - gating it would lock a basic stereo-listening fix behind the paywall.
   So the store does NOT route through `effectiveDspSetting`, the Settings row
   saves without `_settingsGate()`, and the paywall "What's included" list does
   not mention it. Pinned by `test/audio_downmix_test.dart`.
 - **Why**: most movie/series audio is 5.1/7.1 and most people listen on stereo
   headphones/speakers; a naive L/R fold drops the centre channel, so dialogue
   goes quiet while effects stay loud. All three engines use the standard
-  downmix matrix — centre + surrounds into both fronts at −3 dB (√½), LFE
+  downmix matrix - centre + surrounds into both fronts at −3 dB (√½), LFE
   dropped (no sub on stereo):
   - **Android Media3**: `DownmixAudioProcessor.kt`, a PCM16 `AudioProcessor`
     in the sink chain in `DreamRenderersFactory.buildAudioSink`, ordered
     `delay → downmix → boost` so the boost limiter catches peaks the summing
     produces. The output channel count is fixed at sink configure time, so
-    `enabled` is read in `configure()` only — a mid-playback toggle applies on
+    `enabled` is read in `configure()` only - a mid-playback toggle applies on
     the next track change/open (flipping frame size under a live sink would
     corrupt it). Non-PCM16 throws `UnhandledAudioFormatException` → raw path,
     so **HDMI bitstream passthrough is never downmixed** (the receiver does
@@ -1030,10 +1030,10 @@ A video player app supporting:
   - **MPV engine**: `audio-channels=stereo` in `_configureMpvAudio` (swresample
     downmix, same matrix); `auto` when off. Ignored for `audio-spdif`
     passthrough. Live via `applyMpvDownmixSetting()`.
-  - **iOS**: the stereo audio-session lever — `applySpatialAudio` in
+  - **iOS**: the stereo audio-session lever - `applySpatialAudio` in
     `AvPlayerView.swift` now also reads `flutter.dreamplayer.audioDownmix` and,
     when on, sets `setSupportsMultichannelContent(false)` on BOTH paths (native
-    AVPlayer path included — Apple's own downmix keeps the centre) and
+    AVPlayer path included - Apple's own downmix keeps the centre) and
     `allowedAudioSpatializationFormats = []`; downmix wins over spatial.
     `setAudioDownmix` channel case persists the pref + re-applies + emits;
     stateMap gains `audioDownmix`.
@@ -1041,7 +1041,7 @@ A video player app supporting:
   `PlaybackController.setAudioDownmix` (`exo_player.dart`) + `ExoPlayerState
   .audioDownmix`; `player_screen` pushes it at open and loads the store in init.
 
-### iOS audio DSP — volume boost, night mode & bass boost (2026-10-31)
+### iOS audio DSP - volume boost, night mode & bass boost (2026-10-31)
 
 **iOS now has the same three audio controls as Android**, and they are real DSP
 (not a volume trick): boost is make-up gain, night mode is dynamic-range
@@ -1052,7 +1052,7 @@ still free.
 `mangeshghodke/AetherEngine` (branch `dreamplayer`, tag `7.53.4`, based on
 upstream `7.53.0`); `ios/Runner.xcodeproj/project.pbxproj` points at the fork
 with `minimumVersion = 7.53.4`. **Never open a PR against upstream and never
-push to `origin` there** — the fork is the only channel. The fork now has
+push to `origin` there** - the fork is the only channel. The fork now has
 ONE change vs upstream:
 - **the bass shelf** (kept for reference, unused): see below.
 
@@ -1069,7 +1069,7 @@ The 7.x line uses iOS 17.2 / 17.4 / 18 APIs **unconditionally**:
 `runSynchronously(on:)` (`BlockingWork.swift`). A fork attempt to set
 `Package.swift` to `.iOS(.v17)` and guard only two of them (tag `7.53.3`)
 **failed to compile in CI** with eight "only available in iOS 17.2 / 17.4 /
-18.0 or newer" errors — the guards only covered
+18.0 or newer" errors - the guards only covered
 `renderingModeChangeNotification` and `loadVideoPerformanceMetrics`, while
 `renderingMode`, `renderingCapabilitiesChangeNotification`,
 `displayedPixelBuffer()`, `isReadyForDisplay` and the whole
@@ -1080,7 +1080,7 @@ app's `IPHONEOS_DEPLOYMENT_TARGET = 18.0` must follow the package's floor,
 and the App Store Connect listing's minimum-version field must be raised to
 **18.0** at the next submission.
 
-**Boost and night mode ride UPSTREAM's public API** — `AudioShaping`,
+**Boost and night mode ride UPSTREAM's public API** - `AudioShaping`,
 `AudioShaping.Compressor` (with `makeupGainDB` clamped 0...24 dB) and the
 engine's own `Compressor.night` preset (threshold −30 dB, ratio 4, makeup
 +10 dB, attack 5 ms, release 250 ms, knee 6 dB) are all upstream. The host
@@ -1091,74 +1091,74 @@ made during a load into the in-flight rebuild.
 **The bass shelf is the fork's job, and it could NOT be an FFmpeg filter.**
 This engine's FFmpeg is built from an allow-list (`FFmpegBuild/build.sh`)
 that compiles only `abuf*`, `aformat`, `aresample`, `dialoguenhance`, `pan`,
-`acompressor`, `alimiter` — **`bass` (and every other EQ) is not in the
+`acompressor`, `alimiter` - **`bass` (and every other EQ) is not in the
 build**, so a chain stage would silently never load. The fork therefore runs
 the shelf as a Swift biquad (`LowShelfBiquad`) on the frame as it enters
 `AudioShapingGraph.push()`, with libavfilter's `af_biquads.c` `case bass:`
 coefficients (poles = 2, Q = 0.5, `alpha = sin(w0)`, `beta = sqrt(2A)`),
 validated against a real `ffmpeg -af bass=…`: worst gain difference
 **0.0061 dB** over 5 Hz…8 kHz. Chain order is
-**shelf → dialoguenhance → acompressor → alimiter** — `alimiter` stays LAST,
+**shelf → dialoguenhance → acompressor → alimiter** - `alimiter` stays LAST,
 so the −1 dBFS ceiling holds over the boosted sum, and the shelf runs only
 behind a built limiter (`reset()`'s passthrough fallback has no ceiling).
 
 **Native wiring (`ios/Runner/AvPlayerView.swift`).**
 - `makeAudioShaping()` maps the three controls onto one `AudioShaping`:
-  boost = flat make-up gain (`ratio 1` — transparent, the limiter does the
+  boost = flat make-up gain (`ratio 1` - transparent, the limiter does the
   capping) with `makeupGainDB = 20·log10(boost)`; night = `Compressor.night`
   with the boost's make-up stacked on top (10 + 9.54 = 19.54 dB, inside the
   24 dB clamp); bass = 0/4/7/10 dB @ 100 Hz. All off → the default
   `AudioShaping()`, which the engine treats as byte-for-byte passthrough.
-- **TRAP — `load()` REPLACES the engine's options wholesale**
+- **TRAP - `load()` REPLACES the engine's options wholesale**
   (`AetherEngine.swift`: `loadedOptions = options`), so a shaping value that
   only lives on the engine is WIPED by the next load. `applyAudioShaping()`
   therefore writes `lastLoadOptions.audioShaping` FIRST, `open()` sets
   `options.audioShaping = makeAudioShaping()` on the `LoadOptions` it hands to
-  `engine.load`, and `reloadSession` copies `lastLoadOptions` — so every load
+  `engine.load`, and `reloadSession` copies `lastLoadOptions` - so every load
   path carries the value.
-- **TRAP — each apply rebuilds the session at the playhead** (~0.3 s of held
+- **TRAP - each apply rebuilds the session at the playhead** (~0.3 s of held
   picture), so the change is debounced 0.35 s **unconditionally**. **The
   debounce must NOT be gated on the engine's state** (the first version was:
   "debounce while `.playing`, apply immediately otherwise"): the rebuild
   itself puts the engine into `.loading`, so the NEXT change saw a
-  non-playing engine and applied immediately — **the video reloaded on every
+  non-playing engine and applied immediately - **the video reloaded on every
   increment of the volume gesture** (2026-10-31, user report: "as I increase
   volume above 100% every volume number reloads the video"). An idle engine
-  needs no immediate apply anyway — the value is already in
+  needs no immediate apply anyway - the value is already in
   `lastLoadOptions.audioShaping`, so the next load carries it.
-- **TRAP — iOS must not push the boost DURING the gesture** (2026-10-31).
+- **TRAP - iOS must not push the boost DURING the gesture** (2026-10-31).
   Android's boost is a PCM gain (live ✓); iOS's is engine DSP, and every DSP
   change is a session rebuild ✗. So the Dart side pushes the boost **once,
-  when the gesture ends** (`_endSwipe`), not per increment — the gesture's
+  when the gesture ends** (`_endSwipe`), not per increment - the gesture's
   live value is still session state and still shows in the overlay. The
   system volume is pinned at max above 100%, so it is only pushed when it
   actually changed (iOS drives the MPVolumeView slider, which is audible
   while it moves). Pinned by `test/ios_boost_defer_test.dart` (4 tests, which
-  read the Dart and Swift sources — the player screen needs a live platform
+  read the Dart and Swift sources - the player screen needs a live platform
   view, so it cannot be pumped as a widget).
 - **AND THEN IT WAS REMOVED FROM iOS ENTIRELY (2026-10-31, build 63).** The
   deferral above was not enough: the engine's shaping apply is a FULL session
   rebuild at the playhead (`AetherEngine.setAudioShaping` →
   `reanchorForAudioShaping` → `reloadAtCurrentPosition`), so even one apply
-  per gesture reloads the video — the user reported "as I increase volume
+  per gesture reloads the video - the user reported "as I increase volume
   above 100% every volume number reloads the video" and, after the deferral,
   that it still reloaded. **The only way to make the boost smooth on iOS is
   to stop rebuilding the session**, and the engine rebuilds the whole
-  filter graph (`AudioShapingGraph`) per shaping value — the makeup gain is
-  baked into the chain string — so a live update would mean rebuilding the
+  filter graph (`AudioShapingGraph`) per shaping value - the makeup gain is
+  baked into the chain string - so a live update would mean rebuilding the
   graph in place inside the engine (a fork change with no device to test
-  it). The user chose removal over that: **iOS has NO volume boost** — the
+  it). The user chose removal over that: **iOS has NO volume boost** - the
   gesture stops at 100% (`_volumeBoostEnabled = !Platform.isIOS`), the
   Settings row is Android-only, `makeAudioShaping()` carries no make-up
   gain, `setAudioBoost` is a logged no-op, and the subscription no longer
   lists it. **Night mode and bass boost stay on iOS** (they are toggles, not
-  a continuous gesture). Android keeps its boost — there it is a PCM gain in
+  a continuous gesture). Android keeps its boost - there it is a PCM gain in
   the sink and applies live, with the peak limiter. Pinned by
   `test/ios_boost_removed_test.dart` (5 tests, source-reading ✓).
 - **AND THEN THE BASS BOOST WENT TOO (2026-10-31, build 64).** The same
   engine-DSP shape: the low shelf is a stage in the same filter chain, so
   changing it rebuilds the session at the playhead exactly like the boost
-  did. It was ALSO unreachable in practice — the player's ⋮ row is gated on
+  did. It was ALSO unreachable in practice - the player's ⋮ row is gated on
   `_liveSpatial == 'on'` (it exists to offset the HRTF low-end thinning), so
   without spatial-audio headphones it never appeared at all. The user asked
   for it to go, keeping spatial audio. **iOS now has exactly ONE audio DSP
@@ -1166,7 +1166,7 @@ behind a built limiter (`reset()`'s passthrough fallback has no ceiling).
   switched). `makeAudioShaping()` builds the night compressor only, the
   shelf is gone, `setBassBoost` is a logged no-op, the emit map reports
   `bassBoost: 0` / `audioBoost: 1.0`, the ⋮ row is Android-only, and the
-  paywall/trial/ASC lists say "Night mode". Android keeps its bass boost —
+  paywall/trial/ASC lists say "Night mode". Android keeps its bass boost -
   there it is a session-level `android.media.audiofx.BassBoost` ✓.
   Pinned by `test/ios_dsp_removed_test.dart` (source-reading ✓).
 - **The two surviving iOS audio controls are paywall-gated; Android is free
@@ -1181,7 +1181,7 @@ behind a built limiter (`reset()`'s passthrough fallback has no ceiling).
   `SpatialAudioStore.effectiveEnabled()` runs BEFORE `_exo.open()` (the native
   side reads `flutter.dreamplayer.spatialAudio` straight from UserDefaults, so
   it must be corrected before the load) and it persists the correction, while
-  `effectiveDspSetting` does the same for night mode — but **iOS only**, so
+  `effectiveDspSetting` does the same for night mode - but **iOS only**, so
   Android is never corrected. **Android is immune by construction**:
   `Entitlements.advanced` returns true unconditionally there, so every gate
   resolves to "available" and the paywall sheet can never open; the spatial
@@ -1190,7 +1190,7 @@ behind a built limiter (`reset()`'s passthrough fallback has no ceiling).
   **The decision layer was already pinned** (`checkGate`,
   `dspSettingMayStayEnabled`, `effectiveDspSetting`, the Android immunity in
   `test/entitlements_test.dart`; the spatial store in
-  `test/spatial_audio_gate_test.dart`) — **the WIRING was not**: a refactor
+  `test/spatial_audio_gate_test.dart`) - **the WIRING was not**: a refactor
   that dropped `await _settingsGate()` from the night-mode row, or saved the
   setting BEFORE the gate, would keep every existing test green while
   shipping the paid feature for free. `test/audio_paywall_gate_test.dart`
@@ -1200,51 +1200,51 @@ behind a built limiter (`reset()`'s passthrough fallback has no ceiling).
   opens and nothing is saved, a third asserts turning OFF is always free, and
   the source-reading tests pin that both rows gate ON *before* the save.
   **Trap:** the paywall sheet ticks a countdown timer every second, so
-  `pumpAndSettle` NEVER settles while it is open — pump explicitly.
+  `pumpAndSettle` NEVER settles while it is open - pump explicitly.
 - `setBassBoost` is a new channel case: it stores the level in
-  `UserDefaults` under **`flutter.dreamplayer.bassBoost`** — the same key
-  Android's `ExoPlayerView.kt` writes, so it is ONE setting across platforms —
+  `UserDefaults` under **`flutter.dreamplayer.bassBoost`** - the same key
+  Android's `ExoPlayerView.kt` writes, so it is ONE setting across platforms -
   then applies the shaping. `"bassBoost"` also rides the emit map, so the Dart
   `_liveBass` chip follows the engine.
 - `AVPlayer.volume` still caps at 1.0, so the boost is DSP, not volume: the
   old `engine.volume = min(audioBoost, 1)` line survives only to keep the
   mute/unmute bookkeeping identical.
 
-**Paywall (iOS premium — spatial-audio precedent).** Turning boost, night mode
+**Paywall (iOS premium - spatial-audio precedent).** Turning boost, night mode
 or bass ON is choice-gated (Settings → Audio, and the player's ⋮ sheet);
 switching OFF is always free. `effectiveDspSetting` (`entitlements.dart`)
-applies the lapsed-entitlement correction to the saved values — the same shape
+applies the lapsed-entitlement correction to the saved values - the same shape
 as `SpatialAudioStore.effectiveEnabled`. Android is untouched: its `checkGate`
 is a guaranteed no-op there. Dart pushes the effective bass level on iOS at
 open (the native side reads the pref itself), so a lapsed entitlement reaches
 the engine as 0 and the correction is persisted.
 
-- **Background playback + media notification controls (2026-08-26)** — the #1 competitor-gap feature: audio keeps playing and lock screen / notification / headset controls work when the app is backgrounded or the screen locks.
-  - **Android** (`PlaybackManager.kt`, `PlaybackService.kt`): deliberate **NOT** a Media3 `MediaSessionService` refactor — the player stays in the Activity-scoped platform view, so a plain **`MediaSessionCompat`** (`androidx.media:media:1.7.0`) wraps it and a thin **foreground service** (type `mediaPlayback`) only holds foreground priority + hosts the `MediaStyle` notification (rew-10s / play-pause / ffw-10s / close, tap → app). All actions route through session callbacks back into the live player instance. Player hygiene added in one go: `setAudioAttributes(..., handleAudioFocus=true)` (pauses for calls/other apps), `setHandleAudioBecomingNoisy(true)` (pause on headphone unplug), `setWakeMode(C.WAKE_MODE_NETWORK)` (CPU+Wi-Fi locks so streams keep buffering with screen off). `POST_NOTIFICATIONS` requested fire-and-forget in Dart before first playback (13+; denial hides the notification but playback/service still work).
-    - **Gotchas**: (1) `setMediaItem` flips the player to transient `STATE_IDLE` between opens — `sync()` must re-set `session.isActive = true` on every call or the first IDLE emit permanently deactivates the session (no more notification for the rest of the file); (2) `PlaybackManager.release(context)` (from platform-view dispose) MUST stop the service + cancel the notification BEFORE nulling the player — otherwise the foreground service outlives the released player and tapping its play button routes into freed callbacks; (3) rebuild the notification only when visible state changes (key = state|playing|title) — the position ticker emits ~1/s and `notify()` every second is wasteful (lock screen extrapolates position from `state.speed` between updates); (4) notification action PendingIntents are `MediaButtonReceiver.buildMediaButtonPendingIntent` → manifest-declared `androidx.media.session.MediaButtonReceiver` → service `MEDIA_BUTTON` intent-filter → `handleIntent(session, intent)`; (5) API 34 requires `FOREGROUND_SERVICE_MEDIA_PLAYBACK` permission + typed `startForeground` via `ServiceCompat`. Swipe-app-away = pause + stop (safe default; a keep-playing setting is future work). STATE_ENDED tears down the notification.
-    - **MediaStyle gotcha (2026-08-26, on-device — the reason the notification "disappears")**: a `MediaStyle` notification bound to the session token is **pulled out of the notification panel entirely** on Android 13+/OxygenOS — the system converts it into the quick-settings media card (Poweramp behaves identically; verified by A/B on the OnePlus CPH2573, Android 16). Users looking in the notification shade see NOTHING. Fix: `buildNotification` posts a **plain `NotificationCompat` row** (no MediaStyle, no session token in extras) — a normal silent notification with Back-10s / Play-Pause / Forward-10s / Close actions + a **live progress bar** (plain rows render `setProgress`, MediaStyle ignores it), rebuilt on visible-state change or ≥1 s cadence while playing for the progress. The MediaSession stays active (headset/Bluetooth keys, `handleIntent` routing) — only the notification template changed. `ic_stat_play` vector is the small icon. Verified end-to-end on-device: row visible in shade while backgrounded, Pause→Play button flips and drives the player.
-    - **Pause-on-background removed (2026-08-26)**: `player_screen.didChangeAppLifecycleState` no longer calls `_exo?.pause()` when backgrounded — that defeated the whole feature (audio died on HOME despite the service). Background = bookmark position only; playback continues. `_reopenAfterBackground` now ONLY reopens when the native player reports `STATE_IDLE` (media lost to a platform-view recreation); the `_isNetworkSource` force-reload branch and the unconditional `play()` on resume are gone — a user-paused player stays paused on return. The iOS WebDAV TCP-kill concern is covered by background-audio mode keeping sockets alive + the existing IO-retry path.
-  - **iOS** (`AvPlayerView.swift`, Info.plist): `UIBackgroundModes: [audio]` keeps the process alive while the engine renders (the `.playback` AVAudioSession was already activated at open). `updateNowPlaying()` mirrors title/artist/duration/elapsed/rate into `MPNowPlayingInfoCenter` on every `emit()` (the 0.25 s tick timer keeps elapsed fresh in background); cleared on `.idle`/`.error`, parked at rate 0 on `.ended`. `MPRemoteCommandCenter` play/pause/toggle/changePlaybackPosition targets reuse the method-channel semantics — **`.ended` is terminal in AetherEngine, so replay from the lock screen goes through the same `reloadSession(at:)` path** as the Dart replay button. Targets removed + now-playing cleared in `deinit`. **TMDB artwork (2026-10-25)**: the shared Dart `PlaybackController.setNowPlayingArtwork(url)` is called from `player_screen` after `open()` with `_tmdbMeta?.movie.posterUrl(width: 500)` (and again when a lazily resolved match arrives); on iOS `AvPlayerView` downloads it into `MPMediaItemPropertyArtwork`. Stale responses are discarded by comparing the URL, the task is cancelled on `deinit`, and `.ended` reuses the previous info so the poster survives at rate 0. **±10 s lock-screen skip (2026-10-25)**: `skipForwardCommand` / `skipBackwardCommand` are enabled with `preferredIntervals = [10]` and call `remoteSkip(by:)`, which clamps to `[0, duration]` and reloads at the end — the same terminal-`.ended` path as replay. The handler must return a non-optional `MPRemoteCommandHandlerStatus`; the target uses `self?.remoteSkip(by:) ?? .commandFailed`.
+- **Background playback + media notification controls (2026-08-26)** - the #1 competitor-gap feature: audio keeps playing and lock screen / notification / headset controls work when the app is backgrounded or the screen locks.
+  - **Android** (`PlaybackManager.kt`, `PlaybackService.kt`): deliberate **NOT** a Media3 `MediaSessionService` refactor - the player stays in the Activity-scoped platform view, so a plain **`MediaSessionCompat`** (`androidx.media:media:1.7.0`) wraps it and a thin **foreground service** (type `mediaPlayback`) only holds foreground priority + hosts the `MediaStyle` notification (rew-10s / play-pause / ffw-10s / close, tap → app). All actions route through session callbacks back into the live player instance. Player hygiene added in one go: `setAudioAttributes(..., handleAudioFocus=true)` (pauses for calls/other apps), `setHandleAudioBecomingNoisy(true)` (pause on headphone unplug), `setWakeMode(C.WAKE_MODE_NETWORK)` (CPU+Wi-Fi locks so streams keep buffering with screen off). `POST_NOTIFICATIONS` requested fire-and-forget in Dart before first playback (13+; denial hides the notification but playback/service still work).
+    - **Gotchas**: (1) `setMediaItem` flips the player to transient `STATE_IDLE` between opens - `sync()` must re-set `session.isActive = true` on every call or the first IDLE emit permanently deactivates the session (no more notification for the rest of the file); (2) `PlaybackManager.release(context)` (from platform-view dispose) MUST stop the service + cancel the notification BEFORE nulling the player - otherwise the foreground service outlives the released player and tapping its play button routes into freed callbacks; (3) rebuild the notification only when visible state changes (key = state|playing|title) - the position ticker emits ~1/s and `notify()` every second is wasteful (lock screen extrapolates position from `state.speed` between updates); (4) notification action PendingIntents are `MediaButtonReceiver.buildMediaButtonPendingIntent` → manifest-declared `androidx.media.session.MediaButtonReceiver` → service `MEDIA_BUTTON` intent-filter → `handleIntent(session, intent)`; (5) API 34 requires `FOREGROUND_SERVICE_MEDIA_PLAYBACK` permission + typed `startForeground` via `ServiceCompat`. Swipe-app-away = pause + stop (safe default; a keep-playing setting is future work). STATE_ENDED tears down the notification.
+    - **MediaStyle gotcha (2026-08-26, on-device - the reason the notification "disappears")**: a `MediaStyle` notification bound to the session token is **pulled out of the notification panel entirely** on Android 13+/OxygenOS - the system converts it into the quick-settings media card (Poweramp behaves identically; verified by A/B on the OnePlus CPH2573, Android 16). Users looking in the notification shade see NOTHING. Fix: `buildNotification` posts a **plain `NotificationCompat` row** (no MediaStyle, no session token in extras) - a normal silent notification with Back-10s / Play-Pause / Forward-10s / Close actions + a **live progress bar** (plain rows render `setProgress`, MediaStyle ignores it), rebuilt on visible-state change or ≥1 s cadence while playing for the progress. The MediaSession stays active (headset/Bluetooth keys, `handleIntent` routing) - only the notification template changed. `ic_stat_play` vector is the small icon. Verified end-to-end on-device: row visible in shade while backgrounded, Pause→Play button flips and drives the player.
+    - **Pause-on-background removed (2026-08-26)**: `player_screen.didChangeAppLifecycleState` no longer calls `_exo?.pause()` when backgrounded - that defeated the whole feature (audio died on HOME despite the service). Background = bookmark position only; playback continues. `_reopenAfterBackground` now ONLY reopens when the native player reports `STATE_IDLE` (media lost to a platform-view recreation); the `_isNetworkSource` force-reload branch and the unconditional `play()` on resume are gone - a user-paused player stays paused on return. The iOS WebDAV TCP-kill concern is covered by background-audio mode keeping sockets alive + the existing IO-retry path.
+  - **iOS** (`AvPlayerView.swift`, Info.plist): `UIBackgroundModes: [audio]` keeps the process alive while the engine renders (the `.playback` AVAudioSession was already activated at open). `updateNowPlaying()` mirrors title/artist/duration/elapsed/rate into `MPNowPlayingInfoCenter` on every `emit()` (the 0.25 s tick timer keeps elapsed fresh in background); cleared on `.idle`/`.error`, parked at rate 0 on `.ended`. `MPRemoteCommandCenter` play/pause/toggle/changePlaybackPosition targets reuse the method-channel semantics - **`.ended` is terminal in AetherEngine, so replay from the lock screen goes through the same `reloadSession(at:)` path** as the Dart replay button. Targets removed + now-playing cleared in `deinit`. **TMDB artwork (2026-10-25)**: the shared Dart `PlaybackController.setNowPlayingArtwork(url)` is called from `player_screen` after `open()` with `_tmdbMeta?.movie.posterUrl(width: 500)` (and again when a lazily resolved match arrives); on iOS `AvPlayerView` downloads it into `MPMediaItemPropertyArtwork`. Stale responses are discarded by comparing the URL, the task is cancelled on `deinit`, and `.ended` reuses the previous info so the poster survives at rate 0. **±10 s lock-screen skip (2026-10-25)**: `skipForwardCommand` / `skipBackwardCommand` are enabled with `preferredIntervals = [10]` and call `remoteSkip(by:)`, which clamps to `[0, duration]` and reloads at the end - the same terminal-`.ended` path as replay. The handler must return a non-optional `MPRemoteCommandHandlerStatus`; the target uses `self?.remoteSkip(by:) ?? .commandFailed`.
     - **Android lock-screen artwork + title (2026-10-25)**: the same `setNowPlayingArtwork` channel method is handled by `ExoPlayerView.kt` → `PlaybackManager.setArtwork(context, url)`, which downloads the TMDB poster with OkHttp **off the main thread**. The decoded `Bitmap` goes to **both** the notification's `setLargeIcon` (the notification panel) and `MediaSessionCompat` metadata (`METADATA_KEY_ART`/`METADATA_KEY_ALBUM_ART`, the system media card on the lock screen). Having both is only safe because `buildNotification` sets `VISIBILITY_SECRET`: our plain row is hidden on a secure lock screen, leaving exactly one surface (the system card) there, while the row still appears normally in the notification panel. Do not remove that visibility split without also removing one of the two artwork surfaces, or the poster renders twice on the lock screen (verified on Android 16 / OxygenOS). `setNowPlayingTitle` → `PlaybackManager.setTitle` replaces the raw file name with the resolved TMDB/TheTVDB/AVDb/Jellyfin title; `player_screen._nowPlayingTitle` appends the episode code/name when the file is an episode. Title is pushed before artwork because `setTitle` clears the previous poster on a title change. An `artworkRequestId` token invalidates an in-flight download when another video opens or the view is released, so a slow response cannot repaint the wrong poster. MPV has no media session, so it gets no lock-screen artwork. Covered by the shared Dart call, so `_pushNowPlayingMetadata` is **not** iOS-gated.
 
-- **Startup permissions (2026-08-26)**: every runtime permission is requested at app open (`lib/utils/startup_permissions.dart`, called from the home screen's first frame) instead of mid-playback — Photos&videos + Notifications via system dialogs (instant no-ops when already granted), and **All Files Access** through a one-time in-app explainer dialog that routes to the system page (special permission, no system dialog; prefs-gated per install). The video-open flow keeps its own requests as fallback. **iOS is a deliberate no-op**: the sandbox needs none of these (document-picker grants are system-managed, Now Playing needs no permission); the iOS analog — the **Local Network prompt** — already fires at first open via `AppDelegate.triggerLocalNetworkPrompt`.
+- **Startup permissions (2026-08-26)**: every runtime permission is requested at app open (`lib/utils/startup_permissions.dart`, called from the home screen's first frame) instead of mid-playback - Photos&videos + Notifications via system dialogs (instant no-ops when already granted), and **All Files Access** through a one-time in-app explainer dialog that routes to the system page (special permission, no system dialog; prefs-gated per install). The video-open flow keeps its own requests as fallback. **iOS is a deliberate no-op**: the sandbox needs none of these (document-picker grants are system-managed, Now Playing needs no permission); the iOS analog - the **Local Network prompt** - already fires at first open via `AppDelegate.triggerLocalNetworkPrompt`.
 
 - **Repeat / shuffle / A-B / sleep timer (Phase 2, 2026-08-26)**: all four live in the player ⋮ sheet as collapsible sections (same `_tvListTile` dropdown pattern as aspect/speed).
-  - **Repeat & shuffle** (`lib/services/playback_modes.dart`): `LoopMode` (off/one/all — named `LoopMode` because Flutter's material library exports a clashing `RepeatMode`) + shuffle, persisted (`dreamplayer.repeatMode`/`dreamplayer.shuffle`). **Repeat one** loops natively on Android via a new `setRepeatMode` channel method → `Player.REPEAT_MODE_ONE` (no ended event, seamless — verified on-device: a 60 s clip still `PLAYING position=14.3s` at t≈78 s); iOS restarts from the Dart ended-handler (`seekTo(Duration.zero)` + `play()` → the engine's play-after-ended reload). **Repeat all + shuffle** drive folder loops: `_orderedSiblings()` lists the current folder (season/episode-aware ordering, the old `_findNextEpisode` list source refactored out) and `nextPlaybackIndex()` (pure, unit-tested) picks sequential/wrapping/random — shuffle never repeats the current file when the folder has >1; a single-video folder replays itself under repeat-all. Ended-routing priority: sleep-at-end → repeat-one → (latched) repeat-all/shuffle → existing auto-play-next. Jellyfin folders stay sequential-only (no sibling listing yet).
+  - **Repeat & shuffle** (`lib/services/playback_modes.dart`): `LoopMode` (off/one/all - named `LoopMode` because Flutter's material library exports a clashing `RepeatMode`) + shuffle, persisted (`dreamplayer.repeatMode`/`dreamplayer.shuffle`). **Repeat one** loops natively on Android via a new `setRepeatMode` channel method → `Player.REPEAT_MODE_ONE` (no ended event, seamless - verified on-device: a 60 s clip still `PLAYING position=14.3s` at t≈78 s); iOS restarts from the Dart ended-handler (`seekTo(Duration.zero)` + `play()` → the engine's play-after-ended reload). **Repeat all + shuffle** drive folder loops: `_orderedSiblings()` lists the current folder (season/episode-aware ordering, the old `_findNextEpisode` list source refactored out) and `nextPlaybackIndex()` (pure, unit-tested) picks sequential/wrapping/random - shuffle never repeats the current file when the folder has >1; a single-video folder replays itself under repeat-all. Ended-routing priority: sleep-at-end → repeat-one → (latched) repeat-all/shuffle → existing auto-play-next. Jellyfin folders stay sequential-only (no sibling listing yet).
   - **A-B repeat**: ⋮ sheet sets A/B at the current position (per-video, cleared on open); the event handler seeks back to A when playing position passes B (skipped while dragging). Status label shows `A m:ss – B m:ss`.
   - **Sleep timer**: Off / 5 / 10 / 15 / 30 / 60 min / **End of current video**. Minute-based arms a 1 s ticker (`_sleepTicker`, countdown shown in the sheet subtitle, fires → pause + SnackBar); end-of-video sets a flag consumed by the ended-router so nothing auto-plays after. Timer survives auto-next opens, cancelled on player dispose. **Radio-only-checked fix (2026-09)**: all minute-option radios appeared checked simultaneously because the ternary `(_sleepUntil != null ? option.$1 : Duration.zero) == option.$1` evaluated true for every row; fix: track armed Duration in `_sleepOption` field and compare against `option.$1` directly. **Live-countdown fix (2026-09)**: the 1s ticker called `setState` on the player screen, not the `StatefulBuilder` inside the modal sheet, so the countdown label and radio states froze; fix: capture `setSheet` in `_sheetSetSheet` field and call it from the ticker.
 
 - **Play URL + audio delay (Phase 3, 2026-08-26)**:
   - **Play URL** (both platforms): home **+** → "Play URL" → dialog (`TvTextField`, TV-IME-safe) → any http(s) link plays directly through the normal pipeline (Android `DefaultHttpDataSource`, iOS engine loopback producer). Title = decoded last path segment (fallback host); **resume key is the URL itself** (`url:<url>`), so re-entering the same link resumes. Invalid/non-http(s) input → SnackBar, no navigation. Verified end-to-end on-device: phone streamed `http://<pc>:30000/dp_long.mp4` (`PLAYING position=6194` in dumpsys).
-  - **Audio delay (manual A/V sync, Android)**: `AudioDelayProcessor` (`android/.../AudioDelayProcessor.kt`) — a Media3 `AudioProcessor` (PCM16) inserted into every audio sink via `DreamRenderersFactory.buildAudioSink` override (`DefaultAudioSink.Builder(context).setAudioProcessors(...)`; API verified by javap against the 1.10.1 jar). Positive = audio later (samples held back in a pending buffer — audio starts late by exactly the delay), negative = audio earlier (leading samples dropped, frame-aligned). **Dynamic**: `setAudioDelay(ms)` channel handler retunes `@Volatile delayMs` mid-playback without sink reconfig — increasing holds more, reducing flushes the excess immediately; delay==0 drains then passes through (processor stays `isActive()` always to avoid chain reconfig churn). Passthrough (AC3/DTS bitstream on TV) bypasses processor chains natively — no crash. ±5 s clamp. ⋮ sheet "Audio delay" section (Android-only, like the other audio effects): slider −5…+5 s (100 steps) + Reset; session-only, not persisted. **iOS is a no-op** (AetherEngine exposes no audio-offset hook; section hidden) — would need engine-side PCM tap, deferred like bass boost.
+  - **Audio delay (manual A/V sync, Android)**: `AudioDelayProcessor` (`android/.../AudioDelayProcessor.kt`) - a Media3 `AudioProcessor` (PCM16) inserted into every audio sink via `DreamRenderersFactory.buildAudioSink` override (`DefaultAudioSink.Builder(context).setAudioProcessors(...)`; API verified by javap against the 1.10.1 jar). Positive = audio later (samples held back in a pending buffer - audio starts late by exactly the delay), negative = audio earlier (leading samples dropped, frame-aligned). **Dynamic**: `setAudioDelay(ms)` channel handler retunes `@Volatile delayMs` mid-playback without sink reconfig - increasing holds more, reducing flushes the excess immediately; delay==0 drains then passes through (processor stays `isActive()` always to avoid chain reconfig churn). Passthrough (AC3/DTS bitstream on TV) bypasses processor chains natively - no crash. ±5 s clamp. ⋮ sheet "Audio delay" section (Android-only, like the other audio effects): slider −5…+5 s (100 steps) + Reset; session-only, not persisted. **iOS is a no-op** (AetherEngine exposes no audio-offset hook; section hidden) - would need engine-side PCM tap, deferred like bass boost.
 
-- **HDR detection** (`lib/models/hdr_format.dart`, `lib/utils/codec_info.dart`): parses hints like `DV P8`, `HDR10+`, `HDR10` into a `HdrFormat` (incl. `HLG`); maps raw codec names (`dts_hd`, `eac3`, `truehd`, `aac`, ...) to display labels. Live detection from Media3 format info: DV track codecs (`dvhe`/`dvh1`/`dvav`), `colorTransfer` (6→HDR10, 7→HLG). **HDR10+ is detected from the real bitstream** (2026-08): Media3's format info can't tell HDR10+ from HDR10 (both are PQ transfer 6), so `ExoPlayerView.kt` probes the first video samples with `MediaExtractor` for the ST 2094-40 SEI (ITU-T T.35 user data, country `0xB5` / provider `0x003C`, prefix/suffix SEI NAL types 39/40, AVCC + Annex-B handled) on a background thread and emits `isHdr10Plus` in the event map; Dart's `detectMedia3HdrFormat` upgrades to HDR10+ when set. `detectHdrFormat` filename-hint parsing is token-aware (safe on full titles — `Adventure.mkv` stays SDR) but the hint is **not** auto-wired from titles: the top-bar chip and labels reflect only what is actually in the content, so a misnamed file never gets an HDR chip. Probe is best-effort (failure → HDR10 label, playback unaffected); SDR content is never labeled HDR (verified on-device: lake `hdr10+...` file → amber HDR10+ chip via probe, SDR screen-recording → no chip). **iOS (2026-08)**: `ios/Runner/AvPlayerView.swift` mirrors the probe — `scanHdrProbe` scans the first ~8 MiB for HEVC SEI NALs 39/40 (`B5 00 3C` for HDR10+, 137/144 for static HDR10, with raw `B5 00 3C` fallback) plus `engine.videoFormat == .hdr10Plus` fast path, emitting `isHdr10Plus`/`isHdr10` to the same Dart detector; iPad now shows HDR10+ amber chip like Android. **Strict SDR fix (2026-08, `cd06a29`)**: `scanHdrProbe` now requires `137==24 B` with `maxDisplay 50..10000 nits` and `144==4 B` with `10≤maxCLL≤10000` plus luma sanity, and `stateMap` gates `engine.videoFormat` HDR + `colorTransfer` on `hevcFamily` — H.264 SDR no longer aliases HDR10.
-- **Real playback** (`lib/screens/player_screen.dart`): Android uses a native **ExoPlayer/Media3 PlatformView** in **hybrid composition** (`lib/services/exo_player.dart` — `PlatformViewLink` + `PlatformViewsService.initExpensiveAndroidView`; the stock `AndroidView` widget is virtual-display + texture and flattens HDR, see the VIRTUAL-DISPLAY gotcha in the top section) with live codec/HDR/resolution chips, play/pause, seek, ±10s, mute, fullscreen, buffering spinner, error surface. Non-Android shows a "not yet supported" message. Widget tests run playback-less (`FLUTTER_TEST` gate).
+- **HDR detection** (`lib/models/hdr_format.dart`, `lib/utils/codec_info.dart`): parses hints like `DV P8`, `HDR10+`, `HDR10` into a `HdrFormat` (incl. `HLG`); maps raw codec names (`dts_hd`, `eac3`, `truehd`, `aac`, ...) to display labels. Live detection from Media3 format info: DV track codecs (`dvhe`/`dvh1`/`dvav`), `colorTransfer` (6→HDR10, 7→HLG). **HDR10+ is detected from the real bitstream** (2026-08): Media3's format info can't tell HDR10+ from HDR10 (both are PQ transfer 6), so `ExoPlayerView.kt` probes the first video samples with `MediaExtractor` for the ST 2094-40 SEI (ITU-T T.35 user data, country `0xB5` / provider `0x003C`, prefix/suffix SEI NAL types 39/40, AVCC + Annex-B handled) on a background thread and emits `isHdr10Plus` in the event map; Dart's `detectMedia3HdrFormat` upgrades to HDR10+ when set. `detectHdrFormat` filename-hint parsing is token-aware (safe on full titles - `Adventure.mkv` stays SDR) but the hint is **not** auto-wired from titles: the top-bar chip and labels reflect only what is actually in the content, so a misnamed file never gets an HDR chip. Probe is best-effort (failure → HDR10 label, playback unaffected); SDR content is never labeled HDR (verified on-device: lake `hdr10+...` file → amber HDR10+ chip via probe, SDR screen-recording → no chip). **iOS (2026-08)**: `ios/Runner/AvPlayerView.swift` mirrors the probe - `scanHdrProbe` scans the first ~8 MiB for HEVC SEI NALs 39/40 (`B5 00 3C` for HDR10+, 137/144 for static HDR10, with raw `B5 00 3C` fallback) plus `engine.videoFormat == .hdr10Plus` fast path, emitting `isHdr10Plus`/`isHdr10` to the same Dart detector; iPad now shows HDR10+ amber chip like Android. **Strict SDR fix (2026-08, `cd06a29`)**: `scanHdrProbe` now requires `137==24 B` with `maxDisplay 50..10000 nits` and `144==4 B` with `10≤maxCLL≤10000` plus luma sanity, and `stateMap` gates `engine.videoFormat` HDR + `colorTransfer` on `hevcFamily` - H.264 SDR no longer aliases HDR10.
+- **Real playback** (`lib/screens/player_screen.dart`): Android uses a native **ExoPlayer/Media3 PlatformView** in **hybrid composition** (`lib/services/exo_player.dart` - `PlatformViewLink` + `PlatformViewsService.initExpensiveAndroidView`; the stock `AndroidView` widget is virtual-display + texture and flattens HDR, see the VIRTUAL-DISPLAY gotcha in the top section) with live codec/HDR/resolution chips, play/pause, seek, ±10s, mute, fullscreen, buffering spinner, error surface. Non-Android shows a "not yet supported" message. Widget tests run playback-less (`FLUTTER_TEST` gate).
 - **Android permissions**: `READ_MEDIA_VIDEO` (+ `READ_EXTERNAL_STORAGE` ≤ API 32) requested at runtime via `permission_handler` when a video is opened. `compileSdk = 37` required by `permission_handler`.
 - **Player overlay** shows HDR format + video/audio codec + resolution chips; library cards show an HDR badge + audio codec label.
   - **DV dedup**: for Dolby Vision the purple HDR chip already says "Dolby Vision", so the redundant video-codec chip is suppressed (no "Dolby Vision" twice).
   - **Chip layout**: landscape puts back button + title + chips in one `Wrap` on the same row; portrait shows title row, then chips `Wrap` below.
-### Frame interpolation for the MPV engine (issue #53) — read this before touching it
+### Frame interpolation for the MPV engine (issue #53) - read this before touching it
 
 **The feature**: Settings → Player → **"Frame interpolation (MPV)"** and the
 **picture panel** (the sliders button at the TOP RIGHT of the player,
@@ -1252,21 +1252,21 @@ the engine as 0 and the correction is persisted.
 a quality (Sharp = `oversample`, Balanced = `linear`, Smooth = `bicubic`).
 The picture panel applies it live; Settings applies it at the next open. It
 was in the ⋮ sheet until 2026-10-28, when the user asked for it to move into
-the picture panel next to the HDR output mode — the ⋮ sheet was crowded.
+the picture panel next to the HDR output mode - the ⋮ sheet was crowded.
 Store: `lib/services/mpv_interpolation_store.dart` (prefs
 `dreamplayer.mpvInterpolationFps` / `…Filter`), pure option mapping in
 `lib/utils/mpv_interpolation.dart`, applied by `_applyMpvInterpolation`
 (`player_screen.dart`).
 
 **It is MPV-ONLY, and that is a product decision, not a missing feature.**
-Media3/ExoPlayer has **no interpolation API** — decoded frames go straight to
+Media3/ExoPlayer has **no interpolation API** - decoded frames go straight to
 the SurfaceView, so there is no renderer that could produce the extra frames.
 Making the native engine interpolate means writing a **custom GPU frame
 generator** (surface → GL/Vulkan → optical flow → present), which is exactly
 what **Mpv∞** (`ZHINFINITY/Mpv-infinity`) does:
 
 - **their MPV path**: a *custom mpv video filter* (`app/src/main/cpp/mpvflow/
-  vf_mpvflow.c` — "an independent, clean-room MEMC experiment with its own GPU
+  vf_mpvflow.c` - "an independent, clean-room MEMC experiment with its own GPU
   motion-estimation and synthesis pipeline"), with Vulkan / OpenCL / Qualcomm
   backends and `target-fps` / `block-size` / `search-radius` options. Changing
   the target needs a **restart transaction** (freeze → reconfigure+load →
@@ -1275,13 +1275,13 @@ what **Mpv∞** (`ZHINFINITY/Mpv-infinity`) does:
   (a custom Media3 `VideoSink` capturing frames via `SurfaceTexture` /
   `HardwareBuffer`, running optical flow on the GPU, presenting through
   `Media3FlowPresentationQueue`) plus `media3flow_vulkan_jni.cpp`. Their own
-  code carries `Media3FlowSdrOutputException` — **the native route is SDR-only**,
+  code carries `Media3FlowSdrOutputException` - **the native route is SDR-only**,
   because frames no longer reach SurfaceFlinger as the decoder's native HDR
   layer.
 
 **That last point is why we do not attempt it:** Media3 is our Dolby Vision /
 HDR engine, and routing it through a custom renderer would trade the headline
-feature (real HDR to the panel) for smoother 24 fps video — the same trade-off
+feature (real HDR to the panel) for smoother 24 fps video - the same trade-off
 that put Anime4K out of scope. Their code is **PolyForm-Noncommercial 1.0.0**,
 so it cannot be copied either. What we ship is mpv's **stock** interpolation
 (frame blending, not optical flow): licence-clean, small, and enough for the
@@ -1293,20 +1293,20 @@ so it cannot be copied either. What we ship is mpv's **stock** interpolation
    `display-*` mode.** We set `video-sync=display-resample` with the feature on
    and `video-sync=audio` with it off.
 2. **The frame rate interpolated *to* is the DISPLAY rate**, so the target goes
-   in through the display-fps override — and the property that carries the
+   in through the display-fps override - and the property that carries the
    *option* value is **`override-display-fps`**, not `display-fps`. mpv's
    manual: "the reported value and the option value are cleanly separated
    (`override-display-fps` for the option value)"; `display-fps` is the
    **read-only** detected refresh rate. The user-facing option was renamed
    `--display-fps` → `--display-fps-override` along the way, so
    `mpvDisplayFpsOptionNames` tries `override-display-fps`,
-   `display-fps-override`, `display-fps` — in that order — and **reads each one
+   `display-fps-override`, `display-fps` - in that order - and **reads each one
    back** before it counts. Setting the wrong name is a silent no-op.
 3. **The read-back is a FLOAT**: mpv answers `"60.000000"`, so a string compare
    against `"60"` reports "not applied" for a setting that *is* applied. Parse
    it as a double and compare numerically.
 4. **`--interpolation-threshold` (default 0.01) switches interpolation off when
-   the source rate is within 1% of the target** — a 47.94 fps source on a 48 fps
+   the source rate is within 1% of the target** - a 47.94 fps source on a 48 fps
    target would do nothing at all. We set `-1` to disable that logic.
 
 **Verified on-device (OnePlus CPH2573, 2026-10-26):** Avengers Endgame
@@ -1314,13 +1314,13 @@ so it cannot be copied either. What we ship is mpv's **stock** interpolation
 `mpv: display-fps override set via override-display-fps (raw="60.000000")` and
 `mpv: frame interpolation on (target 60fps, tscale=oversample, display-fps set)`,
 and the SurfaceView's SurfaceFlinger buffer counter advances ~65 frames per
-1.11 s (~59 fps) against a 23.976 fps source — i.e. the frames are being
+1.11 s (~59 fps) against a 23.976 fps source - i.e. the frames are being
 synthesised, not duplicated. The user confirmed the difference by eye. The
 evidence lines (`mpv: interpolation = …`, `video-sync = …`, `tscale = …`,
 `display-fps = …`, `estimated-display-fps = …`) are printed after every change
 so the next "did it do anything?" is answered from the log.
 
-### Mpv∞ (`ZHINFINITY/Mpv-infinity`) — GPU rendering, TV and Cast research (2026-10-28) — read this before borrowing anything
+### Mpv∞ (`ZHINFINITY/Mpv-infinity`) - GPU rendering, TV and Cast research (2026-10-28) - read this before borrowing anything
 
 **What it is**: a native **Kotlin/Compose** Android player (1 952 commits, 156 stars),
 not a Flutter app. Source-available, **not** open source. Cloned to
@@ -1328,7 +1328,7 @@ not a Flutter app. Source-available, **not** open source. Cloned to
 document; the interesting parts are in `app/src/main/cpp/` and
 `app/src/main/java/app/infinity/mpvz/`.
 
-**THE LICENCE IS THE FIRST GATE — nothing of theirs may be copied.** Every owned
+**THE LICENCE IS THE FIRST GATE - nothing of theirs may be copied.** Every owned
 file carries `SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0`
 (`app/src/main/cpp/mpvflow/mpvflow_gpu.c`, `ui/player/ThermalMonitor.kt`,
 `ui/cast/*`, …), and the repo root is now **"Mpv∞ Permission-Only Terms 1.0"**
@@ -1336,7 +1336,7 @@ file carries `SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0`
 AGPL-3.0-or-later; `LICENSE-BOUNDARY.md` is explicit that the PolyForm grant
 "remains available" only for the covered snapshots. Third-party material keeps
 its own licence and IS usable: **Anime4K shaders are MIT (bloc97)**; mpv is
-LGPL/GPL; libplacebo is MIT; hdr-toys carries **no notice in their tree** —
+LGPL/GPL; libplacebo is MIT; hdr-toys carries **no notice in their tree** -
 check the upstream repo before shipping any of it.
 
 **Their MPV GPU path is a PATCHED libmpv, not a plugin.** This is the fact that
@@ -1348,17 +1348,17 @@ decides what is possible:
   Android ImageReader Vulkan path; `vf_mpvflow.c` is a second route (an mpv
   **user filter**, compiled into mpv).
 - `scripts/build-mpvflow-mpv-runtime.sh` builds a pinned mpv through
-  mpv-android's buildscripts and applies the patch — **the same pipeline we
+  mpv-android's buildscripts and applies the patch - **the same pipeline we
   already use** for our custom arm64 libmpv, so the *mechanics* are familiar.
 - The synthesis is real MEMC: 8×8 parent / 4×4 fine blocks (stride 4),
   coarse-to-fine SAD + uniqueness, forward/backward cycle consistency, Newton
-  inverse-warp with bounded iterations, confidence fades, scene-cut crossfade —
+  inverse-warp with bounded iterations, confidence fades, scene-cut crossfade -
   all as **libplacebo compute passes on Vulkan** (plus an experimental Qualcomm
   OpenCL path via `cl_qcom_android_ahardwarebuffer_host_ptr`). No CPU readback.
   Options: `target-fps`, `block-size`, `search-radius`, `max-dimension`.
 - `docs/mpvflow-design.md` records ~10 rounds of artifact repairs (half-pixel
   parent registration, the aperture problem, fixed-point inverse-warp
-  non-convergence). **That log is the cost curve of this project** — it is not a
+  non-convergence). **That log is the cost curve of this project** - it is not a
   weekend feature, and it is not ours to reuse.
 
 **The Vulkan trap to write down before anyone switches renderer.** With
@@ -1369,19 +1369,19 @@ into the VO, so their `RendererBackendPolicy.preferredHwdecMode` falls back to
 path** until a Vulkan ImageReader path exists (theirs is part of the blocked
 patch set).
 
-**What we CAN adopt — ideas plus public APIs, none of their code:**
+**What we CAN adopt - ideas plus public APIs, none of their code:**
 
 | Idea | Mechanism | Cost |
 |---|---|---|
-| **Anime4K** (**already shipped** — `bb38f09`, see step 1) | MIT `.glsl` shaders → mpv's **`glsl-shaders`** property. They toggle it live with `change-list glsl-shaders append`; we use `change-list … set` + a read-back. | cheap (done) |
+| **Anime4K** (**already shipped** - `bb38f09`, see step 1) | MIT `.glsl` shaders → mpv's **`glsl-shaders`** property. They toggle it live with `change-list glsl-shaders append`; we use `change-list … set` + a read-back. | cheap (done) |
 | **hdr-toys tone/gamut mapping** | Same property; a profile = an ordered shader chain. | cheap |
 | **Linear-HDR / SDR→HDR boost** | Option-only, no shader: `target-colorspace-hint=yes`, `inverse-tone-mapping=yes`, `hdr-compute-peak=yes`, `hdr-reference-white=203`. | cheap |
 | **Their HDR state policy** (the real value) | When the GLSL chain owns transfer/gamut/tone → `target-colorspace-hint=no` + fixed `target-prim`/`target-trc`; when mpv owns it → `yes` + resets. **Always write the COMPLETE property set**, so a mode switch can never leave stale primaries/TRC behind. | cheap, and it prevents a whole bug class |
 | **Thermal-aware quality** | `PowerManager.getThermalHeadroom(10)` (API 30+), sample every 10 s → auto-downgrade shader/interpolation quality. Public Android API; our own ~30-line class. | cheap |
-| **Named filter presets** | Just mpv property bundles (brightness/saturation/contrast/gamma/hue/sharpen) — **we already ship this** as the MPV picture panel; they only named them. | trivial |
-| **Renderer backend choice** | `gpu-api`/`gpu-context` must be set **before `vo`**, and changing them needs a **core recreation** — with media_kit that means recreating the `Player`, which our `_init` does once. | moderate |
+| **Named filter presets** | Just mpv property bundles (brightness/saturation/contrast/gamma/hue/sharpen) - **we already ship this** as the MPV picture panel; they only named them. | trivial |
+| **Renderer backend choice** | `gpu-api`/`gpu-context` must be set **before `vo`**, and changing them needs a **core recreation** - with media_kit that means recreating the `Player`, which our `_init` does once. | moderate |
 
-**Real interpolation WITHOUT touching mpv source — the experiment worth running.**
+**Real interpolation WITHOUT touching mpv source - the experiment worth running.**
 Their MEMC is unavailable to us, but FFmpeg's `minterpolate` is licence-clean and
 mpv bundles FFmpeg: `vf=lavfi=[in]minterpolate=fps=60:mc_mode=aobmc:me_mode=bidir:vsbmc=1`
 plus the `video-sync=display-resample` recipe we already own. Verify on device:
@@ -1399,7 +1399,7 @@ passthrough). Only two things worth stealing: **configurable left/centre/right
 double-tap zones** and **multi-tap continuous seeking** (triple/quadruple tap
 keeps seeking).
 
-**Google Cast: one path for both engines — and thinner than the README
+**Google Cast: one path for both engines - and thinner than the README
 suggests.** Nine files in `ui/cast/`, ~1 500 lines, all PolyForm (reimplement,
 never copy).
 
@@ -1414,13 +1414,13 @@ never copy).
 - Local files are exposed by their own NanoHTTPD server on `0.0.0.0:0` with a
   token path, `Range` support and CORS headers (`CastMediaServer.kt`).
 - The **receiver decodes**, so mpv-only formats do not cast ("not transcoded
-  automatically" — their own README).
+  automatically" - their own README).
 - Tracks are handed over as `MediaTrack`s with active IDs; local playback is
   paused and **restored at the receiver's last position** when the session ends.
 - **OUR differentiator**: `SmbHttpProxy` is already a Range-capable HTTP bridge
   over the SMB ring buffer, but it binds to **127.0.0.1** (`SmbHttpProxy.kt:80`).
   Binding it to `0.0.0.0` and handing the phone's LAN URL to the receiver makes
-  **SMB / WebDAV / FTP castable** — which their app cannot do. Cost:
+  **SMB / WebDAV / FTP castable** - which their app cannot do. Cost:
   `play-services-cast-framework`, a `MediaRouteButton`, snapshot/pause/restore
   plumbing, and the LAN exposure (which is a real decision, not just code).
 
@@ -1431,7 +1431,7 @@ divided into three equal cells**, and only the selected provider's credential
 field appears beneath it. "Use TheTVDB as fallback" appears only while TMDB is
 the resolver, because TheTVDB is a fallback *for TMDB*.
 
-Both earlier shapes failed the same requirement — three options that read as
+Both earlier shapes failed the same requirement - three options that read as
 ONE control:
 
 - **`SegmentedButton`** lays segments out in a single non-wrapping row and
@@ -1450,10 +1450,10 @@ shrinks the word rather than clipping it.
 
 Prose under each setting was also cut to short labels; the three-paragraph
 TMDB/TheTVDB intro is gone. `settingsCacheClearedDesc` is deliberately NOT
-trimmed — it is the post-clear confirmation snackbar, not a subtitle (a test
+trimmed - it is the post-clear confirmation snackbar, not a subtitle (a test
 caught that).
 
-### App icon switching (issue #23) — the alias rule that bricks the app
+### App icon switching (issue #23) - the alias rule that bricks the app
 
 Settings → Appearance → App icon switches between five launcher icons via
 `IconSwitcher.kt` + `IconSwitcher.swift`. **Since 0.5.7 the DEFAULT is the
@@ -1464,7 +1464,7 @@ load-bearing.**
 **NEVER disable `MainActivity`.** Each variant is an `<activity-alias>` with
 `android:targetActivity=".MainActivity"`. An alias whose target is disabled
 **cannot be launched**: the icon stays on the launcher but tapping it opens
-**App info** instead of the app. This is not theoretical — the first version
+**App info** instead of the app. This is not theoretical - the first version
 disabled it, shipped in a debug build, and bricked the launcher on the user's
 phone. `pm enable`/`pm unhide` are blocked by the OEM on that device and adb
 cannot run as root, so recovery was only possible from inside the app.
@@ -1478,7 +1478,7 @@ The structure that works, and why each part is required:
 | `…AltDefault/Red/Green/Cyan` | exactly one enabled at a time | MAIN/LAUNCHER + LEANBACK + VIEW | The alternates, including the logo + wordmark (`AltDefault`). |
 
 Because `MainActivity` has no `MAIN`/`LAUNCHER` filter, disabling it would also
-remove the second icon — which is what made the first attempt look reasonable
+remove the second icon - which is what made the first attempt look reasonable
 right up until it bricked. Every alias carries a **full copy** of the intent
 filters, so "Open with" keeps resolving regardless of which is enabled.
 
@@ -1487,14 +1487,14 @@ Two more rules:
 - **Enable the new alias BEFORE disabling the others.** A brief moment with two
   icons is harmless; a moment with none is unrecoverable without adb.
 - **`ensureLaunchable()` runs on every launch** and does three repairs: re-enables
-  `MainActivity` (for installs that ran the broken build — PackageManager's
+  `MainActivity` (for installs that ran the broken build - PackageManager's
   disabled-components list survives an APK update, so it has to be undone in
   code), re-enables the mark alias if somehow none is enabled, and migrates
   installs still on the old wordmark default over to the mark **once** per
   install (`migrateDefaultIconOnce`, prefs-guarded; an explicit red/green/cyan
   choice is left alone).
 
-### iOS alternate icons — Guideline 4.6, and never hand-edit Info.plist
+### iOS alternate icons - Guideline 4.6, and never hand-edit Info.plist
 
 iOS uses `UIApplication.setAlternateIconName()` and is boring, but two rules
 are easy to get wrong and both fail **silently** (no exception, the icon simply
@@ -1506,7 +1506,7 @@ revert to the original icon**, every variant **relates to the app's content**,
 and it is **not** used for dynamic/automatic/serial changes (e.g. weather or
 calendar icons). Guideline 2.3.8 additionally requires the alternate icons stay
 "similar" to the primary so they do not create confusion. Our four recolours plus
-the wordmark-less logo all satisfy this — same brand mark, no disguise.
+the wordmark-less logo all satisfy this - same brand mark, no disguise.
 
 **Do NOT hand-write `CFBundleIcons` / `CFBundleAlternateIcons` into
 `Info.plist`.** Apple's docs are explicit: "modify their related build settings.
@@ -1522,23 +1522,23 @@ ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 ```
 
 on all three Runner configs (Debug/Release/Profile). Since 0.5.7 the **primary**
-icon (`ASSETCATALOG_COMPILER_APPICON_NAME`) is `AppIconMark` — the logo only — and
+icon (`ASSETCATALOG_COMPILER_APPICON_NAME`) is `AppIconMark` - the logo only - and
 the wordmark `AppIcon` is listed in the ALTERNATE names, so a nil
 `alternateIconName` means the mark and the wordmark is reached with
 `setAlternateIconName("AppIcon")`. `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS`
 is required or the alternate sets are not emitted into the built
-`Info.plist` at all. This is unverifiable without a Mac — `ios_native_check.py`
-only validates pbxproj shape — so the first iOS build must be checked on device.
+`Info.plist` at all. This is unverifiable without a Mac - `ios_native_check.py`
+only validates pbxproj shape - so the first iOS build must be checked on device.
 
 **Do not "simplify" this into toggling MainActivity's launcher filter.** That is
 the exact change that bricked it. If you touch this, read the manifest comment
 block above the aliases first.
 
-### In-app updates (Android sideload) — why not Play Core
+### In-app updates (Android sideload) - why not Play Core
 
 Android builds are handed out as APKs from GitHub Releases, so Google's
 `in_app_update` / Play Core API is unusable: it only functions for apps
-installed **from Play**. The updater therefore does what Seal/Sealplus do —
+installed **from Play**. The updater therefore does what Seal/Sealplus do -
 `lib/services/app_updater.dart` reads
 `api.github.com/repos/mangeshghodke/DreamPlayer/releases/latest`, compares the
 tag against `PackageInfo.version` and downloads the APK; the native half
@@ -1548,7 +1548,7 @@ tag against `PackageInfo.version` and downloads the APK; the native half
   silent on any failure, and behind the same Settings toggle
   (`dreamplayer.autoUpdateCheck`, default on) used by **Check for updates** in
   Settings → About. **Skip this version** persists the tag. A successful check
-  writes `dreamplayer.lastUpdateCheck` even when the request failed — one
+  writes `dreamplayer.lastUpdateCheck` even when the request failed - one
   retry per day, not one per launch.
 - **The prompt is a `Dialog`, not an `AlertDialog`** (`update_dialog.dart`): a
   header tile, current → new version chips, the release notes in a
@@ -1573,45 +1573,45 @@ tag against `PackageInfo.version` and downloads the APK; the native half
    `REQUEST_INSTALL_PACKAGES` permission and a `FileProvider`
    (`…fileprovider`, `res/xml/file_paths.xml` → `cacheDir/updates/`) because
    Android 7+ rejects `file://` installer URIs. The native `installApk` does
-   **no** `canRequestPackageInstalls()` pre-check — it always fires the
+   **no** `canRequestPackageInstalls()` pre-check - it always fires the
    installer intent (Mornye/`open_filex` style). When the per-app **Allow from
    this source** grant is missing, the system PackageInstaller itself shows
    the "For your security" popup with **Cancel / Settings**; its Settings
    button opens the per-app toggle. That grant is kept by the OS per app,
    survives app updates (so the popup does not come back), and is wiped on
    uninstall (so it does come back after a reinstall). There is no in-app
-   permission phase anymore — pinned by `test/update_dialog_test.dart`.
+   permission phase anymore - pinned by `test/update_dialog_test.dart`.
 - **Versions before 0.5.2 need one uninstall.** Their APKs were signed by a
   throwaway CI key (issue #43), so the installer fails with
   `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. The dialog says so up front when the
   installed version is older; there is no way to install over them.
 - **Do not test the installer from a debug build.** `flutter build apk --debug`
   is signed with the debug key, so installing a release APK over it always
-  fails — that is the key mismatch, not the updater. Verify the flow with a
+  fails - that is the key mismatch, not the updater. Verify the flow with a
   local `--release` build installed after one uninstall, or accept that the
   dialog/download/FileProvider step is proven and the final signature check is
   the same one Play-free updates always face.
 - iOS shows none of this: the App Store owns updates there, and the Dart
   service is `Platform.isAndroid`-gated.
 
-### Android releases are updatable — the two guards that protect it (issue #43)
+### Android releases are updatable - the two guards that protect it (issue #43)
 
 An update fails in exactly two ways on Android: the **signer differs**, or the
 **versionCode did not increase**. Either one makes the install fail with
 `INSTALL_FAILED_UPDATE_INCOMPATIBLE` / `_VERSION_DOWNGRADE`, and the user's only
-way out is to uninstall — losing settings, logins and resume positions. Both are
+way out is to uninstall - losing settings, logins and resume positions. Both are
 now enforced by the release workflow, so neither can regress silently.
 
 **1. Signing.** `release.yml` restores the upload keystore from the
 `UPLOAD_KEYSTORE_*` secrets and **hard-fails** if they are absent (this is the
-step that was missing before — it silently fell back to the runner's throwaway
+step that was missing before - it silently fell back to the runner's throwaway
 debug key). A second step then asserts every built APK's `apksigner` SHA-256
 equals `2FF29762…52D5F`. `apksigner` prints the digest **colon-less**, so the
-expected value is stored colon-less and both sides are normalised — a colon'd
+expected value is stored colon-less and both sides are normalised - a colon'd
 literal never matches and would fail every release.
 
 **2. versionCode.** This is pinned **by hand** in `android/app/build.gradle.kts`
-(`versionCode = 41`), because it cannot come from pubspec's `+N` — that value is
+(`versionCode = 41`), because it cannot come from pubspec's `+N` - that value is
 also the iOS `CFBundleVersion`, which has different rules. Nothing in Gradle
 would catch a forgotten bump, so `release.yml` reads the pinned value and
 compares it against **the previous git tag's**, failing the release if it did not
@@ -1619,7 +1619,7 @@ go up. That comparison needs `fetch-depth: 0` on the checkout (step 3).
 
 **The history, so it is not re-investigated:** every release published up to and
 including **v0.5.1** was signed by the GitHub Actions runner's throwaway debug
-key — a *different* key each run, none retained. Verified directly off the
+key - a *different* key each run, none retained. Verified directly off the
 published artifacts:
 
 | APK | Certificate |
@@ -1628,7 +1628,7 @@ published artifacts:
 | 0.5.2 (this tree) | `CN=DreamPlayer`, `2FF29762…52D5F` |
 
 That key is gone and cannot be regenerated, so users on v0.5.1 or earlier must
-uninstall **once**. This is unavoidable, not a bug to fix — the key simply does
+uninstall **once**. This is unavoidable, not a bug to fix - the key simply does
 not exist anymore. From 0.5.2 onward the `CN=DreamPlayer` key is permanent (it is
 in the repo secrets *and* in the local `android/app/upload-keystore.jks`), and
 updates are seamless forever. The release notes say this plainly instead of
@@ -1637,7 +1637,7 @@ leaving users to discover it as a failed install.
 **The flavour trap (still true, now documented for users).** `--split-per-abi`
 applies Flutter's `abiVersionCode * 1000 + base` scheme, so arm64-v8a ships
 ~2000 while universal ships the bare base. A user who installed an arm64 split
-**cannot** later install a universal build — the lower code reads as a
+**cannot** later install a universal build - the lower code reads as a
 downgrade. It is not a regression and there is no clean fix short of shipping a
 single flavour; the release notes tell people to grab the same file name they
 used last time, and recommend universal only for *fresh* installs (universal is
@@ -1649,18 +1649,18 @@ reverse).
 `versionCode` is greater than the previous tag's.
 
 **CI pins Flutter to `3.47.2`** (`flutter-version: '3.47.2'` in the `subosito/flutter-action`
-step of both `release.yml` and `ios.yml` — the input is `flutter-version`, NOT `version`;
+step of both `release.yml` and `ios.yml` - the input is `flutter-version`, NOT `version`;
 `version` is silently ignored with an "Unexpected input(s)" warning, run 43391933250).
-On 2026-11-13 unpinned `channel: stable` moved to a Gradle minimum of 9.3.1 — above this
-project's wrapper (9.1.0) — and every `v*` release build failed with "Your project's
+On 2026-11-13 unpinned `channel: stable` moved to a Gradle minimum of 9.3.1 - above this
+project's wrapper (9.1.0) - and every `v*` release build failed with "Your project's
 Gradle version (9.1.0) is lower than Flutter's minimum supported version of 9.3.1"
 (run 43388602528). Pinning makes releases reproducible with the local dev toolchain;
 when the Gradle wrapper is bumped, bump the pin in the same commit.
 
-### Fullscreen button was a no-op (issue #45) — the Flutter orientation bitmask
+### Fullscreen button was a no-op (issue #45) - the Flutter orientation bitmask
 
 Reported as "tapping it does absolutely nothing", on every file and both
-engines. The button, the handler and the manifest were all fine — the bug was
+engines. The button, the handler and the manifest were all fine - the bug was
 in *which* Dart list was handed to `SystemChrome.setPreferredOrientations`.
 
 Flutter packs the requested orientations into a bitmask and passes the result
@@ -1679,8 +1679,8 @@ one:
 constant.** AOSP's `DisplayRotation.rotationForOrientation` only consults the
 sensor for the `USER*` family while `mUserRotationMode == USER_ROTATION_FREE`;
 `LANDSCAPE` / `PORTRAIT` / `REVERSE_*` are exempted from the lock branch below
-it. So the old toggle — enter with `[landscapeLeft, landscapeRight]`, leave
-with `DeviceOrientation.values` — was `USER_LANDSCAPE` then `FULL_USER`, and
+it. So the old toggle - enter with `[landscapeLeft, landscapeRight]`, leave
+with `DeviceOrientation.values` - was `USER_LANDSCAPE` then `FULL_USER`, and
 **both halves silently did nothing whenever the user had rotation locked**,
 which is a very common setting. That is why the report said "absolutely
 nothing" rather than "only one direction".
@@ -1688,7 +1688,7 @@ nothing" rather than "only one direction".
 The fix requests the single forced constant in each direction. Android still
 picks which of the two landscape rotations to use from the sensor, so this
 does not hard-code landscape-left. `dispose()` still restores
-`DeviceOrientation.values` on purpose — handing control back to the system is
+`DeviceOrientation.values` on purpose - handing control back to the system is
 correct there; only the toggle needs to be forceful.
 
 **Verified on-device (OnePlus CPH2573) with `accelerometer_rotation=0`
@@ -1697,7 +1697,7 @@ portrait → `ROTATION_90` → back to `ROTATION_0`.
 
 `test/screen_orientation_test.dart` ports the engine's bitmask decoder and
 asserts the requested masks land in the forced set, *and* asserts the old
-inputs produce `0x0a`/`0x0f` — so if Flutter ever changes the decoder, the test
+inputs produce `0x0a`/`0x0f` - so if Flutter ever changes the decoder, the test
 says so instead of silently meaning nothing.
 
 **Two things that wasted time here, worth not repeating:**
@@ -1708,24 +1708,24 @@ says so instead of silently meaning nothing.
 - Verifying this needs the device's rotation lock in its **failed** state.
   Tapping once with rotation unlocked "works" and proves nothing.
 
-- **Player controls**: top bar (back + title) and a slim bottom bar (time + seekbar + audio/CC/aspect/fullscreen) auto-hide after 3 s of playback (tap toggles them; kept visible while paused/buffering/dragging). **Center transport**: `replay_10` / big play-pause / `forward_10` float in a dark rounded pill in the middle of the screen, fading with the other controls. The bottom bar's background is a gradient mirroring the top bar (transparent → `black` 0.72), so both bars read at the same opacity. The player screen is **always immersive** (no system UI toggling during rotation — that fights the rotation animation and makes the video jitter); the bottom fullscreen button just forces landscape/portrait. **That button must request a SINGLE orientation per direction** (`fullscreenOrientations` in `lib/utils/screen_orientation.dart`) — see "Fullscreen button was a no-op" below. Top-bar fullscreen button removed. **Play-pause ring highlight on touch devices** (2026-08): `_TvControlButton` gained `alwaysShowRing` — when set, the button always renders its ring highlight (border + glow) even without keyboard/remote focus. The center play-pause button uses `alwaysShowRing: !_isTv` so the ring is visible on phones/tablets without a D-pad. On TV the D-pad focus handles it as before.
-- **Aspect / fit-mode picker** (`VideoFitMode` in `exo_player.dart`): the bottom bar's `tune` button opens an "Aspect ratio" sheet with eight modes — Fit, Fullscreen, Crop to screen, Stretch to screen, 4:3, 16:9, 1.85:1, 2.39:1 — scrollable and height-capped so it can't overflow in landscape. Choice applies to the native surface (`setResizeMode`) and persists via `FitModeStore` (`dreamplayer.fitMode`), re-applied on every open. Android: `applyFitMode` maps to Media3 `AspectRatioFrameLayout` — Crop to screen = `RESIZE_MODE_ZOOM`, Stretch to screen = `RESIZE_MODE_FILL`, fixed ratios (16:9 / 4:3) = a forced aspect box + zoom-crop (`ForcedAspectPlayerView.forcedAspect`). iOS (2026-10-25): **fixed ratios are exact boxes, not approximations.** `ExoPlayerView` takes `fitMode` and, on iOS, wraps the `UiKitView` in `LayoutBuilder → Center → SizedBox(iosFitBoxSize(...)) → ClipRect`; `iosFitBoxSize` (unit-tested in `test/ios_fit_box_test.dart`) returns the largest box of the requested ratio that fits the available area (16:9, 4:3, 1.85:1, 2.39:1). `AvPlayerView.setResizeMode` maps 1/2/4/5/6/7 to `resizeAspectFill`, 3 to `resize`, and everything else to `resizeAspect`, so the fixed-ratio box is crop-filled instead of stretched. Two traps: the Flutter widget-tree shape must stay identical across fit modes (a recreated `UiKitView` releases the engine and kills playback — only the `SizedBox` dimensions change), and Flutter's `ClipRect` does not reliably clip a platform view, so `container.clipsToBounds = true` is set natively as well. Limitation: the FFmpeg custom-source path (MKV/TS/…) has no `AVPlayerLayer`, so it cannot crop there — the engine's own aspect fit is centred inside the box. On Android the equivalent is `ForcedAspectPlayerView.forcedAspect`.
-- **Audio track selection** (mute button replaced): the bottom bar's first button opens an "Audio tracks" bottom sheet listing every audio track from the native Media3 `currentTracks` (language · codec · channels · bitrate), with the active track check-marked. Picking a track calls `setAudioTrack` → native `TrackSelectionParameters` override → `onTracksChanged` re-emits → the top-bar audio chip (live codec + channel count) updates automatically. Native plumbing in `android/.../ExoPlayerView.kt` (`buildAudioTracks`, `selectAudioTrack`), pushed on every event as `audioTracks`/`selectedAudioTrack`; Dart model `ExoAudioTrack` in `lib/services/exo_player.dart`. Verified on-device: Sonic (DTS-HD MA + FLAC) switches DTS-HD → FLAC and the chip follows. **Default + resume (2026-09)**: MPV pins the container DEFAULT track on open and both engines restore the last pick on resume — see "MPV default audio track + resume restore" above.
+- **Player controls**: top bar (back + title) and a slim bottom bar (time + seekbar + audio/CC/aspect/fullscreen) auto-hide after 3 s of playback (tap toggles them; kept visible while paused/buffering/dragging). **Center transport**: `replay_10` / big play-pause / `forward_10` float in a dark rounded pill in the middle of the screen, fading with the other controls. The bottom bar's background is a gradient mirroring the top bar (transparent → `black` 0.72), so both bars read at the same opacity. The player screen is **always immersive** (no system UI toggling during rotation - that fights the rotation animation and makes the video jitter); the bottom fullscreen button just forces landscape/portrait. **That button must request a SINGLE orientation per direction** (`fullscreenOrientations` in `lib/utils/screen_orientation.dart`) - see "Fullscreen button was a no-op" below. Top-bar fullscreen button removed. **Play-pause ring highlight on touch devices** (2026-08): `_TvControlButton` gained `alwaysShowRing` - when set, the button always renders its ring highlight (border + glow) even without keyboard/remote focus. The center play-pause button uses `alwaysShowRing: !_isTv` so the ring is visible on phones/tablets without a D-pad. On TV the D-pad focus handles it as before.
+- **Aspect / fit-mode picker** (`VideoFitMode` in `exo_player.dart`): the bottom bar's `tune` button opens an "Aspect ratio" sheet with eight modes - Fit, Fullscreen, Crop to screen, Stretch to screen, 4:3, 16:9, 1.85:1, 2.39:1 - scrollable and height-capped so it can't overflow in landscape. Choice applies to the native surface (`setResizeMode`) and persists via `FitModeStore` (`dreamplayer.fitMode`), re-applied on every open. Android: `applyFitMode` maps to Media3 `AspectRatioFrameLayout` - Crop to screen = `RESIZE_MODE_ZOOM`, Stretch to screen = `RESIZE_MODE_FILL`, fixed ratios (16:9 / 4:3) = a forced aspect box + zoom-crop (`ForcedAspectPlayerView.forcedAspect`). iOS (2026-10-25): **fixed ratios are exact boxes, not approximations.** `ExoPlayerView` takes `fitMode` and, on iOS, wraps the `UiKitView` in `LayoutBuilder → Center → SizedBox(iosFitBoxSize(...)) → ClipRect`; `iosFitBoxSize` (unit-tested in `test/ios_fit_box_test.dart`) returns the largest box of the requested ratio that fits the available area (16:9, 4:3, 1.85:1, 2.39:1). `AvPlayerView.setResizeMode` maps 1/2/4/5/6/7 to `resizeAspectFill`, 3 to `resize`, and everything else to `resizeAspect`, so the fixed-ratio box is crop-filled instead of stretched. Two traps: the Flutter widget-tree shape must stay identical across fit modes (a recreated `UiKitView` releases the engine and kills playback - only the `SizedBox` dimensions change), and Flutter's `ClipRect` does not reliably clip a platform view, so `container.clipsToBounds = true` is set natively as well. Limitation: the FFmpeg custom-source path (MKV/TS/…) has no `AVPlayerLayer`, so it cannot crop there - the engine's own aspect fit is centred inside the box. On Android the equivalent is `ForcedAspectPlayerView.forcedAspect`.
+- **Audio track selection** (mute button replaced): the bottom bar's first button opens an "Audio tracks" bottom sheet listing every audio track from the native Media3 `currentTracks` (language · codec · channels · bitrate), with the active track check-marked. Picking a track calls `setAudioTrack` → native `TrackSelectionParameters` override → `onTracksChanged` re-emits → the top-bar audio chip (live codec + channel count) updates automatically. Native plumbing in `android/.../ExoPlayerView.kt` (`buildAudioTracks`, `selectAudioTrack`), pushed on every event as `audioTracks`/`selectedAudioTrack`; Dart model `ExoAudioTrack` in `lib/services/exo_player.dart`. Verified on-device: Sonic (DTS-HD MA + FLAC) switches DTS-HD → FLAC and the chip follows. **Default + resume (2026-09)**: MPV pins the container DEFAULT track on open and both engines restore the last pick on resume - see "MPV default audio track + resume restore" above.
   - **Full track names**: the sheet prefers the container-provided track `label` (e.g. `DTS-HD MA 5.1`, `Commentary`) and appends the channel count unless the name already carries it; otherwise it composes `languageName(lang) · codec · channels`. `ExoAudioTrack` gained a `label` field; ISO-639 codes map to full English names via `languageName()` in `codec_info.dart`.
-  - **iOS audio fixes (2026-08, 0.3.5)**: **network sources** (WebDAV / Jellyfin / FTP — AetherEngine loopback/`ByteRangeSource` can't re-probe in place, so `AvPlayerView` now proactively `reloadSession` + `waitForEngineReady` (`PlaybackState` `.playing`/`.paused`) and re-applies the track); **opposite-track bug** — `audioTrackMaps` used to emit native `id` as `index` while Dart treated `index` as flat position, so `engine.selectAudioTrack(index:)` hit the wrong track — now iOS mirrors Android (`index` = flat pos, `selectedAudioTrack` = flat pos via `firstIndex(where: id == active)`, `engineAudioId(forFlatPosition:)` converts flat→`id` at the boundary).
-- **FLAC via FFmpeg + E-AC3 decoder workaround**: a custom `MediaCodecSelector` in `ExoPlayerView.kt` does two things: (1) returns no decoder for `audio/flac` so FLAC falls through to the bundled FFmpeg renderer — the platform MediaCodec FLAC decoder on some devices (incl. this OnePlus) allocates fixed 32 KiB input buffers and large FLAC frames (24-bit multichannel ~54 KiB) die with `DecoderInputBuffer$InsufficientCapacityException: Buffer too small`; (2) skips any `c2.dolby.eac3.decoder` for `audio/eac3`/`audio/eac3-joc` — on this OnePlus the codec2 resource manager repeatedly releases that hardware decoder as soon as it starts, so Media3's audio renderer spins in an endless re-init loop and **no AudioTrack is ever created (silent playback)**. With the Dolby component excluded, the AOSP software E-AC3 decoder is used and the renderer is stable. Verified on-device: Sonic FLAC plays continuously; an E-AC3 (Dolby Atmos, 5.1) track plays with an active AudioTrack (48 kHz, channelMask `0x3f`, no churn, no errors).
-- **NextRenderersFactory killed hardware video decode — root cause of 4K60 lag + washed-out HDR (2026-08, Redmi Note 10)**: the app originally built the player with nextlib's `NextRenderersFactory` (`io.github.anilbeesetti.nextlib:media3ext`, pulled in for its FFmpeg audio). Its `buildVideoRenderers` calls `super` then inserts `FfmpegVideoRenderer` at **index 0** — *before* `MediaCodecVideoRenderer` — and `FfmpegLibrary.supportsFormat` claims `video/hevc`, so **every HEVC file decoded in FFmpeg software**: 4K60 stuttered (Snapdragon 678 cannot software-decode it) and colors were washed out because the FFmpeg GL output carries no HDR dataspace (SF composite: `dataspace 0x0`, `hdr metadata types=0`). Diagnosed by A/B against moneytoo's Just Player (`com.brouken.player`), which uses the **stock** `DefaultRenderersFactory` (`setExtensionRendererMode(mPrefs.decoderPriority)` + `setMapDV7ToHevc`, zero manual HDR code): same file, same `OMX.qcom.video.decoder.hevc`, its layer composited `BT2020_ITU_PQ hdr metadata types=1`. Fix: new `DreamRenderersFactory` (`android/.../DreamRenderersFactory.kt`) — a `DefaultRenderersFactory` subclass that overrides **both** `buildAudioRenderers` (appends nextlib's `FfmpegAudioRenderer` **at the end** for DTS/TrueHD/FLAC) and `buildVideoRenderers` (appends `FfmpegVideoRenderer` **at the end** as a software fallback for hardware decode failures). `EXTENSION_RENDERER_MODE_ON` ensures the FFmpeg video renderer is used only when no MediaCodec decoder can handle the format. Verified on Redmi: Sony 4K60 → `[OMX.qcom.video.decoder.hevc] setting surface generation` (hardware session), SF layer `dataspace=BT2020_ITU_PQ hdr metadata types=1` — byte-for-byte the Just Player profile. Note: on API 26–32 the `TIRAMISU` gate keeps `applyHdrHeadroom` off, so SF auto-tone-maps HDR→SDR (correct for a 500-nit HDR10 panel).
-- **Subtitles — embedded + sideloaded with a full track picker**:
+  - **iOS audio fixes (2026-08, 0.3.5)**: **network sources** (WebDAV / Jellyfin / FTP - AetherEngine loopback/`ByteRangeSource` can't re-probe in place, so `AvPlayerView` now proactively `reloadSession` + `waitForEngineReady` (`PlaybackState` `.playing`/`.paused`) and re-applies the track); **opposite-track bug** - `audioTrackMaps` used to emit native `id` as `index` while Dart treated `index` as flat position, so `engine.selectAudioTrack(index:)` hit the wrong track - now iOS mirrors Android (`index` = flat pos, `selectedAudioTrack` = flat pos via `firstIndex(where: id == active)`, `engineAudioId(forFlatPosition:)` converts flat→`id` at the boundary).
+- **FLAC via FFmpeg + E-AC3 decoder workaround**: a custom `MediaCodecSelector` in `ExoPlayerView.kt` does two things: (1) returns no decoder for `audio/flac` so FLAC falls through to the bundled FFmpeg renderer - the platform MediaCodec FLAC decoder on some devices (incl. this OnePlus) allocates fixed 32 KiB input buffers and large FLAC frames (24-bit multichannel ~54 KiB) die with `DecoderInputBuffer$InsufficientCapacityException: Buffer too small`; (2) skips any `c2.dolby.eac3.decoder` for `audio/eac3`/`audio/eac3-joc` - on this OnePlus the codec2 resource manager repeatedly releases that hardware decoder as soon as it starts, so Media3's audio renderer spins in an endless re-init loop and **no AudioTrack is ever created (silent playback)**. With the Dolby component excluded, the AOSP software E-AC3 decoder is used and the renderer is stable. Verified on-device: Sonic FLAC plays continuously; an E-AC3 (Dolby Atmos, 5.1) track plays with an active AudioTrack (48 kHz, channelMask `0x3f`, no churn, no errors).
+- **NextRenderersFactory killed hardware video decode - root cause of 4K60 lag + washed-out HDR (2026-08, Redmi Note 10)**: the app originally built the player with nextlib's `NextRenderersFactory` (`io.github.anilbeesetti.nextlib:media3ext`, pulled in for its FFmpeg audio). Its `buildVideoRenderers` calls `super` then inserts `FfmpegVideoRenderer` at **index 0** - *before* `MediaCodecVideoRenderer` - and `FfmpegLibrary.supportsFormat` claims `video/hevc`, so **every HEVC file decoded in FFmpeg software**: 4K60 stuttered (Snapdragon 678 cannot software-decode it) and colors were washed out because the FFmpeg GL output carries no HDR dataspace (SF composite: `dataspace 0x0`, `hdr metadata types=0`). Diagnosed by A/B against moneytoo's Just Player (`com.brouken.player`), which uses the **stock** `DefaultRenderersFactory` (`setExtensionRendererMode(mPrefs.decoderPriority)` + `setMapDV7ToHevc`, zero manual HDR code): same file, same `OMX.qcom.video.decoder.hevc`, its layer composited `BT2020_ITU_PQ hdr metadata types=1`. Fix: new `DreamRenderersFactory` (`android/.../DreamRenderersFactory.kt`) - a `DefaultRenderersFactory` subclass that overrides **both** `buildAudioRenderers` (appends nextlib's `FfmpegAudioRenderer` **at the end** for DTS/TrueHD/FLAC) and `buildVideoRenderers` (appends `FfmpegVideoRenderer` **at the end** as a software fallback for hardware decode failures). `EXTENSION_RENDERER_MODE_ON` ensures the FFmpeg video renderer is used only when no MediaCodec decoder can handle the format. Verified on Redmi: Sony 4K60 → `[OMX.qcom.video.decoder.hevc] setting surface generation` (hardware session), SF layer `dataspace=BT2020_ITU_PQ hdr metadata types=1` - byte-for-byte the Just Player profile. Note: on API 26–32 the `TIRAMISU` gate keeps `applyHdrHeadroom` off, so SF auto-tone-maps HDR→SDR (correct for a 500-nit HDR10 panel).
+- **Subtitles - embedded + sideloaded with a full track picker**:
   - **Sibling auto-pairing** (`android/.../SubtitleFormats.kt` `findSiblingSubtitles`): on open, scans the video's folder and attaches **every** subtitle file as a Media3 `SubtitleConfiguration` (exact-filename-prefix match wins; ordered best-match first). The best match carries `SELECTION_FLAG_DEFAULT` so it's auto-selected; all others remain selectable in the picker. An explicitly passed `subtitleUri` still wins over pairing.
-  - **`open()` path fix**: `lib/services/exo_player.dart` `open()` now sends `path` even when a `uri` is present — intent-opened files were dropping the path, so sibling pairing never fired. Verified on-device.
+  - **`open()` path fix**: `lib/services/exo_player.dart` `open()` now sends `path` even when a `uri` is present - intent-opened files were dropping the path, so sibling pairing never fired. Verified on-device.
   - **Formats**: SRT, SSA/ASS, WebVTT, TTML/DFXP, SAMI (`.smi`), MicroDVD (`.sub`), MPL2 (`.mpl2`), SubViewer (auto-detected inside `.sub`). `SubtitleFormats` maps extension → MIME (incl. custom `application/x-sami`, `application/x-microdvd`, `application/x-mpl2`).
-  - **Custom parsers** (`android/.../DreamSubtitleParserFactory.kt`): Media3's stock `DefaultSubtitleParserFactory` lacks SAMI/MicroDVD/MPL2/SubViewer, so `DreamSubtitleParserFactory` adds `SamiParser` and `FrameSubParser` (MicroDVD/MPL2/SubViewer modes) and delegates everything else (SubRip, SSA, WebVTT, TTML, PGS, DVB, TX3G, CEA) to the default. Sidecar **VobSub is declined** here and not offered on this engine — see "VobSub sidecars" below for why, and for the two integrations that were tried and must not be retried. Wired into both `DefaultMediaSourceFactory` and `DefaultExtractorsFactory` so the `SubtitleExtractor` picks it up.
+  - **Custom parsers** (`android/.../DreamSubtitleParserFactory.kt`): Media3's stock `DefaultSubtitleParserFactory` lacks SAMI/MicroDVD/MPL2/SubViewer, so `DreamSubtitleParserFactory` adds `SamiParser` and `FrameSubParser` (MicroDVD/MPL2/SubViewer modes) and delegates everything else (SubRip, SSA, WebVTT, TTML, PGS, DVB, TX3G, CEA) to the default. Sidecar **VobSub is declined** here and not offered on this engine - see "VobSub sidecars" below for why, and for the two integrations that were tried and must not be retried. Wired into both `DefaultMediaSourceFactory` and `DefaultExtractorsFactory` so the `SubtitleExtractor` picks it up.
   - **Charset handling**: Media3's text parsers decode UTF-8 only; `SubtitleFormats.toUtf8` detects BOM/strict-UTF-8 vs CP1252 and re-encodes non-UTF-8 sidecars to a cache file so legacy `.srt` files don't render as mojibake. `decodeToString` strips UTF-8 BOM for the custom parsers.
   - **Subtitle picker** (`lib/screens/player_screen.dart`): the bottom bar's CC button opens a sheet listing every subtitle track from native `currentTracks` (embedded container tracks + sideloaded files) plus Off. Labels append the format so sibling files read uniquely (`House.S02E04.eng · SRT`, `House.S02E04 · WebVTT`). Picking a track calls `selectSubtitleTrack` → native `TrackSelectionParameters` override; `selectedSubtitleTrack` re-emits → the CC button reflects the real selection.
-  - **Note**: sibling auto-pairing needs `MANAGE_EXTERNAL_STORAGE` — without it, `listFiles()` only sees MediaStore-indexed files (SRT/TTML/SMI) and `.ass`/`.vtt`/`.sub`/`.mpl2` are silently skipped. Every `flutter install` re-revokes All Files Access on Android; re-grant via `adb shell am start -a android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION` (can't be granted via `adb shell pm grant` — this device blocks it).
+  - **Note**: sibling auto-pairing needs `MANAGE_EXTERNAL_STORAGE` - without it, `listFiles()` only sees MediaStore-indexed files (SRT/TTML/SMI) and `.ass`/`.vtt`/`.sub`/`.mpl2` are silently skipped. Every `flutter install` re-revokes All Files Access on Android; re-grant via `adb shell am start -a android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION` (can't be granted via `adb shell pm grant` - this device blocks it).
    - Verified on-device (`House.S02E04` MKV + 7 sidecar formats): embedded PGS + all 7 sidecars attach, best-match `.eng.srt` auto-selected.
 
-### VobSub (`.idx`/`.sub`) sidecars — OOM crash fixed, decode declined on Media3 (issue #44)
+### VobSub (`.idx`/`.sub`) sidecars - OOM crash fixed, decode declined on Media3 (issue #44)
 
 **Read this before touching `.sub` handling.** The format is genuinely
 ambiguous, and every wrong assumption here has already cost a shipped bug.
@@ -1737,20 +1737,20 @@ size cap**, then a strict UTF-8 decode (which throws on binary → falls back to
 CP1252), then `String(bytes, cp1252)`, then a re-encode. That is ~150-250 MB of
 transient allocation for one 19 MB subtitle, on the main thread. It also wrote a
 `dreamplayer_sub_*.utf8` file to `cacheDir` per conversion and **never deleted
-them**. Fixed by bounding the sniff three ways — a 64 KB prefix read instead of
-the whole file, a 1 MB size cap, and rejecting binary outright — plus
+them**. Fixed by bounding the sniff three ways - a 64 KB prefix read instead of
+the whole file, a 1 MB size cap, and rejecting binary outright - plus
 `pruneUtf8Cache()`. This guard matters for *every* format, not just VobSub.
 
 **The routing bugs (fixed).** `.idx` was not in `SUBTITLE_EXTENSIONS` at all, so
 `mimeTypeFor` fell through to `application/x-subrip`. And `.sub` mapped
-**unconditionally** to `MIME_MICRODVD` — a *text* parser — while a VobSub `.sub`
+**unconditionally** to `MIME_MICRODVD` - a *text* parser - while a VobSub `.sub`
 is raw MPEG-Program-Stream. A binary payload was being fed to a text parser. Now
 `.idx` maps to `MimeTypes.APPLICATION_VOBSUB`, and `isVobSubPayload()` drops a
 `.sub` that has a sibling `.idx` so the pair is one track, not two. A lone `.sub`
 stays MicroDVD/SubViewer, unchanged.
 
 **The decode (declined, deliberately).** Media3's `VobsubParser` is a *good*
-decoder — muxing this VobSub into an MKV and playing it produced a correct cue.
+decoder - muxing this VobSub into an MKV and playing it produced a correct cue.
 It only accepts Matroska `S_VOBSUB` framing, where block data is already a bare
 run of DVD subtitle packets. A sidecar `.sub` is a whole MPEG-PS file with each
 cue fragmented across several PES frames, and there is no route to feed those in:
@@ -1759,7 +1759,7 @@ cue fragmented across several PES frames, and there is no route to feed those in
 `SubtitleExtractor`. So `buildSideloadSubtitleConfig` **returns null for `.idx`
 on the Media3 engine** and the track is not offered. **Play with MPV** renders it.
 
-**Do not retry either of these two integrations — both were tried and are recorded
+**Do not retry either of these two integrations - both were tried and are recorded
 so they are not re-attempted blind:**
 
 1. *Eager decode.* Feeding all 2737 packets inside the single `parse()` call
@@ -1771,7 +1771,7 @@ so they are not re-attempted blind:**
    the `parse()` call**, so cues decoded later have no path to Media3's renderer.
 
 Doing this properly needs a different integration (feeding Media3's subtitle
-sample queue directly, or rendering cues ourselves) — a real project, not a patch.
+sample queue directly, or rendering cues ourselves) - a real project, not a patch.
 A dead player or a runaway decoder is exactly what #44 was filed about.
 
 **The demux IS done and validated** (`VobSubPayloadExtractor.kt`, retained for
@@ -1782,12 +1782,12 @@ which cost real time:
   gave a 248-byte skip that derailed the entire walk.
 - The **first** PES fragment of a cue carries a 9-byte header (PTS + substream id);
   **continuations carry 4**. And `PES_packet_length` covers the *whole* packet
-  including its header — the payload is `length - headerLen`.
+  including its header - the payload is `length - headerLen`.
 - The `.idx` timestamp's 4th field is **milliseconds, not frames**. Read as frames
   at 25fps it makes cue 1 jump *backwards* (23:774 → 53.96s, then 27:194 → 34.76s),
   which no subtitle track can do.
 Cue boundaries come from the `.idx` `filepos:` table (hex), and each DVD packet
-carries its own total length in its first two bytes — the same `AV_RB16(buf)` that
+carries its own total length in its first two bytes - the same `AV_RB16(buf)` that
 `dvdsubdec.c` reads.
 
 **A trap worth knowing: this cannot be unit-tested off-device.** `VobsubParser`
@@ -1804,33 +1804,33 @@ nothing here; every VobSub entry in the release notes is a container-track fix.
 
 **Also fixed while chasing this** (`player_screen.dart`): mpv's
 `sub-scale-with-window` was `yes`, which scales subtitles against the subtitle
-file's own canvas rather than the video — so a 1920x1080 VobSub on a 3840x2160 4K
+file's own canvas rather than the video - so a 1920x1080 VobSub on a 3840x2160 4K
 video drew at 2x and covered half the picture. It is now `no`.
    - **OpenSubtitles online search (2026-08)**: CC sheet → "Search online subtitles…" (`lib/screens/opensubtitles_sheet.dart` + `lib/services/opensubtitles_client.dart`) via `api.opensubtitles.com` REST. Search `GET /api/v1/subtitles?query=&languages=&moviehash=` (hash = OpenSubtitles 64-bit first+last 64 KiB via `opensubtitlesHashForFile` when local path available, ordered by `download_count` desc). Download `POST /api/v1/download {file_id}` with `Api-Key` alone = **5/day/IP anonymous**, plus `Authorization: Bearer <JWT>` after `POST /login` = **20/day free** (VIP more); `403` quota → login dialog then retry. Link fetched via `fetchBytes` (retry on `SocketException` RST with `persistentConnection=false`, `c6f616c`), saved persistently to `getApplicationSupportDirectory()/opensubs/<resumeKey>/<fileName>` via `DownloadedSubtitlesStore` (`dreamplayer.downloadedSubs` JSON) and applied mid-playback by copying `_current` with `subtitleUri` and `await _reopenAt(pos)`. Downloaded section appears **at top of CC sheet before embedded tracks** (Nova-style) per-video, re-selectable without re-downloading. Settings → Subtitles → **OpenSubtitles** tile shows login state / remaining downloads and handles sign-in/out (token `dreamplayer.opensubtitlesToken` persisted 23h). Key via `--dart-define=OPENSUBTITLES_API_KEY` (`lib/config/opensubtitles_api_key.dart`, gitignored `.env` like TMDB).
-- **File browser (CX-Explorer style)** (`lib/screens/file_browser_screen.dart`): browse storage in-app and play any video without importing. **Back goes up one folder at a time** — only a folder whose path IS a root returns to the roots list; any other folder loads its parent (even when the parent is itself a root), so back from a folder inside a root lands on that root's contents, not on "Browse files". Reached from the home **+** button → "Internal storage" (the root list no longer shows a "Pick a folder" tile — adding folders lives on the home **+** menu's "Add folder to library"). Android side (`android/.../FileBrowser.kt`, channel `dreamplayer/files`): `hasAllFilesAccess` / `openAllFilesAccessSettings` / `getStorageRoots` (internal + removable volumes, see below) / `listDirectory` (folders then video files, sorted, with sizes) / `pickFolder` (launches `ACTION_OPEN_DOCUMENT_TREE`, persistable URI grants stored in SharedPreferences as `dreamplayer.folderBookmarks`, result delivered via `MainActivity.onActivityResult` → `FileBrowser.onFolderPicked`) / `pickLibraryFolder` (same picker, but stores the tree under a library-only `libfolder.<uuid>` key so it never becomes a file-browser root) / `removeBookmark` / `removeLibraryBookmark`. Bookmarked trees are appended to `getStorageRoots` with a `bookmarkId` and are listed through `DocumentFile` via synthetic paths `tree:<id>` / `tree:<id>/<relative>` (directory entries keep the synthetic path for back-navigation; video entries carry their `content://` document URI so `file_browser_screen.dart` passes it as `VideoItem.uri`, like the "Open with" flow). Requires **`MANAGE_EXTERNAL_STORAGE`** (All Files Access) on Android 11+ — the screen shows a "Grant access" button that opens the system settings and re-checks on app resume (the folder picker works without it, but browsing does not). iOS side (`ios/Runner/FileBrowser.swift`): sandboxed, so the root list is a virtual **"Files"** entry (`isFilesHome: true`, synthetic path `dreamplayer/files-home`) that opens the **system document picker** — the real Files-app home (iCloud Drive, On My iPad, Downloads, other providers); picking a video imports it (`importFile` → bookmark stored in `dreamplayer.importedVideos`, re-granted later via `resolveImportedPath`) and plays it. Below it: the app's Documents folder plus **bookmarked folders picked via the system document picker** (`pickFolder` → `UIDocumentPickerViewController` for `.folder`, `removeBookmark`) — security-scoped bookmarks stored in UserDefaults keep picked folders (iCloud Drive, On My iPad, other providers) readable across launches, so videos outside the sandbox are browsed/played in-app without touching the Files app. The Dart screen shows a "Pick a folder" tile + per-bookmark remove at the root on **both** platforms (subtitle text is platform-specific). Tapping a video builds a `VideoItem` and pushes `PlayerScreen`. Verified on-device (Android): Internal storage → Download → video → Dolby Vision People plays with live HDR/codec chips.
+- **File browser (CX-Explorer style)** (`lib/screens/file_browser_screen.dart`): browse storage in-app and play any video without importing. **Back goes up one folder at a time** - only a folder whose path IS a root returns to the roots list; any other folder loads its parent (even when the parent is itself a root), so back from a folder inside a root lands on that root's contents, not on "Browse files". Reached from the home **+** button → "Internal storage" (the root list no longer shows a "Pick a folder" tile - adding folders lives on the home **+** menu's "Add folder to library"). Android side (`android/.../FileBrowser.kt`, channel `dreamplayer/files`): `hasAllFilesAccess` / `openAllFilesAccessSettings` / `getStorageRoots` (internal + removable volumes, see below) / `listDirectory` (folders then video files, sorted, with sizes) / `pickFolder` (launches `ACTION_OPEN_DOCUMENT_TREE`, persistable URI grants stored in SharedPreferences as `dreamplayer.folderBookmarks`, result delivered via `MainActivity.onActivityResult` → `FileBrowser.onFolderPicked`) / `pickLibraryFolder` (same picker, but stores the tree under a library-only `libfolder.<uuid>` key so it never becomes a file-browser root) / `removeBookmark` / `removeLibraryBookmark`. Bookmarked trees are appended to `getStorageRoots` with a `bookmarkId` and are listed through `DocumentFile` via synthetic paths `tree:<id>` / `tree:<id>/<relative>` (directory entries keep the synthetic path for back-navigation; video entries carry their `content://` document URI so `file_browser_screen.dart` passes it as `VideoItem.uri`, like the "Open with" flow). Requires **`MANAGE_EXTERNAL_STORAGE`** (All Files Access) on Android 11+ - the screen shows a "Grant access" button that opens the system settings and re-checks on app resume (the folder picker works without it, but browsing does not). iOS side (`ios/Runner/FileBrowser.swift`): sandboxed, so the root list is a virtual **"Files"** entry (`isFilesHome: true`, synthetic path `dreamplayer/files-home`) that opens the **system document picker** - the real Files-app home (iCloud Drive, On My iPad, Downloads, other providers); picking a video imports it (`importFile` → bookmark stored in `dreamplayer.importedVideos`, re-granted later via `resolveImportedPath`) and plays it. Below it: the app's Documents folder plus **bookmarked folders picked via the system document picker** (`pickFolder` → `UIDocumentPickerViewController` for `.folder`, `removeBookmark`) - security-scoped bookmarks stored in UserDefaults keep picked folders (iCloud Drive, On My iPad, other providers) readable across launches, so videos outside the sandbox are browsed/played in-app without touching the Files app. The Dart screen shows a "Pick a folder" tile + per-bookmark remove at the root on **both** platforms (subtitle text is platform-specific). Tapping a video builds a `VideoItem` and pushes `PlayerScreen`. Verified on-device (Android): Internal storage → Download → video → Dolby Vision People plays with live HDR/codec chips.
 
-- **USB drives, multi-select delete, download to device (issue #48, 2026-10-11)** — read this before touching `FileBrowser.kt` or the file-browser screen; three separate bugs live here and none of them reproduce on a device without a drive attached.
-  - **USB drives were invisible.** `storageRoots()` scanned `/storage` and skipped any entry whose name started with `usb`. That filter was meant for the legacy `/storage/usb` FUSE mount — but that is ALSO the name many USB volumes actually get, so a plugged-in drive showed nothing at all (worst on TV). Modern USB mounts at `/storage/<VOLUME_UUID>`, and `StorageManager` is the API that reports it. Volumes now come from `storageVolumes` first (labelled `USB drive (name)` / `SD card (name)`), with the `/storage` scan kept as a fallback and paths deduped.
-  - **Two compile traps in that code, both hit for real:** `StorageVolume.getPath()` was **removed in API 31** and does not compile against `compileSdk = 37`, and there is no pre-30 counterpart to pair it with — the `/storage` scan is the only older-device path, so do not reintroduce `getPath()`. `getDirectory()` returns a **non-null `File`**, not `File?`, and is API 30+. Check the real signature with `javap -cp /opt/android-sdk/platforms/android-37.0/android.jar android.os.storage.StorageVolume` rather than guessing.
+- **USB drives, multi-select delete, download to device (issue #48, 2026-10-11)** - read this before touching `FileBrowser.kt` or the file-browser screen; three separate bugs live here and none of them reproduce on a device without a drive attached.
+  - **USB drives were invisible.** `storageRoots()` scanned `/storage` and skipped any entry whose name started with `usb`. That filter was meant for the legacy `/storage/usb` FUSE mount - but that is ALSO the name many USB volumes actually get, so a plugged-in drive showed nothing at all (worst on TV). Modern USB mounts at `/storage/<VOLUME_UUID>`, and `StorageManager` is the API that reports it. Volumes now come from `storageVolumes` first (labelled `USB drive (name)` / `SD card (name)`), with the `/storage` scan kept as a fallback and paths deduped.
+  - **Two compile traps in that code, both hit for real:** `StorageVolume.getPath()` was **removed in API 31** and does not compile against `compileSdk = 37`, and there is no pre-30 counterpart to pair it with - the `/storage` scan is the only older-device path, so do not reintroduce `getPath()`. `getDirectory()` returns a **non-null `File`**, not `File?`, and is API 30+. Check the real signature with `javap -cp /opt/android-sdk/platforms/android-37.0/android.jar android.os.storage.StorageVolume` rather than guessing.
   - **Rescan.** `didChangeAppLifecycleState` used to re-run `_init()` **only when All Files Access was missing**, so a user who already had access kept the root list computed before the drive was plugged in. It now re-scans on **every** resume (and re-lists inside a folder), plus a **Rescan drives** row at the root.
   - **Long-press select → ⋮ → Delete.** `_selected` is keyed by PATH, not index, so it survives the rescan. Folders are selectable and deleted **recursively**, guarded twice because this is the most destructive thing in the app: native `isDeletableTarget()` only proceeds when the canonical path is under `/storage`, `/sdcard` or external storage, and the confirmation switches to *"INCLUDING the contents of any folder"* when a folder is in the selection. Network and synthetic `tree:` paths are refused natively too.
-  - **Download to device** copies into `<Downloads>/DreamPlayer/` — the same folder the network downloader writes to — by routing `PlaybackSource.files` to `DownloadManager._copyLocalFile`, which already did a **chunked 256 KB async copy with progress**. That single line of routing IS the feature: the notification progress bar, the home hamburger list and cancel all come from `DownloadManager` for free. **Never copy on the platform thread** — an earlier version called the channel directly and froze the app on a large file. Copies never overwrite (`_uniquePath` → `name (2).mkv`). Folders are **skipped**: a recursive copy is not one transfer, and as a job it would report a size it does not know and could not be cancelled.
-  - **The native `copyLocalToDownloads` answers with the destination PATH, not a bool.** Reading it as `invokeMethod<bool>` and testing `== true` made every copy report failure — a red snackbar for a copy that had actually succeeded. Check the return type whenever a channel method is added; a silently wrong one produces a plausible-looking failure.
-  - **`tmd_details_screen`'s "Download to device" is gated on `_isNetworkSource`**, which excluded local files because "local files don't need downloading" — true for internal storage, false for a USB drive. It now checks the **mount point**: `/storage/emulated/` and `/storage/self/` stay hidden, any other `/storage/` volume shows it. Path rather than `Environment` flags, because those say nothing about *which* volume; `content://` / `tree:` count as not removable so the button never appears for something that cannot be copied.
+  - **Download to device** copies into `<Downloads>/DreamPlayer/` - the same folder the network downloader writes to - by routing `PlaybackSource.files` to `DownloadManager._copyLocalFile`, which already did a **chunked 256 KB async copy with progress**. That single line of routing IS the feature: the notification progress bar, the home hamburger list and cancel all come from `DownloadManager` for free. **Never copy on the platform thread** - an earlier version called the channel directly and froze the app on a large file. Copies never overwrite (`_uniquePath` → `name (2).mkv`). Folders are **skipped**: a recursive copy is not one transfer, and as a job it would report a size it does not know and could not be cancelled.
+  - **The native `copyLocalToDownloads` answers with the destination PATH, not a bool.** Reading it as `invokeMethod<bool>` and testing `== true` made every copy report failure - a red snackbar for a copy that had actually succeeded. Check the return type whenever a channel method is added; a silently wrong one produces a plausible-looking failure.
+  - **`tmd_details_screen`'s "Download to device" is gated on `_isNetworkSource`**, which excluded local files because "local files don't need downloading" - true for internal storage, false for a USB drive. It now checks the **mount point**: `/storage/emulated/` and `/storage/self/` stay hidden, any other `/storage/` volume shows it. Path rather than `Environment` flags, because those say nothing about *which* volume; `content://` / `tree:` count as not removable so the button never appears for something that cannot be copied.
 - **"Open with" / file-explorer integration** (`AndroidManifest.xml` `ACTION_VIEW` intent-filters for `content`/`file` schemes + video MIME types incl. `video/*`, matroska, mpeg, ts, avi, wmv, octet-stream): tapping a video anywhere on the device now offers DreamPlayer. `MainActivity` resolves the intent (file path or `content://` URI + display name via `OpenableColumns`) and forwards it over the `dreamplayer/intent` channel (`getInitialIntent` on launch / `open` on `onNewIntent`); `lib/services/open_intent.dart` turns it into a `VideoItem` and pushes `PlayerScreen` via a global `appNavigatorKey` in `lib/app.dart`. `VideoItem` gained an optional `uri` (content URIs) with `path` now nullable; `ExoPlayerView` opens a raw URI when no path is available. Verified on-device: "Open with" chooser lists DreamPlayer and launches Dolby Vision playback.
-  - **CX Explorer network-stream handoff**: CX hands SMB videos to players as `http://127.0.0.1:<port>/SMB/...` (its own local HTTP proxy), so the intent filter additionally declares `http`/`https`/empty schemes (`<data android:scheme=""/>`) + the full container-MIME matrix (`video/x-matroska`, `application/octet-stream`, `application/mpeg`, ... — a single filter, since per-vendor MIMEs differ), and `android:usesCleartextTraffic="true"`. Media3's `DefaultDataSource` handles file/content/asset itself and sends every other scheme (http/https) to the base factory, so `ExoPlayerView.kt` wires `DefaultHttpDataSource.Factory()` as that base — CX's proxy streams arrive there with no fallback and no extra code. Verified on-device via logcat: 4K HEVC lossless (3840×2176@60) streamed through CX's proxy decoded at a steady 60 fps / **0 discarded frames** for a full session (`c2.qti.hevc.decoder` telemetry), only jank = the app's cold start.
+  - **CX Explorer network-stream handoff**: CX hands SMB videos to players as `http://127.0.0.1:<port>/SMB/...` (its own local HTTP proxy), so the intent filter additionally declares `http`/`https`/empty schemes (`<data android:scheme=""/>`) + the full container-MIME matrix (`video/x-matroska`, `application/octet-stream`, `application/mpeg`, ... - a single filter, since per-vendor MIMEs differ), and `android:usesCleartextTraffic="true"`. Media3's `DefaultDataSource` handles file/content/asset itself and sends every other scheme (http/https) to the base factory, so `ExoPlayerView.kt` wires `DefaultHttpDataSource.Factory()` as that base - CX's proxy streams arrive there with no fallback and no extra code. Verified on-device via logcat: 4K HEVC lossless (3840×2176@60) streamed through CX's proxy decoded at a steady 60 fps / **0 discarded frames** for a full session (`c2.qti.hevc.decoder` telemetry), only jank = the app's cold start.
 - **Home/settings status bar**: `RootShell` maps `MediaQuery.viewPadding.top` into `padding` (Android edge-to-edge reports `padding.top == 0`), so `SliverAppBar` never overlaps the status bar.
-- **Jellyfin media-server sync (Infuse-style, 2026-11-04)**: Jellyfin is no longer browse-only for state — resume position and watched marks now live on the SERVER. `JellyfinItem` parses `UserData.Played`/`PlaybackPositionTicks`; `JellyfinClient` gained `reportCapabilities` (`POST /Sessions/Capabilities/Full`, once per server), `reportPlaybackStart/Progress/Stopped` (`/Sessions/Playing*` sharing one `PlaySessionId` per playback), and `setPlayed` (`POST`/`DELETE /Users/{userId}/PlayedItems/{itemId}`). The player pulls the server resume position on open (further-along wins over local), reports start on open + progress inside `_saveResume`, stopped on dispose, and marks played on ended; the Jellyfin browser shows `local || server` watched and pushes toggles to the server, and row progress bars prefer the server position (`ResumeProgressHelper.progressFor(serverPositionMs:)`). All sync calls are best-effort try/catch — a server being down must never break playback. Tests: `test/jellyfin_test.dart` "media-server sync" group.
-- **User-added folder library** (`lib/services/library_folders.dart`, `lib/services/folder_scanner.dart`, `lib/widgets/folder_card.dart`, `lib/screens/folder_screen.dart`): the home "Your library" section lists **only folders the user explicitly adds** (home **+** → "Add folder to library") — nothing is auto-scanned. Adding a TV-show folder kicks off a TMDB lookup (`TmdService.resolveFolder`, TV-biased via `TmdApi.bestForQuery`); the card shows the show's poster + real title + TV/Movie badge. **SMB/WebDAV folders can also be bookmarked straight from their browser** AppBar (`LibraryFolderSource.smb|webdav` + per-source badge); **Jellyfin/FTP/DLNA are browse-only** (2026-09, `home_screen._loadLibraryFolders` purges legacy `jellyfin|ftp|upnp` bookmarks) and are accessed via `+` → Jellyfin/FTP/DLNA. Tapping a folder opens its contents (subfolders navigable; episodes listed with parsed `SxxExx` + size; local route via `TmdDetailsScreen`, network sources open `FolderScreen` directly), and tapping an episode goes to `TmdDetailsScreen` → player. Long-press a folder card to remove it from the library (files untouched). **Deep recursive scan (2026-09)**: `FolderScanner` (`lib/services/folder_scanner.dart`) scans up to 5 levels deep (local/SMB/WebDAV for Home bookmarks; Jellyfin/FTP/UPnP still support listing when browsing). Leaf folders (videos, no subdirs) become single library entries; mixed containers (subdirs + loose files) expand into individual cards so files like `lanterns s01e05.mkv` aren't hidden behind a parent `TV Shows` card. Each season auto-expands into a separate card (`House Season02`, `House Season03` via non-strippable `Season02` tag) so the user can manually group them on Home. `LibraryFoldersStore.bulkAdd` deduplicates by `(source, networkPath)` in addition to `id`.
-- **Horizontal-swipe seek (2026-08-22)**: swipe left/right on the video scrubs **±90 s per screen width** (clamped to the file); a dark pill shows target timestamp + signed delta (green/orange); release commits if |Δ| ≥ 500 ms; skipped when `_isTv` (`_swipeGestureActive` keeps the pill icon stable through its 800 ms fade). **Time-only by design** — frame thumbnails were built then REMOVED: `MediaMetadataRetriever` returns uniform ~1.5 KB black JPEGs for DV/HDR content on Qualcomm (`c2.qti.dv.decoder`, 4K DV file), so previews were blank exactly where it matters; SDR H.264 extracted fine. Do not re-add MMR-based thumbnails for HDR content.
-- **Subtitle appearance — YouTube-style (2026-10-23)** (+ Google Fonts, 2026-10-24): reachable from the player CC sheet → "Subtitle settings" (`lib/screens/subtitle_settings_screen.dart`). Controls: font family (default/sans serif/serif/monospace/casual/cursive **or any Google Fonts family**), size 50–200%, text color + opacity, background color (none/black/white/navy/grey) + opacity, edge style (none/outline/drop shadow/raised/depressed), vertical position and delay ±30 s. Persisted as `dreamplayer.subStyle` JSON; older payloads that only carried the `outline` boolean are migrated into `edge`. `subtitleTextStyle` (`lib/utils/subtitle_text_style.dart`) is the ONE style builder shared by the live preview and the MPV text overlay, so they cannot drift. Android `ExoPlayerView.applySubtitleStyle` maps the options to `CaptionStyleCompat` (`EDGE_TYPE_*` + a `Typeface` per family) and still uses `setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * multiplier)` (**the API is `setFractionalTextSize(float)`, not `…WithViewHeight`**) plus `setBottomPaddingFraction(vPos/255)`. iOS `SubtitleOverlayView` renders an attributed cue label: family-mapped `UIFont`, per-line background with the opacity slider applied, a real glyph stroke for outline, `NSShadow` for the other edges. MPV receives `sub-font`, `sub-color`, `sub-back-color`, `sub-outline-size` and `sub-shadow-offset` (raised/depressed are one-pixel directional shadows; mpv has no bevel) and its overlay uses the same Flutter builder. **Text opacity is folded into the ARGB** sent to every renderer — there is no separate native opacity parameter. Preview height is width-derived and capped imperatively (**never `.clamp(a,b)` with computed bounds — landscape made min > max → `ArgumentError: 96.0`; regression-tested at 800×360**).
+- **Jellyfin media-server sync (Infuse-style, 2026-11-04)**: Jellyfin is no longer browse-only for state - resume position and watched marks now live on the SERVER. `JellyfinItem` parses `UserData.Played`/`PlaybackPositionTicks`; `JellyfinClient` gained `reportCapabilities` (`POST /Sessions/Capabilities/Full`, once per server), `reportPlaybackStart/Progress/Stopped` (`/Sessions/Playing*` sharing one `PlaySessionId` per playback), and `setPlayed` (`POST`/`DELETE /Users/{userId}/PlayedItems/{itemId}`). The player pulls the server resume position on open (further-along wins over local), reports start on open + progress inside `_saveResume`, stopped on dispose, and marks played on ended; the Jellyfin browser shows `local || server` watched and pushes toggles to the server, and row progress bars prefer the server position (`ResumeProgressHelper.progressFor(serverPositionMs:)`). All sync calls are best-effort try/catch - a server being down must never break playback. Tests: `test/jellyfin_test.dart` "media-server sync" group.
+- **User-added folder library** (`lib/services/library_folders.dart`, `lib/services/folder_scanner.dart`, `lib/widgets/folder_card.dart`, `lib/screens/folder_screen.dart`): the home "Your library" section lists **only folders the user explicitly adds** (home **+** → "Add folder to library") - nothing is auto-scanned. Adding a TV-show folder kicks off a TMDB lookup (`TmdService.resolveFolder`, TV-biased via `TmdApi.bestForQuery`); the card shows the show's poster + real title + TV/Movie badge. **SMB/WebDAV folders can also be bookmarked straight from their browser** AppBar (`LibraryFolderSource.smb|webdav` + per-source badge); **Jellyfin/FTP/DLNA are browse-only** (2026-09, `home_screen._loadLibraryFolders` purges legacy `jellyfin|ftp|upnp` bookmarks) and are accessed via `+` → Jellyfin/FTP/DLNA. Tapping a folder opens its contents (subfolders navigable; episodes listed with parsed `SxxExx` + size; local route via `TmdDetailsScreen`, network sources open `FolderScreen` directly), and tapping an episode goes to `TmdDetailsScreen` → player. Long-press a folder card to remove it from the library (files untouched). **Deep recursive scan (2026-09)**: `FolderScanner` (`lib/services/folder_scanner.dart`) scans up to 5 levels deep (local/SMB/WebDAV for Home bookmarks; Jellyfin/FTP/UPnP still support listing when browsing). Leaf folders (videos, no subdirs) become single library entries; mixed containers (subdirs + loose files) expand into individual cards so files like `lanterns s01e05.mkv` aren't hidden behind a parent `TV Shows` card. Each season auto-expands into a separate card (`House Season02`, `House Season03` via non-strippable `Season02` tag) so the user can manually group them on Home. `LibraryFoldersStore.bulkAdd` deduplicates by `(source, networkPath)` in addition to `id`.
+- **Horizontal-swipe seek (2026-08-22)**: swipe left/right on the video scrubs **±90 s per screen width** (clamped to the file); a dark pill shows target timestamp + signed delta (green/orange); release commits if |Δ| ≥ 500 ms; skipped when `_isTv` (`_swipeGestureActive` keeps the pill icon stable through its 800 ms fade). **Time-only by design** - frame thumbnails were built then REMOVED: `MediaMetadataRetriever` returns uniform ~1.5 KB black JPEGs for DV/HDR content on Qualcomm (`c2.qti.dv.decoder`, 4K DV file), so previews were blank exactly where it matters; SDR H.264 extracted fine. Do not re-add MMR-based thumbnails for HDR content.
+- **Subtitle appearance - YouTube-style (2026-10-23)** (+ Google Fonts, 2026-10-24): reachable from the player CC sheet → "Subtitle settings" (`lib/screens/subtitle_settings_screen.dart`). Controls: font family (default/sans serif/serif/monospace/casual/cursive **or any Google Fonts family**), size 50–200%, text color + opacity, background color (none/black/white/navy/grey) + opacity, edge style (none/outline/drop shadow/raised/depressed), vertical position and delay ±30 s. Persisted as `dreamplayer.subStyle` JSON; older payloads that only carried the `outline` boolean are migrated into `edge`. `subtitleTextStyle` (`lib/utils/subtitle_text_style.dart`) is the ONE style builder shared by the live preview and the MPV text overlay, so they cannot drift. Android `ExoPlayerView.applySubtitleStyle` maps the options to `CaptionStyleCompat` (`EDGE_TYPE_*` + a `Typeface` per family) and still uses `setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * multiplier)` (**the API is `setFractionalTextSize(float)`, not `…WithViewHeight`**) plus `setBottomPaddingFraction(vPos/255)`. iOS `SubtitleOverlayView` renders an attributed cue label: family-mapped `UIFont`, per-line background with the opacity slider applied, a real glyph stroke for outline, `NSShadow` for the other edges. MPV receives `sub-font`, `sub-color`, `sub-back-color`, `sub-outline-size` and `sub-shadow-offset` (raised/depressed are one-pixel directional shadows; mpv has no bevel) and its overlay uses the same Flutter builder. **Text opacity is folded into the ARGB** sent to every renderer - there is no separate native opacity parameter. Preview height is width-derived and capped imperatively (**never `.clamp(a,b)` with computed bounds - landscape made min > max → `ArgumentError: 96.0`; regression-tested at 800×360**).
 
-  **Fonts (2026-10-24).** The font row opens a sheet with the six built-ins, nine families bundled in the app (offline), and the full Google Fonts catalog (searchable, every row previewed in its own typeface). A Google family is stored as `SubtitleStyle.googleFont` (the enum stays as the fallback), so clearing the Google choice restores the built-in. Dart resolves it to a **TTF path** (`lib/services/subtitle_fonts.dart` → `<app support>/subtitle_fonts/<family>.ttf`) because Media3, AVFoundation and libass cannot look a Google name up: bundled assets are copied out of the asset bundle, otherwise `google_fonts`' own download cache is reused, otherwise the download is triggered and awaited briefly. `setSubtitleStyle` passes `fontPath`; Android uses `Typeface.createFromFile`, iOS registers the file with CoreText (`CTFontManagerRegisterFontsForURL` + `CTFontCopyPostScriptName` → `UIFont(name:)`), MPV gets `sub-fonts-dir` + `sub-font`. A missing/corrupt file falls back to the built-in family map — never break playback for a font.
+  **Fonts (2026-10-24).** The font row opens a sheet with the six built-ins, nine families bundled in the app (offline), and the full Google Fonts catalog (searchable, every row previewed in its own typeface). A Google family is stored as `SubtitleStyle.googleFont` (the enum stays as the fallback), so clearing the Google choice restores the built-in. Dart resolves it to a **TTF path** (`lib/services/subtitle_fonts.dart` → `<app support>/subtitle_fonts/<family>.ttf`) because Media3, AVFoundation and libass cannot look a Google name up: bundled assets are copied out of the asset bundle, otherwise `google_fonts`' own download cache is reused, otherwise the download is triggered and awaited briefly. `setSubtitleStyle` passes `fontPath`; Android uses `Typeface.createFromFile`, iOS registers the file with CoreText (`CTFontManagerRegisterFontsForURL` + `CTFontCopyPostScriptName` → `UIFont(name:)`), MPV gets `sub-fonts-dir` + `sub-font`. A missing/corrupt file falls back to the built-in family map - never break playback for a font.
 
-  **Online families vs bundled (2026-10-24) — the second iOS silent fallback.**
+  **Online families vs bundled (2026-10-24) - the second iOS silent fallback.**
   Bundled families applied in the player, families fetched at runtime did not.
   `google_fonts` caches a download as `<Family>_regular_<sha256>.ttf` in the app
-  support root, and the resolver found it by filename — via
+  support root, and the resolver found it by filename - via
   `entity.uri.pathSegments`, which **percent-encodes spaces**, so every
   multi-word family (`Playfair Display`, `Fira Code`, …) never matched; and the
   copied `<stem>.ttf` was trusted on existence alone, so one wrong or truncated
@@ -1840,7 +1840,7 @@ video drew at 2x and covered half the picture. It is now `no`.
   (c) deletes a `<stem>.ttf` whose own name table disagrees, and (d) keeps a
   partial directory listing instead of reading a mid-list exception as "cache
   empty". `fontNameMatches` allows only **style words** after the family
-  (`Roboto Regular`, `OpenSans-Bold`) — a plain prefix test lets `Roboto Mono`
+  (`Roboto Regular`, `OpenSans-Bold`) - a plain prefix test lets `Roboto Mono`
   satisfy `Roboto`, and since the winner is copied to `<stem>.ttf` the wrong
   font would stick permanently. Verified locally against the bundled TTFs
   (`test/ttf_names_test.dart`); the iOS outcome is confirmed from
@@ -1858,49 +1858,49 @@ video drew at 2x and covered half the picture. It is now `no`.
   `test/subtitle_gate_test.dart` pins both facts: one entry point, a
   short-circuiting gate before the push, `_gate` reading
   `Entitlements.instance.isEntitled` / `effectivePaywallEnabled`. Do not
-  double-gate the font row itself — the screen-level gate is the shape, and
+  double-gate the font row itself - the screen-level gate is the shape, and
   Android answers `advanced = true` inside `checkGate`. Applying a *saved*
   style is deliberately ungated: a lapsed subscriber must not lose subtitles
   mid-playback.
 
   **Two traps, both silent:**
-  - **iOS never used a font file, at all — `UIFont(name:)` wants the PostScript name.** `registerFontFile` asked CoreText for `kCTFontNameAttribute`, which is the **full** name (`"Poppins Regular"`), and `UIFont(name:)` is nil for it, so `styledFont` fell straight through to the built-in map. The preview looked correct because Flutter renders Google families itself; the video used the system font. These TTFs have `full = "<Family> Regular"` (space) and `postscript = "<Family>-Regular"` (hyphen, spaces removed in multi-word names: `OpenSans-Regular`), so the fix is `kCTFontPostScriptNameAttribute` **first**, then full name, then family name, accepting only a candidate that actually resolves via `UIFont(name:)`. `SBMLog.log("subtitle font: …")` in `smb_debug.log` reports which name won and what was ignored.
+  - **iOS never used a font file, at all - `UIFont(name:)` wants the PostScript name.** `registerFontFile` asked CoreText for `kCTFontNameAttribute`, which is the **full** name (`"Poppins Regular"`), and `UIFont(name:)` is nil for it, so `styledFont` fell straight through to the built-in map. The preview looked correct because Flutter renders Google families itself; the video used the system font. These TTFs have `full = "<Family> Regular"` (space) and `postscript = "<Family>-Regular"` (hyphen, spaces removed in multi-word names: `OpenSans-Regular`), so the fix is `kCTFontPostScriptNameAttribute` **first**, then full name, then family name, accepting only a candidate that actually resolves via `UIFont(name:)`. `SBMLog.log("subtitle font: …")` in `smb_debug.log` reports which name won and what was ignored.
   - **iOS preview ignored the font.** `subtitleFontFamily` returned the CSS aliases (`sans-serif`, `casual`, …), which Android resolves and iOS does not, so the preview stayed in the system font while the native overlay (real UIFonts) changed. It now maps to Apple family names on iOS/macOS. Keep those two mappings in step with `SubtitleOverlayView.styledFont`.
   - **Bundled filenames must be `<Family>-Regular.ttf` verbatim, spaces included** (`Playfair Display-Regular.ttf`, `Fira Code-Regular.ttf`). `google_fonts` matches an asset by comparing the filename to `toApiFilenamePrefix()`, which keeps the display name intact; a tidied `FiraCode-Regular.ttf` is silently not recognised and the font downloads over the network instead. `test/subtitle_fonts_test.dart` pins the exact name and that every declared asset loads.
-- **Player gesture controls** (2026-08): vertical swipe on the **left half** adjusts **brightness** (`WindowManager.LayoutParams.screenBrightness` on Android, `UIScreen.main.brightness` on iOS — both per-app, revert on player close); vertical swipe on the **right half** adjusts **volume** (`AudioManager.setStreamVolume(STREAM_MUSIC)` system-wide on Android, `MPVolumeView` hidden slider on iOS). A centered dark feedback pill (icon + percentage + progress bar) fades ~0.8 s after gesture ends. Controls hide during the gesture. Wired through the `PlaybackController` interface (`setBrightness`/`getBrightness`/`setSystemVolume`/`getSystemVolume` on both `ExoPlayerView.kt` and `AvPlayerView.swift`). **Settings toggle**: "Swipe gestures" switch in Settings → Player section, default on, hidden on TV via `isTvMode()`.
- - **Press-and-hold 2x (issue #57, 0.5.5+71, user-verified on-device 2026-11-02)**: a `LongPressGestureRecognizer` (`duration: 300 ms` — GestureDetector's fixed 500 ms is too slow next to the 260 ms tap window) on the full-screen catcher (`RawGestureDetector`, player_screen.dart ~4523). Hold → `_applyHoldRate(_speedHoldRate = 2.0)` on the live engine (mpv `setRate` / Exo `setSpeed`, clamped 0.25–4.0 in `exo_player.dart`); release → `_applyHoldRate(_playbackSpeed)`. Session-only: never touches `PlaybackSpeedStore`/`_playbackSpeed`, reset in `_openCurrent`. Guards: TV / pip / touch-locked / not-ready / paused, and `await _gate()` first — a hold is a non-1x speed change, so on iOS it hits the #19 paywall gate (Android always free via `Entitlements.advanced`). Badge: top-centre "2x »" pill (`IgnorePointer` + `AnimatedOpacity`) inside the video Stack. Pinned by `test/hold_speed_test.dart` (7 source-reading tests; the player screen needs a live platform view so it cannot be pumped).
-- **Continue watching** (`lib/services/continue_watching.dart`): the home library grid lists every video with a saved resume position, most recent first, with a progress bar + "Continue from m:ss" subtitle. `ResumeStore` keeps the playhead (position bookmarked every ~5 s, on pause/background/dispose, cleared at the end); `ContinueWatchingStore` (shared_preferences JSON key `dreamplayer.continueWatching`) mirrors it into lightweight `VideoItem` JSON (id/title/path/uri/resumeKey/duration/sizeBytes) for positions ≥ 10 s. Long-press a card to drop it from it. **Source badge**: each card shows a bottom-left badge naming where the video plays from — `VideoItem.playbackSource` (enum `PlaybackSource` in `video_item.dart`) maps the `resumeKey`/`uri`/`path` to WebDAV (`webdav_` key), CX SMB (`cx:`), Files / SMB (`folderbookmark:` iOS pick-a-folder), legacy SMB (`smb:` or `smb_` prefix), Files (`content://`, `file://`, plain path), or Network (other http/https); `video_card.dart` renders it with a per-source color. **Badge fix (2026-08)**: `playbackSource` getter now accepts both `smb:` and `smb_` prefixes for backward compatibility with stored data; new SMB entries use `smb:` (colon) consistently. **No thumbnails**: ~~cards show the gradient/play-icon placeholder only~~ superseded 2026-08-26 — cards now show the file's **embedded cover art** via `ThumbnailStore` (metadata-only read; see "Embedded cover-art thumbnails" in Implemented features). Frame-extraction thumbnails stay removed (`getFrameAtTime`/`AVAssetImageGenerator` return black frames for DV/HDR — do not re-add). The player `open()` re-grants the iOS security-scoped bookmark before playback.
+- **Player gesture controls** (2026-08): vertical swipe on the **left half** adjusts **brightness** (`WindowManager.LayoutParams.screenBrightness` on Android, `UIScreen.main.brightness` on iOS - both per-app, revert on player close); vertical swipe on the **right half** adjusts **volume** (`AudioManager.setStreamVolume(STREAM_MUSIC)` system-wide on Android, `MPVolumeView` hidden slider on iOS). A centered dark feedback pill (icon + percentage + progress bar) fades ~0.8 s after gesture ends. Controls hide during the gesture. Wired through the `PlaybackController` interface (`setBrightness`/`getBrightness`/`setSystemVolume`/`getSystemVolume` on both `ExoPlayerView.kt` and `AvPlayerView.swift`). **Settings toggle**: "Swipe gestures" switch in Settings → Player section, default on, hidden on TV via `isTvMode()`.
+ - **Press-and-hold 2x (issue #57, 0.5.5+71, user-verified on-device 2026-11-02)**: a `LongPressGestureRecognizer` (`duration: 300 ms` - GestureDetector's fixed 500 ms is too slow next to the 260 ms tap window) on the full-screen catcher (`RawGestureDetector`, player_screen.dart ~4523). Hold → `_applyHoldRate(_speedHoldRate = 2.0)` on the live engine (mpv `setRate` / Exo `setSpeed`, clamped 0.25–4.0 in `exo_player.dart`); release → `_applyHoldRate(_playbackSpeed)`. Session-only: never touches `PlaybackSpeedStore`/`_playbackSpeed`, reset in `_openCurrent`. Guards: TV / pip / touch-locked / not-ready / paused, and `await _gate()` first - a hold is a non-1x speed change, so on iOS it hits the #19 paywall gate (Android always free via `Entitlements.advanced`). Badge: top-centre "2x »" pill (`IgnorePointer` + `AnimatedOpacity`) inside the video Stack. Pinned by `test/hold_speed_test.dart` (7 source-reading tests; the player screen needs a live platform view so it cannot be pumped).
+- **Continue watching** (`lib/services/continue_watching.dart`): the home library grid lists every video with a saved resume position, most recent first, with a progress bar + "Continue from m:ss" subtitle. `ResumeStore` keeps the playhead (position bookmarked every ~5 s, on pause/background/dispose, cleared at the end); `ContinueWatchingStore` (shared_preferences JSON key `dreamplayer.continueWatching`) mirrors it into lightweight `VideoItem` JSON (id/title/path/uri/resumeKey/duration/sizeBytes) for positions ≥ 10 s. Long-press a card to drop it from it. **Source badge**: each card shows a bottom-left badge naming where the video plays from - `VideoItem.playbackSource` (enum `PlaybackSource` in `video_item.dart`) maps the `resumeKey`/`uri`/`path` to WebDAV (`webdav_` key), CX SMB (`cx:`), Files / SMB (`folderbookmark:` iOS pick-a-folder), legacy SMB (`smb:` or `smb_` prefix), Files (`content://`, `file://`, plain path), or Network (other http/https); `video_card.dart` renders it with a per-source color. **Badge fix (2026-08)**: `playbackSource` getter now accepts both `smb:` and `smb_` prefixes for backward compatibility with stored data; new SMB entries use `smb:` (colon) consistently. **No thumbnails**: ~~cards show the gradient/play-icon placeholder only~~ superseded 2026-08-26 - cards now show the file's **embedded cover art** via `ThumbnailStore` (metadata-only read; see "Embedded cover-art thumbnails" in Implemented features). Frame-extraction thumbnails stay removed (`getFrameAtTime`/`AVAssetImageGenerator` return black frames for DV/HDR - do not re-add). The player `open()` re-grants the iOS security-scoped bookmark before playback.
 - **Responsive grid** (`lib/screens/home_screen.dart`): column count and card height computed from screen width; card text is `Expanded`/`Flexible`. Text scaling clamped to 1.3x app-wide.
 - **Native refresh rate** (`lib/services/display_refresh_rate.dart`): calls `FlutterDisplayMode.setHighRefreshRate()` on Android at startup.
 - **Resume playback** (`lib/services/resume_store.dart`, shared_preferences): a video stopped mid-way resumes from where it left off on the next open. Position is bookmarked every ~5 s while playing, on pause, on app-background, and on player dispose; cleared when the video plays to the end. `ExoPlayerController.open` gained `startPositionMs` (native: iOS passes it as `startPosition` to `engine.load`, Android seeks before `play()`). Resume keys are the file path / content URI by default; sources whose playable URL rotates between sessions (iPad SMB token URLs) pass a stable `VideoItem.resumeKey` (`smb:<serverId>/<share>/<path>`). Skips trivial positions (<10 s) and "basically finished" ones (within 5 s of a known duration).
-  - **Lock/unlock survival (2026-08)**: Android destroys the video surface on lock and may recreate the whole platform view on unlock, leaving a fresh ExoPlayer reset to IDLE while the UI still shows the old playing state. The player screen pauses on background (saving the position) and, on resume, queries the native player's live state via a new **`getState`** channel method (`dreamplayer/exo_<id>`): if the media was lost (IDLE) it reopens at the saved resume position, otherwise it just continues playing. `getState` is implemented on both Android (`ExoPlayerView.kt`, `state`/`positionMs`/`durationMs`) and iOS (`AvPlayerView.swift`) behind the shared controller contract. Related fix: a launcher tap after unlock (singleTop `MainActivity` MAIN intent via `onNewIntent`) must not push an empty player — non-VIDEO intents return null and are ignored in Dart (`open_intent.dart`) and skipped natively.
+  - **Lock/unlock survival (2026-08)**: Android destroys the video surface on lock and may recreate the whole platform view on unlock, leaving a fresh ExoPlayer reset to IDLE while the UI still shows the old playing state. The player screen pauses on background (saving the position) and, on resume, queries the native player's live state via a new **`getState`** channel method (`dreamplayer/exo_<id>`): if the media was lost (IDLE) it reopens at the saved resume position, otherwise it just continues playing. `getState` is implemented on both Android (`ExoPlayerView.kt`, `state`/`positionMs`/`durationMs`) and iOS (`AvPlayerView.swift`) behind the shared controller contract. Related fix: a launcher tap after unlock (singleTop `MainActivity` MAIN intent via `onNewIntent`) must not push an empty player - non-VIDEO intents return null and are ignored in Dart (`open_intent.dart`) and skipped natively.
   - **Stable resume keys for network/file-provider sources (2026-08)**:
-    - **iOS bookmarked folders** (FileBrowser.swift): every video listed under a bookmarked-folder root (iCloud Drive / On My iPad / SMB via Files "Connect to Server") carries `resumeKey: folderbookmark:<bookmarkId>:<path-relative-to-CURRENT-mount>`. The relative part is computed against the re-resolved bookmark root each listing, so the key survives the provider remounting the share at a different path between launches. Continue-watching card taps re-grant the folder's security-scoped access via a new `resolvePath` channel method (`dreamplayer/files`) — it falls back to the per-file imported map, then matches any folder bookmark whose resolved URL is a path prefix of the file. (`resolveImportedPath` alone never matched folder bookmarks, so a card tap after relaunch could fail with a permission error.) Android's `resolvePath` is a no-op `true`.
-    - **Android CX Explorer SMB proxy** (open_intent.dart `_stableResumeKey`): CX hands SMB videos to "Open with" as `http://127.0.0.1:<port>/SMB/<server>/<share>/<file>`; the port rotates every CX session, so `OpenIntent.toVideoItem()` keys on the stable path portion only (`resumeKey: cx:<path>`). Reopening the same file via CX after the port changed resumes from the saved position. The card's stored `uri` still holds the session's URL, so tapping it replays only while CX's proxy port is still alive (post-CX-restart it shows the playback error — re-open via CX to continue).
+    - **iOS bookmarked folders** (FileBrowser.swift): every video listed under a bookmarked-folder root (iCloud Drive / On My iPad / SMB via Files "Connect to Server") carries `resumeKey: folderbookmark:<bookmarkId>:<path-relative-to-CURRENT-mount>`. The relative part is computed against the re-resolved bookmark root each listing, so the key survives the provider remounting the share at a different path between launches. Continue-watching card taps re-grant the folder's security-scoped access via a new `resolvePath` channel method (`dreamplayer/files`) - it falls back to the per-file imported map, then matches any folder bookmark whose resolved URL is a path prefix of the file. (`resolveImportedPath` alone never matched folder bookmarks, so a card tap after relaunch could fail with a permission error.) Android's `resolvePath` is a no-op `true`.
+    - **Android CX Explorer SMB proxy** (open_intent.dart `_stableResumeKey`): CX hands SMB videos to "Open with" as `http://127.0.0.1:<port>/SMB/<server>/<share>/<file>`; the port rotates every CX session, so `OpenIntent.toVideoItem()` keys on the stable path portion only (`resumeKey: cx:<path>`). Reopening the same file via CX after the port changed resumes from the saved position. The card's stored `uri` still holds the session's URL, so tapping it replays only while CX's proxy port is still alive (post-CX-restart it shows the playback error - re-open via CX to continue).
 
 - **In-app SMB / LAN playback: BOTH platforms (0.5.1)**. The Android in-app SMB server browser (`smb_screen.dart`, `smb_client.dart`, `SMBClient.kt`, `SmbDataSource.kt`, channel `dreamplayer/smb`, jcifs-ng) is unchanged. iOS, withdrawn in 2026-08 (AMSMB2 was slow, would not play every file, and an audio-track switch could crash), is back: browsing on pure-Swift `SMBClient`, **discovery and playback on libsmb2**, with playback fed to AetherEngine through a synchronous `smb2_pread` `IOReader`. See "iOS in-app SMB on libsmb2" in the roadmap section for the full architecture, the path/resume-key shapes, and the resume + audio-track interaction. `BufferedSMBReader.swift` stays for WebDAV/FTP read-ahead and the `AetherEngineSMB` SPM product stays for WebDAV's `ByteRangeSource`.
   **Android lessons retained**: jcifs-ng's streaming read size is bound by three interlocking properties (`snd_buf_size`/`rcv_buf_size`/`transaction_buf_size`, defaults 65535); raising only the first two did nothing, and raising `transaction_buf_size` to 8 MiB made the NAS reject reads with `STATUS_INVALID_PARAMETER`. Do not raise buffers past the NAS's negotiated `MaxReadSize`.
 
-### Android SMB on libsmb2 (2026-10-27) — the read path moved off jcifs-ng
+### Android SMB on libsmb2 (2026-10-27) - the read path moved off jcifs-ng
 
 **Browsing still uses jcifs-ng; the READ path does not.** `SmbDataSource` (Media3) and
 `SmbHttpProxy` (the MPV loopback bridge) read through **libsmb2** over a JNI bridge
 (`android/app/src/main/cpp/smb2_jni.c` → `Smb2Native` → `LibSmb2Session`/`LibSmb2File` →
 `LibSmb2RandomAccessFile`). The vendored C sources are the same ones iOS uses
 (`ios/Runner/libsmb2/`), compiled for Android by `android/app/src/main/cpp/CMakeLists.txt`
-— no prebuilt binary is committed. `jcifs-ng` is now only the **directory browser** and
+- no prebuilt binary is committed. `jcifs-ng` is now only the **directory browser** and
 the small **sidecar fetch** path.
 
 **Four traps, each of which shipped a broken build. Read this before touching the read path.**
 
 1. **A second `smb2_open` on one session LEAKS THE WHOLE SMB SESSION.** libsmb2 refuses
    `TREE_DISCONNECT` with `STATUS_BUSY` while a file handle is still open on the tree, and
-   its `disconnect_cb_1` returns early in that case — **the socket is never closed**. The
+   its `disconnect_cb_1` returns early in that case - **the socket is never closed**. The
    TCP connection and the server-side session then live for the rest of the process, and
    the NAS's per-user session limit is small: after a handful of leaks every new connect
    fails and playback dies with *"one request served, then nothing"*. That was exactly the
    MPV symptom.    `LibSmb2RandomAccessFile` therefore takes the ALREADY-OPENED
-   `LibSmb2File` (`LibSmb2RandomAccessFile(session, path, file)`) — **never open the file
+   `LibSmb2File` (`LibSmb2RandomAccessFile(session, path, file)`) - **never open the file
    twice on one session**. `Smb2Native.closeSession` also force-closes the socket itself
    via `smb2_get_fd()` when libsmb2 left it open, so a leak can never outlive one session.
    That force-close is a fallback, not a parallel path: on the success path libsmb2 closes
@@ -1911,14 +1911,14 @@ the small **sidecar fetch** path.
 2. **libsmb2 caps EVERY read at the negotiated `MaxReadSize`, and returns a SHORT read.**
    `smb2_pread_async` truncates `count` to `smb2->max_read_size` and issues **one** READ;
    `smb2_pread` does not loop. Asking for 4 MiB when the server allows 64 KiB returns
-   **64 KiB — not an error**. A caller that assumes "I asked for N, I got N" silently
+   **64 KiB - not an error**. A caller that assumes "I asked for N, I got N" silently
    starves. `Smb2Native.maxReadSize(file)` exposes the negotiated value (the iOS wrapper
    `LibSMB2.m` uses the same accessor and reads in `maxReadSize` chunks).
 
 3. **jcifs-ng's `transaction_buf_size` must stay ≤ the server's `MaxReadSize`.** 8 MiB was
    rejected outright by this NAS with `STATUS_INVALID_PARAMETER`; 1 MiB was accepted. It is
    now left at the **default 65535** because jcifs only browses directories and fetches
-   small sidecars — the read path no longer needs it, and the default can never provoke a
+   small sidecars - the read path no longer needs it, and the default can never provoke a
    rejected read. (The old MPV proxy also had an **infinite handle-swap loop**: on a read
    error it opened a fresh handle and re-read the same offset forever, never writing a
    byte to the socket. That loop is gone.)
@@ -1926,26 +1926,26 @@ the small **sidecar fetch** path.
 4. **The MPV proxy MUST read ahead, or mpv sees every SMB round-trip as a stream gap.**
    The old proxy read from SMB and wrote to the socket in the same loop, so the NAS sat on
    the socket's critical path and mpv reported *buffering*. `SmbHttpProxy` now streams out
-   of **`SmbDataSource`** — the same ring buffer + parallel prefetch threads Media3 uses —
+   of **`SmbDataSource`** - the same ring buffer + parallel prefetch threads Media3 uses -
    so the socket is fed from memory while the NAS is read ahead, concurrently. The proxy's
    per-connection budget is a **cap** (`RING_CAP_BYTES` 24 MiB, `PREFETCH_THREADS` 3), so
    the heap-aware `BufferTuning` still lowers it on the Fire TV Stick's 192 MB heap.
 
 **Measured on the OnePlus CPH2573 (Wi-Fi, Samba server on the LAN, 2026-10-27):** each of
 the 6 prefetch threads sustains ~4.3 MB/s (a single 4 MiB READ takes ~900 ms), so the
-aggregate is ~26 MB/s — far above any realistic 4K bitrate. Both engines play without
+aggregate is ~26 MB/s - far above any realistic 4K bitrate. Both engines play without
 buffering; **user-verified**.
 
 **Also worth knowing:** `SmbDataSource.openSmb(serverId, share, path, position, length)` is
 a public entry point that skips the `smb://` URI round-trip (the URI would have to
 percent-encode the path and `Uri.pathSegments` drops empty segments). The MPV proxy uses it
-directly. The chapter probe for REMOTE sources is deferred to `STATE_READY` — running it
+directly. The chapter probe for REMOTE sources is deferred to `STATE_READY` - running it
 during `open()` raced the ring fill and opened a second concurrent SMB session.
 
 - **Custom subtitle font from device + Media3 picture controls + picture profiles (2026-11-14, from the iOS competitive gap analysis and a user request)**: three user-facing additions, all cross-platform in the Dart layer:
-  - **Subtitle font picker from device storage** — the subtitle font sheet gained a "From device…" row (`_SubtitleFontSheet` in `subtitle_settings_screen.dart`). `FileBrowserService.pickFontFile()` opens the system picker (Android SAF `ACTION_OPEN_DOCUMENT` with font MIME extras + `*/*` fallback, extension-checked in `FileBrowser.onFontPicked`; iOS `UIDocumentPickerViewController` with `.font`/ttf/otf/ttc/woff UTIs — new `PickerMode.font` in `FileBrowser.swift`). `copyFontFile {uri, destPath}` copies the picked font into `<app support>/subtitle_fonts/custom_<stem>.<ext>` (Android `FileBrowser.copyFontFile`; iOS `FileBrowser.copyFontFile` with security-scoped access) so the renderers never depend on a live provider grant. `SubtitleFonts.registerCustomFont()` reads the TTF's own `name` table (`ttf_names.dart`) for the display family and rejects non-font files. `SubtitleStyle` gained `customFontPath`/`customFontName` (JSON-persisted, `fontLabel` prefers the custom name); `ExoPlayerController.setSubtitleStyle` resolves `customFontPath` FIRST (existence-checked via `customFontPathIfValid`) before falling back to `SubtitleFonts.resolvePath(googleFont)`; the MPV path (`_applyMpvSubtitleStyle`) sets `sub-font` to the custom family name with `sub-fonts-dir` pointing at the same dir. The settings preview registers the file with Flutter via `FontLoader` (`subtitle_text_style.dart`). The native channel args already carried `fontPath`, so Android `Typeface.createFromFile` / iOS CoreText needed NO changes.
-  - **Media3 (native engine) picture controls** — the tune button now shows for BOTH engines (was MPV-only). On Media3, brightness/contrast/saturation (−100…100, shared slider range with MPV) are applied as Media3 GL video effects: new `media3-effect:1.10.1` dependency (SAME version as the other media3 modules — `setVideoEffects` requires it on the classpath), `ExoPlayerView` builds `Brightness(b/100)` / `Contrast(c/100)` / `HslAdjustment.Builder().adjustSaturation(s)` and calls `ExoPlayer.setVideoEffects(list)`. **Two traps:** (1) `setVideoEffects` must be called at least once BEFORE `prepare()` to set up the effect pipeline, so the initial values ride in the `open` channel args (`pictureEffectsArmed`/`pictureBrightness`/…) and are applied just before `player.prepare()`; live slider changes use the `setPictureAdjustments` channel method (allowed after prepare). (2) The GL pipeline strips the native HDR/DV layer (DV RPU is lost; HDR gets tone-mapped), so the pipeline is **armed only for SDR content**: Dart sends `pictureEffectsArmed = Platform.isAndroid && video.hdrFormat == HdrFormat.sdr`, and the native side double-checks `enforcePictureEffectsHdrGate()` on `onVideoSizeChanged` (clears effects if the real format turns out HDR/DV) plus `applyPictureEffects()` re-checks `colorTransfer == ST2084/HLG || codecs.startsWith("dv")` on every call. Media3 `ColorInfo` has NO `isTransferHdr` property — use `colorInfo?.colorTransfer == C.COLOR_TRANSFER_ST2084 || == C.COLOR_TRANSFER_HLG` (the Android `android.graphics.ColorInfo.isTransferHdr` is a different class). Gamma stays MPV-only (no Media3 gamma effect). iOS answers `setPictureAdjustments` as a logged no-op (no engine filter hook on the AVPlayer path). When unavailable, `_Media3PictureControls` shows a note instead of sliders.
-  - **Picture profiles** — `PictureProfileStore` (`lib/services/picture_profile_store.dart`, pref `dreamplayer.pictureProfiles`, JSON list, max 24, case-insensitive replace/remove) shared by both panels via `_PictureProfilesSection` (apply on tap, delete via trash, "Save current as…" name dialog). Values are session-only per engine; profiles are what persist. Applying a profile routes to MPV when that engine is active, else Media3 (gamma ignored on Media3). Tests: `test/picture_profile_store_test.dart`, `test/custom_subtitle_font_test.dart`.
+  - **Subtitle font picker from device storage** - the subtitle font sheet gained a "From device…" row (`_SubtitleFontSheet` in `subtitle_settings_screen.dart`). `FileBrowserService.pickFontFile()` opens the system picker (Android SAF `ACTION_OPEN_DOCUMENT` with font MIME extras + `*/*` fallback, extension-checked in `FileBrowser.onFontPicked`; iOS `UIDocumentPickerViewController` with `.font`/ttf/otf/ttc/woff UTIs - new `PickerMode.font` in `FileBrowser.swift`). `copyFontFile {uri, destPath}` copies the picked font into `<app support>/subtitle_fonts/custom_<stem>.<ext>` (Android `FileBrowser.copyFontFile`; iOS `FileBrowser.copyFontFile` with security-scoped access) so the renderers never depend on a live provider grant. `SubtitleFonts.registerCustomFont()` reads the TTF's own `name` table (`ttf_names.dart`) for the display family and rejects non-font files. `SubtitleStyle` gained `customFontPath`/`customFontName` (JSON-persisted, `fontLabel` prefers the custom name); `ExoPlayerController.setSubtitleStyle` resolves `customFontPath` FIRST (existence-checked via `customFontPathIfValid`) before falling back to `SubtitleFonts.resolvePath(googleFont)`; the MPV path (`_applyMpvSubtitleStyle`) sets `sub-font` to the custom family name with `sub-fonts-dir` pointing at the same dir. The settings preview registers the file with Flutter via `FontLoader` (`subtitle_text_style.dart`). The native channel args already carried `fontPath`, so Android `Typeface.createFromFile` / iOS CoreText needed NO changes.
+  - **Media3 (native engine) picture controls** - the tune button now shows for BOTH engines (was MPV-only). On Media3, brightness/contrast/saturation (−100…100, shared slider range with MPV) are applied as Media3 GL video effects: new `media3-effect:1.10.1` dependency (SAME version as the other media3 modules - `setVideoEffects` requires it on the classpath), `ExoPlayerView` builds `Brightness(b/100)` / `Contrast(c/100)` / `HslAdjustment.Builder().adjustSaturation(s)` and calls `ExoPlayer.setVideoEffects(list)`. **Two traps:** (1) `setVideoEffects` must be called at least once BEFORE `prepare()` to set up the effect pipeline, so the initial values ride in the `open` channel args (`pictureEffectsArmed`/`pictureBrightness`/…) and are applied just before `player.prepare()`; live slider changes use the `setPictureAdjustments` channel method (allowed after prepare). (2) The GL pipeline strips the native HDR/DV layer (DV RPU is lost; HDR gets tone-mapped), so the pipeline is **armed only for SDR content**: Dart sends `pictureEffectsArmed = Platform.isAndroid && video.hdrFormat == HdrFormat.sdr`, and the native side double-checks `enforcePictureEffectsHdrGate()` on `onVideoSizeChanged` (clears effects if the real format turns out HDR/DV) plus `applyPictureEffects()` re-checks `colorTransfer == ST2084/HLG || codecs.startsWith("dv")` on every call. Media3 `ColorInfo` has NO `isTransferHdr` property - use `colorInfo?.colorTransfer == C.COLOR_TRANSFER_ST2084 || == C.COLOR_TRANSFER_HLG` (the Android `android.graphics.ColorInfo.isTransferHdr` is a different class). Gamma stays MPV-only (no Media3 gamma effect). iOS answers `setPictureAdjustments` as a logged no-op (no engine filter hook on the AVPlayer path). When unavailable, `_Media3PictureControls` shows a note instead of sliders.
+  - **Picture profiles** - `PictureProfileStore` (`lib/services/picture_profile_store.dart`, pref `dreamplayer.pictureProfiles`, JSON list, max 24, case-insensitive replace/remove) shared by both panels via `_PictureProfilesSection` (apply on tap, delete via trash, "Save current as…" name dialog). Values are session-only per engine; profiles are what persist. Applying a profile routes to MPV when that engine is active, else Media3 (gamma ignored on Media3). Tests: `test/picture_profile_store_test.dart`, `test/custom_subtitle_font_test.dart`.
 
 ## Roadmap
 
@@ -1953,74 +1953,74 @@ during `open()` raced the ring fill and opened a second concurrent SMB session.
 
 Play files from LAN/NAS SMB shares in-app, mirroring the existing file-browser pattern.
 
-**Status: in-app SMB on BOTH platforms (0.5.1, 2026-10).** Android is unchanged (`smb_screen.dart`, `smb_client.dart`, `SMBClient.kt`, `SmbDataSource.kt`, channel `dreamplayer/smb`, jcifs-ng). iOS, withdrawn in 2026-08, is back: browsing on `SMBClient`, discovery and playback on **libsmb2** — see "iOS in-app SMB on libsmb2" below. The "Network shares" home tile opens the in-app browser on both platforms again; the Files-app folder picker stays available as a fallback route.
+**Status: in-app SMB on BOTH platforms (0.5.1, 2026-10).** Android is unchanged (`smb_screen.dart`, `smb_client.dart`, `SMBClient.kt`, `SmbDataSource.kt`, channel `dreamplayer/smb`, jcifs-ng). iOS, withdrawn in 2026-08, is back: browsing on `SMBClient`, discovery and playback on **libsmb2** - see "iOS in-app SMB on libsmb2" below. The "Network shares" home tile opens the in-app browser on both platforms again; the Files-app folder picker stays available as a fallback route.
 
 
-### iOS in-app SMB on libsmb2 (2026-10, 0.5.1) — architecture
+### iOS in-app SMB on libsmb2 (2026-10, 0.5.1) - architecture
 
-**Everything is libsmb2** (LGPL 2.1), vendored under `ios/Runner/libsmb2/` and compiled by `ios/libsmb2_build.sh` (61 translation units → an arm64 `libsmb2.a` that `OTHER_LDFLAGS` links). `ios.yml` runs that compile as a step before the signed IPA, so a vendored-source break fails early and cheaply. It went in three steps: discovery first, then playback, then browsing — `SMBClient` was deleted at the last step and is now only a transitive dependency of `AetherEngineSMB`.
+**Everything is libsmb2** (LGPL 2.1), vendored under `ios/Runner/libsmb2/` and compiled by `ios/libsmb2_build.sh` (61 translation units → an arm64 `libsmb2.a` that `OTHER_LDFLAGS` links). `ios.yml` runs that compile as a step before the signed IPA, so a vendored-source break fails early and cheaply. It went in three steps: discovery first, then playback, then browsing - `SMBClient` was deleted at the last step and is now only a transitive dependency of `AetherEngineSMB`.
 
-**The LGPL object-code gate reads the ASSET path from the built IPA — and on iOS the asset path is NOT the Android one (build 60's second CI failure).** `tool/verify_ipa_libsmb2.py` checks that the IPA carries `assets/libsmb2-objects/libsmb2-objects.zip` (the LGPL-2.1 section 6(a) relinking material) and that the archive holds the licence, the relink instructions and the whole library's `.o` files. The first version hardcoded `Payload/Runner.app/flutter_assets/...` — **that is the ANDROID layout**. On iOS every Flutter asset lives in the App.framework bundle: `Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/...`. The gate therefore failed a perfectly correct IPA (the archive was there, 1.1 MB, at the framework path) and cost a full build cycle; it now matches on the `flutter_assets/assets/libsmb2-objects/` SUFFIX. **Lesson: check the built product, never the assumed layout** — the IPA artifact is downloadable from the failed run (`gh run download <id> -n DreamPlayer.ipa`) and the fix was made against that real bundle rather than a guess. The negative case still fails (an IPA without the archive exits 1), so the gate still bites.
+**The LGPL object-code gate reads the ASSET path from the built IPA - and on iOS the asset path is NOT the Android one (build 60's second CI failure).** `tool/verify_ipa_libsmb2.py` checks that the IPA carries `assets/libsmb2-objects/libsmb2-objects.zip` (the LGPL-2.1 section 6(a) relinking material) and that the archive holds the licence, the relink instructions and the whole library's `.o` files. The first version hardcoded `Payload/Runner.app/flutter_assets/...` - **that is the ANDROID layout**. On iOS every Flutter asset lives in the App.framework bundle: `Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/...`. The gate therefore failed a perfectly correct IPA (the archive was there, 1.1 MB, at the framework path) and cost a full build cycle; it now matches on the `flutter_assets/assets/libsmb2-objects/` SUFFIX. **Lesson: check the built product, never the assumed layout** - the IPA artifact is downloadable from the failed run (`gh run download <id> -n DreamPlayer.ipa`) and the fix was made against that real bundle rather than a guess. The negative case still fails (an IPA without the archive exits 1), so the gate still bites.
 
-**Browsing** (`LibSMB2Session.listDirectory` → `smb2_opendir`/`smb2_readdir`, directory bit from `smb2_attributes`), **share listing** (`listSharesForHost`) and **stat/byte fetches** (`fileSizeAtPath`, `readFileAtPath`) are all libsmb2 too. SMB2 has **no share-enumeration command**, but servers implement `NetrShareEnum` over the `IPC$` tree — `listSharesForHost` connects to `IPC$` and calls libsmb2's `smb2_share_enum_sync(ctx, SHARE_INFO_1)` (`LibSMB2.m` `enumerateSharesForHost`), the same SRVSVC route jcifs-ng uses on Android. **This was a real parity bug (0.5.2+46):** the old probe-only list could never show a share whose name was not in `COMMON_SHARES`, so a Samba share called "Linux Downloads" was missing on iOS while Android listed it. Enumeration filters non-disk trees (`type & 3 != 0`) and hidden names (`type & 0x80000000` or a trailing `$`); `addedShares` are still probed and merged because a hand-added hidden share is omitted by enumeration. If IPC$/RPC is denied the list falls back to the old common-name probe — never to an empty list — and `addShare` still persists the name it was given.
+**Browsing** (`LibSMB2Session.listDirectory` → `smb2_opendir`/`smb2_readdir`, directory bit from `smb2_attributes`), **share listing** (`listSharesForHost`) and **stat/byte fetches** (`fileSizeAtPath`, `readFileAtPath`) are all libsmb2 too. SMB2 has **no share-enumeration command**, but servers implement `NetrShareEnum` over the `IPC$` tree - `listSharesForHost` connects to `IPC$` and calls libsmb2's `smb2_share_enum_sync(ctx, SHARE_INFO_1)` (`LibSMB2.m` `enumerateSharesForHost`), the same SRVSVC route jcifs-ng uses on Android. **This was a real parity bug (0.5.2+46):** the old probe-only list could never show a share whose name was not in `COMMON_SHARES`, so a Samba share called "Linux Downloads" was missing on iOS while Android listed it. Enumeration filters non-disk trees (`type & 3 != 0`) and hidden names (`type & 0x80000000` or a trailing `$`); `addedShares` are still probed and merged because a hand-added hidden share is omitted by enumeration. If IPC$/RPC is denied the list falls back to the old common-name probe - never to an empty list - and `addShare` still persists the name it was given.
 
-- **Discovery (phase 1)** — `LibSMB2.probeHosts` does a `/24` TCP sweep (Network.framework, with a hard per-probe deadline inside `nwConnect`), then a real IPC$ negotiate per candidate to report the **dialect** and **server GUID**. This is what identifies SMB 3.1.1 on the NAS. Verified on-device.
-- **Playback (phase 2)** — `SMBSourceReader: IOReader` serves the engine's synchronous `read`/`seek` straight from `smb2_pread`. This is the whole point: `IOReader` is cursor-based and `pread` is positional/synchronous, so there is **no bridging, no `Task`, no semaphore and no ring buffer**. The previous SMBClient path adapted an *async* ranged source into that synchronous interface and the release half of that adaptation is what deadlocked. `makeIndependentReader` returns a second cursor over the same open handle — a positional re-probe just needs a fresh cursor, where the old ring reader had already drained itself to EOF.
-- **One session, not two.** An intermediate version opened a libsmb2 session *and* an SMBClient session to the same file and kept SMBClient as a fallback: two negotiates, two session setups, two tree connects and two file handles per play, with the SMBClient one never read from. It also spent a server-side open-session slot and held the credentials twice — and some NAS/Samba configs cap concurrent sessions per user, so it could genuinely fail the open. `SMBPlayback` is now libsmb2-only; `SMBByteRangeSource`/`SMBIOReader` stay in the tree unwired so reverting is a one-line change.
-- **`LibSMB2File` retains its `LibSMB2Session`.** The engine can hold a reader past the point where the bridge drops the session, and `smb2_destroy_context` frees the context — without the retain, the next read is a dangling pointer.
+- **Discovery (phase 1)** - `LibSMB2.probeHosts` does a `/24` TCP sweep (Network.framework, with a hard per-probe deadline inside `nwConnect`), then a real IPC$ negotiate per candidate to report the **dialect** and **server GUID**. This is what identifies SMB 3.1.1 on the NAS. Verified on-device.
+- **Playback (phase 2)** - `SMBSourceReader: IOReader` serves the engine's synchronous `read`/`seek` straight from `smb2_pread`. This is the whole point: `IOReader` is cursor-based and `pread` is positional/synchronous, so there is **no bridging, no `Task`, no semaphore and no ring buffer**. The previous SMBClient path adapted an *async* ranged source into that synchronous interface and the release half of that adaptation is what deadlocked. `makeIndependentReader` returns a second cursor over the same open handle - a positional re-probe just needs a fresh cursor, where the old ring reader had already drained itself to EOF.
+- **One session, not two.** An intermediate version opened a libsmb2 session *and* an SMBClient session to the same file and kept SMBClient as a fallback: two negotiates, two session setups, two tree connects and two file handles per play, with the SMBClient one never read from. It also spent a server-side open-session slot and held the credentials twice - and some NAS/Samba configs cap concurrent sessions per user, so it could genuinely fail the open. `SMBPlayback` is now libsmb2-only; `SMBByteRangeSource`/`SMBIOReader` stay in the tree unwired so reverting is a one-line change.
+- **`LibSMB2File` retains its `LibSMB2Session`.** The engine can hold a reader past the point where the bridge drops the session, and `smb2_destroy_context` frees the context - without the retain, the next read is a dangling pointer.
 - **Path shape (2026-10-02, the bug that blocked everything)**: an SMB2 CREATE `Name` is **relative to the tree connect**, and libsmb2 hands the string to the server untouched. Prepending a `\` made every open fail with `STATUS_INVALID_PARAMETER (0xc000000d)`. `openFile:` now strips leading/trailing `/`, converts the rest to backslashes, and adds **nothing**. The resolved share+path is echoed into the error message, because otherwise this failure is indistinguishable from a permissions problem.
-- **Resume-key shape (same day)**: `FolderScanner` wrote the SMB resume key as `smb:<serverId>/<path>` while the `videoUri` beside it included the share. The native side reads the **first segment as the share**, so `Video/Movies/…` silently reconnected to a share literally named `Video` — a wrong target that never reports itself as such. Both sites now include `networkShare`; `test/smb_resume_key_test.dart` pins that the key round-trips to the real share and that `path` and `videoUri` agree.
+- **Resume-key shape (same day)**: `FolderScanner` wrote the SMB resume key as `smb:<serverId>/<path>` while the `videoUri` beside it included the share. The native side reads the **first segment as the share**, so `Video/Movies/…` silently reconnected to a share literally named `Video` - a wrong target that never reports itself as such. Both sites now include `networkShare`; `test/smb_resume_key_test.dart` pins that the key round-trips to the real share and that `path` and `videoUri` agree.
 - **Status dot**: `checkServer` had been `result(false)` on iOS, so every saved server showed red. Now a non-blocking `connect(2)` + `poll` with a 1.5 s cap, matching Android's `isPortOpen`, replying on the main thread (a `FlutterResult` invoked off it deadlocks the method channel).
-- **Listing hygiene**: `print$` is filtered by the trailing `$` (the share-`type` filter misses it on some servers), and `.`/`..` are dropped **by name before** the directory exemption in `isJunk` — they arrive as directories, and `isDirectory || !isJunk` let them past the dot-prefix rule.
+- **Listing hygiene**: `print$` is filtered by the trailing `$` (the share-`type` filter misses it on some servers), and `.`/`..` are dropped **by name before** the directory exemption in `isJunk` - they arrive as directories, and `isDirectory || !isJunk` let them past the dot-prefix rule.
 
 #### iOS SMB browsing parity and small fixes (0.5.1+25)
 
-- **`addShare` now remembers the name.** It documented itself as remembering an unusual share name but only tested connectivity and threw the name away, so the affordance never worked on iOS. Names are stored per server in `ServerMeta.addedShares`, and `saveServer` carries them through so editing a server no longer wipes them (the dialog knows nothing about them). `addedShares` is **optional** so servers saved before the field existed still decode — a synthesized `Codable` ignores a declared default for a missing key, which is why a non-optional list would have silently dropped every saved server.
+- **`addShare` now remembers the name.** It documented itself as remembering an unusual share name but only tested connectivity and threw the name away, so the affordance never worked on iOS. Names are stored per server in `ServerMeta.addedShares`, and `saveServer` carries them through so editing a server no longer wipes them (the dialog knows nothing about them). `addedShares` is **optional** so servers saved before the field existed still decode - a synthesized `Codable` ignores a declared default for a missing key, which is why a non-optional list would have silently dropped every saved server.
 - **Status dot** is a non-blocking `connect(2)` + `poll` with a 1.5 s cap, matching Android's `isPortOpen`, replying on the main thread (a `FlutterResult` invoked off it deadlocks the method channel).
-- **Listing hygiene**: `print$` is filtered by the trailing `$` (the share-`type` filter misses it on some servers), and `.`/`..` are dropped **by name before** the directory exemption in `isJunk` — they arrive as directories, and `isDirectory || !isJunk` let them past the dot-prefix rule.
+- **Listing hygiene**: `print$` is filtered by the trailing `$` (the share-`type` filter misses it on some servers), and `.`/`..` are dropped **by name before** the directory exemption in `isJunk` - they arrive as directories, and `isDirectory || !isJunk` let them past the dot-prefix rule.
 - **Unnamed server shows its address**, matching Android's `if (name.isNullOrEmpty()) host else name`. Applied on write *and* on read in `allServers`, so servers saved before the fix stop showing a blank row without being deleted and re-entered. Whitespace-only names count as empty, which Android gets from `trim()`.
-- **Share-level refresh (0.5.2+45)**: the shares list reuses `_flatFileList`, and its pull-to-refresh called `_loadDirectory('')`. That sends `listDirectory` with an **empty share**, which libsmb2 cannot tree-connect, so iOS surfaced "Could not read that folder" (`smb_debug.log` showed `invalidateListingCache` then `listDirectory {share: "", path: ""}`). `_onRefresh` now branches: server list → `_loadServers`, shares level (`_share.isEmpty`) → `_openServer` (re-`listShares`), folder → `_loadDirectory`. The error state's Retry had the same shape — `_atBrowseRoot ? _loadServers : _goUp` at the shares level reloaded the **server** list while leaving `_browsing` set, so it never recovered; `_retry` re-runs the current level. Regression: `test/smb_share_refresh_test.dart` (mocked channel asserts refresh never calls `listDirectory` at the shares level).
+- **Share-level refresh (0.5.2+45)**: the shares list reuses `_flatFileList`, and its pull-to-refresh called `_loadDirectory('')`. That sends `listDirectory` with an **empty share**, which libsmb2 cannot tree-connect, so iOS surfaced "Could not read that folder" (`smb_debug.log` showed `invalidateListingCache` then `listDirectory {share: "", path: ""}`). `_onRefresh` now branches: server list → `_loadServers`, shares level (`_share.isEmpty`) → `_openServer` (re-`listShares`), folder → `_loadDirectory`. The error state's Retry had the same shape - `_atBrowseRoot ? _loadServers : _goUp` at the shares level reloaded the **server** list while leaving `_browsing` set, so it never recovered; `_retry` re-runs the current level. Regression: `test/smb_share_refresh_test.dart` (mocked channel asserts refresh never calls `listDirectory` at the shares level).
 
 #### iOS SMB resume + audio-track interaction (three bugs, one root pattern)
 
 All three were "the saved audio track silently destroyed the saved position", and all three were invisible without the device log. The root pattern: **`engine.load(startPosition:)` is ignored for network sources**, so a resume is applied asynchronously by `reassertPosition` (which sleeps ~900 ms before its first attempt). Anything that reloads the session inside that window reads a playhead of ~0.
 
-1. **Reload aimed at the stale playhead.** Dart's audio-track restore fires ~85 ms into the load, read `engine.currentTime` (~0), and called `reloadSession(at: 0.0)`. That ends in `reassertPosition(0.0)`, whose first line is `guard position > 2.0 else { return }` — so the corrective seek **never ran** and the session stayed pinned to 0. Fixed by carrying `pendingResumeSeconds` and preferring it while the playhead is still within 0.5 s of the start, so a stale target can never yank the viewer back mid-playback.
-2. **Armed too late — a no-op first attempt.** The target was initially set *after* `engine.load` returned, but that call does not return until the container is probed, and the restore arrives ~75 ms *into* that window. The fix was live only for a fraction of the window it needed to cover. Now armed immediately before the load.
-3. **The default track played before the saved one.** A custom source cannot switch tracks in place, so the saved track needs a reload — and a reloaded session autoplays the container default. The viewer heard ~300 ms of the wrong language first. The reload is now issued with `autoplay: false`; `reloadSession` pauses the new session synchronously right after `engine.load` returns and before any `await`, with a second pause once the engine is genuinely ready (a pause issued while still loading can be dropped). A first attempt gated the hold on `engine.state == .playing`, which can **never** be true there — the engine is in `.loading`, which is exactly what makes `atSessionStart` true — so it was a silent no-op. Mid-playback switches are deliberately untouched: they reload at the current position, so there is no gap to hide.
+1. **Reload aimed at the stale playhead.** Dart's audio-track restore fires ~85 ms into the load, read `engine.currentTime` (~0), and called `reloadSession(at: 0.0)`. That ends in `reassertPosition(0.0)`, whose first line is `guard position > 2.0 else { return }` - so the corrective seek **never ran** and the session stayed pinned to 0. Fixed by carrying `pendingResumeSeconds` and preferring it while the playhead is still within 0.5 s of the start, so a stale target can never yank the viewer back mid-playback.
+2. **Armed too late - a no-op first attempt.** The target was initially set *after* `engine.load` returned, but that call does not return until the container is probed, and the restore arrives ~75 ms *into* that window. The fix was live only for a fraction of the window it needed to cover. Now armed immediately before the load.
+3. **The default track played before the saved one.** A custom source cannot switch tracks in place, so the saved track needs a reload - and a reloaded session autoplays the container default. The viewer heard ~300 ms of the wrong language first. The reload is now issued with `autoplay: false`; `reloadSession` pauses the new session synchronously right after `engine.load` returns and before any `await`, with a second pause once the engine is genuinely ready (a pause issued while still loading can be dropped). A first attempt gated the hold on `engine.state == .playing`, which can **never** be true there - the engine is in `.loading`, which is exactly what makes `atSessionStart` true - so it was a silent no-op. Mid-playback switches are deliberately untouched: they reload at the current position, so there is no gap to hide.
 
-`AvPlayerView.pendingResumeSeconds`, `reloadSession(at:autoplay:)`, and `reloadSession: paused on load` are the three things to check if any of this regresses. **Lesson: assert new log lines appear in the device log before trusting a fix here — two of the three above looked correct on paper and did nothing.**
+`AvPlayerView.pendingResumeSeconds`, `reloadSession(at:autoplay:)`, and `reloadSession: paused on load` are the three things to check if any of this regresses. **Lesson: assert new log lines appear in the device log before trusting a fix here - two of the three above looked correct on paper and did nothing.**
 
-#### iOS lock/unlock on SMB — two more bugs, both invisible without the device log (2026-10-31)
+#### iOS lock/unlock on SMB - two more bugs, both invisible without the device log (2026-10-31)
 
 Reported on the iPad: play an SMB file → pause → lock → unlock. **First try: an error on screen. Second try: playback, but the audio had switched to the default/first track.** The `smb_debug.log` answered both in four lines:
 
 ```
 10:36:30.828 PM  reloadSession: start at 212.918s (smb=true) autoplay=true
-10:36:30.828 PM  buildFreshSource: SMB — new source on the live handle (5435827491 bytes, hint=mkv)
+10:36:30.828 PM  buildFreshSource: SMB - new source on the live handle (5435827491 bytes, hint=mkv)
 10:36:30.830 PM  engine error: smb=true: Failed to load: custom source probe failed
 ...
 10:37:09.953 PM  reloadSession: start at 227.305s (smb=true) autoplay=true      <- second try: SUCCEEDED
-10:37:09.953 PM  buildFreshSource: SMB — new source on the live handle (5435827491 bytes, hint=mkv)
+10:37:09.953 PM  buildFreshSource: SMB - new source on the live handle (5435827491 bytes, hint=mkv)
 10:37:09.953 PM  (no selectAudioTrack line follows)                            <- the track was lost
 ```
 
-1. **A lock kills the SMB socket, and the reload reused the dead handle.** The unlock path reloads the session (`needsReloadAfterBackground` → `play`/`seekTo` → `reloadSession`) because iOS may have revoked bookmark access or dropped the connection. `buildFreshSource` built a new reader over the **live handle** — but the handle's TCP socket died while the device was suspended, so the container probe failed in **2 ms** (a socket write error, not a timeout) and the player surfaced "custom source probe failed". The second attempt worked only because the app had meanwhile done a full `open`, which re-establishes the session ("token is stale, re-opening from resumeKey"). **Fix:** `reloadSession` now catches the load failure, rebuilds the SMB session from the durable resume key (`smbResumeParts` → `SMBBridge.openSmb`) and retries once — the same recovery the open path performs for a stale token. The `play` handler also keeps `needsReloadAfterBackground` set when the reload genuinely failed, so the next play tries again. New log lines: `rebuilding the SMB session from the resume key`, `SMB session rebuilt`, `load failed (…) — SMB session rebuilt, retrying`.
-2. **A reload drops the audio track.** A reloaded session starts on the container's DEFAULT track, and a custom source cannot carry the selection over — the engine has to rebuild the pipeline (`reloadWithAudioOverride`) on the retained reader. The subtitle track was re-applied after a reload; **the audio track was not**, so every lock/unlock silently put the viewer back on the first track. **Fix:** the view remembers the selected track's FLAT position (`selectedAudioTrackFlatPos`, set in `setAudioTrack`) and `reloadSession` re-applies it after the load — before the position is re-asserted, because the rebuild drops the playhead. The `setAudioTrack` path passes `reassertAudioTrack: false` and applies the track itself, so the selection is never applied twice. New log line: `reloadSession: re-asserting audio track flat=N id=M`.
+1. **A lock kills the SMB socket, and the reload reused the dead handle.** The unlock path reloads the session (`needsReloadAfterBackground` → `play`/`seekTo` → `reloadSession`) because iOS may have revoked bookmark access or dropped the connection. `buildFreshSource` built a new reader over the **live handle** - but the handle's TCP socket died while the device was suspended, so the container probe failed in **2 ms** (a socket write error, not a timeout) and the player surfaced "custom source probe failed". The second attempt worked only because the app had meanwhile done a full `open`, which re-establishes the session ("token is stale, re-opening from resumeKey"). **Fix:** `reloadSession` now catches the load failure, rebuilds the SMB session from the durable resume key (`smbResumeParts` → `SMBBridge.openSmb`) and retries once - the same recovery the open path performs for a stale token. The `play` handler also keeps `needsReloadAfterBackground` set when the reload genuinely failed, so the next play tries again. New log lines: `rebuilding the SMB session from the resume key`, `SMB session rebuilt`, `load failed (…) - SMB session rebuilt, retrying`.
+2. **A reload drops the audio track.** A reloaded session starts on the container's DEFAULT track, and a custom source cannot carry the selection over - the engine has to rebuild the pipeline (`reloadWithAudioOverride`) on the retained reader. The subtitle track was re-applied after a reload; **the audio track was not**, so every lock/unlock silently put the viewer back on the first track. **Fix:** the view remembers the selected track's FLAT position (`selectedAudioTrackFlatPos`, set in `setAudioTrack`) and `reloadSession` re-applies it after the load - before the position is re-asserted, because the rebuild drops the playhead. The `setAudioTrack` path passes `reassertAudioTrack: false` and applies the track itself, so the selection is never applied twice. New log line: `reloadSession: re-asserting audio track flat=N id=M`.
 
 **The engine's own switch is safe here:** `selectAudioTrack` refuses only a **forward-only** custom source (`isCustomSource && !customSourceIsSeekable`); the libsmb2 reader is positional (`smb2_pread`), so the engine reports it as seekable and rebuilds on the retained reader ✓.
 
 #### The queued-call hole behind `dreamplayer_crash.log` (2026-10-31)
 
-`dreamplayer_crash.log` held seven `MissingPluginException(No implementation found for method setRepeatMode on channel dreamplayer/exo_N)` entries — one per SMB file opened. `setRepeatMode` is **Android-only** (iOS repeat-one is handled in Dart), and `setAudioDelay` likewise. Two defects, both fixed:
+`dreamplayer_crash.log` held seven `MissingPluginException(No implementation found for method setRepeatMode on channel dreamplayer/exo_N)` entries - one per SMB file opened. `setRepeatMode` is **Android-only** (iOS repeat-one is handled in Dart), and `setAudioDelay` likewise. Two defects, both fixed:
 
 - The **native side** now answers both (`setRepeatMode` / `setAudioDelay` → logged no-op) so the channel contract is complete.
-- The **Dart side** replayed its queued calls with a bare `method.invokeMethod(name, args)` — the returned future was never awaited and had no error handler, so an unanswered method became an **unhandled async error**. `_send` already swallowed these; the replay loop did not. It now uses `unawaited(...catchError(...))`.
-- Note the channel ids in the log are ODD (`exo_1`, `exo_3`, `exo_5`): iOS creates a second platform view per player screen (the AirPlay picker), so the engine's view ids advance by two. They are not a "disposed view" signal — the error was purely "the method is not implemented".
+- The **Dart side** replayed its queued calls with a bare `method.invokeMethod(name, args)` - the returned future was never awaited and had no error handler, so an unanswered method became an **unhandled async error**. `_send` already swallowed these; the replay loop did not. It now uses `unawaited(...catchError(...))`.
+- Note the channel ids in the log are ODD (`exo_1`, `exo_3`, `exo_5`): iOS creates a second platform view per player screen (the AirPlay picker), so the engine's view ids advance by two. They are not a "disposed view" signal - the error was purely "the method is not implemented".
 
 **Architecture**
 - New native module per platform exposing a MethodChannel (same shape as `FileBrowser.kt` / `dreamplayer/files`):
-  - Android: `SMBClient.kt` (jcifs-ng) — channel `dreamplayer/smb`
+  - Android: `SMBClient.kt` (jcifs-ng) - channel `dreamplayer/smb`
   - iOS/iPad: `SMBBridge.swift`, which serves the same channel and is backed by
     libsmb2 rather than a separate Swift SMB client
 - Dart: `lib/services/smb_client.dart` (models + channel wrapper) + `lib/screens/smb_screen.dart` (server list → shares → folders → tap video → `PlayerScreen`).
@@ -2032,20 +2032,20 @@ Reported on the iPad: play an SMB file → pause → lock → unlock. **First tr
 | Android | **jcifs-ng** (SMB2/3 only) | Nova's and CX File Explorer's SMB library; measured ~75 MB/s vs ~4–6 MB/s for smbj on the NAS. |
 | Android (optional) | jcifs-ng SMB1 | SMB1 legacy devices only (disabled by default; SMB1 support is behind a config flag) |
 | iPad | **removed (2026-08)** | AMSMB2 / SwiftSMB retired; NAS playback is WebDAV / Jellyfin / Files-app "Open with". `AetherEngineSMB` still ships for WebDAV's `ByteRangeSource`. |
-- **Licensing**: libsmb2 is LGPL-2.1 (constrains App Store distribution — needs relinkable/replaceable lib); app already ships GPLv3 FFmpeg extension so not a new concern for Android.
+- **Licensing**: libsmb2 is LGPL-2.1 (constrains App Store distribution - needs relinkable/replaceable lib); app already ships GPLv3 FFmpeg extension so not a new concern for Android.
 
 **Features**
 1. *Servers*: add/edit/delete saved servers (name, host/IP, port 445, user, password, or Guest); credentials in Keychain (iOS) / Android Keystore (EncryptedSharedPreferences), never plaintext; LAN auto-discovery (broadcast/workgroup) + manual IP fallback; test connection + quick connect; saved-server status dot (online/offline).
 2. *Browsing* (CX-Explorer style): server → shares → folders → files; breadcrumbs + up-nav; folders first, sorted by name/size/date; show size + modified date; player back returns to same folder.
-3. *Playback*: direct streaming (no download) — Android = custom ExoPlayer `DataSource` over jcifs-ng seekable reads; iPad = `AVAssetResourceLoaderDelegate` serving bytes from the SMB stream; full seek; existing live HDR/codec chips unchanged; play-next-episode in folder; optional prefetch/cache-ahead setting + reconnect-on-drop/resume for high-bitrate files.
+3. *Playback*: direct streaming (no download) - Android = custom ExoPlayer `DataSource` over jcifs-ng seekable reads; iPad = `AVAssetResourceLoaderDelegate` serving bytes from the SMB stream; full seek; existing live HDR/codec chips unchanged; play-next-episode in folder; optional prefetch/cache-ahead setting + reconnect-on-drop/resume for high-bitrate files.
 4. *Extras*: auto-pair subtitles from same folder (`.srt`/`.ass`); pin recently-used servers on home screen; DNS/WINS hostname resolution for NAS names.
 - **Scope (v1)**: manual server add + Guest/basic auth + browse + stream + play-next. Add discovery + subtitles after.
-- **Status**: v1 core landed (Android): discovery, status dots, play-next-episode and subtitle auto-pair are implemented and the app is running on-device; **verified against real NAS on-device (2026-08-26, user) — streaming/seek + subtitles + play-next + reconnect-on-drop/resume for high-bitrate files confirmed**. **SMB watched ticks + SIMKL backfill (2026-08)**: every SMB file row shows a green watched check + per-row toggle (`WatchedStore`, keyed `smb:<serverId>/<share>/<path>` — the same resume-key shape as the TMDB prefetch), and an AppBar cloud-done button syncs already-watched titles from SIMKL. **SMB folder → Home bookmark (2026-08)**: the SMB browser's AppBar bookmark button pins the current folder to the home library (`LibraryFolderSource.smb` + blue SMB badge; see "Library (user-added folders)" roadmap section). The Nova-style read-ahead ring buffer is implemented. Remaining: iPad path (needs SMB2 client on Swift side, currently via Files app). **TMDB auto-fetch on video tap (2026-08)**: tapping an SMB video opens the details screen already resolved — the browser prefetches metadata under the same stable key the tap uses (`smb_<serverId>/<share><path>`) so the prefetched match is a direct cache hit (before, the two used different keys and the tap re-searched — and a tap during an in-flight prefetch returned a false "no match" via the old `Set`-based deduper; `TmdService` now dedupes with a `Map<String, Future<TmdMeta?>>` so concurrent callers share one in-flight search). Verified on-device: `Silence`, `Identity`, `Oldboy`, `Her (2013)`, `24`, `Main Vaapas Aaunga` all resolved to score-1.00 matches from the SMB folder prefetch.
-- **iOS/iPad status — shipped then DELETED (2026-08)**: the in-app SMB browser + playback landed for iPad via **AMSMB2** (`ios/Runner/SMBClient.swift`, channel `dreamplayer/smb`, same Dart `SmbClient` contract as the removed Android one) + **AetherEngineSMB** (the engine's official SMB product — `SMBConnection` + `SMBIOReader`). `openShare` returned a per-file `dreamplayersmb://<token>.<ext>` URL; the platform view resolved the token to the live `SMBConnection` and loaded it as a custom `IOReader` source (`engine.load(source: .custom(SMBIOReader(...), formatHint: nil))` — the demuxer probed the container itself). `closeShare(serverId)` closed every connection for the server. Servers persisted in UserDefaults (passwords in Keychain, never to Dart); shares listed via `listShares` + manual add-share; directory listing sorted folders-then-videos and auto-paired sibling subtitles (`subtitlePath` downloaded to a temp file — subtitles are small — and returned as a `file://` URL for `ExternalSubtitleTrack`). LAN scan (`discoverServers`) probed the local /24 on port 445. Registered in `AppDelegate`; `NSBonjourServices` + `NSLocalNetworkUsageDescription` in Info.plist; AMSMB2 (SPM 4.0.0) + AetherEngineSMB (product of the AetherEngine package, added to the Runner **Embed Frameworks** phase) were in the project. **Why not the loopback HTTP proxy:** AetherEngine's bundled FFmpeg has **no network stack** — it plays remote URLs through its own "loopback producer" with one long-lived connection + open-ended ranges; a hand-rolled HTTP server (`Connection: close`, no keep-alive) mismatched that protocol and "Share connects but video won't open" persisted across ATS / extension+Content-Type / connect-race fixes (v0.0.3). AetherEngineSMB was the engine-native path for NAS/SMB sources. **Why it was retired (2026-08-13):** it was **slow** and **didn't play every video**, and picking a different audio track on an SMB stream could **crash the app** on-device. The EPERM failure was fixed (`reopenSMBStream` + `SMBClient.reconnect` mint a fresh connection) and the buffering spinner got `BufferedSMBReader`, but a hard crash remained in the reopen/teardown path (stale-connection close racing an in-flight read). Since local playback is smooth and NAS files reach the app via CX/Files "Open with", the entry was removed on all platforms with no feature-loss workaround; the code is gone from the tree, kept as the blueprint below. To revive: fix the teardown race, requiring the iPad crash report/console at the moment of the audio-track tap.
-  - **Gotcha fixed on-device — dynamic SPM framework not embedded (code deleted, note preserved)**: AMSMB2's package product is `type: .dynamic`, so linking it into Runner is NOT enough. It must ALSO be added to the Runner target's **Embed Frameworks** copy phase (`PBXCopyFilesBuildPhase`, `dstSubfolderSpec = 10`) as a `PBXBuildFile` with `productRef` + `settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy); }`. Without that, `AMSMB2.framework` is missing from `Runner.app/Frameworks/` (the binary still has an `@rpath/AMSMB2.framework/AMSMB2` load command, so the build passes but dyld crashes at launch with "image not found"). Transitive dynamic products (e.g. FFmpegBuild's xcframeworks pulled in by AetherEngine) are auto-embedded; direct package products added by hand to the Frameworks phase are not. **AetherEngineSMB is the opposite — a STATIC library product (its `Package.swift` `products` entry has no `type:`, so the default static applies; same for its `SMBClient` dependency). It must be in the Frameworks (link) phase + `packageProductDependencies`, and must NOT be added to the Embed Frameworks copy phase — with no `.framework` file to embed, xcodebuild fails with `The file "AetherEngineSMB" couldn't be opened because there is no such file`.** (Note: AMSMB2 is gone from the project; AetherEngineSMB STAYS — WebDAV playback's `ByteRangeSource`/`WebDAVByteRangeSource` live in that module.)
-  - **"Share connects but video won't open" fix (2026-08-12, superseded)**: the v0.0.3 loopback-HTTP fixes — (1) ATS (`NSAllowsLocalNetworking` for the `http://127.0.0.1` stream URL, since the native AVPlayer path honors ATS), (2) extension + `Content-Type` on the token URL, (3) synchronous connect before returning the URL — did NOT fix playback on-device; the loopback server was retired in v0.0.4 in favor of AetherEngineSMB (see above). The ATS entry stays in Info.plist (harmless).
-  - **Gotcha fixed on-device — dynamic SPM framework not embedded**: AMSMB2's package product is `type: .dynamic`, so linking it into Runner is NOT enough. It must ALSO be added to the Runner target's **Embed Frameworks** copy phase (`PBXCopyFilesBuildPhase`, `dstSubfolderSpec = 10`) as a `PBXBuildFile` with `productRef` + `settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy); }`. Without that, `AMSMB2.framework` is missing from `Runner.app/Frameworks/` (the binary still has an `@rpath/AMSMB2.framework/AMSMB2` load command, so the build passes but dyld crashes at launch with "image not found"). Transitive dynamic products (e.g. FFmpegBuild's xcframeworks pulled in by AetherEngine) are auto-embedded; direct package products added by hand to the Frameworks phase are not. **AetherEngineSMB is the opposite — a STATIC library product (its `Package.swift` `products` entry has no `type:`, so the default static applies; same for its `SMBClient` dependency). It must be in the Frameworks (link) phase + `packageProductDependencies`, and must NOT be added to the Embed Frameworks copy phase — with no `.framework` file to embed, xcodebuild fails with `The file "AetherEngineSMB" couldn't be opened because there is no such file`.**
-  - **"Share connects but video won't open" fix (2026-08-12, superseded)**: the v0.0.3 loopback-HTTP fixes — (1) ATS (`NSAllowsLocalNetworking` for the `http://127.0.0.1` stream URL, since the native AVPlayer path honors ATS), (2) extension + `Content-Type` on the token URL, (3) synchronous connect before returning the URL — did NOT fix playback on-device; the loopback server was retired in v0.0.4 in favor of AetherEngineSMB (see above). The ATS entry stays in Info.plist (harmless).
+- **Status**: v1 core landed (Android): discovery, status dots, play-next-episode and subtitle auto-pair are implemented and the app is running on-device; **verified against real NAS on-device (2026-08-26, user) - streaming/seek + subtitles + play-next + reconnect-on-drop/resume for high-bitrate files confirmed**. **SMB watched ticks + SIMKL backfill (2026-08)**: every SMB file row shows a green watched check + per-row toggle (`WatchedStore`, keyed `smb:<serverId>/<share>/<path>` - the same resume-key shape as the TMDB prefetch), and an AppBar cloud-done button syncs already-watched titles from SIMKL. **SMB folder → Home bookmark (2026-08)**: the SMB browser's AppBar bookmark button pins the current folder to the home library (`LibraryFolderSource.smb` + blue SMB badge; see "Library (user-added folders)" roadmap section). The Nova-style read-ahead ring buffer is implemented. Remaining: iPad path (needs SMB2 client on Swift side, currently via Files app). **TMDB auto-fetch on video tap (2026-08)**: tapping an SMB video opens the details screen already resolved - the browser prefetches metadata under the same stable key the tap uses (`smb_<serverId>/<share><path>`) so the prefetched match is a direct cache hit (before, the two used different keys and the tap re-searched - and a tap during an in-flight prefetch returned a false "no match" via the old `Set`-based deduper; `TmdService` now dedupes with a `Map<String, Future<TmdMeta?>>` so concurrent callers share one in-flight search). Verified on-device: `Silence`, `Identity`, `Oldboy`, `Her (2013)`, `24`, `Main Vaapas Aaunga` all resolved to score-1.00 matches from the SMB folder prefetch.
+- **iOS/iPad status - shipped then DELETED (2026-08)**: the in-app SMB browser + playback landed for iPad via **AMSMB2** (`ios/Runner/SMBClient.swift`, channel `dreamplayer/smb`, same Dart `SmbClient` contract as the removed Android one) + **AetherEngineSMB** (the engine's official SMB product - `SMBConnection` + `SMBIOReader`). `openShare` returned a per-file `dreamplayersmb://<token>.<ext>` URL; the platform view resolved the token to the live `SMBConnection` and loaded it as a custom `IOReader` source (`engine.load(source: .custom(SMBIOReader(...), formatHint: nil))` - the demuxer probed the container itself). `closeShare(serverId)` closed every connection for the server. Servers persisted in UserDefaults (passwords in Keychain, never to Dart); shares listed via `listShares` + manual add-share; directory listing sorted folders-then-videos and auto-paired sibling subtitles (`subtitlePath` downloaded to a temp file - subtitles are small - and returned as a `file://` URL for `ExternalSubtitleTrack`). LAN scan (`discoverServers`) probed the local /24 on port 445. Registered in `AppDelegate`; `NSBonjourServices` + `NSLocalNetworkUsageDescription` in Info.plist; AMSMB2 (SPM 4.0.0) + AetherEngineSMB (product of the AetherEngine package, added to the Runner **Embed Frameworks** phase) were in the project. **Why not the loopback HTTP proxy:** AetherEngine's bundled FFmpeg has **no network stack** - it plays remote URLs through its own "loopback producer" with one long-lived connection + open-ended ranges; a hand-rolled HTTP server (`Connection: close`, no keep-alive) mismatched that protocol and "Share connects but video won't open" persisted across ATS / extension+Content-Type / connect-race fixes (v0.0.3). AetherEngineSMB was the engine-native path for NAS/SMB sources. **Why it was retired (2026-08-13):** it was **slow** and **didn't play every video**, and picking a different audio track on an SMB stream could **crash the app** on-device. The EPERM failure was fixed (`reopenSMBStream` + `SMBClient.reconnect` mint a fresh connection) and the buffering spinner got `BufferedSMBReader`, but a hard crash remained in the reopen/teardown path (stale-connection close racing an in-flight read). Since local playback is smooth and NAS files reach the app via CX/Files "Open with", the entry was removed on all platforms with no feature-loss workaround; the code is gone from the tree, kept as the blueprint below. To revive: fix the teardown race, requiring the iPad crash report/console at the moment of the audio-track tap.
+  - **Gotcha fixed on-device - dynamic SPM framework not embedded (code deleted, note preserved)**: AMSMB2's package product is `type: .dynamic`, so linking it into Runner is NOT enough. It must ALSO be added to the Runner target's **Embed Frameworks** copy phase (`PBXCopyFilesBuildPhase`, `dstSubfolderSpec = 10`) as a `PBXBuildFile` with `productRef` + `settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy); }`. Without that, `AMSMB2.framework` is missing from `Runner.app/Frameworks/` (the binary still has an `@rpath/AMSMB2.framework/AMSMB2` load command, so the build passes but dyld crashes at launch with "image not found"). Transitive dynamic products (e.g. FFmpegBuild's xcframeworks pulled in by AetherEngine) are auto-embedded; direct package products added by hand to the Frameworks phase are not. **AetherEngineSMB is the opposite - a STATIC library product (its `Package.swift` `products` entry has no `type:`, so the default static applies; same for its `SMBClient` dependency). It must be in the Frameworks (link) phase + `packageProductDependencies`, and must NOT be added to the Embed Frameworks copy phase - with no `.framework` file to embed, xcodebuild fails with `The file "AetherEngineSMB" couldn't be opened because there is no such file`.** (Note: AMSMB2 is gone from the project; AetherEngineSMB STAYS - WebDAV playback's `ByteRangeSource`/`WebDAVByteRangeSource` live in that module.)
+  - **"Share connects but video won't open" fix (2026-08-12, superseded)**: the v0.0.3 loopback-HTTP fixes - (1) ATS (`NSAllowsLocalNetworking` for the `http://127.0.0.1` stream URL, since the native AVPlayer path honors ATS), (2) extension + `Content-Type` on the token URL, (3) synchronous connect before returning the URL - did NOT fix playback on-device; the loopback server was retired in v0.0.4 in favor of AetherEngineSMB (see above). The ATS entry stays in Info.plist (harmless).
+  - **Gotcha fixed on-device - dynamic SPM framework not embedded**: AMSMB2's package product is `type: .dynamic`, so linking it into Runner is NOT enough. It must ALSO be added to the Runner target's **Embed Frameworks** copy phase (`PBXCopyFilesBuildPhase`, `dstSubfolderSpec = 10`) as a `PBXBuildFile` with `productRef` + `settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy); }`. Without that, `AMSMB2.framework` is missing from `Runner.app/Frameworks/` (the binary still has an `@rpath/AMSMB2.framework/AMSMB2` load command, so the build passes but dyld crashes at launch with "image not found"). Transitive dynamic products (e.g. FFmpegBuild's xcframeworks pulled in by AetherEngine) are auto-embedded; direct package products added by hand to the Frameworks phase are not. **AetherEngineSMB is the opposite - a STATIC library product (its `Package.swift` `products` entry has no `type:`, so the default static applies; same for its `SMBClient` dependency). It must be in the Frameworks (link) phase + `packageProductDependencies`, and must NOT be added to the Embed Frameworks copy phase - with no `.framework` file to embed, xcodebuild fails with `The file "AetherEngineSMB" couldn't be opened because there is no such file`.**
+  - **"Share connects but video won't open" fix (2026-08-12, superseded)**: the v0.0.3 loopback-HTTP fixes - (1) ATS (`NSAllowsLocalNetworking` for the `http://127.0.0.1` stream URL, since the native AVPlayer path honors ATS), (2) extension + `Content-Type` on the token URL, (3) synchronous connect before returning the URL - did NOT fix playback on-device; the loopback server was retired in v0.0.4 in favor of AetherEngineSMB (see above). The ATS entry stays in Info.plist (harmless).
 
 ### Player gesture controls (brightness + volume)
 
@@ -2054,9 +2054,9 @@ Swipe gestures on the player screen to adjust brightness and volume, for **Andro
 **Implementation:**
 - **Gesture zones**: vertical swipe up/down on the **left half** of the video surface adjusts **brightness**; vertical swipe up/down on the **right half** adjusts **volume** (the common player convention, cf. VLC/MX Player). Horizontal swipes are reserved for seek (±10s / scrub) if/when wanted.
 - **Brightness**: Android = `WindowManager.LayoutParams.screenBrightness` (0.0–1.0, -1 restores system default); iOS = `UIScreen.main.brightness`. Both are per-app and revert on player close (iOS brightness restored explicitly on dispose).
-- **Volume**: Android = `AudioManager.setStreamVolume(STREAM_MUSIC)` — **system-wide media volume**, not per-player; iOS = `MPVolumeView` hidden slider (the only public API for system volume on iOS). Feedback shows the system volume level.
+- **Volume**: Android = `AudioManager.setStreamVolume(STREAM_MUSIC)` - **system-wide media volume**, not per-player; iOS = `MPVolumeView` hidden slider (the only public API for system volume on iOS). Feedback shows the system volume level.
 - **Feedback overlay**: a centered dark pill with icon (sun / speaker) + LinearProgressIndicator + percentage, fading ~0.8 s after gesture ends. Controls hide during the gesture.
-- **Gesture detection**: `GestureDetector` with `onVerticalDragStart/Update/End` on the transparent tap-catcher layer above the platform view (`HitTestBehavior.translucent`). TV stays untouched (D-pad only — no touchscreen).
+- **Gesture detection**: `GestureDetector` with `onVerticalDragStart/Update/End` on the transparent tap-catcher layer above the platform view (`HitTestBehavior.translucent`). TV stays untouched (D-pad only - no touchscreen).
 - **Settings toggle**: "Swipe gestures" switch in Settings → Player section, default on. Only shown on phones/tablets (hidden on TV via `isTvMode`). Pref key `dreamplayer.swipeGestures`.
 - **Native handlers** (both platforms): `setBrightness`/`getBrightness` (window/screen brightness) + `setSystemVolume`/`getSystemVolume` (AudioManager / MPVolumeView). Wired through `PlaybackController` interface in `lib/services/exo_player.dart` and `ExoPlayerController`.
 
@@ -2064,84 +2064,84 @@ Swipe gestures on the player screen to adjust brightness and volume, for **Andro
 
 Run DreamPlayer on an Android TV box/panel as a real 10-foot app. **Status: Phase 1–5 done; playback, video passthrough, and audio passthrough all verified on Fire TV Stick 4K (2026-08).**
 
-**Test hardware**: Amazon Fire TV Stick 4K (runs Fire OS, Android-based). TV supports Dolby Vision + Dolby Atmos passthrough. Audio passthrough verified on-device — TV detects Atmos/DTS-HD correctly.
+**Test hardware**: Amazon Fire TV Stick 4K (runs Fire OS, Android-based). TV supports Dolby Vision + Dolby Atmos passthrough. Audio passthrough verified on-device - TV detects Atmos/DTS-HD correctly.
 
 **Core requirement (from the user, 2026-08):** the TV build must pass through, not decode:
-- **Video**: Dolby Vision + HDR10/HDR10+/HLG **to the TV panel** (the panel is the display, so the app's existing SurfaceView/compositing path is already correct — the TV displays PQ/BT.2020 natively).
-- **Audio**: Dolby Atmos (E-AC3-JOC / TrueHD-Atmos), DTS-HD/DTS:X, DTS, AC3, TrueHD **as a compressed bitstream over HDMI** — when the TV is connected to a soundbar/AVR via **eARC**, the audio must be delivered as the original codec bitstream so the sound system decodes it (NOT decoded-PCM in the app). On the Fire TV Stick, the bitstream goes directly to the TV over HDMI (no eARC needed for TV-decoded Atmos).
+- **Video**: Dolby Vision + HDR10/HDR10+/HLG **to the TV panel** (the panel is the display, so the app's existing SurfaceView/compositing path is already correct - the TV displays PQ/BT.2020 natively).
+- **Audio**: Dolby Atmos (E-AC3-JOC / TrueHD-Atmos), DTS-HD/DTS:X, DTS, AC3, TrueHD **as a compressed bitstream over HDMI** - when the TV is connected to a soundbar/AVR via **eARC**, the audio must be delivered as the original codec bitstream so the sound system decodes it (NOT decoded-PCM in the app). On the Fire TV Stick, the bitstream goes directly to the TV over HDMI (no eARC needed for TV-decoded Atmos).
 
-**Architecture decision (2026-08): ONE player path everywhere — the in-app hybrid-composition platform view.** A dedicated `TVPlayerActivity` (a second FlutterActivity re-parenting the first activity's FlutterView over a bare native PlayerView in a transparent window) was built, then **fully removed**: it caused the blank-flash / greyed-out-controls issues (the dual-activity overlay stack flips surface generations on decoder format change). TV now plays through the exact same `ExoPlayerController` / `ExoPlayerView.kt` hybrid-composition platform view the phone uses (a real SurfaceView composited device-side — true DV/HDR to the panel, verified `BT2020_ITU_PQ` on the OnePlus). Deleted: `TVPlayerActivity.kt`, `lib/services/tv_player.dart` (`TvPlayerController` + `tvInitialVideo`), the `dreamplayer/tvplayer`-family channels, the `TVPlayerTheme`, the `getRenderMode()` override in MainActivity (reverted to the stock surface default), the `isTvBox` handoff in `ExoPlayerView.open`, and the `tvFinished` event. `isTvBox`/`isTv` stays (TV UI detection for `isTvMode()`); the player screen's `_isTv` UI (D-pad focus, controls, fullscreen hidden) is untouched. The Fire-TV DV→HEVC `mediaCodecSelector` forcing was also removed — the stick's native `OMX.MTK.VIDEO.DECODER.DVHE.STH` DV decoder is used directly (like Just Player), with the non-Fire-TV DV-decoder-first + HEVC-fallback rule kept for DV-less hardware.
+**Architecture decision (2026-08): ONE player path everywhere - the in-app hybrid-composition platform view.** A dedicated `TVPlayerActivity` (a second FlutterActivity re-parenting the first activity's FlutterView over a bare native PlayerView in a transparent window) was built, then **fully removed**: it caused the blank-flash / greyed-out-controls issues (the dual-activity overlay stack flips surface generations on decoder format change). TV now plays through the exact same `ExoPlayerController` / `ExoPlayerView.kt` hybrid-composition platform view the phone uses (a real SurfaceView composited device-side - true DV/HDR to the panel, verified `BT2020_ITU_PQ` on the OnePlus). Deleted: `TVPlayerActivity.kt`, `lib/services/tv_player.dart` (`TvPlayerController` + `tvInitialVideo`), the `dreamplayer/tvplayer`-family channels, the `TVPlayerTheme`, the `getRenderMode()` override in MainActivity (reverted to the stock surface default), the `isTvBox` handoff in `ExoPlayerView.open`, and the `tvFinished` event. `isTvBox`/`isTv` stays (TV UI detection for `isTvMode()`); the player screen's `_isTv` UI (D-pad focus, controls, fullscreen hidden) is untouched. The Fire-TV DV→HEVC `mediaCodecSelector` forcing was also removed - the stick's native `OMX.MTK.VIDEO.DECODER.DVHE.STH` DV decoder is used directly (like Just Player), with the non-Fire-TV DV-decoder-first + HEVC-fallback rule kept for DV-less hardware.
 
 **Why it's mostly free already**
-- Android TV **is Android** — the whole native stack ships unchanged: ExoPlayer/Media3 + hybrid-composition PlatformView (`ExoPlayerView.kt`), `DreamRenderersFactory`, the DV→HEVC `mediaCodecSelector` fallback, `SmbDataSource` (SMB), WebDAV (`WebDAVClient.kt`), Jellyfin (pure Dart), subtitles, HDR chips. `defaultTargetPlatform == android` already.
-- **Video passthrough**: the hybrid-composition SurfaceView is a real SurfaceFlinger layer on the physical output — on a TV this is the panel, so DV/HDR10+ composite as `BT2020_ITU_PQ` directly (the whole point of the VIRTUAL-DISPLAY fix). The `mediaCodecSelector` DV→HEVC fallback handles DV-less hardware; `supportedHdrTypes` on the TV drives which formats get device-composited.
-- **Jellyfin/WebDAV/SMB browsing** are focus-based Flutter screens — they need a D-pad pass, not a rewrite.
+- Android TV **is Android** - the whole native stack ships unchanged: ExoPlayer/Media3 + hybrid-composition PlatformView (`ExoPlayerView.kt`), `DreamRenderersFactory`, the DV→HEVC `mediaCodecSelector` fallback, `SmbDataSource` (SMB), WebDAV (`WebDAVClient.kt`), Jellyfin (pure Dart), subtitles, HDR chips. `defaultTargetPlatform == android` already.
+- **Video passthrough**: the hybrid-composition SurfaceView is a real SurfaceFlinger layer on the physical output - on a TV this is the panel, so DV/HDR10+ composite as `BT2020_ITU_PQ` directly (the whole point of the VIRTUAL-DISPLAY fix). The `mediaCodecSelector` DV→HEVC fallback handles DV-less hardware; `supportedHdrTypes` on the TV drives which formats get device-composited.
+- **Jellyfin/WebDAV/SMB browsing** are focus-based Flutter screens - they need a D-pad pass, not a rewrite.
 
 **Implementation plan (phased)**
 
-**Phase 1 — Manifest & Launcher** (status: done)
+**Phase 1 - Manifest & Launcher** (status: done)
 - Add `LEANBACK_LAUNCHER` category to the existing launcher intent filter (same `MainActivity`, no new activity)
-- Add `<uses-feature android:name="android.software.leanback" android:required="false"/>` — app appears on TV launchers; same APK still installs on phones
-- Add `<uses-feature android:name="android.software.touchscreen" android:required="false"/>` — without this, TV devices filter the app out
+- Add `<uses-feature android:name="android.software.leanback" android:required="false"/>` - app appears on TV launchers; same APK still installs on phones
+- Add `<uses-feature android:name="android.software.touchscreen" android:required="false"/>` - without this, TV devices filter the app out
 - Same APK, no build variants or product flavors
 
-**Phase 2 — 10-foot UI Pass (Home + Player only)** (status: done)
-- Home screen: `FolderCard`/`VideoCard` wrapped with `Focus` widget + `AnimatedScale` (1.05×) + `AnimatedContainer` (blue border + glow) when focused; D-pad grid traversal works automatically with `SliverGrid` + Material `InkWell`; the home **+** FAB menu is shown on TV too (WebDAV, Jellyfin, Network shares, Add folder, Internal storage — the top-right `SliverAppBar.actions` were removed); "Remove from library" via `onLongPress` (long-press on remote select)
-- Player screen (Just Player style, reworked 2026-08): when controls are hidden, D-pad left/right seek ±10s, center/select/media-play-pause toggle play/pause, any other key reveals the controls; when controls are visible, arrow keys drive normal Android focus navigation between the focusable transport buttons (replay_10 / play-pause / forward_10 + audio/CC/aspect buttons) and the system handles button activation on center — the handler only intercepts select/play-pause/seek. `_showControls()` auto-focuses the play/pause button on reveal (`_playPauseFocusNode`). Controls **auto-hide after 3.5 s while playing** (`_restartHideTimer`, `_autoHideAfter = 3500 ms`), stay visible while paused/buffering/dragging, and any remote press reveals them again. **Remote play/pause gotcha (2026-08)**: the dedicated remote media-play/pause keys are intercepted *before* the `okKey` (select/enter/DPAD_CENTER) branch — media keys do NOT activate a focused `InkWell`, so deferring to the focused button made a second play/pause press a dead no-op (pauses but won't resume). Fixed with a `mediaPlayKey` branch that always calls `_togglePlayPause()`. Fullscreen button hidden on TV (always landscape); `_isTv` flag set from `isTvMode(context)` on first build.
-- **Custom focus highlight (user-required, 2026-08)**: the system-default focus indicator was rejected as too subtle — all TV-focusable widgets (`_TvControlButton`, `_tvListTile` in bottom sheets, `_BufferedSeekBar`, `VideoCard`, `FolderCard`) share a blue border (3 px) + primary-glow `boxShadow` (40 % alpha, blur 12, spread 2) + `AnimatedScale` (1.25× circular transport buttons, 1.05× cards/list tiles), rendered via a `Focus` + `AnimatedContainer`/`AnimatedScale` wrapper. **Consistency pass**: the same highlight was applied to every sheet row (`_tvListTile`), the seek bar, and the transport buttons so focus is visible everywhere, not just the home grid.
-- **TV text input in server forms (`TvTextField`, 2026-08)**: the SMB and WebDAV "Add server" dialogs use plain `TextField`s so the Fire Stick's own Leanback IME (`FireTVIME`) handles typing. The stock `TextField` was unusable with the remote — it auto-opens the IME the instant D-pad focus lands on it, and the keyboard window then swallows the D-pad keys, so focus got **stuck on an empty field** and you could never tab to the next one. `lib/widgets/tv_text_field.dart` wraps each field with the app's blue glow (same 3px border + shadow as the transport buttons) and uses **two `FocusNode`s**: an *outer* glow node that is the D-pad target, and an *inner* `FocusNode(skipTraversal: true)` owned by the `TextField`. `skipTraversal` keeps the field out of D-pad traversal (so the IME never auto-opens and arrow keys keep moving between fields) while still allowing programmatic `requestFocus()` — which fires only on OK/select/enter via the outer node's `onKeyEvent`. When the IME closes (back/Done) the inner node's focus-change listener hands focus back to the outer node so D-pad navigation resumes from that field. **Gotcha**: `descendantsAreFocusable: false` does NOT work here — it flips the inner node's `canRequestFocus` off through its ancestors, silently killing the programmatic `requestFocus()` (focus never reaches the TextField and typing goes nowhere); `skipTraversal` is the correct mechanism. Fields are evenly spaced (`SizedBox(height: 12)` between every field; the WebDAV host/port 3:1 `Row` was replaced with two full-width stacked fields). Verified on-device on the Fire TV: D-pad moves the glow across all six SMB fields with no IME, OK summons the keyboard, typed text lands, and navigation resumes after the keyboard closes.
-- **Leanback banner** (2026-08): 640×360 banner image in `assets/banner.png`, wired in `AndroidManifest.xml` as `android:banner` on the `<application>` tag — TV launchers display it instead of the phone icon.
-- **Shared TV widgets** (2026-08): `TvTile` (`lib/widgets/tv_tile.dart`) — single source of truth for the TV focus-glow wrapper (blue border + AnimatedScale + AnimatedContainer), used by every browse/settings list item. `TvOverscan` (`lib/widgets/tv_overscan.dart`) — wraps each TV screen with safe-area padding (36 px sides, 20 px top/bottom) to avoid overscan clipping.
+**Phase 2 - 10-foot UI Pass (Home + Player only)** (status: done)
+- Home screen: `FolderCard`/`VideoCard` wrapped with `Focus` widget + `AnimatedScale` (1.05×) + `AnimatedContainer` (blue border + glow) when focused; D-pad grid traversal works automatically with `SliverGrid` + Material `InkWell`; the home **+** FAB menu is shown on TV too (WebDAV, Jellyfin, Network shares, Add folder, Internal storage - the top-right `SliverAppBar.actions` were removed); "Remove from library" via `onLongPress` (long-press on remote select)
+- Player screen (Just Player style, reworked 2026-08): when controls are hidden, D-pad left/right seek ±10s, center/select/media-play-pause toggle play/pause, any other key reveals the controls; when controls are visible, arrow keys drive normal Android focus navigation between the focusable transport buttons (replay_10 / play-pause / forward_10 + audio/CC/aspect buttons) and the system handles button activation on center - the handler only intercepts select/play-pause/seek. `_showControls()` auto-focuses the play/pause button on reveal (`_playPauseFocusNode`). Controls **auto-hide after 3.5 s while playing** (`_restartHideTimer`, `_autoHideAfter = 3500 ms`), stay visible while paused/buffering/dragging, and any remote press reveals them again. **Remote play/pause gotcha (2026-08)**: the dedicated remote media-play/pause keys are intercepted *before* the `okKey` (select/enter/DPAD_CENTER) branch - media keys do NOT activate a focused `InkWell`, so deferring to the focused button made a second play/pause press a dead no-op (pauses but won't resume). Fixed with a `mediaPlayKey` branch that always calls `_togglePlayPause()`. Fullscreen button hidden on TV (always landscape); `_isTv` flag set from `isTvMode(context)` on first build.
+- **Custom focus highlight (user-required, 2026-08)**: the system-default focus indicator was rejected as too subtle - all TV-focusable widgets (`_TvControlButton`, `_tvListTile` in bottom sheets, `_BufferedSeekBar`, `VideoCard`, `FolderCard`) share a blue border (3 px) + primary-glow `boxShadow` (40 % alpha, blur 12, spread 2) + `AnimatedScale` (1.25× circular transport buttons, 1.05× cards/list tiles), rendered via a `Focus` + `AnimatedContainer`/`AnimatedScale` wrapper. **Consistency pass**: the same highlight was applied to every sheet row (`_tvListTile`), the seek bar, and the transport buttons so focus is visible everywhere, not just the home grid.
+- **TV text input in server forms (`TvTextField`, 2026-08)**: the SMB and WebDAV "Add server" dialogs use plain `TextField`s so the Fire Stick's own Leanback IME (`FireTVIME`) handles typing. The stock `TextField` was unusable with the remote - it auto-opens the IME the instant D-pad focus lands on it, and the keyboard window then swallows the D-pad keys, so focus got **stuck on an empty field** and you could never tab to the next one. `lib/widgets/tv_text_field.dart` wraps each field with the app's blue glow (same 3px border + shadow as the transport buttons) and uses **two `FocusNode`s**: an *outer* glow node that is the D-pad target, and an *inner* `FocusNode(skipTraversal: true)` owned by the `TextField`. `skipTraversal` keeps the field out of D-pad traversal (so the IME never auto-opens and arrow keys keep moving between fields) while still allowing programmatic `requestFocus()` - which fires only on OK/select/enter via the outer node's `onKeyEvent`. When the IME closes (back/Done) the inner node's focus-change listener hands focus back to the outer node so D-pad navigation resumes from that field. **Gotcha**: `descendantsAreFocusable: false` does NOT work here - it flips the inner node's `canRequestFocus` off through its ancestors, silently killing the programmatic `requestFocus()` (focus never reaches the TextField and typing goes nowhere); `skipTraversal` is the correct mechanism. Fields are evenly spaced (`SizedBox(height: 12)` between every field; the WebDAV host/port 3:1 `Row` was replaced with two full-width stacked fields). Verified on-device on the Fire TV: D-pad moves the glow across all six SMB fields with no IME, OK summons the keyboard, typed text lands, and navigation resumes after the keyboard closes.
+- **Leanback banner** (2026-08): 640×360 banner image in `assets/banner.png`, wired in `AndroidManifest.xml` as `android:banner` on the `<application>` tag - TV launchers display it instead of the phone icon.
+- **Shared TV widgets** (2026-08): `TvTile` (`lib/widgets/tv_tile.dart`) - single source of truth for the TV focus-glow wrapper (blue border + AnimatedScale + AnimatedContainer), used by every browse/settings list item. `TvOverscan` (`lib/widgets/tv_overscan.dart`) - wraps each TV screen with safe-area padding (36 px sides, 20 px top/bottom) to avoid overscan clipping.
 - **TV long-press** (2026-08): `VideoCard` and `FolderCard` `onKeyEvent` intercepts Enter/select/DPAD_CENTER `KeyDownEvent` and starts a 500 ms hold timer; if the key is held, `onLongPress` fires and opens the context menu (Remove from library); `KeyRepeatEvent` is swallowed so auto-repeat does not re-trigger the menu.
 - **Home scroll-on-return** (2026-08): `SliverAppBar` pinned (no floating), `jumpTo(0)` on initial load with stable `ValueKey`s on the grids, so tapping a card and pressing Back always lands at the top.
-- Detection: `isTvMode()` in `lib/utils/tv_helper.dart` — Android only; prefers the native check (`dreamplayer/device` → `isTv` → `MainActivity.isTvBox()`, which mirrors Just Player: TV ui mode, leanback / `com.amazon.hardware.fire_tv` feature flags, or the `com.amazon.tv.launcher` package) and falls back to the width heuristic (physical width ÷ dpr ≥ 960dp) until that channel answers
-- **Settings → Player must NOT be hidden on TV (fixed 2026-10-26).** It WAS: the TV pass (b4b1ca0, 2026-08-21) wrapped the whole `Player` `ExpansionTile` in `if (!isTv)`, because at that moment the section held exactly ONE row — the touch-only *Swipe gestures* toggle. Every TV-relevant row added afterwards inherited that gate: **Default playback engine**, **Video decoder** (hardware / software / auto), **Auto-play next**, **Picture-in-picture**, **HDR tone-map (MPV)** and the **on-screen badges**. On the Fire Stick the section was simply absent, so the engine picker had never been visible in a TV build (the details screen still offered "Play" + "Play with MPV" because the default engine is *ask*). The gate now sits on the swipe row alone; `test/settings_tv_player_section_test.dart` pins both halves (a 960dp-wide viewport = TV keeps the section + the engine picker and loses the swipe row; a phone keeps the swipe row). **Rule: gate the touch-only ROW, never the whole section** — a blanket TV gate on a section is invisible in code review and silently takes every later row with it.
+- Detection: `isTvMode()` in `lib/utils/tv_helper.dart` - Android only; prefers the native check (`dreamplayer/device` → `isTv` → `MainActivity.isTvBox()`, which mirrors Just Player: TV ui mode, leanback / `com.amazon.hardware.fire_tv` feature flags, or the `com.amazon.tv.launcher` package) and falls back to the width heuristic (physical width ÷ dpr ≥ 960dp) until that channel answers
+- **Settings → Player must NOT be hidden on TV (fixed 2026-10-26).** It WAS: the TV pass (b4b1ca0, 2026-08-21) wrapped the whole `Player` `ExpansionTile` in `if (!isTv)`, because at that moment the section held exactly ONE row - the touch-only *Swipe gestures* toggle. Every TV-relevant row added afterwards inherited that gate: **Default playback engine**, **Video decoder** (hardware / software / auto), **Auto-play next**, **Picture-in-picture**, **HDR tone-map (MPV)** and the **on-screen badges**. On the Fire Stick the section was simply absent, so the engine picker had never been visible in a TV build (the details screen still offered "Play" + "Play with MPV" because the default engine is *ask*). The gate now sits on the swipe row alone; `test/settings_tv_player_section_test.dart` pins both halves (a 960dp-wide viewport = TV keeps the section + the engine picker and loses the swipe row; a phone keeps the swipe row). **Rule: gate the touch-only ROW, never the whole section** - a blanket TV gate on a section is invisible in code review and silently takes every later row with it.
 
-**Phase 3 — Audio Passthrough** (status: done, verified on-device 2026-08)
+**Phase 3 - Audio Passthrough** (status: done, verified on-device 2026-08)
 - Detect HDMI output: `AudioManager.getDevices(GET_DEVICES_OUTPUTS)` → check for `TYPE_HDMI`, `TYPE_HDMI_ARC`, `TYPE_HDMI_EARC`
-- `mediaCodecSelector` TV override: when passthrough enabled AND HDMI detected, return empty decoder list for passthrough-capable formats (AC3, E-AC3, DTS, DTS-HD, TrueHD) — forces ExoPlayer's `DefaultAudioSink` to route them through `AudioTrack` passthrough mode to HDMI
-- On phone (passthrough OFF): current behavior unchanged — Dolby E-AC3 filter stays, FFmpeg handles DTS/TrueHD/FLAC as PCM decode
+- `mediaCodecSelector` TV override: when passthrough enabled AND HDMI detected, return empty decoder list for passthrough-capable formats (AC3, E-AC3, DTS, DTS-HD, TrueHD) - forces ExoPlayer's `DefaultAudioSink` to route them through `AudioTrack` passthrough mode to HDMI
+- On phone (passthrough OFF): current behavior unchanged - Dolby E-AC3 filter stays, FFmpeg handles DTS/TrueHD/FLAC as PCM decode
 - Settings toggle: "Audio passthrough: Off / Auto" in Settings (Android only). `Off` = current PCM decode. `Auto` = passthrough when HDMI output detected. Default off, user enables
 - Player overlay shows orange "Passthrough" chip when active
 - On Fire TV Stick: TV should show "Dolby Atmos" / "DTS-HD" on its info overlay when playing Atmos/DTS-HD content
 
-**Phase 4 — Video Passthrough Verify** (status: done, verified on-device 2026-08)
-- Hybrid-composition SurfaceView already composites as `BT2020_ITU_PQ` directly — confirm on Fire TV Stick
+**Phase 4 - Video Passthrough Verify** (status: done, verified on-device 2026-08)
+- Hybrid-composition SurfaceView already composites as `BT2020_ITU_PQ` directly - confirm on Fire TV Stick
 - `applyHdrHeadroom` window machinery is harmless on TV (early-returns or correctly sets HDR mode)
 - DV P7/P8 → HEVC fallback + DV P5 rejection still work
 
-**Fire TV — video visible after Nova-style transparent window fix (2026-08-19, on-device):** after the one-player-path rebuild, playback *opens* and *decodes* correctly on the stick (Jellyfin `Minions & Monsters`, DV, 4K 3840×2160). **Root cause of the blocking layer**: two `SurfaceView`s in the same window (Flutter's `FlutterSurfaceView` + ExoPlayer's video `SurfaceView`). On Fire OS 7.1 (API 25), the Android framework inserts an opaque `LayerDim` (alpha=1.0) between them, blocking the video. Nova avoids this with a **transparent window background** — the SurfaceView renders behind the window; a transparent background lets it show through.
+**Fire TV - video visible after Nova-style transparent window fix (2026-08-19, on-device):** after the one-player-path rebuild, playback *opens* and *decodes* correctly on the stick (Jellyfin `Minions & Monsters`, DV, 4K 3840×2160). **Root cause of the blocking layer**: two `SurfaceView`s in the same window (Flutter's `FlutterSurfaceView` + ExoPlayer's video `SurfaceView`). On Fire OS 7.1 (API 25), the Android framework inserts an opaque `LayerDim` (alpha=1.0) between them, blocking the video. Nova avoids this with a **transparent window background** - the SurfaceView renders behind the window; a transparent background lets it show through.
 
 **Fix (two changes)**:
-1. **`MainActivity.kt`** — `onCreate()`: on TV devices (`isTvBox()`), sets `window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))` — exactly what Nova does (`PlayerActivity.onCreate`: `getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT))`). This eliminates the opaque window layer that triggers the blocking `LayerDim`.
-2. **`ExoPlayerView.kt`** — `init`: calls `setZOrderMediaOverlay(true)` on the ExoPlayer `SurfaceView` after creation. This lifts the video surface above any remaining dim layers and above the `FlutterSurfaceView` in the z-order.
+1. **`MainActivity.kt`** - `onCreate()`: on TV devices (`isTvBox()`), sets `window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))` - exactly what Nova does (`PlayerActivity.onCreate`: `getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT))`). This eliminates the opaque window layer that triggers the blocking `LayerDim`.
+2. **`ExoPlayerView.kt`** - `init`: calls `setZOrderMediaOverlay(true)` on the ExoPlayer `SurfaceView` after creation. This lifts the video surface above any remaining dim layers and above the `FlutterSurfaceView` in the z-order.
 
 **Verified on-device**: `dumpsys SurfaceFlinger` shows the video layer at z=21010 (above `FlutterSurfaceView` at z=21005), window base at z=21015 (`isOpaque=0`, transparent). The `LayerDim` layers that remain have empty buffers (no content). Video picture is visible on the TV panel.
 
-**Phase 5 — CI & Release Notes**
-- No new CI jobs — same universal APK
+**Phase 5 - CI & Release Notes**
+- No new CI jobs - same universal APK
 - Add "Android TV / Fire TV support" to release notes
 
 **Files changed:**
-- `android/app/src/main/AndroidManifest.xml` — Phase 1
-- `lib/utils/tv_helper.dart` — Phase 2 (new: `isTvMode()` detection)
-- `lib/screens/home_screen.dart` — Phase 2 (TV action buttons, conditional FAB)
-- `lib/screens/player_screen.dart` — Phase 2 (D-pad controls, auto-hide skip, fullscreen hidden)
-- `lib/widgets/video_card.dart` — Phase 2 (focus highlight)
-- `lib/widgets/folder_card.dart` — Phase 2 (focus highlight)
-- `lib/screens/settings_screen.dart` — Phase 3 (passthrough toggle)
-- `android/.../ExoPlayerView.kt` — Phase 3 (mediaCodecSelector TV override) + **transparent window fix** (`setZOrderMediaOverlay(true)`)
-- `android/.../DreamRenderersFactory.kt` — Phase 3 (passthrough sink config, if needed)
-- **`android/.../MainActivity.kt`** — **transparent window background on TV** (`Color.TRANSPARENT` in `onCreate`)
-- `AGENTS.md`, `CHANGELOG.md` — Phase 5
+- `android/app/src/main/AndroidManifest.xml` - Phase 1
+- `lib/utils/tv_helper.dart` - Phase 2 (new: `isTvMode()` detection)
+- `lib/screens/home_screen.dart` - Phase 2 (TV action buttons, conditional FAB)
+- `lib/screens/player_screen.dart` - Phase 2 (D-pad controls, auto-hide skip, fullscreen hidden)
+- `lib/widgets/video_card.dart` - Phase 2 (focus highlight)
+- `lib/widgets/folder_card.dart` - Phase 2 (focus highlight)
+- `lib/screens/settings_screen.dart` - Phase 3 (passthrough toggle)
+- `android/.../ExoPlayerView.kt` - Phase 3 (mediaCodecSelector TV override) + **transparent window fix** (`setZOrderMediaOverlay(true)`)
+- `android/.../DreamRenderersFactory.kt` - Phase 3 (passthrough sink config, if needed)
+- **`android/.../MainActivity.kt`** - **transparent window background on TV** (`Color.TRANSPARENT` in `onCreate`)
+- `AGENTS.md`, `CHANGELOG.md` - Phase 5
 
 **Out of scope for v1**: AirPlay/DLNA casting, CEC control, live-TV tuner, Play Store/TV certification (leanback banner, `android.app.leanbacklauncher`), Android TV-specific recommendations UI.
 
-### Issue #6 — User-requested improvements (phased)
+### Issue #6 - User-requested improvements (phased)
 
 Source: https://github.com/mangeshghodke/DreamPlayer/issues/6
 
-**Phase 1 — Global engine preference + auto-fallback** (DONE 2026-09)
+**Phase 1 - Global engine preference + auto-fallback** (DONE 2026-09)
 - Settings → Player → "Default playback engine" (Media3 / libmpv / Ask every time / Auto)
 - Auto-fallback: when Media3 reaches a terminal error, automatically tries libmpv
 - libmpv purple screen fix (`target-colorspace-hint=yes`, `force-rgb-colorspace=yes`)
@@ -2149,39 +2149,39 @@ Source: https://github.com/mangeshghodke/DreamPlayer/issues/6
 - `LastEngineStore` tracks which engine last played each video
 - `DefaultEngineStore` persists the user's preference
 
-**Phase 2 — Library improvements (Flux-style)** (DONE 2026-09, ships in 0.4.2)
-- **Cross-folder series grouping** (`lib/services/series_grouping.dart` + `lib/screens/series_seasons_screen.dart`): the home "Your library" grid now collapses same-base series folders into one card via `SeriesGroupingService().group(folders)` (`_seriesGroups` in `home_screen.dart`; `ValueKey(group.metadataKey)`). `SeriesGroup.baseName` = lowercase folder name with Roman-numeral/ordinal/season tags stripped; `displayName` = shortest member folder name; `primary => folders.first` drives card artwork; `metadataKey => primary.metadataKey`. Cards pass `groupCount` to `FolderCard` (small count badge when >1 folder; a lone season folder shows its **season** title + season poster, e.g. "Strike the Blood II"). Tapping a **single-folder** group opens the existing per-folder flow (identical to 0.4.1); a **multi-folder** group opens `SeriesSeasonsScreen` — the Nova-style `Series → Seasons` view listing every season across all grouped folders: TMDB header (poster/title/rating/overview/`matchFolderToSeason` from cached season names, zero extra API round-trips), per-season `ExpansionTile`s ("Season 2 · The Name" + `watchedCount` badge `3/10`), per-episode rows with TMDB stills (`episode?.stillUrl()`, fallback movie icon), `SxxExx` badge, green watched check, resume progress bar. All sources list through the folder's backend: local (`FileBrowserService.listDirectory`), SMB, WebDAV, FTP/SFTP, UPnP, Jellyfin (`serverForUrl` + `getItems`); `_toVideoItem` carries the folder's own `metadataKey` into `TmdDetailsScreen` so the right `folderSeason` resolves. `_fetchSeasonData` collects every unique `folderSeason` across the group and always fetches season 1 (anime-bracket `[01]` numbering). Season/episode extraction falls back to `ParsedFileName.parse`. Pure helpers (`groupBySeason`, `watchedCount`, `seasonHeader`, `watchedBadge`, `seasonBadge`) live in `lib/utils/season_group.dart` — no Flutter imports, unit-tested in `test/series_grouping_test.dart`. `TmdService.matchFolderToSeason(String folderName, int showId)` (tmdb_client.dart:1533) scores folder names against the show's cached season names.
+**Phase 2 - Library improvements (Flux-style)** (DONE 2026-09, ships in 0.4.2)
+- **Cross-folder series grouping** (`lib/services/series_grouping.dart` + `lib/screens/series_seasons_screen.dart`): the home "Your library" grid now collapses same-base series folders into one card via `SeriesGroupingService().group(folders)` (`_seriesGroups` in `home_screen.dart`; `ValueKey(group.metadataKey)`). `SeriesGroup.baseName` = lowercase folder name with Roman-numeral/ordinal/season tags stripped; `displayName` = shortest member folder name; `primary => folders.first` drives card artwork; `metadataKey => primary.metadataKey`. Cards pass `groupCount` to `FolderCard` (small count badge when >1 folder; a lone season folder shows its **season** title + season poster, e.g. "Strike the Blood II"). Tapping a **single-folder** group opens the existing per-folder flow (identical to 0.4.1); a **multi-folder** group opens `SeriesSeasonsScreen` - the Nova-style `Series → Seasons` view listing every season across all grouped folders: TMDB header (poster/title/rating/overview/`matchFolderToSeason` from cached season names, zero extra API round-trips), per-season `ExpansionTile`s ("Season 2 · The Name" + `watchedCount` badge `3/10`), per-episode rows with TMDB stills (`episode?.stillUrl()`, fallback movie icon), `SxxExx` badge, green watched check, resume progress bar. All sources list through the folder's backend: local (`FileBrowserService.listDirectory`), SMB, WebDAV, FTP/SFTP, UPnP, Jellyfin (`serverForUrl` + `getItems`); `_toVideoItem` carries the folder's own `metadataKey` into `TmdDetailsScreen` so the right `folderSeason` resolves. `_fetchSeasonData` collects every unique `folderSeason` across the group and always fetches season 1 (anime-bracket `[01]` numbering). Season/episode extraction falls back to `ParsedFileName.parse`. Pure helpers (`groupBySeason`, `watchedCount`, `seasonHeader`, `watchedBadge`, `seasonBadge`) live in `lib/utils/season_group.dart` - no Flutter imports, unit-tested in `test/series_grouping_test.dart`. `TmdService.matchFolderToSeason(String folderName, int showId)` (tmdb_client.dart:1533) scores folder names against the show's cached season names.
 - **Live Action vs anime TMDB disambiguation (DONE 2026-09)**: `ParsedFileName.parse` sets a `liveAction` flag when the file/folder name carries "Live Action" / "Drama" / "J-Drama" markers (tmdb_client.dart:793); `resolveFolder` carries it into `bestForQuery(liveAction:)` → `_queryScore` which gently boosts live-action results and penalizes anime-only matches (tmdb_client.dart:1233). Fully implemented, no longer deferred.
 
-**Phase 3 — Per-episode TMDB stills** (DONE 2026-09)
+**Phase 3 - Per-episode TMDB stills** (DONE 2026-09)
 - When a TV folder is detected, fetch season data via `TmdService.seasonFor()`
 - Use `TmdEpisode.stillUrl()` for episode thumbnails in browse screens
 - Fall back to show poster when no episode still exists
 - Applied to: folder_screen.dart, smb_screen.dart, webdav_screen.dart, jellyfin_screen.dart, ftp_screen.dart, upnp_screen.dart, plus series_seasons_screen.dart and tmd_details_screen.dart
-- **Flat-source browsers (webdav/ftp/upnp, 2026-09)**: each holds the folder's series meta (`_seriesMeta`, re-read from `TmdService.metaFor` after the season loop — never the pre-season reference) and resolves rows via `_episodeFor(entry)` (folderSeason → parsed season → first fetched season for anime `[01]` numbering). Tiles render the still as a wide 64×40 thumb ahead of the portrait poster, then the icon. Titles fall back to the episode `nameLabel` first, then the show title. Grep-proof: previously these three screens only ever showed the show poster.
-- **Jellyfin browser (2026-09)**: no filename parsing needed — `_detectAndLoadSeasonLevel()` resolves the SERIES crumb (`_crumbs[length-2]`, keyed `jellyfin:<host>/<seriesId>`) via `resolveFolder` when the current level holds playables with `parentIndexNumber`/`indexNumber`, then fetches details + every season present; `_episodeForItem(item)` looks up `seasons[parentIndexNumber]?.episode(indexNumber)`. Structured items also label the title as the episode name and badge SxxExx from `item.seasonLabel`.
+- **Flat-source browsers (webdav/ftp/upnp, 2026-09)**: each holds the folder's series meta (`_seriesMeta`, re-read from `TmdService.metaFor` after the season loop - never the pre-season reference) and resolves rows via `_episodeFor(entry)` (folderSeason → parsed season → first fetched season for anime `[01]` numbering). Tiles render the still as a wide 64×40 thumb ahead of the portrait poster, then the icon. Titles fall back to the episode `nameLabel` first, then the show title. Grep-proof: previously these three screens only ever showed the show poster.
+- **Jellyfin browser (2026-09)**: no filename parsing needed - `_detectAndLoadSeasonLevel()` resolves the SERIES crumb (`_crumbs[length-2]`, keyed `jellyfin:<host>/<seriesId>`) via `resolveFolder` when the current level holds playables with `parentIndexNumber`/`indexNumber`, then fetches details + every season present; `_episodeForItem(item)` looks up `seasons[parentIndexNumber]?.episode(indexNumber)`. Structured items also label the title as the episode name and badge SxxExx from `item.seasonLabel`.
 
-**Phase 4 — External player handoff** (DONE 2026-09)
+**Phase 4 - External player handoff** (DONE 2026-09)
 - When both Media3 and libmpv fail, offer "Open in external player" option via `Intent.createChooser`
 - VLC handles `smb://` natively (no loopback needed); WebDAV passes HTTPS URL with auth headers; UPnP/DLNA and Jellyfin pass HTTP URLs
 - Android only (iOS has no external player intent system)
 
-**Phase 5 — Download to device** (DONE 2026-09)
+**Phase 5 - Download to device** (DONE 2026-09)
 - Kotlin foreground service (`DownloadService.kt`) + `DownloadClient.kt` method channel
-- iOS: `DownloadClient.swift` with `UNUserNotificationCenter` — banner once at start, silent 5s updates after; cancel action + tap-to-open-drawer
-- Dart `DownloadManager` singleton (`lib/services/download_manager.dart`) — HTTP streaming with HEAD probe for Content-Length, SMB via loopback proxy, local file copy via async chunked I/O (256 KB, event-loop yield), progress tracking, SharedPreferences history
-- Download screen (`lib/screens/download_screen.dart`) — progress bars (indeterminate when size unknown), status badges, cancel/delete/play
+- iOS: `DownloadClient.swift` with `UNUserNotificationCenter` - banner once at start, silent 5s updates after; cancel action + tap-to-open-drawer
+- Dart `DownloadManager` singleton (`lib/services/download_manager.dart`) - HTTP streaming with HEAD probe for Content-Length, SMB via loopback proxy, local file copy via async chunked I/O (256 KB, event-loop yield), progress tracking, SharedPreferences history
+- Download screen (`lib/screens/download_screen.dart`) - progress bars (indeterminate when size unknown), status badges, cancel/delete/play
 - Player ⋮ sheet + details screen bottom bar triggers + home screen hamburger drawer (active + completed + failed/cancelled sections)
 - Notification: Android silent (`IMPORTANCE_LOW` + `setSilent`) with Cancel action button; iOS local notification with Cancel action + tap-to-open
 - Supports: HTTP (WebDAV, Jellyfin, UPnP, network), SMB (via `SmbHttpProxy`/`SmbClient.startLoopback`)
-- FTP download hidden — Dart `HttpClient` cannot handle `ftp://` URIs; native download bridge too complex for now
+- FTP download hidden - Dart `HttpClient` cannot handle `ftp://` URIs; native download bridge too complex for now
 - **All shipped (2026-09)**: downloaded files in home grid with a green "downloaded" badge + local playback (`_buildDownloadedGrid` in home_screen.dart:1080), Settings → Downloads → download directory picker (settings_screen.dart:503, native `setDownloadDir`/`getDownloadDir`). Nothing left in this phase.
 
-### iOS spatial audio — IMPLEMENTED (2026-10-30) + the research that shaped it
+### iOS spatial audio - IMPLEMENTED (2026-10-30) + the research that shaped it
 
 **Status: shipped, premium-gated.** The switch, the gate and the native
 enforcement are documented under "Spatial audio is a PAID feature on iOS" in
-the CI / Deployment section — read that one first; it is the authoritative
+the CI / Deployment section - read that one first; it is the authoritative
 description (Settings → Audio → "Spatial audio", default OFF, paywall on
 enable, native opt-in/out per engine path).
 
@@ -2191,15 +2191,15 @@ re-derive.
 
 **Do NOT use SpatialAudioKit** (researched 2026-09-28,
 https://spatialaudiokit.github.io/docs/). It is a Swift package by
-@olilarkin for decoding **object-based spatial audio *files*** — Dolby
-Atmos ADM/BWF masters and multichannel Opus in Ogg containers — bundling
+@olilarkin for decoding **object-based spatial audio *files*** - Dolby
+Atmos ADM/BWF masters and multichannel Opus in Ogg containers - bundling
 libiamf, fdk-aac, iamf-tools and opusfile. Its target is apps whose *content*
 is a spatial-audio asset (Apple Music style). DreamPlayer plays
 **channel-based** movie soundtracks (DTS-HD 5.1/7.1, TrueHD, E-AC3,
 multichannel FLAC): there is no spatial file to decode, so SpatialAudioKit
 would add a large binary dependency and spatialize nothing. Adding it would
 be wasted build weight and licence surface. The same reasoning rules out
-`AVAudioEnvironmentNode` / `PHASE` / `AUSpatialMixer` for this feature —
+`AVAudioEnvironmentNode` / `PHASE` / `AUSpatialMixer` for this feature -
 those are for *positional* placement of discrete sources, which a film mix
 does not need.
 
@@ -2207,19 +2207,19 @@ does not need.
 binaural HRTF, i.e. the same transform Android's `Spatializer` applies).
 Four steps, all in `ios/Runner/AvPlayerView.swift`:
 
-1. **Declare multichannel support** —
+1. **Declare multichannel support** -
    `try? AVAudioSession.sharedInstance().setSupportsMultichannelContent(true)`.
    This is the call that makes iOS offer spatial audio in Control Center /
    AirPods settings at all. Without it the feature is invisible.
-2. **Opt the item in** — `AVPlayerItem.allowedAudioSpatializationFormats =
+2. **Opt the item in** - `AVPlayerItem.allowedAudioSpatializationFormats =
    .multichannel` (iOS 15+). The default already spatializes, but being
    explicit matters for the AetherEngine FFmpeg path.
-3. **Detect the real state** — `AVAudioSession.sharedInstance()
+3. **Detect the real state** - `AVAudioSession.sharedInstance()
    .currentRoute.outputs.first?.isSpatialAudioEnabled` (iOS 15+). This is
    `true` only when the route can render spatial audio **and** the user has
    permitted it, so it is the honest signal (no separate "user preference"
    flag to get wrong).
-4. **Observe changes** — listen for
+4. **Observe changes** - listen for
    `AVAudioSession.spatialPlaybackCapabilitiesChangedNotification`, read
    `notification.userInfo?[AVAudioSessionSpatialAudioEnabledKey]`, and push
    the new value over the **existing** `system_controls` channel as
@@ -2238,11 +2238,11 @@ makes the system auto-enable spatial audio on the non-AVPlayer paths.
 **Scope rule (same as Android):** only gate on multichannel (5.1/7.1) PCM.
 Stereo/downmixed routes and encoded bitstreams are not spatialized, so the
 chip must not claim otherwise. Reuse the existing `_liveSpatial == 'on'`
-string contract — the Bass Boost row (gated on it, `player_screen.dart:5825`)
+string contract - the Bass Boost row (gated on it, `player_screen.dart:5825`)
 would then appear on iOS too, which is correct: it exists to offset the
 low-end thinning of HRTF virtualization.
 
-**Verification gap — the reason this shipped blind.** There is no Mac and no
+**Verification gap - the reason this shipped blind.** There is no Mac and no
 iOS device in the dev loop, so this can only be CI-verified. A green build
 proves it *compiles*, not that spatial audio *works*; the 2026-09-24
 TestFlight run failed on a one-line Swift type error in
@@ -2251,13 +2251,13 @@ TestFlight cycle and on-device verification with AirPods Pro. Still
 needs on-device confirmation: the AetherEngine software path (WebDAV/FTP/Files
 MKV) renders through the engine's own `AVSampleBufferAudioRenderer`, and
 whether `allowedAudioSpatializationFormats = .multichannel` spatializes that
-path is unknown until tested — and whether the session's stereo opt-out
+path is unknown until tested - and whether the session's stereo opt-out
 actually silences it. Also note Apple's Control Center only shows the
 spatial icon for `AVPlayer` / `AVSampleBufferAudioRenderer` playback, and
 AirPods settings can read "Spatial Audio Not Playing" even while spatial
-audio is in fact active — do not treat either as a failure signal.
+audio is in fact active - do not treat either as a failure signal.
 
-### List / Grid view for the network browsers (2026-10-27) — read this before touching a browser row
+### List / Grid view for the network browsers (2026-10-27) - read this before touching a browser row
 
 The network browsers (SMB, WebDAV, FTP, UPnP, Jellyfin) can show their entries
 as **rows** or as **tiles**. The switch is where Windows 11 puts it: the
@@ -2265,7 +2265,7 @@ as **rows** or as **tiles**. The switch is where Windows 11 puts it: the
 
 **One preference for every browser.** `BrowserViewStore`
 (`lib/services/browser_view_store.dart`, prefs `dreamplayer.browserView`) is a
-`ChangeNotifier` singleton — switching to Grid in SMB switches WebDAV, FTP,
+`ChangeNotifier` singleton - switching to Grid in SMB switches WebDAV, FTP,
 UPnP and Jellyfin too. Five independent toggles would be five things to get
 wrong, and "the view is different in every browser" is never what a user wants
 from a view setting. The screens listen with a `ListenableBuilder`, so the
@@ -2273,7 +2273,7 @@ choice applies **live** without re-entering the folder.
 
 **The grid shows folders AND files.** A folder is a folder glyph on a tinted
 tile; a file is artwork. The artwork is the episode **still** (16:9) when there
-is one, else the **backdrop**, else the **poster** — in that order, because the
+is one, else the **backdrop**, else the **poster** - in that order, because the
 cell's box is 16:9 and a 2:3 poster cover-cropped into it loses half its
 height. `BrowserEntryCard` (`lib/widgets/browser_entry_card.dart`) is the one
 cell widget every browser uses.
@@ -2288,7 +2288,7 @@ cell widget every browser uses.
    cell width, and passes an exact `mainAxisExtent` to the delegate.
 2. **`TvFocusWrap` now takes a `margin`.** Its default is the `ListTile` row
    inset (12 px horizontal); a grid cell must pass `EdgeInsets.zero`, or every
-   tile is inset twice — once by the wrapper and once by the grid delegate —
+   tile is inset twice - once by the wrapper and once by the grid delegate -
    and the artwork stops lining up with the cell edges.
 3. **`CachedImage` returns `SizedBox.shrink()` while loading.** The cell pins
    its box with an `AspectRatio`, so a row of tiles does not collapse and jump
@@ -2301,23 +2301,23 @@ cell widget every browser uses.
    columns instead of bigger cards.
 5. **The grid applies to the FLAT list only.** The SMB *series* view (poster
    header + season expansions, a `CustomScrollView` of slivers) keeps the row
-   layout — converting it to a sliver grid is a separate change. Everything
+   layout - converting it to a sliver grid is a separate change. Everything
    else (shares, movie folders, WebDAV/FTP/UPnP/Jellyfin folders) grids.
 
 **The three-dot was ADDED, not substituted.** The existing app-bar actions
-(bookmark to Home, SIMKL sync, server list) stay where they were — moving them
+(bookmark to Home, SIMKL sync, server list) stay where they were - moving them
 into the overflow is a different decision and would hide the one-tap actions.
 The popup follows the repo's existing `PopupMenuItem(child: ListTile(...))`
 shape (see `file_browser_screen.dart`).
 
-**The three-dot appears as soon as a SERVER is picked — not when a share is
+**The three-dot appears as soon as a SERVER is picked - not when a share is
 opened.** The shares list is an entry list too (the shares are rendered by the
 same flat list), so gating the menu on "a share is open" hid the switch on the
 page the user lands on first. It is still not offered on the *server* list,
 where there is nothing to grid: offering a choice that resolves nothing is
 worse than not offering it.
 
-### Episode rows (issue #38, 0.5.1+25) — read this before touching a row
+### Episode rows (issue #38, 0.5.1+25) - read this before touching a row
 
 Episode/video rows are **one widget**: `lib/widgets/episode_row.dart`
 (`EpisodeRow` + `EpisodeStillThumb` / `EpisodePosterThumb`), used by
@@ -2327,12 +2327,12 @@ Episode/video rows are **one widget**: `lib/widgets/episode_row.dart`
 `EpisodeThumbSize.small|medium|large` in `LayoutStore` (third segment of the
 `dreamplayer.layout` key; 2-segment values still load).
 
-**Five traps that each cost a shipped bug — all verified by tests now:**
+**Five traps that each cost a shipped bug - all verified by tests now:**
 
 1. **`ListTile` caps `leading` at 56 px, and `ListTileTheme.minTileHeight` does
    NOT lift that cap** (`maxIconHeightConstraint` is hardcoded). The old rows
    asked for `48x72` and really rendered `48x56`. Any row whose thumbnail must
-   exceed 56 px tall has to leave `ListTile` — which is why `EpisodeRow` is a
+   exceed 56 px tall has to leave `ListTile` - which is why `EpisodeRow` is a
    `Row`. Keep the TV focus chrome by using the public `TvFocusWrap` (extracted
    from `TvTile`); do not re-add a `ListTile`.
 2. **Size the row from the ROW's constraints, never `MediaQuery`.** The row is
@@ -2341,20 +2341,20 @@ Episode/video rows are **one widget**: `lib/widgets/episode_row.dart`
    Medium/Large did nothing. `EpisodeRow` uses `LayoutBuilder` + `thumbBuilder`.
 3. **The title's own rigid children eat the text column.** `SxxEyy` badge and
    the star rating originally lived in the title `Row`, needing ~170 dp of the
-   space the check was assuming was all for the title — the row overflowed by
+   space the check was assuming was all for the title - the row overflowed by
    15 px (45 px at 1.3x text). Both now sit on the metadata line
    (`S01E05` / `★ 8.5 · 439 MB`). `minTextWidth = 80` is derived from the
    measured width; raising it makes Medium/Large silently demote.
 4. **A thumbnail must listen to `LayoutStore` ITSELF.** Callers construct the
    thumb and pass it in, so a row-driven rebuild hands back an identical `const`
-   widget that Flutter short-circuits — the thumb never resizes. Each thumb
+   widget that Flutter short-circuits - the thumb never resizes. Each thumb
    wraps itself in a `ListenableBuilder`.
 5. **`CachedImage` returns `SizedBox.shrink()` while loading.** Thumbnails must
    pin their box or rows collapse and jump while scrolling.
 
 **TMDB still widths are NOT the documented ladder.** Measured on device: a still
 returns **HTTP 400** for `w455` and `w640`, while `92/185/300/342/500/780` all
-return 200 — and TMDB's docs list `w455`. An invalid width fails silently into
+return 200 - and TMDB's docs list `w455`. An invalid width fails silently into
 `CachedImage`'s `errorBuilder`, so it looks like "no artwork exists". Always
 verify a new width with `adb shell curl -o /dev/null -w '%{http_code}'` on a
 real still path. Current: `stillUrl()` = w500, `posterUrlOf` = w300.
@@ -2363,7 +2363,7 @@ entries (only clearable via Settings → cache).
 
 ### Episode stills: fetched lazily, then prefetched
 
-TMDB's `/tv/{id}/season/{n}` returns overviews + ratings but **no stills** —
+TMDB's `/tv/{id}/season/{n}` returns overviews + ratings but **no stills** -
 those only come from the per-episode endpoint. So `TmdService.requestEpisodeStills`
 fetches them, deduped by the existing `_pendingDetail` set, persisted via the
 existing `episodeDetailsFor`, throttled to `maxStillsInFlight = 3` (an expanded
@@ -2374,9 +2374,9 @@ lazy-loads as before.
 
 **Three separate silent no-ops had to be fixed before it worked at all:**
 - the key must be the **season folder's** key (`_folderKeyForSeason(s)`), not
-  the show's — `seasonFor` is cached per folder (issue #33), so the show key has
+  the show's - `seasonFor` is cached per folder (issue #33), so the show key has
   no season and the lookup finds nothing;
-- `initState` alone is not enough — season data lands *after* the row is first
+- `initState` alone is not enough - season data lands *after* the row is first
   built and a `ListView` reuses row `State`s by position, so `didUpdateWidget`
   re-checks when `episode` first becomes non-null;
 - `_episodeFor` read `_meta` (the show) while the enrichment was written to the
@@ -2403,7 +2403,7 @@ clear), and poster/backdrop/cast are prefetched on resolve while per-episode
 stills are prefetched per row as they are discovered. Embedded cover art
 (MKV/MP4 artwork) is a separate cache, `ThumbnailStore`, local-only by design.
 
-### Chapter navigation (issue #40, 0.5.1+26) — read this before touching the seekbar
+### Chapter navigation (issue #40, 0.5.1+26) - read this before touching the seekbar
 
 Chapters were **already parsed on both platforms** long before #40 asked for
 navigation: `MkvChapters.kt`/`.swift` (EBML EditionEntry/ChapterAtom) AND
@@ -2411,19 +2411,19 @@ navigation: `MkvChapters.kt`/`.swift` (EBML EditionEntry/ChapterAtom) AND
 `RafReader`; Jellyfin supplies `Item.Chapters` (ticks/10000 ms) server-side.
 They reached Dart as `VideoItem.chapters` / `ExoChapter` and were only ever
 listed in the ⋮ overflow sheet. **AGENTS.md's old claim that "MP4 chapter
-tracks not parsed yet" was stale** — both platforms have had it.
+tracks not parsed yet" was stale** - both platforms have had it.
 
 What #40 actually needed was **presentation**, and all three asks were
 deliberately scoped:
 
-- **Seekbar ticks** — `_ChapterTickPainter` (end of `player_screen.dart`),
+- **Seekbar ticks** - `_ChapterTickPainter` (end of `player_screen.dart`),
   inserted between the active fill and the thumb so a mark reads against both
   the played and unplayed halves. Each tick is drawn TWICE: a `Colors.black`
   4px line under a `Colors.white` 2px one. White alone disappears into the
   white active fill, which is the whole reason the first version was invisible
-  on the played side. A tick at fraction 0 is skipped — it sits on the bar's
+  on the played side. A tick at fraction 0 is skipped - it sits on the bar's
   left edge and reads as a rendering glitch.
-- **Buttons beside play/pause** — inside the centre pill, not the bottom bar,
+- **Buttons beside play/pause** - inside the centre pill, not the bottom bar,
   because the pill is already the big-transport cluster and a viewer skipping
   an opening is looking at the video. Shown only when `_chapters.length > 1`,
   on phone, tablet and TV alike. Gated on `_inPip` like every other control.
@@ -2436,33 +2436,33 @@ deliberately scoped:
   instead), so on a phone the row is previous · play · next. The order is
   pinned by `test/player_transport_order_test.dart`, which reads the cluster
   out of `player_screen.dart` and asserts the five markers appear in
-  sequence — the player screen needs a live platform view, so the row cannot
+  sequence - the player screen needs a live platform view, so the row cannot
   be pumped as a widget.
 - **The gesture is a DOUBLE-TAP on the bar, deliberately not the horizontal
   swipe.** That swipe is ±90 s scrub (`±90 s per screen width`); silently
   changing what it means would break it for every video with no chapters.
   A double-tap is unambiguous and costs the existing gesture nothing.
 
-**Chapters were Media3-ONLY for one full release cycle — the "local files only"
+**Chapters were Media3-ONLY for one full release cycle - the "local files only"
 trap.** Two independent causes, both found after the reporter said SMB showed
 nothing:
 
 1. **The parsers live in `ExoPlayerView`.** `MkvChapters.kt`/`Mp4Chapters.kt`
    are called from `probeChapters`, which only the Media3 platform view runs. The
    MPV engine therefore had NO chapters for ANY source, while Media3 had them
-   for local files — so "works on local, not on network" was really "works on
+   for local files - so "works on local, not on network" was really "works on
    whichever engine I happened to use". `_loadMpvChapters` now reads mpv's own
    `chapter-list/<n>/title|time` after every `player.open`. mpv has no
    `chapter-list/count` and `getProperty` cannot stringify a node array, so it
-   walks indices until a read is empty or throws — the same shape as the
+   walks indices until a read is empty or throws - the same shape as the
    existing `track-list/<n>/default` DEFAULT-audio probe.
 2. **`parseHttp` could only see the FIRST 8 MiB** (`Range: bytes=0-8388607`).
    Matroska keeps Chapters at the END of the segment, and MP4 keeps `moov` at the
-   end unless the file was written "fast start" — so every HTTP source
+   end unless the file was written "fast start" - so every HTTP source
    (WebDAV / Jellyfin / UPnP-DLNA) silently found nothing. Both parsers now use
    `fetchHttpRanges`: an 8 MiB head **plus** an 8 MiB tail, joined by a
    `SparseReader` that serves either window and EOFs in the gap. The box/EBML
-   walks never touch the gap — they start at the header/SeekHead and seek
+   walks never touch the gap - they start at the header/SeekHead and seek
    straight to the element they want. Total size comes from the `Content-Range`
    header of the head request; a server that ignores Range and streams the whole
    body falls back to the old head-only behaviour.
@@ -2474,7 +2474,7 @@ nothing:
 
 **The previous-chapter grace window is the whole UX of the button.** Past 3 s
 into a chapter, "previous" restarts THAT chapter; inside 3 s it steps back one.
-So pressing twice walks backwards instead of sticking — the CD-player
+So pressing twice walks backwards instead of sticking - the CD-player
 behaviour. The toast says which of the two happened ("Restart chapter" vs
 "Previous chapter") by comparing the target's `startMs` against
 `ChapterNav.current`, because the arithmetic alone can't tell you afterwards.
@@ -2489,15 +2489,15 @@ starts to the **last** marker so `next` can never land on the chapter already
 playing. The ±10 s buttons are TV-only; the chapter buttons are NOT, because a
 D-pad has no double-tap gesture.
 
-**The chapter buttons are NOT `_TvControlButton`s on touch — and that took three attempts.** The ring is drawn inside a Focus + AnimatedContainer wrapping an `IconButton` that never shrinks below its 48px minimum, so around the 40px skip glyphs it rendered a ~63px glowing disc that read as a halo, and it appeared at all on a phone because tapping a button gives it focus. What was tried, in order:
+**The chapter buttons are NOT `_TvControlButton`s on touch - and that took three attempts.** The ring is drawn inside a Focus + AnimatedContainer wrapping an `IconButton` that never shrinks below its 48px minimum, so around the 40px skip glyphs it rendered a ~63px glowing disc that read as a halo, and it appeared at all on a phone because tapping a button gives it focus. What was tried, in order:
 
 1. `hugIcon` + `focusScale` to shrink the ring to hug the glyph. The user asked
    for the glow gone entirely, so this was reverted rather than left as unused
-   API — and it was only ever cosmetic anyway.
+   API - and it was only ever cosmetic anyway.
 2. `ringless` on `_TvControlButton`, suppressing the decoration, the glow and
    the focus scale. **Not enough**: `_TvControlButton` wraps its `IconButton`
    in a `Focus`, but the `IconButton` creates its OWN internal `FocusNode`, and
-   Material paints its focus overlay on *that* node. The two cannot be merged —
+   Material paints its focus overlay on *that* node. The two cannot be merged -
    a `FocusNode` may only be attached to one `Focus`.
 3. Rendering a ringless button as a plain `GestureDetector` + `IconTheme.merge`
    instead of an `IconButton`. That removed the flash on Media3, but with MPV a
@@ -2508,7 +2508,7 @@ D-pad has no double-tap gesture.
 So the chapter buttons now take a **platform split** in `_chapterButton`: TV
 gets a real `_TvControlButton` (a D-pad with no visible focus target is worse
 than an oversized ring), and touch gets a bare tappable `Icon` with no
-`Focus`, no `AnimatedContainer` and no `IconButton` anywhere in the subtree —
+`Focus`, no `AnimatedContainer` and no `IconButton` anywhere in the subtree -
 which makes the glow impossible rather than merely unlikely. Anything else that
 wants "no touch focus ring" should copy that split instead of trying to suppress
 the decoration.
@@ -2517,13 +2517,13 @@ the decoration.
 ### Skip intro / recap / credits (issue #60, 0.5.6)
 
 - **Sources, in precedence order per kind:** embedded chapter names first
-  (`SkipSegments.fromChapters` — word-boundary `opening|intro|op`,
+  (`SkipSegments.fromChapters` - word-boundary `opening|intro|op`,
   `recap|previously`, `ending|end|credits?|ed`; the intro/recap segment runs to
   the NEXT chapter's start, the credits segment is the LAST credits-named
   chapter), then remote segments for the kinds chapters don't label
   (`SkipSegments.merge`). Two remote sources, merged per kind with TheIntroDB
   winning (`_mergeRemoteSegments`):
-  - **TheIntroDB v4** (`IntroDbClient`, since issue #60's follow-up) —
+  - **TheIntroDB v4** (`IntroDbClient`, since issue #60's follow-up) -
     `GET api.theintrodb.org/v4/media?tmdb_id=<id>[&season=&episode=]` (both =
     TV, neither = movie). **KEYLESS by default** (30 req/window anonymous);
     optional `Authorization: Bearer` key from Settings → Metadata
@@ -2533,19 +2533,19 @@ the decoration.
     null start = 0 and null end = file end; 404 `code:no_submissions` =
     negative. Verified live 2026-11-05 (GoT tmdb 1399 S01E01 → intro
     435985–535607 ms; Inception tmdb 27205 → intro 0–38000 ms). The
-    `api.introdb.dev` domain from the original issue does NOT resolve — the
+    `api.introdb.dev` domain from the original issue does NOT resolve - the
     live service is `theintrodb.org` / `api.theintrodb.org`.
-  - **AniSkip** (`AniskipClient`) — anime (MAL-keyed): AniList GraphQL
+  - **AniSkip** (`AniskipClient`) - anime (MAL-keyed): AniList GraphQL
     title→`idMal` (cached per TMDB `providerKey`), then
     `GET api.aniskip.com/v2/skip-times/{malId}/{ep}?types=op&types=ed&types=recap&types=mixed-op&types=mixed-ed&episodeLength=…`
-    — **`types` must be REPEATED query params** (a comma-joined value is a
+    - **`types` must be REPEATED query params** (a comma-joined value is a
     400) and `episodeLength` is required; HTTP 404 body (`found:false`) = no
     data. Verified live 2026-11-04 (One Piece MAL 21 ep 1; Demon Slayer
     MAL 38000).
   - The old opt-in `IntroDb` (dart-define `INTRODB_BASE_URL`) remains as a
     last-resort fallback when both remote sources come back empty.
-- **Cache:** `AniskipStore` (`dreamplayer.aniskip` JSON) — per-episode
-  segments AND negatives, plus the MAL id — so SMB/USB/offline playback needs
+- **Cache:** `AniskipStore` (`dreamplayer.aniskip` JSON) - per-episode
+  segments AND negatives, plus the MAL id - so SMB/USB/offline playback needs
   no network after one online resolve. Mode pref: `dreamplayer.skipSegmentsMode`
   (`off|prompt|auto`, default **prompt**).
 - **Player:** pill bottom-right shows the active segment's label
@@ -2557,15 +2557,15 @@ the decoration.
   the file is a TMDB TV episode (`resolvedPlayerEpisode`).
 - Pure logic in `lib/utils/skip_segments.dart`, parsing in
   `AniskipClient.parseAniSkipResponse` / `parseAniListMalId` (both
-  try/catch around `jsonDecode` — a non-JSON body must not throw).
+  try/catch around `jsonDecode` - a non-JSON body must not throw).
   Tests: `test/skip_segments_test.dart`, `test/aniskip_test.dart`.
 
-### iOS chapter parity — chapters were local-files-only (0.5.1+35)
+### iOS chapter parity - chapters were local-files-only (0.5.1+35)
 
 The chapter UI (#40) is shared Dart and was never platform-gated, so iOS looked
 complete. It wasn't: **both Swift parsers took a local `FileHandle` path**, so
 chapters only ever populated on local files, Files-app shares and Jellyfin.
-In-app SMB, WebDAV, FTP/SFTP and UPnP silently showed none — Android had them on
+In-app SMB, WebDAV, FTP/SFTP and UPnP silently showed none - Android had them on
 every source. Same "whichever source you happened to use" trap #40 hit on
 Android, one platform over.
 
@@ -2574,23 +2574,23 @@ Every streaming source is handed to the engine as a reader that can fetch an
 arbitrary byte range (`ByteRangeSource`, from `AetherEngineSMB`) or as a live
 positional cursor (in-app SMB's `IOReader` over `smb2_pread`). So:
 
-- `ios/Runner/ChapterReader.swift` (new) — the reader abstraction, **once**.
+- `ios/Runner/ChapterReader.swift` (new) - the reader abstraction, **once**.
   It used to be duplicated verbatim as a `private protocol SeekableReader` +
   `FileReader` in both parsers, and the copies had already drifted: MP4's
   carried an extra `length` member (it bounds the `moov` scan) that MKV's
   lacked. Three implementations:
-  - `ChapterFileReader` — local / Files-app (behaviour identical to the old
+  - `ChapterFileReader` - local / Files-app (behaviour identical to the old
     per-parser copies).
-  - `ChapterWindowReader` — the head **and** tail of a remote file with the
+  - `ChapterWindowReader` - the head **and** tail of a remote file with the
     middle missing, ported from Android's `SparseReader`. Needed because
     Matroska keeps `Chapters` at the end of the segment and MP4 keeps `moov`
     there, so a head-only read finds chapters only in files that lack them.
-  - `ChapterCursorReader` — wraps a synchronous cursor via closures, so this
+  - `ChapterCursorReader` - wraps a synchronous cursor via closures, so this
     file needs **no framework import** and the parsers stay framework-free.
-- `ios/Runner/ChapterProbe.swift` (new) — 8 MiB head + 8 MiB tail through the
+- `ios/Runner/ChapterProbe.swift` (new) - 8 MiB head + 8 MiB tail through the
   retained `ByteRangeSource` (matching Android's `HEAD_RANGE_BYTES` /
   `TAIL_RANGE_BYTES`), dispatched to the MKV or MP4 parser by extension.
-- `SMBSourceReader.makeChapterReader()` — a **second cursor on the same
+- `SMBSourceReader.makeChapterReader()` - a **second cursor on the same
   handle** for in-app SMB. `pread` is positional, so the walk's single seek to
   the SeekHead offset lands on the byte: no head+tail guessing at all.
 - `AvPlayerView` retains the reader playback is already using
@@ -2600,7 +2600,7 @@ positional cursor (in-app SMB's `IOReader` over `smb2_pread`). So:
 **The bug that shipped a feature that looked like it did nothing.** The first
 version worked but produced *no chapters, ever*, on SMB. Cause: the container
 walks are byte-at-a-time (`readId` / `readSize` / `readUInt` each pull a single
-byte via `readByte()`), and neither underlying cursor buffers — `SMBSourceReader.read`
+byte via `readByte()`), and neither underlying cursor buffers - `SMBSourceReader.read`
 is a bare `smb2_pread` per call. So an unbuffered adapter turned a 40-chapter
 file into *thousands* of single-byte SMB round trips: minutes of background work
 that never finished before anyone looked. `ChapterCursorReader` now holds a 64 KiB
@@ -2619,7 +2619,7 @@ its own gate:
 
     chapters: remote gate ext=mkv container=true cursor=false byteSource=false
 
-`ext` right, container right, reader absent — which is a completely different
+`ext` right, container right, reader absent - which is a completely different
 failure from "the reader was too slow", and would never have been found by
 reading the parser. The fix derives the reader once, *after* the reset, from
 `smbPlayback` (set by both branches and never cleared), with the existing
@@ -2628,7 +2628,7 @@ nothing, log the decision, not just the result.**
 
 Diagnosing this needed the local mount, not the device:
 `ffprobe -show_chapters` proved the files *do* have chapters (Subhedar 40,
-Spider-Man 12, Billu 2 — and two files with 0, which is why "no chapters" is
+Spider-Man 12, Billu 2 - and two files with 0, which is why "no chapters" is
 sometimes correct). **Check the file before assuming the code is wrong.** A movie
 rip with no Chapters element shows nothing on any platform, and that is not a bug.
 
@@ -2639,7 +2639,7 @@ that had no feedback channel, the gate logs are the point: the next report is
 answered from the log rather than another hypothesis.
 
 **Verified on-device (build 36, 2026-10-06):** chapters, seekbar ticks and the
-previous/next buttons now appear over **in-app SMB** on the iPad — the source
+previous/next buttons now appear over **in-app SMB** on the iPad - the source
 that was silently broken. Local storage worked all along, which is what made the
 split so informative.
 
@@ -2650,7 +2650,7 @@ split so informative.
   permanently, since only `open()` re-probes.
 - Plain `http(s)` sources (UPnP / Play URL / unauthenticated Jellyfin) reach the
   engine's own HTTP stack, so there is no reader to borrow. A probe-only
-  `ByteRangeSource` is built for them — but only for chapter-capable
+  `ByteRangeSource` is built for them - but only for chapter-capable
   containers, and only via `try?`, because it carries no auth headers. An
   authenticated Jellyfin URL takes the WebDAV branch instead and *does* get
   probed with its real headers.
@@ -2660,7 +2660,7 @@ split so informative.
 
 ### Reading logs off the iPad: there is no Mac in the loop (2026-10-04)
 
-**The device console is NOT an option** — the user has no Mac, so `debugPrint`
+**The device console is NOT an option** - the user has no Mac, so `debugPrint`
 output from a TestFlight build is unreachable. The only channel that actually
 reaches them is a file they can pull in **Files -> On My iPad -> DreamPlayer**,
 which is how `smb_debug.log` has always worked (`ios/Runner/SBMLog.swift` writes
@@ -2671,7 +2671,7 @@ So `lib/services/app_debug_log.dart` mirrors that: `AppDebugLog.mark()` does a
 to `smb_debug.log` and `iap_debug.log`. Design points that matter:
 
 - **Fire-and-forget, never awaited.** `mark()` returns `void` and appends through
-  an internal `Future` chain, so a diagnostics aid can never block the UI path —
+  an internal `Future` chain, so a diagnostics aid can never block the UI path -
   the very failure mode being debugged.
 - **Off under `flutter test`** (`Platform.environment['FLUTTER_TEST']`), so unit
   tests do no filesystem work.
@@ -2685,13 +2685,13 @@ exactly how build 28's `TMD-OPEN` markers came to nothing.
 **Three bugs lived in that logger before it produced a single readable line**,
 all found by checking the FILE rather than trusting the code:
 
-1. `'$_stamp  $message'` interpolates the **tear-off**, not the result — every
+1. `'$_stamp  $message'` interpolates the **tear-off**, not the result - every
    line was `Closure: () => String from Function '_stamp'`. It must be
    `${_stamp()}`. Grepping the log for a marker still *found* the message
    (appended after the garbage), so this would have shipped as "logging works".
 2. The boot line awaited `PackageInfo.fromPlatform()` before the first write. At
    boot a plugin channel may not be registered, the write threw, and the error
-   was swallowed — so the file never appeared and the failure looked like
+   was swallowed - so the file never appeared and the failure looked like
    "the markers never fired". The boot mark is now plugin-free, and
    `_append` forgets its cached `File` on failure so the **next** mark retries.
 3. Failures are now reported once via `debugPrint` instead of vanishing. A
@@ -2699,14 +2699,14 @@ all found by checking the FILE rather than trusting the code:
    happened" rather than "the writer is broken".
 
 Verified on Android (the bug is in shared Dart, so that is the fast check) by
-`run-as … cat app_flutter/app_debug.log` — note Android maps
+`run-as … cat app_flutter/app_debug.log` - note Android maps
 `getApplicationDocumentsDirectory()` to `app_flutter/`, NOT `files/`, which is
 where I first looked and wrongly concluded the writer was broken on both.
 
-### "App crashed?" report form — both platforms (2026-11-06)
+### "App crashed?" report form - both platforms (2026-11-06)
 
 Settings → below the FAQ → `CrashReportNote` (`lib/widgets/crash_report_note.dart`,
-`isSupported = !kIsWeb` — NOT iOS-gated since Android got it). Flow: tap →
+`isSupported = !kIsWeb` - NOT iOS-gated since Android got it). Flow: tap →
 `dumpLogcatIfAndroid()` (Android only) → `existingCrashLogPaths()` → in-app
 `CrashReportDialog` (checkboxes + message + Submit → `CrashReportUpload` to the
 `CRASH_REPORT_ENDPOINT` dart-define, else share-sheet fallback via `shareCrashLogs`).
@@ -2718,12 +2718,12 @@ Settings → below the FAQ → `CrashReportNote` (`lib/widgets/crash_report_note
   `iap_debug.log` (StoreKit).
 `crashLogNamesFor(platform)` picks the list; `existingCrashLogPaths` lists only
 files that exist. Do NOT put iOS-only names in the Android list (user request
-2026-11-06) — `smb_debug.log`/`iap_debug.log` are Swift-side writers and never
+2026-11-06) - `smb_debug.log`/`iap_debug.log` are Swift-side writers and never
 exist on Android; the reverse (`logcat_dump.log` on iOS) is equally pointless.
 
 **`logcat_dump.log` is the Android native-crash channel.** `dumpLogcat` on the
 `dreamplayer/device` channel (MainActivity.kt) runs `logcat -d -v threadtime -t 4000`
-— apps read only their own uid's logs without READ_LOGS (API 16+) — and writes
+- apps read only their own uid's logs without READ_LOGS (API 16+) - and writes
 the newest 512 KiB to `<documents>/logcat_dump.log`. This is the ONLY log that
 carries native/Java crashes (decoder SIGSEGV, `NoSuchMethodError` like the
 2026-11-06 HDR report), because `CrashLog`'s `FlutterError.onError` /
@@ -2735,8 +2735,8 @@ notImplemented).
 ### TmdStore writes: why the iPad froze solid on a details screen (2026-10-04)
 
 **Symptom (iOS/SMB):** tapping an episode or movie in the SMB browser froze the
-app **solid** — the spinner stopped animating, so it was not "slow", the UI
-isolate was *blocked* — for several seconds, then the TMDB details screen
+app **solid** - the spinner stopped animating, so it was not "slow", the UI
+isolate was *blocked* - for several seconds, then the TMDB details screen
 appeared. Movies and episodes alike. Playback itself opened fast, which is the
 clue: playback writes no metadata.
 
@@ -2749,7 +2749,7 @@ Opening a details screen saves several times in a row (`carryMeta`, `resolve`,
 encodes + N huge writes.
 
 **Fix:** `_memo` holds the decoded store after the first read; `save()` mutates
-memory, notifies, and calls `_schedulePersist()` — a 600 ms debounce that
+memory, notifies, and calls `_schedulePersist()` - a 600 ms debounce that
 collapses a burst into ONE encode + ONE write. `_persistNow` serialises writers
 and re-arms if something changed mid-encode, so nothing is lost.
 `TmdStore.flush()` forces the write for callers that must not return first
@@ -2758,7 +2758,7 @@ and re-arms if something changed mid-encode, so nothing is lost.
 
 **Read the symptom correctly:** a *spinning* spinner means awaiting; a *frozen*
 one means blocked. That distinction is what pointed at a synchronous CPU cost
-rather than a slow channel — and `openShare` was never the suspect, because it
+rather than a slow channel - and `openShare` was never the suspect, because it
 already runs in a `Task.detached` and replies on `MainActor`
 (`ios/Runner/SMBBridge.swift`), which the log confirms (~136 ms).
 
@@ -2769,10 +2769,10 @@ network folders, not part of the freeze.
 `test/tmd_store_persist_test.dart` (5 tests) pins it: a burst is NOT written
 immediately, `flush` persists all of it, an entry saved *during* a write is not
 dropped, `remove` deletes one entry and persists, `clearAll` empties both memory
-and disk. A `debugPrint` reports the blob size when it exceeds 100 000 chars —
+and disk. A `debugPrint` reports the blob size when it exceeds 100 000 chars -
 that single number is what to look for in a device log if this ever regresses.
 
-### First-frame stall on the details screen (iOS) — the artwork fan-out
+### First-frame stall on the details screen (iOS) - the artwork fan-out
 
 **Symptom:** tapping a file in the SMB browser froze the TMDB details screen for
 30–60 s with its spinner turning, then the page appeared. Reopening the same
@@ -2792,12 +2792,12 @@ Read that table before theorising. Three things it settles:
 1. **The metadata path is innocent.** `ensureLoaded` 3–9 ms, `detailsFor` 2–275 ms,
    always. Nothing in TMDB or `TmdStore` takes a minute.
 2. **A fresh install is the FAST case (9–14 ms).** "Cold cache" is not the
-   trigger — the stall only ever happened on an *upgraded* install, tapped ~11 s
+   trigger - the stall only ever happened on an *upgraded* install, tapped ~11 s
    after launch, i.e. while the home screen's own metadata pass was still
    running. An empty `TmdStore` with nothing to prefetch cannot fan out.
 3. **It is a starved frame pipeline, not a slow await.** The post-frame callback
    was registered at 2 ms and fired 60 s later, so the app produced *no frame at
-   all* for a minute — whatever the async work was doing, it was competing for
+   all* for a minute - whatever the async work was doing, it was competing for
    the frame budget.
 
 **Cause: unbounded speculative artwork fan-out.** `prefetchImages` fires poster +
@@ -2822,8 +2822,8 @@ single user action could start hundreds of those at once.
   starved.
 
 **Verified on-device (build 34, 2026-10-06):** a folder containing many files
-*and* subfolders — the heavy-load case the small 12–15 entry test folders could
-not reproduce — opens its details screen with no stall. Root cause confirmed, not
+*and* subfolders - the heavy-load case the small 12–15 entry test folders could
+not reproduce - opens its details screen with no stall. Root cause confirmed, not
 just mitigated.
 
 **Traps worth keeping:**
@@ -2840,7 +2840,7 @@ just mitigated.
 - `_download` being `static` is what hid the per-download `HttpClient`; the fix
   made it an instance method so it can share the pooled client.
 
-### Library rescan on refresh (issue #39, 0.5.1+25) — read this before touching the scanner
+### Library rescan on refresh (issue #39, 0.5.1+25) - read this before touching the scanner
 
 The home grid was a **one-time snapshot**: `FolderScanner` ran only inside the
 three bookmark flows (`home_screen.dart:974` local, `smb_screen.dart:256`,
@@ -2852,19 +2852,19 @@ scanned, so it could never fix the staleness it appeared to promise. Fixed by
 **Scope is deliberately LOCAL (`LibraryFolderSource.files`) only.** A network
 source costs one round-trip per subfolder (50 folders ≈ 5-10 s on a LAN), so a
 rescan on every pull would stall; network folders are refreshed by re-opening
-them (`FolderScreen._load` always re-lists — that path was never stale).
+them (`FolderScreen._load` always re-lists - that path was never stale).
 
 **Four traps, each of which was a real bug found by the tests:**
 
 1. **Ids must be carried over, never regenerated.** A matched entry keeps its
    **existing `id` and `addedAt`** (`copyWith(id:, addedAt:)`). `metadataKey` is
    `folder:<id>` for a folder, and scanner ids embed `String.hashCode`, which
-   carries no cross-version guarantee — a regenerated id silently orphans that
+   carries no cross-version guarantee - a regenerated id silently orphans that
    folder's cached TMDB metadata and artwork overrides, so every refresh would
    drop the poster off the grid. Matching is by `scanIdentityOf` (source + path),
    never by id.
 2. **An unreadable directory must never read as "empty".** `FolderScanner` now
-   counts `failedDirs` (a listing that threw — unmounted SD card, revoked
+   counts `failedDirs` (a listing that threw - unmounted SD card, revoked
    permission). If `failedDirs > 0`, OR a root with children scans to empty,
    the plan runs with `allowRemovals: false`: additions apply, **nothing is
    removed**. Strays are pruned by the next clean scan. Deletion is the
@@ -2879,7 +2879,7 @@ them (`FolderScreen._load` always re-lists — that path was never stale).
    directly → `tree:X/House`). Two sub-traps: the reconstruction only earns
    removal rights when it yields a real display name (children sitting directly
    in `tree:X` give an unnamed seed → add-only), and an unnamed reconstruction is
-   deliberately **not persisted** — freezing it would make the next refresh trust
+   deliberately **not persisted** - freezing it would make the next refresh trust
    it for removals, the exact thing it was too unsure to allow.
 4. **Scan roots are pruned by `remove()`, never by the rescan.** In the rescan,
    "root with no children left" is indistinguishable from "the user emptied the
@@ -2889,19 +2889,19 @@ them (`FolderScreen._load` always re-lists — that path was never stale).
 
 `LibraryFoldersStore.applyDiff` exists so a refresh is **one** prefs write and
 **one** `changes.notify()`: upserts replace matching ids **in place** (a refresh
-must not reshuffle the grid), new ids append, and the DANGER half —
-`bulkAdd` — is never called from the rescan because its insert-at-0 would float
+must not reshuffle the grid), new ids append, and the DANGER half -
+`bulkAdd` - is never called from the rescan because its insert-at-0 would float
 every rescanned folder to the top. `sameContentAs` keeps unchanged entries out
 of the write entirely.
 
 `test/local_library_rescan_test.dart` (21 tests) pins all of it, including both
 reconstruction shapes, the add-only fallback, and id/`addedAt` preservation.
 
-### Artwork identity across surfaces (0.5.1+25) — read this before adding a surface
+### Artwork identity across surfaces (0.5.1+25) - read this before adding a surface
 
 Artwork overrides are keyed by metadata identity, and for a long time one film had
 **three** keys at once, so a poster picked in one place never appeared in another
-while resume — stored against `resumeKey` — looked correctly synced the whole
+while resume - stored against `resumeKey` - looked correctly synced the whole
 time. That asymmetry is what made it look like a rendering bug.
 
 | Surface | Key |
@@ -2914,14 +2914,14 @@ time. That asymmetry is what made it look like a rendering bug.
 
 Two rules hold it together:
 
-1. **A file's identity is its resume key.** `LibraryFolder.metadataKey` returns `path` when `isFile`, and `NetworkVideoResolver` already puts exactly that string on the `VideoItem` it resolves from the entry's `path`. A real folder keeps `folder:<id>` — it has no resume key, and its card stands for the whole folder. Nothing branches on the `folder:` prefix.
+1. **A file's identity is its resume key.** `LibraryFolder.metadataKey` returns `path` when `isFile`, and `NetworkVideoResolver` already puts exactly that string on the `VideoItem` it resolves from the entry's `path`. A real folder keeps `folder:<id>` - it has no resume key, and its card stands for the whole folder. Nothing branches on the `folder:` prefix.
 2. **Artwork inherits down an ancestor chain, one way.** `TmdService.metaFor(key, inheritArtworkFrom: [...])` takes the chain nearest-first (for an episode: its season folder, then the show folder) and consults each only when nothing nearer has a pick of that kind. Per *kind*, so a poster pick does not drag the backdrop along with it. It never writes back up: an episode's pick does not reach its season or the show, because seasons keep independent keys precisely so they can differ (issue #33). A consequence worth remembering: an episode's season is parsed from its **filename**, so anything season-keyed must not treat a file as a season page.
 
-**The trap to avoid.** `withArtwork` patches `movie` and `details` but **never `seasons[]`**. So any header that prefers `meta.seasons[n].posterUrl` silently ignores the user's pick. That is why `detailsHeaderPosterUrl` takes `preferSeasonPoster`, which is true only for a season *page* (`widget.folder != null`) and false for an episode. When changing artwork resolution, render from `movie.posterUrl` — that is what `posterUrlOf`, and therefore every card, uses.
+**The trap to avoid.** `withArtwork` patches `movie` and `details` but **never `seasons[]`**. So any header that prefers `meta.seasons[n].posterUrl` silently ignores the user's pick. That is why `detailsHeaderPosterUrl` takes `preferSeasonPoster`, which is true only for a season *page* (`widget.folder != null`) and false for an episode. When changing artwork resolution, render from `movie.posterUrl` - that is what `posterUrlOf`, and therefore every card, uses.
 
 ### Backdrop hero is width-derived (0.5.1+25)
 
-`CollapsingBackdrop` + `backdropExpandedHeight` in `lib/widgets/collapsing_backdrop.dart`, shared by the details, series-seasons and group screens. It used to be duplicated byte-identically in all three and hardcoded to 200–220 px, which is why tablets showed a thin cropped strip: a 16:9 backdrop at a **fixed** height shows proportionally less of the image as the screen widens. At 200 px a 390-wide phone still fits the full width, while a 1024-wide iPad shows barely a third of the image's height. The height is now `width * 9 / 16` clamped to 200..62% of the viewport height — full image in portrait on any device, slightly cropped in landscape — and `alignment: Alignment(0, -0.25)` biases upward when it does crop, because the subject in movie artwork sits above centre.
+`CollapsingBackdrop` + `backdropExpandedHeight` in `lib/widgets/collapsing_backdrop.dart`, shared by the details, series-seasons and group screens. It used to be duplicated byte-identically in all three and hardcoded to 200–220 px, which is why tablets showed a thin cropped strip: a 16:9 backdrop at a **fixed** height shows proportionally less of the image as the screen widens. At 200 px a 390-wide phone still fits the full width, while a 1024-wide iPad shows barely a third of the image's height. The height is now `width * 9 / 16` clamped to 200..62% of the viewport height - full image in portrait on any device, slightly cropped in landscape - and `alignment: Alignment(0, -0.25)` biases upward when it does crop, because the subject in movie artwork sits above centre.
 
 ### Library search, keyboard shortcuts, AirPlay (0.5.4)
 
@@ -2931,8 +2931,8 @@ renders: `LibraryFoldersStore` entries grouped by `SeriesGroupingService`,
 individual `isFile` entries, and `ManualGroupsStore` groups. Searching *inside*
 an unexpanded network folder is out of scope: it is one network round-trip per
 folder per keystroke, and the results would not be playable until that folder is
-opened anyway. TMDB metadata only **enriches** entries that exist — it never
-adds results — so a search works with no connection and every row can be opened.
+opened anyway. TMDB metadata only **enriches** entries that exist - it never
+adds results - so a search works with no connection and every row can be opened.
 
 A file entry's title is `ParsedFileName.parse(...).title` (so
 `Dark.S01E05.mkv` reads "Dark", with `S01E05` as secondary) unless a cached show
@@ -2941,13 +2941,13 @@ title exists. Matching rules live in `lib/utils/search_match.dart` and are pure
 (`Amélie` → `amelie`), punctuation becomes a space, and every query token must
 appear. Rank 0 = prefix, 1 = contains in the primary title, 2 = matched only a
 secondary field, so typing a show name puts the show above its episodes. Do not
-re-implement any of this per screen — Home's search button is the only entry
+re-implement any of this per screen - Home's search button is the only entry
 point and `test/search_match_test.dart` + `test/library_search_test.dart` pin it.
 
 **Player keyboard shortcuts are gated to non-TV.** `_handleKeyboardShortcut`
 (`player_screen.dart`) is called from the **non-TV** branch of the
 `FocusScope.onKeyEvent` chain. The TV branches return before it, because their
-arrow keys move focus between the transport buttons — stealing them for seek
+arrow keys move focus between the transport buttons - stealing them for seek
 would break remote navigation. Keys: `K`/Space play-pause, `J`/`L` ∓10 s, `F`
 fullscreen, and left/right seek **only while the controls are hidden** (with
 them visible they still move focus). Play-pause and fullscreen act on
@@ -2969,13 +2969,13 @@ things are load-bearing:
   on a platform-view creation that never answers.
 Video AirPlay only works on the native AVPlayer path (Apple containers);
 FFmpeg-backed containers (MKV/TS/AVI/WebM) can route **audio** only because
-AirPlay video needs an `AVPlayerLayer`. The picker is still shown for both — an
-audio-only route to a speaker is a valid use — and the release notes say so
+AirPlay video needs an `AVPlayerLayer`. The picker is still shown for both - an
+audio-only route to a speaker is a valid use - and the release notes say so
 plainly rather than implying the picture moves.
 
-### GPU rendering + Cast — the ordered plan (2026-10-28)
+### GPU rendering + Cast - the ordered plan (2026-10-28)
 
-Derived from the Mpv∞ study above. **MPV-only for every rendering item** —
+Derived from the Mpv∞ study above. **MPV-only for every rendering item** -
 Media3 stays the Dolby Vision / HDR engine and is never routed through a custom
 renderer (that trade is already documented as rejected). **No Mpv∞ code is
 copied**; the only files we ship from that ecosystem are the MIT Anime4K
@@ -2984,29 +2984,29 @@ shaders (and, after a licence check, hdr-toys).
 Each step is gated on the previous one being verified **on the phone**
 (`a019b7f3`), never on the emulator.
 
-**Step 1 — Anime4K: SHIPPED, one gap left (thermal tiering).**
+**Step 1 - Anime4K: SHIPPED, one gap left (thermal tiering).**
 Anime4K is **already in the app** (commit `bb38f09`): the MIT shaders are in
 `assets/anime4k/`, `lib/services/anime4k_shader_store.dart` copies them out and
 maps the six modes (A / B / C / A+A / B+B / C+A) to a shader chain, and
 `player_screen.dart` applies it **on the MPV engine only**, **session-only**,
 from the player's ⋮ sheet. It is **SDR-only** on purpose
 (`isAnime4kSdrVideo` refuses DV/PQ/HLG/BT.2020), and it runs on `vo=gpu` +
-`gpu-api=opengl` with `hwdec=mediacodec-copy` — the legacy GLSL path cannot
+`gpu-api=opengl` with `hwdec=mediacodec-copy` - the legacy GLSL path cannot
 take a direct MediaCodec surface.
 
 **The 4K/8K guard is DONE (2026-10-28).** `isAnime4kSupportedResolution`
 (`anime4k_shader_store.dart`) refuses a source above **2560×1440 ≈ 3.7 MP**,
-judged on the **pixel count, not on each dimension** — a vertical 1080×2160 clip
+judged on the **pixel count, not on each dimension** - a vertical 1080×2160 clip
 has the same pixel count as 1920×1080 and is fine, while 3840×2160 is not. The
 size comes from mpv's `VideoParams.w`/`h` (`_mpvVideoParams`), so the guard is
 a comparison, not a new probe. An unknown size is allowed (it means "not
 measured yet"). The chain is applied with `change-list glsl-shaders set` and then
-**read back** (`getProperty('glsl-shaders')`) — keep that read-back, it is what
+**read back** (`getProperty('glsl-shaders')`) - keep that read-back, it is what
 turns a silent no-op into a visible error.
 
 **Log the DECISION, not just the result.** `_onMpvVideoParams` prints
 `mpv: Anime4K eligible|blocked (<reason>) <w>x<h>`. Without it, "Anime4K did
-nothing" is indistinguishable from "the shader list was rejected" — and the
+nothing" is indistinguishable from "the shader list was rejected" - and the
 first `video-params` event arrives with `nullxnull` before the real size, so a
 log line alone is not proof either; the **second** line carries the real size.
 
@@ -3018,15 +3018,15 @@ confirmed Anime4K still works on 1080p via the MPV engine.
 
 **The one gap left is (b) thermal tiering**, which is step 3.
 
-**Step 2 — MPV HDR mode matrix (OFF / hdr-toys PQ / HLG / BT.2020 / Linear) — SHIPPED (2026-10-28).**
+**Step 2 - MPV HDR mode matrix (OFF / hdr-toys PQ / HLG / BT.2020 / Linear) - SHIPPED (2026-10-28).**
 Replace the single "SDR tone-map" mode with the full matrix, and adopt their
 state policy: the GLSL pipeline owns transfer/gamut/tone → `target-colorspace-hint=no`
 + fixed `target-prim`/`target-trc`; mpv-native → `target-colorspace-hint=yes`
 (+ `inverse-tone-mapping=yes`, `hdr-compute-peak=yes`, `hdr-reference-white=203`
-for SDR→HDR boost). **Write the COMPLETE property set on every switch** — that
+for SDR→HDR boost). **Write the COMPLETE property set on every switch** - that
 is the rule that stops a mode change leaving stale primaries/TRC behind. The
 existing tone-map mode (`spline` / `perceptual` / `bt.709` / `bt.1886`) stays as
-the OFF-path fallback, and the "SDR only — no Dolby Vision / HDR" honesty in the
+the OFF-path fallback, and the "SDR only - no Dolby Vision / HDR" honesty in the
 info sheet must keep matching whatever mode is active.
 
 **What landed:**
@@ -3035,10 +3035,10 @@ info sheet must keep matching whatever mode is active.
   (`dreamplayer.toneMapMode`), so old installs keep working.
 - `lib/utils/mpv_hdr_mode.dart` owns the **complete** property set
   (`mpvHdrOwnedProperties`, 10 properties) and maps a mode to its values.
-  `_applyMpvToneMap` writes **all ten on every switch** — the bug this fixed
+  `_applyMpvToneMap` writes **all ten on every switch** - the bug this fixed
   was real: sdr→native left `target-prim=bt.709` / `target-trc=bt.1886` in
   place, so "Native HDR/DV" still tone-mapped to SDR.
-- **hdr-toys** (MIT, upstream `github.com/natural-harmonia-gropius/hdr-toys` —
+- **hdr-toys** (MIT, upstream `github.com/natural-harmonia-gropius/hdr-toys` -
   NOT `quietvoid/hdr-toys`) is vendored in `assets/hdr_toys/` (7 shaders +
   LICENSE). `lib/services/hdr_toys_shader_store.dart` copies them to the
   app-support dir (mpv needs real paths) and hands back each profile's chain:
@@ -3054,7 +3054,7 @@ info sheet must keep matching whatever mode is active.
   `glsl-shaders` list and the chain is always cleared **before** the `vo`
   switch.
 
-**TRAP — `$root.path` in a string interpolates the OBJECT, not the property.**
+**TRAP - `$root.path` in a string interpolates the OBJECT, not the property.**
 Dart's `$identifier` interpolation is a simple identifier only: `'$root.path'`
 inserts `root.toString()` (i.e. `Directory: '/data/...'`) and then the literal
 text `.path`. The path becomes garbage, the copy fails, and every hdr-toys
@@ -3062,21 +3062,21 @@ profile reports "Could not load shaders". Worse, the garbage path is
 **relative**, so the files were written into the process's working directory
 (a `Directory: '/` folder appeared in the repo root during a test run).
 The analyzer's `unnecessary_brace_in_string_interps` lint **is wrong about
-property access** — it told us to drop the braces from `${root.path}` and that
+property access** - it told us to drop the braces from `${root.path}` and that
 is exactly what broke it. Use a local (`final rootPath = root.path;`) or keep
 the braces. `test/hdr_toys_shader_store_test.dart` now mocks the
 path_provider channel and asserts the copied files exist **inside** the
 support directory, which is the regression test for this.
 
 **Where the controls live (user request, 2026-10-28).** The HDR output mode and
-the frame interpolation (target fps + quality) are in the **picture panel** —
+the frame interpolation (target fps + quality) are in the **picture panel** -
 the sliders button at the TOP RIGHT of the player (`_MpvPictureControls`,
 `_openMpvPictureControls`), next to the picture sliders and Anime4K. They were
 removed from the ⋮ overflow sheet: it was getting crowded, and the panel is
 where the other MPV-only picture settings already were. The Settings →
 Player entries stay as the persistent default.
 
-**Step 3 — Thermal-aware quality (Android API, no new dependency).**
+**Step 3 - Thermal-aware quality (Android API, no new dependency).**
 `PowerManager.getThermalHeadroom(10)` (API 30+), sampled every 10 s while
 playing, driving the Anime4K tier and the interpolation target. Below 0.40
 headroom → cheapest tier; below 0.60 → one step down; below 0.80 → cap. This is
@@ -3086,7 +3086,7 @@ is public and the policy is ours to write.
 **What landed (2026-10-28):**
 - Native: `android/.../ThermalMonitor.kt`, channel **`dreamplayer/thermal`**,
   method `getThermalHeadroom` → a double. `getThermalHeadroom` is **API 30+**,
-  so older devices answer **-1** — which the Dart side reads as "no reading"
+  so older devices answer **-1** - which the Dart side reads as "no reading"
   and leaves the quality alone (it must NOT be treated as a cold reading).
 - Policy (pure Dart, unit-tested): `lib/utils/thermal_policy.dart`.
   `thermalTierFor(headroom)` → normal ≥ 0.80 · mild ≥ 0.60 · hot ≥ 0.40 ·
@@ -3094,7 +3094,7 @@ is public and the policy is ours to write.
   (120 / 60 / 48 / 0) and whether Anime4K may run; `anime4kModeForTier`
   steps the preset down one notch at the `hot` tier
   (C+A → A+A → A, B+B → A+A, C → B, B → A).
-- Monitor: `lib/services/thermal_monitor.dart` — a `ChangeNotifier` that
+- Monitor: `lib/services/thermal_monitor.dart` - a `ChangeNotifier` that
   samples every 10 s while the MPV engine plays, and stops with the player.
 - Player: `_applyThermalPolicy` lowers the interpolation target and the
   Anime4K preset when the tier drops; the picture panel shows a line with the
@@ -3110,19 +3110,19 @@ mild / hot / critical) forces a tier so the downgrade path can be verified on
 a phone that is not actually hot. The release workflow passes no such define.
 
 
-**Step 5 — Real (motion-compensated) interpolation without patching mpv.**
+**Step 5 - Real (motion-compensated) interpolation without patching mpv.**
 Spike: FFmpeg `minterpolate` through mpv's `vf=lavfi`
 (`[in]minterpolate=fps=60:mc_mode=aobmc:me_mode=bidir:vsbmc=1`) plus the
 `video-sync=display-resample` recipe we already own. Three questions to answer
 on device: does our libmpv ship `vf_lavfi`; does `minterpolate` see frame pairs
 through mpv's single-input graph; and what does it cost at 1080p/4K. Stock
-blending stays the shipped fallback until this proves out — the current
+blending stays the shipped fallback until this proves out - the current
 `--interpolation` recipe is verified working and must not regress.
 
-**Step 6 — Our own patched mpv with a GPU MEMC filter (only if step 5 fails).**
+**Step 6 - Our own patched mpv with a GPU MEMC filter (only if step 5 fails).**
 This is the Mpv∞ architecture without their code: patch `vo_gpu_next` (or write
 an mpv user filter) in OUR libmpv build, and implement the motion estimation
-ourselves. Their `docs/mpvflow-design.md` shows the real cost — ~10 rounds of
+ourselves. Their `docs/mpvflow-design.md` shows the real cost - ~10 rounds of
 artifact repair (half-pixel parent registration, the aperture problem,
 inverse-warp convergence) before it looked acceptable. **Do not start this
 step while 1-5 are unfinished**, and do not read their design doc as a
@@ -3130,32 +3130,32 @@ specification to implement; it is a record of one team's failures.
 
 **Two things from the study we will NOT adopt:** Media3-side interpolation (it
 costs the Dolby Vision / HDR passthrough that is the whole point of the native
-engine), and any move to `gpu-api=vulkan` on the MPV engine — it forces
+engine), and any move to `gpu-api=vulkan` on the MPV engine - it forces
 `hwdec=mediacodec-copy` and gives up the zero-copy MediaCodec path until a
 Vulkan ImageReader path exists.
 
 ### Player feature backlog (prioritized 2026-09)
 
-1. Android release signing (deferred — see CI/Deployment).
-2. **Anime4K real-time upscaling (SHIPPED 2026-09, commit `bb38f09` — one gap left)**: [Anime4K](https://github.com/bloc97/anime4k) is a set of MIT-licensed GLSL shaders that upscale native 1080p anime → 4K in real-time. It is **already in the app**: the MIT shaders live in `assets/anime4k/` (with their LICENSE), `lib/services/anime4k_shader_store.dart` copies them to the app-support dir on first use (mpv needs real file paths) and maps the six canonical modes (A / B / C / A+A / B+B / C+A) to a shader chain, and `player_screen.dart` applies it **on the MPV engine only**, **session-only** (no pref), from the player's ⋮ sheet. Two things are deliberately NOT done: it is **SDR-only** (`isAnime4kSdrVideo` refuses DV/PQ/HLG/BT.2020 content — a shader chain means the frame is no longer the decoder's native BT.2020 PQ layer, so real HDR passthrough would be lost), and the chain runs on `vo=gpu` + `gpu-api=opengl` with `hwdec=mediacodec-copy` (the legacy GLSL path cannot take a direct MediaCodec surface). **The 4K/8K auto-disable is done** (`isAnime4kSupportedResolution`, ≤ 2560×1440 by pixel count). The **remaining gap** is the thermal tiering — see "GPU rendering + Cast — the ordered plan", step 1. The upstream repo has 21k stars and active maintenance; [Anime4KMetal](https://github.com/imxieyi/Anime4KMetal) exists for Apple platforms (Metal shaders) which could apply to the iOS AetherEngine path in a distant future.
-3. **Download to device (done, 2026-09)**: download video files from network sources (SMB, WebDAV, HTTP, Jellyfin, UPnP) to local storage for offline playback. Modeled on Nova Video Player's `CopyCutEngine` + `FileManagerService` pattern. Core is built: Kotlin foreground service + Dart DownloadManager + UI triggers + download screen + SMB via loopback + silent notification with Cancel button + iOS local notification. iOS: notification shows banner once at start, then silent progress updates every 5s; cancel action forwards `jobId` to Dart; tap notification body opens the Downloads drawer. Local file copy uses async chunked I/O (256 KB) with event-loop yield each chunk — sync I/O blocked the UI and caused stutter. Cancel properly interrupts the copy loop via `_activeCompleter` and deletes the partial file. Progress bar renders for all downloads (indeterminate animation when `totalBytes` is unknown; HEAD probe runs before the GET on HTTP sources to resolve size). FTP download is hidden because Dart `HttpClient` cannot handle `ftp://` URIs.
-   4. **Localization / internationalization (DONE 2026-09)**: full app translation via Flutter's built-in `flutter_localizations` + `intl` package. Languages: **English** (default/fallback), **Spanish** (es), **Chinese Simplified** (zh), **Russian** (ru), **French** (fr). Auto-detects device system language on launch; optional Settings → General → Language override. Technical terms (codec names, HDR, Dolby Vision, etc.) stay English. **559 ARB keys** in English ARB (`lib/l10n/app_en.arb`), all translated to es/zh/ru/fr (~130 key strings per language). Auto-generated `AppLocalizations` class via `gen-l10n` with camelCase getters, `l10n.yaml` at project root. `LanguageService` (`lib/services/language_service.dart`) manages the locale override with SharedPreferences persistence. `MaterialApp` wired with `localizationsDelegates` + `supportedLocales` via `ListenableBuilder` + **`ValueKey`** to force full rebuild on locale change. Language picker uses `StatefulBuilder` + `ListTile` + `onTap` (not `RadioGroup` — nullable `Locale?` generic type issues). **283 strings localized** across 13 screen files. `test/test_helper.dart` provides `localizationDelegates` for widget tests.
+1. Android release signing (deferred - see CI/Deployment).
+2. **Anime4K real-time upscaling (SHIPPED 2026-09, commit `bb38f09` - one gap left)**: [Anime4K](https://github.com/bloc97/anime4k) is a set of MIT-licensed GLSL shaders that upscale native 1080p anime → 4K in real-time. It is **already in the app**: the MIT shaders live in `assets/anime4k/` (with their LICENSE), `lib/services/anime4k_shader_store.dart` copies them to the app-support dir on first use (mpv needs real file paths) and maps the six canonical modes (A / B / C / A+A / B+B / C+A) to a shader chain, and `player_screen.dart` applies it **on the MPV engine only**, **session-only** (no pref), from the player's ⋮ sheet. Two things are deliberately NOT done: it is **SDR-only** (`isAnime4kSdrVideo` refuses DV/PQ/HLG/BT.2020 content - a shader chain means the frame is no longer the decoder's native BT.2020 PQ layer, so real HDR passthrough would be lost), and the chain runs on `vo=gpu` + `gpu-api=opengl` with `hwdec=mediacodec-copy` (the legacy GLSL path cannot take a direct MediaCodec surface). **The 4K/8K auto-disable is done** (`isAnime4kSupportedResolution`, ≤ 2560×1440 by pixel count). The **remaining gap** is the thermal tiering - see "GPU rendering + Cast - the ordered plan", step 1. The upstream repo has 21k stars and active maintenance; [Anime4KMetal](https://github.com/imxieyi/Anime4KMetal) exists for Apple platforms (Metal shaders) which could apply to the iOS AetherEngine path in a distant future.
+3. **Download to device (done, 2026-09)**: download video files from network sources (SMB, WebDAV, HTTP, Jellyfin, UPnP) to local storage for offline playback. Modeled on Nova Video Player's `CopyCutEngine` + `FileManagerService` pattern. Core is built: Kotlin foreground service + Dart DownloadManager + UI triggers + download screen + SMB via loopback + silent notification with Cancel button + iOS local notification. iOS: notification shows banner once at start, then silent progress updates every 5s; cancel action forwards `jobId` to Dart; tap notification body opens the Downloads drawer. Local file copy uses async chunked I/O (256 KB) with event-loop yield each chunk - sync I/O blocked the UI and caused stutter. Cancel properly interrupts the copy loop via `_activeCompleter` and deletes the partial file. Progress bar renders for all downloads (indeterminate animation when `totalBytes` is unknown; HEAD probe runs before the GET on HTTP sources to resolve size). FTP download is hidden because Dart `HttpClient` cannot handle `ftp://` URIs.
+   4. **Localization / internationalization (DONE 2026-09)**: full app translation via Flutter's built-in `flutter_localizations` + `intl` package. Languages: **English** (default/fallback), **Spanish** (es), **Chinese Simplified** (zh), **Russian** (ru), **French** (fr). Auto-detects device system language on launch; optional Settings → General → Language override. Technical terms (codec names, HDR, Dolby Vision, etc.) stay English. **559 ARB keys** in English ARB (`lib/l10n/app_en.arb`), all translated to es/zh/ru/fr (~130 key strings per language). Auto-generated `AppLocalizations` class via `gen-l10n` with camelCase getters, `l10n.yaml` at project root. `LanguageService` (`lib/services/language_service.dart`) manages the locale override with SharedPreferences persistence. `MaterialApp` wired with `localizationsDelegates` + `supportedLocales` via `ListenableBuilder` + **`ValueKey`** to force full rebuild on locale change. Language picker uses `StatefulBuilder` + `ListTile` + `onTap` (not `RadioGroup` - nullable `Locale?` generic type issues). **283 strings localized** across 13 screen files. `test/test_helper.dart` provides `localizationDelegates` for widget tests.
 
    **Architecture (3 layers):**
    - **UI**: player ⋮ sheet "Download to device" row + details screen bottom bar Download button (visible only for network sources)
    - **Service**: `DownloadService` (foreground service, `dreamplayer_download` notification channel, `NOTIF_ID=4211`, `FOREGROUND_SERVICE_TYPE_DATA_SYNC`) + `DownloadManager` (singleton, sequential queue, one download at a time)
-   - **Engine**: per-protocol stream readers writing 32 KB chunks to `FileOutputStream` — SMB via `SmbRandomAccessFile` (jcifs-ng), WebDAV via OkHttp GET with `Range`+`Authorization`, FTP/SFTP via existing `PASV`/`RETR` or `ChannelSftp`, Jellyfin via OkHttp GET `streamUrl()` (`static=true`), UPnP via HTTP GET DIDL `<res>` URL
+   - **Engine**: per-protocol stream readers writing 32 KB chunks to `FileOutputStream` - SMB via `SmbRandomAccessFile` (jcifs-ng), WebDAV via OkHttp GET with `Range`+`Authorization`, FTP/SFTP via existing `PASV`/`RETR` or `ChannelSftp`, Jellyfin via OkHttp GET `streamUrl()` (`static=true`), UPnP via HTTP GET DIDL `<res>` URL
 
    **Method channel** `dreamplayer/download`:
    - `startDownload { sourceUri, sourceType, destDir, title, httpHeaders?, allowSelfSigned? }` → `{ jobId, destPath }`
    - `cancelDownload { jobId }`
    - `getDownloads` → `List<DownloadJob>`
-   - `deleteDownload { jobId }` — deletes local file
+   - `deleteDownload { jobId }` - deletes local file
    - `getDownloadDir` → default path (`Environment.DIRECTORY_MOVIES/DreamPlayer/`)
 
    **UI triggers:**
-   - Player ⋮ sheet: "Download to device" row — visible when `_current` is network source (`PlaybackSource.smb|webdav|ftp|jellyfin|upnp|network`)
-   - Details screen bottom bar: `OutlinedButton.icon` "Download" below Play/Resume — visible when `widget.video` is network source
+   - Player ⋮ sheet: "Download to device" row - visible when `_current` is network source (`PlaybackSource.smb|webdav|ftp|jellyfin|upnp|network`)
+   - Details screen bottom bar: `OutlinedButton.icon` "Download" below Play/Resume - visible when `widget.video` is network source
    - Both show SnackBar "Downloading…" on start; button changes to "Download in progress…" with tap to open download screen
 
    **Download screen** (`lib/screens/download_screen.dart`): lists all downloads with title, progress bar, status badge, cancel/delete buttons. Accessible from player ⋮ sheet "Downloads" row + Settings → Downloads.
@@ -3166,50 +3166,50 @@ Vulkan ImageReader path exists.
 
    **Permissions:** `MANAGE_EXTERNAL_STORAGE` (already granted), `FOREGROUND_SERVICE_DATA_SYNC` (new, API 34+), `WAKE_LOCK` (already in manifest).
 
-   **Source detection:** `VideoItem.playbackSource` enum maps `resumeKey`/`uri`/`path` to `PlaybackSource.smb|webdav|ftp|jellyfin|upnp|network` — same logic already used for source badges on cards.
+   **Source detection:** `VideoItem.playbackSource` enum maps `resumeKey`/`uri`/`path` to `PlaybackSource.smb|webdav|ftp|jellyfin|upnp|network` - same logic already used for source badges on cards.
 
-   **Dart layer:** `DownloadService` singleton (`ChangeNotifier`) in `lib/services/download_service.dart` — `startDownload(VideoItem)`, `cancelDownload(jobId)`, `downloads` list, `onProgress` stream; `DownloadItem` model with `id, title, sourceUri, sourceType, destPath, status, bytesCopied, totalBytes, createdAt`; download history persisted to `dreamplayer.downloads` in shared_preferences.
+   **Dart layer:** `DownloadService` singleton (`ChangeNotifier`) in `lib/services/download_service.dart` - `startDownload(VideoItem)`, `cancelDownload(jobId)`, `downloads` list, `onProgress` stream; `DownloadItem` model with `id, title, sourceUri, sourceType, destPath, status, bytesCopied, totalBytes, createdAt`; download history persisted to `dreamplayer.downloads` in shared_preferences.
 
    **Nova reference:** `VideoInfoActivityFragment.java:926` (menu add), `FileManagerService` (foreground service), `CopyCutEngine` (FileCoreLibrary, 32 KB chunk copy via `FileEditorFactory`), `Paste` dialog (progress + cancel + "Run in background"). Nova hardcodes `Environment.DIRECTORY_MOVIES`, no folder picker, no queue persistence. We improve on all three.
 
-5. **Recursive library scanner (TODO, 2026-09)**: Flux-style deep scan — when a folder is bookmarked (any source: SMB, WebDAV, FTP, UPnP, Jellyfin, local), recursively traverse ALL subfolders and display expanded poster cards on the home grid. Progress bar shows current folder being scanned + cancel button. Results appear incrementally (each folder resolves TMDB as it's found). **Network shares caveat**: each subfolder = one network round-trip (SMB `QUERY_DIRECTORY`, WebDAV `PROPFIND`, FTP `LIST`, UPnP SOAP `Browse`). 50 folders ≈ 5-10s on LAN. Jellyfin is the exception — API supports `Recursive=true` (1 call for entire tree). Implementation: `LibraryScanner` service with per-source adapters, `ScanProgress` stream (current path, folders found, files found, total), cancellation via `Completer`. Home screen shows scanner overlay during scan, then renders all found items as expanded cards. **Key design decisions needed**: max depth limit (prevent infinite recursion on symlinks), parallel vs sequential requests (SMB/FTP can't parallelize well), cache scan results (avoid re-scanning on refresh), how to handle mixed content (TV show folders vs movie files in the same tree).
+5. **Recursive library scanner (TODO, 2026-09)**: Flux-style deep scan - when a folder is bookmarked (any source: SMB, WebDAV, FTP, UPnP, Jellyfin, local), recursively traverse ALL subfolders and display expanded poster cards on the home grid. Progress bar shows current folder being scanned + cancel button. Results appear incrementally (each folder resolves TMDB as it's found). **Network shares caveat**: each subfolder = one network round-trip (SMB `QUERY_DIRECTORY`, WebDAV `PROPFIND`, FTP `LIST`, UPnP SOAP `Browse`). 50 folders ≈ 5-10s on LAN. Jellyfin is the exception - API supports `Recursive=true` (1 call for entire tree). Implementation: `LibraryScanner` service with per-source adapters, `ScanProgress` stream (current path, folders found, files found, total), cancellation via `Completer`. Home screen shows scanner overlay during scan, then renders all found items as expanded cards. **Key design decisions needed**: max depth limit (prevent infinite recursion on symlinks), parallel vs sequential requests (SMB/FTP can't parallelize well), cache scan results (avoid re-scanning on refresh), how to handle mixed content (TV show folders vs movie files in the same tree).
 
-~~Rejected by user (2026-08-22)~~ — **implemented 2026-08-26 at the user's request**; see "Picture-in-Picture" in Implemented features.
+~~Rejected by user (2026-08-22)~~ - **implemented 2026-08-26 at the user's request**; see "Picture-in-Picture" in Implemented features.
 
-6. **User-selectable app icon (issue #23, DEFERRED 2026-09-28 by user — "might be a later upgrade")**: community request from `linausix-ui` for a Settings row to switch between the current icon and alternatives; they specifically want the logo **without** the "DreamPlayer" wordmark, since Android already prints the app name under the icon. **Research done, decision pending — the analysis is here so it does not need redoing.**
+6. **User-selectable app icon (issue #23, DEFERRED 2026-09-28 by user - "might be a later upgrade")**: community request from `linausix-ui` for a Settings row to switch between the current icon and alternatives; they specifically want the logo **without** the "DreamPlayer" wordmark, since Android already prints the app name under the icon. **Research done, decision pending - the analysis is here so it does not need redoing.**
 
    **Artwork is a non-issue.** `assets/app_icon_dark.png` is 1024×1024 with the logo in the top ~63% and the wordmark below, so a text-free variant is a crop-and-recenter (PIL is available locally). No redesign needed.
 
-   **The two platforms are NOT equally possible — this is what drives the scope decision:**
+   **The two platforms are NOT equally possible - this is what drives the scope decision:**
 
    - **iOS is clean and officially supported.** `CFBundleAlternateIcons` in `Info.plist` + `UIApplication.setAlternateIconName()`. Alternate PNGs ship in the bundle, the switch is instant, and the system persists the choice. Image files go in `ios/Runner/Assets.xcassets/` or as loose bundle resources; the app icon is currently generated by `flutter_launcher_icons` from `assets/app_icon_dark.png` (`pubspec.yaml` `flutter_launcher_icons:` block, `adaptive_icon_background: '#0E0E11'`).
-   - **Android works but is genuinely fragile, and is the reason this was deferred.** It needs `activity-alias` entries in `AndroidManifest.xml` at build time plus `PackageManager.setComponentEnabledSetting()` to flip between them. Concretely: (a) launchers cache icons hard, so Pixel's launcher frequently does not reflect the change until it restarts — users report it as broken; (b) **if a bug ever disables every launcher alias the app cannot be launched at all** (no enabled component holds the LAUNCHER intent), i.e. a bricked-app failure mode in a *live* app; (c) adaptive icons (API 26+, which this app uses) need a per-alias `mipmap-anydpi-v26` XML, not just a `mipmap`; (d) Google Play is uneasy about launcher-icon changes.
+   - **Android works but is genuinely fragile, and is the reason this was deferred.** It needs `activity-alias` entries in `AndroidManifest.xml` at build time plus `PackageManager.setComponentEnabledSetting()` to flip between them. Concretely: (a) launchers cache icons hard, so Pixel's launcher frequently does not reflect the change until it restarts - users report it as broken; (b) **if a bug ever disables every launcher alias the app cannot be launched at all** (no enabled component holds the LAUNCHER intent), i.e. a bricked-app failure mode in a *live* app; (c) adaptive icons (API 26+, which this app uses) need a per-alias `mipmap-anydpi-v26` XML, not just a `mipmap`; (d) Google Play is uneasy about launcher-icon changes.
 
    **Scoping options, cheapest first:**
-   1. Not a setting — **make the text-free icon the default**, keep the current one as the iOS alternate only. Least code, no Android failure mode, and it satisfies what the reporter actually asked for.
-   2. **iOS only for now** — full alternate-icon support behind a Settings row, Android-gated like the other platform-specific rows in `settings_screen.dart` (e.g. bass boost, spatial). Honors the exact ask on the platform where it is safe.
-   3. iOS + Android user-selectable — the complete feature, carrying the alias/bricked-app risk.
+   1. Not a setting - **make the text-free icon the default**, keep the current one as the iOS alternate only. Least code, no Android failure mode, and it satisfies what the reporter actually asked for.
+   2. **iOS only for now** - full alternate-icon support behind a Settings row, Android-gated like the other platform-specific rows in `settings_screen.dart` (e.g. bass boost, spatial). Honors the exact ask on the platform where it is safe.
+   3. iOS + Android user-selectable - the complete feature, carrying the alias/bricked-app risk.
 
-   **Recommendation: (1), or (2) if the exact ask must be honored.** Android is the platform we *can* test on a device, but it is the one where this feature is unsafe to ship — which is the opposite of the usual tradeoff, and worth remembering. Note also that a true multi-icon *store* feature (arbitrary user-supplied artwork) is a different and much larger request than what was asked here; the issue only asks for a choice among designs the developer supplies.
+   **Recommendation: (1), or (2) if the exact ask must be honored.** Android is the platform we *can* test on a device, but it is the one where this feature is unsafe to ship - which is the opposite of the usual tradeoff, and worth remembering. Note also that a true multi-icon *store* feature (arbitrary user-supplied artwork) is a different and much larger request than what was asked here; the issue only asks for a choice among designs the developer supplies.
 
-### MPV without media_kit — direct SurfaceView (issue #21) + hard Media3 guardrails
+### MPV without media_kit - direct SurfaceView (issue #21) + hard Media3 guardrails
 
 **Status: Phases 1–3 LANDED (2026-09-23); issue #21 SHIPPED in 0.4.8.** Goal: reimplement the Android MPV engine **without media_kit's Flutter `Texture`** (stutters), rendering into a **real hybrid-composition `SurfaceView`** (same pattern as `ExoPlayerView`), and ship a custom `libmpv` with **libplacebo / `gpu-next`** for optional HDR/DV → SDR tone mapping (issue #21: spline → perceptual → BT.709/BT.1886).
 
 **Phase 1+2 landed:**
-- `MpvSurfaceView.kt` + `mpv_surface_view.dart` — distinct viewType `dreamplayer/mpv_player`, hybrid composition (`PlatformViewLink` + `initExpensiveAndroidView`), surfaceReady/Changed/Lost events, reflection to MediaKitAndroidHelper for the `--wid` global ref.
-- `player_screen.dart` — media_kit `VideoController` + Flutter `Video` widget + `media_kit_video` package **removed**; media_kit `Player` (control) stays; `_startMpvFallback` calls `_teardownExoForMpv()` first (one surface only); wid attach order mirrors media_kit (`vo=null` → size → wid → `vo=gpu` → seek); fit modes via `keepaspect`/`panscan` + Flutter `AspectRatio`/`Transform.scale`.
-- `pubspec.yaml` — `media_kit_video` dropped (was the Texture path). `media_kit` + `media_kit_libs_android_video` remain for Player control + `libmpv.so` + MediaKitAndroidHelper.
+- `MpvSurfaceView.kt` + `mpv_surface_view.dart` - distinct viewType `dreamplayer/mpv_player`, hybrid composition (`PlatformViewLink` + `initExpensiveAndroidView`), surfaceReady/Changed/Lost events, reflection to MediaKitAndroidHelper for the `--wid` global ref.
+- `player_screen.dart` - media_kit `VideoController` + Flutter `Video` widget + `media_kit_video` package **removed**; media_kit `Player` (control) stays; `_startMpvFallback` calls `_teardownExoForMpv()` first (one surface only); wid attach order mirrors media_kit (`vo=null` → size → wid → `vo=gpu` → seek); fit modes via `keepaspect`/`panscan` + Flutter `AspectRatio`/`Transform.scale`.
+- `pubspec.yaml` - `media_kit_video` dropped (was the Texture path). `media_kit` + `media_kit_libs_android_video` remain for Player control + `libmpv.so` + MediaKitAndroidHelper.
 - `MainActivity.kt` registers `dreamplayer/mpv_player`.
 
 **Phase 3 landed (custom libmpv + libplacebo):**
 - `android/app/src/main/jniLibs/arm64-v8a/libmpv.so` (~29 MB, NDK r30) with **libplacebo + gpu-next** linked (built via mpv-android buildscripts + NDK r30, Docker `dreamplayer-mpv-builder`); `libc++_shared.so` alongside. Gradle `packaging.jniLibs.pickFirsts` overrides media_kit's stock `libmpv.so`; media_kit's `libmediakitandroidhelper.so` is kept.
-- Tone-map UI: Settings → Player → "HDR tone-map (MPV)" + the player's picture panel (when `_mpvReady`) — **SDR tone-map** (`vo=gpu-next`, `tone-mapping=spline`, `gamut-mapping-mode=perceptual`, `target-prim=bt.709`, `target-trc=bt.1886`) vs **Native HDR/DV** (`target-colorspace-hint`). Store: `lib/services/tone_map_store.dart` (prefs `dreamplayer.toneMapMode`, default `sdr`).
+- Tone-map UI: Settings → Player → "HDR tone-map (MPV)" + the player's picture panel (when `_mpvReady`) - **SDR tone-map** (`vo=gpu-next`, `tone-mapping=spline`, `gamut-mapping-mode=perceptual`, `target-prim=bt.709`, `target-trc=bt.1886`) vs **Native HDR/DV** (`target-colorspace-hint`). Store: `lib/services/tone_map_store.dart` (prefs `dreamplayer.toneMapMode`, default `sdr`).
 - Apply: `_applyMpvToneMap` + `_mpvGpuNextAvailable` probe (`libplacebo-version` property) in `player_screen.dart`; wid-attach prefers `gpu-next` when available. Stock libmpv falls back to `vo=gpu` + bt.2390 extras in `_configureMpvAudio`.
 - Android-only gate (`defaultTargetPlatform == android`) so the tile never appears on iOS; regression test `test/settings_tone_map_platform_test.dart`.
-- **Scope note**: libplacebo runs only on the **MPV engine** (Play with MPV) — Media3's Surface cannot be intercepted (documented in issue #21 close comment). Media3 remains the DV/HDR passthrough engine.
+- **Scope note**: libplacebo runs only on the **MPV engine** (Play with MPV) - Media3's Surface cannot be intercepted (documented in issue #21 close comment). Media3 remains the DV/HDR passthrough engine.
 
-**Why (user 2026-09-23):** the current media_kit Flutter `Texture` path **stutters** MPV video. Replace it with a SurfaceView; do not keep the texture as a fallback for mpv. media_kit is **not** used by Media3 (Media3 = ExoPlayer platform view only) — dropping the texture only affects the MPV engine.
+**Why (user 2026-09-23):** the current media_kit Flutter `Texture` path **stutters** MPV video. Replace it with a SurfaceView; do not keep the texture as a fallback for mpv. media_kit is **not** used by Media3 (Media3 = ExoPlayer platform view only) - dropping the texture only affects the MPV engine.
 
 **Target architecture**
 
@@ -3220,12 +3220,12 @@ Dart MpvEngineController  →  MethodChannel/EventChannel
             →  custom libmpv (libplacebo + gpu-next when #21 lands)
 ```
 
-- **Native**: new `MpvSurfaceView.kt` + factory (register like `dreamplayer/exo_player`); small JNI C shim (`libdreammpv.so`: create/setProperty/command/observeProperty/destroy) wrapping libmpv — no media_kit `Player` / `VideoController` / `Video` widget.
-- **Dart**: `MpvEngineController` mirrors the `ExoPlayerController` surface; migrate `_mpv*` state in `player_screen.dart` (resume keys, external subs, PiP/`MpvPipService`, fit/zoom, custom subtitle overlay, gestures). **Remove media_kit `VideoController` + `Video` widget** from the mpv slot — replace with the new SurfaceView platform view (keep media_kit `Player` only if still needed for control until the JNI path is ready; goal is no Flutter texture for video). Engine choice (`PlayEngine.mpv`, “Play with MPV”) stays user-facing.
-- **libmpv build**: media_kit's stock `.so` is **`-Dvulkan=disabled -Dlibplacebo=disabled`** — gpu-next / libplacebo is impossible without a custom build. **Phase 3 custom build SHIPPED** under `android/app/src/main/jniLibs/arm64-v8a/libmpv.so` (libplacebo + gpu-next, NDK r30, built via mpv-android buildscripts in Docker `dreamplayer-mpv-builder`); Gradle `pickFirsts` overrides media_kit's binary. media_kit_libs_android_video still ships for `libmediakitandroidhelper.so` + other ABIs' stock libmpv (arm64 uses ours).
+- **Native**: new `MpvSurfaceView.kt` + factory (register like `dreamplayer/exo_player`); small JNI C shim (`libdreammpv.so`: create/setProperty/command/observeProperty/destroy) wrapping libmpv - no media_kit `Player` / `VideoController` / `Video` widget.
+- **Dart**: `MpvEngineController` mirrors the `ExoPlayerController` surface; migrate `_mpv*` state in `player_screen.dart` (resume keys, external subs, PiP/`MpvPipService`, fit/zoom, custom subtitle overlay, gestures). **Remove media_kit `VideoController` + `Video` widget** from the mpv slot - replace with the new SurfaceView platform view (keep media_kit `Player` only if still needed for control until the JNI path is ready; goal is no Flutter texture for video). Engine choice (`PlayEngine.mpv`, “Play with MPV”) stays user-facing.
+- **libmpv build**: media_kit's stock `.so` is **`-Dvulkan=disabled -Dlibplacebo=disabled`** - gpu-next / libplacebo is impossible without a custom build. **Phase 3 custom build SHIPPED** under `android/app/src/main/jniLibs/arm64-v8a/libmpv.so` (libplacebo + gpu-next, NDK r30, built via mpv-android buildscripts in Docker `dreamplayer-mpv-builder`); Gradle `pickFirsts` overrides media_kit's binary. media_kit_libs_android_video still ships for `libmediakitandroidhelper.so` + other ABIs' stock libmpv (arm64 uses ours).
 - **Tone-map mode (issue #21) DONE 2026-09-23**: Settings → Player →
   "HDR tone-map (MPV)" (`settingsToneMapMode`) + the picture panel row when
-  `_mpvReady` — Native HDR/DV (`target-colorspace-hint`) vs SDR tone-map
+  `_mpvReady` - Native HDR/DV (`target-colorspace-hint`) vs SDR tone-map
   (`vo=gpu-next`, `tone-mapping=spline`, `gamut-mapping-mode=perceptual`,
   `target-prim=bt.709`, `target-trc=bt.1886`). Store:
   `lib/services/tone_map_store.dart` (prefs `dreamplayer.toneMapMode`, default
@@ -3235,47 +3235,47 @@ Dart MpvEngineController  →  MethodChannel/EventChannel
   extras in `_configureMpvAudio`. Optional advanced (algorithm / target peak /
   gamut) remains open as a follow-up.
 
-**⚠️ PREVIOUS FAILED ATTEMPT (user, ~2026-09) — do not repeat**
+**⚠️ PREVIOUS FAILED ATTEMPT (user, ~2026-09) - do not repeat**
 
 An earlier attempt to put mpv on a SurfaceView went **badly wrong**:
 
 - **Two video layers stacked** on top of each other (mpv SurfaceView + Media3 SurfaceView both alive / both composited).
-- **Media3 broke** as well — not just mpv.
+- **Media3 broke** as well - not just mpv.
 - **Both engines** showed the dual-layer mess; **local playback failed** (no playback from local files).
 
-Root-cause class: the two engines must be **mutually exclusive platform views** — never leave an ExoPlayer `PlayerView` and an mpv `SurfaceView` mounted in the same window at the same time; never share one `viewType`/`surfaceFactory` path without tearing the other down first.
+Root-cause class: the two engines must be **mutually exclusive platform views** - never leave an ExoPlayer `PlayerView` and an mpv `SurfaceView` mounted in the same window at the same time; never share one `viewType`/`surfaceFactory` path without tearing the other down first.
 
 **Hard constraints (must hold on every commit that touches this)**
 
-1. **Media3 must keep working** — primary engine, DV/HDR hybrid-composition path (`ExoPlayerView` / `PlatformViewLink` / `initExpensiveAndroidView`) is sacred; regressions here fail the project goal.
+1. **Media3 must keep working** - primary engine, DV/HDR hybrid-composition path (`ExoPlayerView` / `PlatformViewLink` / `initExpensiveAndroidView`) is sacred; regressions here fail the project goal.
 2. **Local file playback must keep working** on Media3 **and** on the finished MPV path (user: previous attempt broke local playback entirely).
 3. **Mutually exclusive surfaces**: when `_engine == PlayEngine.mpv` / `_mpvActive`, **do not create** `ExoPlayerController` / `ExoPlayerView` (already true in `_init`); when Media3 is active, **do not mount** the mpv platform view. Dispose/release the inactive engine’s platform view **before** the other attaches.
-4. **One `viewType` per engine** (e.g. keep `dreamplayer/exo_player` for Media3; new distinct id for mpv) — never reuse ExoPlayer’s factory for mpv.
+4. **One `viewType` per engine** (e.g. keep `dreamplayer/exo_player` for Media3; new distinct id for mpv) - never reuse ExoPlayer’s factory for mpv.
 5. **Surface recreate** (rotation / lock / activity recreate): rebind `--wid` on the new Surface; clear the old global ref; do not leave a stale SurfaceView behind the Flutter layer.
-6. **Verify before merging**: on-device — Media3 local 4K/DV still composites `BT2020_ITU_PQ` (dumpsys), Media3 local play/seek **without stutter/regression**, mpv local play/seek **without stutter** (texture gone), switch engines back and forth in one session, confirm **exactly one** video layer in `dumpsys SurfaceFlinger` (no `flutter-vd` dual-stack, no two SurfaceViews).
-7. **iOS untouched** — AetherEngine only; mpv remains `Platform.isAndroid`.
+6. **Verify before merging**: on-device - Media3 local 4K/DV still composites `BT2020_ITU_PQ` (dumpsys), Media3 local play/seek **without stutter/regression**, mpv local play/seek **without stutter** (texture gone), switch engines back and forth in one session, confirm **exactly one** video layer in `dumpsys SurfaceFlinger` (no `flutter-vd` dual-stack, no two SurfaceViews).
+7. **iOS untouched** - AetherEngine only; mpv remains `Platform.isAndroid`.
 
 **Suggested phases (gate each phase on Media3 + local playback still green)**
 
-1. JNI shim + bare `MpvSurfaceView` — **DONE** (Phase 1+2).
-2. Port Dart controller; swap `player_screen` off media_kit — **DONE** (media_kit_video removed).
-3. Custom libmpv + libplacebo build — **DONE** (jniLibs arm64, Phase 3).
-4. Tone-map mode UI (issue #21) on OnePlus Pad 2 — **DONE** (Settings + player sheet).
+1. JNI shim + bare `MpvSurfaceView` - **DONE** (Phase 1+2).
+2. Port Dart controller; swap `player_screen` off media_kit - **DONE** (media_kit_video removed).
+3. Custom libmpv + libplacebo build - **DONE** (jniLibs arm64, Phase 3).
+4. Tone-map mode UI (issue #21) on OnePlus Pad 2 - **DONE** (Settings + player sheet).
 5. Optional later: Anime4K / shader path on the same raw surface (SDR only; DV/HDR stay Media3).
 
-Related: "Player engine choice" below still says Media3 is the right *default*; this plan only replaces how the **optional** MPV engine renders — it does not demote Media3.
+Related: "Player engine choice" below still says Media3 is the right *default*; this plan only replaces how the **optional** MPV engine renders - it does not demote Media3.
 
 ### Player engine choice (2026-08-28, user feedback response)
 
-A user feedback asked why we use Media3 instead of "a powerful player like MPV". This is the canonical answer if the same question comes up again — keep it in release notes and replies.
+A user feedback asked why we use Media3 instead of "a powerful player like MPV". This is the canonical answer if the same question comes up again - keep it in release notes and replies.
 
 **TL;DR**: Media3 is the *correct* engine for this project. MPV is a regression, not an upgrade. External-player handoff is a separate, low-cost option that addresses the spirit of the feedback (let the user pick).
 
 **Why Media3 is the right choice (not a workaround)**
 
-- **Media3 is what every serious Android player uses today.** Google's official, actively-maintained playback engine — the successor to ExoPlayer 2.x. It powers YouTube, Google Play Movies, the official Android sample players, and (under the hood) Nova Video Player, Just Player, Plex, and most pro-tier Android players that aren't a VLC/fork. "Media 3" is a *brand*, not a limitation; the same way "FFmpeg" or "V8" is a brand.
-- **We need hardware Dolby Vision, and Media3 is the only Flutter-friendly path that delivers it.** Our `#1` project goal is "Dolby Vision playback where the display supports it" — verified on-device (OnePlus CPH2573): the DV P8 test file decodes on Qualcomm's `c2.qti.dv.decoder` at 4K60 with zero dropped frames and real HDR reaches the panel via the hybrid-composition `SurfaceView`. (See "DOLBY VISION PLAYBACK WORKS" at the top of this file for the verification trail.)
-- **Hardware HDR pipeline.** Media3 + the hybrid-composition `PlatformViewLink` + the `c2.qti.hevc.decoder` + `applyHdrHeadroom` window machinery composes video as `BT2020_ITU_PQ` with `hdr metadata types=9` (DV) / `3` (HDR10+/HDR10) on the physical display — verified via `dumpsys SurfaceFlinger`. This is the entire reason we built the in-app native player instead of using a Flutter texture.
+- **Media3 is what every serious Android player uses today.** Google's official, actively-maintained playback engine - the successor to ExoPlayer 2.x. It powers YouTube, Google Play Movies, the official Android sample players, and (under the hood) Nova Video Player, Just Player, Plex, and most pro-tier Android players that aren't a VLC/fork. "Media 3" is a *brand*, not a limitation; the same way "FFmpeg" or "V8" is a brand.
+- **We need hardware Dolby Vision, and Media3 is the only Flutter-friendly path that delivers it.** Our `#1` project goal is "Dolby Vision playback where the display supports it" - verified on-device (OnePlus CPH2573): the DV P8 test file decodes on Qualcomm's `c2.qti.dv.decoder` at 4K60 with zero dropped frames and real HDR reaches the panel via the hybrid-composition `SurfaceView`. (See "DOLBY VISION PLAYBACK WORKS" at the top of this file for the verification trail.)
+- **Hardware HDR pipeline.** Media3 + the hybrid-composition `PlatformViewLink` + the `c2.qti.hevc.decoder` + `applyHdrHeadroom` window machinery composes video as `BT2020_ITU_PQ` with `hdr metadata types=9` (DV) / `3` (HDR10+/HDR10) on the physical display - verified via `dumpsys SurfaceFlinger`. This is the entire reason we built the in-app native player instead of using a Flutter texture.
 
 **Why we already tried MPV and removed it (`media_kit`/`libmpv`)**
 
@@ -3283,38 +3283,38 @@ Documented in "Playback research notes" above; the short version:
 
 1. **Dolby Vision RPU parsing fails.** mpv v0.36 + FFmpeg 6.0 cannot read the DOVI configuration record in DV P8 MKVs. Result: pink/green output. (mpv PR #16818 was the upstream fix attempt; it never landed for our FFmpeg version.)
 2. **No HDR to the panel.** `media_kit` renders into a Flutter texture. Flutter textures have **no HDR path on any platform** (media-kit issue #615). The decoded HDR10 buffer is tone-mapped to SDR before the panel ever sees it. So even when mpv *decodes* HDR10 correctly, the user sees washed-out colors.
-3. **4K60 performance.** `hwdec:no` (the only setting that gives correct colors with mpv) is software decode — too slow for 4K60 on Snapdragon 678. `gpu-next` is a frozen frame because media-kit renders via the legacy `gpu` path.
+3. **4K60 performance.** `hwdec:no` (the only setting that gives correct colors with mpv) is software decode - too slow for 4K60 on Snapdragon 678. `gpu-next` is a frozen frame because media-kit renders via the legacy `gpu` path.
 
 So adding mpv back would re-break **the thing the user came here for** (real DV + HDR on supported panels). The exit interview was: keep Media3 + native SurfaceView for DV/HDR; ship native FFmpeg audio extension for DTS/DTS-HD/TrueHD/FLAC; that's the same engine stack Nova Video Player uses (ExoPlayer + FFmpeg audio).
 
 **iOS side is AetherEngine, not MPV either.** AetherEngine is AVPlayer + FFmpeg demux/decode + native HDR/DV passthrough for Apple containers. Same trade-off: native AVPlayer for the HDR/DV fast path, FFmpeg only where AVPlayer is too limited (WebDAV, custom containers). iOS has no MPV port that we trust for this scope.
 
-**If MPV is ever added back, it must be opt-in and behind a clear warning.** A future opt-in "MP engine" toggle could route SDR/SDR-HEVC files through libmpv for users who want its filter/subtitle power — but DV/HDR10/HDR10+/HLG files MUST stay on Media3 + native SurfaceView or the panel stops receiving HDR. There is no way to get both from the same engine on Android today.
+**If MPV is ever added back, it must be opt-in and behind a clear warning.** A future opt-in "MP engine" toggle could route SDR/SDR-HEVC files through libmpv for users who want its filter/subtitle power - but DV/HDR10/HDR10+/HLG files MUST stay on Media3 + native SurfaceView or the panel stops receiving HDR. There is no way to get both from the same engine on Android today.
 
 
-### iOS monetization — Apple Developer + IAP paywall (LOCKED 2026-09-09)
+### iOS monetization - Apple Developer + IAP paywall (LOCKED 2026-09-09)
 
 iOS-ONLY monetization; **Android is explicitly excluded and stays 100% free**
-(no Google Play Billing — sideload distribution; Entitlements returns
+(no Google Play Billing - sideload distribution; Entitlements returns
 `advanced = true` on Android, no HDR meter, no paywall). User is buying the
 $99/yr Apple Developer Program. **The paywall is LIVE** (verified 2026-10-06:
 all three products approved and purchasable in ASC), and this is deliberate, not
 an oversight.
 
-**The paywall is ON in every signed build — the `paywall` workflow input is a
+**The paywall is ON in every signed build - the `paywall` workflow input is a
 red herring.** `ios/signing_setup.py` hardcodes `--dart-define=PAYWALL_ENABLED=true`
 in its `flutter build ipa` argv, so it ignores the input entirely. Only the
 *unsigned* path (`ios.yml`, `upload_testflight == false && signed_build == false`)
 passes `--dart-define=PAYWALL_ENABLED=${{ inputs.paywall || false }}`. Every
 TestFlight upload and the App Store release therefore ship with it enabled. Do
-not "fix" the script by removing that define without a deliberate decision —
+not "fix" the script by removing that define without a deliberate decision -
 earlier notes here claimed releases were all-free, which was wrong about reality.
 
 **LOCKED MODEL (2026-09-09, user-approved)**:
 - **Three product tiers** in App Store Connect (iOS):
-  - `dp_premium_monthly_2026` — auto-renew sub, **₹199 (~$1.99)**
-  - `dp_premium_yearly_2026` — auto-renew sub, **₹1,499 (~$14.99)**
-  - `dp_premium_lifetime_2026` — non-consumable, **₹4,999 (~$49.99)**
+  - `dp_premium_monthly_2026` - auto-renew sub, **₹199 (~$1.99)**
+  - `dp_premium_yearly_2026` - auto-renew sub, **₹1,499 (~$14.99)**
+  - `dp_premium_lifetime_2026` - non-consumable, **₹4,999 (~$49.99)**
     - These are the **live, approved App Store Connect product IDs** (created
       and approved for the 0.4.8 release). `paywall_sheet.dart` queries them
       by name, and `ios/Runner/DreamPlayer.storekit` mirrors them for local
@@ -3331,11 +3331,11 @@ earlier notes here claimed releases were all-free, which was wrong about reality
   `TrialIntroScreen` once per install (guarded by `dreamplayer.trialIntroShown`),
   whose button calls `showPaywall()`, and only the paywall's *Start 7-day trial*
   button invokes `Entitlements.startTrial()`. Nothing starts the trial on
-  launch. A user who never opts in stays gated from the first run — including
+  launch. A user who never opts in stays gated from the first run - including
   HDR playback, which is the harshest default in the map and worth re-checking
   as a product decision. Once started it is pure **wall clock** (persisted
   `dreamplayer.trialStartedAt`; `trialActive` = now - start < 7 days) and while
-  active every gate passes (`isEntitled = isAdvanced || trialActive` — no
+  active every gate passes (`isEntitled = isAdvanced || trialActive` - no
   per-playback meter, nothing to reset on seek/resume, which is why the fragile
   30-min playback-countdown was dropped 2026-09). At trial end, gates fire
   normally for non-subscribers.
@@ -3344,13 +3344,13 @@ earlier notes here claimed releases were all-free, which was wrong about reality
   `lib/services/trial_store.dart`. `_loadTrialStart()` reads SharedPreferences
   first (so pre-existing installs keep their value and get backfilled into the
   Keychain) and falls back to the Keychain on a fresh/reinstalled app.
-  Correct Keychain attributes — earlier notes here had these backwards:
+  Correct Keychain attributes - earlier notes here had these backwards:
   `kSecAttrAccessibleAfterFirstUnlock` (**not** `...ThisDeviceOnly`) **and**
   `kSecAttrSynchronizable: true` (**not** unsynchronizable). The sync is
   deliberate: without it, buying a new phone and restoring a backup would hand
   out a fresh 7-day trial. Builds before the sync shipped a device-local item
   under the same service/account, which is invisible to a synchronizable query,
-  so `read()` reads it explicitly and re-writes it as synced — otherwise every
+  so `read()` reads it explicitly and re-writes it as synced - otherwise every
   existing user would keep a device-only marker forever.
 - **Paywall sheet** (list-based, `ListTile`/`_TvListTile`): three products
   with live StoreKit prices, Buy → Apple sheet → entitlement flips → paywall
@@ -3358,24 +3358,24 @@ earlier notes here claimed releases were all-free, which was wrong about reality
   - **Product descriptions (`ASC_IAP_SUBMISSION.md`)**: paste-ready App Store
     Connect text for the three products + subscription group + review notes.
     The paywall's ⓘ "What's included" popover and the trial screen are the
-    app-side mirrors of that list — when a gated feature is added
+    app-side mirrors of that list - when a gated feature is added
     (spatial audio drifted this way in 0.5.5), update BOTH the popover and the
     ASC text in the same commit, or the purchase description promises less
     than the paywall claims.
 - **Debug toggles (Settings → General, `kDebugMode` only, Android test path)**:
-  (1) "Debug: simulate free user" — forces `isAdvanced=false` + paywall active
+  (1) "Debug: simulate free user" - forces `isAdvanced=false` + paywall active
   on Android (starts the trial lazily on first flip); (2) "Debug: simulate
-  trial expired" — forces `trialActive=false` so gates fire immediately without
+  trial expired" - forces `trialActive=false` so gates fire immediately without
   waiting 7 days. Both disabled in release builds (Android stays immune).
 - **Apple's cut**: 30% standard, **15% Small Business Program** (first $1M/yr,
   apply in ASC immediately). India GST 18% added at checkout by Apple; dev cut
   computed on the base tier (₹169/₹1,274/₹4,249 net @15%).
 - **Policy constraints (App Store Review)**: Guideline 3.1.1 (feature unlocks
-  MUST use Apple IAP; existing Support/Razorpay donations are fine — they
+  MUST use Apple IAP; existing Support/Razorpay donations are fine - they
   unlock nothing); Paid Apps Agreement + bank/tax forms before products;
   Restore Purchases wherever a paywall exists; privacy-policy URL at submission.
 
-**LOCKED GATE MAP (final, 2026-09-09)** — gated features behind `advanced`:
+**LOCKED GATE MAP (final, 2026-09-09)** - gated features behind `advanced`:
 
 | # | Feature | Gate type |
 |---|---|---|
@@ -3386,24 +3386,24 @@ earlier notes here claimed releases were all-free, which was wrong about reality
 | 18 | Sleep timer | Choice-gate on arming timer |
 | 56 | Download to device | Choice-gate on start |
 | 37 | OpenSubtitles online search | Choice-gate on opening search sheet |
-| — | **Spatial audio (iOS)** | Choice-gate on turning the Settings switch ON |
-| — | **Video upscaling / MetalFX (iOS 26+)** | Choice-gate on turning the Settings switch ON; `IosUpscaleStore.effectiveEnabled()` corrects a stale ON before open (engine reads the pref from UserDefaults) |
-| — | **Volume boost / Night mode / Bass boost (iOS)** | Choice-gate on turning the control ON (Settings → Audio; the bass row is in the player menu and stays behind spatial being on) |
+| - | **Spatial audio (iOS)** | Choice-gate on turning the Settings switch ON |
+| - | **Video upscaling / MetalFX (iOS 26+)** | Choice-gate on turning the Settings switch ON; `IosUpscaleStore.effectiveEnabled()` corrects a stale ON before open (engine reads the pref from UserDefaults) |
+| - | **Volume boost / Night mode / Bass boost (iOS)** | Choice-gate on turning the control ON (Settings → Audio; the bass row is in the player menu and stays behind spatial being on) |
 
-**Explicitly NOT gated (iOS free forever)** — gating these would burn reviews
+**Explicitly NOT gated (iOS free forever)** - gating these would burn reviews
 (OutPlayer lesson: gating table-stakes = 1★ wave):
-- **PiP (22)** — now works on BOTH engine paths (the sample-buffer controller
+- **PiP (22)** - now works on BOTH engine paths (the sample-buffer controller
   covers the software path), so gating it would be indefensible.
 - Gestures (15), aspect/fit (12), repeat/shuffle (16), auto-next (20),
-  chapters — table-stakes.
-- All codec audio decode (24) — every format plays free or the player has no
+  chapters - table-stakes.
+- All codec audio decode (24) - every format plays free or the player has no
   reason to exist.
-- All sources & browsing library/TMDB (41–55) — bread and butter; never gate
+- All sources & browsing library/TMDB (41–55) - bread and butter; never gate
   WebDAV/Jellyfin/SMB/FTP.
-- Subtitle VIEWING (32–35, 38–40) — only *styling* is gated.
+- Subtitle VIEWING (32–35, 38–40) - only *styling* is gated.
 - Background playback (5), resume (21), watched (45), cover art (54),
   info probe (55), downloads-list VIEWING (57), download dir picker (58).
-- **Downmix to stereo (5.1/7.1 → 2.0)** — free on both platforms; it applies to
+- **Downmix to stereo (5.1/7.1 → 2.0)** - free on both platforms; it applies to
   ordinary SDR 5.1/7.1 content free users already play, so it is not a premium
   DSP feature (user decision 2026-11-08).
 - **Android = every feature free forever** (hardcoded `advanced = true`,
@@ -3417,7 +3417,7 @@ premium gate is an explicit app-level opt-in:
 
 - **Settings → Audio → "Spatial audio"** (iOS only; the Android row does not
   exist because Android's spatial audio is the platform Spatializer, which
-  the app only *reports* and never controls — there is nothing to gate).
+  the app only *reports* and never controls - there is nothing to gate).
   **Default OFF.** Turning it ON for a free user opens the paywall and leaves
   the switch OFF if the user dismisses it; an entitled user (paying or in the
   7-day trial) gets it straight away. Gate helper:
@@ -3427,20 +3427,20 @@ premium gate is an explicit app-level opt-in:
   (`SpatialAudioStore.prefsKey`); shared_preferences prefixes it on iOS, so
   the native side reads `flutter.dreamplayer.spatialAudio` straight from
   `UserDefaults`. `test/spatial_audio_gate_test.dart` pins both spellings
-  together — a rename on either side would silently leave the feature stuck
+  together - a rename on either side would silently leave the feature stuck
   OFF, which is exactly the failure the test exists to catch.
 
 **Enforcement is per pipeline, and the engine decides the pipeline.** AetherEngine
 routes by **CODEC, not by source type**: HEVC and progressive H.264 take the
 native AVPlayer path; AV1/VP9/VP8/MPEG-2/VC-1 and interlaced H.264 take the
 software path. (This corrects the older note that said the FFmpeg path was a
-*source* thing — MKV just happens to land on the software path because
+*source* thing - MKV just happens to land on the software path because
 AVPlayer cannot open the container.)
 
 | | Native AVPlayer path | Software path |
 |---|---|---|
-| Switch ON | `AVPlayerItem.allowedAudioSpatializationFormats = .multichannel` — exact | The engine's own renderer already opts into `.multichannel` — nothing to do |
-| Switch OFF | `allowedAudioSpatializationFormats = []` — exact, **5.1/7.1 is kept** | **No host seam.** The renderer's `allowedAudioSpatializationFormats` is set inside the engine's `AudioOutput`, which is `internal`. The only lever is the audio session: a session without multichannel support cannot spatialize, so it is asked for stereo. |
+| Switch ON | `AVPlayerItem.allowedAudioSpatializationFormats = .multichannel` - exact | The engine's own renderer already opts into `.multichannel` - nothing to do |
+| Switch OFF | `allowedAudioSpatializationFormats = []` - exact, **5.1/7.1 is kept** | **No host seam.** The renderer's `allowedAudioSpatializationFormats` is set inside the engine's `AudioOutput`, which is `internal`. The only lever is the audio session: a session without multichannel support cannot spatialize, so it is asked for stereo. |
 
 **The software-path cost, stated plainly.** A free user on a route that
 spatializes (AirPods Pro has Spatial Audio on by default) gets **stereo
@@ -3451,7 +3451,7 @@ opt it out. The session is only asked for stereo when it would otherwise leak
 (`!enabled && routeIsSpatializing`); every other route keeps multichannel.
 
 **THE session lever must never be used on the native path.** A session without
-multichannel support downmixes the **native** path's 5.1/7.1 to stereo too —
+multichannel support downmixes the **native** path's 5.1/7.1 to stereo too -
 and there is no way to lift that back once the session is active, so the
 downmix would stick for the whole session. So `applySpatialAudio` picks ONE
 lever per pipeline and never mixes them:
@@ -3468,19 +3468,19 @@ lever per pipeline and never mixes them:
 after the load settles, by which time the engine has already activated the
 session, and Apple documents `setSupportsMultichannelContent` as a
 pre-activation call. So the enforcement on the software path is *probably*
-effective and *possibly* a no-op — a free user on a spatializing route may
+effective and *possibly* a no-op - a free user on a spatializing route may
 still hear spatialized multichannel there. The native path (Apple containers:
 HEVC / progressive H.264 in MP4/MOV) is exact. Do not describe the software
 path as enforced.
 
-**Forcing the engine to expose the renderer would fix the asymmetry** — it is
+**Forcing the engine to expose the renderer would fix the asymmetry** - it is
 an LGPL-3.0 package, so a local fork is legally possible, but it is 219
 source files, a new pbxproj package reference and an LGPL source-publication
 obligation. Not worth it for a 5.1→stereo difference on one route.
 
 **Traps:**
 - `setSupportsMultichannelContent` is an **XPC round-trip to mediaserverd**
-  and must NOT run on the main thread while the session is active — it trips
+  and must NOT run on the main thread while the session is active - it trips
   Xcode's hang-risk diagnostic. The engine declares its own pair off-main in
   `Task.detached`; ours does the same (`applySpatialAudio`).
 - The engine **re-declares the session on every load** (`awaitAudioSessionCategoryConfigured`
@@ -3491,7 +3491,7 @@ obligation. Not worth it for a 5.1→stereo difference on one route.
   the player (AirPods connected, dock plugged in), and the chip has to follow.
 - The chip reports `spatialAudio: "on"` only when the switch is ON **and** the
   route is actually spatializing. The Dart chip is no longer Android-gated
-  (`player_screen.dart`) — the state comes from the platform either way.
+  (`player_screen.dart`) - the state comes from the platform either way.
 - **A lapsed entitlement must switch the feature OFF.** The native side reads
   the opt-in straight from `UserDefaults` (there is no channel round trip), so
   a stale ON value survives an expired 7-day trial or a cancelled
@@ -3503,24 +3503,24 @@ obligation. Not worth it for a 5.1→stereo difference on one route.
   before the native side reads the pref, and on the Settings screen load so
   the switch shows the truth. Pinned by `test/spatial_audio_gate_test.dart`.
 - **Every block observer needs its token kept.** `addObserver(forName:…)`
-  returns a token that MUST be stored and removed in `deinit` — an unremoved
+  returns a token that MUST be stored and removed in `deinit` - an unremoved
   block observer stays in `NotificationCenter` for the rest of the process, so
   one entry accumulates per player view. `AvPlayerView` keeps them in
   `notificationTokens`; the `UserDefaults.didChangeNotification` observer was
   the leak (one per player view, fired on every shared-preferences write).
 
-**ANDROID IMMUNITY GUARANTEE (2026-09-09)** — Android builds (esp. GitHub
+**ANDROID IMMUNITY GUARANTEE (2026-09-09)** - Android builds (esp. GitHub
 Releases sideloads) must NEVER show a paywall even after future bug-fix and
 feature releases. Three independent layers make a paywall leak on Android
 structurally impossible:
 1. **Source-level platform gate (the chokepoint)**: the ONLY authority is
    `Entitlements.advanced` in `lib/services/entitlements.dart`. It returns
    `true` UNCONDITIONALLY when `defaultTargetPlatform == TargetPlatform.android`
-   before any StoreKit read. No widget reads StoreKit directly — every gate
+   before any StoreKit read. No widget reads StoreKit directly - every gate
    call site consumes this one getter, so Android can never be "not advanced".
 2. **StoreKit never initializes on Android**: the `in_app_purchase` plugin
    setup (product fetch, transaction listener, entitlement refresh) is wrapped
-   in `Platform.isIOS` and skipped on Android — zero IAP code paths exist on
+   in `Platform.isIOS` and skipped on Android - zero IAP code paths exist on
    that OS, so nothing can even attempt a purchase state.
 3. **`PAYWALL_ENABLED` is OFF by default AND ignored on Android**:
    `paywallEnabled = bool.fromEnvironment('PAYWALL_ENABLED', defaultValue: false)`.
@@ -3538,12 +3538,12 @@ branch. Future Android-only features must follow the same pattern: read
   that the Android implementation is unchanged and Android stays free**; the
   iOS side is now built (2026-10-31) on the AetherEngine fork's
   `AudioShaping` (make-up gain + limiter, `Compressor.night`, low-shelf
-  bass — see "iOS audio DSP" in Implemented features) and IS in the gate map:
+  bass - see "iOS audio DSP" in Implemented features) and IS in the gate map:
   choice-gate on turning each control ON, plus `effectiveDspSetting`
   (`entitlements.dart`) correcting a stale saved ON when the entitlement
-  lapses — the same shape `SpatialAudioStore.effectiveEnabled` applies.
+  lapses - the same shape `SpatialAudioStore.effectiveEnabled` applies.
   Never double-gate: the turn-on is the one gate, the correction is the
-  sweep. **Spatial audio is the exception: it is NOT custom DSP on iOS** —
+  sweep. **Spatial audio is the exception: it is NOT custom DSP on iOS** -
   it rides AVPlayer's built-in system spatialization, and it IS in the gate
   map (added 2026-10-30, see "Spatial audio is a PAID feature on iOS"
   above).
@@ -3551,22 +3551,22 @@ branch. Future Android-only features must follow the same pattern: read
 **Testing gate** (2026-09-09): ✅ **ALL 7 GATES VERIFIED** on-device
 (OnePlus CPH2573, `a019b7f3`, debug APK, 2026-09-09). Paywall code can
 now be written behind `PAYWALL_ENABLED`.
-- ✅ #9 HDR10+ playback — `hdr10+test_lake_2021_02_01.mp4` decoded via
+- ✅ #9 HDR10+ playback - `hdr10+test_lake_2021_02_01.mp4` decoded via
   `c2.qti.hevc.decoder`, SurfaceFlinger `BT2020_ITU_PQ hdr metadata types=7`,
   `desired hdr/sdr ratio=5.0` (EDR ramp engaged).
-- ✅ #36 Subtitle styling — House S02E05 + `.srt` sibling; CC sheet →
+- ✅ #36 Subtitle styling - House S02E05 + `.srt` sibling; CC sheet →
   "Subtitle settings" → size/color/background/outline/delay all functional,
   XL preview rendered at 1204 px.
-- ✅ #19 Playback speed 1.5× — confirmed via MediaSessionService logcat
+- ✅ #19 Playback speed 1.5× - confirmed via MediaSessionService logcat
   `speed=1.5`.
-- ✅ #17 A-B loop — A at 12:29, B at 14:17; user-confirmed loop on-device.
-- ✅ #18 Sleep timer — radio-only-checked bug fixed (`_sleepOption` field +
+- ✅ #17 A-B loop - A at 12:29, B at 14:17; user-confirmed loop on-device.
+- ✅ #18 Sleep timer - radio-only-checked bug fixed (`_sleepOption` field +
   `_sheetSetSheet` capture), 5-min timer counted down live in sheet, paused
   both engines on fire.
-- ✅ #56 Download to device — network source ⋮ → "Download to device" triggers
+- ✅ #56 Download to device - network source ⋮ → "Download to device" triggers
   foreground service + notification + progress; completed file playable from
   home grid.
-- ✅ #37 OpenSubtitles search — CC sheet → "Search online subtitles…" opened
+- ✅ #37 OpenSubtitles search - CC sheet → "Search online subtitles…" opened
   search form, results returned, subtitle downloaded and applied.
 
 **Implementation sketch**:
@@ -3583,19 +3583,19 @@ now be written behind `PAYWALL_ENABLED`.
 - **Settings-tab gates (2026-09-09, premium tiles only)**: `SettingsScreen` has
   its own `_settingsGate()` (same `checkGate` shape as `PlayerScreen._gate`);
   Android is always advanced so it is a guaranteed no-op there. Wired onto the
-  **#37 family** only — OpenSubtitles sign-in (settings_screen.dart OpenSubtitles
+  **#37 family** only - OpenSubtitles sign-in (settings_screen.dart OpenSubtitles
   tile, gated on the login branch; logout stays free), **Subtitle download
   language** (`settingsSubDownloadLang`), and **Auto-fetch online subtitles**
   (toggle gated only when turning ON; off is always free). Subtitle **Reading
   language** + **Encoding** stay free (documented "subtitle viewing free",
   App Review risk). **Auto-fetch loophole closed (2026-09-09)**: `_maybeAutoFetchSubs`
-  (player_screen.dart) downloaded online subtitles with NO gate — an automatic
+  (player_screen.dart) downloaded online subtitles with NO gate - an automatic
   bypass of #37's choice-gate; it now calls `_gate()` before searching
   (`_autoFetchFired` latch means a gated user isn't nagged per state change).
 - `.storekit` configuration file for local/CI without money; sandbox testers
   + TestFlight for production products.
 
-**Order of ops — DONE (verified live 2026-10-06)**: agreements/bank/tax ->
+**Order of ops - DONE (verified live 2026-10-06)**: agreements/bank/tax ->
 Small Business Program -> create 3 products (₹199 / ₹1,499 / ₹4,999) ->
 Entitlements + paywall -> gates + Restore button -> submit. All three products
 are approved and purchasable, and the paywall is enabled in the shipped build.
@@ -3608,9 +3608,9 @@ instead. The entitlement logic itself audits clean: one `checkGate` chokepoint,
 Android immune via two independent guards, restore-at-launch so subscribers are
 never locked out after an update, and `isEntitledTransaction` checking
 revocation *before* expiry. The signal worth watching instead is refunds and
-reviews mentioning "locked"/"paywall" — redownloads alone are weak evidence.
+reviews mentioning "locked"/"paywall" - redownloads alone are weak evidence.
 
-### Restore was a cache read — the missing `AppStore.sync()` (build 48, 2026-10-21)
+### Restore was a cache read - the missing `AppStore.sync()` (build 48, 2026-10-21)
 
 Reported as "restore says *No previous purchase found* even though I own the
 lifetime", and it was **not** a gate-map or entitlement-logic bug: the log
@@ -3623,7 +3623,7 @@ only enumerates `Transaction.currentEntitlements` and delivers whatever it
 finds through `sendTransactionUpdates`. It **never calls `AppStore.sync()`**.
 That enumeration is a *local cache read*, and the cache is empty after a
 reinstall, after StoreKit's cache is reset (an OS update), or while the device
-is signed in with a **different** account than the one that bought — so
+is signed in with a **different** account than the one that bought - so
 "Restore Purchases" reports nothing even though the account owns the product.
 The launch-time `refreshEntitlements()` has the same limitation by design
 (Apple: never `sync()` automatically), which is why an inactive user can look
@@ -3634,7 +3634,7 @@ channel** (`ios/Runner/TrialStore.swift`) calling `AppStore.sync()`, exposed to
 Dart as `TrialStore.syncPurchasesWithAppStore()`. `Entitlements.restorePurchases()`
 calls it *first*, then the plugin restore, then `refreshEntitlements(force: true)`.
 `sync()` is also what prompts for the owning Apple ID when the device is signed
-in with a different one — exactly the TestFlight case that produced the empty
+in with a different one - exactly the TestFlight case that produced the empty
 list. It is invoked from the `Task` and its `FlutterResult` is returned via
 `await MainActor.run`, because a `FlutterResult` invoked off the main thread
 deadlocks the method channel (same rule as the SMB status probe).
@@ -3648,7 +3648,7 @@ deadlocks the method channel (same rule as the SMB status probe).
 ```
 
 Paywall gone, premium unlocked. **Note there was no `[RESTORE] AppStore.sync()`
-line in that log** — it succeeded at launch, because once the account and
+line in that log** - it succeeded at launch, because once the account and
 environment resolve, `Transaction.all` is populated. So the absence of a sync
 line means *nobody tapped Restore*, not that sync is broken; read the
 `ENTITLE tx … env=` line instead.
@@ -3657,7 +3657,7 @@ line means *nobody tapped Restore*, not that sync is broken; read the
 
 - **Zero transactions is an account/environment fact, not app state.**
   TestFlight runs StoreKit **Sandbox** and the live App Store build runs
-  **Production** — separate transaction histories that cannot see each other.
+  **Production** - separate transaction histories that cannot see each other.
   The decisive check is tapping the product: a purchase sheet means the current
   identity does not own it, "You're all set"/already-purchased means it does.
   Sandbox history also disappears if the sandbox tester is deleted or its
@@ -3672,16 +3672,16 @@ would need another registration in `AppDelegate` (and another
 `ios_native_check.py`/pbxproj concern). It is unrelated to the trial, and that
 is deliberate.
 
-### The plan comes back on its own — the listener, not the sync (2026-11-01)
+### The plan comes back on its own - the listener, not the sync (2026-11-01)
 
 Reported as *"after an app update my subscription is gone and I have to tap
 Restore every time"*, and *"after reinstalling on the same Apple ID it
 activates after a few seconds, otherwise I press Restore"*. The second half
 was the clue: **a few seconds** is exactly how long StoreKit takes to refresh
-and re-deliver the purchase history — the plan WAS coming back, but the app
+and re-deliver the purchase history - the plan WAS coming back, but the app
 was not listening for it.
 
-**What Apple's documentation actually says** (read it, do not assume — the
+**What Apple's documentation actually says** (read it, do not assume - the
 two pages contradict each other unless you read both):
 
 - `AppStore.sync()`: *"Calling `AppStore.sync()` displays a system prompt
@@ -3692,7 +3692,7 @@ two pages contradict each other unless you read both):
   transaction information and subscription status available to your app. When
   users reinstall your app or download it on a new device, **the app
   automatically has all transactions available to it upon initial launch.**
-  There's no need for users to ask your app to restore transactions — your app
+  There's no need for users to ask your app to restore transactions - your app
   can immediately get the current entitlements using `currentEntitlements` and
   transaction history using `Transaction.all`."*
 - `Transaction.updates`: *"**Create a Task to iterate through the transactions
@@ -3711,7 +3711,7 @@ that point: the transactions are available; we were simply not listening.
    stopped. The plugin starts StoreKit's `Transaction.updates` observer in the
    purchase stream's `onListen`
    (`in_app_purchase_storekit_platform.dart:73`), and nothing listened until
-   the paywall opened — so StoreKit's re-delivery (after an install, an
+   the paywall opened - so StoreKit's re-delivery (after an install, an
    update, a reinstall, or a purchase made on another device) was **missed**.
    `init()` now calls `startPurchaseListener()`.
 2. **The stream handler would have thrown the re-delivery away anyway.** It
@@ -3724,13 +3724,13 @@ that point: the transactions are available; we were simply not listening.
    the fallback for an unreadable payload.
 3. **The "drain mode" was in the way.** It rejected every event for a short
    window after the listener attached, which is exactly when the
-   re-delivery lands. It is gone — the content rule subsumes it (a pending
+   re-delivery lands. It is gone - the content rule subsumes it (a pending
    orphan is still completed, never granted).
 
 **The `_sweptTransactionIds` guard.** The launch sweep finishes StoreKit's
 unfinished transactions (an interrupted purchase, or an Ask to Buy request
 that was still pending). StoreKit can then deliver one of those through the
-stream, and it must NOT grant an entitlement — the sweep declined it. The
+stream, and it must NOT grant an entitlement - the sweep declined it. The
 sweep remembers the ids it finished and the stream handler rejects them. The
 history scan (`Transaction.all`) is what decides what the customer owns.
 
@@ -3740,7 +3740,7 @@ history scan (`Transaction.all`) is what decides what the customer owns.
   `Completer` completed at the end of `init()`, bounded by a 3 s timeout, and
   a no-op when `init()` was never called) is awaited by `PlayerScreen._gate()`,
   `settingsGate()` and `_spatialAudioGate()`. Without it a paying user could
-  be shown the paywall in the first seconds after launch — the store check is
+  be shown the paywall in the first seconds after launch - the store check is
   asynchronous, and the gate read the pre-answer state.
 - **The paywall closes itself.** It listens to `Entitlements` and pops with
   `true` when the entitlement arrives (a restore, a re-delivery, a purchase
@@ -3748,7 +3748,7 @@ history scan (`Transaction.all`) is what decides what the customer owns.
   `_closeWith()` guards the double pop that this would otherwise cause in the
   buy and restore flows. **There is a second window to cover:** the store can
   answer BETWEEN the gate's check and the sheet opening, and then no
-  notification fires — so `initState` also checks once on the first frame
+  notification fires - so `initState` also checks once on the first frame
   (`addPostFrameCallback`) and closes the sheet right away. Widget-tested in
   `test/entitlements_storekit_test.dart` (the sheet must be gone after the
   entitlement turns up).
@@ -3758,46 +3758,46 @@ history scan (`Transaction.all`) is what decides what the customer owns.
 - **The foreground re-checks the entitlement** (`Entitlements.revalidate()`,
   called from `app.dart`'s lifecycle observer): a subscription that lapsed
   while the app was in the background stops being premium, and a purchase made
-  elsewhere starts being premium. The rule is deliberately conservative —
+  elsewhere starts being premium. The rule is deliberately conservative -
   `revalidateShouldRevoke({activeProductId, nonEntitled})` only revokes when
   the **product that granted access itself** shows up in the scan as
   non-entitled (an `expirationDate` in the past or a `revocationDate`). A
   count-based rule ("has transactions but none entitle") is NOT safe: measured
   on device (build 65, 12:13:15), a scan right after an update returned ONLY
-  the expired monthly while the lifetime unlock landed ~21 s later — under a
+  the expired monthly while the lifetime unlock landed ~21 s later - under a
   count-based rule that read would have locked a paying customer out for up
   to a minute. **Empty and partial histories never revoke here**; the
   signed-out case is handled at the Restore button instead (next section).
 
-### The restore verdict comes from the store — and sign-out is enforced there (2026-11-01)
+### The restore verdict comes from the store - and sign-out is enforced there (2026-11-01)
 
 `restorePurchases()` returned what the campaign-state already believed: the
 iPad log (build 69, 20:09:15) showed it answer "Purchase restored!" while
-its own log said `transactions: []` — the check ran on `isAdvanced` (memory),
+its own log said `transactions: []` - the check ran on `isAdvanced` (memory),
 not on the store. Same session:
 
 | Time | Situation | Answer |
 |---|---|---|
 | 20:07:51 | scan right after launch | only the expired monthly (lifetime still missing) |
-| 20:08:12 | ~21 s later | lifetime lands — **partial answers are transient** |
+| 20:08:12 | ~21 s later | lifetime lands - **partial answers are transient** |
 | 20:09:07 | signed out of Media & Purchases | every scan empty, entitlement still "Active" from cache |
-| 20:09:15 | Restore tapped | "Purchase restored!" — the lie above |
+| 20:09:15 | Restore tapped | "Purchase restored!" - the lie above |
 
 **Apple's answer to "can the app tell the user signed out"** (docs read, not
-assumed): *no StoreKit API reports "signed in"* — only `AppStore.sync()`
+assumed): *no StoreKit API reports "signed in"* - only `AppStore.sync()`
 PROMPTS for the App Store credentials, and Apple's guidance says to call it
 only on an explicit user action. Meanwhile the sandbox-testing page says
-signing out "can remove your access to purchased content" — a purchase
+signing out "can remove your access to purchased content" - a purchase
 belongs to the Apple Account. So the app cannot detect sign-out in the
 background, but it CAN decide at the Restore button: a completed sign-in
 prompt followed by an empty history is a settled "this account owns
 nothing".
 
-**The new verdict shape** — `restorePurchases()` is now
+**The new verdict shape** - `restorePurchases()` is now
 `Future<({bool restored, bool storeEmpty})>`:
 
 - `sync()` runs first through `TrialStore.syncPurchasesWithAppStore()`
-  (false = failed/cancelled/offline — it swallows errors by design); then
+  (false = failed/cancelled/offline - it swallows errors by design); then
   the plugin restore; then the same 12 s history poll as the old wait.
 - **`restored` = the poll positively found a purchase that entitles.**
   `_rememberEntitledProduct` as per the "remembered in the app's own data"
@@ -3808,34 +3808,34 @@ nothing".
   entitlement; an UNSYNCED empty (user cancelled the Apple ID prompt) is
   ambiguous and keeps it; a scan/store that threw is ambiguous and keeps it.
 - **`synced && scan.count == 0` revokes the cached entitlement**
-  (`_forgetEntitledProduct`) — the sign-out enforcement, with Apple's own
+  (`_forgetEntitledProduct`) - the sign-out enforcement, with Apple's own
   wording logged as the reason. The binary `storeEmpty` is what the paywall
   consumes so any future caller cannot re-invent the cache lie.
 - The paywall's handler uses the outcome: `restored` → "Purchase restored!"
-  + close; plugin/store errors → try/catch, "Restore failed — try again
+  + close; plugin/store errors → try/catch, "Restore failed - try again
   later"; anything else → sheet stays open. The old cached-verdict loop is
   gone.
 
 **user-verified on device (2026-11-01, build 70**: sign out of Media &
 Purchases → Restore → complete the prompt → "Active" flips to "Unlock" and
-premium stops. The aged behaviour — background scans never revoking on
-empty/partial, so "Active" survives a sign-out until Restore is used — was
+premium stops. The aged behaviour - background scans never revoking on
+empty/partial, so "Active" survives a sign-out until Restore is used - was
 also confirmed on device the same day by the user.
 
 **Do not move this rule into the background scans.** Launch/revalidate keeps
 "empty and partial never revoke" (the table above is why); the only
 authoritative sign-out moment is the prompt the Restore button itself raises.
-`AppStore.sync()` still has exactly one call site — pinned by test.
+`AppStore.sync()` still has exactly one call site - pinned by test.
 
 **Tests:** the StoreKit/plugin channels cannot answer under `flutter test`
 (and the Pigeon `restorePurchases` call can HANG in a test isolate when
-widget tests have already initialized the binding — it truncated a 30 s
+widget tests have already initialized the binding - it truncated a 30 s
 timeout), so the ambiguous/unreadable semantics are pinned by SOURCE
 (`test/entitlements_storekit_test.dart`, "Restore Purchases verdict
 (signed-out semantics)"): plugin-failure and poll-error blocks must not touch
 the entitlement; `storeEmpty`'s ternary; revoke lives inside the
 `synced && count == 0` branch only; the `count > 0` branch contains no
-`_forgetEntitledProduct`; the paywall shows "Restore failed — try again
+`_forgetEntitledProduct`; the paywall shows "Restore failed - try again
 later" on a dead store.
 
 **`AppStore.sync()` stays exactly where it is: behind the Restore button.**
@@ -3844,7 +3844,7 @@ is the only thing that helps when the device is signed in with a *different*
 account than the one that bought. `test/entitlements_storekit_test.dart` pins
 that split (one call site, reachable only through `restorePurchases()`).
 
-**The launch scan is re-read — ONE scan is not authoritative (2026-11-01,
+**The launch scan is re-read - ONE scan is not authoritative (2026-11-01,
 from `iap_debug.log`).** StoreKit hydrates its transaction cache
 asynchronously, and the plugin's `Transaction.all` is a **one-shot read of
 that cache** (`rawTransactions()` in the plugin collects the async sequence
@@ -3854,23 +3854,23 @@ iPad, build 65, one afternoon:
 
 | Time | Scan result |
 |---|---|
-| 12:13:15 | **partial** — only the expired monthly subscription, no lifetime |
+| 12:13:15 | **partial** - only the expired monthly subscription, no lifetime |
 | 12:14:13 | **empty** (`revalidate: no transactions`) |
 | 12:14:23 | **empty** (`store empty`) |
 | 12:16:52 | complete (`dp_premium_lifetime_2026`) |
 
-So **one empty read does NOT mean "no purchase" — it means "not known yet".**
+So **one empty read does NOT mean "no purchase" - it means "not known yet".**
 Treating it as a verdict is what put the "unlock" button in front of an
 entitled customer for 3–5 s after an update (the exact complaint this work
 started from). `init()` therefore re-reads the history on a short schedule
-(`Entitlements.entitlementScanSchedule` — 0 / 800 / 1700 ms) and stops at
+(`Entitlements.entitlementScanSchedule` - 0 / 800 / 1700 ms) and stops at
 the first read that finds a purchase that entitles.
 
 **Two constraints on that schedule, both pinned by a test:**
 
 - **It must finish inside `awaitReady`'s 3 s budget.** The gates give up
   waiting after 3 s and open the paywall, so a slower schedule would not
-  help an entitled customer — it would only delay a free user's paywall.
+  help an entitled customer - it would only delay a free user's paywall.
 - **The paywall still auto-closes** for the case the schedule cannot cover:
   a StoreKit query that is SLOW (the first query after a launch took 5.9 s
   in the log) answers after the gate has already decided. The sheet then
@@ -3891,13 +3891,13 @@ feature could have opened the paywall.
 
 **Apple's own docs explain the mechanism** (they were read, not guessed):
 
-- `Transaction.all` — *"returns the customer's transaction history **current
-  to the moment you access it**"* — a **snapshot of a DEVICE-SIDE cache**.
+- `Transaction.all` - *"returns the customer's transaction history **current
+  to the moment you access it**"* - a **snapshot of a DEVICE-SIDE cache**.
 - The sandbox testing page: *"Apps that you download from TestFlight always
   run in the sandbox environment"*, *"**Clear the purchase history cache on
   the device**"*, and *"Clearing the purchase history … can take longer than
   several minutes"*. Signing out of Media & Purchases therefore clears the
-  cache, and the next query rebuilds it — which is exactly the slow, empty
+  cache, and the next query rebuilds it - which is exactly the slow, empty
   first read in the log.
 - The "App Sandbox" page (`/documentation/security/app-sandbox`) is the
   **macOS** sandbox (entitlements) and has nothing to do with StoreKit or
@@ -3908,15 +3908,15 @@ container.** `Entitlements` writes the confirmed product id to
 `dreamplayer.lastEntitledProduct` (SharedPreferences → NSUserDefaults) and
 reads it back in `init()`.
 
-**Why SharedPreferences and NOT the Keychain — the distinction IS the
+**Why SharedPreferences and NOT the Keychain - the distinction IS the
 feature.** The app's data container **survives an app UPDATE** and is
 **deleted by a reinstall**. That maps exactly onto the customer's rule:
 
 | Situation | The container | What the customer sees |
 |---|---|---|
-| App update | kept | entitled **immediately** — no "Unlock", no paywall |
+| App update | kept | entitled **immediately** - no "Unlock", no paywall |
 | Reinstall / fresh install | deleted | the store is asked from scratch (the paywall may appear) |
-| No purchase history | — | the paywall appears when a gated feature is tapped |
+| No purchase history | - | the paywall appears when a gated feature is tapped |
 
 A Keychain item would survive the reinstall as well, which is precisely the
 behaviour that was asked NOT to happen. (An earlier attempt used the
@@ -3927,30 +3927,30 @@ Keychain and was reverted.)
 - It is **only written when the store itself confirmed a purchase**
   (`_rememberEntitledProduct`), and **cleared the moment the store says it no
   longer entitles** (`_forgetEntitledProduct`, called from `revalidate`'s
-  revoke branch). So it can never grant more than the store granted — it can
+  revoke branch). So it can never grant more than the store granted - it can
   only make the app wait for the store's answer.
 - **When several purchases entitle, the one that lasts longest is the one
   remembered** (`Entitlements.pickDurableProduct`). A Sandbox account easily
   owns both an expired monthly and the lifetime unlock, and a live monthly
-  next to the lifetime would be the wrong thing to cache — it would expire
+  next to the lifetime would be the wrong thing to cache - it would expire
   while the customer still owns the lifetime, and the cached value is what
   the next launch trusts. The measured iPad account: the monthly expired
   2026-09-21 (so it does not entitle at all), the lifetime never expires.
 - The **launch scan still runs** even when the cache says "entitled": only
   the store can report that a subscription lapsed while the app was closed.
   The cache is the answer shown *while* the store is asked.
-- `awaitReady()` returns **immediately** when the cache answers — that is
+- `awaitReady()` returns **immediately** when the cache answers - that is
   what makes an update instant instead of merely fast.
 - The Settings row shows **"Checking…"** while the store is being asked
   (`entitlementChecking`) instead of a false "Unlock", and the window is
   **bounded**: `awaitReady`'s 3 s timeout completes the ready completer, so
   the Unlock button always comes back and a free user is never stuck behind a
   spinner. The trailing widget is a static `hourglass_empty` icon, **not** a
-  `CircularProgressIndicator` — an endless animation makes `pumpAndSettle`
+  `CircularProgressIndicator` - an endless animation makes `pumpAndSettle`
   time out in every widget test that opens Settings.
 
 **What was NOT done, on purpose:** no "had an entitlement" Keychain flag and
-no background sync at launch. Both were the obvious fix and both are wrong —
+no background sync at launch. Both were the obvious fix and both are wrong -
 the flag would only have been used to decide whether to sync, and a sync at
 launch is exactly what Apple's documentation tells you not to do (it raises a
 sign-in prompt in front of every user, including the ones who never bought).
@@ -3960,7 +3960,7 @@ sign-in prompt in front of every user, including the ones who never bought).
 Gap analysis vs Infuse / Just Player / Nova / VLC produced a phased plan. Later
 phases start only after the previous phase is verified on-device.
 
-**Phase 1 — speed + cadence (DONE 2026-08-23, on-device verified)**:
+**Phase 1 - speed + cadence (DONE 2026-08-23, on-device verified)**:
 - **Playback speed**: bottom-bar overflow now holds the rate (`1×`, `1.5×`);
   the speed dropdown offers 0.25×–2× (`_openMoreSheet` collapsible sections,
   same `_tvListTile` pattern). Persisted as `dreamplayer.playbackSpeed`
@@ -3981,14 +3981,14 @@ phases start only after the previous phase is verified on-device.
   high-refresh pick) on dispose.
 - **OOM fix (2026-08-24, debug heap)**: `MediaCodec_loop` abort
   (`could not create MediaCodec.BufferInfo` + `growth limit 256 MB`) was a
-  Java-heap OOM — `media3TargetBytes` 96 MiB + debug JIT filled the heap.
+  Java-heap OOM - `media3TargetBytes` 96 MiB + debug JIT filled the heap.
   Fix: `android:largeHeap="true"` (manifest) + `BufferTuning` 96→64 MiB on
   large-RAM devices (still ~50 s of 10 Mb/s, Fire TV 192 MB heap stays 24 MiB).
 
-**Phase 2 — chapters + watched state (chapters + watched DONE 2026-08-24, on-device
+**Phase 2 - chapters + watched state (chapters + watched DONE 2026-08-24, on-device
 verified for local/SMB/Jellyfin/WebDAV)**:
 - **Chapters** (`MkvChapters.kt`, `SeekableReader` abstraction): Media3 has no
-  chapters API, so the player parses MKV `Chapters` itself — EBML walk: Segment →
+  chapters API, so the player parses MKV `Chapters` itself - EBML walk: Segment →
   SeekHead (`SeekID=0x1043A770`, position relative to segment data start,
   verified by re-reading the ID at the target) with a bounded top-level
   fallback walk; `EditionEntry`→`ChapterAtom` (nested atoms flatten) collecting
@@ -4002,7 +4002,7 @@ verified for local/SMB/Jellyfin/WebDAV)**:
   `MediaSources[0].Chapters` → `VideoChapter` ticks/10000 ms). Parsed on a
   daemon thread after open, pushed as `chapters` in the event map (native) or
   seeded from `VideoItem.chapters` (Jellyfin). Player: the bottom bar's overflow
-  `⋮` holds Aspect/Speed/Chapters as collapsible dropdowns — chapters section
+  `⋮` holds Aspect/Speed/Chapters as collapsible dropdowns - chapters section
   appears only when the file has them, highlights the current chapter and taps
   seek. MP4 chapter tracks not parsed yet.
 - **Watched marks** (`lib/services/watched_store.dart`, prefs key
@@ -4017,38 +4017,38 @@ verified for local/SMB/Jellyfin/WebDAV)**:
   from 6 → 4 buttons (`audio · CC · ⋮ · fullscreen`; `tune`/`1×`/`chapters`
   now live inside `⋮`).
 
-**Phase 3 — parity + binge (DONE 2026-08-26)**: Android subtitle delay live via
+**Phase 3 - parity + binge (DONE 2026-08-26)**: Android subtitle delay live via
 `DelayingParser` (`android/.../DreamSubtitleParserFactory.kt:71` `SubtitleTiming.delayUs` + `ExoPlayerView.kt:2931` reopen on change; PGS/DVB bitmap cues still not shifted), auto-play-next-episode within the same folder (local/SMB via `_orderedSiblings` + `JellyfinClient` `ParentId` sibling walk `lib/screens/player_screen.dart:893`).
 
-**Phase 4 — Nova-style details screen (DONE 2026-08)**:
+**Phase 4 - Nova-style details screen (DONE 2026-08)**:
 - **Nova-style details screen redesign**: removed `_HeaderImageGallery` (stills gallery), `_HeaderArtwork`, `_CastTile` (cast section); added Nova-style episode header (show name + S01E01 badge + episode name + season name), `_FileInfoCard` (video/audio codec, resolution, file size, path), `_SubtitlesCard` ("Search subtitles online" → `OpensubtitlesSheet`), `_TrailersCard` (YouTube trailer links via `url_launcher`), `_SearchDialog` (TV/Movie `SegmentedButton` toggle, year param, kind-first search with fallback), `TmdTrailer` class + `TmdDetails.trailers` parsed from `videos.results` in `append_to_response=credits,videos`. Removed auto-prefetch from all file browsers (folder, SMB, WebDAV, FTP, UPnP, Jellyfin) and file-tap `resolve()` calls.
 
-**Phase 5 — Nova feature gaps (DONE 2026-08)**:
+**Phase 5 - Nova feature gaps (DONE 2026-08)**:
 - **Cast row** (`_CastRow` widget in `tmd_details_screen.dart`): horizontal scrollable row of cast members with circular photos (TMDB `image.tmdb.org` via `FadeInImage`), names, and character names. Appears below overview for every TMDB-matched movie or single-episode view. `TmdCastMember` model gained `profileUrl()` method; `TmdEpisode` gained `cast` and `guestStars` fields (parsed from `credits.cast` and `credits.guest_stars`).
 - **Stills gallery** (`_StillsGallery` widget in `tmd_details_screen.dart`): horizontal scrollable row of 16:9 episode stills from TMDB (`TmdEpisode.stillUrls()`). Appears in single-episode view when stills are available. `TmdEpisode` gained `stills` field parsed from `images.stills`.
-- **Per-episode still thumbnails**: `_FolderEntryTile` and `_JellyfinEntryTile` now use `episode?.stillUrl()` for the leading tile image instead of the series poster — matches Nova's behavior where each episode shows its own still. Falls back to `posterUrlOf(meta)` when no TMDB episode data is cached.
+- **Per-episode still thumbnails**: `_FolderEntryTile` and `_JellyfinEntryTile` now use `episode?.stillUrl()` for the leading tile image instead of the series poster - matches Nova's behavior where each episode shows its own still. Falls back to `posterUrlOf(meta)` when no TMDB episode data is cached.
 - **Season expansion header**: `_SeasonExpansion` now accepts `seasonName` and displays "Season 2 · The Name of the Season" (Flexible for overflow). Both `FileEntry` and `JellyfinItem` season expansions pass `_meta?.seasons[s]?.name`. `TmdSeason` gained `overview` and `posterPath` fields (parsed from TMDB API) with `posterUrl()` method.
 - **Continue-watching series grouping** (`_groupedByShow` in `home_screen.dart`): episodes from the same TV show cluster into a single card on the home grid, using the show's poster and the most recently played episode's info. Movies and unmatched episodes pass through ungrouped. `_GroupedContinueWatching` model holds the show title, TMDB meta, and sorted episode entries.
 - **VideoItem model extensions**: added `seasonNumber`, `episodeNumber`, `seriesName` fields (serialized to/from JSON) for series grouping without re-parsing filenames.
 
-**Phase 6 — Nova-style file info probe (DONE 2026-09)**:
-- **Native file info probe** (`android/.../MediaProbe.kt`, channel `dreamplayer/mediaProbe`): the `_FileInfoCard` on the details screen now shows **real container metadata** (not just filename parsing) for every source — duration, resolution, video codec, fps, audio codec, channels, language — exactly as Nova probes the file header via its FFmpeg core. Implementation: `MediaMetadataRetriever` (fast: duration, dimensions, bitrate) + `MediaExtractor` (detailed: per-track codec, fps, language, channel count). Probe runs on a background thread, result applied via `setState`; a "Probing file…" spinner shows while loading.
-  - **SMB files** (`smb://` URIs from home bookmarks): the native `MediaExtractor` can't open `smb://` directly, so `MediaProbe.kt` temporarily starts the `SmbHttpProxy` HTTP loopback, probes via the local `http://127.0.0.1:port/token` endpoint, then tears it down — same loopback infrastructure used by the mpv fallback engine.
+**Phase 6 - Nova-style file info probe (DONE 2026-09)**:
+- **Native file info probe** (`android/.../MediaProbe.kt`, channel `dreamplayer/mediaProbe`): the `_FileInfoCard` on the details screen now shows **real container metadata** (not just filename parsing) for every source - duration, resolution, video codec, fps, audio codec, channels, language - exactly as Nova probes the file header via its FFmpeg core. Implementation: `MediaMetadataRetriever` (fast: duration, dimensions, bitrate) + `MediaExtractor` (detailed: per-track codec, fps, language, channel count). Probe runs on a background thread, result applied via `setState`; a "Probing file…" spinner shows while loading.
+  - **SMB files** (`smb://` URIs from home bookmarks): the native `MediaExtractor` can't open `smb://` directly, so `MediaProbe.kt` temporarily starts the `SmbHttpProxy` HTTP loopback, probes via the local `http://127.0.0.1:port/token` endpoint, then tears it down - same loopback infrastructure used by the mpv fallback engine.
   - **FTP/SFTP files** (`ftp://`/`sftp://` URIs): `MediaExtractor` can't open these either. Dart-side `MediaProbe.probeViaTempDownload()` downloads the first 8 MB to a temp file via `HttpClient`, probes the temp file, then deletes it.
-  - **HTTP/HTTPS files** (WebDAV, Jellyfin, UPnP/DLNA, SMB browser loopback): probed directly — `MediaExtractor.setDataSource(url, headers)` handles the auth headers for WebDAV/Jellyfin.
+  - **HTTP/HTTPS files** (WebDAV, Jellyfin, UPnP/DLNA, SMB browser loopback): probed directly - `MediaExtractor.setDataSource(url, headers)` handles the auth headers for WebDAV/Jellyfin.
   - **Local files** (`/storage/…`, `content://`): probed directly via `setDataSource(path)` / `openFileDescriptor`.
   - **`formatVideoCodec` / `formatAudioCodec` fix** (`codec_info.dart`): these functions now strip MIME prefixes (`video/hevc` → `hevc`, `audio/eac3` → `eac3`) before lookup, so `MediaExtractor` MIME types map correctly to display labels (HEVC, E-AC3, etc.).
   - **`_FileInfoCard` wired for all sources** (`tmd_details_screen.dart:1815`): name, location (SMB `smb://share/path`, WebDAV `https://…`, FTP `ftp://…`, local `/storage/…`, content `content://…`, with loopback `127.0.0.1` filtered), duration, size, video codec·resolution·fps + HDR badge, audio codec·channels·language. Probed values override filename-derived ones.
-  - **`_buildNoMatch` fix**: when no TMDB match exists, the card now renders `_FileInfoCard` + `_SubtitlesCard` below the "Get Info" button — file details show even without metadata.
+  - **`_buildNoMatch` fix**: when no TMDB match exists, the card now renders `_FileInfoCard` + `_SubtitlesCard` below the "Get Info" button - file details show even without metadata.
   - **VideoItem model**: added `fps` (int?) and `audioLanguage` (String?) fields, serialized in `toJson`/`fromJson`, carried through `withPlaybackInfo`/`withExternalSubtitles`. All browser screens (SMB, folder, WebDAV, FTP, UPnP, Jellyfin, file browser, open-intent) wire these fields.
   - **`_probing` state**: `TmdDetailsScreen` tracks probing state and passes it to `_FileInfoCard`, which shows a `CircularProgressIndicator` + "Probing file…" text while the native probe runs.
 
 **Home screen + menu cleanup (2026-09)**: the "+" menu was reorganized from a flat list of 8 items into a cleaner two-level structure:
   - **Top level** (always visible): "Add folder to library" + "Internal storage"
-  - **Network sources** (collapsed `ExpansionTile`): SMB/WebDAV/FTP/Jellyfin/DLNA/Play URL — collapsed by default so local actions are immediately reachable; expands to show all network options.
+  - **Network sources** (collapsed `ExpansionTile`): SMB/WebDAV/FTP/Jellyfin/DLNA/Play URL - collapsed by default so local actions are immediately reachable; expands to show all network options.
   - `_showAddMenu()` in `home_screen.dart` rewritten with `ExpansionTile` for the network section.
 
-**Pull-to-refresh on home (2026-09)**: the home `CustomScrollView` is wrapped in a `RefreshIndicator` (`AlwaysScrollableScrollPhysics` so the gesture works even on an empty library). Pulling down calls `_refreshHome()` (home_screen.dart), which reloads the whole surface in one go however a folder was added: re-reads the persisted `LibraryFolder`s (a folder bookmarked from any network-share browser — SMB/WebDAV/FTP/UPnP/Jellyfin — appears on the grid without reopening the screen), re-fetches Jellyfin server-side posters for any folder missing one (`_refreshJellyfinMeta`), refreshes continue-watching positions, and re-runs the TMDB lookups behind every card (`_resolveFolderMetadata`).
+**Pull-to-refresh on home (2026-09)**: the home `CustomScrollView` is wrapped in a `RefreshIndicator` (`AlwaysScrollableScrollPhysics` so the gesture works even on an empty library). Pulling down calls `_refreshHome()` (home_screen.dart), which reloads the whole surface in one go however a folder was added: re-reads the persisted `LibraryFolder`s (a folder bookmarked from any network-share browser - SMB/WebDAV/FTP/UPnP/Jellyfin - appears on the grid without reopening the screen), re-fetches Jellyfin server-side posters for any folder missing one (`_refreshJellyfinMeta`), refreshes continue-watching positions, and re-runs the TMDB lookups behind every card (`_resolveFolderMetadata`).
 
 
 **Content URI path display fix (2026-09)**: `_displayLocation()` in `tmd_details_screen.dart` now decodes `content://` URIs to show clean local paths instead of raw URL-encoded SAF document IDs. For example:
@@ -4068,7 +4068,7 @@ resend, `IP_MULTICAST_TTL=2` + `IP_MULTICAST_IF=en*`; multicast entitlement in
 `Runner.entitlements`). **iOS discovery fallbacks when SSDP is gated**
 (multicast often dropped on managed Wi-Fi): saved-Jellyfin-hosts probe →
 Jellyfin UDP-7359 broadcast → direct probe `http://192.168.1.16:8096`. Parse
-layer uses the upnpx/VLC-iOS semantics — `shouldProcessNamespaces=false` +
+layer uses the upnpx/VLC-iOS semantics - `shouldProcessNamespaces=false` +
 qualified-name suffix matching (`dc:title`/`upnp:class`) and a single-pass
 entity unescaper; Foundation's namespace processing silently yielded zero
 entries on iPad. On-screen Diagnostics box (server-list AND browser empty
@@ -4076,32 +4076,32 @@ states) via `getDiagnostics`.
 
 - **Jellyfin DLNA transcode trap (2026-08, the big one)**: Jellyfin refuses
   direct-play for items carrying external subtitles (default DLNA profile has
-  no subtitle delivery) and serves a LIVE TRANSCODE instead — HTTP 200 chunked,
+  no subtitle delivery) and serves a LIVE TRANSCODE instead - HTTP 200 chunked,
   `video/mp2t`, `DLNA.ORG_CI=1`, HEVC→H.264 TS, `Accept-Ranges: none`. Both
   engines choke (Android `parsing_container_unsupported`, iOS "source has no
   audio stream"), it is unseekable, and it strips DV/HDR. Verified against the
   real NAS: sibling without sidecars = instant `stream.mkv` 206; episode with
   `.ass/.srt` = `stream.ts` re-encode. Fix: `JellyfinClient.upgradeDlnaUrl()`
   matches `/dlna/(videos|audios)/<id>/` res URLs against saved Jellyfin servers
-  (origin match) and rebuilds the `VideoItem` through `getItem`+`videoItem` —
+  (origin match) and rebuilds the `VideoItem` through `getItem`+`videoItem` -
   original-bytes direct play + sidecar subs as tracks + chapters + stable
   resume key. Non-Jellyfin DLNA URLs play raw as before.
 - **Multi-res DIDL trap (2026-08, found via live repro)**: Jellyfin's DIDL
   advertises ONE `<res>` PER EXTERNAL SUBTITLE alongside the video res
   (`text/srt` DeliveryUrls like `/Videos/{id}/{msId}/Subtitles/N/0/Stream.srt`).
-  Both native parsers took the LAST res — so any items with sidecars handed the
+  Both native parsers took the LAST res - so any items with sidecars handed the
   player an `.srt` AS THE MAIN MEDIA (`parsing_container_unsupported` /
   "source has no audio stream"). Fix in `UpnpClient.kt` + `UpnpClient.swift`:
   prefer the res whose `protocolInfo` contains `video/`, fall back to
   first-seen; every non-video res is collected into `externalSubs`
   (`UpnpExternalSub` in Dart) and attached as selectable subtitle tracks on
   the raw DLNA path too. NOTE: Jellyfin's DLNA DIDL is INCONSISTENT per
-  session — the same item alternates between a `CI=1 stream.ts` transcode
+  session - the same item alternates between a `CI=1 stream.ts` transcode
   offer (+ srt res entries) and a clean `stream.mkv?Static=true&VideoCodec=
   hevc` direct offer; both paths are handled (transcode → red badge; direct →
   HEVC chip, no badge). Verified on-device both ways.
 - **Transcode badge**: red "Transcoding" chip in the player top bar whenever
-  playback is server-transcoded — Jellyfin HLS fallback engaged
+  playback is server-transcoded - Jellyfin HLS fallback engaged
   (`_transcodeActive`, which also now actually gets SET, fixing the leak where
   the server-side encode job was never stopped on dispose), DLNA item whose
   `protocolInfo` carries `CI=1` (`UpnpEntry.transcoded`, emitted by both native
@@ -4110,50 +4110,50 @@ states) via `getDiagnostics`.
 
 ### Library (user-added folders)
 
-The home library shows **only folders the user explicitly adds** — nothing is auto-scanned. **Status: implemented (2026-08; verified on-device 2026-09 via the series-grouping / season flow).** Reference-only: videos are never imported or moved; they stay in place and play through the folder's SAF tree (`tree:<id>`), absolute path, or (for Jellyfin folders) the server API.
+The home library shows **only folders the user explicitly adds** - nothing is auto-scanned. **Status: implemented (2026-08; verified on-device 2026-09 via the series-grouping / season flow).** Reference-only: videos are never imported or moved; they stay in place and play through the folder's SAF tree (`tree:<id>`), absolute path, or (for Jellyfin folders) the server API.
 
 **Behavior**
-- **Add a folder** — home **+** → "Add folder to library" → system folder picker (`pickLibraryFolder`, `ACTION_OPEN_DOCUMENT_TREE`). The picked folder is saved in `LibraryFoldersStore` (shared_preferences `dreamplayer.libraryFolders`, most-recently-added first; `LibraryFolder` model in `lib/services/library_folders.dart`). **Library folders are bookmark-separated** (2026-08): the pick goes through `pickLibraryFolder` → native stores the tree under a library-only bookmark key (Android `libfolder.<uuid>` in `dreamplayer.folderBookmarks`; iOS `dreamplayer.libraryFolderBookmarks` in UserDefaults), so a library folder is listable by `listDirectory`/`resolveAllBookmarks` but **never appears as an Internal-storage file-browser root**. A TV-show folder (or a movie folder, SD card, USB drive, cloud apps) is the typical target.
-- **Network folders can be bookmarked to Home too (2026-08)** — the SMB, WebDAV, FTP, and DLNA (UPnP) browsers each gained an AppBar **bookmark** button that pins the current folder to the home library. `LibraryFolderSource` (`files|jellyfin|smb|webdav|ftp|upnp`) selects the listing backend at open time; a network entry stores `networkServerId`/`share`/`path`/`label` (never credentials — those live in the native stores) and lists through the same client that drove the browser (`SmbClient`/`WebDavClient`/`FtpClient`/`UpnpClient`). **Jellyfin folders** are added straight from the Jellyfin browser's folder tiles (see the Jellyfin bullet above); a Jellyfin entry stores only the server URL + item id (token never persisted) and is re-matched to the signed-in server on every open.
-- **TMDB poster** — on home load (and after adding), `TmdService.resolveFolder(folder.metadataKey, folder.name)` runs in the background; `TmdApi.bestForQuery` searches **TV then movie** (TV hits get a +0.001 tie-boost — folders are primarily shows) and caches the match under `folder:<id>` in TmdStore. `FolderCard` (`lib/widgets/folder_card.dart`) shows the poster + real title + year + "TV Series"/"Movie" badge plus a **per-source badge** (SMB blue, WebDAV orange, FTP purple, DLNA grey, Jellyfin teal), or a gradient + folder icon while unresolved.
-- **Folder contents / episode list** — a network source's home card opens `FolderScreen` **directly** (`TmdDetails`' file list only handles FileBrowser/Jellyfin), which lists via the source client (SMB/WebDAV/FTP/DLNA bookmark branches in `folder_screen.dart`; `initialPath` deep-links into subfolders, trailing slashes trimmed). Local (`files`) and Jellyfin folders keep routing through `TmdDetailsScreen(folder:)` details page → `FolderScreen`. Network branches show folders-then-videos (parsed `SxxExx` labels + file sizes), tap → `TmdDetailsScreen` → player.
-- **Remove from library = unlist, never delete** — long-press a folder card → "Remove from library" → the folder is dropped from the store, its native library bookmark is released (`removeLibraryBookmark`, skipped for Jellyfin/network folders — no SAF grant), and its `folder:<id>` TMDB metadata is cleared (a re-add re-matches cleanly). Files on disk are never touched.
-- **Cross-platform**: works on Android (SAF bookmarks) and iOS (Files-app picked folders) — unlike the old MediaStore scan, which was Android-only.
-- **Superseded (2026-08)**: the Android-only MediaStore scan (scan-and-show every device video, `READ_MEDIA_VIDEO` grant card, exclusion list) was fully **removed** — `lib/services/library_scan.dart` (`LibraryVideo`/`LibraryScanService`/`LibraryStore`), `test/library_scan_test.dart`, and the native `scanLibrary`/`folderFor` + ContentUris/Cursor/MediaStore imports in `FileBrowser.kt` are gone. The prefs keys it used (`dreamplayer.libraryCache`, `dreamplayer.libraryExcluded`) are dead.
-- The iPad equivalent (Photos import) is out of scope — Files/WebDAV/Jellyfin already cover iPad local + network playback.
+- **Add a folder** - home **+** → "Add folder to library" → system folder picker (`pickLibraryFolder`, `ACTION_OPEN_DOCUMENT_TREE`). The picked folder is saved in `LibraryFoldersStore` (shared_preferences `dreamplayer.libraryFolders`, most-recently-added first; `LibraryFolder` model in `lib/services/library_folders.dart`). **Library folders are bookmark-separated** (2026-08): the pick goes through `pickLibraryFolder` → native stores the tree under a library-only bookmark key (Android `libfolder.<uuid>` in `dreamplayer.folderBookmarks`; iOS `dreamplayer.libraryFolderBookmarks` in UserDefaults), so a library folder is listable by `listDirectory`/`resolveAllBookmarks` but **never appears as an Internal-storage file-browser root**. A TV-show folder (or a movie folder, SD card, USB drive, cloud apps) is the typical target.
+- **Network folders can be bookmarked to Home too (2026-08)** - the SMB, WebDAV, FTP, and DLNA (UPnP) browsers each gained an AppBar **bookmark** button that pins the current folder to the home library. `LibraryFolderSource` (`files|jellyfin|smb|webdav|ftp|upnp`) selects the listing backend at open time; a network entry stores `networkServerId`/`share`/`path`/`label` (never credentials - those live in the native stores) and lists through the same client that drove the browser (`SmbClient`/`WebDavClient`/`FtpClient`/`UpnpClient`). **Jellyfin folders** are added straight from the Jellyfin browser's folder tiles (see the Jellyfin bullet above); a Jellyfin entry stores only the server URL + item id (token never persisted) and is re-matched to the signed-in server on every open.
+- **TMDB poster** - on home load (and after adding), `TmdService.resolveFolder(folder.metadataKey, folder.name)` runs in the background; `TmdApi.bestForQuery` searches **TV then movie** (TV hits get a +0.001 tie-boost - folders are primarily shows) and caches the match under `folder:<id>` in TmdStore. `FolderCard` (`lib/widgets/folder_card.dart`) shows the poster + real title + year + "TV Series"/"Movie" badge plus a **per-source badge** (SMB blue, WebDAV orange, FTP purple, DLNA grey, Jellyfin teal), or a gradient + folder icon while unresolved.
+- **Folder contents / episode list** - a network source's home card opens `FolderScreen` **directly** (`TmdDetails`' file list only handles FileBrowser/Jellyfin), which lists via the source client (SMB/WebDAV/FTP/DLNA bookmark branches in `folder_screen.dart`; `initialPath` deep-links into subfolders, trailing slashes trimmed). Local (`files`) and Jellyfin folders keep routing through `TmdDetailsScreen(folder:)` details page → `FolderScreen`. Network branches show folders-then-videos (parsed `SxxExx` labels + file sizes), tap → `TmdDetailsScreen` → player.
+- **Remove from library = unlist, never delete** - long-press a folder card → "Remove from library" → the folder is dropped from the store, its native library bookmark is released (`removeLibraryBookmark`, skipped for Jellyfin/network folders - no SAF grant), and its `folder:<id>` TMDB metadata is cleared (a re-add re-matches cleanly). Files on disk are never touched.
+- **Cross-platform**: works on Android (SAF bookmarks) and iOS (Files-app picked folders) - unlike the old MediaStore scan, which was Android-only.
+- **Superseded (2026-08)**: the Android-only MediaStore scan (scan-and-show every device video, `READ_MEDIA_VIDEO` grant card, exclusion list) was fully **removed** - `lib/services/library_scan.dart` (`LibraryVideo`/`LibraryScanService`/`LibraryStore`), `test/library_scan_test.dart`, and the native `scanLibrary`/`folderFor` + ContentUris/Cursor/MediaStore imports in `FileBrowser.kt` are gone. The prefs keys it used (`dreamplayer.libraryCache`, `dreamplayer.libraryExcluded`) are dead.
+- The iPad equivalent (Photos import) is out of scope - Files/WebDAV/Jellyfin already cover iPad local + network playback.
 
 ## CI / Deployment
 
-- **TMDB API key policy (2026-09)**: release builds on **both** Android and iOS compile with **no `TMDB_API_KEY`** define (Android `release.yml` APKs; iOS `release.yml` step) — users enter their own key via the first-launch hint dialog → Settings → Metadata. **Test builds bundle it**: the local `flutter run`/debug with `--dart-define-from-file=.env` (Android) and the dedicated `ios.yml` workflow (iPad/TestFlight) inject the key so the feature works without opening Settings. The first-launch **TMDB hint dialog** (`home_screen.dart` `_showTmdbHintOnce`, prefs `dreamplayer.tmdbHintShown`) shows on **both Android and iOS** — a "Get a free TMDB API key" link button opens `themoviedb.org/login` in the external browser (`launchUrl` directly — `canLaunchUrl` is false for https VIEW on Android 11+), and "Open Settings" pushes `SettingsScreen` wrapped in a `Scaffold`+`AppBar` (it is built for the tab IndexedStack, no own Scaffold).
+- **TMDB API key policy (2026-09)**: release builds on **both** Android and iOS compile with **no `TMDB_API_KEY`** define (Android `release.yml` APKs; iOS `release.yml` step) - users enter their own key via the first-launch hint dialog → Settings → Metadata. **Test builds bundle it**: the local `flutter run`/debug with `--dart-define-from-file=.env` (Android) and the dedicated `ios.yml` workflow (iPad/TestFlight) inject the key so the feature works without opening Settings. The first-launch **TMDB hint dialog** (`home_screen.dart` `_showTmdbHintOnce`, prefs `dreamplayer.tmdbHintShown`) shows on **both Android and iOS** - a "Get a free TMDB API key" link button opens `themoviedb.org/login` in the external browser (`launchUrl` directly - `canLaunchUrl` is false for https VIEW on Android 11+), and "Open Settings" pushes `SettingsScreen` wrapped in a `Scaffold`+`AppBar` (it is built for the tab IndexedStack, no own Scaffold).
 - **iOS builds happen in GitHub Actions** (user has no Mac). Workflow: `.github/workflows/ios.yml`
-  - **Manual-only** (`workflow_dispatch` — no push trigger): run it from the Actions tab when a build is wanted; builds unsigned IPA artifact always.
+  - **Manual-only** (`workflow_dispatch` - no push trigger): run it from the Actions tab when a build is wanted; builds unsigned IPA artifact always.
   - Signed build + TestFlight upload run only when secrets are configured.
   - Secrets needed: `IOS_CERT_BASE64`, `IOS_CERT_PASSWORD`, `IOS_PROFILE_BASE64`, `KEYCHAIN_PASSWORD`, `APPSTORE_TEAM_ID`, `APPSTORE_API_KEY`, `APPSTORE_API_KEY_ID`, `APPSTORE_ISSUER_ID`, `TMDB_API_KEY`, `OPENSUBTITLES_API_KEY`, `SIMKL_CLIENT_ID`.
-  - **dSYMs (2026-10-30)**: the runner's xcarchive dSYM was never kept (only the IPA was), so our frames in ASC crash pages render as bare `Runner 0x…` addresses. `ios.yml` now uploads `build/ios/archive/Runner.xcarchive/dSYMs/` as a `DreamPlayer.dSYM` artifact. **Do NOT use the ASC API for this**: `GET /v1/builds/{id}/buildBundles` returns 403 (`The relationship 'buildBundles' has no allowed operations defined`) even for Admin-role team keys — an Apple-dev-forums-confirmed gap, reproduced live (run 41035689443: app + build discovery worked with our key, this one call rejected) — and `dSYMUrl` was a Bitcode-era attribute, dead since Xcode 14. The `ios_dsym.yml` workflow built on it shipped for one commit and was deleted: offering a choice that always 403s is worse than not offering it. Past builds: download the dSYM by hand from ASC web → build → Build Metadata → Download dSYM.
-  - **Build command: `flutter build ipa`** (NOT raw `xcodebuild`). `flutter build ipa` handles plugin SPM resolution, `GeneratedPluginRegistrant` regeneration, and passes signing to xcodebuild internally. Raw `xcodebuild archive` bypasses Flutter's plugin reconciliation — any plugin without SPM support at the pinned version causes a hard `Module not found` error deep in compilation that Flutter would catch and name explicitly.
-  - **iOS signing gotchas — full debug trail (2026-09)**:
-    - **Keychain list must append, not replace**: `security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | tr -d '"')` — replacing kills `login.keychain-db` which `security cms` (used to decode the provisioning profile) and other system tools depend on.
+  - **dSYMs (2026-10-30)**: the runner's xcarchive dSYM was never kept (only the IPA was), so our frames in ASC crash pages render as bare `Runner 0x…` addresses. `ios.yml` now uploads `build/ios/archive/Runner.xcarchive/dSYMs/` as a `DreamPlayer.dSYM` artifact. **Do NOT use the ASC API for this**: `GET /v1/builds/{id}/buildBundles` returns 403 (`The relationship 'buildBundles' has no allowed operations defined`) even for Admin-role team keys - an Apple-dev-forums-confirmed gap, reproduced live (run 41035689443: app + build discovery worked with our key, this one call rejected) - and `dSYMUrl` was a Bitcode-era attribute, dead since Xcode 14. The `ios_dsym.yml` workflow built on it shipped for one commit and was deleted: offering a choice that always 403s is worse than not offering it. Past builds: download the dSYM by hand from ASC web → build → Build Metadata → Download dSYM.
+  - **Build command: `flutter build ipa`** (NOT raw `xcodebuild`). `flutter build ipa` handles plugin SPM resolution, `GeneratedPluginRegistrant` regeneration, and passes signing to xcodebuild internally. Raw `xcodebuild archive` bypasses Flutter's plugin reconciliation - any plugin without SPM support at the pinned version causes a hard `Module not found` error deep in compilation that Flutter would catch and name explicitly.
+  - **iOS signing gotchas - full debug trail (2026-09)**:
+    - **Keychain list must append, not replace**: `security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | tr -d '"')` - replacing kills `login.keychain-db` which `security cms` (used to decode the provisioning profile) and other system tools depend on.
     - **WWDR G3 intermediate cert must be imported** into the custom keychain: `curl -sSL -o /tmp/AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer && security import /tmp/AppleWWDRCAG3.cer -k $KEYCHAIN_PATH`. Without it, `codesign` finds the identity but can't validate the trust chain.
     - **`security set-key-partition-list`** is required after import: `security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH`. Without it, `codesign` fails silently or reports `resource envelope is obsolete`.
     - **Provisioning profile must be installed** to `~/Library/MobileDevice/Provisioning Profiles/` AND the profile UUID must match the app's bundle ID. Decoded dynamically via `security cms -D -i $PP_PATH` → plistlib → `Name` field.
-    - **`PROVISIONING_PROFILE_SPECIFIER` on xcodebuild cmdline leaks to ALL targets** — including SPM packages (shared_preferences_foundation, permission_handler_apple, swift-crypto) which reject it: `"does not support provisioning profiles"`. Fix: set it ONLY in the Runner target's build settings in `project.pbxproj` via `ios/signing_setup.py`. `CODE_SIGN_STYLE`, `DEVELOPMENT_TEAM`, and `CODE_SIGN_IDENTITY` on the command line are safe (SPM targets don't complain about those).
+    - **`PROVISIONING_PROFILE_SPECIFIER` on xcodebuild cmdline leaks to ALL targets** - including SPM packages (shared_preferences_foundation, permission_handler_apple, swift-crypto) which reject it: `"does not support provisioning profiles"`. Fix: set it ONLY in the Runner target's build settings in `project.pbxproj` via `ios/signing_setup.py`. `CODE_SIGN_STYLE`, `DEVELOPMENT_TEAM`, and `CODE_SIGN_IDENTITY` on the command line are safe (SPM targets don't complain about those).
     - **App ID must be explicit, not wildcard**: `com.dreamplayer.app` works; `3D7UAK63Z2.com.dreamplayer.app.3D7UAK63Z2` (wildcard) is rejected for App Store / IAP. The bundle ID in App Store Connect MUST match `project.pbxproj`'s `PRODUCT_BUNDLE_IDENTIFIER` exactly.
-    - **App Store Connect API key (.p8)**: must be the raw file contents (including `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----`). `altool` expects the key on disk at `~/private_keys/AuthKey_<KEY_ID>.p8`. The `apple-actions/upload-testflight-build@v1` action handles this; the manual `xcrun altool` path needs it written explicitly. `altool` does NOT expand shell globs (`*.ipa`) — resolve the path with `ls` first.
+    - **App Store Connect API key (.p8)**: must be the raw file contents (including `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----`). `altool` expects the key on disk at `~/private_keys/AuthKey_<KEY_ID>.p8`. The `apple-actions/upload-testflight-build@v1` action handles this; the manual `xcrun altool` path needs it written explicitly. `altool` does NOT expand shell globs (`*.ipa`) - resolve the path with `ls` first.
     - **Stale `GeneratedPluginRegistrant.m`**: `flutter clean` + `flutter pub get` before building ensures removed plugins (e.g. old `media_kit_video` references) don't produce `Module not found` errors. The registrant is regenerated by Flutter's tooling, not committed to git.
     - **`flutter build ipa` vs raw xcodebuild**: the former runs `pub get`, regenerates the registrant, resolves ephemeral SPM packages, validates plugin integration, then archives+exports. Raw `xcodebuild archive` skips all of that. Every signing/SPM/module error in this project's history traces to invoking xcodebuild by hand.
   - **Signing architecture (`ios/signing_setup.py`)**: a standalone Python script that (1) decodes the `.mobileprovision` via `security cms -D`, (2) patches `project.pbxproj` to set `CODE_SIGN_STYLE = Manual` + `DEVELOPMENT_TEAM` + `CODE_SIGN_IDENTITY` + `PROVISIONING_PROFILE_SPECIFIER` on the Runner target only, (3) builds `ExportOptions.plist` with the profile name, (4) calls `flutter build ipa --release --export-options-plist`. Run from the workflow after keychain setup. The pbxproj patch targets `PRODUCT_BUNDLE_IDENTIFIER = com.dreamplayer.app;` as an anchor (only the Runner target has this exact value; RunnerTests has `com.dreamplayer.app.RunnerTests`).
-  - **TestFlight upload**: `xcrun altool --upload-app --type ios --file <ipa> --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>`. The `.p8` private key must be written to `~/private_keys/AuthKey_<KEY_ID>.p8` first. altool does not expand globs — use `ls build/ios/ipa/*.ipa | head -1` to resolve.
-  - **7-day free trial**: stored in **SharedPreferences AND the iOS Keychain** (post-approval, shipped in 0.5.0). The Keychain copy is what makes the trial **survive app deletion + reinstall** — `ios/Runner/TrialStore.swift` (channel `dreamplayer/trial`) is mirrored by `lib/services/trial_store.dart`. `_loadTrialStart()` reads SharedPreferences first (so pre-existing installs keep their value and get backfilled into the Keychain) and falls back to the Keychain on a fresh/reinstalled app; `_persistTrialStart()` writes both. The Keychain item is `kSecAttrSynchronizable` (so it follows the user to a new device via iCloud Keychain) with a device-local fallback when iCloud Keychain is unavailable. History: the Keychain was added 2026-09-18, removed 2026-09-20 so pre-approval testers wouldn't hit a stale trial, and re-added 2026-09-28 after the App Store approval (App Store Connect analytics had shown a redownload loop). **Consequence for testing:** any device that ran the 2026-09-18 TestFlight build still holds a months-old Keychain trial marker and will report "trial ended" — that is the anti-abuse working, not a bug. Clear it by removing the Keychain item, and note that a real user who first installed on 2026-09-24 (0.4.8) never ran a Keychain build, so no real user can be affected. **user-verified on device (2026-11-01, build 70): delete the app, reinstall from TestFlight → the trial stays ended (the aged marker survived) — the trial does NOT reset on reinstall.**
-- **GitHub Releases** (`.github/workflows/release.yml`): push a `v*` tag (`git tag v0.4.5 && git push origin v0.4.5`) → builds the **universal** release APK + **split-per-abi** APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) on `ubuntu-latest` (+ tests first); then creates the GitHub Release on the tag with the matching `## <version>` section extracted from CHANGELOG.md + `.github/release_notes.md`, attaching all artifacts. No unsigned iOS IPA is built here (retired per DPLA 7.6/3.2(g) — signed TestFlight builds come from the separate `ios.yml` workflow). App version is **0.4.5** (`pubspec.yaml` `version: 0.4.5+1`) and must be bumped per release to match the tag.
-- **Android release signing (DONE 2026-09-09)**: `android/app/upload-keystore.jks` (`alias upload`, RSA 2048, 10000-day validity, `CN=DreamPlayer`; `SHA-256 2ff29762…`) + gitignored `android/key.properties` (store/key passwords, alias, `storeFile=upload-keystore.jks` — the `storeFile` path resolves relative to the **app module** dir, so the keystore lives in `android/app/`). `build.gradle.kts` now defines a `release` signing config **only when** `key.properties` exists (`hasUploadKeystore`, existence checked via `file(...)` — NOT `rootProject.file(...)`, which checks the wrong dir — and the debug fallback stays `signingConfigs.getByName("debug")`). Verified on-device builds: with the keystore present the APK signs as `CN=DreamPlayer`; with it absent (CI) it falls back to `Android Debug` — both `assembleRelease` paths build. **The keystore + passwords are irrecoverable — back them up** (they're gitignored, machine-local, 600 perms). CI releases are signed with the **same** keystore via GH secrets — see "Release APK signing (issue #43)" below; that debug-signed-CI decision was the cause of #43 and is reversed. When Play publishing starts, add a `google-play` upload step and switch CI to producing `.aab` via the Play console. Play requires the SAME upload key forever — do not lose it.
+  - **TestFlight upload**: `xcrun altool --upload-app --type ios --file <ipa> --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>`. The `.p8` private key must be written to `~/private_keys/AuthKey_<KEY_ID>.p8` first. altool does not expand globs - use `ls build/ios/ipa/*.ipa | head -1` to resolve.
+  - **7-day free trial**: stored in **SharedPreferences AND the iOS Keychain** (post-approval, shipped in 0.5.0). The Keychain copy is what makes the trial **survive app deletion + reinstall** - `ios/Runner/TrialStore.swift` (channel `dreamplayer/trial`) is mirrored by `lib/services/trial_store.dart`. `_loadTrialStart()` reads SharedPreferences first (so pre-existing installs keep their value and get backfilled into the Keychain) and falls back to the Keychain on a fresh/reinstalled app; `_persistTrialStart()` writes both. The Keychain item is `kSecAttrSynchronizable` (so it follows the user to a new device via iCloud Keychain) with a device-local fallback when iCloud Keychain is unavailable. History: the Keychain was added 2026-09-18, removed 2026-09-20 so pre-approval testers wouldn't hit a stale trial, and re-added 2026-09-28 after the App Store approval (App Store Connect analytics had shown a redownload loop). **Consequence for testing:** any device that ran the 2026-09-18 TestFlight build still holds a months-old Keychain trial marker and will report "trial ended" - that is the anti-abuse working, not a bug. Clear it by removing the Keychain item, and note that a real user who first installed on 2026-09-24 (0.4.8) never ran a Keychain build, so no real user can be affected. **user-verified on device (2026-11-01, build 70): delete the app, reinstall from TestFlight → the trial stays ended (the aged marker survived) - the trial does NOT reset on reinstall.**
+- **GitHub Releases** (`.github/workflows/release.yml`): push a `v*` tag (`git tag v0.4.5 && git push origin v0.4.5`) → builds the **universal** release APK + **split-per-abi** APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) on `ubuntu-latest` (+ tests first); then creates the GitHub Release on the tag with the matching `## <version>` section extracted from CHANGELOG.md + `.github/release_notes.md`, attaching all artifacts. No unsigned iOS IPA is built here (retired per DPLA 7.6/3.2(g) - signed TestFlight builds come from the separate `ios.yml` workflow). App version is **0.4.5** (`pubspec.yaml` `version: 0.4.5+1`) and must be bumped per release to match the tag.
+- **Android release signing (DONE 2026-09-09)**: `android/app/upload-keystore.jks` (`alias upload`, RSA 2048, 10000-day validity, `CN=DreamPlayer`; `SHA-256 2ff29762…`) + gitignored `android/key.properties` (store/key passwords, alias, `storeFile=upload-keystore.jks` - the `storeFile` path resolves relative to the **app module** dir, so the keystore lives in `android/app/`). `build.gradle.kts` now defines a `release` signing config **only when** `key.properties` exists (`hasUploadKeystore`, existence checked via `file(...)` - NOT `rootProject.file(...)`, which checks the wrong dir - and the debug fallback stays `signingConfigs.getByName("debug")`). Verified on-device builds: with the keystore present the APK signs as `CN=DreamPlayer`; with it absent (CI) it falls back to `Android Debug` - both `assembleRelease` paths build. **The keystore + passwords are irrecoverable - back them up** (they're gitignored, machine-local, 600 perms). CI releases are signed with the **same** keystore via GH secrets - see "Release APK signing (issue #43)" below; that debug-signed-CI decision was the cause of #43 and is reversed. When Play publishing starts, add a `google-play` upload step and switch CI to producing `.aab` via the Play console. Play requires the SAME upload key forever - do not lose it.
 - **Release APK signing (issue #43, FIXED 2026-10-06)**: every published APK must carry the **same** signing certificate, because Android refuses an update whose signer differs from the installed one (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
-  - **The bug, proven from published artifacts:** v0.5.0 and v0.5.1 were signed by *different* keys, both `CN=Android Debug` — `SHA-256 96ff06b5…` vs `16a557c0…`. The `release` buildType's signing config is only created when `android/key.properties` exists, which is gitignored and therefore absent on GitHub runners, so CI silently fell back to the runner's throwaway debug key. Consequence: **no two GitHub releases have ever been installable over one another** — every release since v0.4.7 required a manual uninstall.
+  - **The bug, proven from published artifacts:** v0.5.0 and v0.5.1 were signed by *different* keys, both `CN=Android Debug` - `SHA-256 96ff06b5…` vs `16a557c0…`. The `release` buildType's signing config is only created when `android/key.properties` exists, which is gitignored and therefore absent on GitHub runners, so CI silently fell back to the runner's throwaway debug key. Consequence: **no two GitHub releases have ever been installable over one another** - every release since v0.4.7 required a manual uninstall.
   - **Fix:** `UPLOAD_KEYSTORE_BASE64` / `UPLOAD_KEYSTORE_PASSWORD` / `UPLOAD_KEY_ALIAS` / `UPLOAD_KEY_PASSWORD` are now repo secrets, and `release.yml` restores `android/app/upload-keystore.jks` + `android/key.properties` before building. The restore step **hard-fails** if the secret is missing rather than falling back to a debug key, because a silent fallback is what caused this. Certificate is `CN=DreamPlayer`, `SHA-256 2FF29762E3621B29F2ED8C5059143E4F3AAE107FD5BFAE6456BAF60C4CD52D5F`.
-  - **Guard:** a post-build step asserts every APK's `apksigner` SHA-256 equals that constant, so a regression fails the release instead of shipping an uninstallable update. Note `apksigner` prints the digest **colon-less**, so the expected value is stored colon-less and both sides are normalised — a colon'd literal never matches and would fail every release (this bit us once while writing it).
+  - **Guard:** a post-build step asserts every APK's `apksigner` SHA-256 equals that constant, so a regression fails the release instead of shipping an uninstallable update. Note `apksigner` prints the digest **colon-less**, so the expected value is stored colon-less and both sides are normalised - a colon'd literal never matches and would fail every release (this bit us once while writing it).
   - **It cannot repair existing installs.** Anyone currently on a CI release is signed with a key that exists nowhere. They uninstall **once**, then every future update works.
-  - **versionCode was NOT the cause** (issue #43's second theory), but there is a separate trap: `flutter build apk --split-per-abi` applies `abiVersionCode * 1000 + base` (`FlutterPlugin.kt`, `ARCH_ARM64 -> 2`), so published codes are `universal 40` / `arm64-v8a 2040` for v0.5.1. Both increase per release, but because arm64 always beats universal, **a user on the arm64 split APK cannot later install a universal build** — Android reads it as a downgrade. Tell users to pick one flavour and stay on it. Verify with `aapt2 dump badging <apk> | grep versionCode`; the hand-pinned `versionCode` in `build.gradle.kts` is the `base`, not the shipped number.
+  - **versionCode was NOT the cause** (issue #43's second theory), but there is a separate trap: `flutter build apk --split-per-abi` applies `abiVersionCode * 1000 + base` (`FlutterPlugin.kt`, `ARCH_ARM64 -> 2`), so published codes are `universal 40` / `arm64-v8a 2040` for v0.5.1. Both increase per release, but because arm64 always beats universal, **a user on the arm64 split APK cannot later install a universal build** - Android reads it as a downgrade. Tell users to pick one flavour and stay on it. Verify with `aapt2 dump badging <apk> | grep versionCode`; the hand-pinned `versionCode` in `build.gradle.kts` is the `base`, not the shipped number.
 
-### Alternative app stores: Obtainium (live), IzzyOnDroid (declined — AI policy), F-Droid (deferred)
+### Alternative app stores: Obtainium (live), IzzyOnDroid (declined - AI policy), F-Droid (deferred)
 
 - **Obtainium needs no listing or submission.** Users add the GitHub repo and
   Obtainium installs each release, signature-checked. The README and the website
@@ -4168,7 +4168,7 @@ The home library shows **only folders the user explicitly adds** — nothing is 
   the Obtainium wiki asks projects to self-host rather than hotlink
   `raw.githubusercontent.com`.
 - **IzzyOnDroid: DECLINED by the user (2026-10-25) after reading the full App
-  Inclusion Policy — the APK cap is the smaller of two blockers.**
+  Inclusion Policy - the APK cap is the smaller of two blockers.**
   - **AI policy is the real blocker.** They are "strongly opposed to apps which
     are fully or in part created by generative AI tools", "Vibe-coded apps will
     be rejected", and LLM use is acceptable only for read-only tasks "provided
@@ -4181,7 +4181,7 @@ The home library shows **only folders the user explicitly adds** — nothing is 
   - **Size**: 30 MB is both the budget and "the upper size limit for single
     `.apk` files" (exceptions are for "some larger apps"). Measured v0.5.4
     assets: universal **165 MB**, arm64 **71 MB**, x86_64 **60 MB**, armv7
-    **50 MB**. Dropping the custom `libmpv.so` (29 MB) does not help —
+    **50 MB**. Dropping the custom `libmpv.so` (29 MB) does not help -
     `libapp.so` (17 MB), `libflutter.so` (12 MB) and dex (6 MB) are already
     35 MB, so a slim flavour would lose the second engine *and* still miss the
     cap. Do not re-investigate this as a packaging bug.
@@ -4192,7 +4192,7 @@ The home library shows **only folders the user explicitly adds** — nothing is 
     HTTP) is tolerated for media players but they "strongly recommend" a
     Network Security Config.
   - **Consequence**: GitHub Releases + Obtainium are the Android channels. The
-    fastlane tree below is still committed — it is the format any future
+    fastlane tree below is still committed - it is the format any future
     storefront (or a compliance-clean F-Droid build) would read.
 - **Fastlane tree** (`fastlane/metadata/android/en-US/`) exists for any
   storefront that reads it (IzzyOnDroid, F-Droid). Traps: `changelogs/<file>.txt`
@@ -4208,24 +4208,24 @@ The home library shows **only folders the user explicitly adds** — nothing is 
   (`codeberg.org/IzzyOnDroid/repodata/issues`, template
   `app-inclusion-request.yaml`), not GitLab as older notes said.
 
-- **App Store metadata is SEPARATE from `CHANGELOG.md` — Guideline 2.3.10 (2026-10-12).** App Review rejected 0.5.1 (36) under "Accurate Metadata": *"The app or metadata includes information about third-party platforms"*, next step *"Revise the app's What's New text to remove Android references."* The cause was copying from `CHANGELOG.md`, which is **Android-only by design** (it feeds GitHub Releases) and contains `Android`, `libmpv`/`MPV`/`Media3`, `SystemCodec`, `HTTP 400`, pixel widths and dB figures. Much of each entry is also **Android-only** (the VobSub OOM is `SubtitleFormats.kt`, the orientation bug is `Activity.setRequestedOrientation`, 4K subtitle scaling is libmpv) so it was noise for an iOS reviewer regardless. **Use `.github/release_notes_ios.md` for App Store Connect What's New**; its header lists the rules (no other platform, no engine names, no internal identifiers, iOS-visible changes only). Do not "fix" this by removing detail from `CHANGELOG.md` — GitHub Releases need it. **Since 2026-11-13 `CHANGELOG.md` carries NO iOS mentions at all** (user decision): iOS-only bullets were removed outright and cross-platform bullets had their iOS clauses stripped; the file header states the policy and points to `.github/release_notes_ios.md` + `ASC_CHANGELOG.md` for iOS. When adding a new entry, write it Android-only — anything iOS-specific goes in the iOS notes files instead.
+- **App Store metadata is SEPARATE from `CHANGELOG.md` - Guideline 2.3.10 (2026-10-12).** App Review rejected 0.5.1 (36) under "Accurate Metadata": *"The app or metadata includes information about third-party platforms"*, next step *"Revise the app's What's New text to remove Android references."* The cause was copying from `CHANGELOG.md`, which is **Android-only by design** (it feeds GitHub Releases) and contains `Android`, `libmpv`/`MPV`/`Media3`, `SystemCodec`, `HTTP 400`, pixel widths and dB figures. Much of each entry is also **Android-only** (the VobSub OOM is `SubtitleFormats.kt`, the orientation bug is `Activity.setRequestedOrientation`, 4K subtitle scaling is libmpv) so it was noise for an iOS reviewer regardless. **Use `.github/release_notes_ios.md` for App Store Connect What's New**; its header lists the rules (no other platform, no engine names, no internal identifiers, iOS-visible changes only). Do not "fix" this by removing detail from `CHANGELOG.md` - GitHub Releases need it. **Since 2026-11-13 `CHANGELOG.md` carries NO iOS mentions at all** (user decision): iOS-only bullets were removed outright and cross-platform bullets had their iOS clauses stripped; the file header states the policy and points to `.github/release_notes_ios.md` + `ASC_CHANGELOG.md` for iOS. When adding a new entry, write it Android-only - anything iOS-specific goes in the iOS notes files instead.
   - **Fast path when this happens**: Apple's message says the issue is *"eligible to be resolved on your next update"* and *"If this submission includes bug fixes […] reply to this message and let us know. You do not need to resubmit."* Since each release is mostly bug fixes, reply with the corrected text and request approval rather than rebuilding.
-- **Community Discord: `https://discord.gg/sAnXAAA8R`** — linked from Settings →
+- **Community Discord: `https://discord.gg/sAnXAAA8R`** - linked from Settings →
   About ("Community Discord" tile), the website nav (`docs/index.html`),
   README badges, and the GitHub repo About box (description + `discord` topic,
   homepage = website). (A `release.yml` step that auto-posted each release to
   #announcements via a `DISCORD_RELEASE_WEBHOOK` secret existed briefly and was
-  removed on 2026-11-06 when the secret was deleted — do not re-add a
+  removed on 2026-11-06 when the secret was deleted - do not re-add a
   step-level `if: ${{ secrets... }}`: the `secrets` context is job-level only
   and an invalid step `if` makes GitHub reject the whole workflow file, which
   shows as a 0-second failed run on EVERY push to main.)
-- **The app website is `https://dreamplayer.isroot.in/` (custom domain).** Served from `main:/docs` of this repo via GitHub Pages; `docs/CNAME` carries `dreamplayer.isroot.in`, and the DNS zone at the registrar (nameservers ns1/ns2.nevercode.in) is itself `dreamplayer.isroot.in`, so the apex needs GitHub Pages' four A records (`@` → 185.199.108.153 / .109.153 / .110.153 / .111.153, TTL 3600; an ALIAS/ANAME to `mangeshghodke.github.io.` also works) — a CNAME at the zone apex is invalid next to the SOA/NS. GitHub then serves the site at the domain root and issues the TLS cert. History: before the custom domain the site lived at `mangeshghodke.github.io/DreamPlayer/`, where the Pages path *was* the repo name and GitHub matched it case-sensitively (`/dreamplayer/` → 404) — a silent failure for the App-Review-critical Terms/Privacy links. The domain is now pinned by `test/website_links_test.dart`, which scans `lib/`, `docs/`, `.github` and the root markdown and fails on any lookalike host (wrong TLD, missing subdomain). It must NOT flag the shields.io badge whose label merely contains the host (`img.shields.io/badge/Website-dreamplayer.isroot.in-...`). Both `/terms` and `/terms.html` resolve (Pages serves the `.html` file for the extensionless path), so the app spells the legal links without the extension while `review_reply.md` uses it — both are fine. When the domain changes, update `docs/CNAME`, every link, and the test's `host` constant in the same commit.
+- **The app website is `https://dreamplayer.isroot.in/` (custom domain).** Served from `main:/docs` of this repo via GitHub Pages; `docs/CNAME` carries `dreamplayer.isroot.in`, and the DNS zone at the registrar (nameservers ns1/ns2.nevercode.in) is itself `dreamplayer.isroot.in`, so the apex needs GitHub Pages' four A records (`@` → 185.199.108.153 / .109.153 / .110.153 / .111.153, TTL 3600; an ALIAS/ANAME to `mangeshghodke.github.io.` also works) - a CNAME at the zone apex is invalid next to the SOA/NS. GitHub then serves the site at the domain root and issues the TLS cert. History: before the custom domain the site lived at `mangeshghodke.github.io/DreamPlayer/`, where the Pages path *was* the repo name and GitHub matched it case-sensitively (`/dreamplayer/` → 404) - a silent failure for the App-Review-critical Terms/Privacy links. The domain is now pinned by `test/website_links_test.dart`, which scans `lib/`, `docs/`, `.github` and the root markdown and fails on any lookalike host (wrong TLD, missing subdomain). It must NOT flag the shields.io badge whose label merely contains the host (`img.shields.io/badge/Website-dreamplayer.isroot.in-...`). Both `/terms` and `/terms.html` resolve (Pages serves the `.html` file for the extensionless path), so the app spells the legal links without the extension while `review_reply.md` uses it - both are fine. When the domain changes, update `docs/CNAME`, every link, and the test's `host` constant in the same commit.
 - **Bundle ID (iOS)**: `com.dreamplayer.app`. **App display name**: `DreamPlayer`.
 - **Android**: app label `DreamPlayer`; package `com.dreamplayer.app` (matches iOS bundle ID `com.dreamplayer.app`). Build/test locally on the phone.
 
-### iOS competitive gap analysis (2026-11-14) — features competitors have that we lack
+### iOS competitive gap analysis (2026-11-14) - features competitors have that we lack
 
-> **Update 2026-11-14:** the 2026-11-14 user request (subtitle font from SD card, picture settings, profiles) shipped — see "Implemented features". Medium-value item #17 (color controls on all engines) is DONE for Media3 via GL effects (Android, SDR-gated); a custom-font-from-device row was added on top of this list.
+> **Update 2026-11-14:** the 2026-11-14 user request (subtitle font from SD card, picture settings, profiles) shipped - see "Implemented features". Medium-value item #17 (color controls on all engines) is DONE for Media3 via GL effects (Android, SDR-gated); a custom-font-from-device row was added on top of this list.
 
 Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, SenPlayer, Streamyfin, Swiftfin, FE File Explorer Pro, Documents by Readdle**. DreamPlayer already leads on: DV/HDR10+ on Android (Media3 hybrid composition), all audio codecs via FFmpeg, in-app SMB on libsmb2 (iOS) + jcifs-ng/libsmb2 (Android), TMDB+TheTVDB+external providers, skip intro/credits (TheIntroDB+AniSkip), OpenSubtitles search, download-to-device, MPV second engine, Android TV leanback, AirPlay button, unlock splash. The gaps below are what competitors ship that we don't.
 
@@ -4233,16 +4233,16 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 
 | # | Feature | Competitors that have it | Notes |
 |---|---|---|---|
-| 1 | **WiFi/web upload server** — built-in HTTP server on LAN; user opens `http://<device-ip>:<port>` in PC browser, drag-drops videos INTO the phone | VLC, Infuse, VidHub, FE, Documents, Outplayer | We only download TO device from network. Upload TO phone currently needs Files/iTunes. Store in Documents/DreamPlayer/ (iOS) or Download/DreamPlayer/ (Android) |
-| 2 | **Trakt sync** — 2-way watched history, ratings, scrobbling | Infuse, Vireko | We have Jellyfin server sync + SIMKL (TMDB-only). Trakt is the cross-service standard |
-| 3 | **iCloud cross-device sync** (iPhone ↔ iPad) — watch state, resume, library, settings via CloudKit or iCloud Drive JSON | Infuse Pro, VidHub, SenPlayer | User owns both iPhone and iPad Pro M2 — progress should follow them |
-| 4 | **IPTV M3U/M3U8 player + EPG** — import playlist URL, channel list with logos, XMLTV guide grid, favorites, groups | SenPlayer, MovoHub, Vireko | Whole user segment. Jellyfin can proxy it server-side but a direct player is expected |
+| 1 | **WiFi/web upload server** - built-in HTTP server on LAN; user opens `http://<device-ip>:<port>` in PC browser, drag-drops videos INTO the phone | VLC, Infuse, VidHub, FE, Documents, Outplayer | We only download TO device from network. Upload TO phone currently needs Files/iTunes. Store in Documents/DreamPlayer/ (iOS) or Download/DreamPlayer/ (Android) |
+| 2 | **Trakt sync** - 2-way watched history, ratings, scrobbling | Infuse, Vireko | We have Jellyfin server sync + SIMKL (TMDB-only). Trakt is the cross-service standard |
+| 3 | **iCloud cross-device sync** (iPhone ↔ iPad) - watch state, resume, library, settings via CloudKit or iCloud Drive JSON | Infuse Pro, VidHub, SenPlayer | User owns both iPhone and iPad Pro M2 - progress should follow them |
+| 4 | **IPTV M3U/M3U8 player + EPG** - import playlist URL, channel list with logos, XMLTV guide grid, favorites, groups | SenPlayer, MovoHub, Vireko | Whole user segment. Jellyfin can proxy it server-side but a direct player is expected |
 | 5 | **Trickplay/chapter thumbnails on seek bar** | Streamyfin, Infuse (live previews) | We removed frame thumbnails (black on HDR Android). Jellyfin server-side trickplay + iOS AVAssetImageGenerator on SDR local files work |
 | 6 | **Chromecast / Google Cast (iOS)** | Infuse Pro, nPlayer, Streamyfin | We only have AirPlay on iOS. Huge for non-Apple TVs |
-| 7 | **Server transcoding quality picker** — long-press Play on Jellyfin/Plex → choose 1080p/720p/low bitrate | Infuse 8.5 | Request optimized stream from server when bandwidth is limited |
+| 7 | **Server transcoding quality picker** - long-press Play on Jellyfin/Plex → choose 1080p/720p/low bitrate | Infuse 8.5 | Request optimized stream from server when bandwidth is limited |
 | 8 | **App lock (Face ID / passcode) + per-folder lock** | VLC, SenPlayer, nPlayer | Privacy for shared devices |
 | 9 | **Extras / deleted scenes / behind-the-scenes on details page** | Infuse 8.4 | TMDB extras + Infuse naming convention (`-trailer`, `-deleted`, `-behindthescenes`, `-featurette`, `-interview`, `-scene`, `-short`, `-other`) |
-| 10 | **Hide spoilers** — blur unwatched episode thumbnails/descriptions | Infuse | QoL for binge watchers |
+| 10 | **Hide spoilers** - blur unwatched episode thumbnails/descriptions | Infuse | QoL for binge watchers |
 
 **🟡 MEDIUM-VALUE (Phase 3-4 roadmap):**
 
@@ -4265,7 +4265,7 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 | 25 | **Share extension** (receive files from other apps) | VLC 4.0 beta |
 | 26 | **Background download Live Activity** (iOS 26+) | Infuse 8.5.1 |
 
-**🟢 Lower priority (different app category — belongs to Documents/VLC, not a video player):** CarPlay video (parked only, Apple-restricted), podcasts, radio stations, PDF editor/scanner, photo Smart Eraser, format conversion, Jellyseerr request integration, admin session view.
+**🟢 Lower priority (different app category - belongs to Documents/VLC, not a video player):** CarPlay video (parked only, Apple-restricted), podcasts, radio stations, PDF editor/scanner, photo Smart Eraser, format conversion, Jellyseerr request integration, admin session view.
 
 **Suggested implementation order:** Phase 1 = WiFi upload server (#1) + iCloud sync (#3) + Trakt (#2). Phase 2 = trickplay (#5) + transcode picker (#7) + Chromecast (#6) + extras (#9) + hide spoilers (#10). Phase 3 = IPTV M3U/EPG (#4) + app lock (#8) + NFS (#12) + in-app browser (#11). Phase 4 = screenshot (#16) + color controls on Media3 (#17) + deinterlacing (#19) + rename/move (#20) + Siri shortcuts (#24).
 
@@ -4281,7 +4281,7 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 flutter pub get          # fetch dependencies
 flutter analyze          # static analysis
 flutter test             # run tests
-flutter run --dart-define-from-file=.env   # run on Android phone (USB) — the gitignored .env carries API keys
+flutter run --dart-define-from-file=.env   # run on Android phone (USB) - the gitignored .env carries API keys
 flutter run --release    # test real-world smoothness (debug is jankier)
 flutter build apk --debug --target-platform android-arm64 --dart-define-from-file=.env && flutter install --debug -d <device-id>
 flutter build apk        # release APK (use --split-per-abi; TMDB key via --dart-define-from-file=.env)
@@ -4305,7 +4305,7 @@ python3 tool/ios_native_check.py   # C symbols, ObjC declaration-vs-implementati
 bash ios/libsmb2_build.sh          # compile the vendored libsmb2 arm64 archive
 ```
 
-**Do not treat it as a substitute for a build — it cannot typecheck Swift.** But
+**Do not treat it as a substitute for a build - it cannot typecheck Swift.** But
 do run it: every structural Objective-C mistake made while porting the SMB browse
 path (a nested `@interface`, methods left outside any `@implementation`, a second
 `@implementation` of one class, a stray `U+0001` inside a function name) cost a
@@ -4325,14 +4325,14 @@ nothing at all: one armed a resume target *after* the load returned when the
 racing audio-track restore arrived 75 ms *into* it, and one gated on
 `engine.state == .playing` in a branch that can only ever be reached while
 `.loading`. A rule that cries wolf is worse than no rule, which is why two
-candidate checks were deleted rather than shipped — see the notes in the file.
+candidate checks were deleted rather than shipped - see the notes in the file.
 
 ## Display & smoothness (native refresh rate)
 
 - **Android**: `flutter_displaymode` selects the display's highest refresh rate at app startup (`lib/services/display_refresh_rate.dart`). Many Android devices default apps to 60 Hz even on 90/120/144 Hz panels. Verified: panel runs 120 Hz during animations, 60 Hz when idle.
 - **iOS/iPad Pro**: ProMotion 120 Hz is unlocked via `CADisableMinimumFrameDurationOnPhone = true` in `ios/Runner/Info.plist` (already set).
 - **Playback cadence**: ExoPlayer renders at the video's FPS onto the platform-view SurfaceView. Revisit frame pacing once smoothness is assessed on-device.
-- **DEBUG BUILDS JITTER — always judge smoothness on a RELEASE build (2026-08, Redmi Note 10)**: 4K60 HDR playback in the **debug** APK showed periodic dropped frames while moneytoo's Just Player (release) was buttery smooth — but the ExoPlayer `DecoderCounters` showed `rendered=60fps steady, droppedBuffer=0` and SF `--latency` cadence was clean (0 double/triple frame gaps over 60 s; the only inevitable artefact is the 59.94-on-60 Hz beat, ~1 double frame per 16.7 s, present in both apps). The jitter was Flutter **debug-mode** overhead (JIT VM + hybrid-composition platform-view per-frame cost), not the decode/render path. Installing the **release** APK made it play as smooth as Just Player (user-verified). When the user reports "dropped frames" against a debug install, first re-test with `flutter build apk --release --dart-define-from-file=.env` + `flutter install` before touching the player code. Same rule as the `flutter run --release` comment below.
+- **DEBUG BUILDS JITTER - always judge smoothness on a RELEASE build (2026-08, Redmi Note 10)**: 4K60 HDR playback in the **debug** APK showed periodic dropped frames while moneytoo's Just Player (release) was buttery smooth - but the ExoPlayer `DecoderCounters` showed `rendered=60fps steady, droppedBuffer=0` and SF `--latency` cadence was clean (0 double/triple frame gaps over 60 s; the only inevitable artefact is the 59.94-on-60 Hz beat, ~1 double frame per 16.7 s, present in both apps). The jitter was Flutter **debug-mode** overhead (JIT VM + hybrid-composition platform-view per-frame cost), not the decode/render path. Installing the **release** APK made it play as smooth as Just Player (user-verified). When the user reports "dropped frames" against a debug install, first re-test with `flutter build apk --release --dart-define-from-file=.env` + `flutter install` before touching the player code. Same rule as the `flutter run --release` comment below.
 
 ## Project layout
 
@@ -4385,7 +4385,7 @@ lib/
   services/audio_track_store.dart # per-video+engine last audio pick (audio_track_{engine}_{resumeKey})
   services/audio_downmix_store.dart # downmix-to-stereo toggle (dreamplayer.audioDownmix), FREE both platforms
   services/tone_map_store.dart    # dreamplayer.toneMapMode (sdr|native) for MPV HDR tone-map
-  services/hw_sdr_tonemap_store.dart # dreamplayer.hwSdrToneMap — hardware SDR tone-mapping (issue #55)
+  services/hw_sdr_tonemap_store.dart # dreamplayer.hwSdrToneMap - hardware SDR tone-mapping (issue #55)
   services/mpv_surface_view.dart  # MpvSurfaceView platform view (hybrid composition, no Flutter Texture)
   utils/mpv_audio_select.dart     # pickMpvDefaultAudioId + parseMpvDefaultFlag (container DEFAULT audio pin)
   config/tmdb_api_key.dart        # default TMDB key from --dart-define=TMDB_API_KEY (never committed)
@@ -4408,7 +4408,7 @@ lib/
   widgets/
     video_card.dart             # library card with HDR/audio badges
     folder_card.dart            # library folder card (TMDB poster or gradient placeholder + TV/Movie badge)
-    cached_image.dart           # CachedImage — disk-cached TMDB image with fade-in (wraps ImageCacheService)
+    cached_image.dart           # CachedImage - disk-cached TMDB image with fade-in (wraps ImageCacheService)
     collapsing_backdrop.dart    # CollapsingBackdrop + backdropExpandedHeight: width-derived hero height, shared by 3 screens
     format_chip.dart            # colored codec/HDR chip
     tv_tile.dart                # shared focus-glow wrapper for TV list items
@@ -4501,7 +4501,7 @@ test/
 
 ## Workflow for the user (no Mac)
 
-- **Standing permission (2026-08-22)**: build and `flutter install --debug -d a019b7f3` directly onto the user's OnePlus CPH2573 for feature verification — no need to ask each time. Test features on-device BEFORE pushing feature commits to GitHub; small compile fixes may follow the tested code.
+- **Standing permission (2026-08-22)**: build and `flutter install --debug -d a019b7f3` directly onto the user's OnePlus CPH2573 for feature verification - no need to ask each time. Test features on-device BEFORE pushing feature commits to GitHub; small compile fixes may follow the tested code.
 
 1. Develop + test on Android phone (USB debugging, `flutter run --dart-define-from-file=.env`).
 2. Commit/push to `main`; iOS workflow in GitHub Actions builds the iPad version.

@@ -4,7 +4,7 @@ import 'library_folders.dart';
 /// Identity of one scanned entry: WHERE it is, not what it is called.
 ///
 /// Deliberately not the scanner's `id`. Scanner ids embed `String.hashCode`,
-/// which carries no cross-version guarantee — a regenerated id would orphan the
+/// which carries no cross-version guarantee - a regenerated id would orphan the
 /// entry's `folder:<id>` TMDB metadata and artwork overrides, so every refresh
 /// would drop the poster off the grid.
 String scanIdentityOf(LibraryFolder folder) => '${folder.source.name}|'
@@ -22,7 +22,7 @@ class RescanPlan {
   });
 
   /// Entries to write: genuinely new ones, plus matched ones whose content
-  /// changed (renamed, resized). Unchanged entries are absent — writing them
+  /// changed (renamed, resized). Unchanged entries are absent - writing them
   /// would be a no-op that still costs a prefs round-trip.
   final List<LibraryFolder> upserts;
 
@@ -44,7 +44,7 @@ class RescanPlan {
 ///
 /// Only [LibraryFolderSource.files]. A network source costs one round-trip per
 /// subfolder (≈50 folders is 5-10 s on a LAN), which is why it is refreshed
-/// explicitly instead of on every pull — and a pull-to-refresh that stalls for
+/// explicitly instead of on every pull - and a pull-to-refresh that stalls for
 /// ten seconds on a NAS library is worse than the staleness it fixes.
 ///
 /// Two safety rules, because the destructive half of a rescan is the dangerous
@@ -52,7 +52,7 @@ class RescanPlan {
 ///
 /// 1. A directory whose listing FAILED (revoked permission, unmounted SD card,
 ///    folder moved) must never read as "empty". [FolderScanner.failedDirs] > 0
-///    turns removals off and keeps only the additions — losing a card is
+///    turns removals off and keeps only the additions - losing a card is
 ///    annoying, losing a library because a card reader glitched is not
 ///    acceptable. The entries it skipped are pruned by the next clean scan.
 /// 2. A root we had to RECONSTRUCT rather than read from the persisted scan
@@ -65,7 +65,7 @@ class LocalLibraryRescan {
     final roots = await LibraryFoldersStore.loadScanRoots();
 
     // Children of each local scan root. Entries with no parentId were added one
-    // at a time (a single bookmarked folder), not expanded — there is nothing to
+    // at a time (a single bookmarked folder), not expanded - there is nothing to
     // reconcile for those: the card IS the folder, so new files inside it show
     // up when the folder is opened, which already re-lists every time.
     final childrenByParent = <String, List<LibraryFolder>>{};
@@ -120,7 +120,7 @@ class LocalLibraryRescan {
       rootsScanned++;
 
       // An empty result for a root that HAS children is the signature of an
-      // unreadable directory, not of an emptied one — never treat it as
+      // unreadable directory, not of an emptied one - never treat it as
       // "delete everything".
       final unreadable = scanner.failedDirs > 0 || (fresh.isEmpty && existing.isNotEmpty);
       final diff = buildPlan(
@@ -144,7 +144,7 @@ class LocalLibraryRescan {
       // an unnamed guess (children sitting directly in `tree:<id>`, so the
       // seed's display name is unknowable) is deliberately re-guessed every
       // time, because freezing it in the store would make the NEXT refresh
-      // trust it for removals — the exact thing it was too unsure to allow.
+      // trust it for removals - the exact thing it was too unsure to allow.
       if (persisted == null && confident && root.id.isNotEmpty) {
         await LibraryFoldersStore.saveScanRoot(root);
       }
@@ -260,7 +260,7 @@ class LocalLibraryRescan {
     }
 
     // Empty segments were dropped above to compare segment-by-segment, which
-    // costs an absolute path its leading slash — and `listDirectory` needs it:
+    // costs an absolute path its leading slash - and `listDirectory` needs it:
     // "storage/emulated/0/Movies" is not the same directory as
     // "/storage/emulated/0/Movies".
     final absolute = (children.first.isFile
@@ -271,7 +271,7 @@ class LocalLibraryRescan {
     final name = common.last;
     return LibraryFolder(
       id: parentId,
-      // `tree:<bookmarkId>` has no display name of its own — the scan root is
+      // `tree:<bookmarkId>` has no display name of its own - the scan root is
       // then unnamed, which only matters for prefixing a bare "Season 01"
       // child, and such a root is never trusted with removals anyway.
       name: name.startsWith('tree:') && common.length == 1 ? '' : name,

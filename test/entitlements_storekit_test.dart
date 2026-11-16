@@ -55,7 +55,7 @@ void main() {
     test('a finished, valid transaction is accepted without a Buy tap', () async {
       // This is the case that used to be dropped: StoreKit re-delivers the
       // purchase history after an install/update/reinstall, and the old code
-      // required `_buyInitiated` — so the plan only came back after the user
+      // required `_buyInitiated` - so the plan only came back after the user
       // tapped Restore Purchases.
       final e = Entitlements.instance;
       await e.handlePurchaseUpdateForTest([
@@ -168,7 +168,7 @@ void main() {
 
   group('revalidate (foreground)', () {
     test('an empty history never revokes the entitlement', () {
-      // StoreKit may simply not have refreshed yet — locking a paying
+      // StoreKit may simply not have refreshed yet - locking a paying
       // customer out over a transient empty cache is the worse failure.
       expect(
         Entitlements.revalidateShouldRevoke(
@@ -195,7 +195,7 @@ void main() {
 
     test('a lapsed subscription named in the history revokes it', () {
       // The store's history carries the exact product we granted with its
-      // expiration in the past — that IS an answer.
+      // expiration in the past - that IS an answer.
       expect(
         Entitlements.revalidateShouldRevoke(
           activeProductId: 'dp_premium_monthly_2026',
@@ -291,7 +291,7 @@ void main() {
     });
 
     test('AppStore.sync() is reachable only through restorePurchases()', () {
-      // Exactly one call site in the whole service — the explicit Restore.
+      // Exactly one call site in the whole service - the explicit Restore.
       final occurrences = 'syncPurchasesWithAppStore()'
           .allMatches(entitlementsSource)
           .length;
@@ -324,7 +324,7 @@ void main() {
 
   group('the launch scan is re-read', () {
     // StoreKit hydrates its transaction cache asynchronously, and the
-    // plugin's `Transaction.all` is a one-shot read of that cache — right
+    // plugin's `Transaction.all` is a one-shot read of that cache - right
     // after an app update it can come back EMPTY or PARTIAL even though the
     // customer owns the purchase. Measured in iap_debug.log on 2026-11-01:
     // 12:14:23 → empty, 12:14:13 → empty, 12:13:15 → the expired monthly
@@ -333,7 +333,7 @@ void main() {
 
     test('the retry schedule fits inside the gate budget', () {
       // The gates give up waiting after 3s (awaitReady's timeout) and open
-      // the paywall — a slower schedule would not help an entitled customer,
+      // the paywall - a slower schedule would not help an entitled customer,
       // it would only delay a free user's paywall.
       final last = Entitlements.entitlementScanSchedule.last;
       expect(last.inMilliseconds, lessThan(3000));
@@ -377,7 +377,7 @@ void main() {
     //   13:37:06.648 [ENTITLE] restored existing purchase: dp_premium_lifetime_2026
     // i.e. StoreKit's FIRST `Transaction.all` in the fresh process took 3.5
     // seconds (its transaction cache lives on the device and Apple rebuilds
-    // it after a sign-in — "Clear the purchase history cache on the
+    // it after a sign-in - "Clear the purchase history cache on the
     // device"). During those seconds the app did not know the customer was
     // subscribed, so Settings showed "Unlock" and a gated feature could open
     // the paywall for someone who had been paying for months.
@@ -415,11 +415,11 @@ void main() {
       expect(e.storeKitEntitled, isTrue);
       expect(e.entitlementKnown, isTrue);
       expect(e.isEntitled, isTrue);
-      // No store call is needed for that — the answer was already known.
+      // No store call is needed for that - the answer was already known.
       expect(e.launchScanAttempts, 0);
     });
 
-    test('a fresh install asks the store — and shows "Checking…" meanwhile',
+    test('a fresh install asks the store - and shows "Checking…" meanwhile',
         () async {
       // A reinstall wipes the data container: the app has no idea what the
       // customer owns until StoreKit answers. The debug override is the only
@@ -439,7 +439,7 @@ void main() {
       });
 
       // While the launch scan is in flight the app must not claim "not
-      // entitled" — the row shows "Checking…" instead of a false "Unlock".
+      // entitled" - the row shows "Checking…" instead of a false "Unlock".
       final pending = e.init();
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(e.entitlementChecking, isTrue);
@@ -486,7 +486,7 @@ void main() {
       // A Sandbox account can easily own both: an expired monthly from an
       // earlier test plus the lifetime unlock. The expired one does not
       // entitle (the scan already filters it out), and when several DO
-      // entitle, the one that lasts longest is the one we cache — a
+      // entitle, the one that lasts longest is the one we cache - a
       // subscription would expire while the customer still owns the
       // lifetime, and the cached value is what the next launch trusts.
       expect(
@@ -518,7 +518,7 @@ void main() {
     test('the Settings row waits for the answer instead of claiming "Unlock"',
         () {
       // The Settings screen is not pumped here (it pulls in the whole app
-      // shell), so the shape of the row is pinned by reading it — the same
+      // shell), so the shape of the row is pinned by reading it - the same
       // approach the other screen-level gates use.
       final settings =
           File('lib/screens/settings_screen.dart').readAsStringSync();
@@ -530,7 +530,7 @@ void main() {
   });
 
   group('the paywall steps aside', () {
-    // The entitlement can arrive while the sheet is open — StoreKit
+    // The entitlement can arrive while the sheet is open - StoreKit
     // re-delivers the purchase history after an install/update/reinstall, a
     // purchase can complete on another device, or a restore can land. A
     // paywall left in front of a paying user is the worst outcome, so the
@@ -560,7 +560,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.byType(PaywallSheet), findsOneWidget);
 
-      // The entitlement turns up — the sheet must get out of the way.
+      // The entitlement turns up - the sheet must get out of the way.
       await e.setDebugFreeUser(false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
@@ -571,7 +571,7 @@ void main() {
         (tester) async {
       // The iPad log (build 67) showed two "Restore Purchases" taps and two
       // instantly closed sheets: "entitlement was already there when the
-      // sheet opened — closing it". The customer had nothing left to tap.
+      // sheet opened - closing it". The customer had nothing left to tap.
       final e = Entitlements.instance;
       await e.setDebugFreeUser(true);
       addTearDown(() async => e.setDebugFreeUser(false));
@@ -595,7 +595,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.byType(PaywallSheet), findsOneWidget);
 
-      // The entitlement is there — the sheet must STAY, so the Restore
+      // The entitlement is there - the sheet must STAY, so the Restore
       // button inside it can be used.
       await e.setDebugFreeUser(false);
       await tester.pump();
@@ -606,14 +606,14 @@ void main() {
 
   group('Restore Purchases verdict (signed-out semantics)', () {
     // Apple's sandbox-testing guidance: "Signing out of Media & Purchases
-    // can remove your access to purchased content" — a purchase belongs to
+    // can remove your access to purchased content" - a purchase belongs to
     // the Apple Account, so a SIGNED-OUT customer must not keep riding an
     // entitlement. The app cannot tell "signed out" from "StoreKit has not
     // hydrated its cache yet" on an ordinary read, and measured logs prove
     // both empty and partial reads happen transiently. The one authoritative
     // moment is the Restore button: `AppStore.sync()` (reachIt only there)
     // prompts for the owning Apple ID, so a COMPLETED sync followed by an
-    // EMPTY history is a settled answer — "this account owns nothing" — and
+    // EMPTY history is a settled answer - "this account owns nothing" - and
     // the cached entitlement is revoked there.
 
     String restoreSource() {
@@ -625,10 +625,10 @@ void main() {
         src.indexOf('/// Test-only: reset the singleton state.'),
       );
     }
-    test('an unreadable store is ambiguous — nothing is granted, nothing is revoked',
+    test('an unreadable store is ambiguous - nothing is granted, nothing is revoked',
         () {
       // The StoreKit/plugin channel cannot answer in tests (and per Pigeon API
-      // can HANG in a test isolate — the real semantics are pinned by source):
+      // can HANG in a test isolate - the real semantics are pinned by source):
       // both the plugin-restore failure and a history-scan throw must leave
       // the cached entitlement exactly as it was.
       final restore = restoreSource();
@@ -654,7 +654,7 @@ void main() {
       // The paywall does not crash on a dead store either.
       final paywall =
           File('lib/screens/paywall_sheet.dart').readAsStringSync();
-      expect(paywall, contains("const SnackBar(content: Text('Restore failed — try again later'))"));
+      expect(paywall, contains("const SnackBar(content: Text('Restore failed - try again later'))"));
     });
 
 

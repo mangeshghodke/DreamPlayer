@@ -20,7 +20,7 @@ class ManualGroup {
   String name;
   final List<String> folderIds;
 
-  /// User-picked TMDB metadata for the group's poster (optional — picked from
+  /// User-picked TMDB metadata for the group's poster (optional - picked from
   /// the group-creation dialog's TMDB search). When null, the group falls
   /// back to any member folder's cached TMDB meta.
   TmdMeta? posterMeta;
@@ -101,7 +101,7 @@ class ManualGroupsStore {
   }
 
   /// Sets (or clears, with null) the user-picked [TmdMeta] poster for the
-  /// group [groupId] — the Fix match / Remove-info buttons on the group
+  /// group [groupId] - the Fix match / Remove-info buttons on the group
   /// detail screen.
   Future<void> setPosterMeta(String groupId, TmdMeta? meta) async {
     final groups = await load();

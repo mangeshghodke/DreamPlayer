@@ -34,7 +34,7 @@ void main() {
       // The splash must be the same pill colour the home NavigationBar shows
       // behind the selected Library/Settings destination. Dart computes it
       // (ColorScheme.primaryContainer of the current accent) and persists it
-      // as 0xAARRGGBB; the native side reads it — M3 tone mapping is not
+      // as 0xAARRGGBB; the native side reads it - M3 tone mapping is not
       // re-implemented in Swift.
       expect(sceneDelegate, contains('flutter.dreamplayer.accentIndicator'));
       expect(sceneDelegate, contains('func color(fromHex'));
@@ -60,7 +60,7 @@ void main() {
         final id = entry.split(':').first;
         final hex = entry.split(':').last;
         // Swift stores the channels as 0xRR/255.0, 0xGG/255.0, 0xBB/255.0.
-        // (255.0, not 255 — integer division in Swift would make every
+        // (255.0, not 255 - integer division in Swift would make every
         // accent black.)
         final r = int.parse(hex.substring(1, 3), radix: 16);
         final g = int.parse(hex.substring(3, 5), radix: 16);
@@ -77,7 +77,7 @@ void main() {
         // accent as black.
         expect(sceneDelegate, isNot(contains('/ 255,')),
             reason: 'Swift integer division (/ 255) would make the accent '
-                'black — use / 255.0');
+                'black - use / 255.0');
       }
     });
   });

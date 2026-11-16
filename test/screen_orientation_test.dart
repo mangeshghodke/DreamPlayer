@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Source: flutter/engine
 /// `shell/platform/android/io/flutter/embedding/engine/systemchannels/
 /// PlatformChannel.java`, `decodeOrientations()`. Reproduced here so the test
-/// can assert the *reason* the toggle requests a single orientation — the
+/// can assert the *reason* the toggle requests a single orientation - the
 /// encoder itself lives in the engine, not in this repo, so it is the one thing
 /// that cannot be covered by pumping a widget.
 int decodeOrientationBitmask(List<DeviceOrientation> orientations) {
@@ -74,7 +74,7 @@ void main() {
     test('the old implementation would have produced USER constants', () {
       // Regression guard: these are exactly the calls the button used to make.
       // If this test ever starts failing because Flutter changed its decoder,
-      // the fix above may no longer be necessary — but do not "simplify" it
+      // the fix above may no longer be necessary - but do not "simplify" it
       // back without re-checking on a device with rotation locked.
       expect(
         decodeOrientationBitmask(const <DeviceOrientation>[

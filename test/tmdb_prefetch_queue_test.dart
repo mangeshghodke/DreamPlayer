@@ -25,7 +25,7 @@ void main() {
       });
     }
 
-    // Nothing runs before startDelay — the frame the user is waiting for wins.
+    // Nothing runs before startDelay - the frame the user is waiting for wins.
     await Future<void>.delayed(const Duration(milliseconds: 5));
     expect(started, isEmpty, reason: 'must not start synchronously');
 

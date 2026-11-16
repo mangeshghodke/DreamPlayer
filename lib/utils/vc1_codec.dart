@@ -3,8 +3,8 @@
 /// VC-1 comes in three profiles and the distinction decides whether the
 /// default engine can play it:
 ///
-///  * **Simple / Main** — old hardware decoders, when present, handle these.
-///  * **Advanced** (`WVC1`) — essentially no Android device has a hardware
+///  * **Simple / Main** - old hardware decoders, when present, handle these.
+///  * **Advanced** (`WVC1`) - essentially no Android device has a hardware
 ///    decoder for it, yet the platform still *advertises* VC-1.
 ///
 /// That combination is the bug. Media3 picks the advertised decoder, it
@@ -18,7 +18,7 @@
 /// or distorted image… it is decoders fault to not indicate error when
 /// unsupported profile is passed for decode" (google/ExoPlayer#8393).
 ///
-/// There is no Media3-path software decoder for VC-1 — Media3's own FFmpeg
+/// There is no Media3-path software decoder for VC-1 - Media3's own FFmpeg
 /// extension lists audio decoders only, and nextlib's video renderer claims
 /// avc/hevc alone. libmpv ships full FFmpeg and plays it, which is why "Play
 /// with MPV" is the working answer rather than a fallback we can select
@@ -50,7 +50,7 @@ bool isVc1Codec(String? value) {
 ///
 /// Advanced is the only profile worth warning about: Simple/Main are the ones
 /// hardware may genuinely decode. The profile appears as a suffix on the codecs
-/// string — `wvc1.Advanced.L3`, `vc1.Advanced` — and is absent for Simple/Main,
+/// string - `wvc1.Advanced.L3`, `vc1.Advanced` - and is absent for Simple/Main,
 /// which is why the absence of it must NOT be read as "advanced".
 bool isVc1AdvancedProfile(String? codecs) {
   if (codecs == null || !isVc1Codec(codecs)) return false;
@@ -62,7 +62,7 @@ bool isVc1AdvancedProfile(String? codecs) {
 /// Deliberately true for **any** VC-1 signal, not only Advanced. Two reasons:
 ///
 ///  * Android has no practical VC-1 *hardware* decoder at all. VC-1 is legacy
-///    — Simple and Main included — so warning on them too costs only a
+///    - Simple and Main included - so warning on them too costs only a
 ///    suggestion the user can ignore.
 ///  * The profile is often missing from what Media3 reports. Warning only on a
 ///    confirmed `Advanced` would silently miss the exact file in issue #51

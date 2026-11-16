@@ -48,7 +48,7 @@ class AvailableUpdate {
 /// Checks GitHub Releases for a newer build and performs the install.
 ///
 /// Android only: iOS is updated by the App Store, which is not ours to drive.
-/// There is no Play Core here either — the app is sideloaded, so the flow is
+/// There is no Play Core here either - the app is sideloaded, so the flow is
 /// the one Seal/Sealplus use: read the release feed, download the APK, hand it
 /// to the system installer.
 class AppUpdater {
@@ -83,7 +83,7 @@ class AppUpdater {
   }
 
   /// The launch-time check. Returns an update at most once per day, never
-  /// throws, and stays silent when offline — an update prompt must never be
+  /// throws, and stays silent when offline - an update prompt must never be
   /// the reason the app looks broken.
   static Future<AvailableUpdate?> checkIfDue() async {
     if (!isSupported) return null;
@@ -246,7 +246,7 @@ class AppUpdater {
     return Directory('${cache.path}/$_dirName').create(recursive: true);
   }
 
-  /// Removes APKs from previous updates — they are ~100 MB each and the cache
+  /// Removes APKs from previous updates - they are ~100 MB each and the cache
   /// is not a place to keep a library of them.
   static Future<void> _prune(Directory dir, {required String keep}) async {
     try {

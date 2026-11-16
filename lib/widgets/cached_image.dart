@@ -85,7 +85,7 @@ class _CachedImageState extends State<CachedImage> {
   void didUpdateWidget(CachedImage old) {
     super.didUpdateWidget(old);
     if (old.url != widget.url) {
-      // Keep the old poster visible while the new one loads — don't clear
+      // Keep the old poster visible while the new one loads - don't clear
       // _bytes to placeholder.  The new fetch will replace it on success;
       // on failure (offline) the stale poster stays instead of going blank.
       _error = false;
@@ -96,7 +96,7 @@ class _CachedImageState extends State<CachedImage> {
 
   Future<void> _load() async {
     final url = widget.url;
-    // Check memory/disk cache first (fast path — no network).
+    // Check memory/disk cache first (fast path - no network).
     final cached = await ImageCacheService.instance.getCached(url);
     if (!mounted || widget.url != url) return;
     if (cached != null) {
@@ -107,7 +107,7 @@ class _CachedImageState extends State<CachedImage> {
       });
       return;
     }
-    // Not cached — download from network.
+    // Not cached - download from network.
     final bytes = await ImageCacheService.instance.fetch(url);
     if (!mounted || widget.url != url) return;
     if (bytes != null) {
@@ -117,7 +117,7 @@ class _CachedImageState extends State<CachedImage> {
         _decodeFailed = false;
       });
     } else {
-      // Offline or fetch failed — keep the previous poster (_bytes) if any
+      // Offline or fetch failed - keep the previous poster (_bytes) if any
       // instead of flipping to error/blank.  Only show error when we never
       // had an image for this card.
       if (_bytes == null) {
@@ -165,7 +165,7 @@ class _CachedImageState extends State<CachedImage> {
         fit: widget.fit,
         alignment: _effectiveAlignment,
         errorBuilder: (context, error, stack) {
-          // Bytes are present but undecodable — mark it and fall back to a
+          // Bytes are present but undecodable - mark it and fall back to a
           // network fetch of the same URL rather than showing the caller
           // placeholder, which is visually indistinguishable from blank.
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -186,7 +186,7 @@ class _CachedImageState extends State<CachedImage> {
     }
     // Not cached yet: fetch from the network, sized to the box we actually get
     // (cacheWidth = rendered width x devicePixelRatio) so a big inner screen
-    // — iPhone Duo open, iPad, Split View — does not decode full-resolution
+    // - iPhone Duo open, iPad, Split View - does not decode full-resolution
     // artwork for every tile.
     return _NetworkImage(
       url: widget.url,

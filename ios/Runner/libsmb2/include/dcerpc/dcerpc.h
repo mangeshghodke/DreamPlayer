@@ -277,7 +277,7 @@ int dcerpc_do_coder(char *name, struct dcerpc_context *ctx, struct dcerpc_pdu *p
  * root (same model as a successful dcerpc_call_async reply). Nested decode
  * allocations and the file buffer (loaded via dcerpc_alloc_data so YAML
  * string pointers into the buffer stay valid) are owned by that root. Free
- * with dcerpc_free_data(NULL, ptr) — the dce argument is unused.
+ * with dcerpc_free_data(NULL, ptr) - the dce argument is unused.
  *
  * Returns NULL on error. Requires libdcerpc YAML support (HAVE_DCERPC_FULL).
  * The top-level YAML key is taken from the file and must match what coder
@@ -391,7 +391,7 @@ int dcerpc_sid_coder(char *name, struct dcerpc_context *dce,
                      void *ptr);
 
 /*
- * [size_is(len)] byte data[] — a conformant byte array.
+ * [size_is(len)] byte data[] - a conformant byte array.
  * NDR: max_count followed by the bytes. YAML/JSON: a hex string.
  * On decode data is allocated from the pdu (dcerpc_alloc_data).
  * ptr is struct dcerpc_bytes *.
@@ -407,7 +407,7 @@ int dcerpc_bytes_coder(char *name, struct dcerpc_context *dce,
                        void *ptr);
 
 /*
- * [size_is(max_count), length_is(len)] byte data[] — a conformant-varying
+ * [size_is(max_count), length_is(len)] byte data[] - a conformant-varying
  * byte array. NDR: max_count, offset (always 0), len, then len bytes.
  * YAML/JSON: the len bytes as a hex string; max_count is not carried and
  * is set to len on decode.
@@ -427,7 +427,7 @@ int dcerpc_varying_bytes_coder(char *name, struct dcerpc_context *dce,
  * RPC_UNICODE_STRING (MS-DTYP). Buffer is not required to be NUL-terminated.
  * ptr is char ** (UTF-8).
  *
- * RPC_UNICODE_STRINGz is the same layout with a NUL-terminated Buffer —
+ * RPC_UNICODE_STRINGz is the same layout with a NUL-terminated Buffer -
  * this is RRP_UNICODE_STRING in MS-RRP. Same nult pattern as
  * ndr_utf16_coder / ndr_utf16z_coder.
  *

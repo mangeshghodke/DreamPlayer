@@ -12,7 +12,7 @@ import 'package:path_provider/path_provider.dart';
 /// Two honest limits, so the file is never expected to be more than it is:
 /// it records framework/uncaught-async exceptions (FlutterError.onError and
 /// PlatformDispatcher.onError), and a NATIVE crash (SIGSEGV in a decoder,
-/// watchdog kill) is out of its reach — the OS handles those, which is what
+/// watchdog kill) is out of its reach - the OS handles those, which is what
 /// .ips reports from Xcode/ASC are for. Behaviour after the error is
 /// unchanged: uncaught errors are reported to the console as before.
 ///
@@ -26,7 +26,7 @@ class CrashLog {
 
   static const int maxBytes = 256 * 1024;
 
-  /// Off under `flutter test` — a crash aid has no filesystem work in unit
+  /// Off under `flutter test` - a crash aid has no filesystem work in unit
   /// tests and there is no Documents directory there.
   static bool enabled =
       !kIsWeb && !Platform.environment.containsKey('FLUTTER_TEST');
@@ -35,7 +35,7 @@ class CrashLog {
   static set overrideEnabled(bool value) => enabled = value;
 
   /// Drops the cached directory/path so the next write re-resolves from
-  /// path_provider — each test gets a fresh temp Documents dir.
+  /// path_provider - each test gets a fresh temp Documents dir.
   @visibleForTesting
   static void resetForTest() {
     _file = null;
@@ -56,7 +56,7 @@ class CrashLog {
 
     final previousOnError = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
-      // Console behaviour preserved — dumpErrorToConsole is exactly what the
+      // Console behaviour preserved - dumpErrorToConsole is exactly what the
       // default handler does when onError is null.
       write(details.exceptionAsString(), details.stack);
       FlutterError.dumpErrorToConsole(details);
@@ -110,12 +110,12 @@ class CrashLog {
         await file.writeAsBytes(trimmed);
       }
       // Flushed: if the process dies moments later (crash or watchdog),
-      // the entry must already be on disk — that is the whole point.
+      // the entry must already be on disk - that is the whole point.
       await file.writeAsString(entry, mode: FileMode.append, flush: true);
     } catch (e) {
       // Say so once: a silently broken log is worse than no log.
       _file = null;
-      debugPrint('CrashLog: append failed (${e.runtimeType}) — will retry on '
+      debugPrint('CrashLog: append failed (${e.runtimeType}) - will retry on '
           'the next write');
     }
   }

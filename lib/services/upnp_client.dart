@@ -45,7 +45,7 @@ class UpnpEntry {
   final int size;
   final String? duration;
 
-  /// The server declared `DLNA.ORG_CI=1` — playing this URL triggers a
+  /// The server declared `DLNA.ORG_CI=1` - playing this URL triggers a
   /// server-side transcode (Jellyfin does it for items with external
   /// subtitles: lossy HEVC→H.264 TS, unseekable, HDR stripped).
   final bool transcoded;

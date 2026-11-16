@@ -27,7 +27,7 @@ class FileEntry {
   final String? resumeKey;
 
   /// True for the virtual "Files" root (iOS): tapping it opens the system
-  /// document picker — the real Files-app home — instead of listing a path.
+  /// document picker - the real Files-app home - instead of listing a path.
   final bool isFilesHome;
 
   factory FileEntry.fromMap(Map<dynamic, dynamic> map) {
@@ -82,7 +82,7 @@ class FileBrowserService {
     try {
       // The native side answers with the DESTINATION PATH (a String), not a
       // bool. Reading it as <bool> and testing `== true` made every copy report
-      // failure — a silent mismatch that only showed up as a red snackbar.
+      // failure - a silent mismatch that only showed up as a red snackbar.
       final destination =
           await _channel.invokeMethod<String>('copyLocalToDownloads', {
         'path': path,
@@ -108,7 +108,7 @@ class FileBrowserService {
   ///
   /// The native side used to answer a failed listing with a single
   /// `{"error": ...}` pseudo-entry that this method silently dropped, so an
-  /// unreadable folder was indistinguishable from an empty one — and adding
+  /// unreadable folder was indistinguishable from an empty one - and adding
   /// one looked like a no-op. The reason is now retained so callers can
   /// explain the failure.
   String? lastListError;
@@ -152,7 +152,7 @@ class FileBrowserService {
   /// Permanently deletes a **local** file.
   ///
   /// Android only, and only for a plain filesystem path or a `content://` SAF
-  /// URI. Network sources are refused natively — deleting from a NAS share
+  /// URI. Network sources are refused natively - deleting from a NAS share
   /// needs protocol-level support this app deliberately does not have, and a
   /// mis-fired tap there is irreversible.
   ///
@@ -214,7 +214,7 @@ class FileBrowserService {
   }
 
   /// Same folder picker, but the picked folder is stored as a LIBRARY bookmark
-  /// only — it never appears as a file-browser root. Used by "Add folder to
+  /// only - it never appears as a file-browser root. Used by "Add folder to
   /// library".
   Future<FileEntry?> pickLibraryFolder() async {
     final result =
@@ -223,7 +223,7 @@ class FileBrowserService {
     return FileEntry.fromMap(result);
   }
 
-  /// iOS only: presents the system document picker — the Files-app home
+  /// iOS only: presents the system document picker - the Files-app home
   /// (iCloud Drive, On My iPad, Downloads, providers). Returns the picked
   /// video, imported (bookmarked) for future sessions, or null if cancelled.
   Future<FileEntry?> openFilesHome() async {
@@ -336,7 +336,7 @@ class FileBrowserService {
     }
   }
 
-  /// Embedded cover-art bytes for a local video (metadata-only read — safe for
+  /// Embedded cover-art bytes for a local video (metadata-only read - safe for
   /// DV/HDR). Returns null when the file has no attached artwork or the source
   /// is remote (http(s) is skipped natively).
   Future<Uint8List?> getThumbnail({String? path, String? uri}) async {

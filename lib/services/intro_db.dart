@@ -9,7 +9,7 @@ import '../config/introdb_base_url.dart';
 ///
 /// Expected response shape for `GET {base}/lookup?title=..&durationMs=..`:
 /// `{ "introStartMs": 0, "introEndMs": 95000, "creditsStartMs": 1300000 }`
-/// — any field may be null/absent when unknown.
+/// - any field may be null/absent when unknown.
 class IntroDb {
   IntroDb._();
 

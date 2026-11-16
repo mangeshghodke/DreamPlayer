@@ -1,6 +1,6 @@
 // Pure helpers for grouping episodes by season and computing watched progress.
 //
-// No Flutter imports — usable in unit tests. Widgets consume the computed
+// No Flutter imports - usable in unit tests. Widgets consume the computed
 // values through seasonHeader/watchedBadge/seasonBadge and the
 // SeasonProgressRing widget.
 
@@ -67,6 +67,6 @@ String seasonHeader(int seasonNumber) =>
 /// "3/10"
 String watchedBadge(int watched, int total) => '$watched/$total';
 
-/// "S1 2/5" — or "Ep 2/5" for unnumbered (season 0).
+/// "S1 2/5" - or "Ep 2/5" for unnumbered (season 0).
 String seasonBadge(int season, int watched, int total) =>
     season <= 0 ? 'Ep ${watchedBadge(watched, total)}' : 'S$season ${watchedBadge(watched, total)}';

@@ -11,14 +11,14 @@ import 'package:path_provider/path_provider.dart';
 /// are the upstream `hdr-toys.conf` profiles, reduced to the shaders those
 /// profiles actually use:
 ///
-///  * PQ (BT.2100 PQ / HDR10) — inverse PQ → astra tone-map → gamut → BT.1886
-///  * HLG (BT.2100 HLG)        — inverse HLG → astra tone-map → gamut → BT.1886
-///  * BT.2020                  — inverse BT.1886 → gamut → BT.1886
+///  * PQ (BT.2100 PQ / HDR10) - inverse PQ → astra tone-map → gamut → BT.1886
+///  * HLG (BT.2100 HLG)        - inverse HLG → astra tone-map → gamut → BT.1886
+///  * BT.2020                  - inverse BT.1886 → gamut → BT.1886
 ///
 /// **The `auto_exposure_limit_positive` option upstream appends to astra is
 /// deliberately not set.** mpv's `glsl-shader-opts` is a per-shader list
 /// indexed against the chain, and a mis-aligned entry makes the shader fail
-/// to compile — which means a black picture. astra's own default (no positive
+/// to compile - which means a black picture. astra's own default (no positive
 /// exposure limit) is the safer starting point; revisit only if a device
 /// test shows blown-out highlights.
 enum HdrToysProfile {
@@ -53,7 +53,7 @@ enum HdrToysProfile {
 /// back their real paths.
 ///
 /// mpv loads user shaders from the filesystem, so an asset path
-/// (`assets/...`) is useless to it — the files have to exist on disk. Same
+/// (`assets/...`) is useless to it - the files have to exist on disk. Same
 /// approach as the Anime4K shader store.
 class HdrToysShaderStore {
   HdrToysShaderStore._();
@@ -75,7 +75,7 @@ class HdrToysShaderStore {
     return _paths ??= _prepare();
   }
 
-  /// Drops the cached paths — the copy lives in the app-support directory, so
+  /// Drops the cached paths - the copy lives in the app-support directory, so
   /// a test that deletes that directory needs a fresh copy.
   @visibleForTesting
   static void resetForTest() {
@@ -99,7 +99,7 @@ class HdrToysShaderStore {
     // `root.path` needs the braces or a local: `$root.path` interpolates the
     // Directory OBJECT (its toString) and then the literal text ".path",
     // which builds a garbage path. The analyzer's "unnecessary braces" lint
-    // is wrong about property access — trust the braces.
+    // is wrong about property access - trust the braces.
     final rootPath = (await getApplicationSupportDirectory()).path;
     final separator = Platform.pathSeparator;
     final directory = Directory('$rootPath$separator$version');

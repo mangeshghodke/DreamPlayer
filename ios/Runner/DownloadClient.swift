@@ -4,7 +4,7 @@ import UserNotifications
 
 /// iOS download client (channel `dreamplayer/download`), mirroring
 /// `DownloadClient.kt`. iOS has no foreground-service model, so the Dart
-/// `DownloadManager` handles the actual HTTP download — this class only
+/// `DownloadManager` handles the actual HTTP download - this class only
 /// provides the download directory and drives a progress notification.
 final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
 
@@ -16,7 +16,7 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
     private var channel: FlutterMethodChannel?
     private var hasRequestedPermission = false
     private var lastUpdateTime: TimeInterval = 0
-    /// Only show the banner once per download session — subsequent updates
+    /// Only show the banner once per download session - subsequent updates
     /// update the notification panel silently without popping a new banner.
     private var hasShownBanner = false
     /// Stored from startService so updateNotification can include it in userInfo
@@ -140,10 +140,10 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         if hasShownBanner {
-            // Silent update — update the panel but don't pop a new banner.
+            // Silent update - update the panel but don't pop a new banner.
             completionHandler([.list, .badge])
         } else {
-            // First notification — show banner + persist in panel.
+            // First notification - show banner + persist in panel.
             hasShownBanner = true
             completionHandler([.list, .banner, .badge])
         }
@@ -160,9 +160,9 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
                 channel?.invokeMethod("onCancelFromNotification", arguments: jobId)
             }
         } else if response.actionIdentifier == UNNotificationDismissActionIdentifier {
-            // User swiped away the notification — no-op.
+            // User swiped away the notification - no-op.
         } else {
-            // Tapped the notification body — open the download section.
+            // Tapped the notification body - open the download section.
             channel?.invokeMethod("onNotificationTap", arguments: nil)
         }
         completionHandler()
@@ -201,9 +201,9 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
         content.title = "DreamPlayer"
         if totalBytes > 0 {
             let pct = Int(min(bytesCopied * 100 / totalBytes, 100))
-            content.body = "\(title) — \(byteCount(bytesCopied)) / \(byteCount(totalBytes)) (\(pct)%)"
+            content.body = "\(title) - \(byteCount(bytesCopied)) / \(byteCount(totalBytes)) (\(pct)%)"
         } else {
-            content.body = "\(title) — \(byteCount(bytesCopied))"
+            content.body = "\(title) - \(byteCount(bytesCopied))"
         }
         content.sound = nil
         content.categoryIdentifier = Self.notificationCategoryId

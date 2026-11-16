@@ -24,7 +24,7 @@ enum SubtitleFont {
       );
 }
 
-/// Edge treatment behind the glyphs — the same five options YouTube's caption
+/// Edge treatment behind the glyphs - the same five options YouTube's caption
 /// dialog offers. Values map 1:1 to Media3's `CaptionStyleCompat.EDGE_TYPE_*`.
 enum SubtitleEdge {
   none('none', 'None'),
@@ -77,7 +77,7 @@ class SubtitleStyle {
 
   /// Absolute path to a user-picked `.ttf`/`.otf` copied into the app's
   /// `subtitle_fonts/` dir (see `SubtitleFonts.registerCustomFont`). When set
-  /// it wins over [font] and [googleFont] — it is a real file the native
+  /// it wins over [font] and [googleFont] - it is a real file the native
   /// renderers (Media3 `Typeface.createFromFile`, iOS CoreText, libass
   /// `sub-fonts-dir`) can register directly.
   final String? customFontPath;
@@ -124,7 +124,7 @@ class SubtitleStyle {
   Color get color => Color(colorValue);
   Color get backgroundColor => Color(backgroundColorValue);
 
-  /// Text color with [textOpacity] applied — what the renderers actually draw.
+  /// Text color with [textOpacity] applied - what the renderers actually draw.
   int get effectiveTextColor =>
       (colorValue & 0x00FFFFFF) | ((textOpacity & 0xFF) << 24);
 

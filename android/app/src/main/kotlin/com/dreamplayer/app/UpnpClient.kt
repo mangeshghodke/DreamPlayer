@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 ///
 /// Discovery is SSDP M-SEARCH to 239.255.255.250:1900; browsing is SOAP
 /// ContentDirectory#Browse (BrowseDirectChildren) against the device's
-/// controlURL. HTTP is plain OkHttp — DLNA servers are LAN http.
+/// controlURL. HTTP is plain OkHttp - DLNA servers are LAN http.
 class UpnpClient(private val context: Context) {
 
     companion object {
@@ -47,7 +47,7 @@ class UpnpClient(private val context: Context) {
 
     /// Directory-listing cache: re-visiting a folder is instant.
     /// Key = "$serverId|$objectId", value = (entries, fetchedAtMs).
-    /// TTL 60 s. DLNA Browse is one SOAP POST + DIDL-Lite XML parse — caching
+    /// TTL 60 s. DLNA Browse is one SOAP POST + DIDL-Lite XML parse - caching
     /// avoids re-serializing the same SOAP envelope + re-hitting the server.
     private data class CachedListing(
         val entries: List<Map<String, Any?>>,
@@ -140,7 +140,7 @@ class UpnpClient(private val context: Context) {
                     "USER-AGENT: DreamPlayer/1.0 UPnP/1.0\r\n\r\n"
                 ).toByteArray(Charsets.UTF_8)
             val pkt = DatagramPacket(msg, msg.size, InetAddress.getByName(SSDP_ADDR), SSDP_PORT)
-            // Send twice (common DLNA practice — cheap and helps lossy Wi-Fi).
+            // Send twice (common DLNA practice - cheap and helps lossy Wi-Fi).
             repeat(2) {
                 try { socket.send(pkt) } catch (_: Exception) {}
             }
@@ -245,7 +245,7 @@ class UpnpClient(private val context: Context) {
                         pendingControlUrl = null
                     }
                     if (parser.name == "device" && controlUrl != null) {
-                        // Don't break — continue parsing in case there are multiple devices.
+                        // Don't break - continue parsing in case there are multiple devices.
                     }
                 }
             }
@@ -334,7 +334,7 @@ class UpnpClient(private val context: Context) {
         val entries = mutableListOf<Map<String, Any?>>()
         try {
             val parser = Xml.newPullParser()
-            // DIDL uses dc:/upnp: namespaces — need localName handling.
+            // DIDL uses dc:/upnp: namespaces - need localName handling.
             parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
             parser.setInput(didl.reader())
             var event = parser.eventType
@@ -419,7 +419,7 @@ class UpnpClient(private val context: Context) {
                                 val url = parser.nextText().trim()
                                 if (url.isNotEmpty()) {
                                     // Servers like Jellyfin advertise MULTIPLE res elements per
-                                    // item — one for the video plus one per external subtitle
+                                    // item - one for the video plus one per external subtitle
                                     // (DeliveryUrl …/Subtitles/N/0/Stream.srt). Taking the last
                                     // one handed the player an .srt as the main media. Keep the
                                     // VIDEO res; fall back to the first-seen res otherwise.
@@ -431,7 +431,7 @@ class UpnpClient(private val context: Context) {
                                         currentResDuration = dur
                                         currentResIsVideo = isVideoRes
                                     } else if (!isVideoRes) {
-                                        // A text/* subtitle advertised next to the video —
+                                        // A text/* subtitle advertised next to the video -
                                         // collect it as an attachable track.
                                         val mime = protoInfo?.split(":")?.getOrNull(2)?.takeIf { it.isNotEmpty() && it != "*" }
                                         currentExtraSubs.add(mapOf("url" to url, "mime" to (mime ?: "application/x-subrip")))
@@ -469,7 +469,7 @@ class UpnpClient(private val context: Context) {
         val videoExts = setOf("mkv", "mp4", "avi", "mov", "ts", "m2ts", "wmv", "flv", "mpg", "mpeg", "webm", "m4v", "3gp", "divx", "vob")
         val ext = url.substringAfterLast('.', "").substringBefore('?').lowercase()
         if (videoExts.contains(ext)) return true
-        // Unknown — keep it rather than hide a video with a weird MIME.
+        // Unknown - keep it rather than hide a video with a weird MIME.
         // Only hide obvious non-video.
         if (pi.isNotEmpty() && !pi.contains("video")) return false
         return true

@@ -4,14 +4,14 @@ import '../services/metadata_search.dart';
 import '../services/tmdb_client.dart';
 import 'cached_image.dart';
 
-/// Poster picker for a manual group — query + Movie/TV toggle, results
+/// Poster picker for a manual group - query + Movie/TV toggle, results
 /// list, tap a result to pick it. Returns the picked [TmdMeta] or null
 /// (skip/cancel) so the group falls back to any member's cached meta.
 /// Shared by the group-creation flow (home screen) and the group detail
 /// screen's Fix match.
 ///
 /// Search runs across every configured metadata provider (TMDB, TheTVDB) and
-/// shows one merged, de-duplicated result list — no provider picker.
+/// shows one merged, de-duplicated result list - no provider picker.
 class GroupPosterDialog extends StatefulWidget {
   const GroupPosterDialog({super.key, required this.initialQuery});
 
@@ -143,7 +143,7 @@ class _GroupPosterDialogState extends State<GroupPosterDialog> {
         child: Padding(
           padding: EdgeInsets.all(12),
           child: Text(
-            'Enable a metadata provider in Settings → Metadata to search — add '
+            'Enable a metadata provider in Settings → Metadata to search - add '
             'a TMDB or TheTVDB API key, or turn on AVDb or r18.dev (no key '
             'needed).',
             textAlign: TextAlign.center,

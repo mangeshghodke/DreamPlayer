@@ -105,7 +105,7 @@ class ExoPlayerView(
     /// `KEY_COLOR_TRANSFER_REQUEST` (= SDR_VIDEO) while rendering straight
     /// into a SurfaceView (hardware overlay), but performs the on-chip
     /// HDR→SDR conversion when its output sink is a SurfaceTexture
-    /// (TextureView) — verified on a OnePlus Pad 2 by comparing against
+    /// (TextureView) - verified on a OnePlus Pad 2 by comparing against
     /// mpv-infinity: `request_sdr_video=true output_standard=1
     /// output_transfer=3 source_transfer=6`. `c2.qti.dv.decoder` honours the
     /// request either way, which is why Dolby Vision already worked.
@@ -147,7 +147,7 @@ class ExoPlayerView(
     /// passthrough" in Settings AND an HDMI output is detected, we return an
     /// empty decoder list for all passthrough-capable formats (AC3, E-AC3,
     /// DTS, DTS-HD, TrueHD).  This forces ExoPlayer's `DefaultAudioSink` to
-    /// route them through `AudioTrack` in passthrough mode — the encoded
+    /// route them through `AudioTrack` in passthrough mode - the encoded
     /// bitstream goes straight to the HDMI output for the TV / soundbar / AVR
     /// to decode.  The FfmpegAudioRenderer (appended last in
     /// DreamRenderersFactory) never fires for these formats because
@@ -170,7 +170,7 @@ class ExoPlayerView(
     /// "AudioEffect: bad parameter value"). The old fallback on that failure was
     /// `LoudnessEnhancer`, whose AOSP implementation is hard-wired for STEREO;
     /// attached to a 5.1 session it mangled the centre channel, which is the
-    /// dialogue — exactly the reported symptom ("music continues, vocals
+    /// dialogue - exactly the reported symptom ("music continues, vocals
     /// disappear"). The reporter also confirmed that MPV, which applies plain
     /// gain and no effect chain, now sounds correct on the same speakers.
     ///
@@ -186,7 +186,7 @@ class ExoPlayerView(
     ///
     /// It used to be seeded from `flutter.dreamplayer.audioBoost`, which this
     /// class also wrote. That persisted the value across app restarts, so a
-    /// session that ended at 200% reopened at 200% — the user has to start
+    /// session that ended at 200% reopened at 200% - the user has to start
     /// each video from a known 100% and deliberately swipe past it. Starting at
     /// unity here also means the stale pref can no longer cause a briefly
     /// boosted first frame before Dart pushes 1.0 down.
@@ -200,7 +200,7 @@ class ExoPlayerView(
     }
 
     /// Downmix to stereo (Settings -> Audio). Pushed into the sink's
-    /// DownmixAudioProcessor on every open — configure() reads it once per
+    /// DownmixAudioProcessor on every open - configure() reads it once per
     /// stream, so a mid-playback toggle applies on the next track/open.
     private var audioDownmixEnabled: Boolean = run {
         val p = activity.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
@@ -339,7 +339,7 @@ class ExoPlayerView(
     /**
      * Push the current boost to the PCM processor.
      *
-     * Called at gesture rate, so it must stay a parameter write — the sink is
+     * Called at gesture rate, so it must stay a parameter write - the sink is
      * configured once per stream and nothing is rebuilt. The processor only
      * looks at samples, never at the channel layout, which is what makes it
      * safe for 5.1/7.1 (issue #41: the stereo-only `LoudnessEnhancer` used to
@@ -363,7 +363,7 @@ class ExoPlayerView(
         bassBoostFx = null
         val sessionId = player.audioSessionId
         val sessionOk = sessionId != 0 && sessionId != C.AUDIO_SESSION_ID_UNSET
-        // Bass Boost is independent of the loudness guard — it applies even
+        // Bass Boost is independent of the loudness guard - it applies even
         // at 1.0× boost / night mode off.
         if (sessionOk && bassBoostLevel > 0) {
             try {
@@ -380,7 +380,7 @@ class ExoPlayerView(
 
     /// Base source for non-file/content schemes. `DefaultDataSource` handles
     /// file/content/asset itself and delegates everything else (http, https,
-    /// rtsp, ...) here — e.g. file managers that stream SMB files to players
+    /// rtsp, ...) here - e.g. file managers that stream SMB files to players
     /// through a local HTTP proxy (CX Explorer hands out
     /// `http://127.0.0.1:<port>/SMB/...`, verified 4K HEVC at 60 fps).
     ///
@@ -388,7 +388,7 @@ class ExoPlayerView(
     /// HttpURLConnection) so WebDAV servers with self-signed certificates can
     /// be played by swapping in a trust-all client per media item. HTTP
     /// headers (e.g. WebDAV Basic auth) are applied to the factory, not the
-    /// MediaItem, in current Media3 — the player plays one item at a time, so
+    /// MediaItem, in current Media3 - the player plays one item at a time, so
     /// setting default request properties at open time is correct.
     private val permissiveClient: OkHttpClient by lazy {
         val trustAll = object : X509TrustManager {
@@ -440,7 +440,7 @@ class ExoPlayerView(
     ///
     /// Network delegates are **reused across open()** for the same URI so a
     /// Matroska cue-seek (head → EOF → head) does not tear down SMB handles /
-    /// ring / prefetch threads and rebuild them three times — that thrash was
+    /// ring / prefetch threads and rebuild them three times - that thrash was
     /// the dominant SMB start cost after the first chunk fill. Local/http
     /// still get a fresh [DefaultDataSource] per open (its contract).
     private class MultiplexDataSource(
@@ -509,7 +509,7 @@ class ExoPlayerView(
     /// a big byte budget so network streams (e.g. the CX HTTP proxy) stay
     /// smooth. Defaults are 2.5s/5s and an 8MB byte cap, which is too tight
     /// for 4K REMUX. The byte budget scales down on small-heap devices
-    /// ([BufferTuning]) — a fixed 96MB target OOMs the Fire TV Stick's 192MB
+    /// ([BufferTuning]) - a fixed 96MB target OOMs the Fire TV Stick's 192MB
     /// app heap mid-playback ("io unspecified" source error).
     private val loadControl: LoadControl = run {
         BufferTuning.tune(activity)
@@ -551,7 +551,7 @@ class ExoPlayerView(
                 // that: the LG Dolby Vision demos carry duplicated Dolby Vision RPU
                 // NAL units inside single access units and declare no video-track
                 // duration, so after an EXACT seek the HEVC decoder lands at the
-                // right position but never emits another frame — the picture freezes
+                // right position but never emits another frame - the picture freezes
                 // while elapsed time keeps advancing, and the seekbar looks dead.
                 // CLOSEST_SYNC always restarts from a clean I-frame. The cost is at
                 // most one GOP of seek granularity (~4s on those files); every other
@@ -573,7 +573,7 @@ class ExoPlayerView(
                 p.setWakeMode(C.WAKE_MODE_NETWORK)
                 // No language preference: Media3's empty preferredAudioLanguages
                 // already selects the container's DEFAULT-flagged audio track
-                // (first track as last resort) — exactly the file's own default.
+                // (first track as last resort) - exactly the file's own default.
                 p.addAnalyticsListener(object : AnalyticsListener {
                     override fun onVideoDecoderInitialized(
                         eventTime: AnalyticsListener.EventTime,
@@ -715,7 +715,7 @@ class ExoPlayerView(
         }
     }
 
-    /// Whether this device ships a `video/dolby-vision` decoder (checked once —
+    /// Whether this device ships a `video/dolby-vision` decoder (checked once -
     /// DV-capable hardware like the OnePlus's `c2.qti.dv.decoder`; absent on
     /// e.g. the Redmi Note 10).
     private val hasDvDecoder: Boolean by lazy {
@@ -735,7 +735,7 @@ class ExoPlayerView(
 
     /// Dolby Vision Profile 5 (IPTPQc2 color) cannot be rendered by a plain
     /// HEVC decoder: on devices without a `video/dolby-vision` codec it comes
-    /// out pink/green (see [mediaCodecSelector] — P7/P8 base layers ARE HDR10
+    /// out pink/green (see [mediaCodecSelector] - P7/P8 base layers ARE HDR10
     /// HEVC and fall back correctly; P5 is not). Detect it as soon as the video
     /// format is known and fail with a clear message instead of garbage frames.
     /// Returns the error fields to surface, or null to keep normal playback.
@@ -750,14 +750,14 @@ class ExoPlayerView(
     }
 
     /// Whether the current video carries ST 2094-40 (HDR10+) dynamic metadata,
-    /// found by probing the bitstream — Media3's format info cannot tell HDR10+
+    /// found by probing the bitstream - Media3's format info cannot tell HDR10+
     /// from HDR10 (both are PQ transfer). Best-effort: a probe failure just
     /// leaves this false and the content plays with the plain HDR10 label.
     @Volatile private var hdr10PlusContent = false
 
     /// Whether the current video carries static HDR10 metadata (SEI payload types
     /// 137 = mastering display colour volume, 144 = content light level). This
-    /// covers plain HDR10 files that omit the MKV Colour element — Media3's
+    /// covers plain HDR10 files that omit the MKV Colour element - Media3's
     /// MatroskaExtractor doesn't populate `Format.colorInfo`, so the app would
     /// fall back to SDR. Probing the bitstream SEI restores the correct HDR10 label
     /// and engages the OPLUS EDR headroom path.
@@ -768,7 +768,7 @@ class ExoPlayerView(
     @Volatile private var chapters: List<MkvChapters.Chapter> = emptyList()
 
     /// Bumped on every open() so the HDR10/HDR10+/chapters background probe
-    /// threads (which can outlive the file they were scanning — e.g. the user
+    /// threads (which can outlive the file they were scanning - e.g. the user
     /// opens a second file before the first file's probes finish, or a
     /// deferred remote probe's 400ms delay elapses after a newer open()) can
     /// tell a stale result apart from a current one instead of unconditionally
@@ -782,7 +782,7 @@ class ExoPlayerView(
     @Volatile private var disposed = false
 
     /// The [openGeneration] captured when a remote source's probes were
-    /// deferred (see [fireDeferredProbes]) — passed through explicitly rather
+    /// deferred (see [fireDeferredProbes]) - passed through explicitly rather
     /// than re-read at fire time, since [openGeneration] may already have
     /// advanced past it by the time the 400ms delay elapses.
     private var pendingProbesGeneration = 0
@@ -796,7 +796,7 @@ class ExoPlayerView(
     // Wire range shared with the MPV panel: -100…100, 0 = neutral. Mapped to
     // Media3 effects: Brightness/Contrast take -1…1, HslAdjustment saturation
     // takes -100…100 directly. Gamma has no Media3 effect and stays MPV-only.
-    // Armed per-open by Dart (`pictureEffectsArmed`) only for SDR content —
+    // Armed per-open by Dart (`pictureEffectsArmed`) only for SDR content -
     // for HDR/DV the effect pipeline would strip the native HDR/DV layer from
     // the surface, so setVideoEffects is never called and passthrough wins.
     @Volatile private var picBrightness = 0f
@@ -849,7 +849,7 @@ class ExoPlayerView(
             (fmt.codecs?.startsWith("dv") == true)
         if (isHdr) {
             pictureEffectsArmed = false
-            Log.i("ExoPlayerView", "content turned out HDR/DV (${fmt.codecs}) — clearing picture effects to keep passthrough")
+            Log.i("ExoPlayerView", "content turned out HDR/DV (${fmt.codecs}) - clearing picture effects to keep passthrough")
             try {
                 player.setVideoEffects(emptyList())
             } catch (e: Exception) {
@@ -981,7 +981,7 @@ class ExoPlayerView(
     }
 
     /// True when this HEVC NAL unit is a SEI carrying ITU-T T.35 user data with
-    /// country code 0xB5 and provider code 0x003C — the ST 2094-40 (HDR10+)
+    /// country code 0xB5 and provider code 0x003C - the ST 2094-40 (HDR10+)
     /// dynamic-metadata signal. (Provider 0x0040 is Dolby Vision's ST 2094-20,
     /// which is handled by the codec check instead.)
     private fun nalHasHdr10PlusSei(buf: ByteArray, start: Int, len: Int): Boolean {
@@ -1050,7 +1050,7 @@ class ExoPlayerView(
             if (payloadType == 137 && payloadSize == 24 && i + 24 <= end) {
                 // ST 2086 mastering display colour volume: 24 B payload.
                 // Validate max display luminance (bytes 16-19, uint32 BE in
-                // 0.0001-nit units) — must be 50..10000 nits (500000..100000000)
+                // 0.0001-nit units) - must be 50..10000 nits (500000..100000000)
                 // to distinguish real HDR mastering from zeroed SDR placeholders.
                 val maxNits = ((buf[i + 16].toInt() and 0xFF) shl 24) or
                     ((buf[i + 17].toInt() and 0xFF) shl 16) or
@@ -1218,7 +1218,7 @@ class ExoPlayerView(
         allowSelfSigned: Boolean = false,
         generation: Int = openGeneration,
     ) {
-        // WHICH FIELD CARRIES THE SOURCE — read this before touching the
+        // WHICH FIELD CARRIES THE SOURCE - read this before touching the
         // scheme logic.
         //
         // Dart passes an `smb://` URL in `path` and leaves `uri` null, so
@@ -1264,10 +1264,10 @@ class ExoPlayerView(
             "probe: local=$isLocal($path) smb=$isSmb ftp=$isFtp http=$isHttp source=$sourceUri",
         )
         if (!isLocal && !isSmb && !isFtp && !isHttpMkv && !isHttpMp4) {
-            // Unknown remote scheme (e.g. content://) — still probe local-like files
+            // Unknown remote scheme (e.g. content://) - still probe local-like files
             // when a path is available, otherwise nothing to read.
             if (!isLocalMkv && !isLocalMp4 && isLocal) {
-                // Fall through: extension-less local file — try both.
+                // Fall through: extension-less local file - try both.
             } else if (!isLocal) return
         }
         Thread {
@@ -1310,7 +1310,7 @@ class ExoPlayerView(
                         }
                     }
                     isLocal -> {
-                        // Extension-less or unknown local file — try MKV then MP4.
+                        // Extension-less or unknown local file - try MKV then MP4.
                         val mkv = MkvChapters.parse(path!!)
                         if (mkv.isNotEmpty()) mkv
                         else Mp4Chapters.parse(path).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
@@ -1321,7 +1321,7 @@ class ExoPlayerView(
                         else Mp4Chapters.parseSmb(sourceUri, activity).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
                     }
                     isFtp -> {
-                        // Extension-less remote file — try MKV then MP4.
+                        // Extension-less remote file - try MKV then MP4.
                         val mkv = MkvChapters.parseFtp(sourceUri!!, activity)
                         if (mkv.isNotEmpty()) mkv
                         else Mp4Chapters.parseFtp(sourceUri, activity).map { MkvChapters.Chapter(it.title, it.startMs, it.endMs) }
@@ -1354,7 +1354,7 @@ class ExoPlayerView(
         // Fire TV fix: lift the video SurfaceView above any dim layers the
         // framework inserts between dual SurfaceViews in the same window.
         // Combined with a transparent window background (set in MainActivity),
-        // this lets the video show through — matching Nova Player's approach.
+        // this lets the video show through - matching Nova Player's approach.
         (playerView.videoSurfaceView as? android.view.SurfaceView)
             ?.setZOrderMediaOverlay(true)
 
@@ -1395,7 +1395,7 @@ class ExoPlayerView(
                             Log.i("ExoPlayerView", "Decoder mode changed: $lastDecoderMode -> $currentMode (from open channel), recreating player.")
                             // Build the replacement BEFORE releasing the current
                             // one: if createPlayer() throws (extension/renderer
-                            // construction failure, OOM — most likely exactly
+                            // construction failure, OOM - most likely exactly
                             // when a device is already struggling to decode,
                             // which is when the software-fallback path forces
                             // this exact recreation), the old player is still
@@ -1415,7 +1415,7 @@ class ExoPlayerView(
                                 // createPlayer() sets lastDecoderMode as its first
                                 // step, so a failure partway through construction
                                 // can leave it pointing at the mode that never
-                                // actually took effect — revert it so a later
+                                // actually took effect - revert it so a later
                                 // open() retries the recreation instead of
                                 // wrongly believing it already matches.
                                 lastDecoderMode = previousMode
@@ -1443,7 +1443,7 @@ class ExoPlayerView(
                     // HTTP request headers for this media item (e.g. WebDAV
                     // Basic auth). Media3 removed per-MediaItem headers; they
                     // now live on the HttpDataSource factory, which clearAndSet's
-                    // them — so always call, clearing when empty.
+                    // them - so always call, clearing when empty.
                     val headers: Map<String, String> =
                         call.argument<Map<String, String>>("headers") ?: emptyMap()
                     httpDataSourceFactory.setDefaultRequestProperties(headers)
@@ -1500,7 +1500,7 @@ class ExoPlayerView(
                             // then external subtitles from the server (Jellyfin),
                             // then auto-paired siblings next to the video file.
                             // For SAF bookmarked folders the path is `tree:<id>/...`
-                            // (synthetic, not a real File) — resolve via DocumentFile.
+                            // (synthetic, not a real File) - resolve via DocumentFile.
                             // For files opened from a bookmarked folder the VideoItem
                             // carries a `content://com.android.externalstorage.documents`
                             // tree URI (child.uri) instead of the synthetic `tree:`.
@@ -1527,7 +1527,7 @@ class ExoPlayerView(
                                        subtitleUri.startsWith("https://") ||
                                        subtitleUri.startsWith("content://") ||
                                        subtitleUri.startsWith("file://")) {
-                                // Remote subtitle URI (SMB, WebDAV, HTTP) — pass
+                                // Remote subtitle URI (SMB, WebDAV, HTTP) - pass
                                 // as-is, not wrapped in File().
                                 emptyList()
                             } else {
@@ -1647,7 +1647,7 @@ class ExoPlayerView(
                     // Picture controls (Media3 GL video effects): setVideoEffects
                     // must be called at least once BEFORE prepare() to set up
                     // the effect pipeline. Armed only when Dart says the content
-                    // is not HDR/DV (a filename/probe hint) — HDR keeps the
+                    // is not HDR/DV (a filename/probe hint) - HDR keeps the
                     // direct decoder→SurfaceView passthrough. The initial slider
                     // values ride along in the open args so an applied profile
                     // is active from the first frame.
@@ -1683,7 +1683,7 @@ class ExoPlayerView(
                     // Same trap as probeChapters: SMB arrives in `path`, not
                     // `uri`. Testing only `uri` made remoteProbe false for
                     // every SMB file, so its probes fired at prepare() instead
-                    // of being deferred to STATE_READY — the extra SMB sessions
+                    // of being deferred to STATE_READY - the extra SMB sessions
                     // this deferral exists to avoid.
                     val probeSource = when {
                         !uri.isNullOrEmpty() -> uri
@@ -1867,7 +1867,7 @@ class ExoPlayerView(
                     result.success(null)
                 }
                 "setAudioDelay" -> {
-                    // Manual A/V sync: positive = audio later. Dynamic — the
+                    // Manual A/V sync: positive = audio later. Dynamic - the
                     // processor retunes without reconfiguring the sink.
                     DreamRenderersFactory.audioDelayProcessor.setDelayMs(
                         call.argument<Number>("ms")?.toLong() ?: 0L,
@@ -2062,13 +2062,13 @@ class ExoPlayerView(
 
     /// Turns text (subtitle) rendering on/off. Works for both embedded
     /// container tracks (PGS/DVB/CEA/SRT in MKV/MP4) and sideloaded sidecar
-    /// subtitles — Media3 surfaces both as text track groups.
+    /// subtitles - Media3 surfaces both as text track groups.
     /// Builds a configuration for a sideloaded subtitle.
     ///
     /// VobSub is a two-file format: `Name.idx` is the descriptor (timings,
     /// palette, canvas size) and `Name.sub` is the raw MPEG-PS bitmap payload.
     /// Media3 wants the payload as the sample URI, `application/vobsub` as the
-    /// MIME, and the `.idx` out-of-band — it cannot ride in
+    /// MIME, and the `.idx` out-of-band - it cannot ride in
     /// `SubtitleConfiguration` in 1.10.x, so it goes via
     /// [VobSubInitializationData] for [DreamSubtitleParserFactory] to pick up.
     ///
@@ -2224,7 +2224,7 @@ class ExoPlayerView(
     /// asks for headroom: with the default the panel keeps the SDR UI undimmed
     /// and squeezes PQ highlights, so bright HDR skies clip flat to white.
     /// `Window.setDesiredHdrHeadroom` puts the request on the activity's window
-    /// layer — Nova does exactly this (its dump shows `desired hdr/sdr
+    /// layer - Nova does exactly this (its dump shows `desired hdr/sdr
     /// ratio=5.0` on the PlayerActivity window layer with the SDR UI dimmed to
     /// ~0.68, while the SurfaceView API puts the ratio on the video layer where
     /// OPLUS ignores it for the EDR ramp; verified on-device with the HDR10+
@@ -2233,7 +2233,7 @@ class ExoPlayerView(
     /// The window must ALSO be switched to `COLOR_MODE_HDR`. Nova calls
     /// `window.setColorMode(COLOR_MODE_HDR)` the moment HDR capabilities are
     /// detected, and OPLUS gates the headroom/EDR ramp on the window layer
-    /// actually being in HDR color mode — Nova's window layer is DISPLAY_P3
+    /// actually being in HDR color mode - Nova's window layer is DISPLAY_P3
     /// (0x188a0000) with the ratio; ours stayed at the default V0_SRGB until
     /// this was added, which is why the headroom call alone had no visible
     /// effect on the "lake" clip.
@@ -2242,7 +2242,7 @@ class ExoPlayerView(
     /// `SurfaceControl.Transaction.setDataSpace` (Nova's `setSurfaceDataSpace`).
     /// Without it, OPLUS HWC reports `UNSUPPORTDATASPACE` for the BT2020_PQ
     /// layer and SF falls back to client composition, which never engages the
-    /// EDR boost — the `current hdr/sdr ratio` stays 1.0 (verified in dumpsys:
+    /// EDR boost - the `current hdr/sdr ratio` stays 1.0 (verified in dumpsys:
     /// Nova's video layer is device-composited with the ratio ramping at 1.468;
     /// ours was `forceClientComposition=true clientType=UNSUPPORTDATASPACE` and
     /// stuck at 1.0 until this call).
@@ -2267,7 +2267,7 @@ class ExoPlayerView(
         try {
             window.setDesiredHdrHeadroom(value)
         } catch (_: NoSuchMethodError) {
-            // ROM without the method — the headroom request is simply dropped.
+            // ROM without the method - the headroom request is simply dropped.
         }
     }
 
@@ -2278,7 +2278,7 @@ class ExoPlayerView(
     ) {
         // The whole HDR window pipeline needs the API 33+ surface APIs: the
         // window color mode alone (API 26) does NOT tag the video layer as HDR
-        // — without the TIRAMISU `setDataSpace(SurfaceControl, Int)` call the
+        // - without the TIRAMISU `setDataSpace(SurfaceControl, Int)` call the
         // SurfaceFlinger layer still reports `dataspace=UNKNOWN (0) hdr
         // metadata types=0` (verified on a Redmi Note 10, API 31 / MIUI), so
         // the PQ video is composited as SDR inside an HDR-mode window →
@@ -2289,13 +2289,13 @@ class ExoPlayerView(
         // 2026-11-06 user report: `NoSuchMethodError: No virtual method
         // setDesiredHdrHeadroom(F)V in class Landroid/view/Window;` crashed the
         // app on HDR/DV open (a Handler-posted runnable, so a hard main-thread
-        // crash — the Dart software-decode fallback never gets a chance because
+        // crash - the Dart software-decode fallback never gets a chance because
         // this is not a PlaybackException). Every release since 0.1.4 gates this
         // function at TIRAMISU, so the crashing device is a vendor ROM that
         // reports SDK_INT >= 33 while missing the API-31 Window method (or a
         // stale build). Either way the forcing must NEVER be fatal: without it
         // SurfaceFlinger auto-tone-maps HDR→SDR, which is exactly what Just
-        // Player does on the same device. Catch NoSuchMethodError explicitly —
+        // Player does on the same device. Catch NoSuchMethodError explicitly -
         // R8 keeps the guarded calls in the dex, so a ROM that lies about
         // SDK_INT would still throw at the call site.
         try {
@@ -2307,7 +2307,7 @@ class ExoPlayerView(
             // 2026-11-06 follow-up (Mi 11X / Android 13, Moto Edge 20 Fusion /
             // Android 15, both HDR10+ OLEDs): the API-31 method EXISTS on
             // API 33+, so a crash there is some other vendor throwable in the
-            // window/surface forcing — still must never kill playback.
+            // window/surface forcing - still must never kill playback.
             // Throwable (not just Exception) so no vendor Error escapes;
             // logged so the "App crashed?" logcat_dump can name it.
             Log.w("ExoPlayerView", "applyHdrHeadroom failed on this ROM (SDK=${Build.VERSION.SDK_INT}); skipping headroom forcing", e)
@@ -2324,7 +2324,7 @@ class ExoPlayerView(
         // with the hybrid-composition platform view (see exo_player.dart) the
         // video's `SurfaceView` is now a real layer on the physical HDR panel,
         // and the decoder's own output carries the correct BT.2020 PQ dataspace
-        // + TP10 buffer — device-composited exactly like Just Player (verified
+        // + TP10 buffer - device-composited exactly like Just Player (verified
         // on-device: `composition type=DEVICE`, `dataspace=BT2020_ITU_PQ`,
         // `whitePointNits=1249.99`, display in DISPLAY_P3). Forcing COLOR_MODE_HDR
         // / headroom / setDataSpace on top was the old virtual-display workaround
@@ -2335,13 +2335,13 @@ class ExoPlayerView(
             // GitHub issue #28: the background HDR10 SEI bitstream probe
             // (fireDeferredProbes) can win the race against
             // `videoFormat.codecs` becoming available and call this function
-            // with skipWindowHdr=false BEFORE Dolby Vision is detected —
+            // with skipWindowHdr=false BEFORE Dolby Vision is detected -
             // forcing window.colorMode to COLOR_MODE_HDR and the surface
             // dataspace to BT2020_PQ (some DV P7/P8 base layers legitimately
             // also carry HDR10-compatible static SEI, so the probe isn't
             // wrong to fire, just early). Once `isDolbyVision` flips true a
             // moment later, a bare `return` here used to leave the window
-            // stuck in forced HDR mode for the rest of playback — verified
+            // stuck in forced HDR mode for the rest of playback - verified
             // on-device that Android's own DisplayPowerController reacts to a
             // COLOR_MODE_HDR window by switching to a dual SDR/HDR brightness
             // curve (a separate hdrBrightness/hdrNits target and an hbmMax
@@ -2391,7 +2391,7 @@ class ExoPlayerView(
             hdrHeadroomSet = desired
         }
         // The two-arg `SurfaceControl.Transaction.setDataSpace(SurfaceControl, Int)`
-        // overload is API 33+ (Tiramisu) — the single-arg `setDataSpace(Int)` is API 29.
+        // overload is API 33+ (Tiramisu) - the single-arg `setDataSpace(Int)` is API 29.
         // On API 29-32 (e.g. Android 12 devices) the two-arg overload does not exist and
         // would throw NoSuchMethodError (verified on a Redmi Note 10, API 31 / MIUI).
         val sv = playerView.videoSurfaceView as? android.view.SurfaceView
@@ -2419,21 +2419,21 @@ class ExoPlayerView(
         val state = player.playbackState
 
         // Engage the display's HDR tone map (see [applyHdrHeadroom]) whenever
-        // the current video is HDR (PQ or HLG transfer — includes the DV base
+        // the current video is HDR (PQ or HLG transfer - includes the DV base
         // layer); fall back to 1.0 (no boost) for SDR content.
         //
-        // Some DV profile-7/8 MKVs omit the MKV `Colour` element entirely — the
+        // Some DV profile-7/8 MKVs omit the MKV `Colour` element entirely - the
         // PQ/BT.2020 color info lives only in the HEVC SPS VUI, which Media3's
         // MatroskaExtractor never parses, so `colorInfo` comes back null even
         // though the content is HDR (verified on-device: `dvhe.08.06` track,
         // colorInfo=null, while the SurfaceFlinger video layer composites as
-        // BT2020_ITU_PQ). Dolby Vision is always HDR (every profile — the base
+        // BT2020_ITU_PQ). Dolby Vision is always HDR (every profile - the base
         // layer is PQ BT.2020 for profiles 4/7/8 and IPTPQc2 for 5), so treat
         // a `dvhe`/`dvh1`/`dvav` codec as HDR regardless of the reported color
         // info. This is exactly the heuristic `detectMedia3HdrFormat` on the
         // Dart side already uses for the chip label.
         //
-        // Similarly, plain HDR10 MKVs may omit the MKV `Colour` element — the
+        // Similarly, plain HDR10 MKVs may omit the MKV `Colour` element - the
         // PQ/BT.2020 info lives only in the HEVC SPS VUI. We probe the bitstream
         // for static HDR10 SEI (payload types 137/144) and treat it as HDR10
         // when Media3's colorInfo is missing.
@@ -2441,14 +2441,14 @@ class ExoPlayerView(
         val codecs = videoFormat?.codecs
         val isDolbyVision = codecs?.let { Regex("dv(?:he|h1|av)\\.").containsMatchIn(it) } == true
         // Hardware SDR tone-mapping (issue #55/#64): when the SETTING is on,
-        // the video layer is not an HDR layer — pushing the window into
+        // the video layer is not an HDR layer - pushing the window into
         // COLOR_MODE_HDR, asking for headroom or tagging the surface as
         // BT2020_PQ would be wrong. Skip the whole HDR-window machinery and
         // let the system colour modes apply to a normal SDR picture. This is
         // gated on the setting alone (not on `requested`): `requested` is
         // only set once the codec exists, and with the TextureView sink
         // (issue #64) the window HDR path must be off from the very first
-        // frame — plus a track that never got the request (e.g. 8-bit AVC,
+        // frame - plus a track that never got the request (e.g. 8-bit AVC,
         // which must never receive it) must not push the window into HDR
         // either.
         val hwSdrToneMapSetting = HwSdrToneMap.isEnabled(activity)
@@ -2740,7 +2740,7 @@ class ExoPlayerView(
                 playerView.forcedAspect = null
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
-            1 -> { // Fullscreen (keep display dims, ignore AR — remove black bars)
+            1 -> { // Fullscreen (keep display dims, ignore AR - remove black bars)
                 playerView.forcedAspect = null
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             }
@@ -2768,7 +2768,7 @@ class ExoPlayerView(
                 playerView.forcedAspect = 2.39f
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             }
-            else -> { // Unknown — default to Fit
+            else -> { // Unknown - default to Fit
                 playerView.forcedAspect = null
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
@@ -2824,12 +2824,12 @@ class ExoPlayerView(
     // MARK: - Picture-in-picture
 
     /// Auto-enter PiP when the user leaves the app (HOME / recents) while
-    /// playing — called from MainActivity.onUserLeaveHint. No-op when paused,
+    /// playing - called from MainActivity.onUserLeaveHint. No-op when paused,
     /// on TV (no pip on leanback), below API 26, or when the Settings
     /// "Picture-in-picture" toggle is off.
     fun enterPipIfPlaying() = enterPipInternal(auto = true)
 
-    /// Dart-triggered entry (⋮ sheet row) — explicit user action, so the
+    /// Dart-triggered entry (⋮ sheet row) - explicit user action, so the
     /// Settings toggle does not block it; the other rules still apply.
     fun enterPip() = enterPipInternal(auto = false)
 
@@ -2854,7 +2854,7 @@ class ExoPlayerView(
     }
 
     /// The `flutter.dreamplayer.pipEnabled` pref (Settings toggle, default
-    /// true) read natively — the auto-entry decision happens in
+    /// true) read natively - the auto-entry decision happens in
     /// onUserLeaveHint, before Dart could weigh in.
     private fun pipSettingEnabled(): Boolean = try {
         activity.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
@@ -2938,7 +2938,7 @@ class ExoPlayerView(
         // Parent relative to tree: parentDocId without the tree prefix.
         val parentDocId = docId.substringBeforeLast('/', "")
         if (parentDocId.isNotEmpty() && parentDocId != docId) {
-            // Parent is not the tree root itself — walk down from tree root.
+            // Parent is not the tree root itself - walk down from tree root.
             // parentDocId is like primary:Folder/Sub ; treeDocId is primary:Folder
             // Relative = Sub (or Sub/Nested).
             val relative = if (parentDocId.startsWith("$effectiveTreeId/")) {
@@ -2953,7 +2953,7 @@ class ExoPlayerView(
             if (relative.isNotEmpty()) {
                 for (segment in relative.split('/')) {
                     if (segment.isEmpty()) continue
-                    // Segment here is still encoded as "Sub" or "My Folder" — need to
+                    // Segment here is still encoded as "Sub" or "My Folder" - need to
                     // match DocumentFile names (decoded). Use findFile which handles it.
                     doc = doc.findFile(segment) ?: return emptyList()
                 }
@@ -2982,16 +2982,16 @@ class ExoPlayerView(
         handler.post { emit() }
     }
 
-    /// Expanded back to fullscreen from pip — clear the dismissal latch.
+    /// Expanded back to fullscreen from pip - clear the dismissal latch.
     fun onResumed() {
         pipSeen = false
     }
 
     /// Activity stopped: if we had shown pip, the user dismissed the pip
-    /// window — pause so audio doesn't continue invisibly. NOTE: the
+    /// window - pause so audio doesn't continue invisibly. NOTE: the
     /// dismissal delivers onStop while the system may STILL report pip mode
     /// (window-teardown order varies by OEM), so don't gate on
-    /// isInPictureInPictureMode here — pipSeen is the source of truth
+    /// isInPictureInPictureMode here - pipSeen is the source of truth
     /// (cleared in onResumed when the user expands back to fullscreen).
     fun onActivityStopped() {
         if (pipSeen) {
@@ -3026,7 +3026,7 @@ class ExoPlayerView(
         private const val BUFFER_FOR_PLAYBACK_MS = 1_500
         private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 2_000
 
-        /// The live platform view, if any — MainActivity forwards HOME /
+        /// The live platform view, if any - MainActivity forwards HOME /
         /// picture-in-picture mode changes to it (auto-pip + dismissal pause).
         /// Set at construction, cleared in dispose().
         @Volatile internal var activeView: ExoPlayerView? = null
@@ -3087,7 +3087,7 @@ class ForcedAspectPlayerView @JvmOverloads constructor(
 /// the HDR probes silently failed on every `smb://` source because
 /// MediaExtractor cannot open the jcifs scheme (exception swallowed →
 /// `hdr10Content=false` → HDR10 rips with no MKV `Colour` element played
-/// as SDR — verified with the Spider-Verse REMUX whose HDR metadata lives
+/// as SDR - verified with the Spider-Verse REMUX whose HDR metadata lives
 /// only in the HEVC SEI).
 private class SmbMediaDataSource private constructor(
     private val raf: jcifs.smb.SmbRandomAccessFile,
@@ -3144,7 +3144,7 @@ private class SmbMediaDataSource private constructor(
 /// (`smb://`, `http(s)://`, `ftp://`, `content://`) is parsed AS that Uri and
 /// routed to the matching DataSource (SmbDataSource / FtpDataSource / OkHttp /
 /// content resolver). Wrapping such a string in `File(...)` (the old behavior)
-/// produced a `file:///smb:/serverId/...` Uri — a nonexistent local file — so
+/// produced a `file:///smb:/serverId/...` Uri - a nonexistent local file - so
 /// any source whose playable URI lives in `path` instead of `uri` (e.g. a
 /// bookmarked SMB folder's movie file) silently failed to open and the app
 /// fell back to the mpv engine.

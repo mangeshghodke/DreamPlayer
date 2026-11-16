@@ -99,7 +99,7 @@ class IconSwitcher(private val context: Context) {
      * 1. **Re-enable MainActivity.** An early version of this feature disabled
      *    it, which bricked the launcher on a real device. Any install that ran
      *    that build still has it stuck in PackageManager's disabled-components
-     *    list, and that state survives an APK update — so it has to be undone
+     *    list, and that state survives an APK update - so it has to be undone
      *    here or "Open with" keeps resolving through an alias instead of the
      *    real activity.
      * 2. **Guarantee a launcher entry.** If an interrupted toggle somehow left
@@ -107,7 +107,7 @@ class IconSwitcher(private val context: Context) {
      *    reachable.
      * 3. **Migrate the old default icon once (0.5.7).** Installs that predate
      *    the change still have the wordmark alias (`AltDefault`) enabled. The
-     *    default icon is now the mark, so move those installs over — unless
+     *    default icon is now the mark, so move those installs over - unless
      *    the user had explicitly picked a recolour (red/green/cyan), which is
      *    left alone. Runs once per install, guarded by a prefs flag.
      */

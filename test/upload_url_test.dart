@@ -82,25 +82,45 @@ void main() {
   });
 
   group('buildUploadUrls', () {
-    test('builds http URLs for each address', () {
-      expect(
-          buildUploadUrls(['192.168.1.10', '10.0.0.5'], 8080, 'abc123'),
-          [
-            'http://192.168.1.10:8080/u/abc123/',
-            'http://10.0.0.5:8080/u/abc123/',
-          ]);
+    test('builds the short address for each LAN address', () {
+      // The URL must stay typeable from a PC browser: ip, port, one short
+      // fixed path - no token (user request).
+      expect(buildUploadUrls(['192.168.1.10', '10.0.0.5'], 8080), [
+        'http://192.168.1.10:8080/wifi-transfer/',
+        'http://10.0.0.5:8080/wifi-transfer/',
+      ]);
     });
 
     test('skips empty addresses', () {
-      expect(buildUploadUrls(['192.168.1.10', ''], 8080, 't'),
-          ['http://192.168.1.10:8080/u/t/']);
+      expect(buildUploadUrls(['192.168.1.10', ''], 8080),
+          ['http://192.168.1.10:8080/wifi-transfer/']);
+    });
+
+    test('has no token in the path', () {
+      for (final url in buildUploadUrls(['192.168.1.10'], 8080)) {
+        expect(url.contains('/u/'), isFalse);
+        expect(url.length, lessThan(45));
+      }
     });
   });
 
   group('uploadEndpointPath', () {
     test('builds the raw-body POST path', () {
-      expect(uploadEndpointPath('abc', 'My Movie.mkv'),
-          '/u/abc/upload?name=My%20Movie.mkv');
+      expect(uploadEndpointPath('My Movie.mkv'),
+          '/wifi-transfer/upload?name=My%20Movie.mkv');
+    });
+  });
+
+  group('formatUploadBytes', () {
+    test('formats B / KB / MB / GB', () {
+      expect(formatUploadBytes(512), '512 B');
+      expect(formatUploadBytes(2048), '2 KB');
+      expect(formatUploadBytes(5 * 1024 * 1024), '5.0 MB');
+      expect(formatUploadBytes(3 * 1024 * 1024 * 1024), '3.00 GB');
+    });
+
+    test('unknown size reports a question mark', () {
+      expect(formatUploadBytes(-1), '?');
     });
   });
 }

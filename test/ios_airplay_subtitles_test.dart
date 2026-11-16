@@ -7,8 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// Subtitles render HOST-side: the engine decodes cues into
 /// `engine.$subtitleCues` and `AvPlayerView` draws its own
 /// `SubtitleOverlayView` over the local `AVPlayerLayer`. When the picture
-/// leaves that layer — an AirPlay receiver, the PiP window, a wired external
-/// display — the overlay is NOT composited into the stream, so without a
+/// leaves that layer - an AirPlay receiver, the PiP window, a wired external
+/// display - the overlay is NOT composited into the stream, so without a
 /// handoff the receiver shows video with NO subtitles (the user report:
 /// "when I tested airplay video it does not give subtitles").
 ///
@@ -20,7 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// tracks get an OCR-fed text rendition while the rendition is the display),
 /// and AVKit then draws the subs on the receiver itself.
 ///
-/// The player screen needs a live platform view, so this cannot be pumped —
+/// The player screen needs a live platform view, so this cannot be pumped -
 /// the wiring is read out of the Swift source instead.
 void main() {
   final swift = File('ios/Runner/AvPlayerView.swift').readAsStringSync();
@@ -61,7 +61,7 @@ void main() {
 
     test('handoff is gated on the native path and hides the host overlay', () {
       expect(swift.contains('nativePathLive && pictureOffDevice'), isTrue,
-          reason: 'software path has no AVPlayerItem — AirPlay there is '
+          reason: 'software path has no AVPlayerItem - AirPlay there is '
               'audio-only and the overlay must stay');
       expect(swift.contains('subtitleOverlay.isHidden = wants'), isTrue,
           reason: 'inline view must not double-draw during the transition');
@@ -71,7 +71,7 @@ void main() {
       expect(swift.contains('nativeSubtitleRenderingActive = false'), isTrue);
       expect(swift.contains('subtitleOverlay.isHidden = false'), isTrue);
       // `engine` is non-optional inside open() (bound by `guard let engine`),
-      // so the reset call must NOT use optional chaining — that fails the
+      // so the reset call must NOT use optional chaining - that fails the
       // Swift archive (CI run 43163628756).
       expect(swift.contains('engine.setNativeSubtitleRendering(false)'), isTrue);
       expect(swift.contains('engine?.setNativeSubtitleRendering(false)'), isFalse,

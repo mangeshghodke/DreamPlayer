@@ -79,10 +79,10 @@ class VideoExternalSub {
 /// `externalSubs`, future media servers).
 ///
 /// Why this is needed: media servers don't always flag a sidecar as
-/// the default track — Jellyfin only sets `IsDefault` for explicitly
+/// the default track - Jellyfin only sets `IsDefault` for explicitly
 /// marked tracks, and most DLNA servers don't fill the field at all.
 /// Without a `SELECTION_FLAG_DEFAULT` marker on any external track, the
-/// engine picks the container's embedded PGS/ASS track instead — almost
+/// engine picks the container's embedded PGS/ASS track instead - almost
 /// always the wrong choice when a better external file is sitting next
 /// to the video. Promoting the first external to default fixes this for
 /// every source in one place.
@@ -195,7 +195,7 @@ class VideoItem {
   final List<VideoChapter> chapters;
 
   /// The source is a server-side transcode (Jellyfin HLS fallback, DLNA
-  /// `CI=1` stream) — lossy and re-encoded, so the player shows a badge.
+  /// `CI=1` stream) - lossy and re-encoded, so the player shows a badge.
   final bool isTranscoded;
 
   /// Parsed season number (TV episodes only). Enables series grouping

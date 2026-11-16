@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The Settings provider choice has to actually change WHICH provider resolves
-/// first — the previous behaviour was hard-coded TMDB-then-TheTVDB at two call
+/// first - the previous behaviour was hard-coded TMDB-then-TheTVDB at two call
 /// sites, so choosing TheTVDB could not do anything. [providerOrderFor] is the
 /// pure decision those call sites now share, which is what makes it testable.
 void main() {

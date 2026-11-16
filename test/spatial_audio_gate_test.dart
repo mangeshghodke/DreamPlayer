@@ -139,7 +139,7 @@ void main() {
 
     // Now the entitlement lapses (trial over, subscription ended). The native
     // side reads the pref directly, so a stale ON value would keep the paid
-    // feature working for free — it has to be corrected AND persisted.
+    // feature working for free - it has to be corrected AND persisted.
     await Entitlements.instance.setDebugFreeUser(true);
     expect(await SpatialAudioStore.effectiveEnabled(), isFalse);
     expect(await SpatialAudioStore.load(), isFalse);

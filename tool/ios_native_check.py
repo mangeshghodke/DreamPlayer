@@ -17,7 +17,7 @@ Dart. Run it before pushing anything that touches ios/Runner.
 Known limits, so the PASS is not over-read:
   * It cannot type-check, so a *typo in an existing member* (`entry.dialectLable`
     for a real `entry.dialectLabel`) passes here and is caught by Xcode instead.
-    What it does catch is a name that appears nowhere else in the file — the
+    What it does catch is a name that appears nowhere else in the file - the
     shape left behind by deleting a local that was still interpolated.
   * The Objective-C class-method check only knows ivars declared in an explicit
     `@implementation X { ... }` block, so it is blind in files that declare none.
@@ -144,7 +144,7 @@ def _header_closure(roots):
     SMB2_GUID_SIZE and smb2_lease_key live in smb2/smb2.h while the smb2_*
     entry points live in smb2/libsmb2.h, and neither includes the other. A
     check that merely greps every vendored header would pass a file that only
-    imports one of them — which is exactly the mistake that cost a build.
+    imports one of them - which is exactly the mistake that cost a build.
     """
     seen = set()
     stack = list(roots)
@@ -200,7 +200,7 @@ def check_c_symbols():
                  f"libsmb2's public headers are not self-contained: "
                  f"<smb2/smb2.h> and <smb2/libsmb2.h> must both be imported, "
                  f"smb2.h first. (A name merely *mentioned* in a declaration "
-                 f"does not count — SMB2_GUID_SIZE is referenced by "
+                 f"does not count - SMB2_GUID_SIZE is referenced by "
                  f"smb2_set_client_guid() but only defined in smb2.h.)")
 
 
@@ -287,12 +287,12 @@ def check_swift_interpolation():
         if not code.strip():
             continue
         # Every identifier that appears anywhere in the file. A name that shows up
-        # *only* inside an interpolation is a dangling reference — the shape left
+        # *only* inside an interpolation is a dangling reference - the shape left
         # behind by deleting a local that was still interpolated. Closure
         # parameters and locals appear elsewhere too, so they do not trip this.
         # Strip the interpolations *before* collecting identifiers, otherwise the
         # name inside "\(foo)" is itself a match and every reference looks
-        # resolved — including the dangling ones this is meant to catch.
+        # resolved - including the dangling ones this is meant to catch.
         without = re.sub(r"\\\(\w+\)", " ", code)
         present = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", without))
         for m in re.finditer(r"\\\((\w+)\)", code):
@@ -309,7 +309,7 @@ def check_swift_interpolation():
             line = code[: m.start()].count("\n") + 1
             snippet = code[m.start():m.start() + 30].split("\n")[0]
             fail(f"{os.path.basename(path)}:{line}: `\\\\(` is an escaped "
-                 f"backslash followed by a literal name, not an interpolation — "
+                 f"backslash followed by a literal name, not an interpolation - "
                  f"the log will print the name instead of its value: {snippet}")
 
 
@@ -345,7 +345,7 @@ def check_structure():
     for oid in sorted(set(re.findall(r"\b([A-F0-9]{24})\b", pbx))):
         if oid not in defined:
             fail(f"project.pbxproj references object {oid}, which is never "
-                 f"defined — a mistyped object ID is dropped silently by Xcode, "
+                 f"defined - a mistyped object ID is dropped silently by Xcode, "
                  f"so whatever it registers never compiles (seen as "
                  f"'Cannot find <type> in scope')")
 
@@ -358,8 +358,8 @@ def check_structure():
                  f"reference {fref}, which is never defined")
     # `path = X` in a pbxproj is relative to its enclosing *group* (the Runner
     # group has `path = Runner`), so exact resolution needs group parsing.
-    # Matching on basename anywhere under ios/ catches the failure that matters —
-    # a file that was renamed or deleted but is still referenced — without
+    # Matching on basename anywhere under ios/ catches the failure that matters -
+    # a file that was renamed or deleted but is still referenced - without
     # reimplementing group resolution.
     ios_dir = os.path.join(ROOT, "ios")
     basenames = set()
@@ -370,7 +370,7 @@ def check_structure():
 
     # Every compilable source on disk must actually be in a Sources phase. A file
     # that exists, is imported by the bridging header, and even passes a symbol
-    # check still produces no code if it was never registered with the target —
+    # check still produces no code if it was never registered with the target -
     # which only shows up as "Undefined symbol: _OBJC_CLASS_$_X" at link time.
     compiled = set()
     for m in re.finditer(
@@ -383,7 +383,7 @@ def check_structure():
         if "libsmb2" in path:
             continue
         if name not in compiled:
-            fail(f"{name} is on disk but not in any PBXSourcesBuildPhase — "
+            fail(f"{name} is on disk but not in any PBXSourcesBuildPhase - "
                  f"it would compile to nothing and fail at link with "
                  f"'Undefined symbol'")
 
@@ -436,7 +436,7 @@ def check_bridging_header():
 def check_objc_literal_terminators():
     """Every ObjC string literal must terminate on its own line.
 
-    A literal that lost its escaping — `@"\"` written where `@"\\"` was meant —
+    A literal that lost its escaping - `@"\"` written where `@"\\"` was meant -
     swallows the rest of the line and is a hard compile error that is very easy
     to miss by eye, and impossible to catch without a compiler here.
     """
@@ -453,7 +453,7 @@ def check_objc_literal_terminators():
                 i += 1
             if quotes % 2:
                 fail(f"{os.path.basename(path)}:{n}: unterminated string literal "
-                     f"(odd number of quotes) — {line.strip()[:60]}")
+                     f"(odd number of quotes) - {line.strip()[:60]}")
 
 
 def _objc_declarations(text):
@@ -487,7 +487,7 @@ def _known_limitation_note():
     the Swift compiler's docs/CToSwiftNameTranslation.md):
 
       * The NSError out-parameter must be last (ignoring block params).
-      * The method must signal failure — BOOL/Boolean return, or a return type
+      * The method must signal failure - BOOL/Boolean return, or a return type
         imported as Optional.
       * Then the error parameter is dropped and the method becomes `throws`.
       * `swift_error(null_result)`, the default for Optional returns, makes the
@@ -585,7 +585,7 @@ def check_objc_dot_syntax():
             if m and '".*:' not in code[: m.start()]:
                 fail(f"{os.path.basename(path)}:{n} uses dot syntax with an "
                      f"argument label (`{m.group(0).strip()}`), which is only legal "
-                     f"for a zero-argument method — use [{m.group(0).split('.')[0]} "
+                     f"for a zero-argument method - use [{m.group(0).split('.')[0]} "
                      f"{m.group(0).split('.', 1)[1]}]")
 
 
@@ -730,7 +730,7 @@ def check_objc_method_order():
             if call_line < available[sel]:
                 snippet = text.split("\n")[call_line - 1].strip()
                 fail(f"{os.path.basename(path)}:{call_line} calls `{sel}` but it is "
-                     f"not declared or defined until line {available[sel]} — "
+                     f"not declared or defined until line {available[sel]} - "
                      f"Objective-C needs a visible declaration first: {snippet[:60]}")
 
 def check_objc_interface_nesting():
@@ -739,7 +739,7 @@ def check_objc_interface_nesting():
     Objective-C has no nested types, so a second `@interface` opened before the
     first one's `@end` silently produces a malformed header. The symptom is
     `SwiftGeneratePch failed`, because the bridging header is compiled as
-    Objective-C before any of our .m files are even parsed — which gives no file
+    Objective-C before any of our .m files are even parsed - which gives no file
     and no line to work from.
     """
     for path in native_files({".h"}):
@@ -750,14 +750,14 @@ def check_objc_interface_nesting():
             if t.startswith("@interface"):
                 if depth > 0:
                     fail(f"{os.path.basename(path)}:{n} opens @interface inside "
-                         f"the one started on line {opened_at} — Objective-C has "
+                         f"the one started on line {opened_at} - Objective-C has "
                          f"no nested types: {t[:50]}")
                 depth += 1
                 opened_at = n
             elif t.startswith("@end"):
                 depth = max(0, depth - 1)
         if depth != 0:
-            fail(f"{os.path.basename(path)}: {depth} unterminated @interface — "
+            fail(f"{os.path.basename(path)}: {depth} unterminated @interface - "
                  f"the last one opened on line {opened_at} has no @end")
 
 
@@ -767,7 +767,7 @@ def check_no_control_characters():
     Tab, newline and carriage return are the only ones allowed. A sentinel like
     `\x01` left behind by a scripted edit lands inside an identifier, and Xcode
     reports it as "Invalid character in source file" pointing at a function's
-    *declaration* line — where the file looks perfectly fine — because the damage
+    *declaration* line - where the file looks perfectly fine - because the damage
     silently renamed the function so every call site stops resolving.
     """
     allowed = set("\t\n\r")
@@ -776,7 +776,7 @@ def check_no_control_characters():
             for ch in line:
                 if ord(ch) < 32 and ch not in allowed:
                     fail(f"{os.path.basename(path)}:{n} contains control character "
-                         f"U+{ord(ch):04X} — strip it; inside an identifier Xcode "
+                         f"U+{ord(ch):04X} - strip it; inside an identifier Xcode "
                          f"reports only 'Invalid character in source file'")
                     break
 
@@ -786,8 +786,8 @@ def check_objc_method_inside_implementation():
 
     A definition outside one is "Missing context for method declaration", and a
     stray `@end` is "`@end` must appear in an Objective-C context". This is easy
-    to produce by inserting a block of methods in the wrong place — a browse
-    section appended after a class's `@end`, for instance — and the reported
+    to produce by inserting a block of methods in the wrong place - a browse
+    section appended after a class's `@end`, for instance - and the reported
     line is the method itself, which gives no hint that the *enclosing* block is
     the problem.
     """
@@ -805,7 +805,7 @@ def check_objc_method_inside_implementation():
                 continue
             if not inside and re.match(r"^[-+]\s*\(", t):
                 fail(f"{os.path.basename(path)}:{n} defines a method outside any "
-                     f"@implementation/@end (or @interface) pair — \"Missing "
+                     f"@implementation/@end (or @interface) pair - \"Missing "
                      f"context for method "
                      f"declaration\": {t[:60]}")
 
@@ -814,7 +814,7 @@ def check_objc_no_reimplementation():
     """One @implementation per class; extras must be categories.
 
     Objective-C has no separate "@implementation for the same class in two
-    places" — a second bare `@implementation X` is "Reimplementation of class
+    places" - a second bare `@implementation X` is "Reimplementation of class
     'X'". Swift allows it, so a block of methods added in the wrong file or
     section looks natural and fails to link.
     """
@@ -831,7 +831,7 @@ def check_objc_no_reimplementation():
                 continue  # a category: @implementation X (Category)
             if name in seen:
                 fail(f"{os.path.basename(path)}:{n} re-implements '{name}', first "
-                     f"seen on line {seen[name]} — Objective-C allows only one "
+                     f"seen on line {seen[name]} - Objective-C allows only one "
                      f"@implementation per class; use a category for extras")
             seen[name] = n
 
@@ -846,7 +846,7 @@ def check_ios27_readiness():
       a build error, not a warning.
     * An app built with the iOS 27 SDK **must** use the UIScene lifecycle or
       it fails to launch. DreamPlayer has a customised AppDelegate (platform
-      view + channels), so Flutter's automatic migration cannot be assumed —
+      view + channels), so Flutter's automatic migration cannot be assumed -
       the manifest and SceneDelegate are checked explicitly.
 
     Both were manual edits in this tree and both fail only on a Mac, so they
@@ -858,7 +858,7 @@ def check_ios27_readiness():
             r"IPHONEOS_DEPLOYMENT_TARGET\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*;",
             pbx)))
         if not targets:
-            fail("project.pbxproj: no IPHONEOS_DEPLOYMENT_TARGET — Xcode 27 "
+            fail("project.pbxproj: no IPHONEOS_DEPLOYMENT_TARGET - Xcode 27 "
                  "requires an explicit floor of at least 15.0")
         for target in targets:
             if float(target) < 15.0:
@@ -871,17 +871,17 @@ def check_ios27_readiness():
     else:
         info = open(plist, encoding="utf-8").read()
         if "<key>UIApplicationSceneManifest</key>" not in info:
-            fail("Info.plist: UIApplicationSceneManifest is missing — an app "
+            fail("Info.plist: UIApplicationSceneManifest is missing - an app "
                  "built with the iOS 27 SDK without the UIScene lifecycle "
                  "fails to launch at startup")
         elif "UISceneDelegateClassName" not in info or \
                 "SceneDelegate" not in info:
             fail("Info.plist: UIApplicationSceneManifest does not point at "
-                 "SceneDelegate — the UIScene lifecycle would not be wired")
+                 "SceneDelegate - the UIScene lifecycle would not be wired")
 
     scene = os.path.join(RUNNER, "SceneDelegate.swift")
     if not os.path.exists(scene):
-        fail("ios/Runner/SceneDelegate.swift is missing — the UIScene "
+        fail("ios/Runner/SceneDelegate.swift is missing - the UIScene "
              "lifecycle is required when building with the iOS 27 SDK")
     elif "FlutterSceneDelegate" not in open(scene, encoding="utf-8").read():
         fail("SceneDelegate.swift does not subclass FlutterSceneDelegate")
@@ -894,7 +894,7 @@ def check_apple_protocol_conformances():
     (build 60 failed to compile): the skip completion was written as
     `(Bool) -> Void` where Apple declares `() -> Void`, and the required
     `didTransitionToRenderSize` method was missing entirely. Neither is
-    visible from Linux — the conformance simply is not satisfied, and the
+    visible from Linux - the conformance simply is not satisfied, and the
     compiler says so with one line that names neither cause.
 
     The required members and their exact shapes are pinned here, because they
@@ -918,7 +918,7 @@ def check_apple_protocol_conformances():
         if "setPlaying playing: Bool" not in text:
             fail(f"{rel}: the sample-buffer PiP delegate is missing "
                  "pictureInPictureController(_:setPlaying:) with 'playing: Bool'")
-        # The completion is `() -> Void` — a `(Bool) -> Void` version does not
+        # The completion is `() -> Void` - a `(Bool) -> Void` version does not
         # satisfy the protocol and fails to compile.
         skip = re.search(
             r"skipByInterval\s+skipInterval:\s*CMTime,\s*\n?\s*"

@@ -81,7 +81,7 @@ object PlaybackManager {
     ///  - [servicePending]: a start was requested, the service hasn't yet run
     ///    `onStartCommand` + `startForeground`.
     ///  - [serviceRunning]: the service is currently foregrounded.
-    ///  - [pendingStop]: a stop was requested while [servicePending] — the
+    ///  - [pendingStop]: a stop was requested while [servicePending] - the
     ///    service must stop itself immediately after it foregrounds.
     /// All three live on the platform-main thread (start/stop/onStartCommand
     /// all arrive there), so no synchronization is needed.
@@ -92,7 +92,7 @@ object PlaybackManager {
     val sessionCompatToken: MediaSessionCompat.Token?
         get() = session?.sessionToken
 
-    /// For [MediaButtonReceiver.handleIntent] — routes headset/Bluetooth
+    /// For [MediaButtonReceiver.handleIntent] - routes headset/Bluetooth
     /// media-button key events into the session callback.
     fun mediaSessionForMediaButtons(): MediaSessionCompat? = session
 
@@ -152,7 +152,7 @@ object PlaybackManager {
         val url = value?.takeIf { it.isNotBlank() }
         if (url == artworkUrl) {
             // The title may have changed with no artwork (or the same artwork)
-            // — still rebuild so the notification shows the new title.
+            // - still rebuild so the notification shows the new title.
             sync(context.applicationContext)
             return
         }
@@ -287,14 +287,14 @@ object PlaybackManager {
         session?.isActive = false
         when {
             servicePending -> {
-                // The service hasn't reached startForeground yet — stopping it
+                // The service hasn't reached startForeground yet - stopping it
                 // now would trigger the FGS start-timeout crash. Ask it to stop
                 // as soon as it foregrounds instead.
                 servicePending = false
                 pendingStop = true
             }
             serviceRunning -> {
-                // Already foregrounded — safe to stopService immediately.
+                // Already foregrounded - safe to stopService immediately.
                 serviceRunning = false
                 pendingStop = false
                 context.stopService(Intent(context, PlaybackService::class.java))
@@ -305,7 +305,7 @@ object PlaybackManager {
 
     /// Called from [PlaybackService.onStartCommand] right after the
     /// foreground notification went up. Returns true when a stop was requested
-    /// while the start was still pending — the caller must stopSelf now.
+    /// while the start was still pending - the caller must stopSelf now.
     fun serviceStarted(): Boolean {
         servicePending = false
         serviceRunning = true
@@ -387,7 +387,7 @@ object PlaybackManager {
         // Deliberately a PLAIN notification, not MediaStyle: on Android 13+ /
         // OxygenOS a MediaStyle notification bound to the session token is
         // pulled out of the notification panel entirely and rendered as the
-        // system media card in the quick-settings shade (verified on-device —
+        // system media card in the quick-settings shade (verified on-device -
         // Poweramp behaves the same). Users expect a visible row here, so we
         // post a normal silent notification with transport actions; the
         // MediaSession stays active for headset/Bluetooth keys and the action

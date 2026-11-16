@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// video never has to open behind a permission dialog.
 ///
 /// - Photos & videos (READ_MEDIA_VIDEO / legacy storage): system dialog.
-/// - Notifications (POST_NOTIFICATIONS, Android 13+): system dialog — needed
+/// - Notifications (POST_NOTIFICATIONS, Android 13+): system dialog - needed
 ///   for the background-playback media notification.
 /// - All Files Access (MANAGE_EXTERNAL_STORAGE): a special permission with no
 ///   system dialog; an in-app explainer (shown once per install) routes to

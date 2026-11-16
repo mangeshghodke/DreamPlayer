@@ -9,7 +9,7 @@ import 'package:dream_player/services/the_tvdb_client.dart';
 /// Issue #52: the "Get info" / "Fix match" / "Choose poster" dialogs were
 /// gated on a TMDB or TheTVDB **API key** and never consulted the registered
 /// adapters. A user with AVDb enabled (which needs no key at all) was told to
-/// "add a TMDB or TheTVDB API key", and the search never ran — no results, no
+/// "add a TMDB or TheTVDB API key", and the search never ran - no results, no
 /// error, nothing.
 ///
 /// These pin the adapter-aware behaviour of [MetadataSearch].

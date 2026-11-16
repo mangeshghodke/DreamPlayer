@@ -5,8 +5,8 @@
 // round-trip extra fields; failover works by re-pointing the *saved* server
 // at the alternate address (native `saveServer` keeps the stored password
 // when the password argument is empty on both platforms), so every
-// id-keyed native call — listShares / listDirectory / openShare / auth
-// header / playback — transparently follows without any native change.
+// id-keyed native call - listShares / listDirectory / openShare / auth
+// header / playback - transparently follows without any native change.
 
 /// Parses an SMB alternate address into host + port.
 /// Accepts `host`, `host:port`, `http(s)://host[:port]` (scheme is stripped).

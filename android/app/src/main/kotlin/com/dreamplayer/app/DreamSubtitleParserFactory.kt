@@ -14,7 +14,7 @@ import java.util.regex.Pattern
 
 /// Global subtitle timing offset (µs). Set from `ExoPlayerView.applySubtitleStyle`
 /// via the `delayMs` channel arg. Applied at parse time so every cue's
-/// `startTimeUs` is shifted — positive = show later, negative = earlier.
+/// `startTimeUs` is shifted - positive = show later, negative = earlier.
 /// Applied to every format (both our custom parsers and the delegate's) so
 /// embedded + sideloaded subtitles share the same delay. Takes effect on the
 /// next `open()` (re-open the video to see a live-changed delay).
@@ -112,8 +112,8 @@ private class UnsupportedVobSubSidecarParser(
 /// Emits nothing.
 ///
 /// Used when a `application/vobsub` track arrives without its `.idx`. The
-/// alternative — letting the parser fail on a missing descriptor, or letting a
-/// text parser chew the binary `.sub` — is what crashed the player on issue
+/// alternative - letting the parser fail on a missing descriptor, or letting a
+/// text parser chew the binary `.sub` - is what crashed the player on issue
 /// #44. A blank subtitle track is the safe degradation.
 @UnstableApi
 private class EmptySubtitleParser : SubtitleParser {
@@ -136,7 +136,7 @@ private class EmptySubtitleParser : SubtitleParser {
 }
 
 /// Media3's stock [DefaultSubtitleParserFactory] handles SubRip, SSA/ASS,
-/// WebVTT, TTML, TX3G, PGS, VobSub and DVB — but not the classic text formats
+/// WebVTT, TTML, TX3G, PGS, VobSub and DVB - but not the classic text formats
 /// SAMI (`.smi`), MicroDVD (`.sub`), MPL2 (`.mpl2`) or SubViewer (time-based
 /// `.sub`). This factory adds those and delegates everything else to the
 /// default one, so sideloaded subtitle configs carrying
@@ -387,7 +387,7 @@ class FrameSubParser(
                 val m = MICRODVD_FPS.matcher(line.trim())
                 if (m.matches()) {
                     // A header of exactly "0" (or unparseable) must not reach
-                    // parseFrames — dividing by it there produces Infinity,
+                    // parseFrames - dividing by it there produces Infinity,
                     // which .toLong() turns into Long.MAX_VALUE and corrupts
                     // the whole track's cue timing.
                     fps = m.group(1).toDoubleOrNull()?.takeIf { it > 0.0 } ?: DEFAULT_FPS
@@ -423,7 +423,7 @@ class FrameSubParser(
             val startFrame = m.group(1).toLongOrNull() ?: continue
             val endFrame = m.group(2).toLongOrNull() ?: continue
             if (endFrame <= startFrame) continue
-            // MPL2's `[N]` is a fixed unit — tenths of a second — not a frame
+            // MPL2's `[N]` is a fixed unit - tenths of a second - not a frame
             // number, so it must NOT go through the fps-based conversion
             // (that formula is MicroDVD-only and made every .mpl2 file run
             // 2.5x too fast at the default 25 fps).

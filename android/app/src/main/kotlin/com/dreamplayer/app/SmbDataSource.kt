@@ -32,7 +32,7 @@ class SmbDataSourceFactory(private val context: Context) : DataSource.Factory {
 /// Heap-aware buffer sizing, shared by [SmbDataSource] (ring + prefetch temps)
 /// and the Media3 [DefaultLoadControl] target in ExoPlayerView. The Fire TV
 /// Stick 4K has a 192 MB app heap (`dalvik.vm.heapgrowthlimit=192m`); the old
-/// fixed budget — 96 MiB ring + 4×4 MiB temps + a 96 MiB sample-queue target —
+/// fixed budget - 96 MiB ring + 4×4 MiB temps + a 96 MiB sample-queue target -
 /// exhausted it mid-playback and surfaced as an "io unspecified" source error
 /// (OOM inside DefaultAllocator.allocate). Scale everything by
 /// ActivityManager.memoryClass; at the stick's ~1 MB/s SMB fill rate even a
@@ -73,7 +73,7 @@ internal object BufferTuning {
                     }
                     else -> {
                         // Large-RAM devices: 96 MiB ring gives ~8s of read-ahead
-                        // at 100 Mbps (12.5 MB/s) — enough for Wi-Fi NAS to
+                        // at 100 Mbps (12.5 MB/s) - enough for Wi-Fi NAS to
                         // sustain 4K streaming without stalling the consumer.
                         // 64 MiB was only ~5s which caused frequent ring-empty
                         // stalls on large SMB files. 96 MiB fits comfortably
@@ -158,7 +158,7 @@ class SmbDataSource(
     private var prefetchGen = 0L
     private var ringEpoch = 0L
     private var nextWritePos: Long = 0
-    /// Set when reads keep failing after reconnect — [read] throws it so the
+    /// Set when reads keep failing after reconnect - [read] throws it so the
     /// player surfaces an error (and the Dart side retries with a fresh open)
     /// instead of hanging on a dead SMB session forever.
     @Volatile private var fatalError: IOException? = null
@@ -229,13 +229,13 @@ class SmbDataSource(
                 }
             }
 
-            // Open secondary SMB handles BEFORE taking ringLock — each open is
+            // Open secondary SMB handles BEFORE taking ringLock - each open is
             // a tree-connect + create round-trip. Doing this under ringLock
             // (old startPrefetchers path) blocked the first Media3 read for
             // seconds on a cold NAS and made SMB start look "stuck".
             //
             // Skip entirely when:
-            //  - the seek lands inside the live ring (reuse path — threads
+            //  - the seek lands inside the live ring (reuse path - threads
             //    are still running), or
             //  - short/tail probes (dataSpec.length small, remaining < 2
             //    chunks): a cue/duration read of ~1MB never needs 5 parallel
@@ -278,7 +278,7 @@ class SmbDataSource(
                     eofAt = -1
                     Log.i(TAG, "open: ring reset, pos=$position, file=$fileSize")
                     // Outside the window: existing prefetchers write the old
-                    // region — kill them before the sync fill.
+                    // region - kill them before the sync fill.
                     killPrefetchersLocked()
                 } else {
                     this.position = position
@@ -292,12 +292,12 @@ class SmbDataSource(
             // Synchronous head (or tail) fill so the FIRST Media3 read does not
             // block on an empty ring. Without this, open() returned with
             // valid=0, the extractor hit RING EMPTY, and startup waited for
-            // a whole prefetch round-trip — while HDR/chapter probes already
+            // a whole prefetch round-trip - while HDR/chapter probes already
             // held other SMB sessions and starved the ring even longer.
             // Runs BEFORE prefetchers start so they continue from nextWritePos
             // after the filled head instead of racing the same region.
             // Short probes (explicit small length) only fill what the caller
-            // asked for — not a full 4 MiB chunk.
+            // asked for - not a full 4 MiB chunk.
             val remaining = size - position
             val fillWant: Long = when {
                 remaining <= 0L -> 0L
@@ -361,7 +361,7 @@ class SmbDataSource(
             }
 
             // Tail-only / fully-filled short probes / in-window seeks: no new
-            // prefetch threads — they would just wait on bufEof (or duplicate
+            // prefetch threads - they would just wait on bufEof (or duplicate
             // the already-running set) while holding secondary handles.
             if (!withinWindow && !bufEofAfterFill()) {
                 synchronized(ringLock) {
@@ -419,13 +419,13 @@ class SmbDataSource(
                         val aliveCount = prefetchers.count { it.isAlive }
                         Log.w(TAG, "read: still empty after 5s (${elapsed}ms total), alivePrefetch=$aliveCount/${prefetchers.size}")
                         if (aliveCount == 0 && !bufEof) {
-                            // All prefetch threads died — surface fatal error instead of hanging
+                            // All prefetch threads died - surface fatal error instead of hanging
                             fatalError = IOException("SMB: all prefetch threads died, no data available")
                             throw fatalError!!
                         }
                         if (elapsed > 15_000) {
-                            // 15s stall — NAS is unreachable or throughput is below decode bitrate
-                            fatalError = IOException("SMB: no data for ${elapsed}ms — NAS may be unreachable or too slow")
+                            // 15s stall - NAS is unreachable or throughput is below decode bitrate
+                            fatalError = IOException("SMB: no data for ${elapsed}ms - NAS may be unreachable or too slow")
                             Log.e(TAG, "fatalError: stall ${elapsed}ms at pos=$position, alivePrefetch=$aliveCount")
                             throw fatalError!!
                         }
@@ -513,7 +513,7 @@ class SmbDataSource(
         // ONE open: the file handle is handed to the reader. Opening it twice
         // leaves a second handle open on the tree, the server then refuses the
         // TREE_DISCONNECT with STATUS_BUSY, and libsmb2 skips the socket close
-        // — the whole SMB session leaks and the NAS's session limit runs out.
+        // - the whole SMB session leaks and the NAS's session limit runs out.
         val f = s.openFile(path) ?: run { s.close(); throw IOException("libsmb2: could not open $path (${s.error()})") }
         val r = LibSmb2RandomAccessFile(s, path, f)
         session = s
@@ -598,7 +598,7 @@ class SmbDataSource(
     }
 
     private fun prefetchLoop(gen: Long, threadIdx: Int, secondaryHandle: LibSmb2RandomAccessFile?) {
-        // Per-thread temp buffer — SMB reads go here first, then get copied
+        // Per-thread temp buffer - SMB reads go here first, then get copied
         // into the ring inside ringLock (after epoch check). This prevents
         // stale writes from a killed/restarted thread from corrupting the ring.
         // `handle` is a mutable copy so a dropped connection can be re-opened
@@ -642,7 +642,7 @@ class SmbDataSource(
                 }
             }
 
-            // SMB read into tmpBuf (outside ringLock — parallel with other threads)
+            // SMB read into tmpBuf (outside ringLock - parallel with other threads)
             var got = -2
             var attempted = false
             val readStart = System.nanoTime()
@@ -707,7 +707,7 @@ class SmbDataSource(
                 }
             } else if (got == -1) {
                 // A read at `readAt` returned EOF. Record the EOF position, but
-                // only flip `bufEof` once the *contiguous* frontier reaches it —
+                // only flip `bufEof` once the *contiguous* frontier reaches it -
                 // if a chunk earlier in the file failed and is still a hole, the
                 // consumer must keep waiting/retrying for that hole, not get a
                 // premature END_OF_INPUT (which makes the extractor throw EOFException
@@ -723,7 +723,7 @@ class SmbDataSource(
                 // Read failed (transient network blip or dropped SMB session).
                 // CRITICAL: `nextWritePos` was already advanced when this region
                 // was carved, so if we just loop and move on the carved region is
-                // NEVER filled — the consumer blocks at the hole forever and
+                // NEVER filled - the consumer blocks at the hole forever and
                 // Media3 surfaces an "io unspecified" error. Reconnect the handle
                 // and rewind `nextWritePos` to the region start so it gets retried.
                 try { (handle as? LibSmb2RandomAccessFile)?.close() } catch (_: Exception) {}
@@ -809,7 +809,7 @@ class SmbDataSource(
 
     private fun closeHandles() {
         // raf.close() already closes the file handle AND the session.
-        // Do NOT close libFile or session again — double-close on libsmb2
+        // Do NOT close libFile or session again - double-close on libsmb2
         // contexts corrupts the heap and crashes the next smb2_open.
         try { raf?.close() } catch (_: Exception) {}
         raf = null

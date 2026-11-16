@@ -6,7 +6,7 @@ import 'subtitle_languages.dart';
 /// (OpenSubtitles `languages` param), and text encoding (codepage).
 ///
 /// Nova stores `system` / 3-letter codes (eng, fre, zho, pob…) and shows full
-/// names — never ISO 639-1 in the UI. DreamPlayer mirrors that.
+/// names - never ISO 639-1 in the UI. DreamPlayer mirrors that.
 class SubtitlePrefs {
   static const _legacyLangKey = 'dreamplayer.prefSubLang'; // old ISO-639-1 `en`
   static const _readingKey = 'dreamplayer.subReadingLang';

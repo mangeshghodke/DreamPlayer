@@ -17,7 +17,7 @@ results render at.
 Usage:
     tool/appstore_screenshot.py --capture shot.png --out out.png \\
         --headline "Every title." "Perfect artwork." \\
-        --subhead "TMDB posters, backdrops and stills — cached for offline"
+        --subhead "TMDB posters, backdrops and stills - cached for offline"
 
     tool/appstore_screenshot.py --validate out.png
 """
@@ -99,7 +99,7 @@ def validate(path: Path) -> int:
     im = Image.open(path)
     size = im.size
     if im.mode in ("RGBA", "LA", "P"):
-        print(f"FAIL  {path.name}: has an alpha channel ({im.mode}) — Apple rejects "
+        print(f"FAIL  {path.name}: has an alpha channel ({im.mode}) - Apple rejects "
               f"transparency. Re-save as RGB.")
         return 1
     for slot, sizes in ACCEPTED.items():
@@ -246,7 +246,7 @@ def build(capture: Path, out: Path, headline: list[str], subhead: str,
                              outline=(255, 255, 255, st["hairline"]),
                              width=max(2, int(W * 0.0014)))
     if bezel:
-        # Front camera on the top bezel — the detail that says "tablet".
+        # Front camera on the top bezel - the detail that says "tablet".
         cam_r = max(3, int(bezel * 0.16))
         ed.ellipse((dev_w // 2 - cam_r, bezel // 2 - cam_r,
                     dev_w // 2 + cam_r, bezel // 2 + cam_r),
@@ -266,7 +266,7 @@ def build(capture: Path, out: Path, headline: list[str], subhead: str,
     bg.paste(visible_body, (margin, dev_y), visible_body)
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    bg.save(out, "PNG", optimize=True)  # RGB, no alpha — Apple rejects transparency
+    bg.save(out, "PNG", optimize=True)  # RGB, no alpha - Apple rejects transparency
     print(f"wrote {out}  {W}x{H}")
 
 

@@ -23,7 +23,7 @@ String? metadataImageUrl(String? value, {int width = 780}) {
 /// The poster URL for a cached meta, or null when there is no poster.
 /// w185 was sized for a 48 px thumbnail; rows can show a 96 px poster
 /// (issue #38) and home cards render at up to ~3x DPR, so ask for w500 and
-/// stay sharp (issue #58 — w300 read as blurry on the grid).
+/// stay sharp (issue #58 - w300 read as blurry on the grid).
 String? posterUrlOf(TmdMeta? meta) => meta?.movie.posterUrl(width: 500);
 
 List<String> _stringList(dynamic value) {
@@ -90,7 +90,7 @@ class TmdMovie {
   ///
   /// Most providers use integers (TMDB, TheTVDB, AVDb), but r18.dev keys its
   /// catalogue by a string `content_id` ("1svfla012"). An adapter that has a
-  /// non-integer id puts it here, and [id] carries a stable hash of it — the
+  /// non-integer id puts it here, and [id] carries a stable hash of it - the
   /// integer is only ever an opaque cache key.
   ///
   /// This matters because the cache and the "is this still the same match?"
@@ -260,7 +260,7 @@ class TmdDetails {
   final List<String> genres;
   final List<TmdCastMember> cast;
   final List<TmdTrailer> trailers;
-  /// Backdrop file paths (no host) for a movie — the 16:9 stills gallery.
+  /// Backdrop file paths (no host) for a movie - the 16:9 stills gallery.
   /// TV shows populate this too via `images.backdrops` (harmless), but the
   /// per-episode gallery (_TmdEpisode.stills) is what episodes use instead.
   final List<String> stills;
@@ -404,7 +404,7 @@ class TmdEpisode {
   /// Guests/main cast from the episode's `credits` (may be empty).
   final List<TmdCastMember> cast;
 
-  /// `credits.guest_stars` — the credited guest actors of this episode.
+  /// `credits.guest_stars` - the credited guest actors of this episode.
   final List<TmdCastMember> guestStars;
 
   /// Still-frame file paths (no host) from the episode's `images.stills`.
@@ -630,7 +630,7 @@ class TmdMeta {
   /// True when the user pinned this match explicitly with "Fix match"
   /// ([TmdService.setManual] / [setManualFolder]). Manual matches are sacred:
   /// automatic re-resolution (folder scans, library refreshes, prefetch)
-  /// must NEVER overwrite them — only `clear()`/Remove-info removes them.
+  /// must NEVER overwrite them - only `clear()`/Remove-info removes them.
   /// Without this flag a manual fix was recalculated on the next scan and the
   /// match was silently lost (issue #11).
   final bool manual;
@@ -640,7 +640,7 @@ class TmdMeta {
   ///
   /// Uses `??` nowhere on purpose. `details?.overview ?? movie.overview` looks
   /// equivalent but is not: TheTVDB's extended movie record carries no synopsis
-  /// at all, so `details.overview` is an empty string, and `''` is not null —
+  /// at all, so `details.overview` is an empty string, and `''` is not null -
   /// so it shadowed the perfectly good synopsis from the search payload and the
   /// overview rendered blank (issue #33). Every overview fallback in the app
   /// goes through here.
@@ -655,7 +655,7 @@ class TmdMeta {
   TmdMeta withDetails(TmdDetails d) => TmdMeta(
       // Backfill the movie's artwork from the richer provider record, so a
       // TheTVDB-sourced item (whose search payload carries no `artworks`) gets
-      // the backdrop that only exists on the extended record — issue #33.
+      // the backdrop that only exists on the extended record - issue #33.
       movie: movie.withArtworkFrom(d),
       details: d,
       seasons: seasons,
@@ -687,7 +687,7 @@ class TmdMeta {
   /// Applied at **read** time by [TmdService.metaFor] rather than stored in the
   /// cache, so a pick survives re-resolution (which replaces the whole [TmdMeta])
   /// and a later "Fix match" that repoints this key at a different film. Both
-  /// [TmdMovie] and [TmdDetails] carry artwork, so both are updated — the
+  /// [TmdMovie] and [TmdDetails] carry artwork, so both are updated - the
   /// details header and the poster cards read different ones.
   TmdMeta withArtwork({String? posterPath, String? backdropPath}) => TmdMeta(
         movie: movie.copyWith(
@@ -895,18 +895,18 @@ class ParsedFileName {
     caseSensitive: false,
   );
 
-  /// E01 / EP01 / EP1 style — no season prefix.  season defaults to 1
+  /// E01 / EP01 / EP1 style - no season prefix.  season defaults to 1
   /// (most folders are single-season), episode extracted from the number.
   static final RegExp _episodeOnlyPattern = RegExp(
     r'\bEP?(\d{1,3})\b',
     caseSensitive: false,
   );
 
-  /// [01] / [02] style — common anime fansub episode numbering in brackets.
+  /// [01] / [02] style - common anime fansub episode numbering in brackets.
   static final RegExp _bracketEpisodePattern =
       RegExp(r'\[(\d{1,3})\]');
 
-  /// Bare season tag (`S02`, `S1`) — used by TV-season folder names like
+  /// Bare season tag (`S02`, `S1`) - used by TV-season folder names like
   /// `HOUSE.S02.1080p...`. There's no episode number, so this is a whole
   /// season; the tag must be stripped or it pollutes the search title.
   static final RegExp _seasonOnlyPattern = RegExp(
@@ -914,7 +914,7 @@ class ParsedFileName {
     caseSensitive: false,
   );
 
-  /// Word-style season tag (`Season 2`, `Season 03`) — used by SMB/browser
+  /// Word-style season tag (`Season 2`, `Season 03`) - used by SMB/browser
   /// season folders like "Season 2". Parsed for season detection.
   static final RegExp _seasonWordPattern = RegExp(
     r'\bSeason\s*(\d{1,2})\b',
@@ -955,7 +955,7 @@ class ParsedFileName {
   ///
   /// Kept out of [_noise] on purpose: "Movie" and "Full" are real words in
   /// real titles (`The Great Movie`). They are only removed when they form the
-  /// *entire* tail after a separator — see [_isReleaseTail].
+  /// *entire* tail after a separator - see [_isReleaseTail].
   static const Set<String> _descriptorWords = {
     'movie', 'film', 'full', 'superhit', 'official', 'dubbed', 'video',
     'clip', 'online', 'watch', 'hd', 'print', 'hdrip', 'webrip',
@@ -967,7 +967,7 @@ class ParsedFileName {
   ///                                 stripped as noise, HIN was left behind)
   ///   `HIN-ENG-TAM-TEL` -> "HIN TAM TEL HIN"
   ///
-  /// The list is deliberately conservative — only codes that are not plausible
+  /// The list is deliberately conservative - only codes that are not plausible
   /// standalone words in a film title. Deliberately excluded: `per`, `may`,
   /// `dan`, `can`, `all`, `cat`, `war`, `art`, `red`, `man`, `top`, `nor`
   /// (all real title words or real given names).
@@ -1015,7 +1015,7 @@ class ParsedFileName {
     // Audio/subtitle metadata often lives in brackets
     // (`[Hindi AMZN DDP 2.0 224kbps + English DTS-HD MA 5.1]`) or parens
     // (`(Hindi DDP 5.1  Korean DTS 5.1)`). Drop the whole group so the search
-    // query is the title, not the audio track list — unless the group carries
+    // query is the title, not the audio track list - unless the group carries
     // the episode tag (`[S02E04]`) or the year (`(2013)`), which must stay for
     // episode / year detection.
     bool keepGroup(String s) =>
@@ -1040,17 +1040,17 @@ class ParsedFileName {
     // Release-group suffix is conventionally attached with a dash
     // (e.g. `...x265-GROUP`). Drop everything from the last dash on. When the
     // group is followed by a site/domain (`USURY-4kHdHub.com`), the segment
-    // after the final dash contains a dot — additionally drop the group token
+    // after the final dash contains a dot - additionally drop the group token
     // sitting right before the dash when it's an all-caps release-group name
     // (`USURY`), so the search query stays title-only.
     //
     // Release-group / junk-tail removal. This replaces the old
     // "cut at the last dash" heuristic, which produced two real bugs:
     //
-    //  * `Spider-Man - Across the Spider-Verse` — the leading-group stripper
+    //  * `Spider-Man - Across the Spider-Verse` - the leading-group stripper
     //    treated any hyphenated prefix as a release group, so it deleted
     //    "Spider-Man" and the title became "Across the Spider Verse".
-    //  * `...DV.HEVC-NOSiViD (1)` — the `(1)` duplicate-download marker is
+    //  * `...DV.HEVC-NOSiViD (1)` - the `(1)` duplicate-download marker is
     //    removed as a bracket group, leaving a trailing space; the old code
     //    then saw `site.contains(' ')` and skipped the cut entirely, so
     //    "NOSiViD" survived into the TMDB query.
@@ -1112,13 +1112,13 @@ final yearMatch = _yearPattern.firstMatch(name);
       seriesName = name.substring(0, shortEpisodeMatch.start).trim();
       name = name.replaceAll(shortEpisodeMatch.group(0)!, ' ');
     } else if (episodeOnlyMatch != null) {
-      // E01 / EP01 — episode-only tag with no season prefix.
+      // E01 / EP01 - episode-only tag with no season prefix.
       isEpisode = true;
       episode = int.parse(episodeOnlyMatch.group(1)!);
       seriesName = name.substring(0, episodeOnlyMatch.start).trim();
       name = name.replaceAll(episodeOnlyMatch.group(0)!, ' ');
     } else if (bracketMatch != null) {
-      // [01] / [02] — bracket episode numbering (anime fansub style).
+      // [01] / [02] - bracket episode numbering (anime fansub style).
       isEpisode = true;
       episode = int.parse(bracketMatch.group(1)!);
       seriesName = name.substring(0, bracketMatch.start).trim();
@@ -1158,7 +1158,7 @@ final yearMatch = _yearPattern.firstMatch(name);
         // Only inherit the parent folder as seriesName when the file itself
         // has no proper searchable title (e.g. "01.mkv", "Episode 02.mkv").
         // A standalone movie like "24 (2016).mkv" already has title="24" and
-        // year=2016 — using the parent folder "24" as seriesName turns the
+        // year=2016 - using the parent folder "24" as seriesName turns the
         // movie into a TV search and picks the wrong duplicate (2001 series).
         // The generic-title check covers the episode-only cases the fallback
         // was designed for, while year!=null blocks the movie case.
@@ -1168,7 +1168,7 @@ final yearMatch = _yearPattern.firstMatch(name);
           ? folderParsed.title
           : _cleanName(parentFolderName);
       // If the folder carried a year (e.g. `Kakegurui Twin(2021)`), use it
-      // for the TMDB search too — `search/tv` supports a first_air_date_year.
+      // for the TMDB search too - `search/tv` supports a first_air_date_year.
       if (year == null && folderParsed.year != null) {
         year = folderParsed.year;
       }
@@ -1181,7 +1181,7 @@ final yearMatch = _yearPattern.firstMatch(name);
     //   `Navra Majha Navsacha 2004 / Navra Maza Navsacha (2004).mp4` -> "Navra Maza ..."
     // Both folders resolve correctly on their own; only the file-level parse
     // was wrong, and a single-video folder's card is resolved from the file.
-    // Episodes are excluded — there the folder legitimately holds the series
+    // Episodes are excluded - there the folder legitimately holds the series
     // name and the file carries the episode tag.
     if (!isEpisode && parentFolderName != null && parentFolderName.isNotEmpty) {
       final folderParsed = parse(parentFolderName);
@@ -1216,7 +1216,7 @@ final yearMatch = _yearPattern.firstMatch(name);
     final lower = text.toLowerCase();
     if (lower.contains('live action')) return true;
     if (lower.contains('live-action')) return true;
-    // "J-Drama" / "K-Drama" / "Drama" — case-insensitive; only match when
+    // "J-Drama" / "K-Drama" / "Drama" - case-insensitive; only match when
     // separated so `drama` inside another word doesn't false-positive.
     if (RegExp(
       r'(?:^|[\s\(\[\-])(?:j[\-\s]?drama|k[\-\s]?drama|drama)(?:[\s\)\]\-]|$)',
@@ -1247,7 +1247,7 @@ final yearMatch = _yearPattern.firstMatch(name);
   /// requiring that count keeps this from touching normal dotted names.
   static String _collapseYouTubeDump(String name) {
     if ('_'.allMatches(name).length < 2) return name;
-    // Never truncate a name that carries an episode or year marker — those
+    // Never truncate a name that carries an episode or year marker - those
     // hold the match signal (`Stranger_Things_[S02E04]_1080p` has three
     // underscores but is a perfectly good episode name).
     if (_hasEpisodePattern(name) || _yearPattern.hasMatch(name)) return name;
@@ -1274,7 +1274,7 @@ final yearMatch = _yearPattern.firstMatch(name);
   /// A folder-level uploader credit at the end of the name:
   ///   `Deool Band (2015) Marathi DVDScr By KeTaN`
   /// Only the literal word "By" with a capital B, which is the convention in
-  /// hand-made folder names — a lowercase "by" inside a title ("Stand by Me")
+  /// hand-made folder names - a lowercase "by" inside a title ("Stand by Me")
   /// is untouched.
   static String _stripUploaderCredit(String name) {
     final m = RegExp(r'\s+By\s+\S+\s*$').firstMatch(name);
@@ -1343,7 +1343,7 @@ final yearMatch = _yearPattern.firstMatch(name);
     return _dropDotSeparatedGroup(name);
   }
 
-  /// `Interstellar...MSubs.HEVC.Homelander` — some rips attach the group with a
+  /// `Interstellar...MSubs.HEVC.Homelander` - some rips attach the group with a
   /// dot rather than a dash, so the separator passes never see it and the
   /// handle survives as part of the title.
   ///
@@ -1371,7 +1371,7 @@ final yearMatch = _yearPattern.firstMatch(name);
 
   /// Unambiguous codec/format tokens, used only as the "the thing just before
   /// the group name" test. Deliberately excludes `ma`, `blu`, `rip`, `hd` and
-  /// `web` on their own — those appear inside real words.
+  /// `web` on their own - those appear inside real words.
   static const Set<String> _codecNoiseWords = {
     'hevc', 'h264', 'h265', 'x264', 'x265', 'avc', 'av1', 'xvid', 'mkv',
     'mpeg', 'mp4', 'ddp', 'truehd', 'atmos', 'dts', 'aac', 'ac3', 'eac3',
@@ -1379,7 +1379,7 @@ final yearMatch = _yearPattern.firstMatch(name);
     'webrip', 'hdtv', '10bit', '8bit', 'sdr', 'remux',
   };
 
-  /// `Oldboy ... x264 USURY-4kHdHub.com` — after cutting the dotted site, the
+  /// `Oldboy ... x264 USURY-4kHdHub.com` - after cutting the dotted site, the
   /// all-caps group token glued in front of the dash is left dangling
   /// ("Oldboy USURY"). Drop it too, but only when it looks like a handle: it
   /// must contain a letter, be short/all-caps or letter+digit, and sit in a
@@ -1391,7 +1391,7 @@ final yearMatch = _yearPattern.firstMatch(name);
         .firstMatch(head.trimRight());
     if (m == null) return head;
     final token = m.group(2)!;
-    // A stated file size is not a release group — `3.6GB` would otherwise be
+    // A stated file size is not a release group - `3.6GB` would otherwise be
     // read as the token "6GB" and stripped, leaving a bare "3".
     if (RegExp(r'^\d+(?:\.\d+)?\s?(?:GB|MB|GiB|MiB|KB|kbps)$',
             caseSensitive: false)
@@ -1421,7 +1421,7 @@ final yearMatch = _yearPattern.firstMatch(name);
     if (tailWordCount == 1 && _looksLikeReleaseToken(tailChunks.first)) {
       return true;
     }
-    // `...x264 USURY-4kHdHub.com` — the group/site compound is two chunks
+    // `...x264 USURY-4kHdHub.com` - the group/site compound is two chunks
     // because the site carries a TLD. Accept it when the first chunk looks
     // like a handle and the second is a TLD.
     if (_isSiteTail(tailChunks)) return true;
@@ -1430,11 +1430,11 @@ final yearMatch = _yearPattern.firstMatch(name);
     if (spaced) {
       // A tail made purely of ad/promo words (`... - Marathi Movie`) is junk.
       if (tailWordCount <= 4 && _isAllDescriptorWords(tail)) return true;
-      // `... - Marathi Movie - Actor One` — once the head has already been
+      // `... - Marathi Movie - Actor One` - once the head has already been
       // reduced to a descriptor phrase, whatever follows is a credit list.
       if (_headContainsDescriptor(head)) return true;
       // `Title - SUBTITLE` is a title; only cut a spaced dash when the head is
-      // already full of release metadata AND the tail carries none of it —
+      // already full of release metadata AND the tail carries none of it -
       // that is a site/credit tail (`... AC3 5.1 - MovCr`).
       if (tailWordCount > 3) return false;
       if (_countNoiseChunks(tail) > 0) return false;
@@ -1611,7 +1611,7 @@ final yearMatch = _yearPattern.firstMatch(name);
     );
 
     // `H.265` / `H265` / `H 265` (and X.264/265) survive the noise list
-    // because of the dot/space — catch them explicitly before splitting.
+    // because of the dot/space - catch them explicitly before splitting.
     cleaned = cleaned.replaceAll(
       RegExp(r'\b[xh]\.?\s*26[0-9]\b', caseSensitive: false),
       ' ',
@@ -1625,7 +1625,7 @@ final yearMatch = _yearPattern.firstMatch(name);
       );
     }
 
-    // Multi-word noise — phrases the single-word `_noise` loop can't strip
+    // Multi-word noise - phrases the single-word `_noise` loop can't strip
     // because the words are individually meaningful (`Live` is in many real
     // titles, `Action` too). Strip these BEFORE the single-word loop so the
     // remaining tokens can match.
@@ -1666,7 +1666,7 @@ final yearMatch = _yearPattern.firstMatch(name);
     // meaning once the bracketed track list is gone.
     cleaned = cleaned.replaceAll(RegExp(r'[~+]'), ' ');
 
-    // Stated file size (`3.6GB`, `640 MB`) — release metadata, not a title.
+    // Stated file size (`3.6GB`, `640 MB`) - release metadata, not a title.
     cleaned = cleaned.replaceAll(
       RegExp(r'(?<![A-Za-z0-9])\d{1,4}(?:\.\d{1,2})?\s?(?:GB|MB|GiB|MiB)(?![A-Za-z0-9])',
           caseSensitive: false),
@@ -1688,7 +1688,7 @@ final yearMatch = _yearPattern.firstMatch(name);
 
   /// Nova-style: garbage that could be present in real names, matched with tight case sensitive syntax.
   /// These strings will only match if separated by any of " .-_".
-  /// Note: WEB is NOT here — it conflicts with WEB-DL (the case-sensitive regex
+  /// Note: WEB is NOT here - it conflicts with WEB-DL (the case-sensitive regex
   /// `.WEB-` matches the hyphen separator, eating WEB from WEB-DL and leaving DL).
   /// The noise list handles `web` and `web-dl` with proper word boundaries.
   static const List<String> _garbageCaseSensitive = [
@@ -1777,7 +1777,7 @@ class TmdApi {
     if (saved != null && saved.isNotEmpty) return saved;
     // No build-time default seeding (was previously seeded from
     // `--dart-define=TMDB_API_KEY=...` but removed in 0.3.9 so public
-    // APK releases don't leak a bundled key — users enter their own in
+    // APK releases don't leak a bundled key - users enter their own in
     // Settings → Metadata). The build-time define is still injected for
     // the iOS GitHub Actions test build so the iPad IPA works without
     // first opening Settings.
@@ -1830,7 +1830,7 @@ class TmdApi {
     return details;
   }
 
-  /// Fetches a title by its TMDB id (issue #22 — "Search by TMDB ID" when
+  /// Fetches a title by its TMDB id (issue #22 - "Search by TMDB ID" when
   /// title search only returns the main show). Movie and TV ids live in
   /// separate namespaces, so callers should try both kinds. Returns null on
   /// a missing id, no API key, or any HTTP failure.
@@ -1903,7 +1903,7 @@ class TmdApi {
       final parsed = TmdEpisode.fromJson(json);
       if (parsed.episodeNumber <= 0) return null;
       // The episode endpoint's `append_to_response=images` can come back with
-      // an empty stills list even when the episode has a gallery on the site —
+      // an empty stills list even when the episode has a gallery on the site -
       // the dedicated /images sub-endpoint is authoritative, so merge it in.
       if (parsed.stills.isEmpty) {
         final gallery = await episodeGallery(
@@ -1992,7 +1992,7 @@ class TmdApi {
   }
 
   /// Every still-frame file path for one episode from the dedicated images
-  /// endpoint (`/tv/{id}/season/{n}/episode/{m}/images`) — the same source the
+  /// endpoint (`/tv/{id}/season/{n}/episode/{m}/images`) - the same source the
   /// TMDB site's episode gallery uses. Used when the episode endpoint's
   /// `append_to_response=images` came back empty. Empty on failure.
   Future<List<String>> episodeGallery(
@@ -2039,7 +2039,7 @@ class TmdApi {
       results = await search(query, kind: kind);
     }
 
-    // Base-query fallback — same rule resolveFolder already uses for movie
+    // Base-query fallback - same rule resolveFolder already uses for movie
     // parts. TMDB returns 0 hits for "GIRLS und PANZER das FINALE 01" but 8
     // for the unnumbered base; _score then ranks Part N by the trailing
     // number still carried on parsed.title.
@@ -2076,14 +2076,14 @@ class TmdApi {
     // threshold: distance ≤ 30% of max length = pass (≥ 0.5).
     var score = (1.0 - dist / maxLen).clamp(0.0, 1.0);
 
-    // Nova-style: Year bonus — deliberately NOT clamped so it can break
+    // Nova-style: Year bonus - deliberately NOT clamped so it can break
     // ties when two results both score 1.0 on Levenshtein (exact match).
     if (parsed.year != null && movie.year == parsed.year) {
       if (!(parsed.isEpisode || (parsed.seriesName?.isNotEmpty ?? false))) {
         // Nova uses 0.15 for movie year match
         score += 0.15;
       } else {
-        // Tiny tiebreaker for TV — only matters when two results tie on title.
+        // Tiny tiebreaker for TV - only matters when two results tie on title.
         score += 0.01;
       }
     }
@@ -2100,7 +2100,7 @@ class TmdApi {
       }
     }
 
-    // Movie-part disambiguation — same logic as _queryScore: trailing
+    // Movie-part disambiguation - same logic as _queryScore: trailing
     // "01" in "FINALE 02" should prefer "Part 2" / "Part II".
     final qStripped = query.replaceAll(RegExp(r'\[[^\]]*\]'), ' ').trim();
     final qPart = _trailingPartNumber(qStripped);
@@ -2126,7 +2126,7 @@ class TmdApi {
   /// Searches both TV and movie for an arbitrary query (e.g. a folder name)
   /// and returns the best match above the threshold, or null. TV hits get a
   /// hair of preference so an exact-title tie (same name is both a show and a
-  /// movie) lands on the series — the primary folder use-case is TV folders.
+  /// movie) lands on the series - the primary folder use-case is TV folders.
   /// When [year] is provided, results matching that year are strongly boosted
   /// to disambiguate shows/movies with the same title but different years.
   /// When [liveAction] is true (e.g. parsed from a folder named "X Live
@@ -2134,7 +2134,7 @@ class TmdApi {
   /// contains the word "anime" / "animation" hint, since the user clearly
   /// wants the live-action adaptation, not the animated original.
   /// Best TV-or-movie match for [query]. TV wins ties with a +0.001 tieBoost
-  /// (library folders are primarily shows) unless [preferMovie] is set — used
+  /// (library folders are primarily shows) unless [preferMovie] is set - used
   /// when available evidence (standalone movie files, no SxxEyy anywhere)
   /// says the folder holds movies rather than a series.
   Future<TmdMatch?> bestForQuery(
@@ -2269,11 +2269,11 @@ class TmdApi {
         r'\b(?:part|vol|movie|chapter|film)\s+\d+',
         caseSensitive: false,
       ).hasMatch(title)) {
-        // Title has some part marker we didn't parse — ignore.
+        // Title has some part marker we didn't parse - ignore.
       } else {
         score -= 0.25;
         debugPrint(
-          'TMDB _queryScore: q has part $qPart but title has none — penalty -0.25',
+          'TMDB _queryScore: q has part $qPart but title has none - penalty -0.25',
         );
       }
     }
@@ -2376,7 +2376,7 @@ class TmdApi {
         );
         final body = await response.transform(utf8.decoder).join();
         if (response.statusCode != 200) {
-          // 429 is a rate-limit burst — retry once before surfacing it.
+          // 429 is a rate-limit burst - retry once before surfacing it.
           if (response.statusCode == 429 && attempt == 0) continue;
           throw TmdException(_friendlyStatus(response.statusCode));
         }
@@ -2393,7 +2393,7 @@ class TmdApi {
         // Fall through to the retry (or the final error below).
       }
     }
-    throw const TmdException("Can't reach TMDB — check your connection.");
+    throw const TmdException("Can't reach TMDB - check your connection.");
   }
 
   static String _friendlyStatus(int code) {
@@ -2401,7 +2401,7 @@ class TmdApi {
       case 401:
         return 'TMDB API key is invalid.';
       case 429:
-        return 'TMDB rate limit reached — try again shortly.';
+        return 'TMDB rate limit reached - try again shortly.';
       default:
         return 'TMDB returned an error ($code).';
     }
@@ -2432,7 +2432,7 @@ class TmdException implements Exception {
 /// Every overview fallback in the app goes through here (or
 /// [TmdMeta.overviewText]). `a?.overview ?? b` looks equivalent but is not:
 /// TheTVDB's extended movie record carries no synopsis at all, so its
-/// `overview` is an empty string, and `''` is not null — so it shadowed the
+/// `overview` is an empty string, and `''` is not null - so it shadowed the
 /// perfectly good synopsis from the search payload and the overview rendered
 /// blank (issue #33).
 String firstNonEmptyOverview(Iterable<String?> candidates) {
@@ -2458,12 +2458,12 @@ class TmdStore {
   /// THE WHOLE POINT: opening a details screen writes metadata several times in
   /// a row (carryMeta, resolve, seasonFor, then one save per episode still).
   /// Each of those used to re-read the ENTIRE cache, mutate one key and
-  /// re-encode the whole thing — megabytes of `jsonDecode` + `jsonEncode` on
+  /// re-encode the whole thing - megabytes of `jsonDecode` + `jsonEncode` on
   /// the UI isolate, per write. On iOS that string also lives in NSUserDefaults,
   /// where writing something that large is slow in its own right. The visible
   /// symptom was the player/browser freezing solid (the spinner stopped
   /// animating, because the UI isolate was blocked rather than waiting) for
-  /// several seconds whenever an SMB title's details screen opened — for movies
+  /// several seconds whenever an SMB title's details screen opened - for movies
   /// and episodes alike, while playback itself stayed fast because it writes no
   /// metadata.
   ///
@@ -2473,7 +2473,7 @@ class TmdStore {
 
   /// Coalescing window for persistence. Long enough to swallow a details
   /// screen's burst of saves, short enough that nothing is meaningfully lost if
-  /// the process dies (metadata is a cache — it re-fetches).
+  /// the process dies (metadata is a cache - it re-fetches).
   static const Duration _persistDelay = Duration(milliseconds: 600);
 
   static Timer? _persistTimer;
@@ -2744,7 +2744,7 @@ class TmdService extends ChangeNotifier {
   }
   bool _loaded = false;
 
-  /// Last prefetch list — used by [_staggerPrefetch] to carry resolved meta
+  /// Last prefetch list - used by [_staggerPrefetch] to carry resolved meta
   /// to sibling files in the same series after each individual resolve.
   List<VideoItem> _lastPrefetchVideos = const [];
 
@@ -2814,7 +2814,7 @@ Future<TmdMatch?> _externalBestMatch(ParsedFileName parsed) async {
 /// its FILE names (issue #52).
 ///
 /// A JAV folder is usually named after its contents ("JAVTest", "Movies"), so
-/// the folder name carries nothing a catalogue can match — but the video
+/// the folder name carries nothing a catalogue can match - but the video
 /// inside it does ("SVFLA-012.mkv"). The parsed file name loses the code (the
 /// filename parser strips a trailing number as a movie-part suffix), so the
 /// RAW file names are used here.
@@ -2987,7 +2987,7 @@ static int? _trailingPartNumber(String folderName) {
   }
 
   /// [inheritArtworkFrom] is the chain of ancestor keys a file lives under,
-  /// nearest first — for a series, its season folder and then the show folder.
+  /// nearest first - for a series, its season folder and then the show folder.
   /// Each is consulted only when the key before it had no override of that kind.
   ///
   /// Metadata already inherits down the tree (`carryMeta`, and the home screen's
@@ -3021,13 +3021,13 @@ static int? _trailingPartNumber(String folderName) {
   /// The cached entry for [meta]'s show that actually carries its episode
   /// list, or null when no cached entry has one yet.
   ///
-  /// Episodes are cached under the key the details screen fetched them with —
+  /// Episodes are cached under the key the details screen fetched them with -
   /// the season/show FOLDER key, passed down as `parentMetadataKey`.
   /// [carryMeta] copies the matched show onto the file's own key so its title
   /// and artwork resolve, but it does not copy `seasons`, so a lookup on the
   /// player's file key alone finds no episode (the file/episode chip then had
   /// only its bare `S01E05`). This widens the search to the other entries for
-  /// the same provider-qualified show — the player must not have to know the
+  /// the same provider-qualified show - the player must not have to know the
   /// folder key it was opened from.
   TmdMeta? metaWithSeasons(TmdMeta? meta) {
     if (meta == null) return null;
@@ -3087,8 +3087,8 @@ static int? _trailingPartNumber(String folderName) {
   bool hasArtworkOverride(String identityKey, ArtworkKind kind) =>
       ArtworkOverrideStore.isOverridden(identityKey, kind);
 
-  /// Every poster/backdrop candidate for an item, from TMDB and — when it is
-  /// configured — TheTVDB, for the picker.
+  /// Every poster/backdrop candidate for an item, from TMDB and - when it is
+  /// configured - TheTVDB, for the picker.
   ///
   /// A TMDB-sourced item has no TheTVDB id, so TheTVDB candidates need a
   /// best-effort title+year lookup. That match is deliberately strict: it only
@@ -3109,7 +3109,7 @@ static int? _trailingPartNumber(String folderName) {
     // nothing on TMDB-matched titles, with no indication why).
     final notes = <String>[];
 
-    // Both providers are asked, always — the issue asks for "all images from
+    // Both providers are asked, always - the issue asks for "all images from
     // every configured provider". Querying only the provider that WON the match
     // is what made this look broken: a TheTVDB-matched title has no TMDB id, so
     // it yielded nothing when TheTVDB wasn't configured, and a TMDB-matched
@@ -3286,7 +3286,7 @@ static int? _trailingPartNumber(String folderName) {
     final identityKey = TmdStore.identityKeyFor(video);
     if (identityKey.isEmpty) return null;
     await ensureLoaded();
-    // User dismissed this entry via "Remove info" — do not silently re-fetch
+    // User dismissed this entry via "Remove info" - do not silently re-fetch
     // it on the next prefetch/rescan/folder open. Only an explicit Fix match
     // clears the suppression.
     if (_suppressed.contains(identityKey)) return null;
@@ -3318,7 +3318,7 @@ static int? _trailingPartNumber(String folderName) {
       if (!isStaleKind && !isStaleYear) {
         return cached;
       }
-      // Stale — drop it so _resolveNow overwrites with the correct match.
+      // Stale - drop it so _resolveNow overwrites with the correct match.
       _cache.remove(identityKey);
       try {
         await TmdStore.remove(identityKey);
@@ -3360,11 +3360,11 @@ static int? _trailingPartNumber(String folderName) {
   /// can show the show's poster. Best-effort; null when nothing matches.
   /// [metadataKey] is the folder's stable identity (see `LibraryFolder`).
   ///
-  /// [yearHint] supplies a year the folder name itself doesn't carry — e.g.
+  /// [yearHint] supplies a year the folder name itself doesn't carry - e.g.
   /// derived via [ParsedFileName.yearFromNames] from the files inside the
   /// folder. When parsing [folderName] yields no year, [yearHint] is used to
   /// disambiguate same-titled entries that differ only by release year (TMDB
-  /// returns both, sorted by popularity — which can pick the wrong duplicate).
+  /// returns both, sorted by popularity - which can pick the wrong duplicate).
   ///
   /// [fileNames] lists the folder's file names (when the caller has them
   /// cheaply, e.g. after a directory listing). Used as additional search
@@ -3379,7 +3379,7 @@ static int? _trailingPartNumber(String folderName) {
     List<String>? fileNames,
   }) async {
     await ensureLoaded();
-    // User dismissed this folder via "Remove info" — do not silently
+    // User dismissed this folder via "Remove info" - do not silently
     // re-match on the next home refresh / folder re-open (issue #11).
     if (_suppressed.contains(metadataKey)) return null;
     final cached = _cache[metadataKey];
@@ -3387,7 +3387,7 @@ static int? _trailingPartNumber(String folderName) {
       'TMDB resolveFolder("$metadataKey","$folderName") cached=$cached keepSeasons=${cached?.seasons[cached.folderSeason ?? -1]?.posterPath != null}',
     );
     // A user-pinned "Fix match" entry is sacred: re-resolution (home refresh,
-    // library rescan, prefetch) must NEVER overwrite it — the old path
+    // library rescan, prefetch) must NEVER overwrite it - the old path
     // recalculated the match from the folder name every call and silently
     // replaced or dropped the manual fix (issue #11). Only `clear()` removes it.
     if (cached != null && cached.manual) return cached;
@@ -3395,7 +3395,7 @@ static int? _trailingPartNumber(String folderName) {
     // for that season. A stale cache with folderSeason set but no seasons
     // entry (e.g. from a build that didn't fetch the season poster, or where
     // the season fetch failed) would make the home card fall back to the
-    // show's main poster — so refill the season data here. seasonFor() itself
+    // show's main poster - so refill the season data here. seasonFor() itself
     // short-circuits when its own cache already has a poster, so this is one
     // extra request only when the season cache is actually incomplete.
     //
@@ -3417,7 +3417,7 @@ static int? _trailingPartNumber(String folderName) {
           // The staleness check is only valid when the folder name looks like
           // a season subfolder (e.g. "Strike the Blood Final", "Season 2").
           // For a top-level show folder like "House" the folder name is the
-          // show title, not the season name — "House" will never contain
+          // show title, not the season name - "House" will never contain
           // "Season 2". Only run the check when the folder name contains a
           // season-like pattern (S01, Season N, roman numeral) so single-show
           // folders aren't incorrectly wiped.
@@ -3443,7 +3443,7 @@ static int? _trailingPartNumber(String folderName) {
           return cached;
         }
       } else {
-        // Season names not cached yet (in-memory only, lost on restart) —
+        // Season names not cached yet (in-memory only, lost on restart) -
         // can't verify folderSeason. Trust the cached entry rather than
         // deleting it: the metadata was correct when first resolved, and
         // destroying it here loses the poster/title/seasons on every offline
@@ -3457,7 +3457,7 @@ static int? _trailingPartNumber(String folderName) {
     // made movie parts preserve their trailing number.  Detect and drop
     // so the next candidate pass (numbered query first) can pick the
     // correct part.
-    // Stale movie-part detection — keep the old poster visible until the
+    // Stale movie-part detection - keep the old poster visible until the
     // replacement arrives.  Just log here; don't clear _cache yet or the
     // grid will flash to placeholder while the network fetch runs.
     if (cached != null && cached.movie.kind == TmdKind.movie) {
@@ -3465,7 +3465,7 @@ static int? _trailingPartNumber(String folderName) {
       final cachedPart = _partNumberFromTitle(cached.movie.title);
       if (folderPart != null && cachedPart != null && folderPart != cachedPart) {
         debugPrint(
-          'TMDB resolveFolder: stale movie-part cache "$metadataKey" (folder part $folderPart vs cached "${cached.movie.title}" part $cachedPart) — will re-resolve, keeping stale poster until fresh',
+          'TMDB resolveFolder: stale movie-part cache "$metadataKey" (folder part $folderPart vs cached "${cached.movie.title}" part $cachedPart) - will re-resolve, keeping stale poster until fresh',
         );
       } else if (folderPart != null && cachedPart == null) {
         final hasAnyPartMarker = RegExp(
@@ -3474,7 +3474,7 @@ static int? _trailingPartNumber(String folderName) {
         ).hasMatch(cached.movie.title);
         if (!hasAnyPartMarker) {
           debugPrint(
-            'TMDB resolveFolder: movie-part folder "$metadataKey" cached as base title without part marker — will re-resolve, keeping stale poster until fresh',
+            'TMDB resolveFolder: movie-part folder "$metadataKey" cached as base title without part marker - will re-resolve, keeping stale poster until fresh',
           );
         }
       }
@@ -3516,7 +3516,7 @@ static int? _trailingPartNumber(String folderName) {
       }
     }
     final preferMovie = !parsed.isEpisode && !fileEvidence.hasEpisodes;
-    // A folder of movie *parts* ("GIRLS und PANZER das FINALE 01") — try
+    // A folder of movie *parts* ("GIRLS und PANZER das FINALE 01") - try
     // the exact numbered query first so each part resolves to its own
     // movie (01→Part I, 02→Part II, etc.).  The stripped base
     // ("GIRLS und PANZER das FINALE") is kept as a fallback for cases
@@ -3539,7 +3539,7 @@ static int? _trailingPartNumber(String folderName) {
       }
     }
     // Detect movie sequel patterns: "Part 1", "Vol 2", "Movie 3", "Chapter 1".
-    // These are standalone movie files, not episodes — boost movie preference.
+    // These are standalone movie files, not episodes - boost movie preference.
     final hasMovieSequelPattern = fileEvidence.hasMovieSequelPattern;
 
     final desiredPart = _trailingPartNumber(folderName);
@@ -3590,7 +3590,7 @@ static int? _trailingPartNumber(String folderName) {
     for (final name in names) {
       final p = ParsedFileName.parse(name);
       // Season-only folder names (e.g. "s02", "Season 3") are a strong TV
-      // signal even without episode markers — treat them as episode evidence
+      // signal even without episode markers - treat them as episode evidence
       // so the folder resolves as a TV show instead of a same-named movie.
       if (p.season > 0 && !p.isEpisode) hasEpisodes = true;
       final q =
@@ -3662,7 +3662,7 @@ static int? _trailingPartNumber(String folderName) {
           desiredPart: desiredPart,
       );
       if (last != null) return last;
-      // No match for this query — move on to the next candidate query.
+      // No match for this query - move on to the next candidate query.
     }
     return last;
   }
@@ -3821,7 +3821,7 @@ static int? _trailingPartNumber(String folderName) {
       } catch (_) {}
       _seasonNamesCache[_seasonKeyForMovie(match.movie)] = names;
       _savePersistedSeasonNames();
-      // Use the original folder name for season matching — the cleaned
+      // Use the original folder name for season matching - the cleaned
       // query strips the season tag (e.g. House S02 → House) and would
       // miss the fast-path ParsedFileName season check.
       final seasonQuery = (folderName != null && folderName.isNotEmpty) ? folderName : query;
@@ -3833,7 +3833,7 @@ static int? _trailingPartNumber(String folderName) {
 
     // When multiple auto-expanded folders share the same metadataKey
     // (via SeriesGroup), each folder's resolution overwrites the cache.
-    // The first folder that matched a season "owns" this key — don't let
+    // The first folder that matched a season "owns" this key - don't let
     // a later folder's resolution replace its folderSeason.
     final existing = _cache[metadataKey];
     if (existing != null &&
@@ -3880,22 +3880,22 @@ static int? _trailingPartNumber(String folderName) {
   }
 
   /// Pure matcher: resolves [folderName] to a season number given the show's
-  /// [seasonNames]. No API calls — testable without an HTTP client.
+  /// [seasonNames]. No API calls - testable without an HTTP client.
   ///
   /// Matching strategy:
   /// 1. Release-group / language noise (`[VCB-Studio]`, `[SubsPlease]`) is
-  ///    stripped from the folder name — it is not part of any season name, and
+  ///    stripped from the folder name - it is not part of any season name, and
   ///    it breaks the exact/containment match below (which is how
-  ///    "[VCB-Studio] Strike the Blood" used to land on Season 2 — see 2026-09
+  ///    "[VCB-Studio] Strike the Blood" used to land on Season 2 - see 2026-09
   ///    regression below).
   /// 2. Exact match (case-insensitive): "Strike the Blood Final" == "Strike the Blood Final"
   /// 3. Containment: the LONGEST season name contained in (or containing) the
-  ///    query wins — "Strike the Blood II" is more specific than "Strike the
+  ///    query wins - "Strike the Blood II" is more specific than "Strike the
   ///    Blood". There is no `sName.length > q.length` gate here: a folder
   ///    "Strike the Blood 1080p" used to fall through to word-overlap and be
   ///    mis-matched to Season 2 (see below).
   /// 4. Suffix (issue #22): the folder name is a word-boundary suffix of a
-  ///    season name — "Railgun S" → "A Certain Scientific Railgun S".
+  ///    season name - "Railgun S" → "A Certain Scientific Railgun S".
   /// 5. Word overlap (fallback when neither name contains the other): all
   ///    words of the shorter name appear in the longer.
   ///
@@ -3903,7 +3903,7 @@ static int? _trailingPartNumber(String folderName) {
   /// (`ii`, `iv`) before word-overlap, which made Season 1 "Strike the Blood",
   /// Season 2 "Strike the Blood II" and Season 4 "Strike the Blood IV" all
   /// reduce to the word set {strike, the, blood}. The score then tied on the
-  /// name-length term and favored the LONGER name — Season 2. So a folder
+  /// name-length term and favored the LONGER name - Season 2. So a folder
   /// "[VCB-Studio] Strike the Blood" displayed as "Strike the Blood II" on the
   /// home card. The bracket-strip + containment passes resolve Season 1 (and
   /// every real roman-suffix folder) deterministically before overlap runs.
@@ -3943,18 +3943,18 @@ static int? _trailingPartNumber(String folderName) {
 
     final entries = seasonNames.entries.toList();
 
-    // Exact match — always wins.
+    // Exact match - always wins.
     for (final entry in entries) {
       final sName = entry.value.toLowerCase().trim();
       if (sName.isEmpty) continue;
       if (q == sName) return entry.key;
     }
 
-    // Containment — longest matching season name wins, but only when the rest
+    // Containment - longest matching season name wins, but only when the rest
     // of the folder name is release noise (resolution/source/codec/group
     // tags). A folder like "Strike the Blood Kieta Seisou Hen" contains the
     // string "Strike the Blood" yet has extra real content beyond any season
-    // title — it is NOT a season folder and must not masquerade as Season 1
+    // title - it is NOT a season folder and must not masquerade as Season 1
     // (it should render as a gradient card, not steal Season 1's poster).
     int? bestSeason;
     var bestNameLen = 0;
@@ -3963,7 +3963,7 @@ static int? _trailingPartNumber(String folderName) {
       if (sName.isEmpty) continue;
       final qIdx = q.indexOf(sName);
       if (qIdx >= 0) {
-        // Folder name contains the whole season name — accept only if the
+        // Folder name contains the whole season name - accept only if the
         // leftover words are all release noise.
         final leftover = q
             .replaceRange(qIdx, qIdx + sName.length, ' ')
@@ -3994,7 +3994,7 @@ static int? _trailingPartNumber(String folderName) {
     }
     if (bestSeason != null) return bestSeason;
 
-    // Suffix — the folder name is a word-boundary suffix of the season name
+    // Suffix - the folder name is a word-boundary suffix of the season name
     // (issue #22: "Railgun S" → "A Certain Scientific Railgun S",
     // "Railgun T" → "… Railgun T"). Heavy release noise (`1080p`, `BluRay`)
     // is stripped from the folder end first; short tokens (`S`, `T`, `II`)
@@ -4014,7 +4014,7 @@ static int? _trailingPartNumber(String folderName) {
     }
     if (suffixSeason != null) return suffixSeason;
 
-    // Word overlap — every word of the shorter name must appear in the longer,
+    // Word overlap - every word of the shorter name must appear in the longer,
     // AND any extra words in the longer name must all be release noise. This
     // preserves the old behavior for pure-name folders while disqualifying
     // folders whose extra words are real content ("Kieta Seisou Hen" behind
@@ -4059,7 +4059,7 @@ static int? _trailingPartNumber(String folderName) {
   /// Whether one lowercased token is release noise that may legitimately
   /// surround a season name in a folder title (resolution/source/codec/audio
   /// tags, glue words, group names, years, plain numbers). Everything else is
-  /// treated as real title content — so "Kieta" / "Seisou" / "Hen" disqualify
+  /// treated as real title content - so "Kieta" / "Seisou" / "Hen" disqualify
   /// a folder from being a season folder and it keeps its gradient card.
   static bool _isSeasonNoiseToken(String w) {
     if (w.isEmpty) return false;
@@ -4082,7 +4082,7 @@ static int? _trailingPartNumber(String folderName) {
 
   /// Drops trailing heavy release noise from an already-lowercased query so
   /// "railgun s - 1080p" can still suffix-match a season name. Never strips
-  /// short tokens (`s`, `t`, `ii`) or pure punctuation glued mid-name — only
+  /// short tokens (`s`, `t`, `ii`) or pure punctuation glued mid-name - only
   /// trailing noise longer than 2 chars, or trailing punctuation/numbers that
   /// cannot be part of a season letter suffix.
   static String _stripTrailingHeavyNoise(String input) {
@@ -4103,7 +4103,7 @@ static int? _trailingPartNumber(String folderName) {
   /// Nova-style: background-resolve TMDB metadata for every video in a folder.
   /// Each file gets its own `resolve()` call; already-cached entries are
   /// skipped. Resolutions fire-and-forget with a small stagger to avoid
-  /// hitting TMDB rate limits — callers listen to [notifyListeners] to pick
+  /// hitting TMDB rate limits - callers listen to [notifyListeners] to pick
   /// up results as they land.
   void prefetchFolder(List<VideoItem> videos) {
     final pending = <VideoItem>[];
@@ -4170,7 +4170,7 @@ static int? _trailingPartNumber(String folderName) {
   /// Season names for a series, dispatched on the provider that matched it.
   ///
   /// An external catalogue has its own id space, so TMDB must never be asked
-  /// for an external id — it would answer with an unrelated series' seasons.
+  /// for an external id - it would answer with an unrelated series' seasons.
   Future<Map<int, String>> _seasonNamesFor(TmdMovie movie) async {
     switch (movie.provider) {
       case MetadataProvider.theTvdb:
@@ -4199,7 +4199,7 @@ static int? _trailingPartNumber(String folderName) {
   /// Full details for a movie that came from an external adapter (issue #52).
   ///
   /// An adapter's id space is its OWN. Asking TMDB for an AVDb id returned a
-  /// completely unrelated film — AVDb's #495175 is not TMDB's #495175 — and
+  /// completely unrelated film - AVDb's #495175 is not TMDB's #495175 - and
   /// the wrong synopsis/poster was written over the AVDb match, so picking an
   /// AVDb title in the Get info dialog quietly turned it into a random TMDB
   /// movie. The adapter is asked for its own record instead.
@@ -4220,7 +4220,7 @@ static int? _trailingPartNumber(String folderName) {
   ///
   /// Needed after an artwork override is reset: the cached [meta] can predate
   /// the artwork backfill in [TmdMeta.withDetails], so `meta.details` may
-  /// already be non-null while `movie.backdropPath` is still null — and the
+  /// already be non-null while `movie.backdropPath` is still null - and the
   /// early return would then make the "refetch" a silent no-op, leaving
   /// "Set default backdrop" looking like it deleted the artwork (issue #33).
   Future<TmdDetails?> detailsFor(String identityKey, {bool force = false}) async {
@@ -4235,7 +4235,7 @@ static int? _trailingPartNumber(String folderName) {
       };
       if (details == null) return null;
       // Merge onto the FRESHEST cache entry, not the snapshot taken before the
-      // network call — a concurrent seasonFor/withDetails write may have added
+      // network call - a concurrent seasonFor/withDetails write may have added
       // seasons to the same key while this request was in flight. Writing back
       // the stale snapshot would silently drop those seasons (regression: a
       // folder card that briefly showed its season poster reverted to the
@@ -4274,7 +4274,7 @@ static int? _trailingPartNumber(String folderName) {
     final already = cached.seasons[seasonNumber];
     // A season may exist with only a poster/name (from the show-details
     // endpoint) but no episodes.  Only short-circuit when episodes are
-    // actually present — otherwise we must fetch the per-season endpoint.
+    // actually present - otherwise we must fetch the per-season endpoint.
     if (already != null && already.episodes.isNotEmpty) return already;
     final pendingKey = '$identityKey#s$seasonNumber';
     if (_pendingDetail.contains(pendingKey)) return null;
@@ -4311,7 +4311,7 @@ static int? _trailingPartNumber(String folderName) {
         );
         return season;
       }
-      // Fetch the full season endpoint — it includes poster_path, name,
+      // Fetch the full season endpoint - it includes poster_path, name,
       // overview AND the episodes list.
       final key = await _api.effectiveApiKey();
       if (key.isEmpty) return null;
@@ -4404,7 +4404,7 @@ static int? _trailingPartNumber(String folderName) {
   ///
   /// [folderSeason] is the season the user (or Fix match dialog) picked.
   /// When it is null and [folderName] is a TV folder name, the season is
-  /// resolved against the show's TMDB season names (issue #22 — a bare
+  /// resolved against the show's TMDB season names (issue #22 - a bare
   /// [TmdMeta] with no [TmdMeta.folderSeason] left Railgun S/T folders
   /// looking like Season 1 of the main show).
   Future<void> setManual(
@@ -4489,13 +4489,13 @@ static int? _trailingPartNumber(String folderName) {
   /// [toKey], so a video opened from a folder instantly has the show's season
   /// data (episode names/overviews/ratings/stills) without re-fetching it.
   /// [fromKey] is left untouched. Used by the folder details screen when an
-  /// episode is tapped — the folder has already loaded the seasons, so the
+  /// episode is tapped - the folder has already loaded the seasons, so the
   /// episode screen must not start from a bare movie and re-fetch on every tap.
   Future<void> carryMeta(String fromKey, String toKey) async {
     if (fromKey.isEmpty || toKey.isEmpty || fromKey == toKey) return;
     await ensureLoaded();
     // The folder meta may live only in prefs (e.g. a fresh process where the
-    // folder screen hasn't resolved yet) — read it through so the carry still
+    // folder screen hasn't resolved yet) - read it through so the carry still
     // works.
     final source =
         _cache[fromKey] ?? (await TmdStore.loadAll())[fromKey];

@@ -71,7 +71,7 @@ class _DownloadScreenState extends State<DownloadScreen> {
     if (!File(job.destPath).existsSync()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('File not found — it may have been deleted.'),
+          content: Text('File not found - it may have been deleted.'),
           duration: Duration(seconds: 3),
         ),
       );

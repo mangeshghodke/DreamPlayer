@@ -27,7 +27,7 @@ enum LibraryFolderSource {
 }
 
 /// A folder the user explicitly chose to add to the library (e.g. a TV show
-/// folder). Reference-only: videos are never imported — they stay in place and
+/// folder). Reference-only: videos are never imported - they stay in place and
 /// are listed/played through the folder's SAF tree (`tree:<id>`), absolute
 /// path, or (for [LibraryFolderSource.jellyfin]) the Jellyfin API. This is the
 /// only thing the library shows: nothing is auto-scanned.
@@ -69,13 +69,13 @@ class LibraryFolder {
   final LibraryFolderSource source;
 
   /// Normalized base URL of the Jellyfin server (matched against saved
-  /// servers by URL — the token is never stored here). Jellyfin only.
+  /// servers by URL - the token is never stored here). Jellyfin only.
   final String? jellyfinServerUrl;
 
   /// Jellyfin folder/series id whose children are listed. Jellyfin only.
   final String? jellyfinItemId;
 
-  /// Network share identifiers — SMB/WebDAV/FTP/UPnP. Only the fields
+  /// Network share identifiers - SMB/WebDAV/FTP/UPnP. Only the fields
   /// relevant to [source] are set; the rest are null.
   final String? networkServerId;
   final String? networkShare;
@@ -93,7 +93,7 @@ class LibraryFolder {
   /// directory). Expanded by the auto-expand feature from a parent folder.
   final bool isFile;
 
-  /// Groups expanded children — all entries with the same [parentId] were
+  /// Groups expanded children - all entries with the same [parentId] were
   /// expanded from one parent folder. Used by "Remove from library" to delete
   /// the whole batch. Null for non-expanded entries.
   final String? parentId;
@@ -110,11 +110,11 @@ class LibraryFolder {
   bool get isJellyfin => source == LibraryFolderSource.jellyfin;
   bool get isNetwork => source != LibraryFolderSource.files;
 
-  /// Stable identity for TMDB metadata (`folder:<id>` in TmdStore) — the
+  /// Stable identity for TMDB metadata (`folder:<id>` in TmdStore) - the
   /// `folder:` prefix keeps it clear of per-video identity keys.
   /// Metadata identity for this entry.
   ///
-  /// A FILE entry's identity is its canonical resume key — the very string
+  /// A FILE entry's identity is its canonical resume key - the very string
   /// [NetworkVideoResolver] puts on the VideoItem it resolves from `path`. That
   /// makes every surface that shows the file agree on a single slot: the home
   /// card, the browser's details page, and Continue Watching.
@@ -123,7 +123,7 @@ class LibraryFolder {
   /// three separate slots: a poster picked from the SMB browser never reached the
   /// home card, and picking it on the home card never reached Continue Watching.
   ///
-  /// A real FOLDER keeps `folder:<id>` — a folder has no resume key, its id is
+  /// A real FOLDER keeps `folder:<id>` - a folder has no resume key, its id is
   /// stable across scans, and a folder card stands for the whole folder rather
   /// than any one file.
   String get metadataKey => isFile ? path : 'folder:$id';
@@ -181,7 +181,7 @@ class LibraryFolder {
   }
 
   /// Copy with overrides. A rescan must be able to keep an entry's `id` and
-  /// `addedAt` while refreshing everything else — `metadataKey` is
+  /// `addedAt` while refreshing everything else - `metadataKey` is
   /// `folder:<id>` for a folder, so a regenerated id silently orphans that
   /// folder's cached TMDB metadata and artwork overrides.
   LibraryFolder copyWith({
@@ -296,7 +296,7 @@ class LibraryFoldersStore {
   /// (existing entries with the same id are replaced) AND by
   /// `(source, networkPath)` (old manually-bookmarked entries for the same
   /// location are replaced by the new scanner entries). Most-recently-added
-  /// first — the list is reversed so the oldest of the batch ends up on top.
+  /// first - the list is reversed so the oldest of the batch ends up on top.
   static Future<void> bulkAdd(List<LibraryFolder> folders) async {
     if (folders.isEmpty) return;
     final all = await load();
@@ -341,7 +341,7 @@ class LibraryFoldersStore {
   /// the same id **in place** (so a refresh never reshuffles the grid),
   /// [upserts] with an unknown id are appended, and [removeIds] are dropped.
   ///
-  /// One write and one [changes] notify on purpose — calling [bulkAdd] and
+  /// One write and one [changes] notify on purpose - calling [bulkAdd] and
   /// [remove] per entry would make the home grid rebuild once per folder, and
   /// `bulkAdd`'s insert-at-0 would float every rescanned folder to the top.
   static Future<void> applyDiff({
@@ -380,7 +380,7 @@ class LibraryFoldersStore {
   //
   // When a folder is bookmarked and expanded, the parent is REMOVED from the
   // library and only its children are kept (each tagged `parentId`). That
-  // left no record of what had been scanned, so a rescan had no seed — the
+  // left no record of what had been scanned, so a rescan had no seed - the
   // grid could only ever show the snapshot taken at bookmark time (issue #39).
   // These persist the root so a later rescan knows where to look.
 

@@ -18,7 +18,7 @@ import 'aniskip_store.dart';
 ///    required; a 404 body (`found: false`) means "no data".
 ///
 /// Note: AniSkip is anime-only (MAL-keyed). Live-action shows/movies get
-/// their skip segments from embedded chapter names instead — the IntroDB
+/// their skip segments from embedded chapter names instead - the IntroDB
 /// domain named in the issue (`api.introdb.dev`) does not resolve anymore
 /// (checked 2026-11-04), so AniSkip is the working community source.
 ///
@@ -92,7 +92,7 @@ class AniskipClient {
   }) async {
     final durSec =
         durationMs != null && durationMs > 0 ? durationMs / 1000 : 0;
-    // `types` must be REPEATED params, not comma-joined — the API rejects a
+    // `types` must be REPEATED params, not comma-joined - the API rejects a
     // single comma-joined value with a 400 validation error.
     final uri2 = Uri.parse(
       '$aniskipBaseUrl/v2/skip-times/$malId/$episode'
@@ -137,7 +137,7 @@ class AniskipClient {
     }
   }
 
-  /// Parse an AniSkip v2 response body into segments. Pure — unit-tested.
+  /// Parse an AniSkip v2 response body into segments. Pure - unit-tested.
   /// skipType mapping: op/mixed-op → intro, recap → recap, ed/mixed-ed →
   /// credits. Seconds → ms.
   static List<SkipSegment> parseAniSkipResponse(String body) {
@@ -175,7 +175,7 @@ class AniskipClient {
     return out;
   }
 
-  /// Pick the MAL id out of an AniList search response. Pure — unit-tested.
+  /// Pick the MAL id out of an AniList search response. Pure - unit-tested.
   /// Prefers an exact normalized-title match, else the first entry with a
   /// MAL id (AniList SEARCH_MATCH ranks the canonical entry first).
   static int? parseAniListMalId(String body, String queryTitle) {

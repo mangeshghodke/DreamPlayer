@@ -7,14 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// History: the site used to live at `mangeshghodke.github.io/DreamPlayer/`,
 /// where the Pages path was the repo name and GitHub matched it
-/// case-sensitively — `/dreamplayer/` returned 404, a silent failure for the
+/// case-sensitively - `/dreamplayer/` returned 404, a silent failure for the
 /// App-Review-critical Terms/Privacy links. With the custom domain the site is
 /// served at the domain root, and this test now pins the exact host string so
 /// a typo (wrong TLD, missing subdomain) fails loudly instead of 404ing.
 ///
 /// One thing must NOT be flagged: the shields.io badge whose label merely
 /// contains the host (`img.shields.io/badge/Website-dreamplayer.isroot.in-...`)
-/// — not a site link.
+/// - not a site link.
 void main() {
   const host = 'dreamplayer.isroot.in';
 
@@ -29,7 +29,7 @@ void main() {
 
   test('every website reference uses the exact dreamplayer.isroot.in host', () {
     final offenders = <String>[];
-    // Hosts that look like the site but are not — a mistyped link 404s.
+    // Hosts that look like the site but are not - a mistyped link 404s.
     final wrongHosts = RegExp(
         r'(dreamplayer\.isroot\.(?:com|net|org|in\.au)|dreamplayer\.isroot\.io)');
     for (final file in sources()) {

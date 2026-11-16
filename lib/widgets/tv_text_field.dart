@@ -6,7 +6,7 @@ import '../utils/tv_helper.dart';
 /// A text field that on Android TV / Fire TV shows the app's blue focus glow
 /// when the D-pad selects it and only opens the platform on-screen keyboard
 /// (Leanback IME) when the user presses OK on the focused field. This keeps
-/// D-pad navigation between fields working — the keyboard window doesn't
+/// D-pad navigation between fields working - the keyboard window doesn't
 /// swallow the arrow keys, so focus never gets stuck on an empty field. On
 /// phones and tablets it is a plain [TextField].
 class TvTextField extends StatefulWidget {

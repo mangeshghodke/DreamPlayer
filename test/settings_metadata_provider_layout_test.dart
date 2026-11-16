@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The metadata-provider control was a `SegmentedButton` holding "TMDB",
-/// "TheTVDB" and (once AVDb registered) an external chip — each segment
+/// "TheTVDB" and (once AVDb registered) an external chip - each segment
 /// carrying an ICON as well as its label.
 ///
 /// A SegmentedButton lays its segments out in a single non-wrapping row and
@@ -41,7 +41,7 @@ void main() {
 
   // The provider selector is HIDDEN until an adapter registers (it must not
   // offer a choice that resolves nothing), and `main()` is what registers AVDb.
-  // Without a stand-in adapter these tests would assert nothing at all — the
+  // Without a stand-in adapter these tests would assert nothing at all - the
   // section simply would not be in the tree.
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -123,7 +123,7 @@ void main() {
   }
 
   // The external chip only exists once an adapter registers, which AVDb does
-  // at startup — so the three-chip case is the real one.
+  // at startup - so the three-chip case is the real one.
   testWidgets('three provider chips do not overflow on a small phone',
       (tester) async {
     await expectNoOverflow(
@@ -228,7 +228,7 @@ void main() {
       firstRow.length,
       chips.length,
       reason: 'all ${chips.length} provider chips must be on ONE line at '
-          '390dp — they wrapped onto a second row, which is the reported bug',
+          '390dp - they wrapped onto a second row, which is the reported bug',
     );
     final gaps = <double>[];
     for (var i = 1; i < firstRow.length; i++) {
@@ -260,7 +260,7 @@ void main() {
     await tester.tap(metadata);
     await tester.pumpAndSettle();
 
-    // The label must survive the refactor — a truncated "TheTVD…" is the bug
+    // The label must survive the refactor - a truncated "TheTVD…" is the bug
     // being fixed, so assert the full string is rendered, not elided.
     expect(find.text('TheTVDB'), findsOneWidget);
     expect(find.text('TMDB'), findsOneWidget);

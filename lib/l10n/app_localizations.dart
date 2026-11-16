@@ -1247,7 +1247,7 @@ abstract class AppLocalizations {
   /// Spatial audio subtitle
   ///
   /// In en, this message translates to:
-  /// **'Premium — spatial sound on AirPods Pro and other compatible devices'**
+  /// **'Premium - spatial sound on AirPods Pro and other compatible devices'**
   String get settingsSpatialAudioDesc;
 
   /// Decoder picker label
@@ -1289,7 +1289,7 @@ abstract class AppLocalizations {
   /// Hardware SDR tone-mapping toggle subtitle
   ///
   /// In en, this message translates to:
-  /// **'Convert HDR/Dolby Vision to SDR in hardware — no real HDR on the panel.'**
+  /// **'Convert HDR/Dolby Vision to SDR in hardware - no real HDR on the panel.'**
   String get settingsHwSdrToneMapDesc;
 
   /// TMDB key input label
@@ -2009,7 +2009,7 @@ abstract class AppLocalizations {
   /// Guest access label
   ///
   /// In en, this message translates to:
-  /// **'Guest — no username/password'**
+  /// **'Guest - no username/password'**
   String get smbGuest;
 
   /// Bookmark success message
@@ -3035,7 +3035,7 @@ abstract class AppLocalizations {
   /// Timer expired message
   ///
   /// In en, this message translates to:
-  /// **'Sleep timer finished — playback paused'**
+  /// **'Sleep timer finished - playback paused'**
   String get sleepFinished;
 
   /// Volume off state
@@ -3299,19 +3299,19 @@ abstract class AppLocalizations {
   /// Hardware decoder failed mid-stream, retrying with software
   ///
   /// In en, this message translates to:
-  /// **'The hardware decoder failed to decode this video — retrying with software decoding.'**
+  /// **'The hardware decoder failed to decode this video - retrying with software decoding.'**
   String get playerVideoDecodeRetrySw;
 
   /// Sleep timer finished message
   ///
   /// In en, this message translates to:
-  /// **'Sleep timer finished — playback paused'**
+  /// **'Sleep timer finished - playback paused'**
   String get playerSleepTimerFinished;
 
   /// Warning shown when the volume gesture crosses above 100% into boost
   ///
   /// In en, this message translates to:
-  /// **'Above 100% can damage your speakers — use at your own risk'**
+  /// **'Above 100% can damage your speakers - use at your own risk'**
   String get playerVolumeBoostWarning;
 
   /// Warning shown when the brightness gesture reaches full brightness
@@ -3395,7 +3395,7 @@ abstract class AppLocalizations {
   /// Empty continue watching message
   ///
   /// In en, this message translates to:
-  /// **'No videos yet — tap + to begin'**
+  /// **'No videos yet'**
   String get homeNothingYet;
 
   /// Downloaded videos section header
@@ -3515,7 +3515,7 @@ abstract class AppLocalizations {
   /// Explanation under the custom MPV config row
   ///
   /// In en, this message translates to:
-  /// **'Your mpv.conf is applied on top of DreamPlayer\'s MPV settings (options only — scripts and profiles are ignored). vo/wid are protected so the video surface stays attached.'**
+  /// **'Your mpv.conf is applied on top of DreamPlayer\'s MPV settings (options only - scripts and profiles are ignored). vo/wid are protected so the video surface stays attached.'**
   String get settingsMpvUserConfigHint;
 
   /// Header for the secondary subtitle list in the MPV CC sheet

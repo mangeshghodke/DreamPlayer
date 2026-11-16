@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 
 /// A saved FTP / SFTP server (see `FtpClient.kt`). The password never crosses
-/// to Dart — only `hasPassword` is exposed.
+/// to Dart - only `hasPassword` is exposed.
 class FtpServer {
   const FtpServer({
     required this.id,
@@ -168,7 +168,7 @@ class FtpClient {
   }
 
   /// Full directory listing (videos AND sidecar subtitles) without the
-  /// video-only filter the browser uses — the sidecar service needs every
+  /// video-only filter the browser uses - the sidecar service needs every
   /// entry to pair subtitles by name (Nova `RawListerFactory.getFileList()`).
   Future<List<FtpEntry>> listDirectoryAll(String serverId, String path) async {
     final result = await _channel.invokeListMethod<dynamic>('listDirectoryAll', {
@@ -182,7 +182,7 @@ class FtpClient {
   }
 
   /// Nova-parity sidecar prefetch: reads a subtitle file's bytes so the caller
-  /// can write them to a local cache. Returns null on 404/no-access — sidecar
+  /// can write them to a local cache. Returns null on 404/no-access - sidecar
   /// discovery treats that as "no subtitle".
   Future<Uint8List?> fetchBytes(String serverId, String path,
       {int maxBytes = 50 * 1024 * 1024}) async {

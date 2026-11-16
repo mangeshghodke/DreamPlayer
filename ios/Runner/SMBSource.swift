@@ -11,7 +11,7 @@ import AetherEngineSMB
 /// pair. The important property is that `FileReader` reads are *stateless*: every
 /// `read(offset:length:)` issues a fresh ranged READ at that offset, with no
 /// shared cursor. A source built over this session can therefore be created,
-/// discarded and recreated at will — a reload after an audio-track switch just
+/// discarded and recreated at will - a reload after an audio-track switch just
 /// makes a new source, and the engine's container probe reads real bytes again.
 /// The old ring reader was one-shot (drained, cursor at EOF), which is exactly
 /// what produced "custom source probe failed" on every reload.
@@ -22,7 +22,7 @@ final class SMBPlayback: @unchecked Sendable {
     /// libsmb2 is the only playback transport, and the only SMB transport on iOS
     /// at all. An earlier version opened a second session to the same file and
     /// kept it as a fallback, which meant two negotiates, two session setups, two
-    /// tree connects and two file handles per play — with the spare one never
+    /// tree connects and two file handles per play - with the spare one never
     /// read from. Beyond the wasted latency
     /// that also occupies a server-side open-session slot and holds the
     /// credentials twice, and some NAS/Samba configurations cap those per user.
@@ -35,7 +35,7 @@ final class SMBPlayback: @unchecked Sendable {
     /// plain struct fields with no internal locking, so two readers on one
     /// context must never be in it at the same time. This used to be created
     /// per-reader inside `SMBSourceReader.init`, which was fine while playback
-    /// only ever made one reader — but the chapter probe needs a second cursor,
+    /// only ever made one reader - but the chapter probe needs a second cursor,
     /// and two cursors with two locks is exactly the race that corrupts the
     /// context. `makeIndependentReader()` already shared the lock; now every
     /// path does.
@@ -56,7 +56,7 @@ final class SMBPlayback: @unchecked Sendable {
     /// A chapter reader over the SAME handle, on its own cursor.
     ///
     /// Mirrors [makeReader] so callers never have to know that
-    /// `makeIndependentReader` lives on `SMBSourceReader` rather than here —
+    /// `makeIndependentReader` lives on `SMBSourceReader` rather than here -
     /// which is exactly the mistake the first chapter build made
     /// ("SMBPlayback has no member 'makeIndependentReader'"). `pread` is
     /// positional, so the chapter walk's one seek to the SeekHead offset lands
@@ -86,7 +86,7 @@ final class SMBPlayback: @unchecked Sendable {
 /// One lock, shared with every reader derived from the same handle, because
 /// libsmb2's context keeps its message-id counter and credit accounting in plain
 /// struct fields with no internal locking. Holding it across a blocking `pread`
-/// is fine — the thread is doing real work, not waiting on the cooperative pool.
+/// is fine - the thread is doing real work, not waiting on the cooperative pool.
 final class SMBSourceReader: IOReader, @unchecked Sendable {
     /// Shared with derived readers so the context is never entered twice.
     private let lock: NSRecursiveLock

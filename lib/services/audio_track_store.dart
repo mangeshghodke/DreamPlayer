@@ -38,7 +38,7 @@ class AudioTrackStore {
     final p = await SharedPreferences.getInstance();
     final key = '$_kPrefix${engine}_$resumeKey';
     if (!p.containsKey(key)) return null;
-    // Typed getters throw on the wrong primitive — probe with the raw map.
+    // Typed getters throw on the wrong primitive - probe with the raw map.
     final raw = p.get(key);
     if (raw is int || raw is String) return raw;
     return null;

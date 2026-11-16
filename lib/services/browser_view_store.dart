@@ -22,7 +22,7 @@ enum BrowserViewMode {
 
 /// Persists the List / Grid choice for the network browsers.
 ///
-/// One preference for every browser (SMB, WebDAV, FTP, UPnP, Jellyfin) —
+/// One preference for every browser (SMB, WebDAV, FTP, UPnP, Jellyfin) -
 /// switching to Grid in one switches them all, which is what a user expects
 /// from a view setting and avoids five independent toggles to get wrong.
 ///

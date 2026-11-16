@@ -2,7 +2,7 @@
 ///
 /// Supplied at build time via `--dart-define=TRAKT_CLIENT_ID=...`
 /// and optional `--dart-define=TRAKT_CLIENT_SECRET=...`
-/// (see `.env.example`). Empty by default — the Trakt section in
+/// (see `.env.example`). Empty by default - the Trakt section in
 /// Settings is hidden until a client id is configured. Never commit
 /// real credentials. Get yours at https://trakt.tv/oauth/applications/new
 ///

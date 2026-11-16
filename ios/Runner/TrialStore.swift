@@ -8,7 +8,7 @@ import StoreKit
 ///
 /// The item is written with `kSecAttrSynchronizable: true`, so it also
 /// follows the user to a new device through iCloud Keychain / an encrypted
-/// backup — without that, buying a new phone and restoring a backup would
+/// backup - without that, buying a new phone and restoring a backup would
 /// hand out a fresh 7-day trial. If iCloud Keychain is unavailable the write
 /// falls back to a device-local item, so the marker is never silently lost.
 class TrialStore {
@@ -35,7 +35,7 @@ class TrialStore {
         // product. sync() is also what prompts for the owning Apple ID when
         // the device is signed in with a different one.
         //
-        // Lives on this channel because TrialStore already owns it — a second
+        // Lives on this channel because TrialStore already owns it - a second
         // Swift channel for one method would need another registration.
         Task {
           do {
@@ -62,7 +62,7 @@ class TrialStore {
     // Migration: builds before the sync shipped stored a device-local
     // (`ThisDeviceOnly`) item under the same service/account. It is invisible
     // to a `kSecAttrSynchronizable: true` query, so read it explicitly and
-    // re-write it as synced — otherwise every existing user keeps a
+    // re-write it as synced - otherwise every existing user keeps a
     // device-only trial marker forever.
     guard let legacy = readItem(synchronizable: false) else { return nil }
     write(legacy)
@@ -85,7 +85,7 @@ class TrialStore {
   }
 
   private static func write(_ value: Int64?) {
-    // Delete any existing copy — both the synced item and the legacy
+    // Delete any existing copy - both the synced item and the legacy
     // device-local one, so a value never lingers as a second entry.
     for synchronizable in [true, false] {
       SecItemDelete(deleteQuery(synchronizable: synchronizable) as CFDictionary)
@@ -102,7 +102,7 @@ class TrialStore {
     if SecItemAdd(syncedQuery as CFDictionary, nil) == errSecSuccess { return }
 
     // iCloud Keychain unavailable (user signed out, Keychain sync off, no
-    // iCloud account) — fall back to a device-local item so the marker is
+    // iCloud account) - fall back to a device-local item so the marker is
     // still recorded. Without this the trial start would be lost entirely.
     syncedQuery = addQuery(data: data, synchronizable: false)
     SecItemAdd(syncedQuery as CFDictionary, nil)

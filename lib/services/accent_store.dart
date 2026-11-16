@@ -23,7 +23,7 @@ class AccentStore extends ChangeNotifier {
   /// current accent as `0xAARRGGBB`. The iOS unlock splash reads this
   /// (native key `flutter.dreamplayer.accentIndicator`) so the splash matches
   /// the pill behind the selected Library/Settings destination instead of a
-  /// hard-coded violet — Material 3 tone mapping is not re-implemented in
+  /// hard-coded violet - Material 3 tone mapping is not re-implemented in
   /// Swift, the Dart side computes it and persists it.
   static const String indicatorPrefsKey = 'dreamplayer.accentIndicator';
 
@@ -36,7 +36,7 @@ class AccentStore extends ChangeNotifier {
       ).primaryContainer;
 
   /// Seeds chosen to stay legible on the app's near-black background
-  /// (`#0E0E11`) — none of them is so light it disappears against it.
+  /// (`#0E0E11`) - none of them is so light it disappears against it.
   static const List<Accent> accents = [
     Accent('violet', 'Violet', Color(0xFF7C4DFF)),
     Accent('blue', 'Blue', Color(0xFF3D7BFF)),

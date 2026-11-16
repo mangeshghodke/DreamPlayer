@@ -4,7 +4,7 @@ import 'package:dream_player/services/anime4k_shader_store.dart';
 ///
 /// The numbers come from Android's `PowerManager.getThermalHeadroom(10)`,
 /// which answers from 0 (about to throttle) to 1 (comfortable). The policy
-/// that turns that number into a quality tier is ours — the platform only
+/// that turns that number into a quality tier is ours - the platform only
 /// publishes the reading.
 enum ThermalTier {
   /// No reading, or the device is comfortable.
@@ -24,7 +24,7 @@ enum ThermalTier {
 
 /// The tier a headroom reading falls into.
 ///
-/// A reading below 0 (the platform's "no answer") is *not* a tier change —
+/// A reading below 0 (the platform's "no answer") is *not* a tier change -
 /// it means the platform cannot tell us, so the quality is left alone.
 ThermalTier thermalTierFor(double headroom) {
   if (headroom < 0) return ThermalTier.normal;
@@ -43,7 +43,7 @@ class ThermalQualityLimit {
   });
 
   /// The highest frame-interpolation target allowed. 0 means "no
-  /// interpolation" — the frames are the source's own.
+  /// interpolation" - the frames are the source's own.
   final int maxInterpolationFps;
 
   /// Whether the Anime4K upscaler may run at all.
@@ -104,7 +104,7 @@ Anime4kMode stepDownAnime4k(Anime4kMode mode) {
 
 /// The Anime4k preset a [mode] has to fall back to at [tier].
 ///
-/// `null` means "no change" — either the tier does not touch the preset, or
+/// `null` means "no change" - either the tier does not touch the preset, or
 /// the preset is already the cheapest one.
 Anime4kMode? anime4kModeForTier(ThermalTier tier, Anime4kMode mode) {
   if (tier != ThermalTier.hot) return null;

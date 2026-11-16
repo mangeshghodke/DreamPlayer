@@ -9,7 +9,7 @@ import 'package:dream_player/services/mpv_interpolation_store.dart';
 import 'package:dream_player/utils/mpv_interpolation.dart';
 
 /// Frame interpolation (issue #53) is driven by three mpv details that each
-/// silently do nothing on their own — the options below pin them.
+/// silently do nothing on their own - the options below pin them.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

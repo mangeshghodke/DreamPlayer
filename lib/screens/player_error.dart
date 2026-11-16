@@ -14,11 +14,11 @@ String friendlyPlayerError(ExoPlayerEvent e) {
           : '';
       return 'Server returned an error status for this file$detail. The '
           'source may have expired (e.g. a file handoff from a file '
-          'manager) — reopen it from its source and try again.';
+          'manager) - reopen it from its source and try again.';
     case 'ERROR_CODE_IO_FILE_NOT_FOUND':
     case 'ERROR_CODE_IO_NO_PERMISSION':
       return 'The video file could not be accessed. It may have been '
-          'moved, deleted, or its access permission has expired — reopen '
+          'moved, deleted, or its access permission has expired - reopen '
           'it from its source.';
     case 'ERROR_CODE_IO_UNSPECIFIED':
       return 'Connection interrupted while playing. '

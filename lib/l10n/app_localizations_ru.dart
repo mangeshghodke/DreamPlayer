@@ -612,7 +612,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get settingsSpatialAudioDesc =>
-      'Премиум — пространственный звук в AirPods Pro и других совместимых устройствах';
+      'Премиум - пространственный звук в AirPods Pro и других совместимых устройствах';
 
   @override
   String get settingsVideoDecoder => 'Video decoder';
@@ -634,7 +634,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get settingsHwSdrToneMapDesc =>
-      'Convert HDR/Dolby Vision to SDR in hardware — no real HDR on the panel.';
+      'Convert HDR/Dolby Vision to SDR in hardware - no real HDR on the panel.';
 
   @override
   String get settingsTmdbKey => 'TMDB API key';
@@ -1010,7 +1010,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get smbDomainHint => 'WORKGROUP';
 
   @override
-  String get smbGuest => 'Guest — no username/password';
+  String get smbGuest => 'Guest - no username/password';
 
   @override
   String smbBookmarkAdded(String folder, String server) {
@@ -1550,7 +1550,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sleepEndOfVideo => 'End of current video';
 
   @override
-  String get sleepFinished => 'Sleep timer finished — playback paused';
+  String get sleepFinished => 'Sleep timer finished - playback paused';
 
   @override
   String get volumeOff => 'Off';
@@ -1709,15 +1709,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get playerVideoDecodeRetrySw =>
-      'Аппаратный декодер не смог декодировать это видео — повторяем с программным декодированием.';
+      'Аппаратный декодер не смог декодировать это видео - повторяем с программным декодированием.';
 
   @override
   String get playerSleepTimerFinished =>
-      'Таймер истёк — воспроизведение приостановлено';
+      'Таймер истёк - воспроизведение приостановлено';
 
   @override
   String get playerVolumeBoostWarning =>
-      'Выше 100 % может повредить динамики — используйте на свой страх и риск';
+      'Выше 100 % может повредить динамики - используйте на свой страх и риск';
 
   @override
   String get playerBrightnessBatteryWarning =>
@@ -1762,7 +1762,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get homeTitle => 'DreamPlayer';
 
   @override
-  String get homeNothingYet => 'Пока пусто — нажмите + чтобы начать';
+  String get homeNothingYet => 'Нет видео';
 
   @override
   String get homeDownloaded => 'Загрузки';

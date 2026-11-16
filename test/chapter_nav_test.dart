@@ -48,7 +48,7 @@ void main() {
       expect(ChapterNav.next(anime, 90000)?.title, 'Part B');
     });
 
-    test('is null at the last chapter — no silent wrap to the start', () {
+    test('is null at the last chapter - no silent wrap to the start', () {
       expect(ChapterNav.next(anime, 3000000), isNull);
       expect(ChapterNav.next(anime, 9999999), isNull);
     });
@@ -69,7 +69,7 @@ void main() {
 
     test('inside the grace window it goes back a chapter', () {
       // 1s into "Part B" is still "just started", so this means "previous
-      // chapter" — which is what a viewer pressing twice in a row expects.
+      // chapter" - which is what a viewer pressing twice in a row expects.
       expect(ChapterNav.previous(anime, 1501000)?.title, 'Part A');
     });
 

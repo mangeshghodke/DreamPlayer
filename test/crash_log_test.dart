@@ -6,7 +6,7 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 
 import 'package:dream_player/services/crash_log.dart';
 
-/// dreamplayer_crash.log — one timestamped entry per uncaught Dart error,
+/// dreamplayer_crash.log - one timestamped entry per uncaught Dart error,
 /// in the app Documents folder, shared by the Settings "App crashed?" note.
 
 class _FakePathProvider extends PathProviderPlatform {
@@ -85,7 +85,7 @@ void main() {
     await CrashLog.flush();
 
     // Even with no crash, dreamplayer_crash.log exists and carries a boot
-    // entry — the "App crashed?" report form lists only existing files.
+    // entry - the "App crashed?" report form lists only existing files.
     expect(logFile.existsSync(), isTrue);
     final text = logFile.readAsStringSync();
     expect(text, contains('session'));

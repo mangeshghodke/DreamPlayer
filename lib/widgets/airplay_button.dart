@@ -16,14 +16,14 @@ const String airPlayViewType = 'dreamplayer/airplay';
 ///
 /// Note the engine split: the native AVPlayer path (Apple containers) can
 /// send the *picture* to a receiver, while the FFmpeg/Metal path (MKV, TS,
-/// AVI, WebM) can only route audio — AirPlay video needs an `AVPlayerLayer`.
+/// AVI, WebM) can only route audio - AirPlay video needs an `AVPlayerLayer`.
 /// The picker is shown either way, because audio-only AirPlay to a HomePod or
 /// receiver is still useful.
 class AirPlayButton extends StatelessWidget {
   const AirPlayButton({super.key, this.size = 40});
 
   /// False on Android, desktop and in widget tests, where the platform view
-  /// type does not exist — building a [UiKitView] there would never resolve.
+  /// type does not exist - building a [UiKitView] there would never resolve.
   static bool get isSupported => !kIsWeb && Platform.isIOS;
 
   final double size;

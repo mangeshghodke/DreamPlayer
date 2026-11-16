@@ -7,13 +7,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/// Regression tests for issue #44 — VobSub (.idx/.sub) subtitles.
+/// Regression tests for issue #44 - VobSub (.idx/.sub) subtitles.
 ///
 /// The reporter's files were valid: a 19.2 MB `.sub` holding raw MPEG-PS
 /// (pack header 00 00 01 BA, DVD subtitle PES 00 00 01 BD) beside a 123 KB
 /// `.idx`, 2737 cues, 1920x1080. DreamPlayer mapped `.sub` unconditionally to
 /// MicroDVD (a *text* format), and `toUtf8` loaded all 19 MB into the platform
-/// thread to charset-detect it — which OOM-killed the app.
+/// thread to charset-detect it - which OOM-killed the app.
 ///
 /// These tests pin the two guards that prevent a repeat. They deliberately use
 /// the real byte patterns from the reported file rather than synthetic bytes,
@@ -24,7 +24,7 @@ class SubtitleFormatsVobSubTest {
 
     @Test
     fun `mpeg program stream pack header is binary`() {
-        // 00 00 01 BA — a VobSub .sub starts here. This is the exact prefix of
+        // 00 00 01 BA - a VobSub .sub starts here. This is the exact prefix of
         // the reporter's file.
         assertTrue(SubtitleFormats.looksBinary(byteArrayOf(0x00, 0x00, 0x01, 0xBA.toByte())))
     }
@@ -62,7 +62,7 @@ class SubtitleFormatsVobSubTest {
 
             2
             00:00:04,000 --> 00:00:06,000
-            Second line — with an em dash.
+            Second line - with an em dash.
         """.trimIndent().toByteArray(Charsets.UTF_8)
         assertFalse(SubtitleFormats.looksBinary(srt))
     }
@@ -70,7 +70,7 @@ class SubtitleFormatsVobSubTest {
     @Test
     fun `cp1252 srt with high bytes is not binary`() {
         // Legacy encodings are exactly why toUtf8 exists, so high bytes alone
-        // must not be read as "binary" — that would reintroduce mojibake.
+        // must not be read as "binary" - that would reintroduce mojibake.
         val text = byteArrayOf(
             '1'.code.toByte(), '\n'.code.toByte(),
             '0'.code.toByte(), '0'.code.toByte(), ':'.code.toByte(),
@@ -267,7 +267,7 @@ class SubtitleFormatsVobSubTest {
     fun `reported idx is text and under the bounded read cap`() {
         val idx = javaClass.getResourceAsStream("/vobsub_reported.idx")
             ?.use { it.readBytes() } ?: error("test fixture missing")
-        // The .idx is plain text, so the binary guard must NOT reject it — that
+        // The .idx is plain text, so the binary guard must NOT reject it - that
         // guard is for the payload, and rejecting this would break the fix.
         assertFalse(SubtitleFormats.looksBinary(idx.copyOf(4096)))
         assertTrue(idx.size <= SubtitleFormats.MAX_VOBSUB_IDX_BYTES)

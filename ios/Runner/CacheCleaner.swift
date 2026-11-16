@@ -2,7 +2,7 @@ import Flutter
 import Foundation
 
 /// Clears the app's on-disk cache on demand (the `dreamplayer/cache` channel).
-/// Deletes the contents of the app's Caches directory and tmp — subtitle temp
+/// Deletes the contents of the app's Caches directory and tmp - subtitle temp
 /// files and anything AetherEngine/FFmpeg dropped there. Both directories are
 /// OS-purgeable, so deleting them is always safe. The in-memory image cache
 /// (TMDB posters/backdrops/stills) lives in Flutter and is cleared from Dart

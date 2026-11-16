@@ -92,7 +92,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     try {
       // The installer intent is always fired; if the "install unknown apps"
       // grant is missing, the system installer shows its own popup with a
-      // Settings button — no separate phase needed here.
+      // Settings button - no separate phase needed here.
       await AppUpdater.install(apk);
       if (mounted) Navigator.of(context).pop();
     } on PlatformException catch (e) {

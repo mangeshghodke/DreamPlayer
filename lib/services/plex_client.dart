@@ -307,7 +307,7 @@ class PlexItem {
     return double.tryParse(value.toString());
   }
 
-  /// Reads a field both bare and `@`-prefixed — Plex JSON attributes come
+  /// Reads a field both bare and `@`-prefixed - Plex JSON attributes come
   /// through as `@ratingKey`, `@title`, `@type`, ….
   static dynamic attr(Map<String, dynamic> json, String key) {
     return json[key] ?? json['@$key'];
@@ -475,7 +475,7 @@ class PlexClient {
   static String normalizeUrl(String raw) {
     var url = raw.trim();
     if (url.isEmpty) return url;
-    // Strip any existing path — Plex servers are root-homed.
+    // Strip any existing path - Plex servers are root-homed.
     final uri = Uri.tryParse(url);
     if (uri != null && uri.path.isNotEmpty && uri.path != '/') {
       final trimmed = url.substring(0, url.length - uri.path.length);
@@ -504,7 +504,7 @@ class PlexClient {
     if (e is TimeoutException) return 'The server did not respond in time';
     if (e is FormatException) return 'The server sent an unexpected response';
     if (e is HandshakeException) {
-      return 'TLS handshake failed — enable self-signed certificates';
+      return 'TLS handshake failed - enable self-signed certificates';
     }
     return 'Unexpected error: $e';
   }
@@ -614,7 +614,7 @@ class PlexClient {
   }
 
   /// Plex usually answers JSON when `Accept: application/json` is sent, but
-  /// `identity` and `users/sign_in` sometimes reply XML — fall back to regex
+  /// `identity` and `users/sign_in` sometimes reply XML - fall back to regex
   /// extraction so the caller never crashes on a supported response.
   Map<String, dynamic> _decodeMap(String body) {
     final trimmed = body.trimLeft();
@@ -646,7 +646,7 @@ class PlexClient {
   // Auth / probe
   // -----------------------------------------------------------------------
 
-  /// Pings `/identity` — no auth required — so the server dialog can verify a
+  /// Pings `/identity` - no auth required - so the server dialog can verify a
   /// URL without credentials.
   Future<PlexConnectionInfo> testConnection(
     String rawUrl, {
@@ -710,7 +710,7 @@ class PlexClient {
   }
 
   String? _findAuthenticationToken(Map<String, dynamic> json) {
-    // Direct response header case is handled by http package? No — headers
+    // Direct response header case is handled by http package? No - headers
     // only; here we scan the JSON body.
     for (final key in const [
       'authenticationToken',
@@ -843,7 +843,7 @@ class PlexClient {
     return 'Chapter ${fallbackIndex + 1}';
   }
 
-  /// Direct-play URL for one playable item. Requires `partId` — episodes and
+  /// Direct-play URL for one playable item. Requires `partId` - episodes and
   /// movies always carry it; browsing entries don't.
   String? streamUrl(PlexServer server, PlexItem item) {
     if (item.partId == null) return null;

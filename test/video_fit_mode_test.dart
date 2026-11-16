@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Nova Video Player's PlayerActivity exposes a "Format" menu with 8 entries:
 /// Original / Fullscreen / Stretched / 4:3 / 16:9 / 1.85:1 / 2.39:1 / Optimized.
 /// DreamPlayer mirrors these as the `VideoFitMode` enum (8 values, matching
-/// by enum order/labels). The "Optimized" entry is NOT included — it requires
+/// by enum order/labels). The "Optimized" entry is NOT included - it requires
 /// per-screen AR detection that Nova handles internally on Android.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

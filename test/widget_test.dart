@@ -30,14 +30,14 @@ void main() {
 
     // "Support" is a flat section header on Android, visible without expanding.
     expect(find.text('Support'), findsOneWidget);
-    // "About" is the title of an ExpansionTile — visible without expanding.
+    // "About" is the title of an ExpansionTile - visible without expanding.
     await tester.scrollUntilVisible(
       find.text('About'),
       200,
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.text('About'), findsOneWidget);
-    // "Version" is inside the collapsed About section — tap to expand first.
+    // "Version" is inside the collapsed About section - tap to expand first.
     await tester.tap(find.text('About'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
@@ -67,12 +67,12 @@ void main() {
     await tester.pumpWidget(const DreamPlayerApp());
     await tester.pumpAndSettle();
 
-    // Tap on the first frame before the TMDB hint dialog mounts — it would
+    // Tap on the first frame before the TMDB hint dialog mounts - it would
     // swallow the tap on the nav button (mirrors the sibling shell tests).
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    // The "Buy" section header was removed — the tile sits at the top.
+    // The "Buy" section header was removed - the tile sits at the top.
     expect(find.text('DreamPlayer Premium'), findsOneWidget);
     expect(find.text('Unlock all premium features'), findsOneWidget);
   });
@@ -224,7 +224,7 @@ void main() {
     expect(find.text('Add folder to library'), findsOneWidget);
     expect(find.text('Internal storage'), findsOneWidget);
 
-    // Network entries live inside a collapsed ExpansionTile — expand it.
+    // Network entries live inside a collapsed ExpansionTile - expand it.
     await tester.tap(find.text('Network sources'));
     await tester.pumpAndSettle();
 

@@ -21,7 +21,7 @@ extern "C" {
 #include <dcerpc/dcerpc.h>
 
 /*
- * Endpoint Mapper (ept) — C706 Appendix O / [MS-RPCE].
+ * Endpoint Mapper (ept) - C706 Appendix O / [MS-RPCE].
  *
  * Interface UUID: e1af8308-5d1f-11c9-91a4-08002b14a0fa version 3.0
  * Well-known named pipe: \pipe\epmapper
@@ -75,7 +75,7 @@ struct dcerpc_context;
 struct dcerpc_pdu;
 
 /*
- * twr_t — opaque protocol tower (C706).
+ * twr_t - opaque protocol tower (C706).
  *
  * typedef struct {
  *     unsigned32 tower_length;

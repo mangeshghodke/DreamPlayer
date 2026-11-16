@@ -132,8 +132,8 @@ class FileBrowser(private val activity: MainActivity) {
     /// Accepts either a plain filesystem path (needs
     /// `MANAGE_EXTERNAL_STORAGE` on Android 11+) or a `content://` SAF URI
     /// (deleted through the persisted tree grant). Refuses anything that is
-    /// not a plain local file — a network path, a directory, or a synthetic
-    /// `tree:<id>` path — so this can never be used to wipe a share by
+    /// not a plain local file - a network path, a directory, or a synthetic
+    /// `tree:<id>` path - so this can never be used to wipe a share by
     /// accident. Callers are expected to have confirmed with the user first.
     private fun deleteLocalFile(call: MethodCall, result: MethodChannel.Result) {
         val path = call.argument<String>("path")
@@ -223,7 +223,7 @@ class FileBrowser(private val activity: MainActivity) {
     /// The browser's "Download to device" action: the picked file is copied
     /// into `<Downloads>/DreamPlayer/`, which is the same place the network
     /// downloader writes, so downloaded files all land in one folder.
-    /// Conflicts never overwrite — a suffix is appended, because silently
+    /// Conflicts never overwrite - a suffix is appended, because silently
     /// clobbering an existing file is worse than a duplicated name.
     private fun copyLocalToDownloads(call: MethodCall, result: MethodChannel.Result) {
         val path = call.argument<String>("path")
@@ -333,7 +333,7 @@ class FileBrowser(private val activity: MainActivity) {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
 
     /// Embedded cover-art bytes for a local file or content URI. This is a
-    /// METADATA-ONLY read — `MediaMetadataRetriever.getEmbeddedPicture()` never
+    /// METADATA-ONLY read - `MediaMetadataRetriever.getEmbeddedPicture()` never
     /// touches the video decoder, so DV/HDR content is safe (unlike frame
     /// extraction, which returns black frames on Qualcomm for HDR). http(s)
     /// sources are skipped: network artwork belongs to TMDB posters instead.
@@ -373,7 +373,7 @@ class FileBrowser(private val activity: MainActivity) {
     ///
     /// Issue #48: this used to list `/storage` and skip anything named `usb*`.
     /// That filter was aimed at the legacy `/storage/usb` FUSE mount, but it is
-    /// also exactly the name a USB volume had on many devices — so plugging in
+    /// also exactly the name a USB volume had on many devices - so plugging in
     /// a drive showed nothing at all, on a TV especially. The modern mount
     /// point is `/storage/<VOLUME_UUID>` with no `usb` in the name, and the
     /// `StorageManager` is the API that actually reports it.
@@ -510,7 +510,7 @@ class FileBrowser(private val activity: MainActivity) {
         }
 
         // For local-storage trees (primary:..., secondary:...), resolve the
-        // actual file-system path and list directly — this avoids SAF grant
+        // actual file-system path and list directly - this avoids SAF grant
         // issues where DocumentFile.listFiles() returns empty after a
         // flutter install / APK reinstall.
         val localPath = resolveLocalPath(treeUri, relative)
@@ -525,7 +525,7 @@ class FileBrowser(private val activity: MainActivity) {
         // Fallback: SAF DocumentFile path (for non-local providers). A tree
         // whose backing volume was removed/unmounted or whose grant was
         // revoked since bookmarking throws from findFile/isDirectory/
-        // listFiles/child.name with no warning — caught here so the caller
+        // listFiles/child.name with no warning - caught here so the caller
         // gets the same structured not_found response as every other
         // missing-folder case instead of an unhandled platform exception.
         try {
@@ -664,7 +664,7 @@ class FileBrowser(private val activity: MainActivity) {
             .mapNotNull { key ->
                 // A single stale/revoked SAF grant (SD card removed, access
                 // revoked in system Settings, a grant that didn't survive a
-                // reinstall) must not take down the WHOLE root list — without
+                // reinstall) must not take down the WHOLE root list - without
                 // this, one bad bookmark hides internal storage and every
                 // other healthy bookmark too.
                 try {
@@ -743,7 +743,7 @@ class FileBrowser(private val activity: MainActivity) {
         startFolderPicker(result)
     }
 
-    /// Same picker, but the picked tree is stored as a LIBRARY bookmark — it
+    /// Same picker, but the picked tree is stored as a LIBRARY bookmark - it
     /// never shows up as a file-browser root.
     private fun pickLibraryFolder(result: MethodChannel.Result) {
         if (pendingFolderResult != null) {
@@ -823,7 +823,7 @@ class FileBrowser(private val activity: MainActivity) {
         val uri = data.data!!
         // Persist permission if possible; CX's SMB provider only grants
         // temporary permission, so also copy to a cache file immediately
-        // while the grant is still valid — otherwise ExoPlayer reads it
+        // while the grant is still valid - otherwise ExoPlayer reads it
         // later and the provider may be dead (CX task was killed).
         var outUri = uri.toString()
         try {
@@ -970,7 +970,7 @@ class FileBrowser(private val activity: MainActivity) {
             }
         } catch (_: Exception) {
         }
-        // Only accept actual font extensions — the picker allows */* so the
+        // Only accept actual font extensions - the picker allows */* so the
         // user can reach any provider; anything else is rejected here.
         val lower = name.lowercase()
         if (!lower.endsWith(".ttf") && !lower.endsWith(".otf") &&
@@ -1064,7 +1064,7 @@ class FileBrowser(private val activity: MainActivity) {
             // Android caps persistable grants per app (~128) and some
             // providers reject GRANT_PERSISTABLE outright. Bookmarking
             // anyway would save a folder that silently fails to list on the
-            // next process restart with no diagnostic for the user — surface
+            // next process restart with no diagnostic for the user - surface
             // the failure instead of pretending it succeeded.
             android.util.Log.w("FileBrowser", "takePersistableUriPermission failed for $treeUri, not bookmarking", e)
             false

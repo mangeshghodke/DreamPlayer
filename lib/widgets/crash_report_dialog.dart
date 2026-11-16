@@ -9,7 +9,7 @@ enum _ReportState { editing, sending, sent, failed }
 
 /// In-app crash report: lists the debug logs that exist on the device with
 /// checkboxes, a message box, and a Submit button that uploads them to the
-/// configured endpoint — no mail app involved. Falls back to the platform
+/// configured endpoint - no mail app involved. Falls back to the platform
 /// share sheet when no endpoint is configured or the upload fails.
 Future<void> showCrashReportDialog(BuildContext context) {
   return showDialog<void>(
@@ -39,7 +39,7 @@ class _CrashReportDialogState extends State<_CrashReportDialog> {
     _pathsFuture = existingCrashLogPaths().then((paths) {
       _selected.addAll(paths);
       // The parent build decides whether Submit is enabled, so it must
-      // re-run once the selection is populated — the FutureBuilder alone
+      // re-run once the selection is populated - the FutureBuilder alone
       // would not.
       if (mounted) setState(() {});
       return paths;
@@ -141,7 +141,7 @@ class _CrashReportDialogState extends State<_CrashReportDialog> {
                 const SizedBox(height: 16),
                 if (_state == _ReportState.sent) ...[
                   Text(
-                    'Thank you — the debug logs were sent. If the crash '
+                    'Thank you - the debug logs were sent. If the crash '
                     'repeats, send another report with the new logs.',
                     style: theme.textTheme.bodyMedium,
                   ),

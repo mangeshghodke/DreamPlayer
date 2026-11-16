@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dream_player/services/hw_sdr_tonemap_store.dart';
 
-/// Hardware SDR tone-mapping (issue #55) is OFF by default — the HDR/DV
+/// Hardware SDR tone-mapping (issue #55) is OFF by default - the HDR/DV
 /// passthrough is the app's headline feature and this setting trades it away
 /// on purpose.
 ///

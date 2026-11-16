@@ -1,4 +1,4 @@
-/* DreamPlayer site — progressive enhancement only. Everything works
+/* DreamPlayer site - progressive enhancement only. Everything works
    without JS: the tabs are two stacked blocks, the lightbox never opens. */
 
 (function () {

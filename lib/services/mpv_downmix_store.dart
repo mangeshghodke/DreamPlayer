@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// mpv's default is **off**, and its manual is explicit about why that matters:
 /// "If this is disabled, downmix can cause clipping. If it's enabled, the output
 /// might be too silent." mpv's own maintainer moved to `no` because "people
-/// complained about the downmix being too quiet" — which is exactly issue #37,
+/// complained about the downmix being too quiet" - which is exactly issue #37,
 /// where the MPV engine was noticeably quieter than Media3 for the same file.
 ///
 /// Normalisation only applies when mpv performs the downmix itself (via

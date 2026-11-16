@@ -15,7 +15,7 @@ import AetherEngineSMB
 /// - **Out-of-order completion** merges chunks that land ahead of the contiguous
 ///   write frontier; a failed read rewinds its chunk so it is retried rather
 ///   than leaving a permanent hole.
-/// - `read()` blocks until data arrives (Android parity — no early -1 to the
+/// - `read()` blocks until data arrives (Android parity - no early -1 to the
 ///   demuxer); `seek()` within the ring is a cheap cursor move; outside
 ///   triggers a re-anchor.
 ///
@@ -114,7 +114,7 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
         ringLock.lock()
 
         // Wait for data if the ring is empty. Mirrors Android's SmbDataSource,
-        // which blocks indefinitely — an early -1 would hard-abort the FFmpeg
+        // which blocks indefinitely - an early -1 would hard-abort the FFmpeg
         // probe mid-open on any slow/transient Wi-Fi. A 60 s hard-stall
         // deadline is kept purely as a backstop so a genuinely dead connection
         // surfaces as an error instead of hanging the reader forever.
@@ -239,7 +239,7 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
         // Do NOT cancel the retired prefetchers.
         //
         // Cancelling them was a 60-second stall, not a fix. A prefetcher
-        // blocked in `await source.read(...)` does not stop on cancel() — the
+        // blocked in `await source.read(...)` does not stop on cancel() - the
         // await THROWS CancellationError, which lands in the catch below,
         // sets got = -2 and takes the transient-error path (200ms sleep, then
         // retry). Cancelling all four meant every socket was spinning on
@@ -254,7 +254,7 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
         //
         // `prefetchTasks` is cleared in close(); the array is not drained here
         // because the tasks are still running and deinit must not cancel them
-        // either — a reader being torn down mid-drain is fine, the socket is
+        // either - a reader being torn down mid-drain is fine, the socket is
         // closed by whoever owns the SMBConnection.
         prefetchTasks.removeAll(keepingCapacity: true)
         // Start fresh prefetchers. Old tasks exit on next gen check.
@@ -266,13 +266,13 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
 
     private static let PREFETCH_THREADS = 4
 
-    /// Start prefetch tasks — at most one per underlying connection.  Caller
+    /// Start prefetch tasks - at most one per underlying connection.  Caller
     /// MUST hold ringLock.
     ///
     /// Bumping `prefetchGen` first retires any still-running tasks from a
     /// previous spawn (they exit at their next generation check), so repeated
     /// calls from `read()`/`reanchorLocked()` never pile tasks up on the same
-    /// connections — concurrent SMB reads on one connection corrupt the protocol.
+    /// connections - concurrent SMB reads on one connection corrupt the protocol.
     private func startPrefetchers() {
         prefetchGen &+= 1
         let gen = prefetchGen
@@ -315,7 +315,7 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
                     // Trimming here stalled every large seek: nextWritePos was
                     // already ahead of `position`, so `max` kept that larger
                     // value and the prefetcher kept filling the old region
-                    // while the reader waited on the new one — forever. Small
+                    // while the reader waited on the new one - forever. Small
                     // seeks only worked because nextWritePos was barely ahead.
                     bufStart = position
                     valid = 0
@@ -341,7 +341,7 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
             }
             ringLock.unlock()
 
-            // ---- SMB read (outside lock — parallel with other threads) ----
+            // ---- SMB read (outside lock - parallel with other threads) ----
             var got = -2
             do {
                 let data = try await source.read(at: readAt, length: readLen)
@@ -400,7 +400,7 @@ final class BufferedSMBReader: IOReader, @unchecked Sendable {
                 // Transient error: give the chunk back so it's retried. Without
                 // the rewind, nextWritePos already advanced past this region and
                 // the failed bytes would form a permanent hole the contiguous
-                // frontier can never cross — the ring would never fill again.
+                // frontier can never cross - the ring would never fill again.
                 ringLock.lock()
                 if epoch == ringEpoch {
                     nextWritePos = min(nextWritePos, readAt)

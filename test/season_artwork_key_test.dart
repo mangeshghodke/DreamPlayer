@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// The season-level artwork cascade (issue #33). Season rows used to resolve the
 /// GROUP's metadata key, so a pick made on any season rewrote every season and
-/// the parent too — including a season's change altering the parent, which is
+/// the parent too - including a season's change altering the parent, which is
 /// impossible with genuinely separate keys.
 void main() {
   const show = 'folder:show';

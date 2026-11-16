@@ -102,7 +102,7 @@ double normalizeMpvPictureAdjustment(double value) =>
 /// Heuristic for deciding whether an mpv playback-error string is really a
 /// video-decode failure (vs. an IO/network error that a software retry would
 /// never fix). mpv's mid-stream codec deaths typically surface as
-/// "Could not open codec." — with the given error messages reaching the app as
+/// "Could not open codec." - with the given error messages reaching the app as
 /// free text, we treat any message mentioning a codec/decoder/hardware/pixel
 /// format as a candidate for the automatic software-decode retry.
 bool mpvErrorLooksLikeCodec(String msg) {
@@ -132,12 +132,12 @@ class PlayerScreen extends StatefulWidget {
   /// Which playback engine to start with: the native ExoPlayer/Media3
   /// platform view (hardware-first, software fallback, DV/HDR) or the bundled
   /// libmpv engine (hardware-first via `hwdec=mediacodec`, its own
-  /// internal software fallback, hybrid-composition SurfaceView — SDR by
+  /// internal software fallback, hybrid-composition SurfaceView - SDR by
   /// design until a libplacebo build lands).
   final PlayEngine initialEngine;
 
   /// Push route for the player. Fades in over solid black instead of the
-  /// default Material slide — the slide left the details/folder route fully
+  /// default Material slide - the slide left the details/folder route fully
   /// visible in the uncovered half (and through any platform-view gap), which
   /// read as "opacity none" behind the player.
   static Route<void> route({
@@ -167,7 +167,7 @@ class PlayerScreen extends StatefulWidget {
 }
 
 /// The active playback engine. Media3 is the default (and handles DV/HDR);
-/// libmpv (media_kit) is the user-pickable second engine — chosen up front on
+/// libmpv (media_kit) is the user-pickable second engine - chosen up front on
 /// the details screen ("Play with MPV") or from the Media3 error surface
 /// ("Try with MPV"). Media3 never auto-switches to mpv.
 enum PlayEngine { media3, mpv }
@@ -179,11 +179,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   PlaybackController? _exo;
   StreamSubscription<ExoPlayerEvent>? _exoSub;
 
-  /// libmpv second engine, engaged only by explicit user choice —
+  /// libmpv second engine, engaged only by explicit user choice -
   /// `PlayEngine.mpv` from the details screen or "Try with MPV" on the Media3
   /// error surface. It replaces the [ExoPlayerView] in the video slot and
   /// drives the SAME player UI. Video renders on a hybrid-composition
-  /// [MpvSurfaceView] (real SurfaceFlinger layer — NO Flutter texture, so no
+  /// [MpvSurfaceView] (real SurfaceFlinger layer - NO Flutter texture, so no
   /// dual-layer stack with Media3). Control stays on media_kit's [Player].
   /// Hardware-first (`hwdec=mediacodec`) with FFmpeg software fallback.
   Player? _mpvPlayer;
@@ -200,7 +200,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   ThermalTier _thermalTier = ThermalTier.normal;
   double _thermalHeadroom = -1;
   /// Cached from the first successful [_mpvGpuNextAvailable] probe on this
-  /// player — drives the HDR badge (Native can show real DV/HDR only when
+  /// player - drives the HDR badge (Native can show real DV/HDR only when
   /// libplacebo/gpu-next is present).
   bool? _mpvGpuNext;
   final List<StreamSubscription<Object?>> _mpvSubs = [];
@@ -210,7 +210,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Forced aspect ratio applied in mpv mode for the 16:9 / 4:3 aspect modes
   /// (a `Center`-box wraps the SurfaceView; panscan fills inside that box).
   double? _mpvAspect;
-  // mpv-track state for the chips / info sheet / audio+subtitle pickers —
+  // mpv-track state for the chips / info sheet / audio+subtitle pickers -
   // mirrors the Media3 `_audioTracks`/`_subtitleTracks` fields so the mpv mode
   // shows identical UI.
   Tracks _mpvTracks = const Tracks();
@@ -267,7 +267,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   double _exoPictureSaturation = 0;
   bool _picturePanelOpen = false;
   /// False when the current content is HDR/DV (GL effects would strip the
-  /// native HDR/DV layer) or on iOS (no engine filter hook) — the panel then
+  /// native HDR/DV layer) or on iOS (no engine filter hook) - the panel then
   /// shows a note instead of sliders.
   bool _media3PictureAvailable = false;
   /// Last hwdec value applied to the mpv instance ('mediacodec',
@@ -276,7 +276,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   String _mpvHwdecMode = 'mediacodec';
   /// Resume key of the file currently forced into software decode after a
   /// mid-stream hardware-decoder failure (see [_maybeMpvSoftwareRetry]).
-  /// Non-null only for that file — a later file opens with hardware first.
+  /// Non-null only for that file - a later file opens with hardware first.
   String? _mpvSwRetriedKey;
   /// Active SMB loopback-bridge token (see [SmbHttpProxy] / `startLoopback`);
   /// null when the fallback's current source isn't served through the bridge.
@@ -292,10 +292,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// instead of the loopback one.
   String? _mpvHttpBridgeSource;
   /// Resume key of the file whose http(s) source has already been retried
-  /// through the bridge — one retry per file, so a permanently broken link
+  /// through the bridge - one retry per file, so a permanently broken link
   /// does not spin.
   String? _mpvHttpBridgeTriedKey;
-  /// Serializes wid attaches — surfaceReady/surfaceChanged can fire back-to-back
+  /// Serializes wid attaches - surfaceReady/surfaceChanged can fire back-to-back
   /// and each vo=null→wid→vo=gpu swap reconfigures MediaCodec. Overlapping
   /// attaches leave the decoder bound to a NULL surface (black video).
   Future<void>? _mpvAttachChain;
@@ -309,7 +309,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// transcode fallback fires.
   late VideoItem _current = widget.video;
 
-  /// TMDB metadata for the current video (resolved on open) — the top bar
+  /// TMDB metadata for the current video (resolved on open) - the top bar
   /// shows the TMDB title when available, falling back to the raw file name.
   TmdMeta? _tmdbMeta;
 
@@ -363,7 +363,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _completed = false;
 
   // The 7-day free trial (wall-clock, persisted) replaced the old 30-minute
-  // HDR countdown — no per-playback meter, nothing to reset on seek/resume.
+  // HDR countdown - no per-playback meter, nothing to reset on seek/resume.
   // `_hdrPaywallShowing` guards the #9 post-trial paywall against stacking;
   // it re-arms when the sheet closes so the next play attempt is re-gated.
   bool _hdrPaywallShowing = false;
@@ -429,7 +429,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// user's decoder mode after the file closes.
   bool _swRetried = false;
   /// Whether we already tried forcing FFmpeg video decode for this file
-  /// (DecoderMode.ffmpegVideo) — before escalating to mpv.
+  /// (DecoderMode.ffmpegVideo) - before escalating to mpv.
   bool _ffmpegVideoRetried = false;
   DecoderMode? _decoderOverride;
 
@@ -447,7 +447,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _liveResolution;
 
   /// Native video dimensions, used to size the swipe slider to the actual
-  /// video content rect (BoxFit.contain) rather than the full screen — in
+  /// video content rect (BoxFit.contain) rather than the full screen - in
   /// portrait the letterboxed video is much shorter than the screen, so a
   /// screen-relative slider would look oversized.
   int _videoW = 0;
@@ -483,7 +483,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _subtitleOn = false;
   List<ExoSubtitleTrack> _subtitleTracks = const [];
 
-  /// Container chapters (MKV, local files) — populated from the native event
+  /// Container chapters (MKV, local files) - populated from the native event
   /// once parsed. Empty hides the chapters button.
   List<ExoChapter> _chapters = const [];
 
@@ -507,6 +507,20 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// segment, not on every position tick).
   final Set<int> _autoSkippedStarts = {};
 
+  /// Skip-pill auto-hide (user request): the "Skip intro/recap/credits" pill
+  /// disappears 5 s after the playhead ENTERS a segment, so a 1-2 minute
+  /// recap no longer pins the button to the picture for its whole length.
+  /// The timer starts on ENTRY, not on appearance - the 5 s pre-roll lead
+  /// (the pill shows up to 5 s before a segment starts) must not consume the
+  /// hide window. Leaving and re-entering the segment, or a new segment
+  /// starting, re-shows the pill for another 5 s. The player menu's skip
+  /// rows stay as the always-available manual path.
+  static const Duration _skipPillVisibleFor = Duration(seconds: 5);
+  Timer? _skipPillTimer;
+  SkipSegment? _skipPillSegment;
+  bool _skipPillExpired = false;
+  bool _skipPillWasInside = false;
+
   /// Guard so an ended video is marked watched exactly once per session.
   bool _markedWatched = false;
   bool _autoPlayFired = false;
@@ -528,10 +542,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Persisted playback speed, re-applied on every (re)open.
   double _playbackSpeed = 1.0;
 
-  /// Volume boost (1.0–3.0) and Night Mode — persisted and re-applied on open.
+  /// Volume boost (1.0–3.0) and Night Mode - persisted and re-applied on open.
   ///
   /// iOS has no boost: it is engine DSP there, and every DSP change rebuilds
-  /// the audio session at the playhead — a video reload — so the boost is
+  /// the audio session at the playhead - a video reload - so the boost is
   /// clamped off and the gesture stops at 100%. Android keeps it (a PCM
   /// gain in the sink, applied live).
   double _audioBoost = 1.0;
@@ -640,7 +654,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool get _backendReady => _exo != null || _mpvReady;
 
   /// True while the mpv engine owns the video slot (player alive, not failed).
-  /// Surface readiness is separate ([MpvSurfaceViewController.isReady]) —
+  /// Surface readiness is separate ([MpvSurfaceViewController.isReady]) -
   /// transport works as soon as the [Player] exists.
   bool get _mpvReady =>
       _mpvActive && _mpvPlayer != null && !_mpvFailed;
@@ -653,7 +667,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // screen. Toggling immersive/edgeToEdge during the rotation transition
     // fights the system's own rotation animation and makes the video jitter.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    // TMDB title for the top bar — resolve on open (cache hit when the home
+    // TMDB title for the top bar - resolve on open (cache hit when the home
     // screen pre-fetched) and refresh live when metadata arrives.
     TmdService.instance.addListener(_onTmdbChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -740,7 +754,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     try {
       // Persisted prefs shared by both engines (fit, speed, gestures,
-      // play-next / repeat / shuffle) — resolve before choosing a backend.
+      // play-next / repeat / shuffle) - resolve before choosing a backend.
       try {
         _fitMode = await FitModeStore.load();
         _playbackSpeed = await PlaybackSpeedStore.load();
@@ -782,10 +796,10 @@ class _PlayerScreenState extends State<PlayerScreen>
         // subscription must not keep shaping audio from the stored pref.
         //
         // iOS has NO volume boost: the boost is engine DSP there, and every
-        // DSP change rebuilds the audio session at the playhead — a video
+        // DSP change rebuilds the audio session at the playhead - a video
         // reload. A boost that rides the volume gesture therefore reloaded
         // the picture on every step, so the gesture stays at 100% on iOS.
-        // (Android's boost is a PCM gain and applies live — it stays.)
+        // (Android's boost is a PCM gain and applies live - it stays.)
         _volumeBoostEnabled = !Platform.isIOS &&
             effectiveDspSetting(await VolumeBoostToggleStore.load());
         _nightMode = effectiveDspSetting(await NightModeStore.load());
@@ -797,7 +811,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       } catch (_) {}
 
       // The user chose the libmpv engine on the details screen ("Play with
-      // MPV"): start it directly — no ExoPlayer platform view, and no auto
+      // MPV"): start it directly - no ExoPlayer platform view, and no auto
       // jump to mpv later. libmpv itself runs hardware-first
       // (`hwdec=mediacodec`, MediaCodec) and falls back to its bundled
       // FFmpeg software decode when the hardware can't decode a stream.
@@ -830,7 +844,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         await exo.setAudioDownmix(_audioDownmix);
         // iOS: push the effective bass level too. The native side reads the
         // pref itself (Android parity), but a lapsed entitlement has to reach
-        // the engine as 0 — the push also persists that correction. Android
+        // the engine as 0 - the push also persists that correction. Android
         // skips this: its BassBoost FX attaches with the audio session, which
         // does not exist yet this early.
         if (!Platform.isAndroid) {
@@ -840,7 +854,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           await exo.setBassBoost(effectiveDspSetting(saved > 0) ? saved : 0);
           // iOS MetalFX upscale: the native side reads the
           // dreamplayer.iosUpscale pref itself when building LoadOptions, so
-          // no channel push is needed here — it applies on this open.
+          // no channel push is needed here - it applies on this open.
         }
       } catch (_) {}
       if (mounted) setState(() {});
@@ -881,7 +895,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Invalidate any in-flight MPV chapter poll for the previous file.
     _mpvChapterProbeToken++;
     // A new video means a previous software-decode fallback was for the last
-    // file only — restore the user's original decoder mode now.
+    // file only - restore the user's original decoder mode now.
     await _restoreDecoderOverride();
     // Load on-screen badge preferences so the chip row reflects the user's
     // Settings choice without a restart.
@@ -905,7 +919,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // from the new file's aspect (not the old one's) until the first event.
     _videoW = 0;
     _videoH = 0;
-    // TMDB title for the top bar — cache hit when the home screen
+    // TMDB title for the top bar - cache hit when the home screen
     // pre-fetched this file; a miss resolves fire-and-forget (intent-opened
     // files never hit the home prefetch).
     final cachedMeta = TmdService.instance.metaFor(_resumeKey);
@@ -933,6 +947,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _remoteSkipInFlight = false;
     _introDbFallbackFired = false;
     _autoSkippedStarts.clear();
+    _resetSkipPill();
     unawaited(AniskipStore.loadMode().then((m) {
       if (mounted) setState(() => _skipMode = m);
     }));
@@ -958,7 +973,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     Duration? resume;
     if (!_inTests && !widget.startFromBeginning) {
       // Read the resume position for the ACTIVE engine (not hardcoded to
-      // 'media3' — MPV saves under 'mpv' and would be missed).
+      // 'media3' - MPV saves under 'mpv' and would be missed).
       final engine = (_engine == PlayEngine.mpv || _mpvActive) ? 'mpv' : 'media3';
       resume = await ResumeStore.positionFor(_resumeKey, engine: engine);
       // Jellyfin media-server sync: the server-side resume position
@@ -979,7 +994,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     }
     // Load the saved audio track to restore after tracks arrive.
-    // Skip when "Watch from beginning" — the user wants the default track.
+    // Skip when "Watch from beginning" - the user wants the default track.
     _pendingAudioTrackRestore = widget.startFromBeginning
         ? null
         : await AudioTrackStore.load(
@@ -988,7 +1003,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           );
     // Sidecar discovery is best-effort and MUST NOT gate open(): a full SMB
     // listDirectory of a Movies folder can take hundreds of ms, and Media3
-    // needs every millisecond for the first frame. Cap the wait at 250ms —
+    // needs every millisecond for the first frame. Cap the wait at 250ms -
     // a warm LAN listing usually lands inside that; a cold/slow one falls
     // through to embedded subs (native open() still pairs local siblings).
     final externalSubsFuture = _resolveExternalSubtitles(video);
@@ -999,7 +1014,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final readingLang = await SubtitlePrefs.loadReadingLanguage();
     // iOS: re-grant security-scoped access before the native player touches
     // the file. Files inside a bookmarked folder (Files-app picker /
-    // external SMB drive) lose their grant between launches — without this,
+    // external SMB drive) lose their grant between launches - without this,
     // AVPlayer hits a provider file with no access scope and either errors
     // ("Operation not permitted") or crashes the process. Cover the case
     // where the video has no `path` but a file:// uri instead.
@@ -1018,7 +1033,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // The native side reads the spatial-audio preference straight from the
     // prefs (it is the only way it learns it without a channel round trip),
     // so an expired trial or a lapsed subscription has to be corrected
-    // BEFORE the open — otherwise the paid feature stays on for free.
+    // BEFORE the open - otherwise the paid feature stays on for free.
     if (!_inTests && Platform.isIOS) {
       try {
         await SpatialAudioStore.effectiveEnabled();
@@ -1029,7 +1044,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     // Media3 picture controls: session-only values, reset per open; profiles
     // (PictureProfileStore) are what persist across sessions. The effect
-    // pipeline is armed only for SDR content — HDR/DV keeps the direct
+    // pipeline is armed only for SDR content - HDR/DV keeps the direct
     // decoder→SurfaceView passthrough (the GL pipeline would strip it).
     _exoPictureBrightness = 0;
     _exoPictureContrast = 0;
@@ -1185,7 +1200,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final existing = video.externalSubtitles;
     List<VideoExternalSub> resolved;
     // Source already attached its own external subs (Jellyfin, folder
-    // bookmark, etc.) — use them as-is, but enforce the
+    // bookmark, etc.) - use them as-is, but enforce the
     // "external > embedded always" priority by promoting the first
     // external to default when none is flagged. Without this, the
     // engine falls back to the container's embedded PGS/ASS track on
@@ -1207,7 +1222,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // subs) to a local cache file so the engine reads it locally rather than
     // re-streaming the remote URL (AVP issue #1605). Best-effort: a failing
     // download (e.g. a Jellyfin server that's slow to answer a subtitle GET)
-    // must NEVER abort playback — keep the remote URIs and play on.
+    // must NEVER abort playback - keep the remote URIs and play on.
     try {
       return await SidecarSubtitleService.instance.ensureLocal(video, resolved);
     } catch (e) {
@@ -1240,7 +1255,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       final pos = _position;
       final dur = _duration;
       debugPrint('sw-fallback: forcing FFmpeg video decode at ${pos.inMilliseconds}ms');
-      _error = 'Hardware decoder failed — retrying with FFmpeg…';
+      _error = 'Hardware decoder failed - retrying with FFmpeg…';
       setState(() {});
       try {
         await _reopenAt(pos, dur);
@@ -1249,13 +1264,13 @@ class _PlayerScreenState extends State<PlayerScreen>
         debugPrint('sw-fallback: FFmpeg video decode succeeded');
         return;
       } catch (_) {
-        // FFmpeg video also failed — restore mode and fall through to mpv.
+        // FFmpeg video also failed - restore mode and fall through to mpv.
         _decoderMode = _decoderOverride ?? _decoderMode;
         _decoderOverride = null;
         debugPrint('sw-fallback: FFmpeg video decode also failed, trying mpv');
       }
     }
-    // Step 2: Try mpv as the final fallback — only when the user hasn't
+    // Step 2: Try mpv as the final fallback - only when the user hasn't
     // pinned Media3 (explicit default = no silent engine switch).
     if (!_autoFallbackTried &&
         !_mpvActive &&
@@ -1263,7 +1278,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _defaultEngine.allowFallback &&
         _mpvSourceFor(_current).isNotEmpty) {
       _autoFallbackTried = true;
-      _error = 'Media3 cannot play this file — trying libmpv…';
+      _error = 'Media3 cannot play this file - trying libmpv…';
       setState(() {});
       debugPrint('sw-fallback: auto-fallback to mpv');
       unawaited(LastEngineStore.save(_resumeKey, 'mpv'));
@@ -1276,7 +1291,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// Manual engine switch from the Media3 error surface ("Try with MPV"
   /// button). Also used for auto-fallback when both HW and SW Media3 decode
-  /// fail — the player tries mpv automatically before showing the error.
+  /// fail - the player tries mpv automatically before showing the error.
   Future<void> _startMpvManual() async {
     if (_mpvActive || _inTests) return;
     if (!Platform.isAndroid) return;
@@ -1287,7 +1302,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// Offers the MPV engine when Media3 reports VC-1 (issue #51).
 ///
-/// Advisory only — it never switches engines on its own and never blocks
+/// Advisory only - it never switches engines on its own and never blocks
 /// playback. [Platform.isIOS] is excluded because mpv is Android-only, so on
 /// iOS there is nothing to offer and the warning would be noise.
 Future<void> _offerVc1Mpv() async {
@@ -1298,7 +1313,7 @@ Future<void> _offerVc1Mpv() async {
   if (messenger == null) return;
   final advanced = isVc1AdvancedProfile(_liveVideoCodecRaw) ||
       isVc1AdvancedProfile(_liveVideoMimeRaw);
-  debugPrint('vc1: detected${advanced ? ' Advanced' : ''} — offering MPV '
+  debugPrint('vc1: detected${advanced ? ' Advanced' : ''} - offering MPV '
       '(codecs=$_liveVideoCodecRaw mime=$_liveVideoMimeRaw)');
   messenger.showSnackBar(
     SnackBar(
@@ -1318,7 +1333,7 @@ Future<void> _offerVc1Mpv() async {
 }
 
 /// Sets a terminal backend error. Media3 does NOT auto-fallback to mpv
-  /// anymore — the error surface shows a "Try with MPV" button instead, and
+  /// anymore - the error surface shows a "Try with MPV" button instead, and
   /// the details screen offers both engines up front.
   void _setTerminalError(String message) {
     if (mounted) setState(() => _error = message);
@@ -1378,7 +1393,7 @@ Future<void> _offerVc1Mpv() async {
 
   /// HDR (#9) is trial-gated: after the 7-day trial expires, a free
   /// non-subscriber playing Dolby Vision / HDR10 / HDR10+ / HLG content gets
-  /// paused + the paywall. No countdown — the trial is wall-clock based, so
+  /// paused + the paywall. No countdown - the trial is wall-clock based, so
   /// nothing resets on seek/resume. Returns true if playback may proceed
   /// (entitled / not gated), false if it must stay paused.
   Future<bool> _checkHdrGate() async {
@@ -1391,7 +1406,7 @@ Future<void> _offerVc1Mpv() async {
     if (!isHdr) return true;
     _exo?.pause();
     if (!mounted) return false;
-    if (_hdrPaywallShowing) return false; // already up — don't stack
+    if (_hdrPaywallShowing) return false; // already up - don't stack
     _hdrPaywallShowing = true;
     final purchased = await showPaywall(context);
     _hdrPaywallShowing = false;
@@ -1477,8 +1492,8 @@ Future<void> _offerVc1Mpv() async {
 
   /// Starts the libmpv engine as the user's chosen PRIMARY player (details
   /// screen "Play with MPV"): no ExoPlayer backend is created at all. Mirrors
-  /// the Media3 open-flow — resolve external subtitles (sidecar auto-pairing)
-  /// and the resume position — then hand the file to mpv, which decodes
+  /// the Media3 open-flow - resolve external subtitles (sidecar auto-pairing)
+  /// and the resume position - then hand the file to mpv, which decodes
   /// hardware-first (`hwdec=mediacodec`) with its own internal FFmpeg
   /// software fallback.
   Future<void> _startMpvPrimary() async {
@@ -1526,7 +1541,7 @@ Future<void> _offerVc1Mpv() async {
   }
 
   Future<void> _startMpvFallback({bool automatic = true}) async {
-    // The fallback is Android-only — iOS uses AetherEngine and its own
+    // The fallback is Android-only - iOS uses AetherEngine and its own
     // codec/error paths. Belt-and-braces: never instantiate libmpv on iOS.
     if (_mpvActive || _inTests) return;
     if (!Platform.isAndroid) return;
@@ -1545,7 +1560,7 @@ Future<void> _offerVc1Mpv() async {
     _selectedAudioTrackBeforeSwitch = -1;
     _mpvAudioDefaultApplied = false;
     _mpvAudioPinInFlight = false;
-    // Reset VO attach cache — new session gets fresh wid; otherwise a reused
+    // Reset VO attach cache - new session gets fresh wid; otherwise a reused
     // global ref pointer value (MediaKitAndroidHelper) would be treated as
     // "wid unchanged" and we'd skip the critical vo=null/wid/vo=gpu attach,
     // leaving mpv with no surface and discardFps=100%.
@@ -1560,7 +1575,7 @@ Future<void> _offerVc1Mpv() async {
       // Idempotent: loads the bundled libmpv native library.
       MediaKit.ensureInitialized();
       // NEVER two video surfaces: tear Media3 down before mpv's SurfaceView
-      // mounts (hard constraint — prior attempt left both layers stacked).
+      // mounts (hard constraint - prior attempt left both layers stacked).
       await _teardownExoForMpv();
       final player = Player();
       if (!mounted) {
@@ -1612,8 +1627,8 @@ Future<void> _offerVc1Mpv() async {
       unawaited(player.setRate(_playbackSpeed));
       // 1. Wait for SurfaceView to exist and report valid size.
       // 2. Attach VO to that wid (vo=null → size → wid → force-window=yes →
-      //    vo=gpu → vid=auto) — BaseMPVView.surfaceCreated order.
-      // 3. NOW set hwdec — decoder inits with a live ANativeWindow.
+      //    vo=gpu → vid=auto) - BaseMPVView.surfaceCreated order.
+      // 3. NOW set hwdec - decoder inits with a live ANativeWindow.
       // 4. open() / play().
       // This avoids "Both surface and native_window are NULL" on mediacodec.
       try {
@@ -1622,7 +1637,7 @@ Future<void> _offerVc1Mpv() async {
           await _attachMpvWid(surface.wid!, surface.width, surface.height);
           await _applyMpvHwdec(player); // decoder sees live surface now
         } else {
-          debugPrint('mpv: surface not ready before open — open will wait');
+          debugPrint('mpv: surface not ready before open - open will wait');
         }
       } catch (e) {
         debugPrint('mpv: surface not ready before open: $e (will wait in open)');
@@ -1644,7 +1659,7 @@ Future<void> _offerVc1Mpv() async {
   }
 
   /// Disposes the Media3 controller so its platform view unmounts before the
-  /// mpv SurfaceView mounts — one video surface only.
+  /// mpv SurfaceView mounts - one video surface only.
   Future<void> _teardownExoForMpv() async {
     _exoSub?.cancel();
     _exoSub = null;
@@ -1672,12 +1687,12 @@ Future<void> _offerVc1Mpv() async {
     }
   }
 
-  /// Video-output properties media_kit's VideoController used to set — without
+  /// Video-output properties media_kit's VideoController used to set - without
   /// registering a Flutter texture. `vo=null` until --wid is attached.
   Future<void> _initMpvVideoOutput(Player player) async {
     final platform = player.platform;
     if (platform is! NativePlayer || _inTests) return;
-    // ctx starts as nullptr until async _create() finishes — setProperty with
+    // ctx starts as nullptr until async _create() finishes - setProperty with
     // waitForInitialization:false skips that wait and SIGSEGVs in
     // mpv_set_property_string. media_kit's AndroidVideoController always
     // awaits player.handle first for the same reason.
@@ -1687,7 +1702,7 @@ Future<void> _offerVc1Mpv() async {
       debugPrint('mpv: wait for player init failed: $e');
       return;
     }
-    // force-window starts NO (BaseMPVView.initialize) — set YES only after
+    // force-window starts NO (BaseMPVView.initialize) - set YES only after
     // wid attaches in _attachMpvWidInner, so mpv never tries to render into
     // a not-yet-created surface.
     const props = <String, String>{
@@ -1718,7 +1733,7 @@ Future<void> _offerVc1Mpv() async {
     }
   }
 
-  /// Native SurfaceView created / resized — attach `--wid` (media_kit order).
+  /// Native SurfaceView created / resized - attach `--wid` (media_kit order).
   void _onMpvSurfaceReady(int wid, int width, int height) {
     final player = _mpvPlayer;
     if (player == null || _mpvFailed) return;
@@ -1734,10 +1749,10 @@ Future<void> _offerVc1Mpv() async {
     }
   }
 
-  /// Surface destroyed (rotation / activity recreate) — clear `--wid` so mpv
+  /// Surface destroyed (rotation / activity recreate) - clear `--wid` so mpv
   /// does not write into a dead Surface. Re-attaches on the next ready event.
   void _onMpvSurfaceLost() {
-    // Drop chrome for the shutter gap — otherwise the center play button
+    // Drop chrome for the shutter gap - otherwise the center play button
     // paints on black and reads as a flash / stacked surface.
     _controlsBeforeSurfaceLoss = _controlsVisible;
     if (_controlsVisible) {
@@ -1798,7 +1813,7 @@ Future<void> _offerVc1Mpv() async {
     final platform = player.platform;
     if (platform is! NativePlayer) return;
     final gen = ++_mpvAttachGen;
-    // ctx is nullptr until _create() completes — never skip the init wait.
+    // ctx is nullptr until _create() completes - never skip the init wait.
     try {
       await player.handle;
       if (gen != _mpvAttachGen || _mpvPlayer != player) return;
@@ -1811,7 +1826,7 @@ Future<void> _offerVc1Mpv() async {
         _mpvLastH = height;
         await _applyMpvFitProps();
         // REX-Player surfaceChanged: while paused mpv's render loop is idle
-        // and never draws at the new geometry — the compositor stretches the
+        // and never draws at the new geometry - the compositor stretches the
         // old buffer and leaves black/uninitialized regions. A zero-distance
         // exact seek forces one frame at the new size without advancing.
         try {
@@ -1834,10 +1849,10 @@ Future<void> _offerVc1Mpv() async {
       await platform.setProperty('wid', '$wid');
       // Forces mpv to render video/subs/OSD into OUR surface (BaseMPVView
       // comment: even if it would ordinarily not). Must be YES after wid
-      // attaches — init leaves it NO so VO never opens a phantom window.
+      // attaches - init leaves it NO so VO never opens a phantom window.
       await platform.setProperty('force-window', 'yes');
       // Prefer gpu-next when the custom libmpv (libplacebo) is present;
-      // stock rejects it silently (media_kit ignores return) — probe once.
+      // stock rejects it silently (media_kit ignores return) - probe once.
       if (_mpvAnime4kEnabled && _mpvAnime4kEligible) {
         await platform.setProperty('vo', 'gpu');
         await platform.setProperty('gpu-api', 'opengl');
@@ -1882,7 +1897,7 @@ Future<void> _offerVc1Mpv() async {
   }
 
   /// Maps the current fit mode onto mpv `keepaspect` / `panscan` (the Flutter
-  /// [Video] widget is gone — the SurfaceView fills its parent).
+  /// [Video] widget is gone - the SurfaceView fills its parent).
   Future<void> _applyMpvFitProps() async {
     final player = _mpvPlayer;
     final platform = player?.platform;
@@ -1915,7 +1930,7 @@ Future<void> _offerVc1Mpv() async {
     if (platform is! NativePlayer || _inTests) {
       // Logged rather than returned in silence. Every `setProperty` below is
       // gated on this same check, so a failing test here means NO mpv option
-      // is being set at all — `volume-max` never rises above mpv's default of
+      // is being set at all - `volume-max` never rises above mpv's default of
       // 100, and `af` is never touched. That is invisible from the outside:
       // no exception, and our own logs cheerfully report the values we
       // *asked* for rather than the ones mpv accepted.
@@ -1925,7 +1940,7 @@ Future<void> _offerVc1Mpv() async {
       return;
     }
     if (!skipHwdec) await _applyMpvHwdec(player);
-    // Explicit OpenGL ES context + fast profile — required on some low-powered
+    // Explicit OpenGL ES context + fast profile - required on some low-powered
     // MediaTek SoCs (G81 etc.) where mpv's auto-detection fails and the video
     // layer never attaches to the SurfaceView, resulting in audio-only
     // playback with a black screen. `profile=fast` reduces decode overhead on
@@ -1945,10 +1960,10 @@ Future<void> _offerVc1Mpv() async {
     } catch (e) {
       debugPrint('mpv: hwdec-codecs=all unavailable: $e');
     }
-    // hwdec-software-fallback MISS on this build — skip.
+    // hwdec-software-fallback MISS on this build - skip.
     // Color-space / tone-map (issue #21). Probed once: media_kit's
     // setProperty ignores mpv's return code, so try/catch alone cannot
-    // detect a stock libmpv without libplacebo — set then get.
+    // detect a stock libmpv without libplacebo - set then get.
     await _applyMpvToneMap(player);
     // Frame interpolation (issue #53). Applied after the VO is chosen: mpv's
     // interpolation lives in the renderer, so it has to be configured against
@@ -1956,7 +1971,7 @@ Future<void> _offerVc1Mpv() async {
     await _applyMpvInterpolation(player);
 
     // Stock HDR→SDR extras (bt.2390 family) only when gpu-next is absent
-    // — gpu-next path is fully configured in _applyMpvToneMap.
+    // - gpu-next path is fully configured in _applyMpvToneMap.
     if (!await _mpvGpuNextAvailable(player)) {
       try {
         await platform.setProperty('tone-mapping', 'bt.2390');
@@ -2001,7 +2016,7 @@ Future<void> _offerVc1Mpv() async {
     // - audio-normalize-downmix: OFF by default, which is also mpv's default.
     //   It used to be forced on here for a "balanced" 5.1/7.1 downmix, but it
     //   scales the output down and made the MPV engine noticeably quieter than
-    //   Media3 for the same file — issue #37. mpv's manual says of the enabled
+    //   Media3 for the same file - issue #37. mpv's manual says of the enabled
     //   case that "the output might be too silent", and its maintainer moved to
     //   `no` because users reported the downmix being too quiet. Now a setting
     //   (Settings -> Player), so clipping-sensitive downmixes remain available.
@@ -2010,7 +2025,7 @@ Future<void> _offerVc1Mpv() async {
       // Downmix to stereo (Settings -> Audio): force mpv's output layout to
       // stereo; its swresample downmix keeps the centre channel at -3 dB,
       // which is what keeps dialogue loud on stereo headphones/speakers.
-      // Ignored for bitstream passthrough (audio-spdif) — mpv does not
+      // Ignored for bitstream passthrough (audio-spdif) - mpv does not
       // decode those, so nothing is downmixed there.
       final downmix = await AudioDownmixStore.load();
       // Ceiling for _applyMpvVolume to work against; it raises this further
@@ -2075,7 +2090,7 @@ Future<void> _offerVc1Mpv() async {
       if (fontDir != null) {
         await platform.setProperty('sub-fonts-dir', fontDir);
       }
-      // A user-picked font file is already in that dir (custom_<stem>.ttf) —
+      // A user-picked font file is already in that dir (custom_<stem>.ttf) -
       // just make sure it is still there; sub-fonts-dir + sub-font resolve it.
       final customFont = await SubtitleFonts.customFontPathIfValid(s.customFontPath);
       if (s.googleFont != null) {
@@ -2154,7 +2169,7 @@ Future<void> _offerVc1Mpv() async {
 
   /// Whether this libmpv actually has `vo=gpu-next` (libplacebo / issue #21).
   ///
-  /// Prefer `libplacebo-version` — present iff libplacebo is linked (our
+  /// Prefer `libplacebo-version` - present iff libplacebo is linked (our
   /// Phase 3 build). `vo-list` is not a stable string property on every mpv
   /// build (returns empty on both stock and custom). Set+get on `vo` is
   /// invalid (mpv accepts any string even when the VO is missing).
@@ -2195,7 +2210,7 @@ Future<void> _offerVc1Mpv() async {
   /// while the UI claimed a native passthrough.
   ///
   /// SDR: `vo=gpu-next` + libplacebo spline/bt.709/bt.1886 (needs a custom
-  /// libmpv with libplacebo — stock falls back to `gpu` + bt.2390 handled
+  /// libmpv with libplacebo - stock falls back to `gpu` + bt.2390 handled
   /// by the caller). Native: `target-colorspace-hint` so the surface can
   /// pass PQ/BT.2020 toward the display (also requires gpu-next). Linear:
   /// mpv-native inverse tone mapping, no shaders.
@@ -2229,7 +2244,7 @@ Future<void> _offerVc1Mpv() async {
     if (!hasGpuNext) {
       await _clearMpvGlslShaders(platform);
       await platform.setProperty('vo', 'gpu');
-      debugPrint('mpv: stock libmpv — vo=gpu, tone-map mode ignored until Phase 3');
+      debugPrint('mpv: stock libmpv - vo=gpu, tone-map mode ignored until Phase 3');
       if (mode.usesHdrToysShaders) {
         // The hdr-toys profiles are libplacebo user shaders: the stock
         // libmpv build cannot run them. Fall back to the SDR tone-map for
@@ -2237,7 +2252,7 @@ Future<void> _offerVc1Mpv() async {
         mode = ToneMapMode.sdr;
         _setMpvHdrModeNotice(
           '${_toneMapMode.label} needs the MPV build with libplacebo '
-          '(gpu-next) — using SDR tone-map instead.',
+          '(gpu-next) - using SDR tone-map instead.',
         );
       }
     } else {
@@ -2252,7 +2267,7 @@ Future<void> _offerVc1Mpv() async {
         if (!applied) {
           mode = ToneMapMode.sdr;
           _setMpvHdrModeNotice(
-            'Could not load the ${_toneMapMode.label} shaders — '
+            'Could not load the ${_toneMapMode.label} shaders - '
             'using SDR tone-map instead.',
           );
         }
@@ -2278,7 +2293,7 @@ Future<void> _offerVc1Mpv() async {
   /// Shared by the overflow sheet and the picture panel so both paths behave
   /// identically: the mode is persisted, then applied to the live player.
   ///
-  /// Anime4K and the hdr-toys profiles cannot coexist — there is ONE
+  /// Anime4K and the hdr-toys profiles cannot coexist - there is ONE
   /// `glsl-shaders` list and the two chains use different shader dialects
   /// (legacy GLSL on `vo=gpu` vs libplacebo syntax on `vo=gpu-next`). Picking
   /// an hdr-toys profile therefore turns Anime4K off first; turning Anime4K
@@ -2328,12 +2343,12 @@ Future<void> _offerVc1Mpv() async {
     }
     if (_mpvAnime4kEnabled) {
       if (!limit.allowAnime4k) {
-        debugPrint('mpv: thermal critical — Anime4K off');
+        debugPrint('mpv: thermal critical - Anime4K off');
         await _setMpvAnime4kEnabled(false);
       } else {
         final stepped = anime4kModeForTier(tier, _mpvAnime4kMode);
         if (stepped != null) {
-          debugPrint('mpv: thermal ${tier.name} — Anime4K ${_mpvAnime4kMode.name} -> ${stepped.name}');
+          debugPrint('mpv: thermal ${tier.name} - Anime4K ${_mpvAnime4kMode.name} -> ${stepped.name}');
           await _setMpvAnime4kMode(stepped);
         }
       }
@@ -2419,7 +2434,7 @@ Future<void> _offerVc1Mpv() async {
 
   /// A one-line explanation of why the requested HDR mode could not be used.
   void _setMpvHdrModeNotice(String message) {
-    debugPrint('mpv: HDR mode notice — $message');
+    debugPrint('mpv: HDR mode notice - $message');
     if (!mounted) return;
     setState(() => _mpvHdrModeNotice = message);
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -2447,7 +2462,7 @@ Future<void> _offerVc1Mpv() async {
   ///    target goes in through `--display-fps-override` (renamed from
   ///    `--display-fps`, which is a read-only property in the newer builds).
   ///  * `--interpolation-threshold` (default 0.01) switches interpolation off
-  ///    when the two rates are within 1% of each other — a 47.94 fps source on
+  ///    when the two rates are within 1% of each other - a 47.94 fps source on
   ///    a 48 fps target would then do nothing at all. -1 disables that logic.
   Future<void> _applyMpvInterpolation(Player player) async {
     final platform = player.platform;
@@ -2480,7 +2495,7 @@ Future<void> _offerVc1Mpv() async {
   /// can be confirmed from a device log instead of by eye.
   ///
   /// `display-fps` is the rate the panel reports, `estimated-display-fps` the
-  /// rate mpv's display-sync actually settles on — and the latter only exists
+  /// rate mpv's display-sync actually settles on - and the latter only exists
   /// once a display-sync mode is running, hence the delay. The option
   /// properties are read back too: mpv accepts an option silently and can
   /// still refuse to act on it, so "what mpv thinks it was told" is the only
@@ -2508,7 +2523,7 @@ Future<void> _offerVc1Mpv() async {
   ///
   /// mpv keeps the option value and the detected refresh rate apart: the
   /// detected one is the read-only `display-fps` property and the option
-  /// value lives in `override-display-fps` — so a silent "set" on the wrong
+  /// value lives in `override-display-fps` - so a silent "set" on the wrong
   /// name would be a lie. Every candidate is read back, and only counts when
   /// mpv reports the frame rate that was asked for.
   Future<bool> _setMpvDisplayFps(NativePlayer platform, int fps) async {
@@ -2553,7 +2568,7 @@ Future<void> _offerVc1Mpv() async {
       return 'SDR video only';
     }
     if (!isAnime4kSupportedResolution(width: params.w, height: params.h)) {
-      return '4K/8K source — too heavy for a shader chain';
+      return '4K/8K source - too heavy for a shader chain';
     }
     return '';
   }
@@ -3048,7 +3063,7 @@ Future<void> _offerVc1Mpv() async {
   /// Maps the user's [DecoderMode] onto libmpv's `hwdec` property.
   ///
   /// Hardware-first via direct **`mediacodec`** (zero-copy into the
-  /// SurfaceView — mpv-android / REX path). `mediacodec-copy` round-trips
+  /// SurfaceView - mpv-android / REX path). `mediacodec-copy` round-trips
   /// through CPU + vo/gpu and can leave black frames on this dual-surface
   /// Flutter window; software (`no`) is the explicit override / mid-stream
   /// codec-death retry. The ⋮ sheet lets the user force hardware or software.
@@ -3056,7 +3071,7 @@ Future<void> _offerVc1Mpv() async {
     final platform = player.platform;
     if (platform is! NativePlayer || _inTests) return;
     // Containers whose muxing/codec patterns routinely stall or fail under
-    // MediaCodec hwdec — transport streams, legacy formats, and MPEG-PS.
+    // MediaCodec hwdec - transport streams, legacy formats, and MPEG-PS.
     // Force software decode for these so mpv uses its bundled FFmpeg decoder
     // instead of the device hardware, which may hang on the first frame
     // (audio + video stuck, position frozen at 0:00).
@@ -3068,23 +3083,23 @@ Future<void> _offerVc1Mpv() async {
       'wmv', 'rmvb', 'flv', 'ogv', 'dat',
     }.contains(ext);
     // A previous mid-stream hardware failure on THIS file forced software
-    // decode (see [_maybeMpvSoftwareRetry]) — keep it software so we don't
+    // decode (see [_maybeMpvSoftwareRetry]) - keep it software so we don't
     // re-trigger the same codec death on the reload.
     final swForced = _mpvSwRetriedKey == _resumeKey;
     final value = swForced
         ? 'no'
         : switch (_decoderMode) {
             // Direct mediacodec (zero-copy): decoder writes YUV straight into
-            // our SurfaceView — same path as mpv-android HWDECS / REX
+            // our SurfaceView - same path as mpv-android HWDECS / REX
             // ("mediacodec,mediacodec-copy"). Preferred over -copy for a real
-            // hole-punch Surface (REX: "mediacodec-copy omitted — often causes
+            // hole-punch Surface (REX: "mediacodec-copy omitted - often causes
             // Surface-related crashes"; copy round-trips through vo/gpu and
             // can leave black frames). The old VO-init race is gone: attach
             // fully sets force-window+vo=gpu BEFORE hwdec is applied.
             DecoderMode.hw => 'mediacodec',
             DecoderMode.sw => 'no',
             // Auto: direct mediacodec on a live surface (attach order above);
-            // fall back to copy only for sw-only containers' edge cases —
+            // fall back to copy only for sw-only containers' edge cases -
             // those use software anyway. mediacodec-copy kept as explicit
             // hw choice only via decoder override if ever needed.
             _ => swOnly ? 'no' : 'mediacodec',
@@ -3142,7 +3157,7 @@ Future<void> _offerVc1Mpv() async {
   }
 
   Future<void> _mpvOpen(Player player, VideoItem video, int startMs) async {
-    // A previous SMB-backed mpv session left a loopback bridge running — tear
+    // A previous SMB-backed mpv session left a loopback bridge running - tear
     // it down before pointing mpv at the next source.
     await _stopMpvProxy();
     _mpvVideoParams = null;
@@ -3156,7 +3171,7 @@ Future<void> _offerVc1Mpv() async {
     }
     var playable = src;
     // In-app SMB streams are served natively over jcifs-ng and mpv can't read
-    // `smb://` directly — Android serves the same file over a loopback HTTP
+    // `smb://` directly - Android serves the same file over a loopback HTTP
     // bridge (byte-range aware) that mpv's HTTP layer reads normally.
     if (src.toLowerCase().startsWith('smb://')) {
       try {
@@ -3170,7 +3185,7 @@ Future<void> _offerVc1Mpv() async {
     }
     // Remote http(s) sources: once the direct open has failed, the URL is
     // served through the OkHttp-backed loopback bridge (see
-    // [_maybeMpvHttpBridgeRetry]) — the same HTTP stack Media3 uses, which is
+    // [_maybeMpvHttpBridgeRetry]) - the same HTTP stack Media3 uses, which is
     // what the origin accepts. The bridge for THIS source is kept; a bridge
     // left over from another file is torn down.
     var viaHttpBridge = false;
@@ -3188,7 +3203,7 @@ Future<void> _offerVc1Mpv() async {
     }
     // Detect transport-stream / MPEG-PS extensions BEFORE opening so we can
     // force the lavf demuxer. mpv's native TS demuxer can't handle Blu-ray
-    // m2ts packets (192-byte with 4-byte timestamp prefix) — it gets stuck
+    // m2ts packets (192-byte with 4-byte timestamp prefix) - it gets stuck
     // scanning the same file offset repeatedly, never finding a sync point.
     final ext = video.path?.split('.').last.toLowerCase() ??
         video.uri?.split('.').last.toLowerCase() ??
@@ -3211,12 +3226,12 @@ Future<void> _offerVc1Mpv() async {
     // reload. Apply hwdec AFTER the surface wait below so the decoder always
     // inits with a live ANativeWindow, and so the issue-7 software-retry
     // latch (_mpvSwRetriedKey → hwdec=no) and play-next mode changes actually
-    // reach libmpv on _reloadMpv — _mpvOpen used to skip hwdec entirely
+    // reach libmpv on _reloadMpv - _mpvOpen used to skip hwdec entirely
     // (`skipHwdec: true`), so a mid-stream codec death reloaded with the same
     // `mediacodec` setting and died again with "Could not open codec."
     try {
       final start = Duration(milliseconds: startMs);
-      // Ensure surface is still valid — rotation can destroy it between
+      // Ensure surface is still valid - rotation can destroy it between
       // _startMpvFallback's attach and this open.
       final surface = _mpvSurface;
       if (surface == null) {
@@ -3235,7 +3250,7 @@ Future<void> _offerVc1Mpv() async {
       await _applyMpvHwdec(player);
       // The source's own HTTP headers (WebDAV Basic auth, a Jellyfin token, a
       // `Referer`) were dropped on this path, and ffmpeg's default
-      // `User-Agent: Lavf/…` is refused by a lot of CDNs — both are sent
+      // `User-Agent: Lavf/…` is refused by a lot of CDNs - both are sent
       // before the open so a direct open has the same odds as Media3's.
       if (!viaHttpBridge) {
         await _applyMpvHttpHeaders(player, video);
@@ -3249,9 +3264,9 @@ Future<void> _offerVc1Mpv() async {
       if (postSurface != null && postSurface.isReady) {
         await _attachMpvWid(postSurface.wid!, postSurface.width, postSurface.height);
       }
-      // Audio/subs — hwdec already applied above; skip the duplicate.
+      // Audio/subs - hwdec already applied above; skip the duplicate.
       await _configureMpvAudio(player, skipHwdec: true);
-      // Picture-panel video toggles, then the user's custom mpv.conf — applied
+      // Picture-panel video toggles, then the user's custom mpv.conf - applied
       // AFTER our hardening so user options win, except the protected keys
       // (vo/wid/force-window/…) which the parser already filters out.
       await _applyMpvVideoToggles(player);
@@ -3260,10 +3275,10 @@ Future<void> _offerVc1Mpv() async {
       // vertical position) so settings carry over from Media3 to mpv.
       await _applyMpvSubtitleStyle(player);
       // Volume Boost / Night Mode on EVERY open, not only when the slider moves
-      // — see _applyMpvVolume. Skipping this is what made MPV start quieter
+      // - see _applyMpvVolume. Skipping this is what made MPV start quieter
       // than Media3 on a fresh file (issue #41).
       await _applyMpvVolume();
-      // 4. Now play — the Surface is attached and the decoder pipeline is
+      // 4. Now play - the Surface is attached and the decoder pipeline is
       //    correctly configured for this file.
       await player.play();
     } catch (e) {
@@ -3272,7 +3287,7 @@ Future<void> _offerVc1Mpv() async {
     }
     // mpv's own `sub-auto=exact` would discover sidecar files next to a local
     // video, but our sources are loopback HTTP URLs (SMB) and remote schemes,
-    // so there is no directory to scan — the Media3 path's resolved external
+    // so there is no directory to scan - the Media3 path's resolved external
     // subs have to be added explicitly. Mirrors Media3's
     // **external > embedded always** priority: the first `isDefault` track
     // gets selected, the rest are still reachable from the CC sheet.
@@ -3285,18 +3300,18 @@ Future<void> _offerVc1Mpv() async {
   /// Without this, chapters were a Media3-only feature: the native parser
   /// ([MkvChapters]/[Mp4Chapters]) lives in the ExoPlayer platform view, so
   /// playing the SAME file with the MPV engine showed no seekbar markers and no
-  /// chapter buttons — the feature appeared to be "local files only" because
+  /// chapter buttons - the feature appeared to be "local files only" because
   /// that happened to be how it was being tested.
   ///
   /// POLLING, not a single read: mpv only populates `chapter-list` once the file
-  /// is demuxed, which is after `open()` returns — and on a network source
+  /// is demuxed, which is after `open()` returns - and on a network source
   /// (SMB's loopback proxy, WebDAV, Jellyfin) it is well after that. A
   /// one-shot read therefore always came back empty, which is why MPV showed
   /// nothing on local files either.
   ///
   /// mpv has no `chapter-list/count` (and `getProperty` cannot stringify a node
   /// array), so [_probeMpvChapters] walks indices until a read is empty or
-  /// throws — the same shape as the DEFAULT-audio probe for `track-list/<n>`.
+  /// throws - the same shape as the DEFAULT-audio probe for `track-list/<n>`.
   Future<void> _loadMpvChapters(Player player) async {
     final platform = player.platform;
     if (platform is! NativePlayer || _inTests) return;
@@ -3309,7 +3324,7 @@ Future<void> _offerVc1Mpv() async {
       final found = await _probeMpvChapters(platform, attempts);
       if (found.length > 1) {
         debugPrint(
-          'mpv: ${found.length} chapters after $attempts probe(s) — '
+          'mpv: ${found.length} chapters after $attempts probe(s) - '
           '${found.map((c) => c.title).join(' / ')}',
         );
         if (mounted && token == _mpvChapterProbeToken) {
@@ -3336,7 +3351,7 @@ Future<void> _offerVc1Mpv() async {
           title = await platform.getProperty('chapter-list/$i/title');
           time = await platform.getProperty('chapter-list/$i/time');
         } catch (_) {
-          break; // no such index — past the last chapter
+          break; // no such index - past the last chapter
         }
         final seconds = double.tryParse(time.trim());
         if (seconds == null || seconds < 0) {
@@ -3367,7 +3382,7 @@ Future<void> _offerVc1Mpv() async {
   Future<void> _attachMpvExternalSubtitles(Player player) async {
     final subs = _current.externalSubtitles;
     if (subs.isEmpty) return;
-    // Add non-defaults first so the default lands as the LAST `select` call —
+    // Add non-defaults first so the default lands as the LAST `select` call -
     // `setSubtitleTrack` is what mpv actually exposes, and each call calls
     // `sub-add ... select`, so the last one wins. The non-defaults stay in
     // the track-list for the CC sheet to pick from.
@@ -3506,7 +3521,7 @@ Future<void> _offerVc1Mpv() async {
   /// back for the ORIGINAL remote URL.
   ///
   /// Without this the user sees "Failed to open http://127.0.0.1:54321/…"
-  /// — a local address that means nothing to them and hides which link
+  /// - a local address that means nothing to them and hides which link
   /// actually failed.
   String _mpvReadableError(String msg) {
     final bridged = _mpvHttpBridgeUrl;
@@ -3525,17 +3540,17 @@ Future<void> _offerVc1Mpv() async {
   ///
   /// The mpv engine's own HTTP stack (ffmpeg + mbedtls, `Lavf/…` UA) is
   /// refused by some CDNs while the Media3 engine's (OkHttp + Conscrypt) is
-  /// accepted — the reported case was a Cloudflare-fronted tracker host with a
+  /// accepted - the reported case was a Cloudflare-fronted tracker host with a
   /// client-bound token: "Failed to open https://…" on mpv, playing fine on
   /// Media3. When the direct open fails, the URL is served from a loopback
-  /// bridge that fetches it with OkHttp — exactly the stack that already
-  /// works — and the open is retried once per file.
+  /// bridge that fetches it with OkHttp - exactly the stack that already
+  /// works - and the open is retried once per file.
   ///
   /// Returns true when a retry was armed (the caller must not surface the
   /// error); false when the error should surface as-is.
   bool _maybeMpvHttpBridgeRetry(String msg) {
     if (!Platform.isAndroid || _inTests) return false;
-    if (_mpvPlayer == null) return false; // engine gone — surface the error
+    if (_mpvPlayer == null) return false; // engine gone - surface the error
     final video = _current;
     final src = _mpvSourceFor(video);
     if (!_isHttpSource(src)) return false;
@@ -3544,7 +3559,7 @@ Future<void> _offerVc1Mpv() async {
     _mpvHttpBridgeTriedKey = _resumeKey;
     final pos = _position.inMilliseconds;
     debugPrint(
-        'mpv: direct open failed ($msg) — retrying via the local media bridge');
+        'mpv: direct open failed ($msg) - retrying via the local media bridge');
     unawaited(_startMpvHttpBridge(video, pos, msg));
     return true;
   }
@@ -3573,11 +3588,11 @@ Future<void> _offerVc1Mpv() async {
 
   /// Auto-retry with software decode when mpv surfaces a mid-stream codec
   /// failure. mpv's own `hwdec-software-fallback` only rescues *decoder-init*
-  /// errors — a MediaCodec hardware decoder that starts producing frames and
+  /// errors - a MediaCodec hardware decoder that starts producing frames and
   /// then dies (common on HEVC Main10 4:2:0: ~0.5 s of video, then "Could not
   /// open codec") is reported by mpv as a terminal playback error instead.
   /// Seeing ~0.5 s of video before the failure proves the demuxer/audio are
-  /// fine, so the culprit is the video-decode path — reload the same file in
+  /// fine, so the culprit is the video-decode path - reload the same file in
   /// software once (the bundled FFmpeg decoder) at the current position.
   /// Latch is per-file ([_mpvSwRetriedKey]) so a later-file still tries
   /// hardware first. Mirrors the Media3 `_trySoftwareDecodeFallback`.
@@ -3585,7 +3600,7 @@ Future<void> _offerVc1Mpv() async {
   /// terminal error surface); false when the error should surface normally.
   bool _maybeMpvSoftwareRetry(String msg) {
     if (Platform.isAndroid == false || _inTests) return false;
-    if (_mpvPlayer == null) return false; // engine gone — surface the error
+    if (_mpvPlayer == null) return false; // engine gone - surface the error
     if (_mpvSwRetriedKey == _resumeKey) return false; // already retried
     if (_mpvHwdecMode == 'no') return false; // already software
     final looksLikeCodecFailure = mpvErrorLooksLikeCodec(msg);
@@ -3593,7 +3608,7 @@ Future<void> _offerVc1Mpv() async {
     final pos = _position.inMilliseconds;
     _mpvSwRetriedKey = _resumeKey;
     debugPrint(
-        'mpv: mid-stream codec failure on this file — reloading in software '
+        'mpv: mid-stream codec failure on this file - reloading in software '
         'at ${pos}ms ($msg)');
     if (mounted) {
       final messenger = ScaffoldMessenger.of(context);
@@ -3724,6 +3739,7 @@ Future<void> _offerVc1Mpv() async {
         unawaited(player.seek(t));
       }
       _maybeSaveMpvResume(v);
+      _updateSkipPill();
       setState(() {});
     }));
     _mpvSubs.add(player.stream.duration.listen((v) {
@@ -3741,7 +3757,7 @@ Future<void> _offerVc1Mpv() async {
           .toList();
       if (real.isNotEmpty) {
         // 1) Restore the user's saved pick (MPV track id string).
-        // 2) Otherwise pin the container DEFAULT-flagged track once per open —
+        // 2) Otherwise pin the container DEFAULT-flagged track once per open -
         //    `aid=auto` alone was landing on the first list entry, not the
         //    file's default audio. Only latch after a real selection: an
         //    early tracks event can arrive before the `default` flag is
@@ -3756,7 +3772,7 @@ Future<void> _offerVc1Mpv() async {
             debugPrint('mpv: restoring saved audio id=$restore');
             unawaited(player.setAudioTrack(saved));
           } else {
-            // Saved id is gone (track list changed) — fall through to default pin.
+            // Saved id is gone (track list changed) - fall through to default pin.
             debugPrint('mpv: saved audio id=$restore not in track list');
             unawaited(_pinMpvDefaultAudio(player, real));
           }
@@ -3786,7 +3802,7 @@ Future<void> _offerVc1Mpv() async {
       if (!mounted) return;
       // 'no' = subtitles explicitly off; 'auto' = mpv auto-selected a track
       // (subtitles ARE displaying); any other id = user manually selected one.
-      // Also check that subtitle tracks actually exist — mpv reports a
+      // Also check that subtitle tracks actually exist - mpv reports a
       // non-'no' id even when no subtitles are available, which highlights
       // the CC button for no reason.
       _mpvSubtitleOn = t.subtitle.id != 'no' &&
@@ -3835,17 +3851,17 @@ Future<void> _offerVc1Mpv() async {
       debugPrint('mpv: playback error: $msg');
       if (!mounted) return;
       // Mid-stream hardware decode failure (e.g. HEVC Main10 4:2:0 files
-      // whose MediaCodec decoder dies a few frames in) — auto-reload in
+      // whose MediaCodec decoder dies a few frames in) - auto-reload in
       // software before surfacing the terminal error.
       if (_maybeMpvSoftwareRetry(msg)) return;
       // A remote http(s) source that mpv's own HTTP stack (ffmpeg + mbedtls)
-      // could not open, while Media3 opened it fine — retry once through the
+      // could not open, while Media3 opened it fine - retry once through the
       // OkHttp-backed loopback bridge before giving up.
       if (_maybeMpvHttpBridgeRetry(msg)) return;
       _markMpvFailed('Fallback player error: ${_mpvReadableError(msg)}');
     }));
     _mpvSubs.add(player.stream.log.listen((l) {
-      // mpv's own log lines — invaluable when a file won't open.
+      // mpv's own log lines - invaluable when a file won't open.
       debugPrint('mpv [${l.level}] ${l.text.trim()}');
     }));
   }
@@ -3888,7 +3904,7 @@ Future<void> _offerVc1Mpv() async {
         if (lang.isNotEmpty) lang,
       ];
       if (parts.isNotEmpty) return parts.join(' · ');
-      // No codec/channels — still surface language alone if present.
+      // No codec/channels - still surface language alone if present.
       if (lang.isNotEmpty) return lang;
     }
     return null;
@@ -3936,7 +3952,7 @@ Future<void> _offerVc1Mpv() async {
         }
         return;
       }
-      // Dart model has no default flag — ask libmpv directly.
+      // Dart model has no default flag - ask libmpv directly.
       final platform = player.platform;
       if (platform is! NativePlayer || _inTests) {
         // Nothing better to try; stop retrying so we don't spin every event.
@@ -3970,11 +3986,11 @@ Future<void> _offerVc1Mpv() async {
           }
           return;
         }
-        // Probed the list and found no default flag — mpv's own auto pick
+        // Probed the list and found no default flag - mpv's own auto pick
         // (first entry when nothing is flagged) is correct. Latch so we don't
         // re-probe every tracks event (sub-add re-fires them).
         _mpvAudioDefaultApplied = true;
-        debugPrint('mpv: no default audio flag among ${real.length} tracks — leaving aid=auto');
+        debugPrint('mpv: no default audio flag among ${real.length} tracks - leaving aid=auto');
       } catch (e) {
         debugPrint('mpv: raw default-flag probe failed: $e');
         // Leave the latch clear so the next tracks event retries.
@@ -3997,7 +4013,7 @@ Future<void> _offerVc1Mpv() async {
 
   /// Pushes the fallback engine's playback state to the native pip bridge.
   /// Automatic pip entry is decided in `onUserLeaveHint`, which cannot await a
-  /// call into Dart — so the state has to be there before the user leaves.
+  /// call into Dart - so the state has to be there before the user leaves.
   void _syncMpvPipState() {
     if (_inTests) return;
     final p = _mpvPlayer;
@@ -4029,7 +4045,7 @@ Future<void> _offerVc1Mpv() async {
     });
   }
 
-  /// The user swiped the pip window away — pause so audio doesn't keep playing
+  /// The user swiped the pip window away - pause so audio doesn't keep playing
   /// invisibly (same rule as the Media3 engine's dismissal path).
   void _onMpvPipDismissed() {
     if (!mounted) return;
@@ -4074,7 +4090,7 @@ Future<void> _offerVc1Mpv() async {
   ///
   /// Media3 gets make-up gain + a peak limiter on the decoded PCM in the audio
   /// sink (capped at +12 dB). mpv only has its software `volume`, so this is
-  /// the equivalent — and it has to be pushed on EVERY open, not just
+  /// the equivalent - and it has to be pushed on EVERY open, not just
   /// when the slider moves. Two ways it made MPV quieter than Media3 (issue
   /// #41), both invisible to the user because the device volume never changes:
   ///
@@ -4082,7 +4098,7 @@ Future<void> _offerVc1Mpv() async {
   ///    play started MPV at volume 100 while Media3 came up boosted, so the
   ///    engines only matched until the user touched the setting once.
   /// 2. The old fixed clamp of 130 meant a 2x/3x boost could never be reached,
-  ///    and mpv refuses `volume` above `volume-max` anyway — so the ceiling is
+  ///    and mpv refuses `volume` above `volume-max` anyway - so the ceiling is
   ///    now raised to fit whatever the boost asks for.
   Future<void> _applyMpvVolume({double? baseFraction}) async {
     final p = _mpvPlayer;
@@ -4140,7 +4156,7 @@ Future<void> _offerVc1Mpv() async {
     if (!_inTests) FitModeStore.save(mode);
   }
 
-  /// End-of-media routing for the mpv engine — the same priority as the
+  /// End-of-media routing for the mpv engine - the same priority as the
   /// native ended path: sleep "end of video" → repeat one → repeat all /
   /// shuffle → auto-play-next (all continuing inside mpv).
   void _onMpvEnded() {
@@ -4164,7 +4180,7 @@ Future<void> _offerVc1Mpv() async {
         unawaited(_maybeAutoPlayNext());
       }
     }
-    // Resume is intentionally NOT cleared on completion — the details screen
+    // Resume is intentionally NOT cleared on completion - the details screen
     // needs the saved position to show the resume button and the replay icon.
     // Resume is cleared when the user explicitly chooses "Watch from beginning".
   }
@@ -4246,7 +4262,7 @@ Future<void> _offerVc1Mpv() async {
       _exo?.setNightMode(_nightMode);
       _ioRetries = 0;
     } catch (_) {
-      // Reopen itself failed — the error surface will show it.
+      // Reopen itself failed - the error surface will show it.
     }
   }
 
@@ -4281,7 +4297,7 @@ Future<void> _offerVc1Mpv() async {
   /// (HLS, H.264/AAC) at the last known position. Runs at most once per
   /// video ([_transcodeRetried] is set before this is called); on any
   /// failure the original direct-play error is surfaced instead.
-  /// IMPORTANT: [_error] must stay null while the HLS stream spins up —
+  /// IMPORTANT: [_error] must stay null while the HLS stream spins up -
   /// the video layer (the platform view) only stays mounted while
   /// `_error == null`, and unmounting it releases the player mid-open.
   Future<void> _tryTranscodeFallback(String directError) async {
@@ -4359,7 +4375,7 @@ Future<void> _offerVc1Mpv() async {
     if (e.error != null && e.error!.isNotEmpty) {
       final code = e.error!;
       // Auto-retry on transient IO errors (network blip). Uses exponential
-      // backoff: 2s, 4s, 8s, 16s, 32s — gives a flaky NAS / Wi-Fi enough
+      // backoff: 2s, 4s, 8s, 16s, 32s - gives a flaky NAS / Wi-Fi enough
       // time to recover before we give up.
       if (isRetryableIoError(code) &&
           _ioRetries < _maxIoRetries &&
@@ -4382,7 +4398,7 @@ Future<void> _offerVc1Mpv() async {
       }
       final friendly = _friendlyError(e);
       // Jellyfin direct-play failed (undecodable codec, expired stream, …).
-      // Ask the server to transcode once before giving up — the HLS output
+      // Ask the server to transcode once before giving up - the HLS output
       // (H.264/AAC) plays everywhere, including DV P5 on non-DV hardware.
       if (!_transcodeRetried &&
           _current.jellyfinItemId != null &&
@@ -4402,7 +4418,7 @@ Future<void> _offerVc1Mpv() async {
         return;
       }
       // Non-decode errors (container unsupported, IO, codec init, etc.).
-      // Auto-fallback to mpv only when the default engine allows it —
+      // Auto-fallback to mpv only when the default engine allows it -
       // a pinned Media3 default must not silently switch engines.
       if (!_autoFallbackTried &&
           !_mpvActive &&
@@ -4411,7 +4427,7 @@ Future<void> _offerVc1Mpv() async {
           _mpvSourceFor(_current).isNotEmpty) {
         _autoFallbackTried = true;
         debugPrint('auto-fallback: non-decode error "$friendly", falling back to mpv');
-        _error = 'Media3 cannot play this file — trying libmpv…';
+        _error = 'Media3 cannot play this file - trying libmpv…';
         setState(() {});
         unawaited(LastEngineStore.save(_resumeKey, 'mpv'));
         unawaited(_startMpvFallback(automatic: true));
@@ -4430,7 +4446,7 @@ Future<void> _offerVc1Mpv() async {
       _liveVideoMimeRaw = e.videoMime;
     }
     // Issue #51: VC-1 (Advanced especially) is advertised by the platform
-    // decoder, initialises, then emits nothing WITHOUT erroring — so the
+    // decoder, initialises, then emits nothing WITHOUT erroring - so the
     // error-triggered software fallback never fires and the user gets a
     // silent black screen with working audio. There is no Media3-path
     // software decoder for it (Media3's FFmpeg extension is audio-only;
@@ -4470,7 +4486,7 @@ Future<void> _offerVc1Mpv() async {
     }
     // When live detection reveals HDR/DV content on the Media3 engine, the GL
     // picture-effect pipeline must not stay engaged (it would strip the
-    // native HDR/DV layer from the surface) — the native side clears the
+    // native HDR/DV layer from the surface) - the native side clears the
     // effects; here we just retire the panel.
     if (_liveHdr != HdrFormat.sdr && _media3PictureAvailable) {
       _media3PictureAvailable = false;
@@ -4479,7 +4495,7 @@ Future<void> _offerVc1Mpv() async {
       }
     }
     // HDR gate: only re-gate on an actual transition INTO the playing
-    // state (auto-play on open, resume, etc.) — re-checking on every
+    // state (auto-play on open, resume, etc.) - re-checking on every
     // 4×/s position event would re-open the paywall in a loop after the
     // user dismisses it.
     if (e.playing && !wasPlaying) {
@@ -4558,7 +4574,7 @@ Future<void> _offerVc1Mpv() async {
     _maybeRemoteSkipLookup();
 
     // Auto-skip intro/recap/credits (issue #60): when the playhead is inside a
-    // segment and playing, seek past it — once per segment per open.
+    // segment and playing, seek past it - once per segment per open.
     if (_skipMode == SkipMode.auto && e.playing && !_dragging && !_inPip) {
       final seg =
           SkipSegments.inside(_allSkipSegments, e.position.inMilliseconds);
@@ -4610,7 +4626,7 @@ Future<void> _offerVc1Mpv() async {
     }
 
     // Resume bookmark: persist every ~5s while playing, and immediately when
-    // playback pauses/stops. A finished video keeps its bookmark — the details
+    // playback pauses/stops. A finished video keeps its bookmark - the details
     // screen shows the replay icon when the user navigates back.
     if (e.ended) {
       // No-op: resume persists for the details screen replay icon.
@@ -4640,6 +4656,7 @@ Future<void> _offerVc1Mpv() async {
       // Fire-and-forget; handle async outside setState.
       Future.microtask(() => _maybeAutoFetchSubs());
     }
+    _updateSkipPill();
     if (mounted) setState(() {});
   }
 
@@ -4890,7 +4907,7 @@ Future<void> _offerVc1Mpv() async {
 
   /// Keeps the controls visible while paused or buffering, and starts the
   /// auto-hide countdown only while playing. In picture-in-picture the
-  /// floating window always shows ONLY the video — never reveal anything
+  /// floating window always shows ONLY the video - never reveal anything
   /// (a paused/ended pip would otherwise pop the whole control UI into the
   /// tiny window).
   void _syncControlsForPlaybackState() {
@@ -4915,17 +4932,17 @@ Future<void> _offerVc1Mpv() async {
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
-      // Query the native player's ACTUAL position — the Dart-side _position
+      // Query the native player's ACTUAL position - the Dart-side _position
       // can be stale if no events fired since the last pause.
       _persistPositionOnBackground();
     }
     // Background playback: audio KEEPS PLAYING when the app is backgrounded
-    // or the screen locks — that's the MediaSession + foreground-service
+    // or the screen locks - that's the MediaSession + foreground-service
     // feature (Android) / background-audio mode (iOS). We only bookmark the
     // position above; on resume, media that the OS destroyed is reopened.
     if (state == AppLifecycleState.resumed) {
       // Force a rebuild so Flutter recalculates the platform view's frame
-      // with the post-unlock screen dimensions — prevents the stretched /
+      // with the post-unlock screen dimensions - prevents the stretched /
       // wrong-aspect-ratio flash on iOS when the device wakes.
       if (mounted) setState(() {});
       _reopenAfterBackground();
@@ -4967,7 +4984,7 @@ Future<void> _offerVc1Mpv() async {
   /// platform view was recreated while the device was locked).
   static const int _nativeStateIdle = 1;
 
-  /// Media3 `Player.STATE_READY`: media is open and metadata is known —
+  /// Media3 `Player.STATE_READY`: media is open and metadata is known -
   /// the per-open format-chip flash fires on the first of these.
   static const int _nativeStateReady = 3;
 
@@ -4976,7 +4993,7 @@ Future<void> _offerVc1Mpv() async {
   /// even recreate the whole platform view (a fresh ExoPlayer, reset to
   /// IDLE); if the media is gone, reopen from the saved resume position.
   /// When playback survived the background (the normal case now that audio
-  /// keeps playing), it is left untouched — a user-paused player stays
+  /// keeps playing), it is left untouched - a user-paused player stays
   /// paused instead of being force-played.
   Future<void> _reopenAfterBackground() async {
     // --- Media3 path ---
@@ -5026,6 +5043,7 @@ Future<void> _offerVc1Mpv() async {
     _dtSeekTimer?.cancel();
     _chapterToastTimer?.cancel();
     _gestureSafetyWarningTimer?.cancel();
+    _skipPillTimer?.cancel();
     _statsTimer?.cancel();
     _statsTimer = null;
     // Put the user's original decoder mode back if we forced software for the
@@ -5068,7 +5086,7 @@ Future<void> _offerVc1Mpv() async {
     ThermalMonitor.instance.stop();
     unawaited(_mpvPlayer?.dispose());
     unawaited(_stopMpvProxy());
-    // Tear down the http(s) loopback bridge too — it holds a live upstream
+    // Tear down the http(s) loopback bridge too - it holds a live upstream
     // connection, so it must not outlive the player.
     unawaited(_stopMpvHttpBridge());
     // Tell the native pip bridge the fallback engine is gone (clears its
@@ -5083,7 +5101,7 @@ Future<void> _offerVc1Mpv() async {
     _mpvPlayer = null;
     // Restore orientation + system UI. These are async platform calls that
     // cannot be awaited in dispose(). Using addPostFrameCallback ensures the
-    // restore completes BEFORE the calling screen rebuilds — without this,
+    // restore completes BEFORE the calling screen rebuilds - without this,
     // the details screen's Scaffold computes its layout with intermediate
     // MediaQuery data during the rotation transition, placing the bottom bar
     // at the top and potentially crashing.
@@ -5117,7 +5135,7 @@ Future<void> _offerVc1Mpv() async {
 
   void _restartHideTimer() {
     _hideTimer?.cancel();
-    // Auto-hide on every platform (including TV) while playing — any remote
+    // Auto-hide on every platform (including TV) while playing - any remote
     // button press reveals the controls again.
     if (!_playing || _buffering || _dragging) return;
     _hideTimer = Timer(_autoHideAfter, () {
@@ -5148,7 +5166,7 @@ Future<void> _offerVc1Mpv() async {
   Timer? _dtSeekTimer;
 
   void _onTapUp(TapUpDetails details) {
-    // PiP window: taps do nothing — the floating video stays clean.
+    // PiP window: taps do nothing - the floating video stays clean.
     if (_inPip) return;
     if (_isTv) {
       _onScreenTap();
@@ -5156,7 +5174,7 @@ Future<void> _offerVc1Mpv() async {
     }
     if (_touchLocked) {
       // Locked: reveal the bars so the amber Unlock button is reachable.
-      // This tap must not toggle play/pause nor hide the controls — without
+      // This tap must not toggle play/pause nor hide the controls - without
       // it a locked player is unrecoverable once the auto-hide fires.
       if (!_controlsVisible) _showControls();
       return;
@@ -5183,7 +5201,7 @@ Future<void> _offerVc1Mpv() async {
   // Holding the picture raises playback to 2x; releasing restores whatever
   // speed the user had dialed in. _playbackSpeed is left UNTOUCHED, so the
   // more-sheet radio, the info chip and the persisted preference all keep
-  // telling the truth — the hold is session state, never saved.
+  // telling the truth - the hold is session state, never saved.
   //
   // A completed tap never collides with this: a tap frees the finger (the
   // recognizer delivers onTapUp on lift), and while the finger is still down
@@ -5193,7 +5211,7 @@ Future<void> _offerVc1Mpv() async {
   bool _speedHoldActive = false;
 
   /// Applies a rate directly to whichever engine is live. The boosted rate
-  /// is a parameter write only — it must never touch
+  /// is a parameter write only - it must never touch
   /// [PlaybackSpeedStore]/_playbackSpeed.
   void _applyHoldRate(double rate) {
     if (_mpvReady) {
@@ -5220,7 +5238,7 @@ Future<void> _offerVc1Mpv() async {
   void _onLongPressCancel() => _endSpeedHold();
 
   /// Restores the user's previous speed and dismisses the badge. The stored
-  /// _playbackSpeed IS the restore target — the hold never wrote anywhere.
+  /// _playbackSpeed IS the restore target - the hold never wrote anywhere.
   void _endSpeedHold() {
     if (!_speedHoldActive) return;
     _speedHoldActive = false;
@@ -5315,7 +5333,7 @@ Future<void> _offerVc1Mpv() async {
     _hideTimer?.cancel();
     setState(() => _controlsVisible = false);
     // Seed from the LIVE platform value so the swipe starts exactly where
-    // the system is — never from a stale init-time snapshot.
+    // the system is - never from a stale init-time snapshot.
     _syncSwipeBase();
   }
 
@@ -5324,7 +5342,7 @@ Future<void> _offerVc1Mpv() async {
   Future<void> _syncSwipeBase() async {
     if (_swipeType == null || !_swipeGestureActive) return;
     if (_mpvReady) {
-      // MPV has no ExoPlayerController — the gesture must target the OS
+      // MPV has no ExoPlayerController - the gesture must target the OS
       // directly through the engine-agnostic `dreamplayer/system` channel.
       final current = _swipeType == _SwipeType.brightness
           ? await SystemControls.instance.getBrightness()
@@ -5366,7 +5384,7 @@ if (mounted) setState(_applySwipeValue);
   /// Puts the system volume back where it was before this video opened.
   ///
   /// The volume gesture spans 0-200%, so pushing past 100% drags the OS volume
-  /// to max on the way. That must not outlive the session — the user asked for
+  /// to max on the way. That must not outlive the session - the user asked for
   /// volume to be video-scoped, not a device-wide side effect.
   ///
   /// Skipped when the last value the gesture pushed is no longer what is set,
@@ -5427,7 +5445,7 @@ if (mounted) setState(_applySwipeValue);
       _audioBoost = split.boost;
       _lastPushedSystemVolume = split.system;
       if (_mpvReady) {
-        // System volume on the mpv fallback too — same UX as Media3.
+        // System volume on the mpv fallback too - same UX as Media3.
         if (systemChanged) {
           unawaited(SystemControls.instance.setSystemVolume(split.system));
         }
@@ -5437,7 +5455,7 @@ if (mounted) setState(_applySwipeValue);
         // so re-pushing it on every increment is pure churn (iOS drives the
         // MPVolumeView slider, which is audible while it moves).
         if (systemChanged) _exo?.setSystemVolume(split.system);
-        // Android's boost is a PCM gain — it applies live. iOS has no boost
+        // Android's boost is a PCM gain - it applies live. iOS has no boost
         // at all (the engine DSP would rebuild the audio session at the
         // playhead, i.e. reload the video), so this only ever runs on
         // Android.
@@ -5453,7 +5471,7 @@ if (mounted) setState(_applySwipeValue);
 
   /// Vertical slider shown on the side opposite the gesture (mpv∞'s trick):
   /// a left-side brightness swipe renders it on the right edge, a right-side
-  /// volume swipe on the left edge. Fully transparent — no fill, no outline —
+  /// volume swipe on the left edge. Fully transparent - no fill, no outline -
   /// so nothing blocks the view. A semi-transparent black fill and an
   /// accent-coloured fill grow from the bottom; icon + percentage on top.
   /// Sized relative to the VIDEO content rect (BoxFit.contain), not the full
@@ -5491,7 +5509,7 @@ if (mounted) setState(_applySwipeValue);
         width: sliderW,
         height: sliderH,
         decoration: BoxDecoration(
-          // Semi-transparent black fill — visible enough to read the level
+          // Semi-transparent black fill - visible enough to read the level
           // bar against any frame, dark enough not to fight the video.
           color: Colors.black.withValues(alpha: 0.45),
         ),
@@ -5520,7 +5538,7 @@ if (mounted) setState(_applySwipeValue);
                 ],
               ),
             ),
-            // Track — fills from the bottom with the accent colour.
+            // Track - fills from the bottom with the accent colour.
             Expanded(
               child: Container(
                 width: fillW,
@@ -5571,7 +5589,7 @@ if (mounted) setState(_applySwipeValue);
   /// that starts while the boost is already engaged would otherwise read as a
   /// fresh crossing and warn for a threshold the user crossed long ago.
   void _checkGestureSafety(double previous, double next) {
-    // Brightness gestures never warn — only volume above 100% does.
+    // Brightness gestures never warn - only volume above 100% does.
     if (_swipeType == _SwipeType.brightness) return;
     final warning = gestureSafetyWarning(
       isVolume: _swipeType == _SwipeType.volume,
@@ -5660,7 +5678,7 @@ if (mounted) setState(_applySwipeValue);
   }
 
   /// Tracks the current orientation. The player screen is always immersive, so
-  /// rotation only re-lays-out (no system UI change) — this is what keeps the
+  /// rotation only re-lays-out (no system UI change) - this is what keeps the
   /// video from jittering mid-rotation.
   void _applyOrientation(bool landscape) {
     if (landscape == _lastLandscape) return;
@@ -5672,7 +5690,7 @@ if (mounted) setState(_applySwipeValue);
   Future<void> _toggleFullscreen() async {
     if (_touchLocked) return;
     final enter = !_fullscreen;
-    // Requests a SINGLE orientation per direction on purpose — see
+    // Requests a SINGLE orientation per direction on purpose - see
     // fullscreenOrientations. Asking for both landscape (or all four) values
     // decodes to a `USER*` ActivityInfo constant, which Android honours only
     // while the user has rotation UNlocked. With rotation locked the button was
@@ -5823,7 +5841,7 @@ if (mounted) setState(_applySwipeValue);
     } catch (_) {}
   }
 
-  /// Audio-track picker for the mpv fallback — identical UI to the Media3
+  /// Audio-track picker for the mpv fallback - identical UI to the Media3
   /// variant, backed by media_kit's `tracks` state + `setAudioTrack`.
   Future<void> _openMpvAudioTrackSheet() async {
     final player = _mpvPlayer;
@@ -5894,7 +5912,7 @@ if (mounted) setState(_applySwipeValue);
       if (choice != null && choice.id != selected) {
         await player.setAudioTrack(choice);
         await AudioTrackStore.save(_resumeKey, engine: 'mpv', trackIndex: choice.id);
-        // Rebuild the audio chip immediately — don't wait for the next
+        // Rebuild the audio chip immediately - don't wait for the next
         // `stream.track` event (the language badge reads the selected track).
         if (mounted) setState(() {});
       }
@@ -5927,7 +5945,7 @@ if (mounted) setState(_applySwipeValue);
     ].join(' · ');
   }
 
-  /// Subtitle picker for the mpv fallback — same sections as the Media3
+  /// Subtitle picker for the mpv fallback - same sections as the Media3
   /// variant (downloaded / off / tracks / search online / load file), backed by
   /// media_kit tracks + `setSubtitleTrack` (incl. `SubtitleTrack.uri` for
   /// files picked/downloaded while the fallback is playing).
@@ -6362,7 +6380,7 @@ if (mounted) setState(_applySwipeValue);
             maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
           ),
           // One scrollable list (not a fixed Column with nested Flexible
-          // lists) — in landscape the fixed tiles alone can exceed the cap
+          // lists) - in landscape the fixed tiles alone can exceed the cap
           // and overflow the bottom.
           child: ListView(
             shrinkWrap: true,
@@ -6389,7 +6407,7 @@ if (mounted) setState(_applySwipeValue);
                     final d = downloaded[i];
                     final isSelected = _current.subtitleUri == d.path;
                     // Show the *real* subtitle name. Old downloads may hold a
-                    // meaningless OpenSubtitles upload id (`1324.srt`) — derive
+                    // meaningless OpenSubtitles upload id (`1324.srt`) - derive
                     // a human name for those, keep real names as-is.
                     final displayName = meaningfulSubtitleFileName(
                       apiFileName: d.fileName,
@@ -6519,13 +6537,13 @@ if (mounted) setState(_applySwipeValue);
       final smbUri = await _tryPickSmbSiblingSubtitle();
       if (smbUri == '__CANCEL__') return;
       if (smbUri != null) {
-        // User picked a NAS sibling — load it.
+        // User picked a NAS sibling - load it.
         if (!mounted) return;
         await _attachSubtitlePath(smbUri);
         return;
       }
     }
-    // Fallback: system file picker — shows any file manager on the device
+    // Fallback: system file picker - shows any file manager on the device
     // (Files, CX Explorer, Solid Explorer, etc.) via GET_CONTENT chooser.
     String? uri;
     try {
@@ -6607,7 +6625,7 @@ if (mounted) setState(_applySwipeValue);
       final auto = await SubtitlePrefs.loadAutoFetch();
       if (!auto) return;
       if (!OpensubtitlesClient.instance.hasApiKey) return;
-      // #37 — the online subtitle search feature in its automatic form.
+      // #37 - the online subtitle search feature in its automatic form.
       // (Android is always advanced, so this is a no-op there.)
       if (!await _gate()) return;
       if (_subtitleTracks.isNotEmpty) return;
@@ -7101,7 +7119,7 @@ if (mounted) setState(_applySwipeValue);
                   // Picture-in-picture lives in app Settings (Player section):
                   // the toggle gates the automatic HOME/recents entry on both
                   // platforms; there is no manual ⋮ entry for the main engine.
-                  // EXCEPTION — fallback engine: its video is a Flutter
+                  // EXCEPTION - fallback engine: its video is a Flutter
                   // texture, so pip is easy to miss; give it an explicit row.
                   if (_mpvReady && Platform.isAndroid && !_isTv)
                     _tvListTile(
@@ -7115,7 +7133,7 @@ if (mounted) setState(_applySwipeValue);
                       },
                     ),
                   // Playback stats HUD (Infuse-style live performance
-                  // overlay) — session-only toggle, polled every second.
+                  // overlay) - session-only toggle, polled every second.
                   _tvListTile(
                       leading: const Icon(Icons.show_chart,
                           color: Colors.white70),
@@ -7325,7 +7343,7 @@ if (mounted) setState(_applySwipeValue);
                       ),
                     ),
                   const Divider(color: Colors.white12, height: 1),
-                  // Audio delay (manual A/V sync) — Android only; AetherEngine
+                  // Audio delay (manual A/V sync) - Android only; AetherEngine
                   // exposes no audio-offset hook on iOS, and the mpv fallback
                   // has no PCM pipeline to delay, so the section is Media3-only.
                   if (defaultTargetPlatform == TargetPlatform.android &&
@@ -7390,7 +7408,7 @@ if (mounted) setState(_applySwipeValue);
                       _abA != null && _abB != null
                           ? '${_formatDuration(Duration(milliseconds: _abA!))} – ${_formatDuration(Duration(milliseconds: _abB!))}'
                           : _abA != null
-                              ? 'A ${_formatDuration(Duration(milliseconds: _abA!))} — pick B'
+                              ? 'A ${_formatDuration(Duration(milliseconds: _abA!))} - pick B'
                               : 'Off',
                       style: const TextStyle(color: Colors.white54, fontSize: 12),
                     ),
@@ -7436,7 +7454,7 @@ if (mounted) setState(_applySwipeValue);
                     ),
                   const Divider(color: Colors.white12, height: 1),
                   // Subtitle appearance (moved here from the app Settings
-                  // screen — it belongs next to the CC picker it configures).
+                  // screen - it belongs next to the CC picker it configures).
                   _tvListTile(
                     leading: const Icon(Icons.closed_caption, color: Colors.white70),
                     title: Text(AppLocalizations.of(context).playerSubtitleSettings, style: TextStyle(color: Colors.white)),
@@ -7454,7 +7472,7 @@ if (mounted) setState(_applySwipeValue);
                       ),
                     );
                     // Re-apply the (possibly changed) style to the live
-                    // player — the settings screen only persists; without
+                    // player - the settings screen only persists; without
                     // this the change only landed on the NEXT open.
                     if (!mounted) return;
                     try {
@@ -7473,7 +7491,7 @@ if (mounted) setState(_applySwipeValue);
                         await _reopenAt(_position, _duration);
                       }
                     } catch (_) {}
-                    // Rebuild the MPV Flutter subtitle overlay — without this
+                    // Rebuild the MPV Flutter subtitle overlay - without this
                     // the new fontSize/sizeMultiplier only lands on the next
                     // unrelated setState (rotation, position tick while
                     // playing), so portrait size changes looked dead.
@@ -7555,7 +7573,7 @@ if (mounted) setState(_applySwipeValue);
                   //
                   // Volume boost and bass boost are ANDROID-ONLY now. On iOS
                   // both are engine DSP, and every DSP change rebuilds the
-                  // audio session at the playhead — a video reload — so a
+                  // audio session at the playhead - a video reload - so a
                   // boost that rode the volume swipe reloaded the picture on
                   // every step. The bass row was also gated behind spatial
                   // audio being engaged, so it was unreachable without
@@ -7570,7 +7588,7 @@ if (mounted) setState(_applySwipeValue);
                     // is the #41 "boost works until I touch volume" bug in a
                     // second location.
                     // Bass Boost appears only while platform spatial audio
-                    // is actually engaged — it exists to offset the HRTF
+                    // is actually engaged - it exists to offset the HRTF
                     // low-end thinning of virtualized surround.
                     if (_liveSpatial == 'on' &&
                         defaultTargetPlatform == TargetPlatform.android) ...[
@@ -7617,7 +7635,7 @@ if (mounted) setState(_applySwipeValue);
                     _tvListTile(
                       leading: const Icon(Icons.nights_stay, color: Colors.white70),
                       title: Text(AppLocalizations.of(context).playerNightModeTitle, style: TextStyle(color: Colors.white)),
-                      subtitle: Text(_nightMode ? 'On — compressed dynamic range' : 'Off', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      subtitle: Text(_nightMode ? 'On - compressed dynamic range' : 'Off', style: const TextStyle(color: Colors.white54, fontSize: 12)),
                       trailing: Switch(
                         value: _nightMode,
                         onChanged: (v) async {
@@ -7719,7 +7737,7 @@ if (mounted) setState(_applySwipeValue);
                         ],
                       ),
                     ),
-                  // Skip intro / recap / credits rows (issue #60) — chapter
+                  // Skip intro / recap / credits rows (issue #60) - chapter
                   // names and AniSkip segments alike; shown even without
                   // container chapters.
                   if (_allSkipSegments.isNotEmpty) ...[
@@ -7795,7 +7813,7 @@ if (mounted) setState(_applySwipeValue);
                         ),
                       ),
                   ],
-                  // Download to device — only for network sources (not FTP or local).
+                  // Download to device - only for network sources (not FTP or local).
                   if (_current.playbackSource != null &&
                       _current.playbackSource != PlaybackSource.files &&
                       _current.playbackSource != PlaybackSource.ftp) ...[
@@ -7868,7 +7886,7 @@ if (mounted) setState(_applySwipeValue);
   /// keyboard, Chromebook, desktop builds).
   ///
   /// TV remotes never reach this: their D-pad handling is above and
-  /// deliberately different — arrow keys move focus there, so stealing them
+  /// deliberately different - arrow keys move focus there, so stealing them
   /// for seeking would break navigation. Returns true when the key was used.
   ///
   /// Arrow seeking applies only while the controls are hidden; with them
@@ -7945,20 +7963,61 @@ if (mounted) setState(_applySwipeValue);
   // ---------------------------------------------------------------------------
 
   /// All skip segments: chapter-name-derived merged with remote (AniSkip).
-  /// Per kind the chapter wins when it labels one — a named chapter matches
+  /// Per kind the chapter wins when it labels one - a named chapter matches
   /// this exact file; remote fills the kinds the chapters don't label.
   List<SkipSegment> get _allSkipSegments =>
       SkipSegments.merge(SkipSegments.fromChapters(_chapters), _remoteSegments);
 
   /// The segment the pill offers right now (playhead inside it, or it starts
-  /// within 5 s). Null in auto/off mode — auto seeks without a prompt.
+  /// within 5 s). Null in auto/off mode - auto seeks without a prompt.
   SkipSegment? get _promptSegment => _skipMode == SkipMode.prompt
       ? SkipSegments.promptable(_allSkipSegments, _position.inMilliseconds)
       : null;
 
   bool get _skipIntroVisible {
     final p = _promptSegment;
-    return _backendReady && !_inPip && p != null;
+    return _backendReady && !_inPip && p != null && !_skipPillExpired;
+  }
+
+  /// Drives the skip-pill auto-hide. Called on every position tick (both
+  /// engines) and whenever the segment list changes, so the pill reappears
+  /// for 5 s when a segment starts, and hides 5 s after entry.
+  ///
+  /// [_skipPillWasInside] is what makes the timer fire exactly once: without
+  /// it, "still inside and expired" would read as a re-entry on every tick,
+  /// re-arm the timer, and the pill would never hide at all.
+  void _updateSkipPill() {
+    final p = _promptSegment;
+    if (p == null || !_backendReady || _inPip) {
+      // The pill is not showing, so nothing may stay bound or armed: dropping
+      // the state here is what lets a later re-entry re-show it for 5 s.
+      _resetSkipPill();
+      return;
+    }
+    final inside =
+        SkipSegments.inside(_allSkipSegments, _position.inMilliseconds) == p;
+    if (p != _skipPillSegment ||
+        (inside && _skipPillExpired && !_skipPillWasInside)) {
+      _skipPillSegment = p;
+      _skipPillExpired = false;
+      _skipPillTimer?.cancel();
+      _skipPillTimer = null;
+    }
+    _skipPillWasInside = inside;
+    if (_skipPillExpired || _skipPillTimer != null || !inside) return;
+    _skipPillTimer = Timer(_skipPillVisibleFor, () {
+      if (!mounted) return;
+      setState(() => _skipPillExpired = true);
+    });
+  }
+
+  /// Per-open reset of the skip-pill auto-hide state.
+  void _resetSkipPill() {
+    _skipPillTimer?.cancel();
+    _skipPillTimer = null;
+    _skipPillSegment = null;
+    _skipPillExpired = false;
+    _skipPillWasInside = false;
   }
 
   void _maybeRemoteSkipLookup() {
@@ -7967,7 +8026,7 @@ if (mounted) setState(_applySwipeValue);
       _remoteSkipLookedUp = true;
       return;
     }
-    // Chapter names already cover every kind — no network call.
+    // Chapter names already cover every kind - no network call.
     final chapterSegs = SkipSegments.fromChapters(_chapters);
     final covered = SkipSegmentKind.values
         .every((k) => chapterSegs.any((s) => s.kind == k));
@@ -7979,7 +8038,7 @@ if (mounted) setState(_applySwipeValue);
     final tmdbId = meta?.movie.tmdbId;
     if (meta == null || tmdbId == null) {
       // Issue #65 cold-cache race: on a first play the TMDB resolve is still
-      // in flight when the first playback event fires this. Do NOT latch —
+      // in flight when the first playback event fires this. Do NOT latch -
       // _onTmdbChanged / the resolve callback re-fire once the match lands,
       // and latching here is exactly why the pill only appeared on the
       // second play.
@@ -7998,7 +8057,7 @@ if (mounted) setState(_applySwipeValue);
       );
       if (ep == null) {
         if (wide != null && wide.seasons.isEmpty) {
-          // Seasons are not cached yet (new show, first episode) — same race
+          // Seasons are not cached yet (new show, first episode) - same race
           // one level down: retry when the season fetch lands, don't latch.
           return;
         }
@@ -8035,7 +8094,7 @@ if (mounted) setState(_applySwipeValue);
     }
   }
 
-  /// Fetch several remote segment lists and merge them per kind — earlier
+  /// Fetch several remote segment lists and merge them per kind - earlier
   /// sources win (TheIntroDB first, AniSkip second). Falls back to the legacy
   /// opt-in IntroDB define when every source comes back empty/failed.
   Future<void> _mergeRemoteSegments(
@@ -8054,9 +8113,13 @@ if (mounted) setState(_applySwipeValue);
       if (merged.isNotEmpty) {
         // Issue #65: the setState re-evaluates _promptSegment against the
         // CURRENT playhead, so the pill pops up the moment the in-flight
-        // fetch lands — even when playback started at 00:00 while the
+        // fetch lands - even when playback started at 00:00 while the
         // request was still running.
         setState(() => _remoteSegments = merged);
+        // The pill can pop up the moment this lands: re-run the auto-hide
+        // state machine so a segment the playhead is already inside has a
+        // 5 s hide window rather than sitting there for its whole length.
+        _updateSkipPill();
       } else {
         _introDbFallback();
       }
@@ -8091,11 +8154,12 @@ if (mounted) setState(_applySwipeValue);
               kind: SkipSegmentKind.credits),
       ];
       if (segs.isNotEmpty) setState(() => _remoteSegments = segs);
+      _updateSkipPill();
     }));
   }
 
   void _skipSegment(SkipSegment segment) {
-    // Issue #62: the skip pill stays usable while controls are locked —
+    // Issue #62: the skip pill stays usable while controls are locked -
     // skipping an intro is a deliberate action, not a gesture to lock out.
     // Credits seek to the segment START; intro/recap to its END.
     final target = segment.kind == SkipSegmentKind.credits
@@ -8130,7 +8194,7 @@ if (mounted) setState(_applySwipeValue);
   /// On TV this is a [_TvControlButton] so the D-pad gets its focus ring.
   /// On touch it is a **plain icon, not wrapped in [_TvControlButton] at
   /// all**: suppressing the ring's decoration was not enough, because a
-  /// transient glow kept flashing on one button or the other — the ring is
+  /// transient glow kept flashing on one button or the other - the ring is
   /// drawn inside a Focus/AnimatedContainer, and Material's own focus/ink
   /// behaviour around a freshly inserted (or newly focused) button still
   /// painted a disc for a frame. Removing the whole widget from the touch path
@@ -8194,7 +8258,7 @@ if (mounted) setState(_applySwipeValue);
     final wasCompleted = _completed;
     _seekBackend(target);
     // After seeking away from the end, clear the completed flag and resume
-    // playback — otherwise the replay icon stays and the video never starts.
+    // playback - otherwise the replay icon stays and the video never starts.
     if (wasCompleted) {
       _completed = false;
       final mpv = _mpvPlayer;
@@ -8245,7 +8309,7 @@ if (mounted) setState(_applySwipeValue);
     } else if (_playing) {
       exo.pause();
     } else {
-      // Don't start HDR playback for a post-trial free user — re-gate every
+      // Don't start HDR playback for a post-trial free user - re-gate every
       // play attempt (not just the first), so dismissing the paywall and
       // tapping play again keeps the video paused.
       if (!await _checkHdrGate()) return;
@@ -8367,7 +8431,7 @@ if (mounted) setState(_applySwipeValue);
 
   /// HDR chip text for the on-screen badge. When the decoder tone-mapped an
   /// HDR source down to SDR (the "hardware SDR tone-mapping" setting,
-  /// issue #55) the picture on screen is SDR — saying "Dolby Vision" there
+  /// issue #55) the picture on screen is SDR - saying "Dolby Vision" there
   /// would be a lie, so the chip says what is actually displayed.
   String get _hdrChipLabel {
     if (_toneMappedToSdr) return 'Tone-mapped SDR';
@@ -8456,7 +8520,7 @@ if (mounted) setState(_applySwipeValue);
   /// not an episode. The title line carries the SHOW title, so this is what
   /// identifies the episode being played.
   ///
-  /// The name is read from cached metadata only — no request here. Seasons are
+  /// The name is read from cached metadata only - no request here. Seasons are
   /// cached under the folder/show key the details screen fetched them with
   /// (see [TmdService.metaWithSeasons]), not under the file's own key, so the
   /// lookup has to widen past `_tmdbMeta` or every episode would show its bare
@@ -8480,7 +8544,7 @@ if (mounted) setState(_applySwipeValue);
     );
   }
 
-  /// Lowest cached season above 0 — `seasons.keys.first` can be season 0
+  /// Lowest cached season above 0 - `seasons.keys.first` can be season 0
   /// (specials), which never labels an episode correctly.
   int? _firstCachedSeason(TmdMeta? meta) {
     for (final season in meta?.seasons.keys ?? const <int>[]) {
@@ -8494,7 +8558,7 @@ if (mounted) setState(_applySwipeValue);
     return _liveResolution ?? _current.resolution;
   }
 
-  /// Decoder line for the stats HUD — same data the ⓘ info sheet shows,
+  /// Decoder line for the stats HUD - same data the ⓘ info sheet shows,
   /// because Media3 does not copy the effective decoder state back into a
   /// stable Dart field in all cases: reuse the live chip fields instead.
   String? get _statsDecoderLine {
@@ -8546,7 +8610,7 @@ if (mounted) setState(_applySwipeValue);
       await _pollExoStats();
     } else if (_exo != null) {
       // iOS: the native player has no stats channel, so the HUD shows the
-      // live chip labels plus the playhead — no invented numbers.
+      // live chip labels plus the playhead - no invented numbers.
       _statsSnapshot = PlaybackStats(
         durationMs: _duration.inMilliseconds,
         positionMs: _position.inMilliseconds,
@@ -8562,7 +8626,7 @@ if (mounted) setState(_applySwipeValue);
 
   /// MPV: every stat is a libmpv property read one second apart. Anything
   /// that fails to read (stock libmpv, paused, demux not started) simply
-  /// drops out of the snapshot — the HUD shows only what mpv exposes.
+  /// drops out of the snapshot - the HUD shows only what mpv exposes.
   Future<void> _pollMpvStats() async {
     final platform = _mpvPlayer?.platform;
     if (platform is! NativePlayer) return;
@@ -8644,12 +8708,12 @@ if (mounted) setState(_applySwipeValue);
     // The on-screen chip row shows only the pieces of info the user checks at
     // a glance while playing. The user can toggle each category in Settings →
     // Player → On-screen badges. Everything else lives in the ⓘ info sheet.
-    // Both engines show the same set of badges when data is available — the
+    // Both engines show the same set of badges when data is available - the
     // HDR chip on MPV follows the tone-map toggle (Native = detected format;
     // SDR tone-map = "Tone-mapped SDR").
     final chips = <Widget>[];
     if (_badgeEnabled) {
-      // HDR — Media3 shows the real format. MPV follows tone-map mode:
+      // HDR - Media3 shows the real format. MPV follows tone-map mode:
       // Native = detected source (DV/HDR10); SDR tone-map = "Tone-mapped SDR";
       // SDR content or stock libmpv = plain "SDR".
       if (_badgeHdr) {
@@ -8671,7 +8735,7 @@ if (mounted) setState(_applySwipeValue);
           color: Color(0xFFB388FF),
         ));
       }
-      // iOS MetalFX upscale stage (engine #846) — SDR SD/720p/1080p only.
+      // iOS MetalFX upscale stage (engine #846) - SDR SD/720p/1080p only.
       if (_liveUpscaleActive) {
         chips.add(FormatChip(
           label: _liveUpscaleLabel.isNotEmpty
@@ -8680,9 +8744,9 @@ if (mounted) setState(_applySwipeValue);
           color: const Color(0xFF80CBC4),
         ));
       }
-      // Audio codec — both engines.
+      // Audio codec - both engines.
       if (_badgeAudio && audioChip != null) chips.add(audioChip);
-      // Video codec — both engines.
+      // Video codec - both engines.
       if (_badgeVideoCodec) {
         final vc = _mpvReady ? _mpvVideoCodecLabel : _videoCodecInfoLabel;
         if (vc != null) {
@@ -8692,7 +8756,7 @@ if (mounted) setState(_applySwipeValue);
           ));
         }
       }
-      // Resolution — both engines.
+      // Resolution - both engines.
       if (_badgeResolution) {
         final res = _mpvReady ? _mpvResolution : (_liveResolution ?? _current.resolution);
         if (res != null) {
@@ -8702,7 +8766,7 @@ if (mounted) setState(_applySwipeValue);
           ));
         }
       }
-      // Spatial audio — the state comes from the platform (Android: the
+      // Spatial audio - the state comes from the platform (Android: the
       // system Spatializer; iOS: Apple's system spatialization, which the
       // premium Settings toggle opts into).
       if (_badgeSpatialAudio && _liveSpatial == 'on') {
@@ -8711,14 +8775,14 @@ if (mounted) setState(_applySwipeValue);
           color: Color(0xFF26A69A),
         ));
       }
-      // Server transcoding — both engines.
+      // Server transcoding - both engines.
       if (_badgeServerTranscode && _transcodeActive) {
         chips.add(FormatChip(
           label: AppLocalizations.of(context).sourceTranscoding,
           color: Color(0xFFEF5350),
         ));
       }
-      // Decoder — both engines.
+      // Decoder - both engines.
       if (_badgeDecoder) {
         if (_mpvReady) {
           final label = _mpvHwdecMode == 'no'
@@ -8743,12 +8807,12 @@ if (mounted) setState(_applySwipeValue);
     final episodeLine = _episodeLine;
 
     // IMPORTANT: keep the widget-tree shape stable across casting state.
-    // The platform view must ALWAYS be mounted at the same slot — swapping
+    // The platform view must ALWAYS be mounted at the same slot - swapping
     // it for a placeholder (or moving it under a conditional branch)
     // recreates the native view, releases ExoPlayer mid-open and breaks
     // "resume on this device". The casting overlay is an extra sibling
     // stacked ON TOP; adding/removing it doesn't touch the player's slot.
-    // IMPORTANT: the error / placeholder content is NOT inside this layer —
+    // IMPORTANT: the error / placeholder content is NOT inside this layer -
     // it is rendered as a sibling ABOVE the full-screen tap+swipe catcher
     // (line "Positioned.fill(child: videoLayer)" below), so the fallback
     // button actually receives taps instead of the catcher swallowing them.
@@ -8757,7 +8821,7 @@ if (mounted) setState(_applySwipeValue);
       children: [
         // Black underlay: during rotation the SurfaceView is destroyed and
         // recreated; a transparent gap would show the details route underneath.
-        // (Root Stack also has a black base — belt and braces with this layer.)
+        // (Root Stack also has a black base - belt and braces with this layer.)
         const ColoredBox(color: Colors.black),
         // Mutually exclusive: mpv SurfaceView XOR Media3 ExoPlayerView.
         // `_mpvActive` mounts the mpv surface even before --wid attaches
@@ -8804,7 +8868,7 @@ if (mounted) setState(_applySwipeValue);
               ),
             ),
           ),
-        // Custom subtitle overlay for MPV — mpv draws text cues into the
+        // Custom subtitle overlay for MPV - mpv draws text cues into the
         // SurfaceView letterbox; our overlay computes the actual video content
         // area and pins subtitle text at its bottom edge (matches Media3).
         // Media3 puts the SubtitleView inside AspectRatioFrameLayout (which
@@ -8842,13 +8906,13 @@ if (mounted) setState(_applySwipeValue);
               // Verified via javap on media3-ui-1.10.1: defaultTextSize=0.0533f,
               // bottomPaddingFraction=0.08f. ExoPlayerView.kt applies
               // 0.0533 * sizeMult to the SubtitleView inside AspectRatioFrameLayout.
-              // Floor is 1px, not 12 — in portrait the letterboxed video is
+              // Floor is 1px, not 12 - in portrait the letterboxed video is
               // short (h*0.0533 ≈ 12), so a 12px clamp froze every shrink
               // and made size changes look broken until rotation rebuilt.
               final fontSize =
                   (h * 0.0533 * _subtitleStyle.sizeMultiplier).clamp(1.0, 300.0);
               // Vertical position (0-255): 0 = bottom, 255 = top.
-              // Match Media3's setBottomPaddingFraction(vPos/255.0f) — the
+              // Match Media3's setBottomPaddingFraction(vPos/255.0f) - the
               // fraction is of the SubtitleView (= video content area) height.
               final vPos = _subtitleStyle.verticalPosition
                   .clamp(SubtitleStyle.minVerticalPosition, SubtitleStyle.maxVerticalPosition);
@@ -8926,7 +8990,7 @@ if (mounted) setState(_applySwipeValue);
             // navigation. Only intercept select/play-pause/seek keys.
             if (mediaPlayKey) {
               // The remote's dedicated play/pause button must always toggle
-              // playback — media keys do NOT activate the focused button
+              // playback - media keys do NOT activate the focused button
               // (InkWell only activates on select/enter/DPAD_CENTER), so
               // deferring here would make a second press a dead no-op.
               _togglePlayPause();
@@ -8961,7 +9025,7 @@ if (mounted) setState(_applySwipeValue);
             return KeyEventResult.ignored;
           }
 
-          // TV with hidden controls: Just Player style — direct key handling
+          // TV with hidden controls: Just Player style - direct key handling
           // for seek/play-pause, any other key shows controls.
           if (_isTv && !_controlsVisible) {
             if (okKey || mediaPlayKey) {
@@ -8992,7 +9056,7 @@ if (mounted) setState(_applySwipeValue);
               return KeyEventResult.handled;
             }
           } else if (mediaPlayKey) {
-            // Media keys toggle playback even when not in TV mode —
+            // Media keys toggle playback even when not in TV mode -
             // a Bluetooth keyboard's play/pause button arrives here.
             // on phones benefits too.
             _togglePlayPause();
@@ -9029,7 +9093,7 @@ if (mounted) setState(_applySwipeValue);
             // Opaque black base for the whole player body. During rotation
             // the hybrid-composition SurfaceView is destroyed/recreated and
             // its hole can briefly punch through to the previous route
-            // (details page) — a root-level black layer sits under every
+            // (details page) - a root-level black layer sits under every
             // other child (videoLayer, gestures, controls) so nothing below
             // this route is ever visible.
             const Positioned.fill(child: ColoredBox(color: Colors.black)),
@@ -9044,7 +9108,7 @@ if (mounted) setState(_applySwipeValue);
                 behavior: HitTestBehavior.translucent,
                 gestures: {
                   // Issue #57: a hold boosts to 2x. The 300 ms deadline is
-                  // the hold threshold — GestureDetector's long-press is a
+                  // the hold threshold - GestureDetector's long-press is a
                   // fixed 500 ms, too slow to read as deliberate next to the
                   // 260 ms tap window. Every other recognizer keeps its
                   // GestureDetector default, so the existing tap /
@@ -9456,7 +9520,7 @@ if (mounted) setState(_applySwipeValue);
                         // off when _controlsVisible is false (which happens
                         // when pip activates), but we also explicitly skip
                         // rendering the chip row if _inPip is true. The pip
-                        // window must show ONLY the video — no chips, no
+                        // window must show ONLY the video - no chips, no
                         // network indicator, no title bar.
                         if (!_inPip && chips.isNotEmpty) ...[
                           SizedBox(height: 4),
@@ -9711,14 +9775,17 @@ if (mounted) setState(_applySwipeValue);
              ),
             // "Skip intro/recap/credits" pill (YouTube/Netflix-style),
             // bottom-right while the playhead is inside (or within 5 s of) a
-            // segment. It MUST sit after the bottom bar in the Stack: the bar
+            // segment. It auto-hides 5 s after entry (user request): a long
+            // recap otherwise kept the button up for its whole length. Re-entering
+            // the segment brings it back for another 5 s; the player menu's skip
+            // rows always work. It MUST sit after the bottom bar in the Stack: the bar
             // is a later child, so an earlier pill is painted under it and
             // its taps land on the seekbar (reported on iOS, where the bar is
             // taller because of the home-indicator safe area). Anchored above
             // the bar: 128 + safe-area bottom clears it on both platforms
             // (issue #62: raised from 112 so it doesn't sit flush on the
             // seekbar). Unlike the rest of the HUD it stays visible when the
-            // controls fade AND while touch-locked (issue #62) — the pill is
+            // controls fade AND while touch-locked (issue #62) - the pill is
             // a later Stack child than the gesture catcher, so its taps win.
             // TV gets the sheet rows instead (no hover), so hidden there.
             if (!_isTv && _skipIntroVisible)
@@ -9937,7 +10004,7 @@ class _MpvPictureControls extends StatelessWidget {
               _buildSlider('contrast', 'Contrast', contrast),
               _buildSlider('saturation', 'Saturation', saturation),
                _buildSlider('gamma', 'Gamma', gamma),
-               // HDR presentation mode — the same list the overflow sheet
+               // HDR presentation mode - the same list the overflow sheet
                // offers, next to Anime4K because the two shader chains are
                // mutually exclusive (one `glsl-shaders` list, two dialects).
                Row(
@@ -9978,7 +10045,7 @@ class _MpvPictureControls extends StatelessWidget {
                    ),
                  ],
                ),
-               // Frame interpolation (issue #53) — libmpv only. Media3 hands
+               // Frame interpolation (issue #53) - libmpv only. Media3 hands
                // decoded frames straight to the SurfaceView, so there is no
                // renderer in which an extra frame could be produced.
                Row(
@@ -10082,8 +10149,8 @@ class _MpvPictureControls extends StatelessWidget {
                        Expanded(
                          child: Text(
                            thermalTier == ThermalTier.critical
-                               ? 'The phone is hot (${(thermalHeadroom * 100).round()}%) — frame interpolation and Anime4K were switched down.'
-                               : 'The phone is warm (${(thermalHeadroom * 100).round()}%) — the frame rate is capped at ${thermalLimitFor(thermalTier).maxInterpolationFps} fps.',
+                               ? 'The phone is hot (${(thermalHeadroom * 100).round()}%) - frame interpolation and Anime4K were switched down.'
+                               : 'The phone is warm (${(thermalHeadroom * 100).round()}%) - the frame rate is capped at ${thermalLimitFor(thermalTier).maxInterpolationFps} fps.',
                            style: const TextStyle(
                              color: Colors.amberAccent,
                              fontSize: 11,
@@ -10121,7 +10188,7 @@ class _MpvPictureControls extends StatelessWidget {
                  Padding(
                    padding: const EdgeInsets.only(top: 4),
                    child: Text(
-                     'Anime4K owns the renderer — turn it off to change the HDR output.',
+                     'Anime4K owns the renderer - turn it off to change the HDR output.',
                      style: TextStyle(color: Colors.white38, fontSize: 11),
                    ),
                  ),
@@ -10717,7 +10784,7 @@ class _TvControlButtonState extends State<_TvControlButton> {
   }
 }
 
-/// Top-right live network speed indicator — small down-arrow + the current
+/// Top-right live network speed indicator - small down-arrow + the current
 /// "5.2 MB/s" label, updated on every bandwidth event from the player.
 /// Lives next to the ⓘ button in the player top bar; hidden entirely in
 /// pip mode (the parent gates the widget out so the floating window shows
@@ -10794,7 +10861,7 @@ class _ChapterTickPainter extends CustomPainter {
 /// saturation via GL video effects (`ExoPlayer.setVideoEffects`), plus the
 /// shared profiles section. Gamma is MPV-only (Media3 has no gamma effect).
 /// When [available] is false (HDR/DV content or iOS) the sliders are replaced
-/// by a note explaining why — the native HDR/DV passthrough is preserved.
+/// by a note explaining why - the native HDR/DV passthrough is preserved.
 class _Media3PictureControls extends StatelessWidget {
   const _Media3PictureControls({
     required this.available,
@@ -10861,7 +10928,7 @@ class _Media3PictureControls extends StatelessWidget {
                     SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Picture adjustments are available for SDR video only — '
+                        'Picture adjustments are available for SDR video only - '
                         'this content is HDR / Dolby Vision, and the native '
                         'passthrough to the panel is kept instead. Use the MPV '
                         'engine for tone-mapped SDR adjustments.',

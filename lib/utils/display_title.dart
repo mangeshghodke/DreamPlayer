@@ -5,7 +5,7 @@ import '../services/tmdb_client.dart';
 /// The title to show for a video, preferring what the metadata provider
 /// resolved over the raw filename.
 ///
-/// Lives here so the poster card and the list row can never disagree again —
+/// Lives here so the poster card and the list row can never disagree again -
 /// an earlier version of the list view printed `video.title` directly, so
 /// "Interstellar.2014.IMAX.2160p.UHD.mkv" showed its filename while the grid
 /// beside it showed "Interstellar".

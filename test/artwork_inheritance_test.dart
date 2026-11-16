@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// A file's artwork used to diverge from its folder's. Metadata already inherits
 /// folder -> file (`carryMeta`, and the home screen's `_matchingLibraryFolder`
 /// fallback), but artwork overrides did not, so the same film showed one poster
-/// on its home card and a different one on its continue-watching card — and only
+/// on its home card and a different one on its continue-watching card - and only
 /// after you played the file, because that is what gives the file its own
 /// metadata entry and shadows the folder's.
 void main() {
@@ -49,7 +49,7 @@ void main() {
       final inherited = TmdService.instance
           .metaFor(fileKey, inheritArtworkFrom: const [folderKey]);
       expect(inherited!.movie.backdropPath, '/chosen.jpg');
-      // Its own poster is untouched — nothing was overridden on the file.
+      // Its own poster is untouched - nothing was overridden on the file.
       expect(inherited.movie.posterPath, '/x-poster.jpg');
     });
 

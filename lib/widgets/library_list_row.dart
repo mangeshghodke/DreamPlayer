@@ -10,7 +10,7 @@ import '../widgets/cached_image.dart';
 /// One wide row for the library's list view.
 ///
 /// The grids only ever receive a *finished card* from their callers, so a
-/// list view cannot be faked by squeezing a poster card into a wide slot —
+/// list view cannot be faked by squeezing a poster card into a wide slot -
 /// each caller supplies its own artwork widget and this renders the row
 /// chrome (art, title, subtitle, optional trailing widget) plus the D-pad
 /// focus highlight used everywhere else in the app.
@@ -92,7 +92,7 @@ class LibraryListRow extends StatelessWidget {
 }
 
 /// Row artwork for a video: the file's own embedded cover art when it has
-/// one, otherwise the TMDB backdrop — the same precedence [VideoCard] uses.
+/// one, otherwise the TMDB backdrop - the same precedence [VideoCard] uses.
 class VideoRowArt extends StatefulWidget {
   const VideoRowArt({super.key, required this.video, this.tmdbMeta});
 

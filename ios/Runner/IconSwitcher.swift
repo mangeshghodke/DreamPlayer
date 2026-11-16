@@ -4,12 +4,12 @@ import UIKit
 /// Alternate launcher icon switch (issue #23).
 ///
 /// Uses `UIApplication.setAlternateIconName()`, which is first-class and
-/// supported — no component gymnastics needed, unlike Android. The system
+/// supported - no component gymnastics needed, unlike Android. The system
 /// applies the new icon itself and persists the choice, so there is nothing to
 /// restore on launch.
 ///
 /// Since 0.5.7 the PRIMARY icon (`ASSETCATALOG_COMPILER_APPICON_NAME`) is
-/// `AppIconMark` — the logo only — and the original logo + "DreamPlayer"
+/// `AppIconMark` - the logo only - and the original logo + "DreamPlayer"
 /// wordmark (`AppIcon`) is one of the alternates. So `nil`
 /// (no alternate selected) means the mark, and the wordmark is reached via
 /// `setAlternateIconName("AppIcon")`.
@@ -55,7 +55,7 @@ final class IconSwitcher {
                 let target: String?
                 switch variant {
                 case "default": target = AppIconVariant.wordmark.rawValue
-                // The primary icon IS the mark — nil restores it.
+                // The primary icon IS the mark - nil restores it.
                 case "mark": target = nil
                 case "red": target = AppIconVariant.red.rawValue
                 case "green": target = AppIconVariant.green.rawValue

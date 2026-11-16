@@ -1,7 +1,7 @@
 import '../services/exo_player.dart';
 
 // Pure skip-intro / skip-credits logic on top of the existing chapter list.
-// Chapter NAME matching only — no network. The optional IntroDB lookup lives
+// Chapter NAME matching only - no network. The optional IntroDB lookup lives
 // in lib/services/intro_db.dart and is compiled in via
 // --dart-define=INTRODB_BASE_URL (off by default).
 
@@ -43,7 +43,7 @@ class SkipChapters {
 
   /// Where "Skip intro" seeks: the start of the chapter AFTER the intro
   /// (i.e. the end of the intro). Null when there is no intro, or when the
-  /// intro is the last chapter — there is then nothing to skip *to* (seeking
+  /// intro is the last chapter - there is then nothing to skip *to* (seeking
   /// to its endMs would just end the video).
   static int? skipIntroTargetMs(List<ExoChapter> chapters) {
     final intro = findIntro(chapters);

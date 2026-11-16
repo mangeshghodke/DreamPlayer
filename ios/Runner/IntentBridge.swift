@@ -51,7 +51,7 @@ final class IntentBridge {
         pendingOpens.removeAll()
     }
 
-    /// Records the URL that launched the app (cold start). Idempotent — the
+    /// Records the URL that launched the app (cold start). Idempotent - the
     /// same launch URL is reported by both the app delegate and the scene
     /// delegate; the later write simply overwrites the same payload.
     func setInitialURL(_ url: URL) {
