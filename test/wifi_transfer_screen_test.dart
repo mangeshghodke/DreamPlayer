@@ -75,6 +75,20 @@ void main() {
       expect(codeOf(screen), contains('WifiUploadStatus.failed'));
     });
 
+    test('a completed transfer shows a green check, not the accent dot', () {
+      final rowStart = codeOf(screen).indexOf('class _UploadRow');
+      final row = codeOf(screen).substring(rowStart);
+      // done branch: green check circle (same convention as watched marks and
+      // the Downloads screen), plus a green progress bar.
+      expect(row, contains('Icons.check_circle'));
+      expect(row, contains('Colors.green.shade400'));
+      // the dot container must only exist in the non-done branch: the done
+      // ternary returns the check icon before the Container is built.
+      final doneIdx = row.indexOf('done');
+      final dotIdx = row.indexOf('BoxShape.circle');
+      expect(doneIdx >= 0 && dotIdx > doneIdx, isTrue);
+    });
+
     test('subscribes to the native progress events and refreshes on open', () {
       expect(screen, contains('subscribeEvents()'));
       expect(screen, contains('unsubscribeEvents()'));

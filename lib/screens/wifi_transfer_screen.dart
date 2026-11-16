@@ -714,18 +714,24 @@ class _UploadRow extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: failed
-                        ? colorScheme.error
-                        : done
-                            ? colorScheme.primary
-                            : colorScheme.primary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
+                done
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: Icon(
+                          Icons.check_circle,
+                          size: 18,
+                          color: Colors.green.shade400,
+                        ),
+                      )
+                    : Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: failed ? colorScheme.error : colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -760,7 +766,11 @@ class _UploadRow extends StatelessWidget {
                 minHeight: 6,
                 backgroundColor: colorScheme.surfaceContainerHighest,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  failed ? colorScheme.error : colorScheme.primary,
+                  failed
+                      ? colorScheme.error
+                      : done
+                          ? Colors.green.shade400
+                          : colorScheme.primary,
                 ),
               ),
             ),
