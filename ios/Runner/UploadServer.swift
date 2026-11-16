@@ -532,8 +532,10 @@ final class UploadServer: NSObject, FlutterStreamHandler {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true)
+            // fileTypeHint is a String (a UTI); AVFileType became a struct in
+            // recent SDKs and no longer implicitly converts - use its rawValue.
             let player = try AVAudioPlayer(data: Self.silentWav(seconds: 2, sampleRate: 8000),
-                                           fileTypeHint: AVFileType.wav)
+                                           fileTypeHint: AVFileType.wav.rawValue)
             player.numberOfLoops = -1
             player.volume = 0
             player.prepareToPlay()

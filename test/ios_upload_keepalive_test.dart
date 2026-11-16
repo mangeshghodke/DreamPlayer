@@ -31,6 +31,10 @@ void main() {
     expect(swift, contains('.mixWithOthers'));
     // Silence is generated in memory, not shipped as an asset.
     expect(swift, contains('silentWav'));
+    // fileTypeHint is a String; AVFileType is a struct in recent SDKs and
+    // does NOT implicitly convert (CI compile error) - must pass rawValue.
+    expect(swift, contains('fileTypeHint: AVFileType.wav.rawValue'));
+    expect(swift, isNot(contains('fileTypeHint: AVFileType.wav)')));
   });
 
   test('keep-alive starts with the server and stops with it', () {
