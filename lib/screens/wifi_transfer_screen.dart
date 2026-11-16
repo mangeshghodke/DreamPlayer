@@ -60,8 +60,8 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
           SnackBar(
             content: Text(
               files.length == 1
-                  ? '1 file shared - open $url on your computer and tap it to download'
-                  : '${files.length} files shared - open $url on your computer to download them',
+                  ? '1 file shared'
+                  : '${files.length} files shared',
             ),
             duration: const Duration(seconds: 4),
             action: SnackBarAction(
@@ -93,7 +93,7 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${files.length} files shared - open $url on your computer to download them',
+              '${files.length} files shared',
             ),
             duration: const Duration(seconds: 4),
             action: SnackBarAction(
