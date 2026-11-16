@@ -46,6 +46,11 @@ class WifiUploadService extends ChangeNotifier {
   int _receivedBytes = 0;
   String? _error;
 
+  /// Files picked in-app to share with a PC (name + size + uri). Registered
+  /// with the native server via [shareFiles]; the server streams them
+  /// directly - no copy happens, so large files never block the UI.
+  final List<SharedFile> _sharedFiles = [];
+
   /// Live transfers, newest first. Completed and failed rows stay so the
   /// screen shows what happened; clearing happens per session via
   /// [clearUploads] or when the server stops.
@@ -70,6 +75,7 @@ class WifiUploadService extends ChangeNotifier {
   String? get error => _error;
   List<WifiUploadItem> get uploads => List<WifiUploadItem>.unmodifiable(_uploads);
   bool get hasActiveUploads => _uploads.any((u) => u.status.isActive);
+  List<SharedFile> get sharedFiles => List<SharedFile>.unmodifiable(_sharedFiles);
 
   /// Loads the persisted port/credentials. Never touches the channel, so it
   /// is safe in widget tests.
@@ -226,8 +232,45 @@ class WifiUploadService extends ChangeNotifier {
     }
     _running = false;
     _urls = const [];
+    _sharedFiles.clear();
     clearUploads();
     notifyListeners();
+  }
+
+  /// Registers [files] with the native server so the PC browser can download
+  /// them from `/wifi-transfer/files` + `/wifi-transfer/file`. The server
+  /// streams directly from each file's URI - NO copy happens in Dart, so
+  /// picking large videos never blocks the UI thread.
+  Future<bool> shareFiles(List<Map<String, dynamic>> files) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return false;
+    if (!_running) return false;
+    try {
+      final res = await _channel.invokeMethod<Map<dynamic, dynamic>>('shareFiles', {
+        'files': files,
+      });
+      if (res != null && res['ok'] == true) {
+        _sharedFiles
+          ..clear()
+          ..addAll(files.map((f) => SharedFile(
+                name: (f['name'] as String?) ?? 'file',
+                size: (f['size'] as num?)?.toInt() ?? 0,
+                uri: (f['uri'] as String?) ?? '',
+              )));
+        notifyListeners();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  /// Clears the shared-files list on the native server and in Dart.
+  Future<void> clearSharedFiles() async {
+    _sharedFiles.clear();
+    notifyListeners();
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+    try {
+      await _channel.invokeMethod('clearSharedFiles');
+    } catch (_) {}
   }
 
   /// Refreshes the running status (and the address list) from the native side.
@@ -310,6 +353,15 @@ enum WifiUploadStatus {
   failed;
 
   bool get isActive => this == WifiUploadStatus.receiving;
+}
+
+/// A file picked in-app to share with a PC via the WiFi transfer page.
+class SharedFile {
+  SharedFile({required this.name, required this.size, required this.uri});
+
+  final String name;
+  final int size;
+  final String uri;
 }
 
 /// Applies one native progress event to the transfer list. Pure, so the

@@ -266,6 +266,45 @@ class FileBrowserService {
     });
   }
 
+  /// Folder picker for "send a whole folder to computer": opens the system
+/// folder picker, walks every file inside (recursively, capped 2000), and
+/// returns them as {uri, name, size} maps. Names carry the relative path so
+/// subfolders keep unique names. Empty list if cancelled.
+Future<List<Map<String, dynamic>>> pickFolderContents() async {
+  try {
+    final result = await _channel.invokeListMethod<dynamic>('pickFolderContents');
+    if (result == null) return const [];
+    return result
+        .whereType<Map>()
+        .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
+        .toList();
+  } on PlatformException {
+    return const [];
+  } on MissingPluginException {
+    return const [];
+  }
+}
+
+/// Multi-select FILE picker for "send files to computer". Returns a list of
+  /// `{uri, name, size}` maps (content:// URIs on Android, file:// on iOS).
+  /// NO file copying happens here - the URIs are handed to the WiFi upload
+  /// server, which streams them directly when a PC downloads. Empty list if
+  /// the user cancelled.
+  Future<List<Map<String, dynamic>>> pickFiles() async {
+    try {
+      final result = await _channel.invokeListMethod<dynamic>('pickFiles');
+      if (result == null) return const [];
+      return result
+          .whereType<Map>()
+          .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    } on PlatformException {
+      return const [];
+    } on MissingPluginException {
+      return const [];
+    }
+  }
+
   /// Presents the system file picker filtered to subtitle files (SRT/ASS/VTT).
   /// Returns the picked file's URI string (content:// on Android, file:// on
   /// iOS) or null if cancelled.

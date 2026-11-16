@@ -94,6 +94,14 @@ private const val MAX_NAME_LEN = 120
         java.util.Collections.newSetFromMap(java.util.HashMap<Socket, Boolean>()),
     )
 
+    /// Files the user picked in-app to share with a PC ("send files to
+    /// computer"). Key = display name, value = [uri, size]. The server
+    /// streams them straight from the content URI on download - NO copy
+    /// happens, so picking large videos never blocks the UI.
+    private val sharedFiles = java.util.Collections.synchronizedMap(
+        java.util.LinkedHashMap<String, Pair<String, Long>>(),
+    )
+
     /// Non-null while a Dart listener is attached. Every event must hop to
     /// the main thread: Flutter rejects EventChannel calls from any other.
     @Volatile private var eventSink: EventChannel.EventSink? = null
@@ -119,6 +127,18 @@ private const val MAX_NAME_LEN = 120
                 }
                 "stop" -> { stop(); result.success(null) }
                 "status" -> result.success(statusMap())
+                "shareFiles" -> {
+                    val files = call.argument<List<Map<String, Any?>>>("files") ?: emptyList()
+                    sharedFiles.clear()
+                    for (f in files) {
+                        val name = f["name"] as? String ?: continue
+                        val uri = f["uri"] as? String ?: continue
+                        val size = (f["size"] as? Number)?.toLong() ?: 0L
+                        sharedFiles[name] = uri to size
+                    }
+                    result.success(mapOf("ok" to true, "count" to sharedFiles.size))
+                }
+                "clearSharedFiles" -> { sharedFiles.clear(); result.success(null) }
                 else -> result.notImplemented()
             }
         }
@@ -254,6 +274,7 @@ private const val MAX_NAME_LEN = 120
     @Synchronized
     private fun stop() {
         running = false
+        sharedFiles.clear()
         try { server?.close() } catch (_: IOException) {}
         server = null
         port = -1
@@ -269,6 +290,7 @@ private const val MAX_NAME_LEN = 120
         "destDir" to (destDir?.absolutePath ?: ""),
         "receivedCount" to receivedCount,
         "receivedBytes" to receivedBytes,
+        "sharedCount" to sharedFiles.size,
     )
 
     // ------------------------------------------------------------ HTTP ----
@@ -351,6 +373,36 @@ private const val MAX_NAME_LEN = 120
                     cancelTransfers()
                     respond(sock, 200, "application/json", """{"ok":true}""".toByteArray())
                 }
+                "$PATH_PREFIX/files" -> {
+                    // JSON list of files shared FROM this device (for the PC
+                    // to download). No file I/O - just the registered list.
+                    if (method != "GET") { respond(sock, 405, "text/plain", "method".toByteArray()); sock.close(); return }
+                    val arr = org.json.JSONArray()
+                    for ((name, pair) in sharedFiles) {
+                        arr.put(org.json.JSONObject().apply {
+                            put("name", name)
+                            put("size", pair.second)
+                        })
+                    }
+                    respond(sock, 200, "application/json", arr.toString().toByteArray(StandardCharsets.UTF_8))
+                }
+                "$PATH_PREFIX/file" -> {
+                    // Stream one shared file back OUT to the PC, straight from
+                    // its content URI. Supports Range for resume/progress.
+                    if (method != "GET") { respond(sock, 405, "text/plain", "method".toByteArray()); sock.close(); return }
+                    val nameParam = query.split('&')
+                        .firstOrNull { it.startsWith("name=") }
+                        ?.substringAfter('=')
+                    val rawName = nameParam?.let {
+                        java.net.URLDecoder.decode(it, StandardCharsets.UTF_8.name())
+                    } ?: ""
+                    val pair = sharedFiles[rawName]
+                    if (pair == null) {
+                        respond(sock, 404, "text/plain", "not found".toByteArray())
+                        sock.close(); return
+                    }
+                    streamSharedFile(sock, rawName, pair.first, pair.second, headers)
+                }
                 else -> respond(sock, 404, "text/plain", "not found".toByteArray())
             }
         } catch (e: Exception) {
@@ -416,6 +468,101 @@ private const val MAX_NAME_LEN = 120
         val sep = decoded.indexOf(':')
         if (sep < 0) return false
         return decoded.substring(0, sep) == authUser && decoded.substring(sep + 1) == authPass
+    }
+
+    /// Streams a shared file (registered by the user in-app) from its
+    /// content/file URI to the PC browser. Supports HTTP Range so the
+    /// browser can resume a partial download. Runs on the connection
+    /// thread - never touches the UI thread.
+    private fun streamSharedFile(
+        sock: Socket,
+        name: String,
+        uriString: String,
+        size: Long,
+        headers: Map<String, String>,
+    ) {
+        val uri = android.net.Uri.parse(uriString)
+        val input = when (uri.scheme) {
+            null, "file" -> java.io.File(uri.path ?: uriString).inputStream()
+            else -> context.contentResolver.openInputStream(uri)
+        }
+        if (input == null) {
+            respond(sock, 404, "text/plain", "file unreadable".toByteArray())
+            sock.close(); return
+        }
+        val rangeHeader = headers["range"]
+        var start = 0L
+        var end = size - 1
+        var partial = false
+        if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+            val spec = rangeHeader.substring(6).split('-')
+            start = spec.getOrNull(0)?.toLongOrNull() ?: 0L
+            if (spec.size > 1 && spec[1].isNotEmpty()) {
+                end = spec[1].toLongOrNull() ?: (size - 1)
+            }
+            if (size <= 0) { end = -1 }
+            partial = true
+        }
+        val length = if (end >= start && end >= 0) end - start + 1 else size - start
+        val mime = guessMime(name)
+        val head = buildString {
+            if (partial) {
+                append("HTTP/1.1 206 Partial Content\r\n")
+                append("Content-Range: bytes $start-${if (end >= 0) end else size - 1}/${if (size > 0) size else "*"}\r\n")
+            } else {
+                append("HTTP/1.1 200 OK\r\n")
+            }
+            append("Content-Type: $mime\r\n")
+            append("Content-Length: $length\r\n")
+            append("Accept-Ranges: bytes\r\n")
+            append("Content-Disposition: attachment; filename=\"${name.replace("\"", "_")}\"\r\n")
+            append("Connection: close\r\n\r\n")
+        }.toByteArray(StandardCharsets.ISO_8859_1)
+        val out = sock.getOutputStream()
+        out.write(head)
+        // Skip to start
+        if (start > 0) input.skip(start)
+        val buf = ByteArray(IO_CHUNK)
+        var remaining = length
+        try {
+            while (remaining > 0) {
+                val n = input.read(buf, 0, minOf(IO_CHUNK.toLong(), remaining).toInt())
+                if (n < 0) break
+                out.write(buf, 0, n)
+                remaining -= n
+            }
+            out.flush()
+        } catch (_: IOException) {
+            // PC disconnected mid-download - nothing to clean up
+        } finally {
+            try { input.close() } catch (_: IOException) {}
+        }
+    }
+
+    private fun guessMime(name: String): String {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "mkv" -> "video/x-matroska"
+            "mp4", "m4v" -> "video/mp4"
+            "avi" -> "video/x-msvideo"
+            "webm" -> "video/webm"
+            "ts", "m2ts", "mts" -> "video/mp2t"
+            "mov" -> "video/quicktime"
+            "wmv" -> "video/x-ms-wmv"
+            "flv" -> "video/x-flv"
+            "mpg", "mpeg", "vob" -> "video/mpeg"
+            "3gp" -> "video/3gpp"
+            "ogv" -> "video/ogg"
+            "srt" -> "application/x-subrip"
+            "ass", "ssa" -> "text/plain"
+            "vtt" -> "text/vtt"
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
+            "mp3" -> "audio/mpeg"
+            "flac" -> "audio/flac"
+            "zip" -> "application/zip"
+            else -> "application/octet-stream"
+        }
     }
 
     private fun respond(
@@ -591,6 +738,12 @@ private const val MAX_NAME_LEN = 120
     private fun pageHtml(): String {
         val port = port
         val addr = lanAddresses().firstOrNull() ?: "localhost"
+        // Embed credentials in download URLs so external download managers
+        // (which don't carry the browser's Basic-auth cache) still authenticate.
+        // Anyone who loaded this page already knows them.
+        val authInfo = if (authUser.isNotEmpty() && authPass.isNotEmpty()) {
+            "${java.net.URLEncoder.encode(authUser, "UTF-8")}:${java.net.URLEncoder.encode(authPass, "UTF-8")}@"
+        } else ""
         return """
 <!DOCTYPE html>
 <html lang="en">
@@ -674,6 +827,10 @@ private const val MAX_NAME_LEN = 120
       <button class="clear" id="clear" type="button">&#128465; Clear list</button>
     </div>
   </div>
+  <div class="card" id="deviceFilesCard" style="margin-top:16px;display:none;">
+    <p class="addr-label" style="margin:0 0 10px;">&#8595; Files on this device (tap to download)</p>
+    <ul id="deviceFiles"></ul>
+  </div>
   <p class="foot">Files are saved to this device's download folder and appear in DreamPlayer automatically.
      The page is reachable while the transfer service is on in the app, even when the screen is locked.</p>
 </div>
@@ -685,13 +842,120 @@ private const val MAX_NAME_LEN = 120
   var addrEl = document.getElementById('addr');
   var cancelBtn = document.getElementById('cancel');
   var clearBtn = document.getElementById('clear');
+  var deviceFilesCard = document.getElementById('deviceFilesCard');
+  var deviceFilesList = document.getElementById('deviceFiles');
   // Refresh the address from the server's own view of the LAN (handles a
   // Wi-Fi change between page render and open)
-  fetch('$PATH_PREFIX/health').then(function (r) { return r.json(); }).then(function (s) {
+  fetch('$PATH_PREFIX/health', {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (s) {
     if (s.addresses && s.addresses.length) {
       addrEl.textContent = 'http://' + s.addresses[0] + ':' + s.port + '$PATH_PREFIX/';
     }
   }).catch(function () {});
+
+  // Load the device's shared files (picked in the app to send TO this PC).
+  // Poll every 3s so newly added files appear without a reload.
+  // A picked FOLDER arrives as paths ("Photos/a.jpg", "Photos/Sub/b.jpg"),
+  // so files render as an expandable folder tree - the folder is ONE entry
+  // with the files inside.
+  function fmtBytes(b) {
+    if (!b) return '';
+    var u = ['B','KB','MB','GB','TB'], i = 0;
+    while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+    return b.toFixed(b < 10 && i > 0 ? 1 : 0) + ' ' + u[i];
+  }
+  function fileUrl(path) {
+    return location.protocol + '//' + '$authInfo' + location.host + '$PATH_PREFIX/file?name=' + encodeURIComponent(path);
+  }
+  function buildTree(files) {
+    var root = { dirs: {}, files: [] };
+    files.forEach(function (f) {
+      var parts = f.name.split('/').filter(function (p) { return p.length > 0; });
+      if (!parts.length) return;
+      var node = root;
+      for (var i = 0; i < parts.length - 1; i++) {
+        var d = parts[i];
+        if (!node.dirs[d]) node.dirs[d] = { dirs: {}, files: [] };
+        node = node.dirs[d];
+      }
+      node.files.push({ name: parts[parts.length - 1], path: f.name, size: f.size });
+    });
+    return root;
+  }
+  function countFiles(node) {
+    var n = node.files.length;
+    for (var k in node.dirs) n += countFiles(node.dirs[k]);
+    return n;
+  }
+  function fileLi(f) {
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    // Credentials are embedded in the URL userinfo so external downloaders
+    // (which don't carry the browser's Basic-auth cache) authenticate.
+    a.href = fileUrl(f.path);
+    a.setAttribute('download', f.name);
+    a.style.color = '#e8e8ec';
+    a.style.textDecoration = 'none';
+    a.style.display = 'block';
+    var row = document.createElement('div');
+    row.className = 'row';
+    var nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = '\u2913 ' + f.name;
+    var sz = document.createElement('span');
+    sz.className = 'sz';
+    sz.textContent = fmtBytes(f.size);
+    row.appendChild(nm); row.appendChild(sz);
+    a.appendChild(row);
+    li.appendChild(a);
+    return li;
+  }
+  function dirLi(name, node) {
+    var li = document.createElement('li');
+    var head = document.createElement('div');
+    head.className = 'row';
+    head.style.cursor = 'pointer';
+    var arw = document.createElement('span');
+    arw.textContent = '\u25b8';
+    arw.style.cssText = 'display:inline-block;width:16px;color:#9a9aa5;transition:transform .15s;flex:none;';
+    var nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.style.fontWeight = '600';
+    nm.textContent = name + ' (' + countFiles(node) + ' file' + (countFiles(node) === 1 ? '' : 's') + ')';
+    head.appendChild(arw); head.appendChild(nm);
+    var body = document.createElement('ul');
+    body.style.display = 'none';
+    body.style.paddingLeft = '16px';
+    body.style.marginTop = '8px';
+    renderTree(node, body);
+    head.addEventListener('click', function () {
+      var open = body.style.display === 'none';
+      body.style.display = open ? 'block' : 'none';
+      arw.style.transform = open ? 'rotate(90deg)' : '';
+    });
+    li.appendChild(head);
+    li.appendChild(body);
+    return li;
+  }
+  function renderTree(node, ul) {
+    Object.keys(node.dirs).sort().forEach(function (name) {
+      ul.appendChild(dirLi(name, node.dirs[name]));
+    });
+    node.files.forEach(function (f) { ul.appendChild(fileLi(f)); });
+  }
+  function loadDeviceFiles() {
+    fetch('$PATH_PREFIX/files', {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (files) {
+      deviceFilesList.innerHTML = '';
+      if (files && files.length) {
+        deviceFilesCard.style.display = 'block';
+        renderTree(buildTree(files), deviceFilesList);
+      } else {
+        deviceFilesCard.style.display = 'none';
+      }
+    }).catch(function () {});
+  }
+  loadDeviceFiles();
+  setInterval(loadDeviceFiles, 3000);
+
 
   function prevent(e) { e.preventDefault(); e.stopPropagation(); }
   ['dragenter', 'dragover'].forEach(function (ev) {

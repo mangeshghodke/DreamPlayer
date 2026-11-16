@@ -63,6 +63,13 @@ final class UploadServer: NSObject, FlutterStreamHandler {
     private let activeConnections = NSMutableSet()
     private let connectionsLock = NSLock()
 
+    /// Files the user picked in-app to share with a PC ("send files to
+    /// computer"). Key = display name, value = (uri, size). Streamed straight
+    /// from the URL on download - NO copy, so picking large videos never
+    /// blocks the UI.
+    private var sharedFiles: [String: (uri: String, size: Int64)] = [:]
+    private let sharedFilesLock = NSLock()
+
     /// HTTP Basic challenge header sent with every 401.
     private let wwwAuthenticate =
         "WWW-Authenticate: Basic realm=\"DreamPlayer WiFi transfer\", charset=\"UTF-8\""
@@ -87,6 +94,24 @@ final class UploadServer: NSObject, FlutterStreamHandler {
                     self.stop(); result(nil)
                 case "status":
                     result(self.statusMap())
+                case "shareFiles":
+                    let args = call.arguments as? [String: Any] ?? [:]
+                    let files = args["files"] as? [[String: Any]] ?? []
+                    self.sharedFilesLock.lock()
+                    self.sharedFiles.removeAll()
+                    for f in files {
+                        guard let name = f["name"] as? String, let uri = f["uri"] as? String else { continue }
+                        let size = (f["size"] as? NSNumber)?.int64Value ?? 0
+                        self.sharedFiles[name] = (uri, size)
+                    }
+                    let count = self.sharedFiles.count
+                    self.sharedFilesLock.unlock()
+                    result(["ok": true, "count": count])
+                case "clearSharedFiles":
+                    self.sharedFilesLock.lock()
+                    self.sharedFiles.removeAll()
+                    self.sharedFilesLock.unlock()
+                    result(nil)
                 default:
                     result(FlutterMethodNotImplemented)
                 }
@@ -233,6 +258,9 @@ final class UploadServer: NSObject, FlutterStreamHandler {
 
     private func stop() {
         running = false
+        sharedFilesLock.lock()
+        sharedFiles.removeAll()
+        sharedFilesLock.unlock()
         stopKeepAlive()
         listener?.cancel()
         listener = nil
@@ -252,13 +280,17 @@ final class UploadServer: NSObject, FlutterStreamHandler {
     }
 
     private func statusMap() -> [String: Any?] {
-        [
+        sharedFilesLock.lock()
+        let sharedCount = sharedFiles.count
+        sharedFilesLock.unlock()
+        return [
             "running": running,
             "port": port,
             "addresses": localIPv4Addresses(),
             "destDir": destDir?.path ?? "",
             "receivedCount": receivedCount,
             "receivedBytes": receivedBytes,
+            "sharedCount": sharedCount,
         ]
     }
 
@@ -425,6 +457,35 @@ final class UploadServer: NSObject, FlutterStreamHandler {
                     body: Data("{\"ok\":true}".utf8))
             return
         }
+        if path == "\(Self.pathPrefix)/files" {
+            guard method == "GET" else {
+                respond(connection: connection, code: 405, contentType: "text/plain", body: Data("method not allowed".utf8))
+                return
+            }
+            sharedFilesLock.lock()
+            let list = sharedFiles.map { ["name": $0.key, "size": $0.value.size] as [String: Any] }
+            sharedFilesLock.unlock()
+            let body = (try? JSONSerialization.data(withJSONObject: list)) ?? Data("[]".utf8)
+            respond(connection: connection, code: 200, contentType: "application/json", body: body)
+            return
+        }
+        if path == "\(Self.pathPrefix)/file" {
+            guard method == "GET" else {
+                respond(connection: connection, code: 405, contentType: "text/plain", body: Data("method not allowed".utf8))
+                return
+            }
+            let nameParam = query.split(separator: "&").first { $0.hasPrefix("name=") }?.dropFirst(5) ?? ""
+            let rawName = String(nameParam).removingPercentEncoding ?? ""
+            sharedFilesLock.lock()
+            let entry = sharedFiles[rawName]
+            sharedFilesLock.unlock()
+            guard let entry else {
+                respond(connection: connection, code: 404, contentType: "text/plain", body: Data("not found".utf8))
+                return
+            }
+            streamSharedFile(connection: connection, name: rawName, uriString: entry.uri, size: entry.size, headers: headers)
+            return
+        }
         respond(connection: connection, code: 404, contentType: "text/plain", body: Data("not found".utf8))
     }
 
@@ -511,6 +572,110 @@ final class UploadServer: NSObject, FlutterStreamHandler {
         let body = (try? JSONSerialization.data(withJSONObject: ["ok": true, "saved": finalName, "size": length] as [String: Any]))
             ?? Data("{\"ok\":true}".utf8)
         respond(connection: connection, code: 200, contentType: "application/json", body: body)
+    }
+
+    /// Streams a shared file (registered by the user in-app) from its URL to
+    /// the PC browser. Supports HTTP Range so the browser can resume. Runs on
+    /// the connection queue - never blocks the main thread.
+    private func streamSharedFile(connection: NWConnection, name: String, uriString: String, size: Int64, headers: [String: String]) {
+        guard let url = URL(string: uriString) else {
+            respond(connection: connection, code: 404, contentType: "text/plain", body: Data("bad uri".utf8))
+            return
+        }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+        guard let input = try? FileHandle(forReadingFrom: url) else {
+            respond(connection: connection, code: 404, contentType: "text/plain", body: Data("file unreadable".utf8))
+            return
+        }
+        defer { try? input.close() }
+
+        let rangeHeader = headers["range"]
+        var start: Int64 = 0
+        var end: Int64 = size > 0 ? size - 1 : -1
+        var partial = false
+        if let rangeHeader, rangeHeader.hasPrefix("bytes=") {
+            let spec = String(rangeHeader.dropFirst(6)).split(separator: "-")
+            start = Int64(spec.first.map { String($0) } ?? "0") ?? 0
+            if spec.count > 1, !spec[1].isEmpty {
+                end = Int64(spec[1]) ?? (size - 1)
+            }
+            partial = true
+        }
+        let length = (end >= 0 && end >= start) ? end - start + 1 : size - start
+        let mime = guessMime(name)
+
+        var head = ""
+        if partial {
+            head += "HTTP/1.1 206 Partial Content\r\n"
+            head += "Content-Range: bytes \(start)-\(end >= 0 ? end : size - 1)/\(size > 0 ? size : "*")\r\n"
+        } else {
+            head += "HTTP/1.1 200 OK\r\n"
+        }
+        head += "Content-Type: \(mime)\r\n"
+        head += "Content-Length: \(length)\r\n"
+        head += "Accept-Ranges: bytes\r\n"
+        head += "Content-Disposition: attachment; filename=\"\(name.replacingOccurrences(of: "\"", with: "_"))\"\r\n"
+        head += "Connection: close\r\n\r\n"
+
+        var out = (head.data(using: .utf8) ?? Data())
+        connection.send(content: out, completion: .contentProcessed { _ in })
+
+        // Skip to start
+        if start > 0 {
+            try? input.seek(toOffset: UInt64(start))
+        }
+
+        var remaining = length
+        let chunkSize = 256 * 1024
+        func sendChunk() {
+            if remaining <= 0 {
+                connection.cancel()
+                return
+            }
+            let toRead = min(chunkSize, Int(remaining))
+            let data = try? input.read(upToCount: toRead)
+            guard let data, !data.isEmpty else {
+                connection.cancel()
+                return
+            }
+            remaining -= Int64(data.count)
+            connection.send(content: data, completion: .contentProcessed { error in
+                if error == nil && remaining > 0 {
+                    sendChunk()
+                } else {
+                    connection.cancel()
+                }
+            })
+        }
+        sendChunk()
+    }
+
+    private func guessMime(_ name: String) -> String {
+        let ext = name.split(separator: ".").last.map { String($0).lowercased() } ?? ""
+        switch ext {
+        case "mkv": return "video/x-matroska"
+        case "mp4", "m4v": return "video/mp4"
+        case "avi": return "video/x-msvideo"
+        case "webm": return "video/webm"
+        case "ts", "m2ts", "mts": return "video/mp2t"
+        case "mov": return "video/quicktime"
+        case "wmv": return "video/x-ms-wmv"
+        case "flv": return "video/x-flv"
+        case "mpg", "mpeg", "vob": return "video/mpeg"
+        case "3gp": return "video/3gpp"
+        case "ogv": return "video/ogg"
+        case "srt": return "application/x-subrip"
+        case "ass", "ssa": return "text/plain"
+        case "vtt": return "text/vtt"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "png": return "image/png"
+        case "mp3": return "audio/mpeg"
+        case "flac": return "audio/flac"
+        case "zip": return "application/zip"
+        default: return "application/octet-stream"
+        }
     }
 
     // MARK: - background keep-alive
@@ -727,6 +892,17 @@ private func pageHtml() -> String {
         let port = port
         let pathPrefix = Self.pathPrefix
         let addr = localIPv4Addresses().first ?? "localhost"
+        // Embed credentials in download URLs so external download managers
+        // (which don't carry the browser's Basic-auth cache) still authenticate.
+        // Anyone who loaded this page already knows them.
+        let authInfo: String
+        if !authUser.isEmpty && !authPass.isEmpty {
+            let u = authUser.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? authUser
+            let p = authPass.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? authPass
+            authInfo = "\(u):\(p)@"
+        } else {
+            authInfo = ""
+        }
         var html = ""
         html += "<!DOCTYPE html>\n"
         html += "<html lang=\"en\">\n"
@@ -810,6 +986,10 @@ private func pageHtml() -> String {
         html += "      <button class=\"clear\" id=\"clear\" type=\"button\">&#128465; Clear list</button>\n"
         html += "    </div>\n"
         html += "  </div>\n"
+        html += "  <div class=\"card\" id=\"deviceFilesCard\" style=\"margin-top:16px;display:none;\">\n"
+        html += "    <p class=\"addr-label\" style=\"margin:0 0 10px;\">&#8595; Files on this device (tap to download)</p>\n"
+        html += "    <ul id=\"deviceFiles\"></ul>\n"
+        html += "  </div>\n"
         html += "  <p class=\"foot\">Files are saved to this device's download folder and appear in DreamPlayer automatically.\n"
         html += "     The page is reachable while the transfer service is on in the app, even when the screen is locked.</p>\n"
         html += "</div>\n"
@@ -821,14 +1001,121 @@ private func pageHtml() -> String {
         html += "  var addrEl = document.getElementById('addr');\n"
         html += "  var cancelBtn = document.getElementById('cancel');\n"
         html += "  var clearBtn = document.getElementById('clear');\n"
+        html += "  var deviceFilesCard = document.getElementById('deviceFilesCard');\n"
+        html += "  var deviceFilesList = document.getElementById('deviceFiles');\n"
         html += "  var pending = [];\n"
         html += "  // Refresh the address from the server's own view of the LAN (handles a\n"
         html += "  // Wi-Fi change between page render and open)\n"
-        html += "  fetch('\(pathPrefix)/health').then(function (r) { return r.json(); }).then(function (s) {\n"
+        html += "  fetch('\(pathPrefix)/health', {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (s) {\n"
         html += "    if (s.addresses && s.addresses.length) {\n"
         html += "      addrEl.textContent = 'http://' + s.addresses[0] + ':' + s.port + '\(pathPrefix)/';\n"
         html += "    }\n"
         html += "  }).catch(function () {});\n"
+        html += "\n"
+        html += "  // Load the device's shared files (picked in the app to send TO this PC).\n"
+        html += "  // Poll every 3s so newly added files appear without a reload.\n"
+        html += "  // A picked FOLDER arrives as paths (\"Photos/a.jpg\", \"Photos/Sub/b.jpg\"),\n"
+        html += "  // so files render as an expandable folder tree - the folder is ONE entry\n"
+        html += "  // with the files inside.\n"
+        html += "  function fmtBytes(b) {\n"
+        html += "    if (!b) return '';\n"
+        html += "    var u = ['B','KB','MB','GB','TB'], i = 0;\n"
+        html += "    while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }\n"
+        html += "    return b.toFixed(b < 10 && i > 0 ? 1 : 0) + ' ' + u[i];\n"
+        html += "  }\n"
+        html += "  function fileUrl(path) {\n"
+        html += "    return location.protocol + '//' + '\(authInfo)' + location.host + '\(pathPrefix)/file?name=' + encodeURIComponent(path);\n"
+        html += "  }\n"
+        html += "  function buildTree(files) {\n"
+        html += "    var root = { dirs: {}, files: [] };\n"
+        html += "    files.forEach(function (f) {\n"
+        html += "      var parts = f.name.split('/').filter(function (p) { return p.length > 0; });\n"
+        html += "      if (!parts.length) return;\n"
+        html += "      var node = root;\n"
+        html += "      for (var i = 0; i < parts.length - 1; i++) {\n"
+        html += "        var d = parts[i];\n"
+        html += "        if (!node.dirs[d]) node.dirs[d] = { dirs: {}, files: [] };\n"
+        html += "        node = node.dirs[d];\n"
+        html += "      }\n"
+        html += "      node.files.push({ name: parts[parts.length - 1], path: f.name, size: f.size });\n"
+        html += "    });\n"
+        html += "    return root;\n"
+        html += "  }\n"
+        html += "  function countFiles(node) {\n"
+        html += "    var n = node.files.length;\n"
+        html += "    for (var k in node.dirs) n += countFiles(node.dirs[k]);\n"
+        html += "    return n;\n"
+        html += "  }\n"
+        html += "  function fileLi(f) {\n"
+        html += "    var li = document.createElement('li');\n"
+        html += "    var a = document.createElement('a');\n"
+        html += "    // Credentials are embedded in the URL userinfo so external downloaders\n"
+        html += "    // (which don't carry the browser's Basic-auth cache) authenticate.\n"
+        html += "    a.href = fileUrl(f.path);\n"
+        html += "    a.setAttribute('download', f.name);\n"
+        html += "    a.style.color = '#e8e8ec';\n"
+        html += "    a.style.textDecoration = 'none';\n"
+        html += "    a.style.display = 'block';\n"
+        html += "    var row = document.createElement('div');\n"
+        html += "    row.className = 'row';\n"
+        html += "    var nm = document.createElement('span');\n"
+        html += "    nm.className = 'nm';\n"
+        html += "    nm.textContent = '\\u2913 ' + f.name;\n"
+        html += "    var sz = document.createElement('span');\n"
+        html += "    sz.className = 'sz';\n"
+        html += "    sz.textContent = fmtBytes(f.size);\n"
+        html += "    row.appendChild(nm); row.appendChild(sz);\n"
+        html += "    a.appendChild(row);\n"
+        html += "    li.appendChild(a);\n"
+        html += "    return li;\n"
+        html += "  }\n"
+        html += "  function dirLi(name, node) {\n"
+        html += "    var li = document.createElement('li');\n"
+        html += "    var head = document.createElement('div');\n"
+        html += "    head.className = 'row';\n"
+        html += "    head.style.cursor = 'pointer';\n"
+        html += "    var arw = document.createElement('span');\n"
+        html += "    arw.textContent = '\\u25b8';\n"
+        html += "    arw.style.cssText = 'display:inline-block;width:16px;color:#9a9aa5;transition:transform .15s;flex:none;';\n"
+        html += "    var nm = document.createElement('span');\n"
+        html += "    nm.className = 'nm';\n"
+        html += "    nm.style.fontWeight = '600';\n"
+        html += "    nm.textContent = name + ' (' + countFiles(node) + ' file' + (countFiles(node) === 1 ? '' : 's') + ')';\n"
+        html += "    head.appendChild(arw); head.appendChild(nm);\n"
+        html += "    var body = document.createElement('ul');\n"
+        html += "    body.style.display = 'none';\n"
+        html += "    body.style.paddingLeft = '16px';\n"
+        html += "    body.style.marginTop = '8px';\n"
+        html += "    renderTree(node, body);\n"
+        html += "    head.addEventListener('click', function () {\n"
+        html += "      var open = body.style.display === 'none';\n"
+        html += "      body.style.display = open ? 'block' : 'none';\n"
+        html += "      arw.style.transform = open ? 'rotate(90deg)' : '';\n"
+        html += "    });\n"
+        html += "    li.appendChild(head);\n"
+        html += "    li.appendChild(body);\n"
+        html += "    return li;\n"
+        html += "  }\n"
+        html += "  function renderTree(node, ul) {\n"
+        html += "    Object.keys(node.dirs).sort().forEach(function (name) {\n"
+        html += "      ul.appendChild(dirLi(name, node.dirs[name]));\n"
+        html += "    });\n"
+        html += "    node.files.forEach(function (f) { ul.appendChild(fileLi(f)); });\n"
+        html += "  }\n"
+        html += "  function loadDeviceFiles() {\n"
+        html += "    fetch('\(pathPrefix)/files', {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (files) {\n"
+        html += "      deviceFilesList.innerHTML = '';\n"
+        html += "      if (files && files.length) {\n"
+        html += "        deviceFilesCard.style.display = 'block';\n"
+        html += "        renderTree(buildTree(files), deviceFilesList);\n"
+        html += "      } else {\n"
+        html += "        deviceFilesCard.style.display = 'none';\n"
+        html += "      }\n"
+        html += "    }).catch(function () {});\n"
+        html += "  }\n"
+        html += "  loadDeviceFiles();\n"
+        html += "  setInterval(loadDeviceFiles, 3000);\n"
+        html += "\n"
         html += "\n"
         html += "  function prevent(e) { e.preventDefault(); e.stopPropagation(); }\n"
         html += "  ['dragenter', 'dragover'].forEach(function (ev) {\n"

@@ -54,7 +54,7 @@ final class FileBrowser: NSObject {
 
     /// What the currently presented system picker returns.
     private enum PickerMode {
-        case folder, libraryFolder, file, subtitle, font
+        case folder, libraryFolder, file, subtitle, font, files, folderContents
     }
 
     static func register(with messenger: FlutterBinaryMessenger) {
@@ -89,6 +89,10 @@ final class FileBrowser: NSObject {
             presentSubtitlePicker(result)
         case "pickFontFile":
             presentFontPicker(result)
+        case "pickFiles":
+            presentFilesPicker(result)
+        case "pickFolderContents":
+            presentFolderContentsPicker(result)
         case "copyFontFile":
             let args = call.arguments as? [String: Any]
             let uri = args?["uri"] as? String ?? ""
@@ -413,6 +417,47 @@ final class FileBrowser: NSObject {
         presentPicker(result, mode: .font, contentTypes: fontTypes)
     }
 
+    /// Multi-select picker for "send files to computer": returns a list of
+    /// {uri, name, size} for every picked file. NO copying happens - the
+    /// upload server streams directly from these URLs when a PC downloads.
+    private func presentFilesPicker(_ result: @escaping FlutterResult) {
+        guard pickerCompletion == nil else {
+            result(FlutterError(code: "busy", message: "A picker is already open", details: nil))
+            return
+        }
+        guard let top = topViewController() else {
+            result(FlutterError(code: "no_vc", message: "No view controller", details: nil))
+            return
+        }
+        pickerCompletion = result
+        pickerMode = .files
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item])
+        picker.allowsMultipleSelection = true
+        picker.delegate = self
+        top.present(picker, animated: true)
+    }
+
+    /// Multi-select folder picker for "send a whole folder to computer":
+    /// opens the system picker limited to folders, then recursively walks the
+    /// picked folder and returns every file inside as {uri, name, size}.
+    /// NO copying happens - the upload server streams the URLs directly.
+    private func presentFolderContentsPicker(_ result: @escaping FlutterResult) {
+        guard pickerCompletion == nil else {
+            result(FlutterError(code: "busy", message: "A picker is already open", details: nil))
+            return
+        }
+        guard let top = topViewController() else {
+            result(FlutterError(code: "no_vc", message: "No view controller", details: nil))
+            return
+        }
+        pickerCompletion = result
+        pickerMode = .folderContents
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
+        picker.allowsMultipleSelection = false
+        picker.delegate = self
+        top.present(picker, animated: true)
+    }
+
     /// Copies a picked font to `destPath` inside the app's own storage, so the
     /// subtitle renderers can read it without a live security scope (iCloud
     /// files may not be resident; the picked scope is released when the
@@ -607,6 +652,50 @@ extension FileBrowser: UIDocumentPickerDelegate {
                 "uri": url.absoluteString,
                 "name": url.lastPathComponent,
             ])
+        case .files:
+            // Multi-select: return ALL picked URLs as {uri, name, size}.
+            // Each URL gets its security scope started so the upload server
+            // can stream it when a PC downloads.
+            var out: [[String: Any]] = []
+            for u in urls {
+                startAccess(u)
+                let attrs = try? FileManager.default.attributesOfItem(atPath: u.path)
+                let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+                out.append([
+                    "uri": u.absoluteString,
+                    "name": u.lastPathComponent,
+                    "size": size,
+                ])
+            }
+            completion(out)
+        case .folderContents:
+            // Recursively walk the picked folder and return every file inside.
+            // Names are "<PickedFolder>/<relative path>" so the PC page renders
+            // one folder entry with the files inside (matching Android, whose
+            // tree walk prefixes the folder name the same way).
+            var out: [[String: Any]] = []
+            let rootPath = url.path
+            let folderName = url.lastPathComponent
+            if let enumerator = FileManager.default.enumerator(
+                at: url,
+                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+                options: [.skipsHiddenFiles],
+            ) {
+                for case let fileURL as URL in enumerator {
+                    let values = try? fileURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                    if values?.isDirectory == true { continue }
+                    startAccess(fileURL)
+                    let size = (values?[.fileSizeKey] as? NSNumber)?.int64Value ?? 0
+                    let rel = fileURL.path.hasPrefix(rootPath + "/")
+                        ? String(fileURL.path.dropFirst(rootPath.count + 1))
+                        : fileURL.lastPathComponent
+                    out.append(["uri": fileURL.absoluteString,
+                                "name": "\(folderName)/\(rel)",
+                                "size": size])
+                    if out.count >= 2000 { break }
+                }
+            }
+            completion(out)
         }
     }
 

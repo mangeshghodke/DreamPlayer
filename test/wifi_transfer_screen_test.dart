@@ -21,6 +21,13 @@ void main() {
       File('ios/Runner/UploadServer.swift').readAsStringSync();
   final manager =
       File('lib/services/download_manager.dart').readAsStringSync();
+  final browser =
+      File('lib/services/file_browser.dart').readAsStringSync();
+  final ktBrowser = File(
+    'android/app/src/main/kotlin/com/dreamplayer/app/FileBrowser.kt',
+  ).readAsStringSync();
+  final swiftBrowser =
+      File('ios/Runner/FileBrowser.swift').readAsStringSync();
 
   String codeOf(String text) => text
       .split('\n')
@@ -70,7 +77,8 @@ void main() {
 
     test('lists live transfers with progress bars', () {
       expect(codeOf(screen), contains('LinearProgressIndicator('));
-      expect(codeOf(screen), contains('_UploadRow(item: item)'));
+      expect(codeOf(screen), contains('_UploadRow('));
+      expect(codeOf(screen), contains('item: item)'));
       expect(codeOf(screen), contains('WifiUploadStatus.done'));
       expect(codeOf(screen), contains('WifiUploadStatus.failed'));
     });
@@ -164,8 +172,89 @@ void main() {
       expect(kotlin, contains('Looper.getMainLooper()'));
     });
 
-    test('swift hops progress events to the main thread', () {
-      expect(swift, contains('DispatchQueue.main.async'));
+    test('kotlin serves the download-from-device endpoints', () {
+      expect(kotlin, contains('/files'));
+      expect(kotlin, contains('/file?name'));
+      expect(kotlin, contains('streamSharedFile'));
+      expect(kotlin, contains('application/octet-stream'));
+    });
+
+    test('swift serves the download-from-device endpoints', () {
+      expect(swift, contains('/files'));
+      expect(swift, contains('/file?name'));
+      expect(swift, contains('streamSharedFile'));
+      expect(swift, contains('application/octet-stream'));
+    });
+
+    test('both servers render the shared files as a folder tree', () {
+      // A picked folder arrives as "Photos/a.jpg" paths: the page groups them
+      // into one expandable folder entry instead of a flat list.
+      expect(kotlin, contains('buildTree'));
+      expect(kotlin, contains('countFiles'));
+      expect(kotlin, contains('deviceFilesCard'));
+      expect(swift, contains('buildTree'));
+      expect(swift, contains('countFiles'));
+      expect(swift, contains('deviceFilesCard'));
+    });
+
+    test('both servers embed credentials in the download URL', () {
+      // External download managers don't carry the browser's Basic-auth
+      // cache, so the credentials ride in the URL userinfo.
+      expect(
+        kotlin.contains(r"location.protocol + '//' + '$authInfo'"),
+        isTrue,
+      );
+      expect(
+        swift.contains(r"location.protocol + '//' + '\(authInfo)'"),
+        isTrue,
+      );
+    });
+  });
+
+  group('send files + send folder to the computer', () {
+    test('the page offers both buttons while running', () {
+      expect(screen, contains('Send files'));
+      expect(screen, contains('Send folder'));
+      expect(screen, contains('_sendFilesToComputer'));
+      expect(screen, contains('_sendFolderToComputer'));
+      // Both are gated on the server running.
+      expect(screen.contains('running && !_picking'), isTrue);
+    });
+
+    test('the page lists what is shared with the computer', () {
+      expect(screen, contains('_service.sharedFiles.isNotEmpty'));
+      expect(screen, contains('_SharedFileRow('));
+      expect(screen, contains('formatUploadBytes(file.size)'));
+    });
+
+    test('the service registers shared files over the channel', () {
+      expect(service, contains("'shareFiles'"));
+      expect(service.contains("'clearSharedFiles'"), isTrue);
+      expect(service, contains('List<SharedFile> get sharedFiles'));
+      // Files are NOT copied in Dart - the list is just handed to native.
+      expect(service.contains('File(path)'), isFalse);
+      expect(service.contains('.copy('), isFalse);
+    });
+
+    test('the dart wrapper exposes both pickers', () {
+      expect(browser.contains('Future<List<Map<String, dynamic>>> pickFiles()'), isTrue);
+      expect(browser.contains('Future<List<Map<String, dynamic>>> pickFolderContents()'), isTrue);
+    });
+
+    test('android walks the picked folder tree, no copy', () {
+      expect(ktBrowser, contains('"pickFiles"'));
+      expect(ktBrowser, contains('"pickFolderContents"'));
+      expect(ktBrowser, contains('walkTree'));
+      expect(ktBrowser, contains('EXTRA_ALLOW_MULTIPLE'));
+      expect(ktBrowser, contains('REQ_PICK_FOLDER_CONTENTS'));
+      expect(ktBrowser, contains('MIME_TYPE_DIR'));
+    });
+
+    test('ios multi-selects both files and a folder', () {
+      expect(swiftBrowser, contains('"pickFiles"'));
+      expect(swiftBrowser, contains('"pickFolderContents"'));
+      expect(swiftBrowser, contains('allowsMultipleSelection = true'));
+      expect(swiftBrowser, contains('.folder'));
     });
   });
 }

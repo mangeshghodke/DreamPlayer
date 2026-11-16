@@ -30,6 +30,8 @@ class FileBrowser(private val activity: MainActivity) {
         const val REQ_PICK_SUBTITLE = 9002
         const val REQ_PICK_MPV_CONFIG = 9003
         const val REQ_PICK_FONT = 9004
+        const val REQ_PICK_FILES = 9005
+        const val REQ_PICK_FOLDER_CONTENTS = 9006
 
         private const val PREFS = "dreamplayer.folderBookmarks"
         private const val BOOKMARK_PREFIX = "bm."
@@ -47,6 +49,8 @@ class FileBrowser(private val activity: MainActivity) {
     private var pendingSubtitleResult: MethodChannel.Result? = null
     private var pendingMpvConfigResult: MethodChannel.Result? = null
     private var pendingFontResult: MethodChannel.Result? = null
+    private var pendingFilesResult: MethodChannel.Result? = null
+    private var pendingFolderContentsResult: MethodChannel.Result? = null
 
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
@@ -87,6 +91,8 @@ class FileBrowser(private val activity: MainActivity) {
                 "pickSubtitle" -> pickSubtitle(result)
                 "pickMpvConfig" -> pickMpvConfig(result)
                 "pickFontFile" -> pickFontFile(result)
+                "pickFiles" -> pickFiles(result)
+                "pickFolderContents" -> pickFolderContents(result)
                 "copyFontFile" -> copyFontFile(call, result)
                 "readTextFile" -> {
                     val uri = call.argument<String>("uri")
@@ -981,6 +987,178 @@ class FileBrowser(private val activity: MainActivity) {
             return
         }
         result.success(mapOf("uri" to uri.toString(), "name" to name))
+    }
+
+    // MARK: - Multi-file picker (for "send files to computer")
+
+    /// Opens the system multi-select file picker (ACTION_OPEN_DOCUMENT with
+    /// EXTRA_ALLOW_MULTIPLE). Returns a list of {uri, name, size} maps.
+    /// NO file copying happens here - the URIs are handed to the upload
+    /// server which streams them directly when a PC downloads.
+    private fun pickFiles(result: MethodChannel.Result) {
+        if (pendingFilesResult != null) {
+            result.error("busy", "A file picker is already open", null)
+            return
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        pendingFilesResult = result
+        try {
+            activity.startActivityForResult(intent, REQ_PICK_FILES)
+        } catch (_: Exception) {
+            pendingFilesResult = null
+            result.error("no_picker", "No file picker available", null)
+        }
+    }
+
+    fun onFilesPicked(resultCode: Int, data: Intent?) {
+        val result = pendingFilesResult ?: return
+        pendingFilesResult = null
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            result.success(emptyList<Map<String, Any?>>())
+            return
+        }
+        val out = mutableListOf<Map<String, Any?>>()
+        // Multi-select: clipData holds all URIs
+        val clip = data.clipData
+        if (clip != null) {
+            for (i in 0 until clip.itemCount) {
+                val uri = clip.getItemAt(i).uri ?: continue
+                out.add(fileInfo(uri))
+            }
+        } else if (data.data != null) {
+            out.add(fileInfo(data.data!!))
+        }
+        result.success(out)
+    }
+
+    private fun fileInfo(uri: Uri): Map<String, Any?> {
+        try {
+            activity.contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        } catch (_: Exception) {}
+        var name = uri.lastPathSegment?.substringAfterLast('/') ?: "file"
+        var size = 0L
+        try {
+            activity.contentResolver.query(
+                uri,
+                arrayOf(
+                    android.provider.OpenableColumns.DISPLAY_NAME,
+                    android.provider.OpenableColumns.SIZE,
+                ),
+                null, null, null,
+            )?.use { c ->
+                if (c.moveToFirst()) {
+                    c.getString(0)?.takeIf { it.isNotBlank() }?.let { name = it }
+                    val szIdx = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                    if (szIdx >= 0 && !c.isNull(szIdx)) size = c.getLong(szIdx)
+                }
+            }
+        } catch (_: Exception) {}
+        if (size == 0L) {
+            try {
+                activity.contentResolver.openInputStream(uri)?.use { size = it.available().toLong() }
+            } catch (_: Exception) {}
+        }
+        return mapOf("uri" to uri.toString(), "name" to name, "size" to size)
+    }
+
+    // MARK: - Folder picker (send a whole folder to the computer)
+
+    /// Opens ACTION_OPEN_DOCUMENT_TREE and returns EVERY file inside the
+    /// picked folder (recursively) as {uri, name, size} maps. NO copying
+    /// happens - the URIs are registered with the upload server, which
+    /// streams them directly when the PC downloads.
+    private fun pickFolderContents(result: MethodChannel.Result) {
+        if (pendingFolderContentsResult != null) {
+            result.error("busy", "A folder picker is already open", null)
+            return
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        pendingFolderContentsResult = result
+        try {
+            activity.startActivityForResult(intent, REQ_PICK_FOLDER_CONTENTS)
+        } catch (_: Exception) {
+            pendingFolderContentsResult = null
+            result.error("no_picker", "No folder picker available", null)
+        }
+    }
+
+    fun onFolderContentsPicked(resultCode: Int, data: Intent?) {
+        val result = pendingFolderContentsResult ?: return
+        pendingFolderContentsResult = null
+        if (resultCode != Activity.RESULT_OK || data?.data == null) {
+            result.success(emptyList<Map<String, Any?>>())
+            return
+        }
+        val treeUri = data.data!!
+        try {
+            activity.contentResolver.takePersistableUriPermission(
+                treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        } catch (_: Exception) {}
+        // Walk the tree off the main thread (a big folder is many queries).
+        Thread {
+            val out = mutableListOf<Map<String, Any?>>()
+            try {
+                walkTree(treeUri, android.provider.DocumentsContract.getTreeDocumentId(treeUri), "", out, 2000)
+            } catch (_: Exception) {}
+            mainHandler.post { result.success(out) }
+        }.start()
+    }
+
+    /// Recursively collects every FILE under [docId] (folders are walked,
+    /// not emitted). The name carries the relative path so a folder with
+    /// subfolders keeps unique names on the server.
+    private fun walkTree(
+        treeUri: Uri,
+        docId: String,
+        prefix: String,
+        out: MutableList<Map<String, Any?>>,
+        cap: Int,
+    ) {
+        if (out.size >= cap) return
+        val childrenUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+        try {
+            activity.contentResolver.query(
+                childrenUri,
+                arrayOf(
+                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
+                    android.provider.OpenableColumns.SIZE,
+                ),
+                null, null, null,
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    if (out.size >= cap) return
+                    val childDocId = c.getString(0) ?: continue
+                    val name = c.getString(1) ?: "file"
+                    val mime = c.getString(2) ?: ""
+                    val size = c.getLong(3)
+                    if (mime == android.provider.DocumentsContract.Document.MIME_TYPE_DIR) {
+                        walkTree(treeUri, childDocId, "$prefix$name/", out, cap)
+                    } else {
+                        val childUri = android.provider.DocumentsContract
+                            .buildDocumentUriUsingTree(treeUri, childDocId)
+                        out.add(mapOf(
+                            "uri" to childUri.toString(),
+                            "name" to "$prefix$name",
+                            "size" to size,
+                        ))
+                    }
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     /// Copies the picked font at [uri] to [destPath] in the app's own storage.

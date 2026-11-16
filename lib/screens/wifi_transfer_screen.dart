@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/file_browser.dart';
 import '../services/wifi_upload.dart';
 import '../utils/upload_url.dart';
 
@@ -39,6 +40,74 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
   /// does not kill an in-flight upload either).
   Timer? _restartDebounce;
   bool _obscurePassword = true;
+  bool _picking = false;
+
+  /// Opens the system multi-file picker and registers the picked files with
+  /// the native server, so the PC browser can download them from the
+  /// transfer page. NO file copying happens - the server streams directly
+  /// from the picked URIs, so large videos never block the UI.
+  Future<void> _sendFilesToComputer() async {
+    if (_picking || !_service.running) return;
+    _picking = true;
+    if (mounted) setState(() {});
+    try {
+      final files = await FileBrowserService.instance.pickFiles();
+      if (files.isEmpty || !mounted) return;
+      await _service.shareFiles(files);
+      if (mounted) {
+        final url = _service.urls.isNotEmpty ? _service.urls.first : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              files.length == 1
+                  ? '1 file shared - open $url on your computer and tap it to download'
+                  : '${files.length} files shared - open $url on your computer to download them',
+            ),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Copy URL',
+              onPressed: () => _copyUrl(url),
+            ),
+          ),
+        );
+      }
+    } finally {
+      _picking = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// Opens the system FOLDER picker, walks every file inside (recursively),
+  /// and registers them with the native server. Same zero-copy flow as
+  /// [_sendFilesToComputer] - the server streams the URIs directly.
+  Future<void> _sendFolderToComputer() async {
+    if (_picking || !_service.running) return;
+    _picking = true;
+    if (mounted) setState(() {});
+    try {
+      final files = await FileBrowserService.instance.pickFolderContents();
+      if (files.isEmpty || !mounted) return;
+      await _service.shareFiles(files);
+      if (mounted) {
+        final url = _service.urls.isNotEmpty ? _service.urls.first : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${files.length} files shared - open $url on your computer to download them',
+            ),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Copy URL',
+              onPressed: () => _copyUrl(url),
+            ),
+          ),
+        );
+      }
+    } finally {
+      _picking = false;
+      if (mounted) setState(() {});
+    }
+  }
 
   @override
   void initState() {
@@ -242,6 +311,100 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+              // ---- Send files from this device to a computer ----
+              // Two ways: pick individual files, or pick a whole folder.
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: running && !_picking ? _sendFilesToComputer : null,
+                        icon: _picking
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    colorScheme.primary,
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.send, size: 20),
+                        label: const Text(
+                          'Send files',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: colorScheme.primary,
+                          side: BorderSide(
+                            color: colorScheme.primary.withValues(alpha: 0.5),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: running && !_picking ? _sendFolderToComputer : null,
+                        icon: const Icon(Icons.folder_outlined, size: 20),
+                        label: const Text(
+                          'Send folder',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: colorScheme.primary,
+                          side: BorderSide(
+                            color: colorScheme.primary.withValues(alpha: 0.5),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              // Files shared FROM this device (downloadable on the PC)
+              if (_service.sharedFiles.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text(
+                      'Shared with computer',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.clear_all, color: colorScheme.error),
+                      tooltip: 'Clear shared files',
+                      onPressed: _service.clearSharedFiles,
+                      style: IconButton.styleFrom(
+                        backgroundColor:
+                            colorScheme.errorContainer.withValues(alpha: 0.3),
+                        foregroundColor: colorScheme.error,
+                        shape: const CircleBorder(),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                for (final f in _service.sharedFiles)
+                  _SharedFileRow(file: f),
+              ],
               const SizedBox(height: 24),
               _TransfersHeader(service: _service),
               const SizedBox(height: 12),
@@ -797,6 +960,53 @@ class _UploadRow extends StatelessWidget {
                   ],
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One shared-file row: a file the user picked in-app to send to a PC.
+/// Shows name + size; the PC downloads it from the transfer page.
+class _SharedFileRow extends StatelessWidget {
+  const _SharedFileRow({required this.file});
+
+  final SharedFile file;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(Icons.upload_file, size: 18, color: colorScheme.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                file.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              formatUploadBytes(file.size),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),
