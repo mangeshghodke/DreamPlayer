@@ -635,8 +635,8 @@ private const val MAX_NAME_LEN = 120
   li.done .bar > div { background: #7ee2a8; }
   li.done .nm { color: #7ee2a8; }
   li.err .nm { color: #ff8a80; }
-  .actions { display: flex; gap: 8px; margin-top: 16px; }
-  .actions button { width: auto; flex: 1; padding: 10px 14px; border-radius: 11px;
+  .actions { display: flex; gap: 8px; margin-top: 16px; align-items: stretch; }
+  .actions button { flex: 1 1 0; min-width: 0; padding: 10px 14px; border-radius: 11px;
                     border: 1px solid #3a3a46; background: #1e1e26; color: #e8e8ec;
                     font: inherit; font-size: 13px; cursor: pointer; transition: background .15s, color .15s; }
   .actions button:hover { background: #2a2a33; color: #fff; }
