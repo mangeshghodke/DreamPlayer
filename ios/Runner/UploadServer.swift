@@ -124,8 +124,21 @@ final class UploadServer: NSObject, FlutterStreamHandler {
 
         let dest: URL
         if let destDirPath, !destDirPath.isEmpty {
-            dest = URL(fileURLWithPath: destDirPath)
+            // Accept a plain absolute path, a file:// URL, or a relative name
+            // (anchored in Documents). URL(fileURLWithPath:) on a file:// string
+            // would mangle it into a bogus nested path.
+            if destDirPath.hasPrefix("file://"), let u = URL(string: destDirPath) {
+                dest = u
+            } else if destDirPath.hasPrefix("/") {
+                dest = URL(fileURLWithPath: destDirPath)
+            } else {
+                let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+                dest = (docs ?? URL(fileURLWithPath: "/")).appendingPathComponent(destDirPath)
+            }
         } else {
+            // Default: the app's own "DreamPlayer" folder inside Documents,
+            // i.e. the folder the Files app shows as On My iPad -> DreamPlayer
+            // -> DreamPlayer (UIFileSharingEnabled exposes Documents).
             guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
                 return ["ok": false, "error": "no documents directory"]
             }
@@ -428,6 +441,14 @@ final class UploadServer: NSObject, FlutterStreamHandler {
         var written = bodyPrefix.count
         var lastProgress = Date()
         do {
+            // FileHandle(forWritingTo:) does NOT create a missing file - it
+            // throws Cocoa error 4 ("The file ... doesn't exist.") which is
+            // exactly the iOS failure Kotlin never has (FileOutputStream
+            // creates the file). Create it explicitly first.
+            guard FileManager.default.createFile(atPath: file.path, contents: nil) else {
+                throw NSError(domain: "UploadServer", code: 2,
+                              userInfo: [NSLocalizedDescriptionKey: "cannot create \(file.path)"])
+            }
             let handle = try FileHandle(forWritingTo: file)
             defer { try? handle.close() }
             if !bodyPrefix.isEmpty {

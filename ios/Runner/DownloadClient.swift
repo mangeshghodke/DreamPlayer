@@ -85,7 +85,14 @@ final class DownloadClient: NSObject, UNUserNotificationCenterDelegate {
     private func downloadDirectory() -> String {
         let custom = UserDefaults.standard.string(forKey: "dreamplayer.downloadDir")
         if let custom = custom, !custom.isEmpty {
-            let dir = URL(fileURLWithPath: custom)
+            // Tolerate a pasted file:// URL: URL(fileURLWithPath:) on one
+            // would mangle it into a bogus nested path.
+            let dir: URL
+            if custom.hasPrefix("file://"), let u = URL(string: custom) {
+                dir = u
+            } else {
+                dir = URL(fileURLWithPath: custom)
+            }
             if !FileManager.default.fileExists(atPath: dir.path) {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             }
