@@ -26,7 +26,7 @@ import Network
 ///
 /// Per-transfer progress (`start` / `progress` / `done` / `failed`) is pushed
 /// over Self.EVENT_CHANNEL so the transfer screen can show live progress rows.
-final class UploadServer: FlutterStreamHandler {
+final class UploadServer: NSObject, FlutterStreamHandler {
 
     static let shared = UploadServer()
 
