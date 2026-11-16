@@ -1,7 +1,7 @@
 # Playing SMB / NAS videos with DreamPlayer
 
 DreamPlayer has a **built-in SMB browser on both Android and iPhone/iPad**. Add your
-NAS once and browse it like any other folder — no third-party file manager, no
+NAS once and browse it like any other folder - no third-party file manager, no
 "Open with" hand-off, and nothing is copied or downloaded to your device. Videos
 stream directly from the share, so seeking, resume, subtitles and the audio-track
 picker all behave exactly as they do for a local file.
@@ -20,11 +20,11 @@ On **Android and iPhone/iPad** the steps are identical:
 
    | Field | Notes |
    |---|---|
-   | **Name** | Anything you like — shown in the list. Leave blank and your address is used. |
+   | **Name** | Anything you like - shown in the list. Leave blank and your address is used. |
    | **Host** | `192.168.1.50` or a hostname like `nas.local`. Don't include `smb://`. |
    | **Port** | `445` is right for almost every NAS. |
    | **Username** | Your NAS account. Leave both blank to connect as **Guest**. |
-   | **Password** | Stored in the Android Keystore / iOS Keychain — never in plain text, and never sent to us. |
+   | **Password** | Stored in the Android Keystore / iOS Keychain - never in plain text, and never sent to us. |
 
 4. Tap **Test** to confirm the connection, then **Save**.
 
@@ -38,7 +38,7 @@ performs a real protocol handshake against each, so the entries it shows are one
 it has actually spoken to. Tap a result to fill the dialog in for you. The dialog
 also reports each server's SMB version (e.g. **SMB 3.1.1**) and identifier.
 
-Saved servers show a **status dot** — green when reachable, red when not.
+Saved servers show a **status dot** - green when reachable, red when not.
 
 ## 2. Browse and play
 
@@ -67,16 +67,16 @@ Pull-to-refresh on Home re-reads local folders, so files you add later show up.
 Everything the player does for a local file:
 
 - **Full seeking**, with a resume position remembered per file.
-- **Subtitles** — any `.srt`/`.ass`/`.vtt`/`.ttml`/`.smi`/`.sub`/`.mpl2` sitting in
+- **Subtitles** - any `.srt`/`.ass`/`.vtt`/`.ttml`/`.smi`/`.sub`/`.mpl2` sitting in
   the same folder is detected and offered automatically.
 - **Play next episode** within the folder.
 - **Watched ticks** per file, and the ability to bookmark a title as watched.
 - **Download to device** when you want an offline copy (player **⋮** menu →
   *Download to device*).
-- Full codec support — DTS, DTS-HD, TrueHD, E-AC3 and Dolby Vision, same as local.
+- Full codec support - DTS, DTS-HD, TrueHD, E-AC3 and Dolby Vision, same as local.
 
 > **Note:** VobSub (`.idx`/`.sub`) bitmap subtitles are not offered on the native
-> engine — use **Play with MPV** for those on Android. See the subtitles section
+> engine - use **Play with MPV** for those on Android. See the subtitles section
 > of the README.
 
 ## Other ways in
@@ -96,7 +96,7 @@ containers, including ones iOS has no built-in type for (`.mkv`, `.ts`, `.m2ts`,
 `.webm`, `.wmv`, `.flv`, `.mpg`, `.vob` and more).
 
 You can also bookmark a Files-app folder once via **Home → + → Internal storage →
-Pick a folder** — useful for a physical USB drive or SD card, which is a different
+Pick a folder** - useful for a physical USB drive or SD card, which is a different
 capability from an SMB share.
 
 ### Android: CX Explorer still works
@@ -109,7 +109,7 @@ streams over its own local HTTP proxy and DreamPlayer plays it at full speed
 
 - **Server not found, or the dot is red:** check the address and that the phone is
   on the same network and subnet. Some routers enable client isolation, which blocks
-  device-to-device traffic — that's a router setting, not an app one. Port `445`
+  device-to-device traffic - that's a router setting, not an app one. Port `445`
   must be reachable, not just `139`.
 - **"Permission denied":** SMB2/3 needs a real account. Guest access has to be
   enabled on the NAS itself; leave username and password blank only if it is.
@@ -119,8 +119,8 @@ streams over its own local HTTP proxy and DreamPlayer plays it at full speed
 - **Video opens but stalls:** the share streams in real time, so the Wi-Fi link has
   to sustain the file's bitrate. On 5 GHz or a wired connection; look for a
   red "Transcoding"-style warning or heavy buffering on a weak link.
-- **Playback is smooth but seeking jumps:** expected on a slow link — a seek has to
+- **Playback is smooth but seeking jumps:** expected on a slow link - a seek has to
   reach the server and re-open the stream at the new offset.
 - **iPad: bookmarked folder disappears after a long break:** security-scoped
   bookmarks can expire if the app hasn't been opened; re-pick the folder once.
-  In-app SMB servers are unaffected — they re-authenticate from the Keychain.
+  In-app SMB servers are unaffected - they re-authenticate from the Keychain.

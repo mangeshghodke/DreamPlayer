@@ -3,7 +3,7 @@
 All notable changes to DreamPlayer are documented here. Each release's entry is
 pulled into the GitHub Release body automatically by `.github/workflows/release.yml`.
 
-This file is **Android-only** — it feeds the GitHub Releases (APKs). iOS changes are
+This file is **Android-only** - it feeds the GitHub Releases (APKs). iOS changes are
 documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 ## 0.5.8
@@ -11,16 +11,16 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 ### Added
 
 - **Pick a subtitle font file from device storage.** The subtitle font picker (CC sheet → Subtitle settings → Font) now has a "Pick a font file from this device…" row: choose any `.ttf` / `.otf` / `.ttc` / `.woff` from the SD card, Downloads, or any file provider via the system picker. The file is copied into the app's own storage and its internal name table gives the display name, so it works offline and survives the source provider going away. It applies to the Media3 caption view, the MPV (libass) overlay, and the settings preview.
-- **Picture controls on the native (Media3) engine + saved picture profiles.** The tune (sliders) button in the player now opens a picture panel on the native engine too (it was MPV-only): brightness, contrast and saturation sliders applied live as GL video effects. For HDR / Dolby Vision content the panel explains that adjustments are SDR-only so the native HDR passthrough to the panel is preserved (the MPV engine remains the tone-mapped path). Both picture panels gained a **Profiles** section: save the current adjustments under a name, tap to apply, delete to remove — profiles persist across sessions and are shared between the two engines (gamma is MPV-only).
-- **libmpv plays remote `https://` links that Media3 already plays** (fixes "Fallback player error: Failed to open https://…"). libmpv's own HTTP stack (ffmpeg + mbedtls, `User-Agent: Lavf/63.1.100`) is refused by CDNs that accept Media3's OkHttp/Conscrypt stack — e.g. a Cloudflare-fronted tracker host with a client-bound `?selection=` token. Two fixes, both non-regressive:
+- **Picture controls on the native (Media3) engine + saved picture profiles.** The tune (sliders) button in the player now opens a picture panel on the native engine too (it was MPV-only): brightness, contrast and saturation sliders applied live as GL video effects. For HDR / Dolby Vision content the panel explains that adjustments are SDR-only so the native HDR passthrough to the panel is preserved (the MPV engine remains the tone-mapped path). Both picture panels gained a **Profiles** section: save the current adjustments under a name, tap to apply, delete to remove - profiles persist across sessions and are shared between the two engines (gamma is MPV-only).
+- **libmpv plays remote `https://` links that Media3 already plays** (fixes "Fallback player error: Failed to open https://…"). libmpv's own HTTP stack (ffmpeg + mbedtls, `User-Agent: Lavf/63.1.100`) is refused by CDNs that accept Media3's OkHttp/Conscrypt stack - e.g. a Cloudflare-fronted tracker host with a client-bound `?selection=` token. Two fixes, both non-regressive:
   - The direct open now sends a browser-ish `User-Agent` (not `Lavf/…`) plus `referrer` and `http-header-fields` from `VideoItem.httpHeaders` (WebDAV Basic auth, Jellyfin token, `Referer`) so `VideoItem.httpHeaders` finally reaches mpv. `user-agent`/`referrer` go on their own mpv properties; everything else goes through `http-header-fields` with commas inside values escaped as `\,`. The mapping is unit-tested in `lib/utils/mpv_http_headers.dart`.
   - If the direct open still fails on an `http(s)` source, the URL is retried once per file through a new OkHttp-backed loopback bridge (`http://127.0.0.1:<port>/<token>`, channel `dreamplayer/httpproxy`) that reproduces Media3's exact network stack. Direct open first, bridge only as fallback; the retry is keyed per file, the loopback URL is rewritten back to the original in error text, and `dispose()` tears the bridge down. Pinned by `test/mpv_http_source_test.dart`.
 
 ### Fixed
 
-- **Skip intro/recap/credits pill now appears on the first play of a new title (issue #65).** On a cold cache the TMDB match (and for a new show the season list) resolves after the first playback event, and the skip-segment lookup latched its "already done" flag before the metadata existed — so the pill only showed from the second play on. The lookup now leaves itself unlatched while metadata is missing and re-fires the moment the match lands (`_onTmdbChanged` + the resolve callback), with a one-in-flight guard so retries never duplicate the network request, and the legacy IntroDB fallback got its own once-per-open latch. When the remote segments arrive mid-playback the pill re-evaluates against the current playhead, so an intro starting at 00:00 is caught even though playback began while the request was in flight. Pinned by `test/skip_lookup_cold_cache_test.dart` + a `promptable`-at-position-0 case in `test/skip_segments_test.dart`.
-- **MPV error text now names the real URL** — a failed bridge open shows the original `https://…` link instead of `http://127.0.0.1:<port>/<token>` (`_mpvReadableError`).
-- **Hardware SDR tone-mapping (Settings → Player) now works for plain HDR10 on Qualcomm phones** (issue #64). The decoder ignores the SDR request while rendering into a SurfaceView overlay, but performs the on-chip HDR→SDR conversion when its output is a TextureView — so while the setting is ON the player now uses a TextureView-backed view (new `res/layout/dream_texture_player_view.xml`), and the window HDR/headroom path is skipped from the first frame. HDR10 MKVs without a `Colour` element (transfer unknown) are now covered too, restricted to HEVC Main10 — the request is never sent to 8-bit H.264, which could freeze the picture (`queueInputs err 38`). Setting OFF keeps the SurfaceView and native HDR/Dolby Vision passthrough untouched. Applies from the next player screen after toggling.
+- **Skip intro/recap/credits pill now appears on the first play of a new title (issue #65).** On a cold cache the TMDB match (and for a new show the season list) resolves after the first playback event, and the skip-segment lookup latched its "already done" flag before the metadata existed - so the pill only showed from the second play on. The lookup now leaves itself unlatched while metadata is missing and re-fires the moment the match lands (`_onTmdbChanged` + the resolve callback), with a one-in-flight guard so retries never duplicate the network request, and the legacy IntroDB fallback got its own once-per-open latch. When the remote segments arrive mid-playback the pill re-evaluates against the current playhead, so an intro starting at 00:00 is caught even though playback began while the request was in flight. Pinned by `test/skip_lookup_cold_cache_test.dart` + a `promptable`-at-position-0 case in `test/skip_segments_test.dart`.
+- **MPV error text now names the real URL** - a failed bridge open shows the original `https://…` link instead of `http://127.0.0.1:<port>/<token>` (`_mpvReadableError`).
+- **Hardware SDR tone-mapping (Settings → Player) now works for plain HDR10 on Qualcomm phones** (issue #64). The decoder ignores the SDR request while rendering into a SurfaceView overlay, but performs the on-chip HDR→SDR conversion when its output is a TextureView - so while the setting is ON the player now uses a TextureView-backed view (new `res/layout/dream_texture_player_view.xml`), and the window HDR/headroom path is skipped from the first frame. HDR10 MKVs without a `Colour` element (transfer unknown) are now covered too, restricted to HEVC Main10 - the request is never sent to 8-bit H.264, which could freeze the picture (`queueInputs err 38`). Setting OFF keeps the SurfaceView and native HDR/Dolby Vision passthrough untouched. Applies from the next player screen after toggling.
 
 ## 0.5.7
 
@@ -42,15 +42,15 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 ### Added
 
-- **Auto-prune deleted SMB files.** When a file or folder is deleted on the SMB server, it is now removed from Continue Watching and from any Home library bookmark too: browsing the folder reconciles the listing (free — no extra round-trips), a deleted bookmarked folder is dropped when its listing returns not-found, and a throttled background sweep on Home stats each SMB continue-watching file (only against servers that answer, max once per 10 min). **Safety rule:** only a definitive server not-found prunes — an offline NAS, timeout or auth error never removes anything. Native maps the SMB NT not-found statuses (jcifs-ng) to a distinct `smb_not_found` channel code, exposed as `SmbClient.statPath` / `SmbClient.isNotFound`. Pinned by `test/network_prune_test.dart`.
+- **Auto-prune deleted SMB files.** When a file or folder is deleted on the SMB server, it is now removed from Continue Watching and from any Home library bookmark too: browsing the folder reconciles the listing (free - no extra round-trips), a deleted bookmarked folder is dropped when its listing returns not-found, and a throttled background sweep on Home stats each SMB continue-watching file (only against servers that answer, max once per 10 min). **Safety rule:** only a definitive server not-found prunes - an offline NAS, timeout or auth error never removes anything. Native maps the SMB NT not-found statuses (jcifs-ng) to a distinct `smb_not_found` channel code, exposed as `SmbClient.statPath` / `SmbClient.isNotFound`. Pinned by `test/network_prune_test.dart`.
 - **Downmix to stereo (Settings → Audio).** One switch folds 5.1/7.1 tracks
   into 2.0 so dialogue (the centre channel) stays loud on stereo headphones
-  and speakers — the standard −3 dB centre/surround matrix, LFE dropped.
+  and speakers - the standard −3 dB centre/surround matrix, LFE dropped.
   Android Media3: a PCM `DownmixAudioProcessor` in the audio sink chain,
   before the boost limiter so peaks are limited; HDMI bitstream passthrough
   is untouched (the receiver downmixes itself). MPV engine:
   `audio-channels=stereo` (swresample downmix). Takes effect on the
-  next playback/track change. Free (not paywall-gated — it applies to
+  next playback/track change. Free (not paywall-gated - it applies to
   ordinary SDR 5.1/7.1 content too).
 - **Secondary (dual) subtitles on the MPV engine.** The CC sheet gains a
   "Secondary subtitle (top)" section when a video has more than one subtitle
@@ -63,7 +63,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 - **Custom MPV config (Android, MPV engine).** Settings → Player → *Custom
   MPV config* lets you pick your own `mpv.conf` (persistable file URI). On
   every MPV open the file is parsed and its options are applied on top of
-  DreamPlayer's hardened settings via `setProperty` — `key=value`, `no-key`,
+  DreamPlayer's hardened settings via `setProperty` - `key=value`, `no-key`,
   bare keys, quoted values and `include=` (recursive, depth-capped) are
   supported. Safety rails: `vo`/`wid`/`force-window`/`gpu-context`/
   `config*`/`script*`/`input-conf`/`idle`/`keep-open` are protected and
@@ -87,25 +87,25 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   main-thread runnable whenever HDR content opened, so DV P7/P8 and HDR10+
   showed no fallback at all while other players worked. The HDR window
   forcing is now guarded per-API (`SDK_INT >= S` for the headroom calls) and
-  wrapped so a missing vendor Window method can never crash playback — without
+  wrapped so a missing vendor Window method can never crash playback - without
   the forcing, Android tone-maps HDR to SDR automatically, same as Just
   Player.
 
 ### Added
 
 - **"App crashed?" report form.** Settings → below the FAQ now shows the note.
-  Tapping it first dumps the app's own logcat to `logcat_dump.log` — the only
+  Tapping it first dumps the app's own logcat to `logcat_dump.log` - the only
   log that captures native crashes (decoder SIGSEGV, NoSuchMethodError), which
-  the Dart crash log cannot see — and the attach list is platform-specific:
+  the Dart crash log cannot see - and the attach list is platform-specific:
   `dreamplayer_crash.log`, `app_debug.log`, `logcat_dump.log`. Submit goes to
   the configured upload endpoint, falling back to the share sheet.
-- **Community Discord** — invite link (https://discord.gg/sAnXAAA8R) in the
+- **Community Discord** - invite link (https://discord.gg/sAnXAAA8R) in the
   app (Settings → About), the website nav, the README badges and the GitHub
   repo About box.
 - **TheIntroDB v4 skip timestamps for movies & mainstream TV (issue #60
   follow-up).** Alongside AniSkip (anime), the player now also queries
   TheIntroDB (`api.theintrodb.org/v4/media`), which is keyed by TMDB id and
-  covers movies and live-action series — keyless out of the box (an optional
+  covers movies and live-action series - keyless out of the box (an optional
   API key in Settings → Metadata only raises the rate limit). Per kind the
   precedence is: embedded chapter names → TheIntroDB → AniSkip; all remote
   results are cached per episode (with negatives), so SMB/USB/offline
@@ -114,9 +114,9 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   bottom-right when the playhead is inside (or within 5 s of) an intro, recap
   or credits segment, and the ⋮ sheet lists all three as rows. Segments come
   from embedded chapter names (`Opening`/`OP`/`Intro`, `Recap`/`Previously`,
-  `Ending`/`Credits`/`ED` — word-boundary matched, last credits chapter wins)
+  `Ending`/`Credits`/`ED` - word-boundary matched, last credits chapter wins)
   and, for TMDB-matched TV episodes, from the keyless **AniSkip** API (via an
-  AniList title→MAL-id lookup) — the IntroDB domain named in the issue no
+  AniList title→MAL-id lookup) - the IntroDB domain named in the issue no
   longer resolves, AniSkip is the working community source. Results,
   including negatives, are cached locally per episode, so SMB/USB/offline
   playback reuses them with no network. Settings → Player → "Skip intro /
@@ -127,7 +127,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   start/progress/stop through the Sessions API (`/Sessions/Playing*`), pulls
   `UserData.PlaybackPositionTicks` on open (further-along of local/server
   wins), and marks items played via `POST/DELETE /Users/{id}/PlayedItems/{itemId}`
-  — both on end-of-playback and from the browser's watched toggle. The
+  - both on end-of-playback and from the browser's watched toggle. The
   Jellyfin browser shows `local || server` watched checks and prefers the
   server progress bar. All calls are best-effort; a down server never breaks
   playback.
@@ -155,12 +155,12 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   (dreamplayer_crash.log, app_debug.log, logcat_dump.log) are
   listed with checkboxes, there is a message box, and Submit uploads them as
   multipart/form-data to the endpoint set with
-  `--dart-define=CRASH_REPORT_ENDPOINT=...` — shipped as the Cloudflare
+  `--dart-define=CRASH_REPORT_ENDPOINT=...` - shipped as the Cloudflare
   Worker `dreamplayer-crash-report` (source in `cloudflare/crash-report/`),
   which emails the logs to the support inbox via Email Routing. A shared
   secret (`CRASH_REPORT_SECRET`, sent as `Authorization: Bearer …`) keeps
-  the public URL from being spammed. When no endpoint is configured — or
-  the upload fails — the old share-sheet/email route is still there as a
+  the public URL from being spammed. When no endpoint is configured - or
+  the upload fails - the old share-sheet/email route is still there as a
   fallback.
 - **In-app update install flow (Mornye/open_filex style).** The update dialog
   no longer has an "Allow installs" phase or an "Open settings" button. After
@@ -168,7 +168,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   per-app "Allow from this source" grant is missing, Android's own Package
   installer shows the "For your security" popup with Cancel / Settings, and
   its Settings button opens the toggle. The grant is kept by the OS per app
-  (survives updates, wiped on uninstall) — verified on-device (CPH2573).
+  (survives updates, wiped on uninstall) - verified on-device (CPH2573).
   The dialog also gained a
   "Full changelog" button that opens the release page on GitHub.
 
@@ -176,7 +176,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 - **Stats HUD native probe compile fix.** `getStats` in `ExoPlayerView.kt`
   referenced `player.decoderCounters` and `Format.framesPerSecond`, which do
-  not exist in media3 1.10.1 — now `player.videoDecoderCounters` and
+  not exist in media3 1.10.1 - now `player.videoDecoderCounters` and
   `Format.frameRate` (debug APK build was failing on this).
 
 ## 0.5.5
@@ -214,11 +214,11 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 - **Linear HDR for the MPV engine.** Settings → Player → "HDR tone-map (MPV)"
   now has a third option next to "SDR tone-map" and "Native HDR/DV": it lifts
   the picture into the HDR range and lets the display render it as HDR, with
-  no shaders and no custom build. It is a boost, not Dolby Vision — the
+  no shaders and no custom build. It is a boost, not Dolby Vision - the
   player keeps saying so.
 - **List or Grid view in the network browsers.** The three-dot menu at the top
   right of the SMB, WebDAV, FTP, DLNA and Jellyfin browsers now has a **View**
-  entry: **List** for the familiar rows, **Grid** for tiles with artwork —
+  entry: **List** for the familiar rows, **Grid** for tiles with artwork -
   folders, movies and episode stills. The choice applies to every network
   browser at once and is remembered.
 - **Frame interpolation for the MPV engine (issue #53).** Settings → Player →
@@ -227,29 +227,29 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   film is played back at 60 fps with blended in-between frames, so pans and
   fast action stop looking choppy. It is an MPV feature: Media3 has no
   interpolation API, and building one would mean routing the decoder through
-  our own GPU renderer — which would cost the Dolby Vision / HDR passthrough
+  our own GPU renderer - which would cost the Dolby Vision / HDR passthrough
   that the native engine exists for.
 - **r18.dev as a metadata provider (issue #52).** No API key needed. It is
-  keyed by the catalogue code in the file name — `SVFLA-012` and `SVFLA012`
-  both resolve — and brings the poster, the cast, the release date, the
+  keyed by the catalogue code in the file name - `SVFLA-012` and `SVFLA012`
+  both resolve - and brings the poster, the cast, the release date, the
   studio, the genres and the sample-video frames. Enable it in
   Settings → Metadata.
 - **A short warning before you push the volume or the brightness too far.**
   Swiping the volume past 100% now flashes "Above 100% can damage your
-  speakers — use at your own risk", and swiping the brightness past 80%
+  speakers - use at your own risk", and swiping the brightness past 80%
   flashes "Brightness above 80% drains the battery faster". Each warning
   appears once, at the moment you cross the line, and never blocks playback.
 - **Press-and-hold for a temporary 2x boost (issue #57).** Press and hold
   anywhere on the picture for ~300 ms and playback jumps to 2x with a small
   "2x »" badge at the top centre; lift your finger and the speed you had
-  dialed in comes back. The boost is session state — it never touches the
+  dialed in comes back. The boost is session state - it never touches the
   saved playback-speed preference, and it is cleared when a new video opens.
   Excluded on TV, in PiP, while touch-locked, while paused, and before the
   player is ready.
 ### Removed
 
 - **All "Play on TV" casting removed (Android).** The sheet offered Google
-  Cast, DLNA TVs, and a DreamPlayer receiver — none can load a phone-local
+  Cast, DLNA TVs, and a DreamPlayer receiver - none can load a phone-local
   file (local path, SMB, loopback proxy), so they only ever produced a
   spinner. Making it work needs a sender-side LAN media server, which the
   app does not have. DLNA/UPnP **browsing** (playing *from* a DLNA media
@@ -259,13 +259,13 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 - **Plex servers are now a first-class browser.** Add a Plex Media Server from
   the + → Network sources menu, sign in once with your Plex account, and
-  browse movies, shows, seasons and episodes straight from the server —
+  browse movies, shows, seasons and episodes straight from the server -
   direct play over the local network, TMDB posters via the usual details
   screen, and chapter markers (Plex intro/credits) on the seekbar. Browse-only,
   mirroring how the Jellyfin client shipped.
 - **The MPV picture controls are all in one place now.** The HDR output mode
   and the frame interpolation (target frame rate and quality) moved out of the
-  player's three-dot menu and into the picture panel — the sliders button at
+  player's three-dot menu and into the picture panel - the sliders button at
   the top right of the player, next to the picture sliders and Anime4K. The
   three-dot menu was getting crowded, and the picture panel is where the other
   MPV-only picture settings already lived.
@@ -281,7 +281,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 - **"Native HDR/DV" did not actually hand HDR to the display.** The MPV
   engine's HDR mode only set the properties it needed, so switching from
   "SDR tone-map" to "Native HDR/DV" left the old BT.709 / BT.1886 output
-  behind — the picture stayed tone-mapped to SDR while the menu claimed a
+  behind - the picture stayed tone-mapped to SDR while the menu claimed a
   passthrough. Every mode now writes the complete set of colour properties it
   owns, so a switch always starts from a known state.
 - **MPV no longer stalls on files on a network share.** Playing a file from
@@ -291,21 +291,21 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   player in the same loop, so every round-trip to the server looked like a
   gap in the stream, and a file was being opened twice on the same connection,
   which made the server-side session leak until no new connection could be
-  opened at all. The bridge now reads ahead in the background — the same
-  buffer the native engine uses — and opens each file exactly once. Both
+  opened at all. The bridge now reads ahead in the background - the same
+  buffer the native engine uses - and opens each file exactly once. Both
   engines play from the share without buffering.
 - **The Player settings section was missing on Fire OS.** The whole section
   was hidden on TVs since the Android TV work, because it was written when the
   section held only the touch-only swipe-gestures toggle. That took the
   **Default playback engine** picker, the **Video decoder** choice, **Auto-play
-  next**, **Picture-in-picture** and the on-screen badges with it — so there
+  next**, **Picture-in-picture** and the on-screen badges with it - so there
   was no way to pick an engine on the stick. Only the touch-only swipe row is
   hidden on TV now; the rest of the section is there.
 - **Volume boost no longer loses the dialogue on 5.1/7.1 tracks (issue #41).**
   Above 100% boost on some devices the background music kept playing while
   voices disappeared. The boost used a platform audio effect, and the fallback
   effect (`LoudnessEnhancer`) is hard-wired for stereo, so on a six-channel
-  track it mangled the centre channel — where dialogue lives. Boost is now
+  track it mangled the centre channel - where dialogue lives. Boost is now
   applied to the decoded audio itself, with a peak limiter, so it works the
   same on every channel layout and every device.
 - **Get info / Fix match / Group poster never searched the external
@@ -337,7 +337,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   everything already in the library: shows, season folders, individual
   episodes, movies and manual groups. It matches titles, file names, episode
   codes and original titles as you type, is accent- and case-insensitive, and
-  works offline — metadata only enriches entries that are already on the grid,
+  works offline - metadata only enriches entries that are already on the grid,
   it never adds results that cannot be played. Each row names its source and
   opens the same details, seasons or group screen the card would.
 - **Player keyboard shortcuts.** With a hardware keyboard attached (Chromebook,
@@ -347,19 +347,19 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   their arrow keys still move focus.
 - **Lock-screen artwork and skip controls.** The system media card on the lock
   screen now shows the matched TMDB poster instead of a blank tile, and its
-  ±10 s skip buttons work — both clamp to the video and restart cleanly from
+  ±10 s skip buttons work - both clamp to the video and restart cleanly from
   the end, the same path the in-app replay button uses. The poster follows a
   late metadata match and survives a finished video at pause, and stale
   downloads are discarded when you change title quickly. The lock screen keeps
   the system media card (poster + controls) while our notification stays in
   the notification panel, so the artwork is not duplicated. The card and the
-  notification now show the resolved TMDB/provider title — with the episode
-  code/name for TV files — instead of the raw file name. A slow poster download
+  notification now show the resolved TMDB/provider title - with the episode
+  code/name for TV files - instead of the raw file name. A slow poster download
   is discarded if another video opens first.
 - **YouTube-style caption appearance.** Subtitle settings now cover font
   family (default, sans serif, serif, monospace, casual, cursive), size, text
   color and opacity, background color and opacity, and five edge styles (none,
-  outline, drop shadow, raised, depressed) — plus the existing position and
+  outline, drop shadow, raised, depressed) - plus the existing position and
   sync delay. The live preview uses the same style builder as the MPV overlay,
   so setting changes are visible before leaving the screen. The native player
   maps the options to Media3's `CaptionStyleCompat` and MPV to its subtitle
@@ -383,7 +383,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   carries the show name, so an episode was anonymous once playback started; it
   now reads `Dark` followed by `S01E01 · Tannhaus` on the same line. The code
   appears for every episode, and the episode name appears whenever metadata has
-  already resolved — with no extra request, since the details screen has fetched
+  already resolved - with no extra request, since the details screen has fetched
   it. Films are unchanged. It never guesses a season, so a file whose name only
   carries `E05` or `[01]` shows a code only when the folder's season is known.
 
@@ -393,15 +393,15 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   **Volume boost** toggle (off by default). With it on, swiping up the right
   half of the player runs 0–200%: the first 100% is the system volume as usual,
   and past that the system volume stays at max while the extra travel becomes
-  over-amplification up to 2×. Both old sliders — the player ⋮ sheet and
-  Settings → Audio — have been removed, because a slider there could only set a
+  over-amplification up to 2×. Both old sliders - the player ⋮ sheet and
+  Settings → Audio - have been removed, because a slider there could only set a
   value the gesture immediately overwrote.
 
   The boost **level** is session state and is never remembered: every video
   starts at 100% and you swipe past it deliberately, so a film never reopens at
   200% of its own accord. Only the toggle is saved. The system volume is put
   back where it was when the video closes, so boosting one film no longer
-  leaves the phone louder everywhere — unless you changed the volume yourself
+  leaves the phone louder everywhere - unless you changed the volume yourself
   while watching, which is left alone.
 
 - **MPV respects volume boost again.** The MPV branch of the player returned
@@ -411,8 +411,8 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   and the audio filter chain; the cause was one `return` in the wrong place.
 
   **On MPV the boost will still clip at high settings rather than limit.** mpv
-  cannot be given filter options through `af` in this build — five forms were
-  tried on device and every one was rejected, two of them silently — and the
+  cannot be given filter options through `af` in this build - five forms were
+  tried on device and every one was rejected, two of them silently - and the
   reference mpv player for Android (mpvEx, 2.7k stars) does the same thing:
   `volume-max` plus `volume`, with no limiter anywhere. Boost is smooth on the
   **native** engine, which is where boost is used by default.
@@ -425,7 +425,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 - **External USB drives and SD cards now appear in the file browser
   (issue #48).** The browser scanned `/storage` and skipped any entry named
-  `usb*`, a filter meant for the legacy `/storage/usb` FUSE mount — but that is
+  `usb*`, a filter meant for the legacy `/storage/usb` FUSE mount - but that is
   also the name some USB volumes actually get, so a plugged-in drive was simply
   invisible. Volumes now come from `StorageManager` and are labelled
   "USB drive (name)" / "SD card (name)". The root list also re-scans whenever you
@@ -441,8 +441,8 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 - **Download to device from the file browser.** Every video row has its own
   download button, and long-press → ⋮ offers it for the whole selection. Files
-  are copied into `<Downloads>/DreamPlayer/` — the same folder the network
-  downloader uses — with the same foreground-notification progress bar, home
+  are copied into `<Downloads>/DreamPlayer/` - the same folder the network
+  downloader uses - with the same foreground-notification progress bar, home
   screen entry and cancel as an SMB download. Copies never overwrite: a
   collision becomes `name (2).mkv`. The details screen now offers the action for
   files on a USB drive or SD card; internal storage still does not, because
@@ -450,7 +450,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 - **Adult content metadata (issue #46).** Settings → Metadata → **Include adult
   content**, off by default. TMDB was asked `include_adult=false` at the one
-  place that gates it, so an adult title resolved to no match at all — measured
+  place that gates it, so an adult title resolved to no match at all - measured
   live, `query=hentai` returns 0 adult results with it off and 4 with it on.
 
 - **AVDb as a metadata provider (issue #46).** `avdbapi.com` is a free,
@@ -464,7 +464,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 - **Folders on USB drives and SD cards can be added to your library from the
   browser (issue #50).** After issue #48 made removable volumes visible, they
   were browsable but unreachable: the only route into the library was Home's
-  "Add folder to library", which opens the system folder picker — a separate
+  "Add folder to library", which opens the system folder picker - a separate
   detour with no link to the folder you were looking at. Browsing a 12 TB drive
   ended there, so nothing appeared on Home and nothing was looked up. The
   folder currently open can now be added straight from the browser's app bar,
@@ -474,7 +474,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
   that adult titles returned no matches turned out to be three separate things,
   only one of which was a code gap. Searching by the numeric catalogue ID now
   works (`search()` routes a positive integer to `ids=`, which returns exactly
-  that record) alongside the existing title search — measured live against the
+  that record) alongside the existing title search - measured live against the
   API, not assumed. Name, original title and tag/alias search all worked
   already, so nothing was added for them. The Settings switch now says
   "Japanese adult video" and mentions searching by code or ID: AVDb is a JAV
@@ -497,7 +497,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 - **Episode rows fall back to the show poster when an episode has no still
   (issue #47).** Previously those rows rendered a bare placeholder, which read
-  as "the thumbnail failed to load" — the image pipeline was never the problem.
+  as "the thumbnail failed to load" - the image pipeline was never the problem.
   The rule now lives in `EpisodeRow` rather than being repeated across seven
   browse screens.
 
@@ -505,14 +505,14 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 - **Volume boost is smooth instead of crushing the mix (issue #41).** The
   reported symptom was "background music plays, but the vocals/dialogue become
-  inaudible or disappear entirely" — the signature of over-compression rather
+  inaudible or disappear entirely" - the signature of over-compression rather
   than a level or downmix fault. Volume boost asked Android's
   `LoudnessEnhancer` for up to 15 dB of make-up gain; that class is a *fixed*
   compressor the app cannot tune, it has no limiter, its behaviour varies by
   vendor, and a real Android player measured it clipping audibly from about
   6 dB. Make-up gain lifted everything, the loudest material (music, bass, LFE)
   hit the ceiling first, and the compressor pulled gain back by as much as the
-  loudest band demanded — applied to the whole mix. Dialogue sits mid-level in
+  loudest band demanded - applied to the whole mix. Dialogue sits mid-level in
   the centre channel, so it was dragged down while the distorted music survived
   and read as "louder". Boost now runs through `DynamicsProcessing`: a
   compressor (2:1 above −20 dBFS) followed by a limiter at −1 dBFS, so peaks are
@@ -530,25 +530,25 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 - **The fullscreen button did nothing (issue #45).** Tapping it left the
   orientation exactly as it was, on every file and with both engines. The
-  button, its handler and the manifest were all correct — the bug was in which
+  button, its handler and the manifest were all correct - the bug was in which
   list was passed to `SystemChrome.setPreferredOrientations`. Flutter packs
   the requested orientations into a bitmask before handing them to
   `Activity.setRequestedOrientation()`: asking for *both* landscape
   orientations decodes to `SCREEN_ORIENTATION_USER_LANDSCAPE`, and asking for
   all four decodes to `SCREEN_ORIENTATION_FULL_USER`. Android honours those
-  `USER*` constants only while rotation is **unlocked** — with the common
+  `USER*` constants only while rotation is **unlocked** - with the common
   rotation lock enabled, both halves of the toggle were silently ignored. The
   button now requests a single forced constant per direction
   (`SCREEN_ORIENTATION_LANDSCAPE` / `SCREEN_ORIENTATION_PORTRAIT`), which the
   platform does not defer to the rotation lock. Verified on-device with
-  `accelerometer_rotation=0` — the condition the old code could never pass.
+  `accelerometer_rotation=0` - the condition the old code could never pass.
 - **Opening a title with a VobSub (`.idx`/`.sub`) subtitle crash-killed the
   app (issue #44).** `SubtitleFormats.toUtf8()` ran on the platform thread
   during `open()` and read the **entire** sidecar with no size cap, then
-  charset-detected it, built a String and re-encoded it — roughly 150-250 MB
+  charset-detected it, built a String and re-encoded it - roughly 150-250 MB
   of transient allocation for one 19 MB bitmap subtitle. Bounded three ways
   now: a 64 KB sniff prefix, a 1 MB size cap, and binary content rejected
-  outright. Two routing bugs fixed alongside — `.idx` was not recognised as a
+  outright. Two routing bugs fixed alongside - `.idx` was not recognised as a
   subtitle at all and fell through to SubRip, and `.sub` mapped
   *unconditionally* to MicroDVD, a **text** parser, while a VobSub `.sub` is
   raw MPEG-Program-Stream.
@@ -576,12 +576,12 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 ### Security
 
 - **Committed TheTVDB credentials were removed from the repository.** A JWT had
-  been tracked in the tree. If you configured TheTVDB, rotate that token — it
+  been tracked in the tree. If you configured TheTVDB, rotate that token - it
   must be treated as exposed regardless of the history rewrite.
 
 ### Upgrading
 
-**From 0.5.2 onward, every release installs straight over the previous one — no
+**From 0.5.2 onward, every release installs straight over the previous one - no
 uninstall.** All builds are signed with DreamPlayer's permanent upload
 certificate (`CN=DreamPlayer`, SHA-256 `2FF29762…52D5F`) and carry a strictly
 increasing `versionCode`, and the release workflow now *fails* if either is not
@@ -589,7 +589,7 @@ true.
 
 **Users on 0.5.1 or earlier must uninstall once.** Every release published before
 this was signed by the GitHub Actions runner's throwaway debug key
-(`CN=Android Debug`) — a different key on every run, none of them retained. The
+(`CN=Android Debug`) - a different key on every run, none of them retained. The
 v0.5.1 APK in particular carries `16A557C0…059343B`. That key no longer exists
 and cannot be reproduced, so Android cannot accept a differently-signed update
 (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`). There is no workaround for those specific
@@ -609,14 +609,14 @@ notes.
   Reported in issue #44 with a valid, verified-in-sync 19 MB pair. Cause:
   `SubtitleFormats.toUtf8()` ran on the platform thread during `open()` and called
   `readBytes()` on the whole sidecar with **no size cap**, then charset-detected it,
-  built a String and re-encoded it — roughly 150-250 MB of transient allocation for
+  built a String and re-encoded it - roughly 150-250 MB of transient allocation for
   one 19 MB bitmap subtitle, on the main thread. The same call also left a
   `dreamplayer_sub_*.utf8` cache file behind on every conversion and never cleaned
   it up. Sniffing is now bounded three ways (prefix read, size cap, binary
   rejected outright), and stale cache files are pruned.
   Two related routing bugs fixed at the same time: `.idx` was not recognised as a
   subtitle at all and fell through to SubRip, while `.sub` mapped **unconditionally**
-  to MicroDVD — a *text* parser — so a binary VobSub payload was fed to a text
+  to MicroDVD - a *text* parser - so a binary VobSub payload was fed to a text
   parser. A `.sub` with a sibling `.idx` is now treated as the pair's payload
   rather than its own track.
 - **The fullscreen button did nothing (issue #45).** Tapping it (or locking
@@ -627,7 +627,7 @@ notes.
   to `Activity.setRequestedOrientation()`: asking for *both* landscape
   orientations decodes to `SCREEN_ORIENTATION_USER_LANDSCAPE`, and asking for
   all four decodes to `SCREEN_ORIENTATION_FULL_USER`. Android honours those
-  `USER*` constants only while rotation is **unlocked** — with the common
+  `USER*` constants only while rotation is **unlocked** - with the common
   rotation lock enabled, both halves of the toggle were silently ignored. The
   button now requests a single forced constant per direction
   (`SCREEN_ORIENTATION_LANDSCAPE` / `SCREEN_ORIENTATION_PORTRAIT`), which the
@@ -641,64 +641,64 @@ notes.
 ### Added
 
 - **Chapter markers on the seekbar, and ⏮ / ⏭ buttons beside play/pause**
-  (issue #40) — files that carry chapter markers (anime openings, endings and
+  (issue #40) - files that carry chapter markers (anime openings, endings and
   previews are the common case) now show a tick on the seekbar at every
   boundary, so you can see where they are instead of guessing, and two buttons
   either side of play/pause jump straight to the previous or next chapter. The
   previous button restarts the chapter you are in when you are more than three
-  seconds into it, and only steps back when you are not — the same behaviour as
+  seconds into it, and only steps back when you are not - the same behaviour as
   a CD player, so pressing it twice walks back rather than sticking. A short
   label ("Next chapter · Opening") confirms each jump. Double-tapping the
   seekbar jumps to the next chapter. The buttons appear only for files that
   actually have chapters, on both phone and tablet and on TV, and appear as soon
   as playback starts rather than a few seconds later.
-- **Chapters now work on network shares and on the MPV engine** (issue #40) —
+- **Chapters now work on network shares and on the MPV engine** (issue #40) -
   previously the markers and buttons only ever appeared for local files on the
   default engine. Two causes: chapter parsing belonged to the native Media3
   player, so the MPV engine had none at all, and network probing could only read
   a file's first 8 MB while chapters live at the *end* of a Matroska file (and of
   a non-fast-start MP4). Both are fixed, so SMB, WebDAV, Jellyfin, FTP and
   DLNA behave like local storage.
-- **Adjustable episode-row thumbnails** (issue #38) — episode and file rows now
+- **Adjustable episode-row thumbnails** (issue #38) - episode and file rows now
   honour a **Settings → Layout → Episode thumbnails** choice of Small, Medium
   or Large, applied identically across the season screen, local folder, SMB,
   WebDAV, Jellyfin, FTP, UPnP/DLNA, file-browser and details screens. Thumbnail
   and text share one row, so the picture is left and the title, rating, file
   size and playback progress sit to its right.
-- **Per-episode artwork on season lists** — TMDB's season endpoint returns
+- **Per-episode artwork on season lists** - TMDB's season endpoint returns
   overviews and ratings but **not** stills, so an episode's artwork only
   existed if you had already opened that episode's own page. Rows now fetch
   their still on demand, at most 3 at a time, and download the image as soon as
   the path is known so it is on screen rather than fetched as you scroll.
-- **Readable titles without a connection** — offline there is no metadata, and
+- **Readable titles without a connection** - offline there is no metadata, and
   the fallback was the *show* name, so every episode in a season listed as the
   same title. Rows now fall back to the episode number (`S01E05`), then the file
   name, so a season stays scannable with no network.
 
-- **LAN SMB server discovery** — a subnet sweep finds reachable servers and a
+- **LAN SMB server discovery** - a subnet sweep finds reachable servers and a
   real protocol handshake reports each one's SMB version and identifier, so the
   list shows what a server actually is instead of a bare IP. Verified against a
   NAS negotiating SMB 3.1.1.
-- **Green status dots for saved servers** — a saved server now shows green when
+- **Green status dots for saved servers** - a saved server now shows green when
   it is reachable and red when it is not.
-- **Resume keeps working when you switch audio track** — resuming a file whose
+- **Resume keeps working when you switch audio track** - resuming a file whose
   saved audio track is not the container's default no longer starts from the
   beginning, and no longer plays a second of the wrong language first. The saved
   track and the saved position now survive the internal reload together.
-- **One poster for a film, everywhere** — changing a poster or backdrop now
+- **One poster for a film, everywhere** - changing a poster or backdrop now
   applies everywhere the same title appears: the SMB browser page, the home card
   and Continue Watching. Previously the same film had a separate artwork slot on
   each surface, so a pick showed up in one place only. Series inherit down the
   chain, so a show or season pick reaches its episodes while seasons stay free to
   differ from each other.
-- **Unnamed SMB servers show their address** — matching Android, a server saved
+- **Unnamed SMB servers show their address** - matching Android, a server saved
   without a name is listed as its IP instead of a blank row. Existing servers
   with a blank name are corrected on the app's next launch.
 
 ### Changed
 
 - Episode rows are one shared widget instead of nine copies, and they now size
-  themselves from the space the row actually has — so they adapt to rotation,
+  themselves from the space the row actually has - so they adapt to rotation,
   split screen, a resized pane, the user's font size, and tablets.
 - Titles may wrap to two lines instead of being cut to one, so a long episode
   name shows more of itself.
@@ -713,18 +713,18 @@ notes.
 
 - **The library now notices files you added or deleted on the device.** When
   you bookmarked a folder, its contents were scanned once and the home grid kept
-  showing that snapshot — anything you later added, moved or deleted stayed
+  showing that snapshot - anything you later added, moved or deleted stayed
   invisible until you removed the folder from the library and added it again
   (issue #39). Pulling down to refresh now re-scans folders on this device:
   new videos appear as new cards, deleted ones disappear, and a resized or
-  renamed file updates in place. This covers on-device storage only — network
+  renamed file updates in place. This covers on-device storage only - network
   shares (SMB / WebDAV / FTP / DLNA) are intentionally left alone, because each
   subfolder there is a separate network round-trip and a refresh that stalls
   for seconds is worse than the staleness it fixes.
 
 - **No thumbnails at all, on any screen.** Requesting stills at width `455`
-  returns **HTTP 400** from TMDB — `455` and `640` are rejected while
-  `92/185/300/342/500/780` all succeed — so every episode still failed
+  returns **HTTP 400** from TMDB - `455` and `640` are rejected while
+  `92/185/300/342/500/780` all succeed - so every episode still failed
   silently into the placeholder icon and looked like artwork that did not
   exist. Now `500`.
 - **Medium and Large overflowed the row** on a phone. The size check reserved a
@@ -733,22 +733,22 @@ notes.
 - **Medium and Large silently did nothing** on a narrow phone: the row is
   narrower than the screen, and the size check was using the *screen* width, so
   it never stepped the thumbnail down. The check now measures the row.
-- A row no longer resizes itself as an image loads — thumbnails previously
+- A row no longer resizes itself as an image loads - thumbnails previously
   collapsed to nothing until their artwork arrived, making the list jump while
   scrolling.
 
-- **Opening a file from an SMB share could fail on the first attempt** — the
+- **Opening a file from an SMB share could fail on the first attempt** - the
   share-relative path handed to the server carried an extra leading separator,
   which the server rejected as an invalid parameter. Every open failed with
   "could not open the file"; opening now works, and the error message names the
   share and path it tried so a genuine permissions problem is distinguishable.
-- **Bookmarked SMB folders reconnected to the wrong share** — a folder saved to
+- **Bookmarked SMB folders reconnected to the wrong share** - a folder saved to
   the home grid recorded its path without the share name, so a folder inside
   "Video/Movies" was treated as being on a share named "Video". Files in those
   folders could not be resumed until the folder was re-bookmarked.
-- **"print$", "." and ".." showing up in SMB folder listings** — Samba's printer
+- **"print$", "." and ".." showing up in SMB folder listings** - Samba's printer
   share and the two parent-directory entries are now filtered out.
-- **Movie and series artwork on tablets** — the backdrop behind a title's header
+- **Movie and series artwork on tablets** - the backdrop behind a title's header
   now shows the whole image in portrait on any screen size, instead of a thin
   cropped strip on a tablet. Landscape is still slightly cropped, as before.
 
@@ -756,7 +756,7 @@ notes.
 
 ### Added
 
-- **MPV spatial audio parity with Media3 (Android 13+)** — MPV now configures
+- **MPV spatial audio parity with Media3 (Android 13+)** - MPV now configures
   `audiotrack` and FFmpeg PCM audio before opening the file, observes MPV's
   actual `audio-out-params`, and queries Android's `Spatializer` through the
   shared system channel. The existing teal `Spatial` chip and info-sheet row
@@ -766,7 +766,7 @@ notes.
   5.1/7.1; stereo/downmixed routes and encoded bitstreams are not spatialized.
   MPV's `audio-spdif` remains intentionally unset, so this does not claim
   spatial processing for bitstream passthrough.
-- **Anime4K presets for MPV (Android)** — the MPV picture panel now has an
+- **Anime4K presets for MPV (Android)** - the MPV picture panel now has an
   opt-in Anime4K toggle and preset selector for Mode A, B, C, A+A, B+B, and
   C+A. Enable the toggle first (Mode A applies by default), then selecting a
   preset replaces the active shader chain immediately; an `Upscaled` chip is
@@ -776,13 +776,13 @@ notes.
   `vo=gpu-next`/libplacebo; while enabled, libplacebo tone mapping is therefore
   unavailable and hardware decode may switch to `mediacodec-copy`. The panel
   warns about increased GPU load, heat, battery use, and possible stutter.
-- **Optional TheTVDB metadata provider** — TheTVDB v4 can be configured in
+- **Optional TheTVDB metadata provider** - TheTVDB v4 can be configured in
   Settings, used as a fallback when TMDB has no confident match, or selected
   explicitly from Fix Match/Group Poster. Provider-qualified IDs and artwork
   are stored in the existing metadata cache, with TV/anime season and episode
   enrichment; API credentials use platform secure storage and SIMKL remains
   TMDB-only.
-- **No provider picker in Get info / Fix match** — both dialogs (and the Group
+- **No provider picker in Get info / Fix match** - both dialogs (and the Group
   poster picker) now search every metadata provider that has credentials and
   show a single merged result list, so the provider choice is no longer
   surfaced as clutter. TMDB stays first and TheTVDB fills in the gaps;
@@ -796,7 +796,7 @@ notes.
 
 ### Fixed
 
-- **4K films were labelled "2K"** — `friendlyResolution` required a long edge of
+- **4K films were labelled "2K"** - `friendlyResolution` required a long edge of
   3840 px for 4K, but cropping a 2160p release to a 2.39:1 cinematic shape to
   save bits is extremely common, and leaves the picture a couple of pixels under
   that: a real Spider-Man rip measures **3832x1600** and was being reported as
@@ -809,28 +809,28 @@ notes.
   player's chip said 2K for the same file. Both now delegate to one
   `friendlyResolution`, so they cannot drift apart again.
 - **Swiping the volume slider cancelled Volume Boost in the MPV engine**
-  (issue #41) — the reporter's diagnosis was exact. MPV has no separate gain
+  (issue #41) - the reporter's diagnosis was exact. MPV has no separate gain
   stage the way Media3 gets Android's `LoudnessEnhancer`, so boost and night
   mode are staged purely by scaling MPV's single `volume` property. The gesture
   wrote the raw system volume straight into it, so a 3x boost (volume 300) became
   60 the instant the user dragged the slider. The multiplier is now applied by
   every writer of MPV's volume through one shared calculation, and `volume-max`
-  is pinned to a fixed ceiling rather than tracking the current value — which
+  is pinned to a fixed ceiling rather than tracking the current value - which
   also removes a silent clamp when a gesture pushed past the last boosted value.
-- **Settings credential dialogs no longer overflow** — the OpenSubtitles
+- **Settings credential dialogs no longer overflow** - the OpenSubtitles
   sign-in box and the TMDB API-key editor put a bare `Column` directly into
   `AlertDialog.content`, which overflowed the bottom of the dialog on
   landscape phones and at large text scales. Both now scroll like the TheTVDB
   dialog beside them.
 
-- **Dolby Vision brightness settle after startup (issue #28)** — if the
+- **Dolby Vision brightness settle after startup (issue #28)** - if the
   background HDR10 SEI probe briefly classified a DV base layer as HDR10,
   Media3 could leave the Activity window in forced HDR mode. Dolby Vision now
   actively restores the default window color mode/headroom and clears the
   temporary forced surface dataspace, keeping the in-app brightness setting
   aligned with the panel output.
 - **Explicit filename seasons now drive library grouping and episode metadata
-  (issue #26)** — physical folders named `S1` / `S2` (or scanner-generated
+  (issue #26)** - physical folders named `S1` / `S2` (or scanner-generated
   `Season01` / `Season02`) with the same normalized title collapse into one
   display-only series card on Home, scoped to the same local/network source.
   Explicit `SxxEyy` / `1xYY` seasons take priority over conflicting folder-season
@@ -838,10 +838,10 @@ notes.
   `S2`. Physical folder names, metadata keys, and TMDB resolution stay separate.
   `E01` / `[01]` files still use the folder/cached-season fallback, and
   `Girls und Panzer das Finale 01–04` remain four independent movie cards.
-- **Komi-san TMDB matching** — the romanized `Komi-san` / `Komi-san wa,
+- **Komi-san TMDB matching** - the romanized `Komi-san` / `Komi-san wa,
   Komyushou Desu` queries canonicalize to TMDB's `Komi Can't Communicate`, so
   the grouped card receives its poster and Season 1 episode titles/stills.
-- **MPV picture controls (issue #24)** — MPV playback now has a `tune` button
+- **MPV picture controls (issue #24)** - MPV playback now has a `tune` button
   beside the player info button. It opens a translucent in-player panel with
   session-only Brightness, Contrast, Saturation, Gamma, and Reset controls.
   Values are sent through MPV's native `brightness` / `contrast` / `saturation`
@@ -852,14 +852,14 @@ notes.
 
 ### Fixed
 
-- **Media3 seeking always jumped to 00:00 (issue #25)** — double-tap +10 s and
+- **Media3 seeking always jumped to 00:00 (issue #25)** - double-tap +10 s and
   the seekbar both restarted the video from the beginning on Media3 (MPV was
   unaffected). Root cause: `ExoPlayerView.kt` set
   `MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES` globally (added in 0.4.8 to
   stop large MKVs from seeking to EOF for `Cues` during cold-start on SMB).
   Without `Cues` the extractor has no timestamp→byte-offset index, so
   `player.seekTo(ms)` clamps to window start (0) for every MKV on every source.
-  Fix: remove the global flag. SMB cold-start no longer needs it — it is now
+  Fix: remove the global flag. SMB cold-start no longer needs it - it is now
   covered by `MultiplexDataSource` reuse for the same URI + synchronous
   head/tail prefill in `SmbDataSource.open` (verified: all files now seek
   correctly on OnePlus 12R / Pad 2; local and SMB MKV/MP4).
@@ -868,18 +868,18 @@ notes.
 
 ### Added
 
-- **HDR/DV → SDR tone-map via libplacebo (issue #21)** — Settings → Player →
+- **HDR/DV → SDR tone-map via libplacebo (issue #21)** - Settings → Player →
   "HDR tone-map (MPV)" and the player ⋮ sheet (when MPV is active) choose
   **SDR tone-map** (`vo=gpu-next` + spline tone-map + perceptual gamut +
-  BT.709 / BT.1886 — the libplacebo path you asked for) vs **Native HDR/DV**
+  BT.709 / BT.1886 - the libplacebo path you asked for) vs **Native HDR/DV**
   (`target-colorspace-hint`). Ships a custom arm64 `libmpv.so` with libplacebo
   linked (Gradle `pickFirsts` overrides media_kit's stock binary). A
   `libplacebo-version` probe detects the build; stock libmpv falls back to
   `vo=gpu` + bt.2390 safely; covered by
   `test/settings_tone_map_platform_test.dart`. Note: Media3 (the default Play
-  button) still does native HDR/DV passthrough — libplacebo cannot intercept
-  Media3's Surface — so use **Play with MPV** for this mode.
-- **MPV plays the file's default audio track on open** — libmpv was landing on
+  button) still does native HDR/DV passthrough - libplacebo cannot intercept
+  Media3's Surface - so use **Play with MPV** for this mode.
+- **MPV plays the file's default audio track on open** - libmpv was landing on
   the first track in the list (often a commentary or non-default language)
   instead of the container's DEFAULT-flagged track. On tracks ready, the player
   now pins that track once per open: prefer `AudioTrack.isDefault` from the
@@ -887,7 +887,7 @@ notes.
   probe libmpv's raw `track-list/<n>/default` properties. The one-shot latch
   only fires after a real selection (or a confirmed no-default), so an early
   tracks event with empty flags no longer sticks forever on the wrong track.
-- **MPV restores the selected audio track on resume** — every audio pick is
+- **MPV restores the selected audio track on resume** - every audio pick is
   saved per video + engine (`AudioTrackStore`, `audio_track_{engine}_{resumeKey}`)
   and re-applied when the same file reopens; "Watch from beginning" clears it
   so you get the default again. Engines are isolated (Media3 flat index vs
@@ -895,18 +895,18 @@ notes.
 
 ### Fixed
 
-- **SMB / NAS starts much faster** — three fixes stack for cold opens of large
+- **SMB / NAS starts much faster** - three fixes stack for cold opens of large
   MKVs over SMB: (1) secondary SMB handles open *before* taking the ring lock
   (each open is a tree-connect round-trip that used to block the first Media3
   read); (2) a **synchronous head (or tail) fill** so `open()` never returns
-  with an empty ring — short/cue probes only fill what was asked for; (3)
+  with an empty ring - short/cue probes only fill what was asked for; (3)
   `FLAG_DISABLE_SEEK_FOR_CUES` on the Matroska extractor so Media3 no longer
-  seeks to EOF during init (Cues live at the end of large files — that seek
+  seeks to EOF during init (Cues live at the end of large files - that seek
   used to reset the ring mid-startup). Network `DataSource` delegates are also
   reused across `open()` for the same URI so head→EOF→head cue maps don't tear
   down and rebuild the SMB session three times. User-verified: SMB playback
   now starts fast again.
-- **Continue-watching cards now show TMDB posters/titles like the poster cards** —
+- **Continue-watching cards now show TMDB posters/titles like the poster cards** -
   entries whose file title scores 0 on TMDB (e.g. `GIRLS und PANZER das FINALE 01`)
   stayed on the gradient forever while the matching library folder already had the
   right match. CW now resolves with the same tools as the home poster path:
@@ -917,10 +917,10 @@ notes.
   the details screen does the same path-prefix inheritance when opening from CW.
   `_computeParentFolderName` also returns the parent *directory* (it used to
   return the file basename, so episode-only titles never got the folder hint).
-- **MPV brightness no longer sticks after the player closes** — dispose restores
+- **MPV brightness no longer sticks after the player closes** - dispose restores
   system brightness (`setBrightness(-1)` on Android) and resets the gesture base
   so the next open starts from the real system value.
-- **MPV subtitle text size now applies in portrait** — the Flutter subtitle
+- **MPV subtitle text size now applies in portrait** - the Flutter subtitle
   overlay only rebuilt on an unrelated `setState` (rotation, position tick), so
   a size change from Subtitle settings looked dead until you rotated; and a
   12px font-size floor sat on the top of the letterboxed portrait video height
@@ -929,7 +929,7 @@ notes.
 
 ### Changed
 
-- **MPV renders into a real SurfaceView (no Flutter texture)** —
+- **MPV renders into a real SurfaceView (no Flutter texture)** -
   `media_kit_video` (Texture + `VideoController`) is dropped; video output is
   `MpvSurfaceView.kt` / `mpv_surface_view.dart` (hybrid composition, same
   pattern as Media3's platform view). media_kit `Player` remains for control
@@ -950,81 +950,81 @@ header, and the player top bar shows the TMDB title.
 
 ### Added
 
-- **Manual grouping** (`lib/services/manual_groups.dart`, new) — select two or
+- **Manual grouping** (`lib/services/manual_groups.dart`, new) - select two or
   more cards on Home (long-press enters selection mode, tap toggles), then
   Group via the app-bar button or ⋮ menu → name the group → one grouped card
   appears. Persisted in `dreamplayer.manualGroups`; groups pruning
   automatically when a member folder is removed (below 2 members → dissolved).
-- **Movie group screen** (`lib/screens/movie_group_screen.dart`, new) —
+- **Movie group screen** (`lib/screens/movie_group_screen.dart`, new) -
   manual groups open the grid-of-cards pattern: backdrop hero app bar, header
   card (poster + overview + rating + genres), cast row, trailers, then the
   grouped folders as poster cards in a 2/3/4/6-column grid sized exactly like
   the home screen cards. A random group with no TMDB info shows just the
   cards; when any member has TMDB info the header displays it.
-- **Player top bar TMDB title** — the player screen shows the TMDB-fetched
+- **Player top bar TMDB title** - the player screen shows the TMDB-fetched
   title when a match resolved (resolved on open, live refresh), falling back
   to the raw video title with the extension stripped (`cocktail 2.mkv` →
   `cocktail 2`).
 
 ### Fixed
 
-- **Movie-part folders no longer auto-grouped** — `baseNameOf` strips
+- **Movie-part folders no longer auto-grouped** - `baseNameOf` strips
   trailing numbers only when a season-like tag (S01, Season N, roman numeral)
   is present; `FINALE 01`–`04` keep their numbers → each gets its own card.
-- **Per-part TMDB matches** — `resolveFolder` tries the numbered query first
+- **Per-part TMDB matches** - `resolveFolder` tries the numbered query first
   (base as fallback) and threads the folder's trailing number as
   `desiredPart` through `_resolveFolderCandidates` → `_resolveFolderNow` →
   `TmdApi.bestForQuery` → `_queryScore`/`_score`; part match `+0.45`,
   mismatch `-0.35`, so `FINALE 02 → 496891` (Part II) wins over the base
   collection entry (474659, Part I) that every part used to match.
-- **Poster flash on return fixed** — stale movie-part detection no longer
+- **Poster flash on return fixed** - stale movie-part detection no longer
   clears the cache before the fresh fetch lands (log-only until the
   replacement arrives); `CachedImage` keeps the old poster while the new one
   loads, so offline/return never flashes to placeholder.
-- **Manual-group card name on home** — `FolderCard.displayNameOverride`
+- **Manual-group card name on home** - `FolderCard.displayNameOverride`
   (the user-entered group name) wins over TMDB/folder titles.
-- **Single-file cards inside a manual group now play** — file entries open
+- **Single-file cards inside a manual group now play** - file entries open
   video mode (`TmdDetailsScreen(video:)` built from the folder's
   `videoPath`/`videoUri` + `extractFileInfo`); folder mode listed a
   directory which a file entry doesn't have ("no videos here" + dead Play).
 - **Deep recursive folder scanner** (`lib/services/folder_scanner.dart`, new)
-  — all six sources (local, SMB, WebDAV, FTP, UPnP, Jellyfin) now scan up to
+  - all six sources (local, SMB, WebDAV, FTP, UPnP, Jellyfin) now scan up to
   5 levels deep when a folder is bookmarked to Home. Leaf folders (videos, no
   subdirs) become single library entries; mixed containers (subdirs + loose
   files) expand into individual cards so files like `lanterns s01e05.mkv`
   aren't hidden behind a parent `TV Shows` card.
-- **Stale SMB container dedup fixed** — old `_isChildOfRoot` used
+- **Stale SMB container dedup fixed** - old `_isChildOfRoot` used
   `networkPrefix` which failed when the root folder was at the share root
   (empty `networkPath`). Refactored to a static `_isChildOfRoot` helper that
   checks `networkShare` equality + hierarchy for SMB, and `networkServerId` +
   `networkPath` hierarchy for WebDAV/FTP/UPnP. The stale `TV Shows` card
   (relative path, wrong share prefix) no longer survives a re-bookmark.
-- **`bulkAdd` path dedup** — `LibraryFoldersStore.bulkAdd` now deduplicates
+- **`bulkAdd` path dedup** - `LibraryFoldersStore.bulkAdd` now deduplicates
   by `(source, networkPath)` in addition to `id`, so manually-bookmarked
   entries for the same location are replaced by the new scanner entries.
-- **`baseNameOf` noise list expanded** — added `10bit`, `8bit`, `aac`, `dts`,
+- **`baseNameOf` noise list expanded** - added `10bit`, `8bit`, `aac`, `dts`,
   `flac`, `english`, `multi`, `dual`, `japanese`, `hindi`, `korean`, `bdrip`,
   `panda`, `subs`, `raw`, `internal`, `uncensored`; audio channel regex
   `(?<!\w)\d+\.\d+(?!\w)` strips `5.1`/`7.1` suffixes so "Strike the Blood
   Final" no longer leaves trailing noise.
-- **`_nameOf` trailing-slash strip** — SMB directory entries return names
+- **`_nameOf` trailing-slash strip** - SMB directory entries return names
   with trailing `/`; `series_seasons_screen.dart` and `folder_scanner.dart`
   both strip it via `replaceAll(RegExp(r'/+$'), '')`.
-- **`Miscellaneous` folder no longer hides file list** — `_isMovieFolder` in
+- **`Miscellaneous` folder no longer hides file list** - `_isMovieFolder` in
   `TmdDetailsScreen` now returns `false` when `videoCount > 1`, so multi-file
   folders show their entries instead of a single Play button.
-- **`TmdDetailsScreen` folder browsing for all network sources** —
+- **`TmdDetailsScreen` folder browsing for all network sources** -
   `_loadFolderEntries` now lists WebDAV (`WebDavClient`), FTP (`FtpClient`),
   and UPnP (`UpnpClient`) folders (was SMB + local only). Tapping a
   bookmarked network   folder from Home now shows its file list with TMDB posters.
-- **`_openFolderEntry` / `_toVideoItem` parity** — subfolder navigation and
+- **`_openFolderEntry` / `_toVideoItem` parity** - subfolder navigation and
   video-item construction now handle all five source types (SMB, WebDAV, FTP,
   UPnP, local) with correct `path`, `resumeKey`, and `id` prefixes.
-- **Lint fixes** — `_nameOf` in `series_seasons_screen.dart` and
+- **Lint fixes** - `_nameOf` in `series_seasons_screen.dart` and
   `folder_scanner.dart` converted from `if/else if` chains to `switch`
   expressions; `seasonNameMapFor_debug` renamed to `seasonNameMapForDebug`.
 
-- **Paywall crash fix** — `PaywallSheet` async methods (`_loadProducts`,
+- **Paywall crash fix** - `PaywallSheet` async methods (`_loadProducts`,
   `_buy`) now check `mounted` before every `setState`, preventing crash when
   the sheet is dismissed during app backgrounding.
 
@@ -1038,28 +1038,28 @@ season data is preserved when the home screen re-resolves the series folder.
 
 ### Fixed
 
-- **Season cards consistently display artwork** — `_fetchSeasonData` in
+- **Season cards consistently display artwork** - `_fetchSeasonData` in
   `series_seasons_screen.dart` now scans ALL file entries for ALL seasons, not
   just when `folderSeason` is null. Previously, folders that already had a
   `folderSeason` (e.g. "Strike the Blood II") would only fetch that season's
-  data — seasons found in file entries (S02E04, etc.) were skipped. Season
+  data - seasons found in file entries (S02E04, etc.) were skipped. Season
   posters are now fetched for every season discovered from filenames.
-- **Individually matched movies use their own TMDB poster** — each subfolder
+- **Individually matched movies use their own TMDB poster** - each subfolder
   in the seasons grid now gets a unique `metadataKey`
   (`'${folder.metadataKey}_sub_$subName'` instead of the shared
   `'${folder.metadataKey}_sub'`). Previously, all subfolders shared the same
   cache key, so they all resolved to the same TMDB entry and displayed the
   same series poster. Each movie folder now resolves independently and shows
   its own poster via `TmdMeta.movie.posterUrl()`.
-- **Artwork persists after navigating into/out of Seasons** — `_resolveFolderNow`
+- **Artwork persists after navigating into/out of Seasons** - `_resolveFolderNow`
   in `tmdb_client.dart` now preserves the existing `seasons` map and `details`
   when re-resolving the same TMDB show. Previously, a home screen refresh
   called `resolveFolder` which overwrote the group's cache entry with a fresh
   meta that had no seasons (the `_fetchSeasonData` results were lost).
-- **Episode-level TMDB metadata cached for offline access (issue #16)** —
+- **Episode-level TMDB metadata cached for offline access (issue #16)** -
   `_resolveFolderMetadata` in `home_screen.dart` now parses file names to
   discover ALL locally-present seasons and calls `seasonFor(key, season)` for
-  each. Previously, only `folderSeason` episodes were cached — when
+  each. Previously, only `folderSeason` episodes were cached - when
   `folderSeason` was null, zero episodes were cached and episode titles/stills/
   overviews/ratings disappeared offline.
 
@@ -1069,31 +1069,31 @@ Feature + polish release: offline image cache for TMDB artwork, backdrop hero on
 
 ### Added
 
-- **Offline image cache (`ImageCacheService` + `CachedImage`)** — permanent disk cache for TMDB posters, backdrops, stills, and cast profile images. Prefetched on metadata resolve; `CachedImage` replaces `Image.network` across every browser (`file_browser`, `folder`, `series_seasons`, `tmd_details`, `jellyfin`, `smb`, `webdav`, `ftp`, `upnp`) and folder cards. Settings → General shows live cache size with a clear action. Survives offline restarts — posters/backdrops remain visible without network.
-- **Backdrop hero for `SeriesSeasonsScreen` + `TmdDetailsScreen`** — clean backdrop when expanded, fades to toolbar with title beside back arrow when collapsed. Uses the real app-bar title slot for correct alignment in portrait/landscape.
-- **TMDB movie sequel detection + live-action vs anime disambiguation** — `Part N` / `Vol N` / `Movie N` / `Chapter N` patterns (e.g. `Girls und Panzer das Finale`) boost the movie match for collections that previously pinned to the wrong series entry; `Live Action` / `J-Drama` markers disambiguate live-action adaptations from anime with the same title.
-- **TMDB context for all source types** — `_resolveFolderMetadata` in `home_screen.dart` now lists children for **WebDAV, FTP, UPnP, and Jellyfin** (was SMB/files only) so season/episode patterns in folder/file names resolve as TV series instead of a wrong movie match. The recursive library scanner roadmap item (#5) is now documented in `AGENTS.md`.
-- **SMB bookmark auto-expands into individual folder/file cards** — same parity as local, WebDAV, FTP, UPnP, and Jellyfin bookmarks. File entries now get TMDB resolution (was skipped by the `!f.isFile` filter); `listDirectory` is skipped for file entries to avoid listing a file path as a directory. `resolveFolder` uses `parsed.seriesName` for episode filenames (`Lanterns Lights Out` now searches `Lanterns` instead of 0 results). Home `_resolveFolderMetadata` lists SMB children for season/folder context so `House` with `S02`/`S03` subfolders resolves as a TV series, not the 1977 movie. `SeriesSeasonsScreen` includes root-level files alongside subfolders.
-- **Home: clear library + clear continue watching** — delete-sweep icons on the `Your library` and `Continue watching` headers with confirmation dialogs. Clears `LibraryFoldersStore` / `ContinueWatchingStore` and all associated TMDB metadata where applicable. (`lib/services/library_folders.dart` + `continue_watching.dart` expose `clearAll()`; l10n strings added for all four languages.)
-- **Settings: all sections collapsible** — every settings group is now an `ExpansionTile` (cleaner on long settings pages).
-- **Home grid single-file card play button** — standalone-file library entries now show a centered play action for direct playback.
+- **Offline image cache (`ImageCacheService` + `CachedImage`)** - permanent disk cache for TMDB posters, backdrops, stills, and cast profile images. Prefetched on metadata resolve; `CachedImage` replaces `Image.network` across every browser (`file_browser`, `folder`, `series_seasons`, `tmd_details`, `jellyfin`, `smb`, `webdav`, `ftp`, `upnp`) and folder cards. Settings → General shows live cache size with a clear action. Survives offline restarts - posters/backdrops remain visible without network.
+- **Backdrop hero for `SeriesSeasonsScreen` + `TmdDetailsScreen`** - clean backdrop when expanded, fades to toolbar with title beside back arrow when collapsed. Uses the real app-bar title slot for correct alignment in portrait/landscape.
+- **TMDB movie sequel detection + live-action vs anime disambiguation** - `Part N` / `Vol N` / `Movie N` / `Chapter N` patterns (e.g. `Girls und Panzer das Finale`) boost the movie match for collections that previously pinned to the wrong series entry; `Live Action` / `J-Drama` markers disambiguate live-action adaptations from anime with the same title.
+- **TMDB context for all source types** - `_resolveFolderMetadata` in `home_screen.dart` now lists children for **WebDAV, FTP, UPnP, and Jellyfin** (was SMB/files only) so season/episode patterns in folder/file names resolve as TV series instead of a wrong movie match. The recursive library scanner roadmap item (#5) is now documented in `AGENTS.md`.
+- **SMB bookmark auto-expands into individual folder/file cards** - same parity as local, WebDAV, FTP, UPnP, and Jellyfin bookmarks. File entries now get TMDB resolution (was skipped by the `!f.isFile` filter); `listDirectory` is skipped for file entries to avoid listing a file path as a directory. `resolveFolder` uses `parsed.seriesName` for episode filenames (`Lanterns Lights Out` now searches `Lanterns` instead of 0 results). Home `_resolveFolderMetadata` lists SMB children for season/folder context so `House` with `S02`/`S03` subfolders resolves as a TV series, not the 1977 movie. `SeriesSeasonsScreen` includes root-level files alongside subfolders.
+- **Home: clear library + clear continue watching** - delete-sweep icons on the `Your library` and `Continue watching` headers with confirmation dialogs. Clears `LibraryFoldersStore` / `ContinueWatchingStore` and all associated TMDB metadata where applicable. (`lib/services/library_folders.dart` + `continue_watching.dart` expose `clearAll()`; l10n strings added for all four languages.)
+- **Settings: all sections collapsible** - every settings group is now an `ExpansionTile` (cleaner on long settings pages).
+- **Home grid single-file card play button** - standalone-file library entries now show a centered play action for direct playback.
 
 ### Fixed
 
-- **Episode-level TMDB metadata now cached for offline access (issue #16)** — `_resolveFolderMetadata` in `home_screen.dart` now parses the folder's file names to discover which seasons are locally present, then calls `seasonFor(key, season)` for each. Previously, only `folderSeason` episodes were cached — when `folderSeason` was null (folder name doesn't match a TMDB season name, e.g. "Dark"), zero episodes were cached and episode titles/stills/overviews/ratings disappeared offline. After this fix, all locally-present seasons are fetched during the online prefetch and persist in SharedPreferences. Episode stills are also prefetched to the permanent disk cache (`ImageCacheService`).
-- **Home grid single-file card crashed `SeriesSeasonsScreen`** — `isFile` cards in the grouped library routed to `SeriesSeasonsScreen`, which called `listDirectory` on a file path and crashed. Guard in `_openGroup`: `isFile` entries now open `TmdDetailsScreen(video:)` directly for immediate playback.
-- **Prefix-based series grouping fallback for unstrippable suffixes** — Japanese romanized arc names (`Kieta Seisou Hen` etc.) and other opaque suffixes that `baseNameOf` cannot strip now group correctly: when one compact form is a long prefix of another (shared ≥ 10 and extra ≥ shared, ≥ 10 chars) they merge. Tightened from the initial ≥ 6 threshold to avoid false positives like `House` + `House of Cards` and `Kakegurui` + `Kakegurui Twin` (`lib/services/series_grouping.dart`, unit-tested).
-- **Standalone non-season folders no longer forced into an existing season** — folders that match no TMDB season name (e.g. `Strike the Blood Kieta Seisou Hen` — a standalone movie, not a season) were incorrectly merged into the last season. They now render as their own card in the seasons grid and their own episode section, keeping the folder name as label. Phase-2 refine is now the single authority for season assignment, validated against the base show's cached season names; phase-1 no longer inherits stale `folderSeason` from the folder's own metadata. `hasSeasonNames()` distinguishes "genuinely not a season" from "names unavailable (offline restart)" (`lib/screens/series_seasons_screen.dart`, `lib/services/tmdb_client.dart`).
-- **Folder cards: watched progress ring and season badge overlays removed** — cleaner `FolderCard` without per-tile progress/season pills; progress lives in the series/season detail views.
-- **HDR10 SEI probe now validates luminance values** — `ExoPlayerView.kt` previously accepted any payload type 137/144 as HDR. Now `137` (Mastering Display Colour Volume, 24 B) checks `max luminance 50..10000 nits` (`500000..100000000` in 0.0001-nit units) and `min < max`; `144` (Content Light Level, 4 B) checks `maxCLL 10..10000` and `maxFALL ≤ maxCLL`. Prevents zeroed SDR placeholders from being labeled HDR.
-- **Season discovery: correct season numbers for standalone entries** — standalone file entries now scan their own filenames for season numbers instead of defaulting to season 1; standalone episode details show TMDB episode name/overview/still on first open; `seasonFor` re-fetches when the cached season has no episodes.
-- **TMDB season metadata persistence after offline restart** — season names are seeded from cached `TmdMeta.seasons` on restart; falls back to persisted `folderSeason` when cache is empty. Home `needsResolve` guard uses `hasSeasonTag` regex so top-level show folders (e.g. `House`) don't re-resolve on every load/offline restart.
-- **Lint: unused variable and async-context warnings in `_clearAll`** — removed dead `existing` variable; wrapped `ScaffoldMessenger` SnackBars with `mounted` guard.
+- **Episode-level TMDB metadata now cached for offline access (issue #16)** - `_resolveFolderMetadata` in `home_screen.dart` now parses the folder's file names to discover which seasons are locally present, then calls `seasonFor(key, season)` for each. Previously, only `folderSeason` episodes were cached - when `folderSeason` was null (folder name doesn't match a TMDB season name, e.g. "Dark"), zero episodes were cached and episode titles/stills/overviews/ratings disappeared offline. After this fix, all locally-present seasons are fetched during the online prefetch and persist in SharedPreferences. Episode stills are also prefetched to the permanent disk cache (`ImageCacheService`).
+- **Home grid single-file card crashed `SeriesSeasonsScreen`** - `isFile` cards in the grouped library routed to `SeriesSeasonsScreen`, which called `listDirectory` on a file path and crashed. Guard in `_openGroup`: `isFile` entries now open `TmdDetailsScreen(video:)` directly for immediate playback.
+- **Prefix-based series grouping fallback for unstrippable suffixes** - Japanese romanized arc names (`Kieta Seisou Hen` etc.) and other opaque suffixes that `baseNameOf` cannot strip now group correctly: when one compact form is a long prefix of another (shared ≥ 10 and extra ≥ shared, ≥ 10 chars) they merge. Tightened from the initial ≥ 6 threshold to avoid false positives like `House` + `House of Cards` and `Kakegurui` + `Kakegurui Twin` (`lib/services/series_grouping.dart`, unit-tested).
+- **Standalone non-season folders no longer forced into an existing season** - folders that match no TMDB season name (e.g. `Strike the Blood Kieta Seisou Hen` - a standalone movie, not a season) were incorrectly merged into the last season. They now render as their own card in the seasons grid and their own episode section, keeping the folder name as label. Phase-2 refine is now the single authority for season assignment, validated against the base show's cached season names; phase-1 no longer inherits stale `folderSeason` from the folder's own metadata. `hasSeasonNames()` distinguishes "genuinely not a season" from "names unavailable (offline restart)" (`lib/screens/series_seasons_screen.dart`, `lib/services/tmdb_client.dart`).
+- **Folder cards: watched progress ring and season badge overlays removed** - cleaner `FolderCard` without per-tile progress/season pills; progress lives in the series/season detail views.
+- **HDR10 SEI probe now validates luminance values** - `ExoPlayerView.kt` previously accepted any payload type 137/144 as HDR. Now `137` (Mastering Display Colour Volume, 24 B) checks `max luminance 50..10000 nits` (`500000..100000000` in 0.0001-nit units) and `min < max`; `144` (Content Light Level, 4 B) checks `maxCLL 10..10000` and `maxFALL ≤ maxCLL`. Prevents zeroed SDR placeholders from being labeled HDR.
+- **Season discovery: correct season numbers for standalone entries** - standalone file entries now scan their own filenames for season numbers instead of defaulting to season 1; standalone episode details show TMDB episode name/overview/still on first open; `seasonFor` re-fetches when the cached season has no episodes.
+- **TMDB season metadata persistence after offline restart** - season names are seeded from cached `TmdMeta.seasons` on restart; falls back to persisted `folderSeason` when cache is empty. Home `needsResolve` guard uses `hasSeasonTag` regex so top-level show folders (e.g. `House`) don't re-resolve on every load/offline restart.
+- **Lint: unused variable and async-context warnings in `_clearAll`** - removed dead `existing` variable; wrapped `ScaffoldMessenger` SnackBars with `mounted` guard.
 
 ### Changed
 
-- **Release workflow** — tag `v0.4.5` produces universal + split-per-abi APKs on `ubuntu-latest` and creates the GitHub Release from the `## 0.4.5` changelog section.
-- **Cached image migration** — all `Image.network` call sites for TMDB artwork now route through `CachedImage` (`lib/widgets/cached_image.dart`) for consistent offline behavior and fade-in.
+- **Release workflow** - tag `v0.4.5` produces universal + split-per-abi APKs on `ubuntu-latest` and creates the GitHub Release from the `## 0.4.5` changelog section.
+- **Cached image migration** - all `Image.network` call sites for TMDB artwork now route through `CachedImage` (`lib/widgets/cached_image.dart`) for consistent offline behavior and fade-in.
 
 ## 0.4.4
 
@@ -1101,23 +1101,23 @@ Bug-fix release: movie folders (bookmarked to the home screen) now open as movie
 
 ### Fixed
 
-- **Movie folders play through Media3, not a bogus mpv fallback** — a movie bookmarked to the home screen from an SMB/WebDAV share carried its `smb://…` URI in the video's `path` field with `uri: null`. The native player wrapped any `path` in `File(...)`, turning `smb://` into a nonexistent `file:///smb:/…` URI → Media3 terminal error → automatic (and wrong) fallback to the mpv engine. Fix: `schemeOrFileUri()` in `ExoPlayerView.kt` parses paths that already carry an explicit scheme (`smb://`, `http(s)://`, `ftp://`, `content://`) as real URIs routed to the matching DataSource (`SmbDataSource`/OkHttp/content resolver); plain filesystem paths still become `file://`. The movie entry is also built as `smb://<serverId>/<share>/<rel>` so `SmbStore.resolve` finds the saved credentials.
-- **Red-screen "null" flash when opening a movie folder** — `tmd_details_screen.dart` built the movie-folder Play bar with `_folderMovieEntry!`; with a cached TMDB movie match but the SMB listing still in flight, `_isMovieFolder` was true while `_folderMovieEntry` was null, so Flutter threw for a few frames until the listing landed. Fix: the Play bar/info cards render only once the entry resolves.
-- **Crash on movie-folder Play: `ForegroundServiceDidNotStartInTimeException`** — `PlaybackManager` called `stopService` while the foreground service's start was still pending, which Android 12+ turns into an app crash. Fix: a start/stop handshake (`servicePending`/`serviceRunning`/`pendingStop`) — the manager never issues `stopService` before the service has foregrounded; a stop requested mid-start is honored by the service immediately after `startForeground`.
-- **Release-group folder names no longer break TMDB matching (issue #11)** — folders whose names are a wall of noise (`[VCB-Studio] Kotoura-san [Ma10p_1080p]`, `[Kakedasu] …[Dual Audio][1080p]`) previously resolved to nothing or a wrong entry: the cleaned folder title was useless for search, so the card stayed a placeholder and the season data never loaded. Fix: `TmdService.resolveFolder` now accepts `fileNames` and derives **additional search queries from the video filenames inside the folder** (`_queriesFromFileNames`): episode markers (`S02E05`), the `seriesName`, and the parsed title are each tried in order of reliability, so a folder whose name is all tags still resolves from `house.s02e05.1080p.mkv`. `ParsedFileName.parse` additionally strips release-group brackets/tags. Wired at every resolution point — home `_resolveFolderMetadata` (local folders list their contents first), `FolderScreen._resolveMeta`, SMB/WebDAV/FTP/UPnP series detection, and the home-folder bookmark paths.
-- **Manual Fix-match pins are no longer silently lost** — `TmdMeta` gained a `manual` flag persisted through the cache; `resolve()`/`resolveFolder()` return the pinned entry untouched for manual keys (automatic matching, folder scans, and home refreshes never overwrite them), and only `clear()`/Remove-info removes them. `series_seasons_screen._fixMatch` and `tmd_details_screen._fixMatch` stamp the flag when the user picks a match.
-- **"Remove info" on a home card no longer re-fetches the same poster** — after Remove-info, a home refresh/relaunch re-resolved the key and silently fetched the same match back. `TmdService` now keeps a persistent **suppression set** (`dreamplayer.tmdbSuppressed`): Remove-info suppresses the key, `resolve`/`resolveFolder` return null while suppressed (card stays a placeholder), and only an explicit Fix match (or a fresh folder add → new key) lifts it. `_removeInfo` call sites in `tmd_details_screen.dart` and `series_seasons_screen.dart` use it.
-- **Home no longer churns existing movie matches** — `_resolveFolderMetadata` re-resolved every folder whose cached match had `folderSeason == null`, which hit every movie folder on every load and could silently swap an auto match. Movie-kind matches are left alone; only null or incomplete TV matches get re-resolved.
-- **Folder with subdirectories never hides them behind the series view (SMB)** — the SMB (and now guarded) series detection could trigger on a folder that also contains season subfolders, hiding the directories behind an episode-only list. `isSeries` now requires the folder to contain video files and **no subfolders** (`dirEntries.isEmpty`), so a top-level series folder with `Season 1/…` subfolders stays in the flat browsable list.
-- **SMB focus highlight no longer jumps across files** — after tapping a directory, Flutter's ListView re-created children and auto-focused whatever landed at the same index (the tapped dir became a video file). A post-frame `FocusManager.instance.primaryFocus?.unfocus()` after the list rebuild prevents the jump, and the tree/list keys are `ValueKey('smb-$share-$path')` per location.
-- **Get Info search dialog no longer overflows in landscape** — the search results `ListView` was `Flexible`, so the AlertDialog's fixed-width `Column` overflowed the short landscape viewport ("bottom overflowed by 60 pixels"). Content is now a `SingleChildScrollView` with the results list height-capped at 40% of the screen.
-- **Fix match no longer crashes from folder mode** — `_computeParentFolderName()` dereferenced `widget.video!.path` even when opening the dialog from a folder (where `widget.video` is null); an early return now guards it.
-- **Fix match / Remove info buttons moved below the overview** — previously pinned to the screen bottom where they could be missed (especially after scrolling metadata); they now sit directly under the synopsis, and the Remove-info button uses the error color.
+- **Movie folders play through Media3, not a bogus mpv fallback** - a movie bookmarked to the home screen from an SMB/WebDAV share carried its `smb://…` URI in the video's `path` field with `uri: null`. The native player wrapped any `path` in `File(...)`, turning `smb://` into a nonexistent `file:///smb:/…` URI → Media3 terminal error → automatic (and wrong) fallback to the mpv engine. Fix: `schemeOrFileUri()` in `ExoPlayerView.kt` parses paths that already carry an explicit scheme (`smb://`, `http(s)://`, `ftp://`, `content://`) as real URIs routed to the matching DataSource (`SmbDataSource`/OkHttp/content resolver); plain filesystem paths still become `file://`. The movie entry is also built as `smb://<serverId>/<share>/<rel>` so `SmbStore.resolve` finds the saved credentials.
+- **Red-screen "null" flash when opening a movie folder** - `tmd_details_screen.dart` built the movie-folder Play bar with `_folderMovieEntry!`; with a cached TMDB movie match but the SMB listing still in flight, `_isMovieFolder` was true while `_folderMovieEntry` was null, so Flutter threw for a few frames until the listing landed. Fix: the Play bar/info cards render only once the entry resolves.
+- **Crash on movie-folder Play: `ForegroundServiceDidNotStartInTimeException`** - `PlaybackManager` called `stopService` while the foreground service's start was still pending, which Android 12+ turns into an app crash. Fix: a start/stop handshake (`servicePending`/`serviceRunning`/`pendingStop`) - the manager never issues `stopService` before the service has foregrounded; a stop requested mid-start is honored by the service immediately after `startForeground`.
+- **Release-group folder names no longer break TMDB matching (issue #11)** - folders whose names are a wall of noise (`[VCB-Studio] Kotoura-san [Ma10p_1080p]`, `[Kakedasu] …[Dual Audio][1080p]`) previously resolved to nothing or a wrong entry: the cleaned folder title was useless for search, so the card stayed a placeholder and the season data never loaded. Fix: `TmdService.resolveFolder` now accepts `fileNames` and derives **additional search queries from the video filenames inside the folder** (`_queriesFromFileNames`): episode markers (`S02E05`), the `seriesName`, and the parsed title are each tried in order of reliability, so a folder whose name is all tags still resolves from `house.s02e05.1080p.mkv`. `ParsedFileName.parse` additionally strips release-group brackets/tags. Wired at every resolution point - home `_resolveFolderMetadata` (local folders list their contents first), `FolderScreen._resolveMeta`, SMB/WebDAV/FTP/UPnP series detection, and the home-folder bookmark paths.
+- **Manual Fix-match pins are no longer silently lost** - `TmdMeta` gained a `manual` flag persisted through the cache; `resolve()`/`resolveFolder()` return the pinned entry untouched for manual keys (automatic matching, folder scans, and home refreshes never overwrite them), and only `clear()`/Remove-info removes them. `series_seasons_screen._fixMatch` and `tmd_details_screen._fixMatch` stamp the flag when the user picks a match.
+- **"Remove info" on a home card no longer re-fetches the same poster** - after Remove-info, a home refresh/relaunch re-resolved the key and silently fetched the same match back. `TmdService` now keeps a persistent **suppression set** (`dreamplayer.tmdbSuppressed`): Remove-info suppresses the key, `resolve`/`resolveFolder` return null while suppressed (card stays a placeholder), and only an explicit Fix match (or a fresh folder add → new key) lifts it. `_removeInfo` call sites in `tmd_details_screen.dart` and `series_seasons_screen.dart` use it.
+- **Home no longer churns existing movie matches** - `_resolveFolderMetadata` re-resolved every folder whose cached match had `folderSeason == null`, which hit every movie folder on every load and could silently swap an auto match. Movie-kind matches are left alone; only null or incomplete TV matches get re-resolved.
+- **Folder with subdirectories never hides them behind the series view (SMB)** - the SMB (and now guarded) series detection could trigger on a folder that also contains season subfolders, hiding the directories behind an episode-only list. `isSeries` now requires the folder to contain video files and **no subfolders** (`dirEntries.isEmpty`), so a top-level series folder with `Season 1/…` subfolders stays in the flat browsable list.
+- **SMB focus highlight no longer jumps across files** - after tapping a directory, Flutter's ListView re-created children and auto-focused whatever landed at the same index (the tapped dir became a video file). A post-frame `FocusManager.instance.primaryFocus?.unfocus()` after the list rebuild prevents the jump, and the tree/list keys are `ValueKey('smb-$share-$path')` per location.
+- **Get Info search dialog no longer overflows in landscape** - the search results `ListView` was `Flexible`, so the AlertDialog's fixed-width `Column` overflowed the short landscape viewport ("bottom overflowed by 60 pixels"). Content is now a `SingleChildScrollView` with the results list height-capped at 40% of the screen.
+- **Fix match no longer crashes from folder mode** - `_computeParentFolderName()` dereferenced `widget.video!.path` even when opening the dialog from a folder (where `widget.video` is null); an early return now guards it.
+- **Fix match / Remove info buttons moved below the overview** - previously pinned to the screen bottom where they could be missed (especially after scrolling metadata); they now sit directly under the synopsis, and the Remove-info button uses the error color.
 
 ### Added
 
-- **Movie folders open as movies on the home screen** — a folder group whose TMDB match is a movie now opens the movie details screen (backdrop hero, poster, overview) with a bottom **Play/Resume** bar instead of a lone-file series view ("Episode 1" with no way to play it). Per-engine resume (`media3`/`mpv`) and last-engine memory are shown on the same "Resume from m:ss" bar. TMDB movie `images.backdrops` are now fetched into the details model for a stills gallery row.
-- **Movie-first resolution for standalone-movie folders** — `bestForQuery` gained `preferMovie`; folders whose listed files show no `SxxEyy`/episode evidence resolve to a movie before a TV show (and the trailing `Title 2`/`Title 3` numbered-sequel candidates are tried) so movie folders don't mis-pin to the TMDB series/collection entry.
+- **Movie folders open as movies on the home screen** - a folder group whose TMDB match is a movie now opens the movie details screen (backdrop hero, poster, overview) with a bottom **Play/Resume** bar instead of a lone-file series view ("Episode 1" with no way to play it). Per-engine resume (`media3`/`mpv`) and last-engine memory are shown on the same "Resume from m:ss" bar. TMDB movie `images.backdrops` are now fetched into the details model for a stills gallery row.
+- **Movie-first resolution for standalone-movie folders** - `bestForQuery` gained `preferMovie`; folders whose listed files show no `SxxEyy`/episode evidence resolve to a movie before a TV show (and the trailing `Title 2`/`Title 3` numbered-sequel candidates are tried) so movie folders don't mis-pin to the TMDB series/collection entry.
 
 ## 0.4.2
 
@@ -1125,13 +1125,13 @@ Bug-fix release: TMDB year-duplicate folder resolution, MPV mid-stream codec-dea
 
 ### Added
 
-- **Flux-style cross-folder series grouping (home library)** — same-base series folders now collapse into one library card. `Strike the Blood` + `Strike the Blood II/III/IV` (or any folders differing only in Roman-numeral / ordinal / season tags) group under a single card showing the series poster and title, with a small count badge when more than one folder is collapsed. Tapping a single-folder group opens the existing per-folder flow (identical to 0.4.1); tapping a multi-folder group opens a new **`SeriesSeasonsScreen`** that lists **every season across all grouped folders** in one place — Nova-style `Series → Seasons` hierarchy with a TMDB header (poster, title, rating, overview, "Fix match"), per-season `ExpansionTile`s (season name + watched badge like `3/10`), and per-episode rows with TMDB stills, `SxxExx` badges, watched checkmarks, and resume progress bars. All sources are supported (local, SMB, WebDAV, FTP/SFTP, UPnP/DLNA, Jellyfin). Folders are matched to TMDB seasons from the cached season names already fetched at group level (`matchFolderToSeason`, no extra API calls) with anime-bracket `[01]` numbering handled. Tapping an episode opens the details screen carrying that folder's metadata key. `FolderCard` gained `groupCount`; a lone season folder shows its season title + season poster (e.g. "Strike the Blood II"). Grouping helpers (`groupBySeason`, `watchedCount`, `seasonHeader`, `watchedBadge`) live in `lib/utils/season_group.dart` (pure Dart, unit-tested in `test/series_grouping_test.dart`).
+- **Flux-style cross-folder series grouping (home library)** - same-base series folders now collapse into one library card. `Strike the Blood` + `Strike the Blood II/III/IV` (or any folders differing only in Roman-numeral / ordinal / season tags) group under a single card showing the series poster and title, with a small count badge when more than one folder is collapsed. Tapping a single-folder group opens the existing per-folder flow (identical to 0.4.1); tapping a multi-folder group opens a new **`SeriesSeasonsScreen`** that lists **every season across all grouped folders** in one place - Nova-style `Series → Seasons` hierarchy with a TMDB header (poster, title, rating, overview, "Fix match"), per-season `ExpansionTile`s (season name + watched badge like `3/10`), and per-episode rows with TMDB stills, `SxxExx` badges, watched checkmarks, and resume progress bars. All sources are supported (local, SMB, WebDAV, FTP/SFTP, UPnP/DLNA, Jellyfin). Folders are matched to TMDB seasons from the cached season names already fetched at group level (`matchFolderToSeason`, no extra API calls) with anime-bracket `[01]` numbering handled. Tapping an episode opens the details screen carrying that folder's metadata key. `FolderCard` gained `groupCount`; a lone season folder shows its season title + season poster (e.g. "Strike the Blood II"). Grouping helpers (`groupBySeason`, `watchedCount`, `seasonHeader`, `watchedBadge`) live in `lib/utils/season_group.dart` (pure Dart, unit-tested in `test/series_grouping_test.dart`).
 
 ### Fixed
 
-- **TMDB folder lookups pick the wrong entry when a same-titled duplicate has a different year (e.g. Kakegurui Twin 2021 vs 2022)** — a folder named `Kakegurui Twin-1080p BD` (no year in the name) whose files were `kakegurui twin (2021) s01e01.mkv` resolved to the higher-popularity 2022 Netflix listing because both TMDB entries matched 1.00 and `bestForQuery` kept the first result. Fix: a `yearHint` pipeline. `ParsedFileName.yearFromNames(...)` derives the most-common year from the folder's file names, `LibraryFolder` persists it (`yearHint`) through bookmarks and JSON, and `TmdService.resolveFolder(..., {yearHint})` feeds it to the TMDB search (`first_air_date_year`) whenever the folder name itself parses no year. Wired at every resolution point: SMB and WebDAV bookmarking, the home "Add folder to library" local picker (lists the picked folder), SMB/WebDAV/FTP/UPnP/folder-browser series detection, home `_resolveFolderMetadata`, `TmdDetailsScreen` folder mode, and `FolderScreen._resolveMeta`. Verified live: `search/tv?query=Kakegurui Twin&first_air_date_year=2021` returns exactly the 2021 entry (id 121860).
+- **TMDB folder lookups pick the wrong entry when a same-titled duplicate has a different year (e.g. Kakegurui Twin 2021 vs 2022)** - a folder named `Kakegurui Twin-1080p BD` (no year in the name) whose files were `kakegurui twin (2021) s01e01.mkv` resolved to the higher-popularity 2022 Netflix listing because both TMDB entries matched 1.00 and `bestForQuery` kept the first result. Fix: a `yearHint` pipeline. `ParsedFileName.yearFromNames(...)` derives the most-common year from the folder's file names, `LibraryFolder` persists it (`yearHint`) through bookmarks and JSON, and `TmdService.resolveFolder(..., {yearHint})` feeds it to the TMDB search (`first_air_date_year`) whenever the folder name itself parses no year. Wired at every resolution point: SMB and WebDAV bookmarking, the home "Add folder to library" local picker (lists the picked folder), SMB/WebDAV/FTP/UPnP/folder-browser series detection, home `_resolveFolderMetadata`, `TmdDetailsScreen` folder mode, and `FolderScreen._resolveMeta`. Verified live: `search/tv?query=Kakegurui Twin&first_air_date_year=2021` returns exactly the 2021 entry (id 121860).
 
-- **MPV engine: auto software retry on mid-stream codec death (issue #7)** — some HEVC Main10 4:2:0 files play for ~0.5 s then die with a terminal "Could not open codec." because the MediaCodec hardware decoder starts producing frames and then dies mid-stream; mpv's `hwdec-software-fallback` only rescues decoder-init failures. Fix: when the mpv error text mentions a codec/decoder/pixel-format/hardware problem, the player auto-reloads the same file in software (`hwdec=no`) at the current position, once per file keyed by the resume key. Mirrors Media3's software-decode fallback. Pure IO/network errors are never retried.
+- **MPV engine: auto software retry on mid-stream codec death (issue #7)** - some HEVC Main10 4:2:0 files play for ~0.5 s then die with a terminal "Could not open codec." because the MediaCodec hardware decoder starts producing frames and then dies mid-stream; mpv's `hwdec-software-fallback` only rescues decoder-init failures. Fix: when the mpv error text mentions a codec/decoder/pixel-format/hardware problem, the player auto-reloads the same file in software (`hwdec=no`) at the current position, once per file keyed by the resume key. Mirrors Media3's software-decode fallback. Pure IO/network errors are never retried.
 
 ## 0.4.3
 
@@ -1139,13 +1139,13 @@ Bug-fix release: SMB season detection, series header overflow fixes, and Get Inf
 
 ### Fixed
 
-- **SMB season subfolder detection** — bookmarked TV-series folders with "Season N" style subfolders (e.g. `House/Season 2`, `House/Season 3`) now correctly detect season numbers instead of defaulting to season 1. Added `_seasonWordPattern` regex to `ParsedFileName.parse()` to handle "Season N" folder names, so SMB, WebDAV, FTP, and UPnP season subfolders get the right `folderSeason` value and display as separate season poster cards on the home screen.
+- **SMB season subfolder detection** - bookmarked TV-series folders with "Season N" style subfolders (e.g. `House/Season 2`, `House/Season 3`) now correctly detect season numbers instead of defaulting to season 1. Added `_seasonWordPattern` regex to `ParsedFileName.parse()` to handle "Season N" folder names, so SMB, WebDAV, FTP, and UPnP season subfolders get the right `folderSeason` value and display as separate season poster cards on the home screen.
 
-- **SeriesSeasonsScreen overflow fixes** — fixed multiple overflow issues in the series details header: (1) "Fix match" and "Remove info" buttons now use `Flexible` to shrink when space is tight; (2) the Get Info dialog wraps content in `SingleChildScrollView` and uses `ConstrainedBox(maxHeight:)` for the results list so it scrolls when the keyboard appears; (3) replaced the slow manual-search-only `_FixMatchDialog` with an auto-searching `_SearchDialog` pattern (auto-searches on open, TV/Movie toggle, shows poster thumbnails).
+- **SeriesSeasonsScreen overflow fixes** - fixed multiple overflow issues in the series details header: (1) "Fix match" and "Remove info" buttons now use `Flexible` to shrink when space is tight; (2) the Get Info dialog wraps content in `SingleChildScrollView` and uses `ConstrainedBox(maxHeight:)` for the results list so it scrolls when the keyboard appears; (3) replaced the slow manual-search-only `_FixMatchDialog` with an auto-searching `_SearchDialog` pattern (auto-searches on open, TV/Movie toggle, shows poster thumbnails).
 
-- **Get Info / Remove buttons** — the series header now always shows a "Get Info" button when no TMDB metadata is loaded (allowing manual search), and "Fix match" + "Remove" buttons when metadata exists. Rating always displays even for single-season views.
+- **Get Info / Remove buttons** - the series header now always shows a "Get Info" button when no TMDB metadata is loaded (allowing manual search), and "Fix match" + "Remove" buttons when metadata exists. Rating always displays even for single-season views.
 
-- **Season title deduplication** — single-season folder headers no longer show duplicated titles like "Season 2 · Season 2"; when `season.name` already starts with "Season", just the name is used.
+- **Season title deduplication** - single-season folder headers no longer show duplicated titles like "Season 2 · Season 2"; when `season.name` already starts with "Season", just the name is used.
 
 ## 0.4.1
 
@@ -1153,20 +1153,20 @@ Bug-fix release: folder navigation reliability, downloaded files on the home gri
 
 ### Added
 
-- **Downloaded files in the home grid** — completed downloads now appear in a "Downloaded" section on the home screen, with a green checkmark badge, tap to play, long-press to delete. Local playback reuses the same player pipeline as files opened from the file browser.
-- **Settings → Downloads → Download directory picker** — choose where downloads are saved (defaults to `/storage/emulated/0/Download/DreamPlayer/`). The picker uses the native directory selector.
+- **Downloaded files in the home grid** - completed downloads now appear in a "Downloaded" section on the home screen, with a green checkmark badge, tap to play, long-press to delete. Local playback reuses the same player pipeline as files opened from the file browser.
+- **Settings → Downloads → Download directory picker** - choose where downloads are saved (defaults to `/storage/emulated/0/Download/DreamPlayer/`). The picker uses the native directory selector.
 
 ### Fixed
 
-- **Back navigation: swipe-back now goes to parent folder** — `PopScope.canPop` was `true` for all browse screens, so a swipe-back gesture popped the entire route instead of navigating to the parent folder. Fix: `canPop: false` on all seven browse screens (folder, SMB, WebDAV, FTP, Jellyfin, UPnP, file browser) so swipe-back always goes through `_goUp()`.
-- **SMB trailing-slash / double-slash path gotcha** — the native SMB client returns directory entries with trailing slashes (e.g. `Video/`). Navigating into a directory accumulated double slashes (`Video//SubFolder/`), and `_goUp` stripped the trailing slash to find the parent — which was the same folder. Fix: `_loadDirectory`, `_openEntry`, and `_goUp` all normalize paths by collapsing `//` → `/` and stripping trailing `/`.
-- **Series view activates for folders with subfolders** — `_detectAndLoadSeriesFolder` checked only for season/episode patterns in file names, not whether the folder actually contains subfolders. A folder with both episode files and subfolders (e.g. a TV show root) showed the series header instead of a navigable file list. Fix: guard on `hasSubfolders` — if the folder has subdirectories, series view does not activate.
-- **TMDB wrong folder name in subfolder lookup** — `_detectAndLoadSeriesFolder` used the root `widget.folder.name` for TMDB queries even when inside a subfolder (e.g. `Strike the Blood II` resolved to the parent show). Fix: use the current subfolder name as the metadataKey suffix so each subfolder gets its own TMDB match.
-- **Focus highlight persists across folder navigation** — the D-pad focus highlight (blue border + glow) stayed on the old tile after navigating into a subfolder, because Flutter reused the focus tree. Fix: `ValueKey('folder_$_currentPath')` on the list body forces Flutter to recreate the focus tree; `FocusScope.of(context).unfocus()` on folder entry and back navigation.
-- **Episode poster race condition** — `_detectAndLoadSeriesFolder`'s async season-fetch chain could overwrite `_seriesMeta` with stale data when the user navigated between folders quickly. Fix: generation counter (`_seriesGeneration`) incremented on each call; stale results are discarded.
-- **Episode still fallback to TMDB poster** — when a file in a folder with subfolders had no TMDB episode still (single video, not an episode), the tile showed a blank icon. Fix: `_FolderTile` now falls back to `posterUrlOf(tmdbMeta)` when `episode?.stillUrl()` is null.
-- **Stale `_seriesMeta` after folder navigation** — `TmdMeta` is immutable; `seasonFor` replaces the cache entry with a new object. Screens stored a reference to the pre-season `meta`, so episode data was always empty until re-entry. Fix: read latest meta via `service.metaFor(metadataKey)` after the season-fetch loop and assign via `setState`.
-- **Season collapse on re-entry** — `_expandedSeasons` wasn't cleared on `_load()`, so expanded seasons from a previous folder carried over. Fix: `_expandedSeasons.clear()` on every `_load()`.
+- **Back navigation: swipe-back now goes to parent folder** - `PopScope.canPop` was `true` for all browse screens, so a swipe-back gesture popped the entire route instead of navigating to the parent folder. Fix: `canPop: false` on all seven browse screens (folder, SMB, WebDAV, FTP, Jellyfin, UPnP, file browser) so swipe-back always goes through `_goUp()`.
+- **SMB trailing-slash / double-slash path gotcha** - the native SMB client returns directory entries with trailing slashes (e.g. `Video/`). Navigating into a directory accumulated double slashes (`Video//SubFolder/`), and `_goUp` stripped the trailing slash to find the parent - which was the same folder. Fix: `_loadDirectory`, `_openEntry`, and `_goUp` all normalize paths by collapsing `//` → `/` and stripping trailing `/`.
+- **Series view activates for folders with subfolders** - `_detectAndLoadSeriesFolder` checked only for season/episode patterns in file names, not whether the folder actually contains subfolders. A folder with both episode files and subfolders (e.g. a TV show root) showed the series header instead of a navigable file list. Fix: guard on `hasSubfolders` - if the folder has subdirectories, series view does not activate.
+- **TMDB wrong folder name in subfolder lookup** - `_detectAndLoadSeriesFolder` used the root `widget.folder.name` for TMDB queries even when inside a subfolder (e.g. `Strike the Blood II` resolved to the parent show). Fix: use the current subfolder name as the metadataKey suffix so each subfolder gets its own TMDB match.
+- **Focus highlight persists across folder navigation** - the D-pad focus highlight (blue border + glow) stayed on the old tile after navigating into a subfolder, because Flutter reused the focus tree. Fix: `ValueKey('folder_$_currentPath')` on the list body forces Flutter to recreate the focus tree; `FocusScope.of(context).unfocus()` on folder entry and back navigation.
+- **Episode poster race condition** - `_detectAndLoadSeriesFolder`'s async season-fetch chain could overwrite `_seriesMeta` with stale data when the user navigated between folders quickly. Fix: generation counter (`_seriesGeneration`) incremented on each call; stale results are discarded.
+- **Episode still fallback to TMDB poster** - when a file in a folder with subfolders had no TMDB episode still (single video, not an episode), the tile showed a blank icon. Fix: `_FolderTile` now falls back to `posterUrlOf(tmdbMeta)` when `episode?.stillUrl()` is null.
+- **Stale `_seriesMeta` after folder navigation** - `TmdMeta` is immutable; `seasonFor` replaces the cache entry with a new object. Screens stored a reference to the pre-season `meta`, so episode data was always empty until re-entry. Fix: read latest meta via `service.metaFor(metadataKey)` after the season-fetch loop and assign via `setState`.
+- **Season collapse on re-entry** - `_expandedSeasons` wasn't cleared on `_load()`, so expanded seasons from a previous folder carried over. Fix: `_expandedSeasons.clear()` on every `_load()`.
 
 ## 0.4.0
 
@@ -1174,46 +1174,46 @@ Major release: two player engines (Media3 + MPV), pull-to-refresh home, full ser
 
 ### Added
 
-- **Pull-to-refresh on the home screen** — pull down on the home list to reload the whole library at once, however a folder was added: from SMB, WebDAV, FTP, UPnP, Jellyfin, the file browser, or the local folder picker. The refresh (`_refreshHome`) re-reads the persisted `LibraryFolder`s (so a folder bookmarked from any network-share browser shows up on the grid without reopening the screen), re-fetches Jellyfin server-side posters for any folder missing one, refreshes continue-watching positions, and re-runs the TMDB lookups that back every card. Wired through a `RefreshIndicator` wrapping the home `CustomScrollView` (`AlwaysScrollableScrollPhysics` so the gesture works even on an empty library).
-- **60s directory-listing cache for all four network sources** — each native client (SMB, WebDAV, FTP/SFTP, UPnP/DLNA) keeps an in-memory `CachedListing` map with a **60-second TTL**, so re-visiting a folder within the TTL is instant (no SMB2 `QUERY_DIRECTORY`, no WebDAV `PROPFIND` + DIDL parse, no fresh FTP/SFTP login, no DLNA SOAP `Browse`). The cache auto-invalidates on `deleteServer`, and a new `invalidateListingCache` channel method is exposed for pull-to-refresh. Wins the most for plain FTP/SFTP (full handshake per listing) and UPnP (SOAP round-trip + DIDL-Lite XML parse). SMB's per-file `length()`/`lastModified()` were already removed earlier; this is the next layer above the protocol.
-- **Bookmarked SMB / WebDAV / Jellyfin folders render the full Nova-style series view** — opening a TV-series folder from the home library grid now shows the same poster + title + rating + genres + overview + cast header and season-grouped episodes with stills / names / ratings / overviews as the SMB browser (not just a bare file list). `_loadSmb`, `_loadWebDav`, and `_loadJellyfin` in `folder_screen.dart` now call `_detectAndLoadSeriesFolder()` after the directory listing returns (was missing on the home-bookmark path). The missing widget classes (`_RatingBadge`, `_FactChip`, `_CastRow`, `_posterFallback`) were copied into `folder_screen.dart` so `_SeriesHeader` can build the same layout as `smb_screen.dart`'s `_SeriesFolderHeader`. The `_FolderTile` episode row also gained the rating star + value that `_SmbEpisodeTile` already had.
-- **Per-episode `parentMetadataKey` on `TmdDetailsScreen`** — tapping a video from inside a series folder view passes the folder's cached TMDB metadata key through, so the episode details screen uses the folder's show match (with correct season/episode data) instead of re-resolving from scratch. Wired into SMB, WebDAV, FTP, UPnP, Jellyfin, and folder navigation.
+- **Pull-to-refresh on the home screen** - pull down on the home list to reload the whole library at once, however a folder was added: from SMB, WebDAV, FTP, UPnP, Jellyfin, the file browser, or the local folder picker. The refresh (`_refreshHome`) re-reads the persisted `LibraryFolder`s (so a folder bookmarked from any network-share browser shows up on the grid without reopening the screen), re-fetches Jellyfin server-side posters for any folder missing one, refreshes continue-watching positions, and re-runs the TMDB lookups that back every card. Wired through a `RefreshIndicator` wrapping the home `CustomScrollView` (`AlwaysScrollableScrollPhysics` so the gesture works even on an empty library).
+- **60s directory-listing cache for all four network sources** - each native client (SMB, WebDAV, FTP/SFTP, UPnP/DLNA) keeps an in-memory `CachedListing` map with a **60-second TTL**, so re-visiting a folder within the TTL is instant (no SMB2 `QUERY_DIRECTORY`, no WebDAV `PROPFIND` + DIDL parse, no fresh FTP/SFTP login, no DLNA SOAP `Browse`). The cache auto-invalidates on `deleteServer`, and a new `invalidateListingCache` channel method is exposed for pull-to-refresh. Wins the most for plain FTP/SFTP (full handshake per listing) and UPnP (SOAP round-trip + DIDL-Lite XML parse). SMB's per-file `length()`/`lastModified()` were already removed earlier; this is the next layer above the protocol.
+- **Bookmarked SMB / WebDAV / Jellyfin folders render the full Nova-style series view** - opening a TV-series folder from the home library grid now shows the same poster + title + rating + genres + overview + cast header and season-grouped episodes with stills / names / ratings / overviews as the SMB browser (not just a bare file list). `_loadSmb`, `_loadWebDav`, and `_loadJellyfin` in `folder_screen.dart` now call `_detectAndLoadSeriesFolder()` after the directory listing returns (was missing on the home-bookmark path). The missing widget classes (`_RatingBadge`, `_FactChip`, `_CastRow`, `_posterFallback`) were copied into `folder_screen.dart` so `_SeriesHeader` can build the same layout as `smb_screen.dart`'s `_SeriesFolderHeader`. The `_FolderTile` episode row also gained the rating star + value that `_SmbEpisodeTile` already had.
+- **Per-episode `parentMetadataKey` on `TmdDetailsScreen`** - tapping a video from inside a series folder view passes the folder's cached TMDB metadata key through, so the episode details screen uses the folder's show match (with correct season/episode data) instead of re-resolving from scratch. Wired into SMB, WebDAV, FTP, UPnP, Jellyfin, and folder navigation.
 
 ### Fixed
 
-- **Folder details screen no longer spins forever when TMDB metadata is missing** — `TmdDetailsScreen` folder mode set `_loading = true` the moment the folder's TMDB match wasn't already cached, and only cleared it in the *video* branch. For a folder (local or Jellyfin), `_loading` was never reset unless metadata resolved — so on a slow lookup, a failed TMDB call, or a test build **without the api key bundled**, the screen sat on a full-screen ring and the folder's file list never appeared. Fix: `_load()` clears `_loading` right after the folder's directory entries load — files are the first priority, metadata (header/poster/seasons) enriches progressively, and the no-match state still renders the list. Applies to `_loadFolderEntries` (local) and `_loadJellyfinEntries`.
-- **Files render before TMDB metadata resolves (series folder views)** — the series folder body in `folder_screen.dart` (home-bookmark folders: local / SMB / WebDAV / FTP / UPnP / Jellyfin) and `smb_screen.dart` (in-app SMB browser) showed a **full-screen spinner while the Nova-style TMDB header (poster/title/overview + season data) fetched** — `_loadingSeriesMeta` gated the whole body behind `CircularProgressIndicator`, so the actual files stayed invisible until the TMDB API round-trips finished. Fix: while metadata is still resolving, render the regular file list immediately (files are the first priority); the series header swaps in via `setState` the moment the fetch completes. If metadata never resolves, the files are already on screen (and the "Get Info" / "Fix match" escape hatch still works). The directory listing itself was always shown first — only the series-header decoration was blocking.
+- **Folder details screen no longer spins forever when TMDB metadata is missing** - `TmdDetailsScreen` folder mode set `_loading = true` the moment the folder's TMDB match wasn't already cached, and only cleared it in the *video* branch. For a folder (local or Jellyfin), `_loading` was never reset unless metadata resolved - so on a slow lookup, a failed TMDB call, or a test build **without the api key bundled**, the screen sat on a full-screen ring and the folder's file list never appeared. Fix: `_load()` clears `_loading` right after the folder's directory entries load - files are the first priority, metadata (header/poster/seasons) enriches progressively, and the no-match state still renders the list. Applies to `_loadFolderEntries` (local) and `_loadJellyfinEntries`.
+- **Files render before TMDB metadata resolves (series folder views)** - the series folder body in `folder_screen.dart` (home-bookmark folders: local / SMB / WebDAV / FTP / UPnP / Jellyfin) and `smb_screen.dart` (in-app SMB browser) showed a **full-screen spinner while the Nova-style TMDB header (poster/title/overview + season data) fetched** - `_loadingSeriesMeta` gated the whole body behind `CircularProgressIndicator`, so the actual files stayed invisible until the TMDB API round-trips finished. Fix: while metadata is still resolving, render the regular file list immediately (files are the first priority); the series header swaps in via `setState` the moment the fetch completes. If metadata never resolves, the files are already on screen (and the "Get Info" / "Fix match" escape hatch still works). The directory listing itself was always shown first - only the series-header decoration was blocking.
 
-- **Stale `_seriesMeta` after `seasonFor` (first-open episode data missing)** — `TmdMeta` is immutable; each `seasonFor` replaces the cache entry with a brand-new object via `cached.withSeason(season)`. Folder/SMB screens stored a reference to the *pre-season* `meta` returned from `resolveFolder`, so `_seriesMeta?.seasons[s]?.episode(parsed.episode)` always looked up an empty map until the user backed out and re-entered (the cache hit on re-entry returned the fresh meta and the UI populated). Fix: after the season-fetch loop, read the latest meta via `service.metaFor(metadataKey)` and assign via `setState`. Applied to `folder_screen._detectAndLoadSeriesFolder`, both SMB screen paths (initial load + fix-match re-load), and `tmd_details_screen._load`.
-- **Anime bracket `[01]` episode lookup missed (still / name / rating blank)** — anime fansub numbering (`[01]/[02]/[03]…` in brackets, VCB-Studio / Kakegurui-Twin style) parses with `season=0, episode=N`. TMDB season data was fetched for season 1, but episode lookup did `_seriesMeta?.seasons[0]?.episode(N)` which returned null — so all episode detail fields came back blank. Fix in `folder_screen._episodeFor` / `_seasonOf` and `smb_screen._episodeForEntry`: when `parsedSeason <= 0` AND `folderSeason == null`, fall back to the first season in `_seriesMeta.seasons` (or scan `cachedMeta.seasons.values` for SMB browse) so anime-bracket episodes resolve to the right `TmdEpisode` object.
+- **Stale `_seriesMeta` after `seasonFor` (first-open episode data missing)** - `TmdMeta` is immutable; each `seasonFor` replaces the cache entry with a brand-new object via `cached.withSeason(season)`. Folder/SMB screens stored a reference to the *pre-season* `meta` returned from `resolveFolder`, so `_seriesMeta?.seasons[s]?.episode(parsed.episode)` always looked up an empty map until the user backed out and re-entered (the cache hit on re-entry returned the fresh meta and the UI populated). Fix: after the season-fetch loop, read the latest meta via `service.metaFor(metadataKey)` and assign via `setState`. Applied to `folder_screen._detectAndLoadSeriesFolder`, both SMB screen paths (initial load + fix-match re-load), and `tmd_details_screen._load`.
+- **Anime bracket `[01]` episode lookup missed (still / name / rating blank)** - anime fansub numbering (`[01]/[02]/[03]…` in brackets, VCB-Studio / Kakegurui-Twin style) parses with `season=0, episode=N`. TMDB season data was fetched for season 1, but episode lookup did `_seriesMeta?.seasons[0]?.episode(N)` which returned null - so all episode detail fields came back blank. Fix in `folder_screen._episodeFor` / `_seasonOf` and `smb_screen._episodeForEntry`: when `parsedSeason <= 0` AND `folderSeason == null`, fall back to the first season in `_seriesMeta.seasons` (or scan `cachedMeta.seasons.values` for SMB browse) so anime-bracket episodes resolve to the right `TmdEpisode` object.
 
-- **On-screen badge preferences (Settings → Player)** — the chip row that shows during playback (HDR format, audio codec, resolution, video codec) is now fully configurable. A new **"On-screen badges"** toggle in Settings → Player controls whether any chips appear, and underneath it are two groups: **Format** (HDR, Audio codec, Video codec, Resolution) and **Playback** (Spatial audio, Server transcoding). Each is a compact switch row — no clutter, no overflow. Both Media3 and MPV modes respect the same per-category toggles. The Spatial and Transcoding chips appear only when active (Spatial on Android when the platform Spatializer is engaged; Transcoding when a Jellyfin/server transcode fallback is in progress).
-- **Two play engines, your choice — "Play with MPV" (Android)** — the TMDb details screen now offers a second, user-selected engine next to the primary Play button. `Play with MPV` starts the bundled libmpv engine up front (no ExoPlayer backend at all), so any file that Media3's hardware/software decode can't open (12-bit HEVC Rext 4:4:4 like the `yuv444p12le` Kakegurui files, corrupt containers, unknown codecs) plays through libmpv's bundled FFmpeg instead — pick the engine before you hit the wall. mpv runs **hardware-first** (`hwdec=auto-safe` over MediaCodec) and falls back to its own FFmpeg software decode when the hardware can't handle a stream. Renders into a Flutter texture, so it is **SDR-only** — Dolby Vision / HDR10(+) files keep the Media3 engine (the chip in the row tells you: "SDR only — no Dolby Vision / HDR"). The ⓘ info sheet labels the active engine `Engine · libmpv`.
-- **MPV audio passthrough config (Android)** — the mpv engine switches to the AudioTrack audio output and enables SpDIF passthrough for `ac3,eac3,dts,dts-hd,truehd` (Dolby Atmos / DTS-HD / DTS / AC3 / TrueHD). When the active output device can't take a bitstream (phone speakers, Bluetooth earbuds) libmpv transparently decodes to PCM, so audio always plays.
-- **"Try with MPV" on the Media3 error surface (Android)** — when the native engine reaches a terminal error that its own software-decode fallback couldn't recover from, the error overlay now shows a `Try with MPV` button that hands the same file to the libmpv engine on the spot.
-- **Resume button highlights the engine that played last** — the TMDb details screen now tracks which engine (Media3 or MPV) was last used per video via `LastEngineStore`. When a video was last played through MPV, the MPV button shows "Resume from m:ss (MPV)" with a highlighted tint, and the main Play button stays plain. When last played through Media3 (or never played), the main button shows "Resume from m:ss" as before.
+- **On-screen badge preferences (Settings → Player)** - the chip row that shows during playback (HDR format, audio codec, resolution, video codec) is now fully configurable. A new **"On-screen badges"** toggle in Settings → Player controls whether any chips appear, and underneath it are two groups: **Format** (HDR, Audio codec, Video codec, Resolution) and **Playback** (Spatial audio, Server transcoding). Each is a compact switch row - no clutter, no overflow. Both Media3 and MPV modes respect the same per-category toggles. The Spatial and Transcoding chips appear only when active (Spatial on Android when the platform Spatializer is engaged; Transcoding when a Jellyfin/server transcode fallback is in progress).
+- **Two play engines, your choice - "Play with MPV" (Android)** - the TMDb details screen now offers a second, user-selected engine next to the primary Play button. `Play with MPV` starts the bundled libmpv engine up front (no ExoPlayer backend at all), so any file that Media3's hardware/software decode can't open (12-bit HEVC Rext 4:4:4 like the `yuv444p12le` Kakegurui files, corrupt containers, unknown codecs) plays through libmpv's bundled FFmpeg instead - pick the engine before you hit the wall. mpv runs **hardware-first** (`hwdec=auto-safe` over MediaCodec) and falls back to its own FFmpeg software decode when the hardware can't handle a stream. Renders into a Flutter texture, so it is **SDR-only** - Dolby Vision / HDR10(+) files keep the Media3 engine (the chip in the row tells you: "SDR only - no Dolby Vision / HDR"). The ⓘ info sheet labels the active engine `Engine · libmpv`.
+- **MPV audio passthrough config (Android)** - the mpv engine switches to the AudioTrack audio output and enables SpDIF passthrough for `ac3,eac3,dts,dts-hd,truehd` (Dolby Atmos / DTS-HD / DTS / AC3 / TrueHD). When the active output device can't take a bitstream (phone speakers, Bluetooth earbuds) libmpv transparently decodes to PCM, so audio always plays.
+- **"Try with MPV" on the Media3 error surface (Android)** - when the native engine reaches a terminal error that its own software-decode fallback couldn't recover from, the error overlay now shows a `Try with MPV` button that hands the same file to the libmpv engine on the spot.
+- **Resume button highlights the engine that played last** - the TMDb details screen now tracks which engine (Media3 or MPV) was last used per video via `LastEngineStore`. When a video was last played through MPV, the MPV button shows "Resume from m:ss (MPV)" with a highlighted tint, and the main Play button stays plain. When last played through Media3 (or never played), the main button shows "Resume from m:ss" as before.
 
 ### Changed
 
 - **Media3 no longer auto-switches to mpv.** The old behavior (a terminal Media3 decode error silently flipped the whole screen to the mpv fallback) is gone: the native engine now exhausts its own software-decode retries and then shows the error, and the choice to switch engines is always the user's (up front on the details screen, or via `Try with MPV` on the error surface).
-- **MPV surface attach race fixed** — replaced the brittle 150ms delay before `player.play()` with `controller.platform.future` (deterministic signal from the native surface attach). hwdec + audio output are now configured AFTER the surface is attached but BEFORE `player.play()`, so MediaCodec hwdec gets a valid surface from the first decoded frame (fixes the "Both surface and native_window are NULL" race, matching mpv-android's attach-before-decode pattern).
-- **MPV auto software decode for transport streams and legacy containers** — files with extensions `.m2ts`, `.ts`, `.m2t`, `.m2p`, `.vob`, `.mpg`, `.mpeg`, `.wmv`, `.rmvb`, `.flv`, `.ogv`, `.dat` now force `hwdec=no` in the mpv engine regardless of the user's decoder mode setting, because these containers routinely stall or fail under MediaCodec hardware decode (e.g. the Dolby Atmos `.m2ts` test file hung on the first frame with hwdec). The decoder mode toggle in the ⋮ sheet still works for overriding.
-- **SMB loopback read cap lowered to 256 KiB** — `SmbHttpProxy.kt` CHUNK reduced from 1 MiB to 256 KiB, the empirically-safe SMB read size that matches the NAS's negotiated MaxReadSize and prevents mid-stream `SmbRandomAccessFile.read` failures that truncated the HTTP body and surfaced in mpv as "http: Stream ends prematurely".
-- **MPV audio codec labels now match Media3** — the MPV audio chip now uses `formatAudioCodec` (the same formatter Media3 uses) so codec names render identically across engines: "E-AC3 · 5.1" instead of "EAC3 · 6 ch", "DTS-HD · 7.1" instead of "DTSHD · 8 ch", "TrueHD · 5.1" instead of "TRUEHD · 6 ch". Channel count uses the standard label (2.0 / 5.1 / 7.1) instead of raw integer channels.
+- **MPV surface attach race fixed** - replaced the brittle 150ms delay before `player.play()` with `controller.platform.future` (deterministic signal from the native surface attach). hwdec + audio output are now configured AFTER the surface is attached but BEFORE `player.play()`, so MediaCodec hwdec gets a valid surface from the first decoded frame (fixes the "Both surface and native_window are NULL" race, matching mpv-android's attach-before-decode pattern).
+- **MPV auto software decode for transport streams and legacy containers** - files with extensions `.m2ts`, `.ts`, `.m2t`, `.m2p`, `.vob`, `.mpg`, `.mpeg`, `.wmv`, `.rmvb`, `.flv`, `.ogv`, `.dat` now force `hwdec=no` in the mpv engine regardless of the user's decoder mode setting, because these containers routinely stall or fail under MediaCodec hardware decode (e.g. the Dolby Atmos `.m2ts` test file hung on the first frame with hwdec). The decoder mode toggle in the ⋮ sheet still works for overriding.
+- **SMB loopback read cap lowered to 256 KiB** - `SmbHttpProxy.kt` CHUNK reduced from 1 MiB to 256 KiB, the empirically-safe SMB read size that matches the NAS's negotiated MaxReadSize and prevents mid-stream `SmbRandomAccessFile.read` failures that truncated the HTTP body and surfaced in mpv as "http: Stream ends prematurely".
+- **MPV audio codec labels now match Media3** - the MPV audio chip now uses `formatAudioCodec` (the same formatter Media3 uses) so codec names render identically across engines: "E-AC3 · 5.1" instead of "EAC3 · 6 ch", "DTS-HD · 7.1" instead of "DTSHD · 8 ch", "TrueHD · 5.1" instead of "TRUEHD · 6 ch". Channel count uses the standard label (2.0 / 5.1 / 7.1) instead of raw integer channels.
 
 ## 0.3.8
 
 ### Added
 
-- **libmpv fallback engine (Android)** — when the native ExoPlayer/Media3 engine surfaces a terminal decode error that its own software-decoder auto-fallback can't recover (a hardware decoder that misreports HEVC Main10 support and fails at runtime, a corrupt container, a codec no Media3 renderer can find), DreamPlayer transparently flips the same player screen over to a bundled **libmpv** (`media_kit` + bundled FFmpeg software decode). The user sees a one-time toast — "This video isn't supported by the built-in player, so the fallback player is being used." — and keeps the same transport, seekbar, gestures, PiP, resume, and chapter list. The ⓘ info sheet shows `Engine · libmpv (software)` so the user can see the active engine. **Cannot** do DV/HDR by design (Flutter textures have no HDR path on any platform, see media-kit issue #615) — the native engine keeps the project goal; the fallback exists so a user gets a working player instead of an error overlay when the native engine can't. Triggered for `ERROR_CODE_DECODING_FAILED`, `…_DECODER_INIT_FAILED`, `…_DECODER_QUERY_FAILED`, `…_DECODING_FORMAT_UNSUPPORTED`, `…_DECODING_FORMAT_EXCEEDS_CAPABILITIES`, and `…_DECODING_RESOURCES_RECLAIMED`.
+- **libmpv fallback engine (Android)** - when the native ExoPlayer/Media3 engine surfaces a terminal decode error that its own software-decoder auto-fallback can't recover (a hardware decoder that misreports HEVC Main10 support and fails at runtime, a corrupt container, a codec no Media3 renderer can find), DreamPlayer transparently flips the same player screen over to a bundled **libmpv** (`media_kit` + bundled FFmpeg software decode). The user sees a one-time toast - "This video isn't supported by the built-in player, so the fallback player is being used." - and keeps the same transport, seekbar, gestures, PiP, resume, and chapter list. The ⓘ info sheet shows `Engine · libmpv (software)` so the user can see the active engine. **Cannot** do DV/HDR by design (Flutter textures have no HDR path on any platform, see media-kit issue #615) - the native engine keeps the project goal; the fallback exists so a user gets a working player instead of an error overlay when the native engine can't. Triggered for `ERROR_CODE_DECODING_FAILED`, `…_DECODER_INIT_FAILED`, `…_DECODER_QUERY_FAILED`, `…_DECODING_FORMAT_UNSUPPORTED`, `…_DECODING_FORMAT_EXCEEDS_CAPABILITIES`, and `…_DECODING_RESOURCES_RECLAIMED`.
 
-- **External subtitles for the fallback engine** — mirrors the main engine's **external > embedded always** priority rule. mpv's own `sub-auto=exact` only scans sidecars next to a local video file, but the fallback's sources are loopback HTTP URLs (SMB) and remote schemes with no directory to scan. `_attachMpvExternalSubtitles` adds the Media3 path's resolved subs explicitly: non-defaults first via raw `sub-add <uri> <title> <lang>` (so they populate mpv's `track-list` for the CC sheet to pick from), then the default track last via `SubtitleTrack.uri(...)` (`setSubtitleTrack`) so mpv's final selected track is the one the Media3 path would have selected. Each track is labeled with the real filename + language, not the generic `external` placeholder.
+- **External subtitles for the fallback engine** - mirrors the main engine's **external > embedded always** priority rule. mpv's own `sub-auto=exact` only scans sidecars next to a local video file, but the fallback's sources are loopback HTTP URLs (SMB) and remote schemes with no directory to scan. `_attachMpvExternalSubtitles` adds the Media3 path's resolved subs explicitly: non-defaults first via raw `sub-add <uri> <title> <lang>` (so they populate mpv's `track-list` for the CC sheet to pick from), then the default track last via `SubtitleTrack.uri(...)` (`setSubtitleTrack`) so mpv's final selected track is the one the Media3 path would have selected. Each track is labeled with the real filename + language, not the generic `external` placeholder.
 
-- **SMB → loopback HTTP bridge** — jcifs-ng only talks to Media3-native `DataSource`s, and libmpv can't read `smb://` directly. Solution: a tiny HTTP/1.1 server (`SmbHttpProxy.kt`, `ServerSocket` accept loop + one daemon thread per connection, GET/HEAD + single `Range` bytes=) bound to `127.0.0.1` on a free port that hands out a `SmbRandomAccessFile` per token. Idle handles are parked in an `ArrayDeque` per file (re-opening an SMB handle costs a tree-connect + create round-trip — mpv's probe fires ~15 ranges back to back, so closing every time is what made startup slow). Reads are serialized per file via a `ReentrantLock` because `SmbRandomAccessFile` is not thread-safe.
+- **SMB → loopback HTTP bridge** - jcifs-ng only talks to Media3-native `DataSource`s, and libmpv can't read `smb://` directly. Solution: a tiny HTTP/1.1 server (`SmbHttpProxy.kt`, `ServerSocket` accept loop + one daemon thread per connection, GET/HEAD + single `Range` bytes=) bound to `127.0.0.1` on a free port that hands out a `SmbRandomAccessFile` per token. Idle handles are parked in an `ArrayDeque` per file (re-opening an SMB handle costs a tree-connect + create round-trip - mpv's probe fires ~15 ranges back to back, so closing every time is what made startup slow). Reads are serialized per file via a `ReentrantLock` because `SmbRandomAccessFile` is not thread-safe.
 
-- **Picture-in-Picture for the fallback engine** — a Flutter texture receives no touches in pip, so the Media3 path's normal player chrome is useless there. New Activity-level `PipManager` (`dreamplayer/pip` channel) handles pip for the fallback engine: Dart pushes playback state via `setMpvState` on every playing/pause/buffering transition (cannot round-trip in `onUserLeaveHint`), and the native side answers synchronously. `MainActivity.onUserLeaveHint` / `onPictureInPictureModeChanged` / `onStop` / `onResume` route through `PipManager` first, falling back to `ExoPlayerView` when the fallback isn't active. The pip window shows ONLY the video (player screen already hides chrome on `_inPip`).
+- **Picture-in-Picture for the fallback engine** - a Flutter texture receives no touches in pip, so the Media3 path's normal player chrome is useless there. New Activity-level `PipManager` (`dreamplayer/pip` channel) handles pip for the fallback engine: Dart pushes playback state via `setMpvState` on every playing/pause/buffering transition (cannot round-trip in `onUserLeaveHint`), and the native side answers synchronously. `MainActivity.onUserLeaveHint` / `onPictureInPictureModeChanged` / `onStop` / `onResume` route through `PipManager` first, falling back to `ExoPlayerView` when the fallback isn't active. The pip window shows ONLY the video (player screen already hides chrome on `_inPip`).
 
-- **Pip transport controls for the fallback engine** — three system-drawn `RemoteAction` buttons (`ic_stat_rewind` / `ic_stat_pause`/`ic_stat_play` / `ic_stat_forward`), rebuilt on every play-state change while in pip so the play/pause icon flips with reality. Each fires a package-scoped broadcast (`com.dreamplayer.app.PIP_CONTROL` + `EXTRA_CONTROL`); `PipManager` registers an inline `BroadcastReceiver` while pip is active (API 33+ uses `RECEIVER_NOT_EXPORTED`) and forwards each tap to a method call (`pipPlayPause` / `pipRewind` / `pipForward`) that hits dedicated Dart handlers. Same dismissal-latch (`pipSeen` + `onActivityStopped`) as the main engine — swiping the pip away delivers `onStop` while the system STILL reports `isInPictureInPictureMode=true`; without the latch the pause is skipped and audio plays invisibly.
+- **Pip transport controls for the fallback engine** - three system-drawn `RemoteAction` buttons (`ic_stat_rewind` / `ic_stat_pause`/`ic_stat_play` / `ic_stat_forward`), rebuilt on every play-state change while in pip so the play/pause icon flips with reality. Each fires a package-scoped broadcast (`com.dreamplayer.app.PIP_CONTROL` + `EXTRA_CONTROL`); `PipManager` registers an inline `BroadcastReceiver` while pip is active (API 33+ uses `RECEIVER_NOT_EXPORTED`) and forwards each tap to a method call (`pipPlayPause` / `pipRewind` / `pipForward`) that hits dedicated Dart handlers. Same dismissal-latch (`pipSeen` + `onActivityStopped`) as the main engine - swiping the pip away delivers `onStop` while the system STILL reports `isInPictureInPictureMode=true`; without the latch the pause is skipped and audio plays invisibly.
 
 ### Fixed
 
@@ -1221,31 +1221,31 @@ Major release: two player engines (Media3 + MPV), pull-to-refresh home, full ser
 
 ### Fixed
 
-- **External subtitles now auto-pair across every source and platform** — same-name sidecars (`.srt` / `.ass` / `.vtt` / `.sub` / `.ttml` / `.smi` / `.mpl2`) next to a video now auto-load on **WebDAV, FTP, SFTP, SMB, Jellyfin, UPnP, local storage, and the SAF bookmarked-folder picker**. Three issues were fixed:
+- **External subtitles now auto-pair across every source and platform** - same-name sidecars (`.srt` / `.ass` / `.vtt` / `.sub` / `.ttml` / `.smi` / `.mpl2`) next to a video now auto-load on **WebDAV, FTP, SFTP, SMB, Jellyfin, UPnP, local storage, and the SAF bookmarked-folder picker**. Three issues were fixed:
   1. **Native listings filtered to video extensions only**, so the sidecar service never saw the `.srt` in the parent folder and couldn't pair it with the video by name (Nova's `RawListerFactory` returns everything and lets the caller filter). The native clients now expose a `listDirectoryAll` channel method that returns every entry, with `listDirectory` refactored behind a `videoOnly` flag.
-  2. **FTP browser percent-encodes path segments** when building the playback URI (`Test%20Video.en.mp4`), but the native `listDirectory` / `fetchBytes` expected the raw decoded path — so listing targeted a non-existent folder and the sidecar fetch looked for a file literally named `Test%20Video.en.srt`. `_decodePath` now reverses the encoding before the native call, and `_encodePath` re-encodes only for the playback URI.
-  3. **Even when a remote sidecar was found, the engine was handed the raw `ftp://` / `sftp://` / `smb://` / `http://` URI for the subtitle track** (AVP issue #1605: fragile to auth reflow, connectivity drops, redirects — Nova's rule is "copy remote subs locally first"). A new `SidecarSubtitleService.ensureLocal` prefetches every remote sidecar to a `file://` in the app's cache and rewrites the track URI before the engine opens. The native clients expose `fetchBytes` / `fetchUrl` with auth headers and self-signed support, so WebDAV and FTP/SFTP sidecars work the same way. Verified end-to-end on-device: `Test Video.en.srt` next to `Test Video.en.mp4` on the FTP share auto-loads.
+  2. **FTP browser percent-encodes path segments** when building the playback URI (`Test%20Video.en.mp4`), but the native `listDirectory` / `fetchBytes` expected the raw decoded path - so listing targeted a non-existent folder and the sidecar fetch looked for a file literally named `Test%20Video.en.srt`. `_decodePath` now reverses the encoding before the native call, and `_encodePath` re-encodes only for the playback URI.
+  3. **Even when a remote sidecar was found, the engine was handed the raw `ftp://` / `sftp://` / `smb://` / `http://` URI for the subtitle track** (AVP issue #1605: fragile to auth reflow, connectivity drops, redirects - Nova's rule is "copy remote subs locally first"). A new `SidecarSubtitleService.ensureLocal` prefetches every remote sidecar to a `file://` in the app's cache and rewrites the track URI before the engine opens. The native clients expose `fetchBytes` / `fetchUrl` with auth headers and self-signed support, so WebDAV and FTP/SFTP sidecars work the same way. Verified end-to-end on-device: `Test Video.en.srt` next to `Test Video.en.mp4` on the FTP share auto-loads.
 
-- **Raw "Playback failed (ERROR_CODE_…)" errors are now actionable** — the Dart friendly-error mapping matched snake_case codes (`error_code_io_*`, `error_code_decoder_init_failed`, …) that Media3 never emits, so every real `PlaybackException` fell through to the generic "Playback failed (CODE).message" string. The mapping is now driven off Media3's actual `errorCodeName` strings (`ERROR_CODE_IO_*`, `ERROR_CODE_DECODING_FAILED`, `ERROR_CODE_PARSING_*`, `ERROR_CODE_AUDIO_TRACK_*`, plus the custom `UnsupportedDolbyVisionProfile5`), covering network/server timeouts, expired handoff URLs, file-not-found/no-permission, all decoder init/query/format failures, audio-track init failures, container-parse errors, and the cleartext-not-permitted case. The mapping is extracted to `lib/screens/player_error.dart` and unit-tested in `test/player_error_test.dart` (9 new tests). Same fix applied to `_isRetryableIoError` so the existing exponential-backoff auto-retry now actually fires on the right codes.
-- **Hardware-decoder failure (HEVC Main10 on MediaTek G81 / budget chips) now auto-falls back to software decode, like VLC and mpv** — some devices' hardware H.265/HEVC decoders advertise 10-bit Main10 support but then fail at runtime with `ERROR_CODE_DECODING_FAILED`; the same file plays fine through FFmpeg software decode (verified on Infinix Hot 50i, MediaTek G81: VLC/mpv play `Strike the Blood Final [Ma10p_1080p][x265_flac].mkv` smoothly). On a video-decode error the player now transparently switches `decoderMode` to `sw`, reopens at the current position (you see a brief "Hardware decoder failed — retrying with software…" message), and restores the user's original decoder mode when the player closes or a different file opens. The override is per-file only, so the next video returns to your preferred mode automatically. Triggered for `ERROR_CODE_DECODING_FAILED`, `ERROR_CODE_DECODER_INIT_FAILED`, `ERROR_CODE_DECODER_QUERY_FAILED`, `ERROR_CODE_DECODING_FORMAT_UNSUPPORTED`, `ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES`, and `ERROR_CODE_DECODING_RESOURCES_RECLAIMED`. The decoder chip in the ⓘ info sheet shows "· software" so the user can see the fallback engaged.
+- **Raw "Playback failed (ERROR_CODE_…)" errors are now actionable** - the Dart friendly-error mapping matched snake_case codes (`error_code_io_*`, `error_code_decoder_init_failed`, …) that Media3 never emits, so every real `PlaybackException` fell through to the generic "Playback failed (CODE).message" string. The mapping is now driven off Media3's actual `errorCodeName` strings (`ERROR_CODE_IO_*`, `ERROR_CODE_DECODING_FAILED`, `ERROR_CODE_PARSING_*`, `ERROR_CODE_AUDIO_TRACK_*`, plus the custom `UnsupportedDolbyVisionProfile5`), covering network/server timeouts, expired handoff URLs, file-not-found/no-permission, all decoder init/query/format failures, audio-track init failures, container-parse errors, and the cleartext-not-permitted case. The mapping is extracted to `lib/screens/player_error.dart` and unit-tested in `test/player_error_test.dart` (9 new tests). Same fix applied to `_isRetryableIoError` so the existing exponential-backoff auto-retry now actually fires on the right codes.
+- **Hardware-decoder failure (HEVC Main10 on MediaTek G81 / budget chips) now auto-falls back to software decode, like VLC and mpv** - some devices' hardware H.265/HEVC decoders advertise 10-bit Main10 support but then fail at runtime with `ERROR_CODE_DECODING_FAILED`; the same file plays fine through FFmpeg software decode (verified on Infinix Hot 50i, MediaTek G81: VLC/mpv play `Strike the Blood Final [Ma10p_1080p][x265_flac].mkv` smoothly). On a video-decode error the player now transparently switches `decoderMode` to `sw`, reopens at the current position (you see a brief "Hardware decoder failed - retrying with software…" message), and restores the user's original decoder mode when the player closes or a different file opens. The override is per-file only, so the next video returns to your preferred mode automatically. Triggered for `ERROR_CODE_DECODING_FAILED`, `ERROR_CODE_DECODER_INIT_FAILED`, `ERROR_CODE_DECODER_QUERY_FAILED`, `ERROR_CODE_DECODING_FORMAT_UNSUPPORTED`, `ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES`, and `ERROR_CODE_DECODING_RESOURCES_RECLAIMED`. The decoder chip in the ⓘ info sheet shows "· software" so the user can see the fallback engaged.
 
 ## 0.3.6
 
 ### Fixed
 
-- **External .srt with exactly the same name as the video now auto-loads everywhere** — a sidecar like `Movie.srt` next to `Movie.mkv` was missed in some setups. Root causes fixed: (1) `SubtitleFormats.findSiblingSubtitles` prefix check was case-sensitive (`startsWith`); now `lowercase` on both sides with case-insensitive sort; (2) **SAF bookmarked folders** (`tree:<id>/…` from **+ → Add folder to library**) store videos as `content://` `DocumentFile` URIs — `File.listFiles()` on the synthetic `tree:` path always returned empty, so no sidecar was ever found. `ExoPlayerView` now resolves the tree via `DocumentFile.fromTreeUri` and lists siblings in the parent `DocumentFile`, building `MediaItem.SubtitleConfiguration` from `content://` URIs (with `toUtf8` + `isDefault` on the best filename match). Covers internal storage, removable/USB SAF trees and `content://` handoffs. (3) Bookmarked folders list their contents correctly through the document tree.
+- **External .srt with exactly the same name as the video now auto-loads everywhere** - a sidecar like `Movie.srt` next to `Movie.mkv` was missed in some setups. Root causes fixed: (1) `SubtitleFormats.findSiblingSubtitles` prefix check was case-sensitive (`startsWith`); now `lowercase` on both sides with case-insensitive sort; (2) **SAF bookmarked folders** (`tree:<id>/…` from **+ → Add folder to library**) store videos as `content://` `DocumentFile` URIs - `File.listFiles()` on the synthetic `tree:` path always returned empty, so no sidecar was ever found. `ExoPlayerView` now resolves the tree via `DocumentFile.fromTreeUri` and lists siblings in the parent `DocumentFile`, building `MediaItem.SubtitleConfiguration` from `content://` URIs (with `toUtf8` + `isDefault` on the best filename match). Covers internal storage, removable/USB SAF trees and `content://` handoffs. (3) Bookmarked folders list their contents correctly through the document tree.
 
 ## 0.3.5
 
 ### Changed
 
-- **Top-chip row is now HDR + audio only** — persistent player chips show only HDR format and audio codec; all other diagnostics (resolution, decoder, transcode, boost, spatial) live exclusively in the ⓘ info sheet. Removes persistence clutter and prevents overlap in PiP.
-- **Network activity / bandwidth indicator removed** — the live speed/buffer readout on the player and in the ⓘ sheet was dropped per user request.
+- **Top-chip row is now HDR + audio only** - persistent player chips show only HDR format and audio codec; all other diagnostics (resolution, decoder, transcode, boost, spatial) live exclusively in the ⓘ info sheet. Removes persistence clutter and prevents overlap in PiP.
+- **Network activity / bandwidth indicator removed** - the live speed/buffer readout on the player and in the ⓘ sheet was dropped per user request.
 
 ### Fixed
 
-- **SMB mid-playback `io_unspecified` → `EOFException`** — `SmbDataSource` left a permanent hole when a prefetch read failed (`nextWritePos` already advanced) and set `bufEof` on any `END_OF_INPUT` even with pending holes, causing `MatroskaExtractor` to throw `EOFException` mid-file. Now rewinds `nextWritePos` on failure with handle reconnect, tracks `eofAt`/`fatalError` with 12-strike guard, and only sets `bufEof` when the contiguous frontier reaches `eofAt`. Verified on real NAS playback.
-- **External subtitles preferred over embedded** — when a sidecar file (`.srt`/`.ass`/`.vtt`/`.sub`/`.ttml`/`.smi`/`.mpl2` etc.) exists next to the video it is now auto-selected first (best filename match gets `SELECTION_FLAG_DEFAULT` / `ExternalSubtitleTrack.isDefault`; otherwise the container's embedded track plays). Priority is `sidecar file > Jellyfin server DeliveryUrl > embedded`, with network-share discovery for SMB/WebDAV/FTP/Jellyfin and CX `content://` handoffs (cached to `file://` for Media3). Covers the `videoname.srt` + `videoname.eng.srt` naming used on NAS shares.
+- **SMB mid-playback `io_unspecified` → `EOFException`** - `SmbDataSource` left a permanent hole when a prefetch read failed (`nextWritePos` already advanced) and set `bufEof` on any `END_OF_INPUT` even with pending holes, causing `MatroskaExtractor` to throw `EOFException` mid-file. Now rewinds `nextWritePos` on failure with handle reconnect, tracks `eofAt`/`fatalError` with 12-strike guard, and only sets `bufEof` when the contiguous frontier reaches `eofAt`. Verified on real NAS playback.
+- **External subtitles preferred over embedded** - when a sidecar file (`.srt`/`.ass`/`.vtt`/`.sub`/`.ttml`/`.smi`/`.mpl2` etc.) exists next to the video it is now auto-selected first (best filename match gets `SELECTION_FLAG_DEFAULT` / `ExternalSubtitleTrack.isDefault`; otherwise the container's embedded track plays). Priority is `sidecar file > Jellyfin server DeliveryUrl > embedded`, with network-share discovery for SMB/WebDAV/FTP/Jellyfin and CX `content://` handoffs (cached to `file://` for Media3). Covers the `videoname.srt` + `videoname.eng.srt` naming used on NAS shares.
 
 ## 0.3.4
 
@@ -1255,46 +1255,46 @@ Major release: two player engines (Media3 + MPV), pull-to-refresh home, full ser
 
 ### Fixed
 
-- **Seekbar touch alignment & responsiveness** — the seekbar now snaps to the exact finger position on touch-down (no more needing to find the thumb dot), uses `onTapDown` + `HitTestBehavior.opaque` for instant grab instead of waiting for a 20 px drag threshold, and removed the horizontal-padding-from-total-width offset bug that made the thumb jump off your finger. Tappable height increased to 48 dp; thumb grows to 22 dp and track to 6 dp while dragging for clear visual feedback.
+- **Seekbar touch alignment & responsiveness** - the seekbar now snaps to the exact finger position on touch-down (no more needing to find the thumb dot), uses `onTapDown` + `HitTestBehavior.opaque` for instant grab instead of waiting for a 20 px drag threshold, and removed the horizontal-padding-from-total-width offset bug that made the thumb jump off your finger. Tappable height increased to 48 dp; thumb grows to 22 dp and track to 6 dp while dragging for clear visual feedback.
 
 ## 0.3.2
 
 ### Added
 
-- **Bookmark any network folder to Home** — SMB, WebDAV, FTP, and DLNA (UPnP) browser folders can now be pinned to the home "Your library" grid via an AppBar bookmark button (`LibraryFolderSource` no longer just files/jellyfin — SMB/WebDAV/FTP/UPnP each carry a `networkServerId`/`share`/`path`/`label`). Folder cards show a per-source badge (SMB blue, WebDAV orange, FTP purple, DLNA grey, Jellyfin teal). Bookmarked network folders list their files directly in `FolderScreen`; removal releases the bookmark with no SAF grant.
-- **SIMKL free sync** — free unlimited watched history sync (`api.simkl.com`, `SIMKL_CLIENT_ID` from `.env` via `lib/config/simkl_keys.dart`). New `lib/services/simkl_client.dart` (`dreamplayer.simkl` prefs, PIN flow `GET /oauth/pin` + 5s poll, `POST /sync/history` with TMDB ids, `GET /sync/all-items`/`/sync/activities` delta) + `lib/services/simkl_sync.dart` throttled pull/apply. Player `player_screen.dart` pushes watched on `ended`; Settings shows Connect/Sync now/Disconnect gated on `simklClientId.isNotEmpty`.
-- **SMB watched ticks + SIMKL backfill** — every SMB file row shows a green watched check + per-row toggle (`smb:` resume keys); an AppBar cloud-done button syncs already-watched titles from SIMKL.
-- **Series-grouped library with watched progress** — folder and details screens group episodes by season (`lib/utils/season_group.dart` pure helper; `lib/widgets/season_progress_ring.dart` 28–32dp ring). Season headers show `Season N` + `watched/total` badge + circular progress (`WatchedStore` + `ResumeStore.positionFor`), collapsible `ExpansionTile` per season, linear 2px resume bar per episode tile, TV `TvTile` focus kept. Folder cards show a bottom-right ring + `S1 2/5` pill for TV shows.
+- **Bookmark any network folder to Home** - SMB, WebDAV, FTP, and DLNA (UPnP) browser folders can now be pinned to the home "Your library" grid via an AppBar bookmark button (`LibraryFolderSource` no longer just files/jellyfin - SMB/WebDAV/FTP/UPnP each carry a `networkServerId`/`share`/`path`/`label`). Folder cards show a per-source badge (SMB blue, WebDAV orange, FTP purple, DLNA grey, Jellyfin teal). Bookmarked network folders list their files directly in `FolderScreen`; removal releases the bookmark with no SAF grant.
+- **SIMKL free sync** - free unlimited watched history sync (`api.simkl.com`, `SIMKL_CLIENT_ID` from `.env` via `lib/config/simkl_keys.dart`). New `lib/services/simkl_client.dart` (`dreamplayer.simkl` prefs, PIN flow `GET /oauth/pin` + 5s poll, `POST /sync/history` with TMDB ids, `GET /sync/all-items`/`/sync/activities` delta) + `lib/services/simkl_sync.dart` throttled pull/apply. Player `player_screen.dart` pushes watched on `ended`; Settings shows Connect/Sync now/Disconnect gated on `simklClientId.isNotEmpty`.
+- **SMB watched ticks + SIMKL backfill** - every SMB file row shows a green watched check + per-row toggle (`smb:` resume keys); an AppBar cloud-done button syncs already-watched titles from SIMKL.
+- **Series-grouped library with watched progress** - folder and details screens group episodes by season (`lib/utils/season_group.dart` pure helper; `lib/widgets/season_progress_ring.dart` 28–32dp ring). Season headers show `Season N` + `watched/total` badge + circular progress (`WatchedStore` + `ResumeStore.positionFor`), collapsible `ExpansionTile` per season, linear 2px resume bar per episode tile, TV `TvTile` focus kept. Folder cards show a bottom-right ring + `S1 2/5` pill for TV shows.
 
 ### Fixed
 
-- **Trakt removed** — stale Trakt sync code was completely removed (client, sync, keys, settings UI, player push, unit tests) in favor of SIMKL free unlimited sync.
-- **GDrive removed (2026-08)** — the Google Drive cloud feature was fully taken out of the codebase (client, screen, native authors, OAuth redirect manifest entry, `androidx.browser` Custom Tabs dependency, cloud_keys). Drive support is no longer offered; WebDAV/Jellyfin/SMB/FTP/DLNA remain the cloud/NAS options.
-- **Network folder library counts + duplicate title + resume bar** — the folder screen header showed "0 videos" for SMB/WebDAV folders (it read an empty local list instead of the unified `_currentEntries`), duplicated the AppBar title, and showed a redundant per-tile resume bar. Header now counts from `_currentEntries` and only shows the metadata line; the resume bar was removed (resume detail lives in the per-video details screen).
-- **Bookmarked network folders opened a blank screen** — a network bookmark previously pushed `TmdDetails`, whose file list only handles FileBrowser/Jellyfin. It now opens `FolderScreen` directly so the file list appears immediately.
-- **SMB resume key missing `/`** — the share/path join dropped a slash, so resumed positions didn't match on re-open.
+- **Trakt removed** - stale Trakt sync code was completely removed (client, sync, keys, settings UI, player push, unit tests) in favor of SIMKL free unlimited sync.
+- **GDrive removed (2026-08)** - the Google Drive cloud feature was fully taken out of the codebase (client, screen, native authors, OAuth redirect manifest entry, `androidx.browser` Custom Tabs dependency, cloud_keys). Drive support is no longer offered; WebDAV/Jellyfin/SMB/FTP/DLNA remain the cloud/NAS options.
+- **Network folder library counts + duplicate title + resume bar** - the folder screen header showed "0 videos" for SMB/WebDAV folders (it read an empty local list instead of the unified `_currentEntries`), duplicated the AppBar title, and showed a redundant per-tile resume bar. Header now counts from `_currentEntries` and only shows the metadata line; the resume bar was removed (resume detail lives in the per-video details screen).
+- **Bookmarked network folders opened a blank screen** - a network bookmark previously pushed `TmdDetails`, whose file list only handles FileBrowser/Jellyfin. It now opens `FolderScreen` directly so the file list appears immediately.
+- **SMB resume key missing `/`** - the share/path join dropped a slash, so resumed positions didn't match on re-open.
 
 ## 0.3.1
 
 ### Fixed
 
-- **SMB HDR10 files played as SDR** — HDR10 rips whose MKV lacks the `Colour` element (metadata only in the HEVC SEI, e.g. the Spider-Verse REMUX) fell back to SDR on NAS playback: the bitstream probe fed the `smb://` URI to `MediaExtractor`, which cannot open SMB. New `SmbMediaDataSource` (`ExoPlayerView.kt`) wraps jcifs `SmbRandomAccessFile` (saved share creds, like `MkvChapters.parseSmb`) in a `MediaDataSource` so MediaExtractor demuxes the remote MKV — wired into both the HDR10 (SEI 137/144) and HDR10+ (ST 2094-40) probes.
-- **CC sheet overflowed in landscape** — the subtitle picker was a fixed `Column`; its whole body is now a single scrollable `ListView` so nothing overflows at any height.
-- **Subtitle settings changes didn't apply** — the ⋮ → Subtitle settings screen saved prefs but never pushed the new style to the live player. On return the player now reloads the style, applies it natively, and (Android) reopens at the current position so a delay change re-parses cues.
+- **SMB HDR10 files played as SDR** - HDR10 rips whose MKV lacks the `Colour` element (metadata only in the HEVC SEI, e.g. the Spider-Verse REMUX) fell back to SDR on NAS playback: the bitstream probe fed the `smb://` URI to `MediaExtractor`, which cannot open SMB. New `SmbMediaDataSource` (`ExoPlayerView.kt`) wraps jcifs `SmbRandomAccessFile` (saved share creds, like `MkvChapters.parseSmb`) in a `MediaDataSource` so MediaExtractor demuxes the remote MKV - wired into both the HDR10 (SEI 137/144) and HDR10+ (ST 2094-40) probes.
+- **CC sheet overflowed in landscape** - the subtitle picker was a fixed `Column`; its whole body is now a single scrollable `ListView` so nothing overflows at any height.
+- **Subtitle settings changes didn't apply** - the ⋮ → Subtitle settings screen saved prefs but never pushed the new style to the live player. On return the player now reloads the style, applies it natively, and (Android) reopens at the current position so a delay change re-parses cues.
 
 ## 0.3.0
 
 ### Added
 
-- **Nova-based subtitle language & encoding prefs** — reading language (auto-select track) + download language (OpenSubtitles `languages` param) + text encoding (codepage) modeled on Nova `res/values/arrays.xml` (`system` + 35 full names, not ISO codes; 3-letter Nova codes `eng/fre/ger/pob/zho/zht` → `en/fr/de/pt-BR/zh-CN/zh-TW`). `lib/services/subtitle_languages.dart` / `subtitle_encodings.dart` with `migrateLegacyLangCode`, `openSubsCodeForNovaCode`, `trackMatchesNovaCode`; Settings pickers show full names via `RadioGroup`, sheet `lib/screens/opensubtitles_sheet.dart` uses same list. Persisted as `dreamplayer.subReadingLang` / `subDownloadLang` / `subEncoding`.
-- **Phase 3 — parity + binge DONE** — Jellyfin auto-play next now walks `ParentId` siblings (`JellyfinItem.parentId` + `lib/screens/player_screen.dart:893` episodic sort → `videoItem`); Android subtitle delay live via `DelayingParser` + reopen (text cues, PGS/DVB still not shifted).
-- **NAS reconnect-on-drop verified** — high-bitrate SMB reconnect/resume confirmed on-device (2026-08-26).
-- **Dolby Vision profiles P4/P5/P7/P8/P9** — chip + badge + Video info now show `DV P8`, `DV P7`, etc. (`lib/utils/codec_info.dart:15` `dolbyVisionProfile`/`dolbyVisionLabel`, `lib/screens/player_screen.dart:3059` `_hdrLabel`, `lib/widgets/video_card.dart:368`).
+- **Nova-based subtitle language & encoding prefs** - reading language (auto-select track) + download language (OpenSubtitles `languages` param) + text encoding (codepage) modeled on Nova `res/values/arrays.xml` (`system` + 35 full names, not ISO codes; 3-letter Nova codes `eng/fre/ger/pob/zho/zht` → `en/fr/de/pt-BR/zh-CN/zh-TW`). `lib/services/subtitle_languages.dart` / `subtitle_encodings.dart` with `migrateLegacyLangCode`, `openSubsCodeForNovaCode`, `trackMatchesNovaCode`; Settings pickers show full names via `RadioGroup`, sheet `lib/screens/opensubtitles_sheet.dart` uses same list. Persisted as `dreamplayer.subReadingLang` / `subDownloadLang` / `subEncoding`.
+- **Phase 3 - parity + binge DONE** - Jellyfin auto-play next now walks `ParentId` siblings (`JellyfinItem.parentId` + `lib/screens/player_screen.dart:893` episodic sort → `videoItem`); Android subtitle delay live via `DelayingParser` + reopen (text cues, PGS/DVB still not shifted).
+- **NAS reconnect-on-drop verified** - high-bitrate SMB reconnect/resume confirmed on-device (2026-08-26).
+- **Dolby Vision profiles P4/P5/P7/P8/P9** - chip + badge + Video info now show `DV P8`, `DV P7`, etc. (`lib/utils/codec_info.dart:15` `dolbyVisionProfile`/`dolbyVisionLabel`, `lib/screens/player_screen.dart:3059` `_hdrLabel`, `lib/widgets/video_card.dart:368`).
 
 ### Fixed
 
-- **CI now bakes `OPENSUBTITLES_API_KEY`** — the release workflow passes both `TMDB_API_KEY` + `OPENSUBTITLES_API_KEY` as `dart-define`; added `OPENSUBTITLES_API_KEY` to GitHub secrets from `.env`.
-- **Dolby Vision only showed P8** — `detectHdrFormat`/`detectMedia3HdrFormat` now handle all profiles via `dvhe/dvh1/dvav 0?N` + `P4-P9` hints, with `videoMime` support.
+- **CI now bakes `OPENSUBTITLES_API_KEY`** - the release workflow passes both `TMDB_API_KEY` + `OPENSUBTITLES_API_KEY` as `dart-define`; added `OPENSUBTITLES_API_KEY` to GitHub secrets from `.env`.
+- **Dolby Vision only showed P8** - `detectHdrFormat`/`detectMedia3HdrFormat` now handle all profiles via `dvhe/dvh1/dvav 0?N` + `P4-P9` hints, with `videoMime` support.
 
 ### Changed
 
@@ -1304,31 +1304,31 @@ Major release: two player engines (Media3 + MPV), pull-to-refresh home, full ser
 
 ### Added
 
-- **Spatial audio chip (Android)** — teal "Spatial" chip in the player top bar when the platform Spatializer is actually engaged: enabled in system settings + available for the current routing + multichannel track confirmed spatializable (`canBeSpatialized`). Live updates when headphones plug/unplug or the system toggle flips mid-playback. API 33+; minSdk untouched.
-- **Bass Boost (Android)** — Off/Low/Medium/High `BassBoost` session effect that restores the low end HRTF virtualization thins out. Lives in the player ⋮ menu and appears only while Spatial audio is engaged; persisted and re-applied on every open.
-- **Subtitle appearance moved into the player** — size / color / background / outline / delay with live preview now live in the ⋮ menu next to the CC picker (removed from app Settings); preview backdrop replaced with a gradient placeholder.
+- **Spatial audio chip (Android)** - teal "Spatial" chip in the player top bar when the platform Spatializer is actually engaged: enabled in system settings + available for the current routing + multichannel track confirmed spatializable (`canBeSpatialized`). Live updates when headphones plug/unplug or the system toggle flips mid-playback. API 33+; minSdk untouched.
+- **Bass Boost (Android)** - Off/Low/Medium/High `BassBoost` session effect that restores the low end HRTF virtualization thins out. Lives in the player ⋮ menu and appears only while Spatial audio is engaged; persisted and re-applied on every open.
+- **Subtitle appearance moved into the player** - size / color / background / outline / delay with live preview now live in the ⋮ menu next to the CC picker (removed from app Settings); preview backdrop replaced with a gradient placeholder.
 
 ### Fixed
 
-- **Touch lock trapped the player** — after locking, taps were swallowed entirely so controls could never be revealed to unlock. A tap now reveals the bars for the Unlock button; all other transport/seek/sheet controls are gated while locked.
-- **+ menu clipped in phone landscape** — default bottom sheets cap at 9/16 screen height; the menu is now scroll-controlled so every entry is reachable.
+- **Touch lock trapped the player** - after locking, taps were swallowed entirely so controls could never be revealed to unlock. A tap now reveals the bars for the Unlock button; all other transport/seek/sheet controls are gated while locked.
+- **+ menu clipped in phone landscape** - default bottom sheets cap at 9/16 screen height; the menu is now scroll-controlled so every entry is reachable.
 
 ## 0.2.6
 
 ### Added
 
-- **Playback speed 0.25×–2× + refresh-rate matching (Phase 1)** — bottom-bar overflow holds the current rate (`1×`), dropdown offers 0.25×–2×; persisted as `dreamplayer.playbackSpeed` and re-applied after every open/reopen. `player.setPlaybackSpeed` applies it, and the display mode is matched to the video FPS (`preferredDisplayModeId` on STATE_READY / size change, ±0.5 Hz hysteresis, restores on dispose).
-- **Chapters + watched marks + overflow dropdown (Phase 2)** — MKV `Chapters` parsed directly (EBML walk: SeekHead → EditionEntry → ChapterAtom, SeekID `0x1043A770`, ns→ms, first `ChapString` fallback "Chapter N") for local (`RandomAccessFile`), SMB (`SmbRandomAccessFile` + saved share creds), and HTTP/WebDAV (`Range: 0–8M` via OkHttp standard+permissive clients); Jellyfin `Item.Chapters` (`Fields=Chapters`, ticks/10000 ms) seeded from `VideoItem.chapters`. Chapters appear in the bottom-bar overflow `⋮` (Aspect/Speed/Chapters collapsible sections), highlight the current chapter and tap-to-seek. Watched marks auto-set on `STATE_ENDED` and manual via check icon per row, green check = watched, resume labels now `h:mm:ss` for ≥1h. Bottom bar decluttered 6→4 buttons (`audio · CC · ⋮ · fullscreen`).
-- **HW / SW decoder toggle + live badge** — Settings + overflow let you pick Auto / Hardware / Software; `PlayerCodecs.mediaCodecSelector` filters `isSoftwareVideoDecoder` live per query (HW filters SW decoders, SW prefers `c2.android.`/`google`/`ffmpeg`). Player top bar shows `Auto, H/W` / `Auto, S/W` etc. via `onVideoDecoderInitialized` (`videoDecoderName/isHwDecoder`), chips wrap in portrait. Verified: software fallback no longer kills HDR — video stays on `MediaCodecVideoRenderer`.
-- **DLNA / UPnP browse (DONE)** — Home **+** → DLNA: SSDP discovery (`XmlPullParser`), SOAP `ContentDirectory#Browse`, DIDL parsing with VLC/upnpx semantics (`shouldProcessNamespaces=false` + suffix matching `dc:title`/`upnp:class`, tolerant `<Result>` regex, single-pass entity unescape). On-screen Diagnostics box + `getDiagnostics` channel. When SSDP is gated, discovery falls back to a saved-server probe → UDP-7359 broadcast → a direct `http://<host>:8096` probe.
-- **Jellyfin DLNA transcode & multi-res fixes** — Jellyfin serves external-subtitle items as `CI=1` `video/mp2t` live transcodes; `JellyfinClient.upgradeDlnaUrl()` matches `/dlna/(videos|audios)/<id>/` against saved Jellyfin servers (origin match) and rebuilds the item via `getItem`+`videoItem` → original-bytes direct play with sidecar subs as tracks + chapters + stable resume key. Multi-res DIDL (one `text/srt` res per subtitle) no longer hands the player an `.srt` as main media — video `protocolInfo` preferred, every `text/*` res collected into `externalSubs` → selectable tracks on the raw DLNA path. Verified on-device: House S02E04 plays original `hevc` direct (`stream.mkv?Static=true`) or `h264` TS with red badge depending on server session — both work. **Red "Transcoding" chip** whenever playback is server-transcoded (HLS fallback, `CI=1`, or `master.m3u8`).
-- **Series grouping + live subtitle delay (Android) + auto-play next (Phase 3 DONE)** — Season grouping for Jellyfin/file folders, Android subtitle delay now live via `DelayingParser` (`SubtitleTiming.delayUs` + reopen on change; PGS/DVB bitmap cues still not shifted), auto-play next episode within the same folder (local/SMB + Jellyfin via `ParentId` sibling walk `lib/screens/player_screen.dart:893`).
-- **OOM fix** — `android:largeHeap="true"` + `BufferTuning` 96→64 MiB on large-RAM devices (Fire TV 192 MB heap stays 24 MiB), fixes `MediaCodec.BufferInfo` heap abort on 256 MB devices.
+- **Playback speed 0.25×–2× + refresh-rate matching (Phase 1)** - bottom-bar overflow holds the current rate (`1×`), dropdown offers 0.25×–2×; persisted as `dreamplayer.playbackSpeed` and re-applied after every open/reopen. `player.setPlaybackSpeed` applies it, and the display mode is matched to the video FPS (`preferredDisplayModeId` on STATE_READY / size change, ±0.5 Hz hysteresis, restores on dispose).
+- **Chapters + watched marks + overflow dropdown (Phase 2)** - MKV `Chapters` parsed directly (EBML walk: SeekHead → EditionEntry → ChapterAtom, SeekID `0x1043A770`, ns→ms, first `ChapString` fallback "Chapter N") for local (`RandomAccessFile`), SMB (`SmbRandomAccessFile` + saved share creds), and HTTP/WebDAV (`Range: 0–8M` via OkHttp standard+permissive clients); Jellyfin `Item.Chapters` (`Fields=Chapters`, ticks/10000 ms) seeded from `VideoItem.chapters`. Chapters appear in the bottom-bar overflow `⋮` (Aspect/Speed/Chapters collapsible sections), highlight the current chapter and tap-to-seek. Watched marks auto-set on `STATE_ENDED` and manual via check icon per row, green check = watched, resume labels now `h:mm:ss` for ≥1h. Bottom bar decluttered 6→4 buttons (`audio · CC · ⋮ · fullscreen`).
+- **HW / SW decoder toggle + live badge** - Settings + overflow let you pick Auto / Hardware / Software; `PlayerCodecs.mediaCodecSelector` filters `isSoftwareVideoDecoder` live per query (HW filters SW decoders, SW prefers `c2.android.`/`google`/`ffmpeg`). Player top bar shows `Auto, H/W` / `Auto, S/W` etc. via `onVideoDecoderInitialized` (`videoDecoderName/isHwDecoder`), chips wrap in portrait. Verified: software fallback no longer kills HDR - video stays on `MediaCodecVideoRenderer`.
+- **DLNA / UPnP browse (DONE)** - Home **+** → DLNA: SSDP discovery (`XmlPullParser`), SOAP `ContentDirectory#Browse`, DIDL parsing with VLC/upnpx semantics (`shouldProcessNamespaces=false` + suffix matching `dc:title`/`upnp:class`, tolerant `<Result>` regex, single-pass entity unescape). On-screen Diagnostics box + `getDiagnostics` channel. When SSDP is gated, discovery falls back to a saved-server probe → UDP-7359 broadcast → a direct `http://<host>:8096` probe.
+- **Jellyfin DLNA transcode & multi-res fixes** - Jellyfin serves external-subtitle items as `CI=1` `video/mp2t` live transcodes; `JellyfinClient.upgradeDlnaUrl()` matches `/dlna/(videos|audios)/<id>/` against saved Jellyfin servers (origin match) and rebuilds the item via `getItem`+`videoItem` → original-bytes direct play with sidecar subs as tracks + chapters + stable resume key. Multi-res DIDL (one `text/srt` res per subtitle) no longer hands the player an `.srt` as main media - video `protocolInfo` preferred, every `text/*` res collected into `externalSubs` → selectable tracks on the raw DLNA path. Verified on-device: House S02E04 plays original `hevc` direct (`stream.mkv?Static=true`) or `h264` TS with red badge depending on server session - both work. **Red "Transcoding" chip** whenever playback is server-transcoded (HLS fallback, `CI=1`, or `master.m3u8`).
+- **Series grouping + live subtitle delay (Android) + auto-play next (Phase 3 DONE)** - Season grouping for Jellyfin/file folders, Android subtitle delay now live via `DelayingParser` (`SubtitleTiming.delayUs` + reopen on change; PGS/DVB bitmap cues still not shifted), auto-play next episode within the same folder (local/SMB + Jellyfin via `ParentId` sibling walk `lib/screens/player_screen.dart:893`).
+- **OOM fix** - `android:largeHeap="true"` + `BufferTuning` 96→64 MiB on large-RAM devices (Fire TV 192 MB heap stays 24 MiB), fixes `MediaCodec.BufferInfo` heap abort on 256 MB devices.
 
 ### Fixed
 
-- **Decoder badge flicker** — badge no longer vanishes on mode switch; label is mode-aware.
-- **Chips overflow in portrait** — chips now `Wrap` to next line when many badges present.
+- **Decoder badge flicker** - badge no longer vanishes on mode switch; label is mode-aware.
+- **Chips overflow in portrait** - chips now `Wrap` to next line when many badges present.
 
 ### Changed
 
@@ -1336,144 +1336,144 @@ Major release: two player engines (Media3 + MPV), pull-to-refresh home, full ser
 
 ### Added
 
-- **Double-tap to seek** — double-tap the left half of the video to jump back 10 s, right half to jump forward 10 s, with a brief on-screen ripple indicator (phones/tablets; TV keeps its D-pad buttons)
+- **Double-tap to seek** - double-tap the left half of the video to jump back 10 s, right half to jump forward 10 s, with a brief on-screen ripple indicator (phones/tablets; TV keeps its D-pad buttons)
 
 ### Changed
 
-- **Center transport** — the ±10 s skip buttons beside play/pause are now TV-only; phones rely on the double-tap gesture. The dark pill background behind the center controls was removed — only the circular play/pause button floats on the video
+- **Center transport** - the ±10 s skip buttons beside play/pause are now TV-only; phones rely on the double-tap gesture. The dark pill background behind the center controls was removed - only the circular play/pause button floats on the video
 
 ## 0.2.4
 
 ### Fixed
 
-- **Jellyfin external subtitles** — parses `MediaStreams` (`IsExternal`), builds `DeliveryUrl + api_key` and exposes all `.srt`/`.ass`/`.vtt` in the CC picker (was only embedded)
-- **In-app SMB subtitles** — `subtitlePaths` now returns all matches (`video.srt`, `video.eng.ass`…) instead of just the first; CC shows each separately
-- **CX / Open-with subtitles** — generic `GET_CONTENT` + `OPEN_DOCUMENT` chooser with `queries` for any file manager (Files, CX, Solid, etc.); NAS siblings auto-discovered via saved SMB server and shown as **"Subtitles on NAS"**; `content://` (CX SMB) is cached to `file://` immediately so ExoPlayer can read it after CX is killed
-- **Manual load** — CC sheet always offers **"Load subtitle file…"** (system picker for any manager) plus direct NAS sibling selection
+- **Jellyfin external subtitles** - parses `MediaStreams` (`IsExternal`), builds `DeliveryUrl + api_key` and exposes all `.srt`/`.ass`/`.vtt` in the CC picker (was only embedded)
+- **In-app SMB subtitles** - `subtitlePaths` now returns all matches (`video.srt`, `video.eng.ass`…) instead of just the first; CC shows each separately
+- **CX / Open-with subtitles** - generic `GET_CONTENT` + `OPEN_DOCUMENT` chooser with `queries` for any file manager (Files, CX, Solid, etc.); NAS siblings auto-discovered via saved SMB server and shown as **"Subtitles on NAS"**; `content://` (CX SMB) is cached to `file://` immediately so ExoPlayer can read it after CX is killed
+- **Manual load** - CC sheet always offers **"Load subtitle file…"** (system picker for any manager) plus direct NAS sibling selection
 
 ## 0.2.3
 
 ### Fixed
 
-- Removed Google Cast / DLNA casting (removed entirely — broken resume-on-device and audio-track-on-TV bugs, no test device)
+- Removed Google Cast / DLNA casting (removed entirely - broken resume-on-device and audio-track-on-TV bugs, no test device)
 - Updated repo description to reflect current platform support
 
 ## 0.2.2
 
-### New features — playback
+### New features - playback
 
-- **Jellyfin server transcoding** — when direct play fails (undecodable codec, DV Profile 5 on non-DV hardware, expired stream…), the player retries once through the Jellyfin server's HLS transcoder (`master.m3u8`, H.264 video + AAC/AC3/EAC3 audio, 20 Mbps cap) and resumes at the last position. The server-side transcode job is stopped when the player closes so the host stops burning CPU. Android needed the Media3 HLS module (`media3-exoplayer-hls`).
-- **Redesigned network-server dialogs (Jellyfin / WebDAV / SMB)** — shared visual language across all three: shaped dialogs with icon-badge titles, rounded icon-prefixed fields, HTTP/HTTPS segmented picker on WebDAV, password show/hide toggles, OS autofill hints, tinted inline test-result banners (SMB results moved out of SnackBars), and consistent action rows. Fields stay D-pad friendly on Fire TV via `TvTextField`.
+- **Jellyfin server transcoding** - when direct play fails (undecodable codec, DV Profile 5 on non-DV hardware, expired stream…), the player retries once through the Jellyfin server's HLS transcoder (`master.m3u8`, H.264 video + AAC/AC3/EAC3 audio, 20 Mbps cap) and resumes at the last position. The server-side transcode job is stopped when the player closes so the host stops burning CPU. Android needed the Media3 HLS module (`media3-exoplayer-hls`).
+- **Redesigned network-server dialogs (Jellyfin / WebDAV / SMB)** - shared visual language across all three: shaped dialogs with icon-badge titles, rounded icon-prefixed fields, HTTP/HTTPS segmented picker on WebDAV, password show/hide toggles, OS autofill hints, tinted inline test-result banners (SMB results moved out of SnackBars), and consistent action rows. Fields stay D-pad friendly on Fire TV via `TvTextField`.
 
-### New features — player
+### New features - player
 
-- **Horizontal-swipe seek** — swipe left/right anywhere on the video to scrub ±90 s per screen width, clamped to the file. A dark pill shows the target timestamp plus a signed delta (green = forward, orange = back); releasing with a change ≥ 500 ms commits the seek. Skipped on TV (D-pad already seeks). Time-only preview by design: frame thumbnails were tried and removed because `MediaMetadataRetriever` decodes Dolby Vision / 10-bit HDR content to blank frames on Qualcomm devices (`c2.qti.dv.decoder`) — exactly the content this app targets.
-- **Subtitle appearance settings** — Settings → Player → Subtitles: text size (S/M/L/XL), color swatches, background (none/semi/solid), outline toggle, and delay offset (−30…+30 s) with a live photo-backed preview. Persisted as JSON and pushed to the native player on every open. The player applies size/color/background/outline via Media3 `CaptionStyleCompat` + `SubtitleView.setFractionalTextSize`.
+- **Horizontal-swipe seek** - swipe left/right anywhere on the video to scrub ±90 s per screen width, clamped to the file. A dark pill shows the target timestamp plus a signed delta (green = forward, orange = back); releasing with a change ≥ 500 ms commits the seek. Skipped on TV (D-pad already seeks). Time-only preview by design: frame thumbnails were tried and removed because `MediaMetadataRetriever` decodes Dolby Vision / 10-bit HDR content to blank frames on Qualcomm devices (`c2.qti.dv.decoder`) - exactly the content this app targets.
+- **Subtitle appearance settings** - Settings → Player → Subtitles: text size (S/M/L/XL), color swatches, background (none/semi/solid), outline toggle, and delay offset (−30…+30 s) with a live photo-backed preview. Persisted as JSON and pushed to the native player on every open. The player applies size/color/background/outline via Media3 `CaptionStyleCompat` + `SubtitleView.setFractionalTextSize`.
 
 ### Fixed
 
-- Subtitle settings preview crashed in landscape (`clamp(96.0, …)` with min > max on short viewports) — replaced with explicit caps; preview now sizes adaptively (portrait full-width 16:9, landscape up to 42% of viewport height) over a bright royalty-free still so cue backgrounds/outlines read against real imagery.
+- Subtitle settings preview crashed in landscape (`clamp(96.0, …)` with min > max on short viewports) - replaced with explicit caps; preview now sizes adaptively (portrait full-width 16:9, landscape up to 42% of viewport height) over a bright royalty-free still so cue backgrounds/outlines read against real imagery.
 - Jellyfin transcode fallback no longer kills itself: the "playing via server transcoding" note used to unmount the player platform view mid-open; the swap now keeps the view alive and shows the buffering spinner.
 
 ## 0.2.1
 
-### Bug fixes — player swipe gestures
+### Bug fixes - player swipe gestures
 
-- **Swipes start from the live system value** — brightness/volume drags used to build on a value seeded once at player open (system volume only), so a brightness swipe started from the stale volume value and vice versa. Every gesture start now fetches the *current* platform value (`getBrightness` / `getSystemVolume`) as its base; finger deltas accumulate on top of it. Deltas are buffered until the base arrives so an early drag can't flash a wrong absolute value.
-- **Swipe pill keeps its icon during fade-out** — drag-end nulled the gesture type immediately while the pill stayed visible for the 800 ms fade, so a brightness pill flipped to the volume icon mid-fade. The type is now retained until the fade completes; a separate active flag gates updates and platform pushes.
+- **Swipes start from the live system value** - brightness/volume drags used to build on a value seeded once at player open (system volume only), so a brightness swipe started from the stale volume value and vice versa. Every gesture start now fetches the *current* platform value (`getBrightness` / `getSystemVolume`) as its base; finger deltas accumulate on top of it. Deltas are buffered until the base arrives so an early drag can't flash a wrong absolute value.
+- **Swipe pill keeps its icon during fade-out** - drag-end nulled the gesture type immediately while the pill stayed visible for the 800 ms fade, so a brightness pill flipped to the volume icon mid-fade. The type is now retained until the fade completes; a separate active flag gates updates and platform pushes.
 
 ## 0.2.0
 
-Major release — Android TV / Fire TV playback rebuilt on the in-app player, and phone gesture controls.
+Major release - Android TV / Fire TV playback rebuilt on the in-app player, and phone gesture controls.
 
-- **Siri Remote** — arrow keys reveal controls / seek ±10s, select activates focused buttons, Menu hides controls then exits; the remote's **play/pause media key toggles playback** even off the TV code path (fixed this release).
+- **Siri Remote** - arrow keys reveal controls / seek ±10s, select activates focused buttons, Menu hides controls then exits; the remote's **play/pause media key toggles playback** even off the TV code path (fixed this release).
 
 ### Android TV / Fire TV
-- **Custom focus highlight** — blue 3px border + glow shadow + AnimatedScale (1.25× transport buttons, 1.05× cards/list tiles/fields) across all TV-focusable widgets: transport controls, sheet list tiles, seekbar, home cards.
-- **TvTile shared widget** — single source of truth for TV focus-glow wrapper (`lib/widgets/tv_tile.dart`).
-- **TvOverscan safe-area** — wraps each TV screen with 36px side / 20px top-bottom padding (`lib/widgets/tv_overscan.dart`).
-- **TvTextField** — two-FocusNode design: outer glow node for D-pad targeting, inner `skipTraversal` node for the TextField. OK/select opens the system Leanback IME; back/Done hands focus back to the glow node. No custom keyboard.
-- **Leanback banner** — 640×360 `banner.png` in `AndroidManifest.xml` for TV launchers.
-- **TV long-press** — Enter/select key held 500ms fires `onLongPress`; `KeyRepeatEvent` swallowed.
-- **Home scroll-on-return** — `SliverAppBar` pinned, `jumpTo(0)` on load with stable keys.
-- **Buffer sizing** — adaptive by heap class: Fire TV 24MB ring buffer (heap 192MB), phones 96MB (heap ≥ 256MB).
-- **Transparent window fix** — `MainActivity.kt` sets `Color.TRANSPARENT` on TV devices; `ExoPlayerView.kt` calls `setZOrderMediaOverlay(true)` — video visible on Fire TV Stick.
+- **Custom focus highlight** - blue 3px border + glow shadow + AnimatedScale (1.25× transport buttons, 1.05× cards/list tiles/fields) across all TV-focusable widgets: transport controls, sheet list tiles, seekbar, home cards.
+- **TvTile shared widget** - single source of truth for TV focus-glow wrapper (`lib/widgets/tv_tile.dart`).
+- **TvOverscan safe-area** - wraps each TV screen with 36px side / 20px top-bottom padding (`lib/widgets/tv_overscan.dart`).
+- **TvTextField** - two-FocusNode design: outer glow node for D-pad targeting, inner `skipTraversal` node for the TextField. OK/select opens the system Leanback IME; back/Done hands focus back to the glow node. No custom keyboard.
+- **Leanback banner** - 640×360 `banner.png` in `AndroidManifest.xml` for TV launchers.
+- **TV long-press** - Enter/select key held 500ms fires `onLongPress`; `KeyRepeatEvent` swallowed.
+- **Home scroll-on-return** - `SliverAppBar` pinned, `jumpTo(0)` on load with stable keys.
+- **Buffer sizing** - adaptive by heap class: Fire TV 24MB ring buffer (heap 192MB), phones 96MB (heap ≥ 256MB).
+- **Transparent window fix** - `MainActivity.kt` sets `Color.TRANSPARENT` on TV devices; `ExoPlayerView.kt` calls `setZOrderMediaOverlay(true)` - video visible on Fire TV Stick.
 
 ### Player
-- **Gesture controls** — vertical swipe on left half adjusts brightness (`Window.screenBrightness`); right half adjusts system volume (`AudioManager STREAM_MUSIC`). Dark centered feedback pill with icon + percentage, auto-fades 0.8s. Controls hide during gesture.
-- **Swipe gestures toggle** — "Swipe gestures" switch in Settings → Player section (default on); hidden on TV via `isTvMode()`.
-- **Play-pause ring highlight** — `_TvControlButton` `alwaysShowRing` parameter; center play-pause uses `alwaysShowRing: !_isTv` so the ring glow shows on phones/tablets without a D-pad.
+- **Gesture controls** - vertical swipe on left half adjusts brightness (`Window.screenBrightness`); right half adjusts system volume (`AudioManager STREAM_MUSIC`). Dark centered feedback pill with icon + percentage, auto-fades 0.8s. Controls hide during gesture.
+- **Swipe gestures toggle** - "Swipe gestures" switch in Settings → Player section (default on); hidden on TV via `isTvMode()`.
+- **Play-pause ring highlight** - `_TvControlButton` `alwaysShowRing` parameter; center play-pause uses `alwaysShowRing: !_isTv` so the ring glow shows on phones/tablets without a D-pad.
 
 ### Bug fixes
-- **SMB badge** — `VideoItem.playbackSource` now accepts both `smb:` and `smb_` prefixes for backward compat with stored data.
-- **Double-back-press exit** — root screen shows a SnackBar and requires two taps within 2s to exit (prevents accidental back-press exits on Android).
-- **Seekbar minimal highlight** — TV focus highlight on seekbar is a thin 2px border only (no glow, no scale).
-- **Flutter 3.47.1** — local toolchain upgraded to match CI (Dart 3.13); all 129 tests pass, analyzer clean.
+- **SMB badge** - `VideoItem.playbackSource` now accepts both `smb:` and `smb_` prefixes for backward compat with stored data.
+- **Double-back-press exit** - root screen shows a SnackBar and requires two taps within 2s to exit (prevents accidental back-press exits on Android).
+- **Seekbar minimal highlight** - TV focus highlight on seekbar is a thin 2px border only (no glow, no scale).
+- **Flutter 3.47.1** - local toolchain upgraded to match CI (Dart 3.13); all 129 tests pass, analyzer clean.
 
 ## 0.1.11
 
 ## 0.1.10
 
-- **SMB: wrong credentials now surface an error (Android)** — browsing a saved server with a bad username/password used to silently return an empty share list (the share probe swallowed every exception, so an auth failure was mistaken for "no such share"). `SmbStore`/`SMBClient.kt` now catches `SmbAuthException` separately: if auth fails on every probed share, the shares list and any folder listing report **"Login failed — check username/password/domain"** (a `smb_auth` channel error) instead of a blank screen. The connection-test dialog already reported the failure correctly; only the browse path was silent.
+- **SMB: wrong credentials now surface an error (Android)** - browsing a saved server with a bad username/password used to silently return an empty share list (the share probe swallowed every exception, so an auth failure was mistaken for "no such share"). `SmbStore`/`SMBClient.kt` now catches `SmbAuthException` separately: if auth fails on every probed share, the shares list and any folder listing report **"Login failed - check username/password/domain"** (a `smb_auth` channel error) instead of a blank screen. The connection-test dialog already reported the failure correctly; only the browse path was silent.
 
 ## 0.1.9
 
-- **Per-file TMDB posters in every file list** — the folder screens (library folder contents + subfolders), the WebDAV browser, and the Jellyfin browser now **auto-fetch** TMDB metadata for each movie/episode as the list loads and show the file's **poster thumbnail** instead of the plain play icon. Each row resolves under the *same* stable key its tap uses (`resumeKey`/`folderbookmark:`/`webdav_<server>/<path>`/`jellyfin:<host>/<itemId>`), so opening the file is a direct cache hit — no re-search, the details screen is already resolved. If auto-fetch fails, opening the file and picking the right title via **"Fix match"/"Search TMDB"** persists that poster, and the row updates to show it the moment you return (both screens listen to the TMDB store).
-- **Standalone movies no longer inherit a folder's metadata** — in folder mode, a movie file inside a bookmarked folder used to show the *folder's* matched title/poster (e.g. a "Movies" folder's match shown for every file in it). `carryMeta` now runs only for **episodes** of a TV-show folder; movie files resolve their own title, and any folder metadata an older build stamped onto a movie's key is cleared so it re-searches. Jellyfin folder mode applies the same rule (carry only for `Type == Episode`).
-- **Shared poster helper** — `posterUrlOf()` lives in `tmdb_client.dart` so the folder, WebDAV, and Jellyfin row tiles all render the same 48×72 rounded poster thumbnail (with the play icon as the error fallback).
+- **Per-file TMDB posters in every file list** - the folder screens (library folder contents + subfolders), the WebDAV browser, and the Jellyfin browser now **auto-fetch** TMDB metadata for each movie/episode as the list loads and show the file's **poster thumbnail** instead of the plain play icon. Each row resolves under the *same* stable key its tap uses (`resumeKey`/`folderbookmark:`/`webdav_<server>/<path>`/`jellyfin:<host>/<itemId>`), so opening the file is a direct cache hit - no re-search, the details screen is already resolved. If auto-fetch fails, opening the file and picking the right title via **"Fix match"/"Search TMDB"** persists that poster, and the row updates to show it the moment you return (both screens listen to the TMDB store).
+- **Standalone movies no longer inherit a folder's metadata** - in folder mode, a movie file inside a bookmarked folder used to show the *folder's* matched title/poster (e.g. a "Movies" folder's match shown for every file in it). `carryMeta` now runs only for **episodes** of a TV-show folder; movie files resolve their own title, and any folder metadata an older build stamped onto a movie's key is cleared so it re-searches. Jellyfin folder mode applies the same rule (carry only for `Type == Episode`).
+- **Shared poster helper** - `posterUrlOf()` lives in `tmdb_client.dart` so the folder, WebDAV, and Jellyfin row tiles all render the same 48×72 rounded poster thumbnail (with the play icon as the error fallback).
 
 ## 0.1.8
 
-- **Source badges** — continue-watching cards show `CX SMB` (Android handoff) and legacy `SMB` (old in-app `smb:` keys, historical only).
-- **TMDB auto-fetch works for network-share videos** — opening a video from the SMB browser (or any network share) now lands on a fully-resolved details screen instead of prompting "Search TMDB". Root causes fixed: the folder prefetch and the video tap resolved under *different* keys, so the prefetched match was never reused (both now use the same stable key → direct cache hit); a tap during an in-flight prefetch returned a false "no match" (concurrent calls now share one in-flight search future); and a missing TMDB match used to treat filename noise like `MA`, `Hindi`, `SDR`, `ESub` or bracket audio metadata (`[Hindi AMZN DDP 2.0 224kbps + English DTS-HD MA 5.1]`) as part of the search query. Verified on-device: `Silence`, `Identity`, `Oldboy`, `Her (2013)`, `24`, `Main Vaapas Aaunga` all auto-match at score 1.00.
-- **Filename → search-query parser cleanup** — audio-language/codec noise (`hindi`, `tamil`, `telugu`, `korean`, `esub`, `uncut`, `sdr`, `ma`, `hdhub4u`, …) is stripped; bracketed/parenthesized audio metadata is dropped (keeping `[S02E04]` episode tags and `(2013)` years for detection); bitrate annotations (`224kbps`, `640kbps`) are removed; `<group>-<site>` release suffixes (`USURY-4kHdHub.com`) are cut including the group; and underscore-glued tags (`Stranger_Things_[S02E04]_1080p`) no longer survive into the cleaned title. New regression tests cover the real NAS filenames.
+- **Source badges** - continue-watching cards show `CX SMB` (Android handoff) and legacy `SMB` (old in-app `smb:` keys, historical only).
+- **TMDB auto-fetch works for network-share videos** - opening a video from the SMB browser (or any network share) now lands on a fully-resolved details screen instead of prompting "Search TMDB". Root causes fixed: the folder prefetch and the video tap resolved under *different* keys, so the prefetched match was never reused (both now use the same stable key → direct cache hit); a tap during an in-flight prefetch returned a false "no match" (concurrent calls now share one in-flight search future); and a missing TMDB match used to treat filename noise like `MA`, `Hindi`, `SDR`, `ESub` or bracket audio metadata (`[Hindi AMZN DDP 2.0 224kbps + English DTS-HD MA 5.1]`) as part of the search query. Verified on-device: `Silence`, `Identity`, `Oldboy`, `Her (2013)`, `24`, `Main Vaapas Aaunga` all auto-match at score 1.00.
+- **Filename → search-query parser cleanup** - audio-language/codec noise (`hindi`, `tamil`, `telugu`, `korean`, `esub`, `uncut`, `sdr`, `ma`, `hdhub4u`, …) is stripped; bracketed/parenthesized audio metadata is dropped (keeping `[S02E04]` episode tags and `(2013)` years for detection); bitrate annotations (`224kbps`, `640kbps`) are removed; `<group>-<site>` release suffixes (`USURY-4kHdHub.com`) are cut including the group; and underscore-glued tags (`Stranger_Things_[S02E04]_1080p`) no longer survive into the cleaned title. New regression tests cover the real NAS filenames.
 
 ## 0.1.7
 
-- **Static HDR10 detection for MKV files without Colour element (Android)** — some HEVC MKVs omit the MKV `Colour` element; the PQ/BT.2020 mastering metadata lives only in the HEVC SEI (payload type 137 Mastering Display Colour Volume, payload type 144 Content Light Level). `ExoPlayerView.kt` now probes the first ~10 MB of video samples on a background thread with `MediaExtractor`, scanning Annex-B / AVCC NALs for these SEI payloads. When found, `hdr10Content=true` is set and `stateMap` emits `desired=5.0` + `colorTransfer=6`, engaging the HDR headroom / window color mode path for true HDR10 passthrough even without container-level signalling. Verified on-device: a test MKV with no Colour element but with SEI 137/144 now shows the HDR10 chip and triggers the EDR ramp.
+- **Static HDR10 detection for MKV files without Colour element (Android)** - some HEVC MKVs omit the MKV `Colour` element; the PQ/BT.2020 mastering metadata lives only in the HEVC SEI (payload type 137 Mastering Display Colour Volume, payload type 144 Content Light Level). `ExoPlayerView.kt` now probes the first ~10 MB of video samples on a background thread with `MediaExtractor`, scanning Annex-B / AVCC NALs for these SEI payloads. When found, `hdr10Content=true` is set and `stateMap` emits `desired=5.0` + `colorTransfer=6`, engaging the HDR headroom / window color mode path for true HDR10 passthrough even without container-level signalling. Verified on-device: a test MKV with no Colour element but with SEI 137/144 now shows the HDR10 chip and triggers the EDR ramp.
 
 ## 0.1.6
 
-- **Real HDR Dolby Vision output (Android) via hybrid-composition platform view** —
+- **Real HDR Dolby Vision output (Android) via hybrid-composition platform view** -
   the player previously rendered through Flutter's stock `AndroidView` widget, which
   composites the video into a **virtual display + texture** (a non-HDR path that
   flattens PQ to SDR at ~500 nits and washes colors out). The view is now built with
   `PlatformViewLink` + `initExpensiveAndroidView` (hybrid composition), keeping the
   video `SurfaceView` a real SurfaceFlinger layer on the physical display. Verified
   on-device: the DV P8 file composites as `BT2020_ITU_PQ` with 10-bit PQ buffers,
-  `hdr metadata types=9` and `whitePointNits≈1250` — byte-for-byte the profile of a
-  pure-native player (Just Player) — and colors now match on screen. DV content also
+  `hdr metadata types=9` and `whitePointNits≈1250` - byte-for-byte the profile of a
+  pure-native player (Just Player) - and colors now match on screen. DV content also
   skips the window HDR/headroom machinery entirely (decoder-native BT.2020 PQ
   device-composites), and DV tracks whose MKV omits the `Colour` element (Media3
   `colorInfo=null`) are still treated as HDR via their `dvhe`/`dvh1`/`dvav` codec.
-- **Jellyfin folders in the home library** — the folder tiles in the Jellyfin
+- **Jellyfin folders in the home library** - the folder tiles in the Jellyfin
   browser now carry an **Add to library** button that pins that server folder
   onto the home "Your library" grid (teal Jellyfin badge). Tapping it opens the
   TMDB details screen in Jellyfin mode: episodes list through the server API
   with `SxxExx` labels (+ TMDB episode names when the season data is cached),
-  and play directly. Only the server URL + item id are stored — the token is
+  and play directly. Only the server URL + item id are stored - the token is
   re-matched against your saved servers on every open, so it keeps working
   across logins. Removing the folder unlists it (no files/grants touched).
-- **Jellyfin series info auto-fetched on bookmark** — adding a folder from the
+- **Jellyfin series info auto-fetched on bookmark** - adding a folder from the
   Jellyfin browser also fetches the series' own metadata from the server
   (`JellyfinItemInfo`: poster + backdrop art, real title, year, rating, genres,
   overview) and caches it, so the home card shows the show's poster and TV/Movie
   badge without needing a TMDB match. The details screen shows a full
   backdrop/poster header with the series overview when TMDB finds nothing, and
   refreshes the info on open so the token-embedded artwork URLs stay current.
-- **Per-episode details (TMDB)** — the single-episode details page now shows
+- **Per-episode details (TMDB)** - the single-episode details page now shows
   *that episode's* name, overview, air date, runtime, rating, **guest cast**,
   and a **Stills** gallery (via the per-episode endpoint with
   `append_to_response=credits,images`) instead of only the show's metadata. Runs
-  only for the single-episode view — a folder with 100 files triggers no extra
+  only for the single-episode view - a folder with 100 files triggers no extra
   requests. Best-effort: on API failure the episode keeps its season-level data.
-- **Season-folder title parsing fixed** — whole-season folders like
+- **Season-folder title parsing fixed** - whole-season folders like
   `HOUSE.S02.1080p.10bit.BluRay.English.AAC.5.1.x265-Panda` now resolve to
   `HOUSE` (a bare `Sxx` season tag is stripped, audio-language and streaming-
   provider tags like `english`/`nf`/`amzn`/`hbo` are noise, and `H.265`/`X.264`
-  codec tags are explicitly removed) — before, they resolved to a query with 0
+  codec tags are explicitly removed) - before, they resolved to a query with 0
   results and never got their poster.
-- **Landscape details header shows artwork whole** — in landscape the metadata
+- **Landscape details header shows artwork whole** - in landscape the metadata
   header now renders the poster/backdrop as a centered 16:9 box (capped to the
   viewport height) instead of cropping the art into a thin strip or filling the
   whole landscape screen; the rating badge stays anchored inside the box. Cast
@@ -1481,36 +1481,36 @@ Major release — Android TV / Fire TV playback rebuilt on the in-app player, an
 
 ## 0.1.5
 
-- **HDR10+ detected from the real bitstream (Android)** — Media3's format info
+- **HDR10+ detected from the real bitstream (Android)** - Media3's format info
   can't tell HDR10+ from HDR10 (both use the same PQ transfer function), so the
   player now probes the video's first samples with `MediaExtractor` on a
   background thread, scanning for the ST 2094-40 SEI (ITU-T T.35 user data,
   country `0xB5` / provider `0x003C`, AVCC + Annex-B NAL framing). When found,
   the top-bar chip upgrades to the amber **HDR10+** label. Verified on-device:
   the HDR10+ "lake" file shows HDR10+, while SDR content is never labeled HDR.
-- **PNG HDR badge overlay removed** — the transient bottom-right Dolby Vision /
+- **PNG HDR badge overlay removed** - the transient bottom-right Dolby Vision /
   HDR10 / HDR10+ / HLG logo that popped in and faded out is gone; the live
   top-bar chip is now the single HDR indicator (it already showed the same
   information).
-- **Safe filename-hint parsing** — the hint detector is token-aware, so a full
+- **Safe filename-hint parsing** - the hint detector is token-aware, so a full
   title like `Adventure.mkv` can never be misread as Dolby Vision (the old
   substring check tripped on any name containing "dv"); hints are still never
   wired from titles, so labels reflect only the actual content.
 
 ## 0.1.4
 
-- **Hardware video decode everywhere (fixes washed-out HDR + 4K HEVC stutter)** —
+- **Hardware video decode everywhere (fixes washed-out HDR + 4K HEVC stutter)** -
   the app previously built the player with NextRenderersFactory, which inserted
   `FfmpegVideoRenderer` *before* the MediaCodec renderer and claimed
   `video/hevc`, so every HEVC file decoded in FFmpeg **software**: 4K60
   stuttered and colors were washed out (the FFmpeg GL output carries no HDR
   dataspace). A new `DreamRenderersFactory` overrides only the audio renderers
   (appending the FFmpeg audio renderer for DTS/TrueHD/FLAC) and leaves video on
-  the hardware decoder — vendor-agnostic (`c2.qti` / `c2.mtk` / `c2.samsung`).
+  the hardware decoder - vendor-agnostic (`c2.qti` / `c2.mtk` / `c2.samsung`).
   Verified on a Redmi Note 10: Sony 4K60 decoded by `OMX.qcom.video.decoder.hevc`
   with the same `BT2020_ITU_PQ` + `hdr metadata types=1` surface profile as
   Just Player.
-- **Dolby Vision Profile 5 rejection on DV-less devices** — P5 (IPTPQc2 color)
+- **Dolby Vision Profile 5 rejection on DV-less devices** - P5 (IPTPQc2 color)
   renders pink/green without a `video/dolby-vision` decoder, so the player now
   stops it with a friendly "This device cannot decode Dolby Vision Profile 5"
   error instead of garbage frames. P7/P8 keep playing as HDR10 via the HEVC
@@ -1518,30 +1518,30 @@ Major release — Android TV / Fire TV playback rebuilt on the in-app player, an
 
 ## 0.1.3
 
-- **Brighter HDR (Android EDR ramp)** — OnePlus/OxygenOS only engages the
+- **Brighter HDR (Android EDR ramp)** - OnePlus/OxygenOS only engages the
   display's HDR mode when the window asks for headroom. The player now sets
   `COLOR_MODE_HDR` + `setDesiredHdrHeadroom(5.0)` on the activity window and
   the video surface's consumer-side dataspace via `SurfaceControl`, so PQ/HDR
-  content no longer clips bright highlights flat to white — verified on-device
+  content no longer clips bright highlights flat to white - verified on-device
   with the HDR10+ "lake" clip (`current hdr/sdr ratio > 1.0`, device
   composition instead of a client-composition fallback).
-- **Resume survives device lock/unlock (Android)** — locking the phone
+- **Resume survives device lock/unlock (Android)** - locking the phone
   destroys the video surface; the player now pauses on background (saving the
   position) and, on resume, checks the native player's live state via a new
   `getState` channel method: if the media was lost it reopens
   at the saved position instead of showing a dead screen.
-- **Stability fixes** — relaunching from the launcher after unlock no longer
+- **Stability fixes** - relaunching from the launcher after unlock no longer
   pushes an empty player screen; TMDB details no longer overflows in landscape
   (regression-tested); the Jellyfin server list no longer overflows at short
   viewports.
-- **Play-next removed** — the player and details screens no longer chain
+- **Play-next removed** - the player and details screens no longer chain
   sibling videos as a playlist; each video plays on its own (fixes a build
   failure and simplifies the transport state).
-- **Settings footer** — "Made with ❤️ by Mangesh Ghodke".
+- **Settings footer** - "Made with ❤️ by Mangesh Ghodke".
 
 ## 0.1.2
 
-- **TMDB metadata works in release builds** — the release workflow now bakes the
+- **TMDB metadata works in release builds** - the release workflow now bakes the
   TMDB API key (from a masked GitHub secret, never committed) into all Android
   APKs/AAB, so movie/TV metadata resolves out of the box. The
   misleading "add an API key in Settings → Metadata" prompt (that setting no
@@ -1549,44 +1549,44 @@ Major release — Android TV / Fire TV playback rebuilt on the in-app player, an
 
 ## 0.1.1
 
-- **TV series season/episode detection** — the TMDB details screen now shows the
+- **TV series season/episode detection** - the TMDB details screen now shows the
   detected season and episode (`Season 2 · Episode 4`) with an `S02E04` chip for
   episode files, and Continue-watching cards label them too
   (`S02E04 · Continue from m:ss`).
-- **File browser opens details first** — tapping a video in the in-app file
+- **File browser opens details first** - tapping a video in the in-app file
   browser (Internal storage / bookmarked folders) now opens the TMDB details
   screen with the folder as its playlist, so Play keeps play-next, instead of
   jumping straight into the player.
-- **App icon in the repository** — `app_icon.png` at the repo root for use as the GitHub social preview and other branding.
+- **App icon in the repository** - `app_icon.png` at the repo root for use as the GitHub social preview and other branding.
 
 ## 0.1.0
 
-First major release — all of the 0.0.x line's fixes plus the metadata and
+First major release - all of the 0.0.x line's fixes plus the metadata and
 browsing features below.
 
-- **TMDB movie metadata + details screen** — tapping any video (Continue-watching
+- **TMDB movie metadata + details screen** - tapping any video (Continue-watching
   cards, WebDAV/Jellyfin/file-browser listings) now opens a details screen with
   poster/backdrop art, the real title, year, synopsis, star rating, genres,
   runtime, and cast. The big **Play/Resume** button labels itself from the saved
-  playhead and is always enabled — a slow or failed lookup shows the real error
+  playhead and is always enabled - a slow or failed lookup shows the real error
   and never blocks playback. "Fix match" re-pins a wrong auto-match via a TMDB
   search and "Remove info" clears it; metadata is cached on-device. The API key
   is build-time only, supplied via `.env` (see below), and is never shown in the
   app or committed.
-- **Aspect ratio / fit-mode picker** — the player's aspect button offers five
+- **Aspect ratio / fit-mode picker** - the player's aspect button offers five
   modes (Fit, Crop to screen, Stretch to screen, 16:9, 4:3); the choice applies
   to the native video surface and persists per video, re-applied on play-next.
-- **Jellyfin LAN discovery fix** — modern Jellyfin (10.11+) removed its mDNS/Bonjour
+- **Jellyfin LAN discovery fix** - modern Jellyfin (10.11+) removed its mDNS/Bonjour
   responder entirely, so discovery now also runs the proprietary **UDP-7359
   broadcast probe** (native `MulticastLockManager.kt`), with the legacy mDNS scan kept for Emby.
   The probe holds a Wi-Fi MulticastLock so broadcast frames are not dropped.
-- **Build-time API keys via `.env`** — keys are now supplied with
+- **Build-time API keys via `.env`** - keys are now supplied with
   `--dart-define-from-file=.env` (gitignored; `.env.example` committed with
   placeholders) instead of a tracked file, so no secret ever lands in the repo.
 
 ## 0.0.8
 
-- **Jellyfin / Emby browsing + playback** — the home **+** menu's
+- **Jellyfin / Emby browsing + playback** - the home **+** menu's
   new **Jellyfin** entry opens a server list (saved + auto-discovered via mDNS on
   `_jellyfin._tcp` / `_emby._tcp`), libraries → folders → play with direct-play
   streaming (token as `api_key` query param). Add/edit/delete servers with an inline connection test and
@@ -1596,23 +1596,23 @@ browsing features below.
   stream URL from the stable `jellyfin:<host>/<item>` resume key so rotation of
   the session token between launches never breaks resume playback. Added the
   `multicast_dns` + `CHANGE_WIFI_MULTICAST_STATE` permissions for LAN discovery.
-- **Source badges on Continue watching cards** — every card shows where the video
+- **Source badges on Continue watching cards** - every card shows where the video
   plays from: WebDAV, CX SMB, Files/SMB, Files, or Network (colored badge,
   bottom-left).
-- **Stable resume keys for network sources** — CX Explorer SMB handoffs resume by
+- **Stable resume keys for network sources** - CX Explorer SMB handoffs resume by
   their stable path (`cx:` key), so Continue watching keeps working even when the
   source URL rotates between sessions.
-- **WebDAV browsing + playback** — add/edit/delete servers with an
+- **WebDAV browsing + playback** - add/edit/delete servers with an
   inline connection test, browse folders and stream videos straight into the
   player; credentials stored encrypted (Android Keystore),
   per-server self-signed HTTPS opt-in (default off), friendly plain-language
   errors.
-- **Card redesign** — home cards show the gradient/play-icon placeholder plus
+- **Card redesign** - home cards show the gradient/play-icon placeholder plus
   Continue-watching progress and source info (thumbnail extraction removed).
 
 ## 0.0.7
 
-- **In-app SMB home entry hidden on all platforms** — NAS playback now goes through
+- **In-app SMB home entry hidden on all platforms** - NAS playback now goes through
   CX Explorer → "Open with", which covers local + NAS workflows. The SMB code
   stays in the tree as a rebuild blueprint.
 - Added an SMB/NAS playback tutorial with screenshots and a video walkthrough.
@@ -1628,9 +1628,9 @@ browsing features below.
 - **Android playback via ExoPlayer/Media3** in a native `SurfaceView` PlatformView
   with real Dolby Vision output (`c2.qti.dv.decoder`, verified 4K@60 with zero
   dropped frames) and live HDR/codec/resolution chips.
-- **Subtitles** — embedded + sideloaded (SRT, ASS, WebVTT, TTML, SAMI, MicroDVD,
+- **Subtitles** - embedded + sideloaded (SRT, ASS, WebVTT, TTML, SAMI, MicroDVD,
   MPL2, SubViewer) auto-paired from the video's folder, with a full track picker.
-- **Audio track selection** — full track names and channels (e.g. DTS-HD MA 5.1);
+- **Audio track selection** - full track names and channels (e.g. DTS-HD MA 5.1);
   FLAC and E-AC3 work around buggy platform decoders via the bundled FFmpeg
   renderer.
 - **In-app file browser** (Android storage), **"Open with"**

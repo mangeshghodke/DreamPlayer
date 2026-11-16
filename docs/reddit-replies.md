@@ -1,4 +1,4 @@
-# Reddit comment replies — prepared answers
+# Reddit comment replies - prepared answers
 
 Short by design. The most common mistake with these is writing a defence of the
 app; what actually works is conceding the point, then giving the *one* concrete
@@ -15,14 +15,14 @@ salesy phrasing, and re-state that I'm the developer without belabouring it.
 The most likely question. Infuse is genuinely excellent, so lead with that.
 
 ```
-Infuse is a great app and I mean that — it's the better choice if you want
+Infuse is a great app and I mean that - it's the better choice if you want
 one app across Apple TV and Mac, Chromecast, and iCloud sync of your library.
 
 The reason I built this separately: Infuse locks Dolby Vision and Dolby/DTS
 audio behind Pro from the very first play. I wanted to be able to test Dolby
 Vision on my own rips before deciding anything, so the 7-day trial here
-actually unlocks it. Everything else — playing your files, subtitles, all the
-NAS types — works without paying either way.
+actually unlocks it. Everything else - playing your files, subtitles, all the
+NAS types - works without paying either way.
 
 Also worth noting it's GPLv3 and runs on Android too, but that's secondary.
 ```
@@ -31,7 +31,7 @@ Short version, if the thread is moving fast:
 
 ```
 Fair question. Infuse is better if you want the whole Apple ecosystem covered.
-The difference is the trial — Infuse gates Dolby Vision and DTS behind Pro
+The difference is the trial - Infuse gates Dolby Vision and DTS behind Pro
 permanently, here the 7-day trial actually unlocks them so you can test on
 your own files first. Half the lifetime price too (₹4,999 vs $99.99).
 ```
@@ -44,13 +44,13 @@ Second most common, and it deserves a real technical answer.
 
 ```
 It's native, not a wrapper. The iOS engine is AVPlayer plus an FFmpeg demux
-layer for the containers AVPlayer won't open natively — MKV, TS, AVI, WebM —
+layer for the containers AVPlayer won't open natively - MKV, TS, AVI, WebM -
 which is why an .mkv doesn't need remuxing first. The Dolby Vision / HDR
 passthrough runs through the real system path rather than being tone-mapped to
 SDR, which is the thing most players get wrong on iOS.
 
 The Android side is ExoPlayer/Media3 in a native platform view. No Flutter
-textures anywhere, deliberately — Flutter textures have no HDR path on any
+textures anywhere, deliberately - Flutter textures have no HDR path on any
 platform, so video written through one gets flattened to SDR before the panel
 ever sees it. That was the main thing I had to get right.
 ```
@@ -58,7 +58,7 @@ ever sees it. That was the main thing I had to get right.
 If they follow up with "so is the source available":
 
 ```
-Yeah, GPLv3 — the notice file lists every dependency and its licence. The
+Yeah, GPLv3 - the notice file lists every dependency and its licence. The
 Android source is all of it; nothing is closed off.
 ```
 
@@ -66,14 +66,14 @@ Android source is all of it; nothing is closed off.
 
 ## "Another app shilling itself on r/iosapps"
 
-Hostile framing. Don't engage with the accusation — just answer the implicit
+Hostile framing. Don't engage with the accusation - just answer the implicit
 question.
 
 ```
 Fair, this is a self-promo post and I'm the developer, so I get why that's
 annoying. Happy for it to be removed if the mods disagree.
 
-Genuinely curious about the category though — what's the thing you use
+Genuinely curious about the category though - what's the thing you use
 Infuse/VLC for that would have made you close this one out? I'd rather fix
 it than argue about it.
 ```
@@ -88,7 +88,7 @@ feedback, and mods read it as good faith.
 The one to get right. Never deny it, never over-explain.
 
 ```
-That's a real bug in my post, thanks for flagging it — Dolby Vision / HDR is
+That's a real bug in my post, thanks for flagging it - Dolby Vision / HDR is
 part of the paid tier after the 7-day trial, not free. I've fixed the wording.
 
 To be clear about what IS free permanently: browsing everything, playback of
@@ -109,7 +109,7 @@ careful marketing.
 They found the real weakness. Concede it.
 
 ```
-Honestly nPlayer is great value — $4.99 once with no subscription is hard to
+Honestly nPlayer is great value - $4.99 once with no subscription is hard to
 argue against.
 
 The differences: nPlayer doesn't do Dolby Vision, DreamPlayer is GPLv3, and it
@@ -127,7 +127,7 @@ These are where the app's reputation gets built. Answer them properly.
 ```
 It's the system path, not a re-implementation. AVPlayer plus an FFmpeg demux
 layer for the containers it won't open natively. The key bit is the file has to
-reach AVPlayer intact — no re-encode, no transcode — or the RPU metadata is
+reach AVPlayer intact - no re-encode, no transcode - or the RPU metadata is
 lost and it falls back to plain HDR10. MKV in particular usually gets demuxed
 straight to the player.
 ```
@@ -142,7 +142,7 @@ the device.
 **"Why no Plex?"**
 ```
 Good question and I know it's a gap. WebDAV, FTP/SFTP, SMB, Jellyfin and DLNA
-are all there, and a lot of Plex setups expose one of those — but yeah, native
+are all there, and a lot of Plex setups expose one of those - but yeah, native
 Plex support is missing and it's on the list.
 ```
 

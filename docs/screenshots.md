@@ -1,6 +1,6 @@
 # Screenshots
 
-Each thumbnail is linked — click any image to open it full size.
+Each thumbnail is linked - click any image to open it full size.
 
 ### iPad
 
@@ -9,12 +9,12 @@ Each thumbnail is linked — click any image to open it full size.
   <tr>
     <td align="center" valign="bottom">
       <a href="screenshots/ipad/library-landscape.jpg">
-        <img src="screenshots/ipad/library-landscape.jpg" width="720" alt="DreamPlayer on iPad in landscape — poster library grid with per-title artwork and source badges">
+        <img src="screenshots/ipad/library-landscape.jpg" width="720" alt="DreamPlayer on iPad in landscape - poster library grid with per-title artwork and source badges">
       </a>
     </td>
   </tr>
   <tr>
-    <td align="center"><sub>Library in landscape — poster grid, per-title artwork, year · type · source badges</sub></td>
+    <td align="center"><sub>Library in landscape - poster grid, per-title artwork, year · type · source badges</sub></td>
   </tr>
 </table>
 </div>
@@ -29,8 +29,8 @@ Each thumbnail is linked — click any image to open it full size.
   </tr>
   <tr>
     <td align="center" valign="top"><sub>Library</sub></td>
-    <td align="center" valign="top"><sub>Details — backdrop, cast, stills, trailers</sub></td>
-    <td align="center" valign="top"><sub>Player — <b>Dolby Vision P7 · TrueHD 7.1 · 4K</b></sub></td>
+    <td align="center" valign="top"><sub>Details - backdrop, cast, stills, trailers</sub></td>
+    <td align="center" valign="top"><sub>Player - <b>Dolby Vision P7 · TrueHD 7.1 · 4K</b></sub></td>
     <td align="center" valign="top"><sub>Settings</sub></td>
   </tr>
 </table>
@@ -47,9 +47,9 @@ Each thumbnail is linked — click any image to open it full size.
     <td align="center" valign="bottom"><a href="screenshots/android/settings.jpg"><img src="screenshots/android/settings.jpg" width="230" alt="Android settings screen with support and playback engine options"></a></td>
   </tr>
   <tr>
-    <td align="center" valign="top"><sub>Library — per-source <b>SMB / NAS</b> badges</sub></td>
-    <td align="center" valign="top"><sub>Details — <b>Download to device</b></sub></td>
-    <td align="center" valign="top"><sub>Player — <b>Dolby Vision P7 · TrueHD 7.1 · Spatial</b></sub></td>
+    <td align="center" valign="top"><sub>Library - per-source <b>SMB / NAS</b> badges</sub></td>
+    <td align="center" valign="top"><sub>Details - <b>Download to device</b></sub></td>
+    <td align="center" valign="top"><sub>Player - <b>Dolby Vision P7 · TrueHD 7.1 · Spatial</b></sub></td>
     <td align="center" valign="top"><sub>Settings</sub></td>
   </tr>
 </table>

@@ -10,6 +10,11 @@ A video player app supporting:
 - **Dolby Vision** where the display supports it
 - **FFmpeg-based** decoding engine
 
+## Writing conventions
+
+- Use **single hyphens** (`-`), **not em-dashes** (`—`) in prose. Write `Wi-Fi upload server` instead of `Wi-Fi upload server — ...`, `10-foot UI` instead of `10-foot UI — ...`, etc. Em-dashes are reserved for code/API names only where they already exist.
+- Keep sentences short and layman-friendly; avoid parenthetical em-dash clauses.
+
 ## Current status
 
 - **Episode rows rebuilt (issue #38, 0.5.1+25, user-verified)**: one shared

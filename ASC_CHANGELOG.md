@@ -1,4 +1,4 @@
-# App Store Connect — "What's New"
+# App Store Connect - "What's New"
 
 Paste-ready release notes for the **What's New** field in App Store Connect
 (App Store Connect → your app → the version → *What’s New*).
@@ -8,7 +8,7 @@ Paste-ready release notes for the **What's New** field in App Store Connect
   Review guidelines expect release notes a user can act on.
 - **Hard limit: 4000 characters.** Each block below is well under that; the
   character count is noted per version so you can check after editing.
-- Anything you are unsure of shipping should be left out — you cannot walk a
+- Anything you are unsure of shipping should be left out - you cannot walk a
   note back once the build is live.
 
 Character counts are kept in a table here rather than inside a version block, so
@@ -23,8 +23,8 @@ that copying a block for App Store Connect can never pick up a stray note:
 | 0.5.2 | 51 | 1549 |
 | 0.5.1 | 36 | 3833 |
 
-A count is the length of the text you would paste — the block from its "New:"
-or "Fixed:" line down to its last character, including the final newline — so
+A count is the length of the text you would paste - the block from its "New:"
+or "Fixed:" line down to its last character, including the final newline - so
 it can be reproduced with a plain character count after any edit.
 
 ---
@@ -32,17 +32,17 @@ it can be reproduced with a plain character count after any edit.
 ## 0.5.7 (build 7)
 
 New:
-• Files deleted on your network storage are now cleaned up automatically: they disappear from Continue Watching and from any bookmarked folder on the home screen. Nothing is ever removed unless the server itself confirms the file is gone — if the server is just offline, everything stays.
+• Files deleted on your network storage are now cleaned up automatically: they disappear from Continue Watching and from any bookmarked folder on the home screen. Nothing is ever removed unless the server itself confirms the file is gone - if the server is just offline, everything stays.
 
 Fixed:
-• Using a swipe gesture (brightness/volume) no longer greys out the screen or stops the video — the swipe indicator crashed the player on the first swipe.
+• Using a swipe gesture (brightness/volume) no longer greys out the screen or stops the video - the swipe indicator crashed the player on the first swipe.
 
 Changed:
 • The default app icon is now the logo only; the logo with the "DreamPlayer" text is still available as a second choice in Settings.
-• The brightness/volume swipe pill now matches the app's look — a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
+• The brightness/volume swipe pill now matches the app's look - a semi-transparent pill on the side opposite your swipe, sized to the video so it never covers what you're watching.
 • Swiping up on brightness no longer shows a warning; only pushing volume past 100% flashes the short battery warning.
-• Unlocking the iPad no longer shows a stretched screen for a moment: you now see a brief soft reload — your app icon centred on the same colour as the selected tab at the bottom (it follows the accent colour you picked in Settings) — then the UI comes back the right size and playback continues where you left off.
-• Ready for the foldable iPhone: the app adapts to the folded cover screen, the large open inner screen, and Split View — no stretched or overflowing layout at any size, and the inner display runs at its full 120 Hz refresh rate.
+• Unlocking the iPad no longer shows a stretched screen for a moment: you now see a brief soft reload - your app icon centred on the same colour as the selected tab at the bottom (it follows the accent colour you picked in Settings) - then the UI comes back the right size and playback continues where you left off.
+• Ready for the foldable iPhone: the app adapts to the folded cover screen, the large open inner screen, and Split View - no stretched or overflowing layout at any size, and the inner display runs at its full 120 Hz refresh rate.
 
 ---
 
@@ -50,7 +50,7 @@ Changed:
 
 New:
 • A Shortcuts app action, "Play URL in DreamPlayer": run it from the Shortcuts
-  app — or share a video link to it — and the address opens straight into
+  app - or share a video link to it - and the address opens straight into
   playback.
 • Play .strm shortcut files and M3U/M3U8 playlists. A .strm file that holds a
   video link is followed automatically, and a playlist plays its entries in
@@ -73,7 +73,7 @@ New:
   playback speed and the current position while you watch.
 • If the app froze or closed on its own, the "App crashed?" note in Settings
   now opens a report form right in the app: tick the debug log files to
-  attach, write what happened, and tap Submit — no email app needed.
+  attach, write what happened, and tap Submit - no email app needed.
 • Optional video upscaling (Settings → Player → Video upscaling) for SD,
   720p and 1080p videos on iOS 26+ Apple Silicon devices, using Apple's
   MetalFX to upscale to the display in real time. 4K and HDR/Dolby Vision
@@ -108,7 +108,7 @@ New:
   playback-speed changes; switching back is always free.
 • List or Grid in the network browsers. The three-dot menu at the top right of
   the SMB, WebDAV, FTP, DLNA and Jellyfin browsers now has a View entry: List
-  for the familiar rows, Grid for tiles with artwork — folders, films and
+  for the familiar rows, Grid for tiles with artwork - folders, films and
   episode stills. The choice applies to every network browser at once, takes
   effect straight away and is remembered.
 • A second optional catalogue for titles the main one does not carry. It needs
@@ -126,8 +126,8 @@ New:
 Fixed:
 • A subscription or lifetime unlock no longer has to be restored by hand
   after an app update or a reinstall. The app now picks the purchase up on
-  its own — the subscription screen steps out of the way by itself if it is
-  open — and the Restore button no longer reports "No previous purchase
+  its own - the subscription screen steps out of the way by itself if it is
+  open - and the Restore button no longer reports "No previous purchase
   found" for a purchase that is still on its way.
 • The Restore button now reports the store's own answer. It could say
   "Purchase restored!" based on what the app already knew in memory, even
@@ -135,7 +135,7 @@ Fixed:
   no longer treated as "no purchase" or as success.
 • Signing out of Media & Purchases now ends premium access. A purchase
   belongs to the Apple Account, so after signing in at the prompt an empty
-  purchase history now ends the entitlement — premium features stop and the
+  purchase history now ends the entitlement - premium features stop and the
   subscription screen returns.
 • The subscription screen no longer flashes up in front of someone who has
   already paid, and after an update the unlock button no longer appears at
@@ -162,8 +162,8 @@ Fixed:
 
 New:
 • Search your library from the Home screen. A search button matches shows,
-  seasons, episodes and films by title, file name or episode code as you type —
-  accents and capitals do not matter — and works without a connection. Every
+  seasons, episodes and films by title, file name or episode code as you type -
+  accents and capitals do not matter - and works without a connection. Every
   result opens the same page as the matching card on the Home screen.
 • Keyboard shortcuts when a hardware keyboard is attached: K or Space to play
   and pause, J and L to skip back and forward ten seconds, F for fullscreen,
@@ -180,7 +180,7 @@ New:
 • The subtitle font list now includes the full Google Fonts catalogue, with
   search and every name previewed in its own typeface, plus nine families that
   are built into the app and work with no connection at all. A chosen family
-  applies to the video itself, not only to the preview — including while
+  applies to the video itself, not only to the preview - including while
   watching something from a shared folder.
 
 Fixed:
@@ -225,15 +225,15 @@ Fixed:
 ## 0.5.1 (build 36)
 
 
-Chapter navigation, made visible. Files that carry chapter markers — anime
-openings, endings and previews are the common case — now show a tick on the
+Chapter navigation, made visible. Files that carry chapter markers - anime
+openings, endings and previews are the common case - now show a tick on the
 seekbar at every boundary, so you can see where they are instead of hunting.
 
 New:
 • Previous/next chapter buttons either side of play. The previous button
   restarts the chapter you are in when you are more than three seconds into it
   and steps back when you are not, so pressing it twice walks back rather than
-  sticking — the same as a CD player.
+  sticking - the same as a CD player.
 • Double-tapping the seekbar jumps to the next chapter.
 • Each jump names the chapter it landed on ("Next chapter · Opening").
 
@@ -251,29 +251,29 @@ browse its shares and folders, pin a folder to your home screen, and play
 straight from the browser.
 
 Also new:
-• LAN server discovery — DreamPlayer sweeps your network for reachable SMB
+• LAN server discovery - DreamPlayer sweeps your network for reachable SMB
   servers and shows each one's SMB version, so you can tell what you are
   looking at before connecting.
-• Reachability dots — a saved server shows green when it is online and red when
+• Reachability dots - a saved server shows green when it is online and red when
   it is not. Previously the indicator was always red on iPhone and iPad.
-• Remembered share names — a share with an unusual name can be added by hand once
+• Remembered share names - a share with an unusual name can be added by hand once
   and will still be found the next time you open the server.
-• Cleaner folder listings — Samba's "print$" printer share and the "." and ".."
+• Cleaner folder listings - Samba's "print$" printer share and the "." and ".."
   parent-directory entries no longer clutter the file list.
-• Server named for you — add a server without typing a name and it is listed as
+• Server named for you - add a server without typing a name and it is listed as
   its IP address.
 
 Artwork, everywhere:
-• One poster per film — change a poster or backdrop once and it now shows
+• One poster per film - change a poster or backdrop once and it now shows
   everywhere that title appears: the SMB page, the home card and Continue
   Watching. For series, a show or season pick reaches its episodes, while
   different seasons can still have their own artwork.
-• Full artwork on iPad — a title's header image now shows the whole picture in
+• Full artwork on iPad - a title's header image now shows the whole picture in
   portrait on any screen size, rather than a narrow cropped strip on a tablet.
 
 Fixed:
 • Opening a title's details screen could leave the app unresponsive for up to a
-  minute — the loading spinner stopped dead and touches did nothing — before the
+  minute - the loading spinner stopped dead and touches did nothing - before the
   page finally appeared. It was worst on a large library, and most likely when
   opening a title you had not opened before. Playback itself was never affected.
 • 4K films were sometimes labelled "2K". Many 2160p releases are trimmed to a
