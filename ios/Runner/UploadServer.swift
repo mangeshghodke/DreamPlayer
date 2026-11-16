@@ -142,8 +142,11 @@ final class UploadServer: FlutterStreamHandler {
         authUser = username
         authPass = password
 
-        // Try the requested port, then +1..+9. If all are busy, report failure
-        // so the user can pick a different port in Settings.
+        // Try the requested port, then +1..+9. A bind conflict is NOT thrown
+        // by the NWListener initializer - it arrives asynchronously as a
+        // .failed state - so wait briefly for .ready/.failed per candidate and
+        // only accept the port that actually came up. Without this the server
+        // would report ok:true on a busy port and then silently never serve.
         var listener: NWListener? = nil
         var boundPort = -1
         for offset in 0..<10 {
@@ -153,21 +156,41 @@ final class UploadServer: FlutterStreamHandler {
             params.allowLocalEndpointReuse = true
             do {
                 let l = try NWListener(using: params, on: port)
-                l.stateUpdateHandler = { [weak self] state in
-                    guard let self else { return }
-                    if case .failed(let error) = state {
-                        print("[UploadServer] listener on port \(candidate) failed: \(error)")
+                let ready = DispatchSemaphore(value: 0)
+                var outcome: NWListener.State?
+                l.stateUpdateHandler = { state in
+                    switch state {
+                    case .ready, .failed, .cancelled:
+                        outcome = state
+                        ready.signal()
+                    default:
+                        break
                     }
                 }
                 l.newConnectionHandler = { [weak self] conn in
                     self?.serve(conn)
                 }
                 l.start(queue: .global())
-                listener = l
-                boundPort = candidate
-                break
+                let waitResult = ready.wait(timeout: .now() + 1)
+                if waitResult == .timedOut {
+                    l.cancel()
+                    continue
+                }
+                if case .some(.ready) = outcome {
+                    // Accepted: swap in the logging-only handler for the
+                    // lifetime of the listener.
+                    l.stateUpdateHandler = { state in
+                        if case .failed(let error) = state {
+                            print("[UploadServer] listener on port \(candidate) failed: \(error)")
+                        }
+                    }
+                    listener = l
+                    boundPort = candidate
+                    break
+                }
+                l.cancel()
             } catch {
-                // port busy - try the next
+                // invalid candidate - try the next
             }
         }
         guard let l = listener, boundPort >= 0 else {
@@ -195,6 +218,17 @@ final class UploadServer: FlutterStreamHandler {
         listener?.cancel()
         listener = nil
         port = -1
+        // Tear down in-flight connections too, so an upload being streamed
+        // when the user taps Stop does not linger on the 300 s read timeout.
+        connectionsLock.lock()
+        let connections = activeConnections.allObjects
+        activeConnections.removeAllObjects()
+        connectionsLock.unlock()
+        for object in connections {
+            if let connection = object as? NWConnection {
+                connection.cancel()
+            }
+        }
         emit("stopped")
     }
 
@@ -403,6 +437,10 @@ final class UploadServer: FlutterStreamHandler {
             let semaphore = DispatchSemaphore(value: 0)
 
             func readChunk() {
+                // remaining can be 0 when the whole body arrived with the
+                // header (small files); NWConnection requires maximumLength
+                // >= minimumIncompleteLength (1), so never call receive with 0.
+                if remaining <= 0 { semaphore.signal(); return }
                 connection.receive(minimumIncompleteLength: 1, maximumLength: min(self.ioChunk, remaining),
                                    completion: { data, context, isComplete, error in
                     if let data = data, !data.isEmpty {
@@ -443,7 +481,8 @@ final class UploadServer: FlutterStreamHandler {
         receivedBytes += length
         emit("progress", ["id": id, "received": written])
         emit("done", ["id": id, "received": written, "path": file.path])
-        let body = "{\"ok\":true,\"saved\":\"\(finalName)\",\"size\":\(length)}".data(using: .utf8) ?? Data()
+        let body = (try? JSONSerialization.data(withJSONObject: ["ok": true, "saved": finalName, "size": length] as [String: Any]))
+            ?? Data("{\"ok\":true}".utf8)
         respond(connection: connection, code: 200, contentType: "application/json", body: body)
     }
 

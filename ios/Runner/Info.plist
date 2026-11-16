@@ -260,7 +260,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>DreamPlayer connects to your local network to discover DLNA/UPnP servers and play videos from WebDAV, Jellyfin, and Files-app bookmarked folders (including SMB shares you connect in the Files app).</string>
+	<string>DreamPlayer connects to your local network to discover DLNA/UPnP servers, play videos from WebDAV, Jellyfin, and Files-app bookmarked folders (including SMB shares you connect in the Files app), and to receive files from other devices over WiFi file transfer.</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
