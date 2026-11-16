@@ -1110,7 +1110,22 @@ class FileBrowser(private val activity: MainActivity) {
         Thread {
             val out = mutableListOf<Map<String, Any?>>()
             try {
-                walkTree(treeUri, android.provider.DocumentsContract.getTreeDocumentId(treeUri), "", out, 2000)
+                val rootDocId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
+                // The tree root IS the picked folder, and walkTree emits the
+                // relative path - so its name must be prefixed, otherwise the
+                // PC page renders the folder's files as a flat list with no
+                // folder entry (the reported bug).
+                var rootName = "Folder"
+                try {
+                    activity.contentResolver.query(
+                        android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, rootDocId),
+                        arrayOf(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                        null, null, null,
+                    )?.use { c ->
+                        if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() }?.let { rootName = it }
+                    }
+                } catch (_: Exception) {}
+                walkTree(treeUri, rootDocId, "$rootName/", out, 2000)
             } catch (_: Exception) {}
             mainHandler.post { result.success(out) }
         }.start()

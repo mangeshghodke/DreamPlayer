@@ -853,10 +853,12 @@ private const val MAX_NAME_LEN = 120
   }).catch(function () {});
 
   // Load the device's shared files (picked in the app to send TO this PC).
-  // Poll every 3s so newly added files appear without a reload.
+  // Poll every 3s so newly added files appear without a reload. The list is
+  // ONLY rebuilt when the file set actually changed - a naive re-render on
+  // every tick collapsed any folder the user had just opened.
   // A picked FOLDER arrives as paths ("Photos/a.jpg", "Photos/Sub/b.jpg"),
   // so files render as an expandable folder tree - the folder is ONE entry
-  // with the files inside.
+  // with the files inside (expanded by default).
   function fmtBytes(b) {
     if (!b) return '';
     var u = ['B','KB','MB','GB','TB'], i = 0;
@@ -923,9 +925,12 @@ private const val MAX_NAME_LEN = 120
     nm.textContent = name + ' (' + countFiles(node) + ' file' + (countFiles(node) === 1 ? '' : 's') + ')';
     head.appendChild(arw); head.appendChild(nm);
     var body = document.createElement('ul');
-    body.style.display = 'none';
+    // Expanded by default: the point of sending a folder is to see what is
+    // inside it. The arrow rotates when collapsed.
+    body.style.display = 'block';
     body.style.paddingLeft = '16px';
     body.style.marginTop = '8px';
+    arw.style.transform = 'rotate(90deg)';
     renderTree(node, body);
     head.addEventListener('click', function () {
       var open = body.style.display === 'none';
@@ -942,8 +947,12 @@ private const val MAX_NAME_LEN = 120
     });
     node.files.forEach(function (f) { ul.appendChild(fileLi(f)); });
   }
+  var lastSharedSig = null;
   function loadDeviceFiles() {
     fetch('$PATH_PREFIX/files', {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (files) {
+      var sig = (files || []).map(function (f) { return f.name + ':' + f.size; }).join('|');
+      if (sig === lastSharedSig) return;
+      lastSharedSig = sig;
       deviceFilesList.innerHTML = '';
       if (files && files.length) {
         deviceFilesCard.style.display = 'block';
@@ -955,6 +964,7 @@ private const val MAX_NAME_LEN = 120
   }
   loadDeviceFiles();
   setInterval(loadDeviceFiles, 3000);
+
 
 
   function prevent(e) { e.preventDefault(); e.stopPropagation(); }

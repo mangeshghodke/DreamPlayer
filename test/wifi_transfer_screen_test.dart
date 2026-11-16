@@ -195,6 +195,13 @@ void main() {
       expect(swift, contains('buildTree'));
       expect(swift, contains('countFiles'));
       expect(swift, contains('deviceFilesCard'));
+      // Expanded by default - sending a folder means seeing its contents.
+      expect(kotlin.contains("body.style.display = 'block'"), isTrue);
+      expect(swift.contains("body.style.display = 'block'"), isTrue);
+      // The 3s poll must not rebuild an unchanged list, or the folder the
+      // user just opened collapses under them.
+      expect(kotlin.contains('lastSharedSig'), isTrue);
+      expect(swift.contains('lastSharedSig'), isTrue);
     });
 
     test('both servers embed credentials in the download URL', () {
@@ -248,6 +255,16 @@ void main() {
       expect(ktBrowser, contains('EXTRA_ALLOW_MULTIPLE'));
       expect(ktBrowser, contains('REQ_PICK_FOLDER_CONTENTS'));
       expect(ktBrowser, contains('MIME_TYPE_DIR'));
+      // The picked folder's own name prefixes every path, or the PC page
+      // renders the folder's files as a flat list with no folder entry.
+      expect(ktBrowser.contains('rootName'), isTrue);
+      expect(ktBrowser.contains(r'"$rootName/"'), isTrue);
+    });
+
+    test('ios prefixes the picked folder name on every file', () {
+      // Same contract as Android: "Folder/relative/path" names.
+      expect(swiftBrowser.contains('let folderName = url.lastPathComponent'), isTrue);
+      expect(swiftBrowser.contains('"name": "\\(folderName)/\\(rel)"'), isTrue);
     });
 
     test('ios multi-selects both files and a folder', () {
