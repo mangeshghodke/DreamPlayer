@@ -414,8 +414,8 @@ void main() {
       // .any, not .images: camera VIDEOS (.mov/.mp4) must be visible too.
       // Photos come back as .heic - the original registered type is kept,
       // JPEG is only the fallback for items that cannot export as a file.
-      expect(fb, contains('config.filter = .any'));
-      expect(fb.contains('config.filter = .images'), isFalse);
+      expect(fb, contains("config.filter = .any(of: [.images, .videos])"));
+      expect(fb.contains("config.filter = .images\n"), isFalse);
       expect(fb, contains('registeredTypeIdentifiers.first'));
       expect(fb, contains('UTType(id)?.preferredFilenameExtension'));
       // PHPicker file URLs are temporary - they must be copied before the

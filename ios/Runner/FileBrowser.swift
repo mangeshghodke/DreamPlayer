@@ -488,9 +488,9 @@ final class FileBrowser: NSObject {
 
         photoPickerCompletion = result
         var config = PHPickerConfiguration(photoLibrary: .shared())
-        // .any, not .images: the user wants camera VIDEOS (.mov/.mp4/...) in
-        // this picker too, not just photos (.heic/.jpg).
-        config.filter = .any
+        // Not .images alone: the user wants camera VIDEOS (.mov/.mp4/...) in
+        // this picker too, alongside photos (.heic/.jpg).
+        config.filter = .any(of: [.images, .videos])
         config.selectionLimit = 0 // unlimited
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = self
