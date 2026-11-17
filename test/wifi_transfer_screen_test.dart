@@ -221,6 +221,30 @@ void main() {
       expect(swClear.firstMatch(swift)?.group(0) ?? '', isNot(contains('sharedSeq = 0')));
     });
 
+    test('a 401 shows a visible login warning instead of failing silently', () {
+      // fetch() never raises the browser's native auth popup (only a
+      // top-level navigation does), so after the password changes in the
+      // app the poll gets a 401 - which used to be swallowed by .catch()
+      // and the page just sat there. Now a banner is shown, and its
+      // "Log in again" button reloads the page (which does raise the
+      // popup).
+      expect(kotlin, contains('id="authWarn"'));
+      expect(swift, contains('id=\\"authWarn\\"'));
+      expect(kotlin.contains('r.status === 401'), isTrue);
+      expect(swift.contains('r.status === 401'), isTrue);
+      expect(kotlin.contains('showAuthWarn(true)'), isTrue);
+      expect(swift.contains('showAuthWarn(true)'), isTrue);
+      expect(kotlin.contains('Log in again'), isTrue);
+      expect(swift.contains('Log in again'), isTrue);
+      expect(kotlin.contains('location.reload()'), isTrue);
+      expect(swift.contains('location.reload()'), isTrue);
+      // the file/zip fetch and the upload XHR surface it too
+      expect(kotlin.contains('resp.status === 401'), isTrue);
+      expect(swift.contains('resp.status === 401'), isTrue);
+      expect(kotlin.contains('xhr.status === 401'), isTrue);
+      expect(swift.contains('xhr.status === 401'), isTrue);
+    });
+
     test('the poll and the downloads are never served from cache', () {
       // A cached /files response would hide a new batch forever (the page
       // would keep seeing the old seq); a cached zip would re-deliver stale

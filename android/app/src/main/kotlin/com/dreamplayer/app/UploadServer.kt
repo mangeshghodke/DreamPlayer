@@ -892,6 +892,10 @@ private const val MAX_NAME_LEN = 120
              border: 1px solid #7c4dff; background: #241d3d; color: #e8e8ec;
              font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
   .recvdir:hover { background: #2e2650; color: #fff; }
+  .authwarn { margin-top: 16px; padding: 12px 14px; border-radius: 11px;
+              border: 1px solid #7a3b2e; background: #3a2320; color: #ffb4a8;
+              font-size: 13px; line-height: 1.5; }
+  .authwarn button { margin-top: 8px; }
   .foot { margin: 18px 0 0; font-size: 12px; line-height: 1.5; color: #6a6a75; text-align: center; }
 </style>
 </head>
@@ -921,6 +925,11 @@ private const val MAX_NAME_LEN = 120
       <button class="cancel" id="cancel" type="button">&#10006; Cancel transfers</button>
       <button class="clear" id="clear" type="button">&#128465; Clear list</button>
     </div>
+  </div>
+  <div class="authwarn" id="authWarn" style="display:none;">
+    <strong>Not signed in.</strong> The server rejected the saved login (the password
+    may have changed in the app). Sign in again, then send the files from your phone.
+    <br><button class="recvdir" id="loginAgain" type="button">Log in again</button>
   </div>
   <div class="card" id="deviceFilesCard" style="margin-top:16px;">
     <p class="addr-label" style="margin:0 0 10px;">&#8595; Receive from your phone</p>
@@ -959,6 +968,12 @@ private const val MAX_NAME_LEN = 120
   // than held in memory.
   var recvStatus = document.getElementById('recvStatus');
   var recvDirBtn = document.getElementById('recvDir');
+  var authWarn = document.getElementById('authWarn');
+  function showAuthWarn(on) {
+    authWarn.style.display = on ? 'block' : 'none';
+    if (on) recvDirBtn.style.display = 'none';
+  }
+  document.getElementById('loginAgain').addEventListener('click', function () { location.reload(); });
   var fsSupported = typeof window.showDirectoryPicker === 'function';
   var destRoot = null;
   var destName = 'your Downloads folder';
@@ -1014,7 +1029,15 @@ private const val MAX_NAME_LEN = 120
     if (fill) fill.style.width = Math.round(frac * 100) + '%';
   }
   function loadDeviceFiles() {
-    fetch('$PATH_PREFIX/files', {credentials: 'include', cache: 'no-store'}).then(function (r) { return r.json(); }).then(function (data) {
+    fetch('$PATH_PREFIX/files', {credentials: 'include', cache: 'no-store'}).then(function (r) {
+      // A 401 means the saved login was rejected (e.g. the password
+      // changed in the app). fetch() never raises the browser auth
+      // popup - say so visibly instead of failing silently.
+      if (r.status === 401) { showAuthWarn(true); return null; }
+      showAuthWarn(false);
+      return r.json();
+    }).then(function (data) {
+      if (!data) return;
       var files = (data && data.files) || [];
       deviceFilesCard.style.display = 'block';
       if (!files.length) {
@@ -1056,6 +1079,7 @@ private const val MAX_NAME_LEN = 120
       var fh = await dir.getFileHandle(parts[parts.length - 1], {create: true});
       var w = await fh.createWritable();
       var resp = await fetch(fileUrl(f.name), {credentials: 'include'});
+      if (resp.status === 401) { showAuthWarn(true); throw new Error('login required'); }
       if (!resp.ok) throw new Error('http ' + resp.status);
       var total = parseInt(resp.headers.get('content-length') || '0', 10) || 0;
       var got = 0;
@@ -1211,7 +1235,8 @@ private const val MAX_NAME_LEN = 120
         sz.textContent = 'Saved';
       } else {
         li.classList.add('err');
-        nm.textContent = '\u2717 ' + file.name + ' (HTTP ' + xhr.status + ')';
+        if (xhr.status === 401) { showAuthWarn(true); nm.textContent = '\u2717 ' + file.name + ' (login required)'; }
+        else { nm.textContent = '\u2717 ' + file.name + ' (HTTP ' + xhr.status + ')'; }
       }
     };
     xhr.onerror = function () {
