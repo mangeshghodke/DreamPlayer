@@ -411,7 +411,13 @@ void main() {
       expect(fb, contains('import PhotosUI'));
       expect(fb, contains('case "pickPhotos":'));
       expect(fb, contains('PHPickerViewController'));
-      expect(fb, contains('config.filter = .images'));
+      // .any, not .images: camera VIDEOS (.mov/.mp4) must be visible too.
+      // Photos come back as .heic - the original registered type is kept,
+      // JPEG is only the fallback for items that cannot export as a file.
+      expect(fb, contains('config.filter = .any'));
+      expect(fb.contains('config.filter = .images'), isFalse);
+      expect(fb, contains('registeredTypeIdentifiers.first'));
+      expect(fb, contains('UTType(id)?.preferredFilenameExtension'));
       // PHPicker file URLs are temporary - they must be copied before the
       // server streams them later.
       expect(fb, contains('loadFileRepresentation'));
@@ -420,6 +426,25 @@ void main() {
       // The "Photos/" prefix makes the receiving page group them into a
       // folder, like a picked folder's tree.
       expect(fb.contains('"Photos/\\(safe)"'), isTrue);
+    });
+
+    test('iOS picker always closes and always completes the channel call', () {
+      final fb = File('ios/Runner/FileBrowser.swift').readAsStringSync();
+      // The system checkmark/cancel buttons do NOT auto-dismiss PHPicker.
+      expect(fb.contains('picker.dismiss(animated: true)'), isTrue);
+      // A swipe-down dismisses without didFinishPicking - the presentation
+      // delegate must still complete the call, or the Dart _picking flag
+      // sticks and every Send button stays greyed out.
+      expect(fb, contains('presentationControllerDidDismiss'));
+      expect(fb.contains('picker.presentationController?.delegate = self'), isTrue);
+    });
+
+    test('the download filename never carries a folder slash', () {
+      // Names like "Photos/IMG_0001.HEIC" must download as "IMG_0001.HEIC":
+      // a slash in the Content-Disposition filename makes download managers
+      // save a broken ".part" file or a bare name.
+      expect(kotlin.contains("name.substringAfterLast('/')"), isTrue);
+      expect(swift.contains('(name as NSString).lastPathComponent'), isTrue);
     });
 
     test('the page lists what is shared with the computer', () {

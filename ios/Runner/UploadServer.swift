@@ -670,7 +670,11 @@ final class UploadServer: NSObject, FlutterStreamHandler {
         head += "Content-Length: \(length)\r\n"
         head += "Accept-Ranges: bytes\r\n"
         head += "Cache-Control: no-store\r\n"
-        head += "Content-Disposition: attachment; filename=\"\(name.replacingOccurrences(of: "\"", with: "_"))\"\r\n"
+        // Only the LAST path component: names like "Photos/IMG_0001.HEIC"
+        // must download as "IMG_0001.HEIC" - a slash in the header filename
+        // makes download managers save a broken ".part" file.
+        let dlName = (name as NSString).lastPathComponent.replacingOccurrences(of: "\"", with: "_")
+        head += "Content-Disposition: attachment; filename=\"\(dlName)\"\r\n"
         head += "Connection: close\r\n\r\n"
 
         var out = (head.data(using: .utf8) ?? Data())

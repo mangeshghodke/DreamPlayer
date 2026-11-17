@@ -606,7 +606,11 @@ private const val MAX_NAME_LEN = 120
             append("Content-Length: $length\r\n")
             append("Accept-Ranges: bytes\r\n")
             append("Cache-Control: no-store\r\n")
-            append("Content-Disposition: attachment; filename=\"${name.replace("\"", "_")}\"\r\n")
+            // Only the LAST path component: names like "Photos/IMG_0001.HEIC"
+            // must download as "IMG_0001.HEIC" - a slash in the header
+            // filename makes download managers save a broken ".part" file.
+            val dlName = name.substringAfterLast('/').replace("\"", "_")
+            append("Content-Disposition: attachment; filename=\"$dlName\"\r\n")
             append("Connection: close\r\n\r\n")
         }.toByteArray(StandardCharsets.ISO_8859_1)
         val out = sock.getOutputStream()

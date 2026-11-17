@@ -488,10 +488,17 @@ final class FileBrowser: NSObject {
 
         photoPickerCompletion = result
         var config = PHPickerConfiguration(photoLibrary: .shared())
-        config.filter = .images
+        // .any, not .images: the user wants camera VIDEOS (.mov/.mp4/...) in
+        // this picker too, not just photos (.heic/.jpg).
+        config.filter = .any
         config.selectionLimit = 0 // unlimited
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = self
+        // A swipe-down dismisses the picker WITHOUT calling
+        // didFinishPicking - catch it here so the channel call still
+        // completes (otherwise the Dart side's _picking flag sticks and
+        // every Send button stays disabled).
+        picker.presentationController?.delegate = self
         top.present(picker, animated: true)
     }
 
@@ -751,6 +758,9 @@ extension FileBrowser: PHPickerViewControllerDelegate {
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         guard let completion = photoPickerCompletion else { return }
         photoPickerCompletion = nil
+        // The system checkmark/cancel buttons do NOT auto-dismiss the
+        // picker - close it explicitly or it stays open on top.
+        picker.dismiss(animated: true)
         guard !results.isEmpty else { completion(nil); return }
 
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -760,22 +770,27 @@ extension FileBrowser: PHPickerViewControllerDelegate {
 
         for (i, r) in results.enumerated() {
             let provider = r.itemProvider
-            // Prefer the original format (HEIC/JPEG/RAW as registered);
-            // fall back to a JPEG export if the original cannot be loaded
-            // as a file representation.
+            // Keep the ORIGINAL format - photos come back as .heic, camera
+            // videos as .mov/.mp4 - exactly what the registered type
+            // identifier says. Only if the original cannot be exported as a
+            // file do we fall back to a JPEG still image (video items then
+            // yield nothing and are skipped).
             let original = provider.registeredTypeIdentifiers.first
             let typeId = original ?? UTType.jpeg.identifier
             group.enter()
             func load(_ id: String, isRetry: Bool) {
                 provider.loadFileRepresentation(forTypeIdentifier: id) { url, error in
-                    if error != nil || url == nil, !isRetry {
+                    if error != nil || url == nil, !isRetry, UTType(id) != UTType.movie {
                         group.leave()
                         load(UTType.jpeg.identifier, isRetry: true)
                         return
                     }
                     defer { group.leave() }
                     guard let url, error == nil else { return }
-                    let suggested = provider.suggestedName ?? "photo_\(i + 1).jpg"
+                    // suggestedName carries the real extension (IMG_0001.HEIC,
+                    // IMG_0002.MOV); derive one from the type when missing.
+                    let ext = (UTType(id)?.preferredFilenameExtension) ?? "jpg"
+                    let suggested = provider.suggestedName ?? "photo_\(i + 1).\(ext)"
                     let safe = suggested.replacingOccurrences(of: "/", with: "_")
                     let dest = dir.appendingPathComponent("\(UUID().uuidString)_\(safe)")
                     do {
@@ -797,6 +812,21 @@ extension FileBrowser: PHPickerViewControllerDelegate {
             let files = out.compactMap { $0 }
             SBMLog.log("pickPhotos: \(files.count) of \(results.count) copied")
             completion(files)
+        }
+    }
+}
+
+// MARK: - UIAdaptivePresentationControllerDelegate
+
+extension FileBrowser: UIAdaptivePresentationControllerDelegate {
+    /// A swipe-down dismisses the PHPicker WITHOUT calling
+    /// `picker(_:didFinishPicking:)` - complete the pending channel call
+    /// with nil (cancelled) so the Dart side's `_picking` flag is released
+    /// and the Send buttons do not stay greyed out.
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        if let completion = photoPickerCompletion {
+            photoPickerCompletion = nil
+            completion(nil)
         }
     }
 }
