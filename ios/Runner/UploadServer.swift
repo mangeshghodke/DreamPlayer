@@ -69,13 +69,16 @@ final class UploadServer: NSObject, FlutterStreamHandler {
     /// blocks the UI.
     private var sharedFiles: [String: (uri: String, size: Int64)] = [:]
     private let sharedFilesLock = NSLock()
-    /// Identifies ONE server run. The page stores it with the batch it last
-    /// saved, so a page reload never re-downloads files it already received
-    /// (and a NEW server run, which restarts the sequence at 0, is not
-    /// mistaken for the old one).
-    private let runId = UUID().uuidString
-    /// Bumped on every shareFiles call - one "send" from the phone. The page
-    /// uses it to tell a new batch from one it already received.
+    /// Identifies ONE server run. REGENERATED on every start - the page
+    /// stores it with the batch it last saved, so a page reload never
+    /// re-downloads files it already received, and a restarted server is
+    /// never mistaken for the old one (the old run kept the same id while
+    /// the sequence reset to 0, so a re-send after a restart was skipped as
+    /// "already saved" - the "can only send once" bug).
+    private var runId = UUID().uuidString
+    /// Bumped on every shareFiles call - one "send" from the phone. Never
+    /// reset except alongside a new runId in start: the page uses it to
+    /// tell a new batch from one it already received.
     private var sharedSeq = 0
 
     /// HTTP Basic challenge header sent with every 401.
@@ -119,8 +122,10 @@ final class UploadServer: NSObject, FlutterStreamHandler {
                     result(["ok": true, "count": count])
                 case "clearSharedFiles":
                     self.sharedFilesLock.lock()
+                    // Clear the list only. The seq must keep rising: the page
+                    // remembers runId|seq, and resetting seq under the same
+                    // runId would make the NEXT send look already-saved.
                     self.sharedFiles.removeAll()
-                    self.sharedSeq = 0
                     self.sharedFilesLock.unlock()
                     result(nil)
                 default:
@@ -251,6 +256,10 @@ final class UploadServer: NSObject, FlutterStreamHandler {
         self.listener = l
         self.port = boundPort
         self.running = true
+        // New run, new id, fresh sequence - so the receiving page treats the
+        // next send as a new batch even if it saved one from the previous run.
+        self.runId = UUID().uuidString
+        self.sharedSeq = 0
         self.receivedCount = 0
         self.receivedBytes = 0
         // Keep the process alive while the screen is locked (see below).
@@ -271,7 +280,6 @@ final class UploadServer: NSObject, FlutterStreamHandler {
         running = false
         sharedFilesLock.lock()
         sharedFiles.removeAll()
-        sharedSeq = 0
         sharedFilesLock.unlock()
         stopKeepAlive()
         listener?.cancel()
@@ -484,7 +492,10 @@ final class UploadServer: NSObject, FlutterStreamHandler {
             let body = (try? JSONSerialization.data(withJSONObject: [
                 "runId": runId, "seq": seq, "files": list,
             ])) ?? Data("{}".utf8)
-            respond(connection: connection, code: 200, contentType: "application/json", body: body)
+            // no-store: the page polls this every second and must never see
+            // a cached batch list.
+            respond(connection: connection, code: 200, contentType: "application/json", body: body,
+                    extraHeaders: ["Cache-Control: no-store"])
             return
         }
         if path == "\(Self.pathPrefix)/files.zip" {
@@ -658,6 +669,7 @@ final class UploadServer: NSObject, FlutterStreamHandler {
         head += "Content-Type: \(mime)\r\n"
         head += "Content-Length: \(length)\r\n"
         head += "Accept-Ranges: bytes\r\n"
+        head += "Cache-Control: no-store\r\n"
         head += "Content-Disposition: attachment; filename=\"\(name.replacingOccurrences(of: "\"", with: "_"))\"\r\n"
         head += "Connection: close\r\n\r\n"
 
@@ -736,6 +748,7 @@ final class UploadServer: NSObject, FlutterStreamHandler {
         head += "Content-Type: application/zip\r\n"
         head += "Content-Disposition: attachment; filename=\"DreamPlayer_files.zip\"\r\n"
         head += "Accept-Ranges: none\r\n"
+        head += "Cache-Control: no-store\r\n"
         head += "Connection: close\r\n\r\n"
         connection.send(content: Data(head.utf8), completion: .contentProcessed { _ in })
 
@@ -1319,7 +1332,7 @@ private func pageHtml() -> String {
         html += "    if (fill) fill.style.width = Math.round(frac * 100) + '%';\n"
         html += "  }\n"
         html += "  function loadDeviceFiles() {\n"
-        html += "    fetch('\(pathPrefix)/files', {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (data) {\n"
+        html += "    fetch('\(pathPrefix)/files', {credentials: 'include', cache: 'no-store'}).then(function (r) { return r.json(); }).then(function (data) {\n"
         html += "      var files = (data && data.files) || [];\n"
         html += "      deviceFilesCard.style.display = 'block';\n"
         html += "      if (!files.length) {\n"

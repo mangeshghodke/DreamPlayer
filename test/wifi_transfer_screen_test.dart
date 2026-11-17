@@ -192,18 +192,43 @@ void main() {
     test('both servers tag each send batch so it is received once', () {
       // runId identifies one server run, seq one send batch from the phone.
       // The page stores the pair, so a page reload does not re-download a
-      // batch it already saved, while a NEW server run (whose seq restarts
-      // at 0) still delivers.
-      expect(kotlin, contains('private val runId'));
+      // batch it already saved.
+      expect(kotlin, contains('runId'));
       expect(kotlin, contains('sharedSeq'));
-      expect(swift, contains('private let runId'));
+      expect(swift, contains('runId'));
       expect(swift, contains('sharedSeq'));
-      // Bumped when the phone shares, reset when the batch is cleared or
-      // the server stops.
+      // Bumped on every send.
       expect(kotlin.contains('sharedSeq += 1'), isTrue);
       expect(swift.contains('self.sharedSeq += 1'), isTrue);
+    });
+
+    test('a server restart gets a NEW runId - a re-send is never "already saved"', () {
+      // The reported bug: runId was created once per process while
+      // clearSharedFiles/stop reset the seq to 0, so after a restart or a
+      // "Clear list" the next send carried the same runId with a seq the
+      // page had already saved - and was skipped forever ("can only send
+      // one time"). The id must be regenerated on every start, and the seq
+      // must NOT be reset outside start.
+      expect(kotlin.contains('runId = java.util.UUID.randomUUID().toString()'), isTrue);
+      expect(swift.contains('self.runId = UUID().uuidString'), isTrue);
+      // seq reset only inside start(), next to the new runId.
       expect(kotlin.contains('sharedSeq = 0'), isTrue);
-      expect(swift.contains('sharedSeq = 0'), isTrue);
+      expect(swift.contains('self.sharedSeq = 0'), isTrue);
+      // clearSharedFiles must not reset the seq under the same runId.
+      final ktClear = RegExp(r'"clearSharedFiles" -> \{[^}]*\}');
+      final swClear = RegExp(r'case "clearSharedFiles":[^=]*?result\(nil\)');
+      expect(ktClear.firstMatch(kotlin)?.group(0) ?? '', isNot(contains('sharedSeq = 0')));
+      expect(swClear.firstMatch(swift)?.group(0) ?? '', isNot(contains('sharedSeq = 0')));
+    });
+
+    test('the poll and the downloads are never served from cache', () {
+      // A cached /files response would hide a new batch forever (the page
+      // would keep seeing the old seq); a cached zip would re-deliver stale
+      // bytes. Both the fetch and every relevant response say no-store.
+      expect(kotlin.contains("cache: 'no-store'"), isTrue);
+      expect(swift.contains("cache: 'no-store'"), isTrue);
+      expect(kotlin.contains('Cache-Control: no-store'), isTrue);
+      expect(swift.contains('Cache-Control: no-store'), isTrue);
     });
 
     test('the /files response carries the batch identity', () {

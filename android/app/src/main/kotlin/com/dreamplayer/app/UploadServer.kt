@@ -102,14 +102,18 @@ private const val MAX_NAME_LEN = 120
         java.util.LinkedHashMap<String, Pair<String, Long>>(),
     )
 
-    /// Identifies ONE server run. The page stores it with the batch it last
-    /// saved, so a page reload never re-downloads files it already received
-    /// (and a NEW server run, which restarts [sharedSeq] at 0, is not
-    /// mistaken for the old one).
-    private val runId: String = java.util.UUID.randomUUID().toString()
+    /// Identifies ONE server run. REGENERATED on every [start] - the page
+    /// stores it with the batch it last saved, so a page reload never
+    /// re-downloads files it already received, and a restarted server is
+    /// never mistaken for the old one (the old run kept the same id while
+    /// [sharedSeq] reset to 0, so a re-send after a restart was skipped as
+    /// "already saved" - the "can only send once" bug).
+    @Volatile private var runId: String = java.util.UUID.randomUUID().toString()
 
-    /// Bumped on every [shareFiles] call - one "send" from the phone. The
-    /// page uses it to tell a new batch from one it already received.
+    /// Bumped on every [shareFiles] call - one "send" from the phone. Never
+    /// reset except alongside a new [runId] in [start]: the page uses it to
+    /// tell a new batch from one it already received, so resetting it under
+    /// an unchanged runId makes the next send look like an old one.
     @Volatile private var sharedSeq = 0
 
     /// Non-null while a Dart listener is attached. Every event must hop to
@@ -151,8 +155,10 @@ private const val MAX_NAME_LEN = 120
                     result.success(mapOf("ok" to true, "count" to sharedFiles.size))
                 }
                 "clearSharedFiles" -> {
+                    // Clear the list only. The seq must keep rising: the page
+                    // remembers runId|seq, and resetting seq under the same
+                    // runId would make the NEXT send look already-saved.
                     sharedFiles.clear()
-                    sharedSeq = 0
                     result.success(null)
                 }
                 else -> result.notImplemented()
@@ -230,6 +236,10 @@ private const val MAX_NAME_LEN = 120
         server = ss
         port = boundPort
         running = true
+        // New run, new id, fresh sequence - so the receiving page treats the
+        // next send as a new batch even if it saved one from the previous run.
+        runId = java.util.UUID.randomUUID().toString()
+        sharedSeq = 0
         receivedCount = 0
         receivedBytes = 0L
         // A big transfer must survive the app going to the background, and
@@ -291,7 +301,6 @@ private const val MAX_NAME_LEN = 120
     private fun stop() {
         running = false
         sharedFiles.clear()
-        sharedSeq = 0
         try { server?.close() } catch (_: IOException) {}
         server = null
         port = -1
@@ -409,7 +418,10 @@ private const val MAX_NAME_LEN = 120
                     obj.put("runId", runId)
                     obj.put("seq", sharedSeq)
                     obj.put("files", arr)
-                    respond(sock, 200, "application/json", obj.toString().toByteArray(StandardCharsets.UTF_8))
+                    // no-store: the page polls this every second and must
+                    // never see a cached batch list.
+                    respond(sock, 200, "application/json", obj.toString().toByteArray(StandardCharsets.UTF_8),
+                        extraHeaders = listOf("Cache-Control: no-store"))
                 }
                 "$PATH_PREFIX/files.zip" -> {
                     // ONE archive for the whole send batch (PairDrop zips the
@@ -541,6 +553,7 @@ private const val MAX_NAME_LEN = 120
             append("Content-Type: application/zip\r\n")
             append("Content-Disposition: attachment; filename=\"DreamPlayer_files.zip\"\r\n")
             append("Accept-Ranges: none\r\n")
+            append("Cache-Control: no-store\r\n")
             append("Connection: close\r\n\r\n")
         }
         try {
@@ -592,6 +605,7 @@ private const val MAX_NAME_LEN = 120
             append("Content-Type: $mime\r\n")
             append("Content-Length: $length\r\n")
             append("Accept-Ranges: bytes\r\n")
+            append("Cache-Control: no-store\r\n")
             append("Content-Disposition: attachment; filename=\"${name.replace("\"", "_")}\"\r\n")
             append("Connection: close\r\n\r\n")
         }.toByteArray(StandardCharsets.ISO_8859_1)
@@ -1000,7 +1014,7 @@ private const val MAX_NAME_LEN = 120
     if (fill) fill.style.width = Math.round(frac * 100) + '%';
   }
   function loadDeviceFiles() {
-    fetch('$PATH_PREFIX/files', {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (data) {
+    fetch('$PATH_PREFIX/files', {credentials: 'include', cache: 'no-store'}).then(function (r) { return r.json(); }).then(function (data) {
       var files = (data && data.files) || [];
       deviceFilesCard.style.display = 'block';
       if (!files.length) {
