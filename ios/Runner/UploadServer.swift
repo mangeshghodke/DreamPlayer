@@ -853,7 +853,7 @@ final class UploadServer: NSObject, FlutterStreamHandler {
             sendData(data) {
                 offset += Int64(data.count)
                 pumpData(input, crc: newCrc, total: total + Int64(data.count), nameBytes: nameBytes,
-                         localOffset: localOffset, zip64: zip64, done: done)
+                         declared: declared, localOffset: localOffset, zip64: zip64, done: done)
             }
         }
 
