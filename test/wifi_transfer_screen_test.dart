@@ -323,18 +323,20 @@ void main() {
       expect(swift.contains('setInterval(loadDeviceFiles, 1000)'), isTrue);
     });
 
-    test('both servers embed credentials in the fetch URL', () {
-      // The fallback anchor is a plain navigation, so the credentials ride
-      // in the URL userinfo; the fetch() calls rely on the page's own
-      // Basic-auth session.
-      expect(
-        kotlin.contains(r"location.protocol + '//' + '$authInfo'"),
-        isTrue,
-      );
-      expect(
-        swift.contains(r"location.protocol + '//' + '\(authInfo)'"),
-        isTrue,
-      );
+    test('anchor hrefs stay same-origin so the download attribute works', () {
+      // A user:pass@ part in the href makes browsers IGNORE the anchor's
+      // download attribute and open a NEW TAB instead of downloading (the
+      // reported "single image opens a tab, no download"). The page's own
+      // Basic-auth session covers same-origin requests, so the anchors use
+      // the plain host; the fetch keeps credentials: 'include'.
+      expect(kotlin.contains(r"location.host + '$PATH_PREFIX/file?name='"), isTrue);
+      expect(swift.contains(r"location.host + '\(pathPrefix)/file?name='"), isTrue);
+      expect(kotlin.contains(r"location.host + '$PATH_PREFIX/files.zip'"), isTrue);
+      expect(swift.contains(r"location.host + '\(pathPrefix)/files.zip'"), isTrue);
+      expect(kotlin.contains(r"'//' + '$authInfo'"), isFalse);
+      expect(swift.contains(r"'//' + '\(authInfo)'"), isFalse);
+      expect(kotlin.contains("credentials: 'include'"), isTrue);
+      expect(swift.contains("credentials: 'include'"), isTrue);
     });
 
     test('both servers stream the whole batch as one store-only zip', () {
@@ -416,8 +418,9 @@ void main() {
       // JPEG is only the fallback for items that cannot export as a file.
       expect(fb, contains("config.filter = .any(of: [.images, .videos])"));
       expect(fb.contains("config.filter = .images\n"), isFalse);
-      expect(fb, contains('registeredTypeIdentifiers.first'));
-      expect(fb, contains('UTType(id)?.preferredFilenameExtension'));
+      // The original format is tried first, walking the registered types.
+      expect(fb, contains('registeredTypeIdentifiers.filter'));
+      expect(fb, contains('UTType(ids[idx])?.preferredFilenameExtension'));
       // PHPicker file URLs are temporary - they must be copied before the
       // server streams them later.
       expect(fb, contains('loadFileRepresentation'));
@@ -434,9 +437,19 @@ void main() {
       expect(fb.contains('picker.dismiss(animated: true)'), isTrue);
       // A swipe-down dismisses without didFinishPicking - the presentation
       // delegate must still complete the call, or the Dart _picking flag
-      // sticks and every Send button stays greyed out.
+      // sticks and every Send button stays greyed out. The delegate can
+      // only be set AFTER present (presentationController is nil before).
       expect(fb, contains('presentationControllerDidDismiss'));
+      expect(fb.contains('top.present(picker, animated: true)'), isTrue);
       expect(fb.contains('picker.presentationController?.delegate = self'), isTrue);
+      // A wedged loadFileRepresentation must not hang the channel either:
+      // every item has a watchdog that force-leaves the dispatch group.
+      expect(fb.contains('DispatchWorkItem'), isTrue);
+      expect(fb.contains('asyncAfter(deadline: .now() + 30'), isTrue);
+      // The download name always keeps an extension (suggestedName can be
+      // "IMG_0706" without one, which the PC then opens as a new tab).
+      expect(fb.contains('if !suggested.contains(".")'), isTrue);
+      expect(fb, contains('preferredFilenameExtension'));
     });
 
     test('the download filename never carries a folder slash', () {

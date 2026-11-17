@@ -999,7 +999,11 @@ private const val MAX_NAME_LEN = 120
     return b.toFixed(b < 10 && i > 0 ? 1 : 0) + ' ' + u[i];
   }
   function fileUrl(name) {
-    return location.protocol + '//' + '$authInfo' + location.host + '$PATH_PREFIX/file?name=' + encodeURIComponent(name);
+    // NO credentials in the href: a userinfo part makes browsers ignore
+    // the anchor's download attribute and open a NEW TAB instead of
+    // downloading. The page's own Basic-auth session already covers
+    // same-origin requests (fetch uses credentials: 'include').
+    return location.protocol + '//' + location.host + '$PATH_PREFIX/file?name=' + encodeURIComponent(name);
   }
   function setStatus(t) { recvStatus.textContent = t; }
   function renderRows(files) {
@@ -1117,7 +1121,8 @@ private const val MAX_NAME_LEN = 120
     return true;
   }
   function zipUrl() {
-    return location.protocol + '//' + '$authInfo' + location.host + '$PATH_PREFIX/files.zip';
+    // Same as fileUrl: no userinfo, so the download attribute works.
+    return location.protocol + '//' + location.host + '$PATH_PREFIX/files.zip';
   }
   function zipName() {
     // PairDrop names its client-side archive the same way.

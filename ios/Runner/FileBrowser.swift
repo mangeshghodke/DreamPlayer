@@ -494,12 +494,14 @@ final class FileBrowser: NSObject {
         config.selectionLimit = 0 // unlimited
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = self
-        // A swipe-down dismisses the picker WITHOUT calling
-        // didFinishPicking - catch it here so the channel call still
-        // completes (otherwise the Dart side's _picking flag sticks and
-        // every Send button stays disabled).
-        picker.presentationController?.delegate = self
-        top.present(picker, animated: true)
+        top.present(picker, animated: true) {
+            // A swipe-down dismisses the picker WITHOUT calling
+            // didFinishPicking - catch it here so the channel call still
+            // completes (otherwise the Dart side's _picking flag sticks and
+            // every Send button stays disabled). presentationController
+            // only exists once presentation has begun.
+            picker.presentationController?.delegate = self
+        }
     }
 
     /// Copies a picked font to `destPath` inside the app's own storage, so the
@@ -771,26 +773,46 @@ extension FileBrowser: PHPickerViewControllerDelegate {
         for (i, r) in results.enumerated() {
             let provider = r.itemProvider
             // Keep the ORIGINAL format - photos come back as .heic, camera
-            // videos as .mov/.mp4 - exactly what the registered type
-            // identifier says. Only if the original cannot be exported as a
-            // file do we fall back to a JPEG still image (video items then
-            // yield nothing and are skipped).
-            let original = provider.registeredTypeIdentifiers.first
-            let typeId = original ?? UTType.jpeg.identifier
+            // videos as .mov/.mp4. Walk the registered type identifiers and
+            // take the first one the provider can export as a file; JPEG is
+            // only the last-resort fallback for image items.
+            var candidates = provider.registeredTypeIdentifiers.filter {
+                (UTType($0)?.conforms(to: .data)) == true
+            }
+            if candidates.isEmpty { candidates = [UTType.jpeg.identifier] }
+            if !provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
+                candidates.append(UTType.jpeg.identifier)
+            }
             group.enter()
-            func load(_ id: String, isRetry: Bool) {
-                provider.loadFileRepresentation(forTypeIdentifier: id) { url, error in
-                    if error != nil || url == nil, !isRetry, UTType(id) != UTType.movie {
-                        group.leave()
-                        load(UTType.jpeg.identifier, isRetry: true)
+            // Safety net: loadFileRepresentation is documented to always call
+            // its completion, but a wedged call must never hang the channel
+            // (the Dart _picking flag would stick and grey out every Send
+            // button). 30 s per item is far beyond any real export.
+            var finished = false
+            let watchdog = DispatchWorkItem { [weak self] in
+                if !finished { finished = true; group.leave() }
+                _ = self
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30, execute: watchdog)
+            func load(_ ids: [String], _ idx: Int) {
+                guard idx < ids.count else {
+                    if !finished { finished = true; group.leave() }
+                    return
+                }
+                provider.loadFileRepresentation(forTypeIdentifier: ids[idx]) { url, error in
+                    if (error != nil || url == nil) {
+                        load(ids, idx + 1) // try the next format; leaves once at the end
                         return
                     }
-                    defer { group.leave() }
-                    guard let url, error == nil else { return }
-                    // suggestedName carries the real extension (IMG_0001.HEIC,
-                    // IMG_0002.MOV); derive one from the type when missing.
-                    let ext = (UTType(id)?.preferredFilenameExtension) ?? "jpg"
-                    let suggested = provider.suggestedName ?? "photo_\(i + 1).\(ext)"
+                    guard let url, !finished else { return }
+                    finished = true
+                    watchdog.cancel()
+                    // suggestedName usually carries the real extension
+                    // (IMG_0001.HEIC, IMG_0002.MOV) - but not always; add one
+                    // from the loaded type so the download keeps its extension.
+                    let ext = (UTType(ids[idx])?.preferredFilenameExtension) ?? "jpg"
+                    var suggested = provider.suggestedName ?? "photo_\(i + 1)"
+                    if !suggested.contains(".") { suggested += ".\(ext)" }
                     let safe = suggested.replacingOccurrences(of: "/", with: "_")
                     let dest = dir.appendingPathComponent("\(UUID().uuidString)_\(safe)")
                     do {
@@ -803,9 +825,10 @@ extension FileBrowser: PHPickerViewControllerDelegate {
                     } catch {
                         SBMLog.log("pickPhotos copy failed: \(error.localizedDescription)")
                     }
+                    group.leave()
                 }
             }
-            load(typeId, isRetry: false)
+            load(candidates, 0)
         }
 
         group.notify(queue: .main) {
