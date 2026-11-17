@@ -658,7 +658,7 @@ extension FileBrowser: UIDocumentPickerDelegate {
             // can stream it when a PC downloads.
             var out: [[String: Any]] = []
             for u in urls {
-                startAccess(u)
+                _ = startAccess(u)
                 let attrs = try? FileManager.default.attributesOfItem(atPath: u.path)
                 let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
                 out.append([
@@ -670,9 +670,10 @@ extension FileBrowser: UIDocumentPickerDelegate {
             completion(out)
         case .folderContents:
             // Recursively walk the picked folder and return every file inside.
-            // Names are "<PickedFolder>/<relative path>" so the PC page renders
-            // one folder entry with the files inside (matching Android, whose
-            // tree walk prefixes the folder name the same way).
+            // Names are "<PickedFolder>/<relative path>", so the receiving
+            // page re-creates the folders in the destination folder it picked
+            // (matching Android, whose tree walk prefixes the folder name the
+            // same way).
             var out: [[String: Any]] = []
             let rootPath = url.path
             let folderName = url.lastPathComponent
@@ -684,8 +685,10 @@ extension FileBrowser: UIDocumentPickerDelegate {
                 for case let fileURL as URL in enumerator {
                     let values = try? fileURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
                     if values?.isDirectory == true { continue }
-                    startAccess(fileURL)
-                    let size = (values?[.fileSizeKey] as? NSNumber)?.int64Value ?? 0
+                    _ = startAccess(fileURL)
+                    // The typed properties are the only API left on
+                    // URLResourceValues - the key subscript was removed.
+                    let size = Int64(values?.fileSize ?? 0)
                     let rel = fileURL.path.hasPrefix(rootPath + "/")
                         ? String(fileURL.path.dropFirst(rootPath.count + 1))
                         : fileURL.lastPathComponent

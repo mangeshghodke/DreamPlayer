@@ -43,9 +43,11 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
   bool _picking = false;
 
   /// Opens the system multi-file picker and registers the picked files with
-  /// the native server, so the PC browser can download them from the
-  /// transfer page. NO file copying happens - the server streams directly
-  /// from the picked URIs, so large videos never block the UI.
+  /// the native server as a new send BATCH. The transfer page on the other
+  /// device polls for a batch it has not received yet and starts saving the
+  /// moment it sees one - no link is shown or clicked there. NO file copying
+  /// happens here: the server streams the picked URIs directly, so large
+  /// videos never block the UI.
   Future<void> _sendFilesToComputer() async {
     if (_picking || !_service.running) return;
     _picking = true;
@@ -55,19 +57,14 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
       if (files.isEmpty || !mounted) return;
       await _service.shareFiles(files);
       if (mounted) {
-        final url = _service.urls.isNotEmpty ? _service.urls.first : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               files.length == 1
-                  ? '1 file shared'
-                  : '${files.length} files shared',
+                  ? 'Sending 1 file'
+                  : 'Sending ${files.length} files',
             ),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Copy URL',
-              onPressed: () => _copyUrl(url),
-            ),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -79,7 +76,9 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
 
   /// Opens the system FOLDER picker, walks every file inside (recursively),
   /// and registers them with the native server. Same zero-copy flow as
-  /// [_sendFilesToComputer] - the server streams the URIs directly.
+  /// [_sendFilesToComputer] - the server streams the URIs directly. The
+  /// folder structure travels in the names ("Folder/sub/file"), so the
+  /// receiving page re-creates it in the folder the user picked there.
   Future<void> _sendFolderToComputer() async {
     if (_picking || !_service.running) return;
     _picking = true;
@@ -89,17 +88,14 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
       if (files.isEmpty || !mounted) return;
       await _service.shareFiles(files);
       if (mounted) {
-        final url = _service.urls.isNotEmpty ? _service.urls.first : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${files.length} files shared',
+              files.length == 1
+                  ? 'Sending 1 file'
+                  : 'Sending ${files.length} files',
             ),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Copy URL',
-              onPressed: () => _copyUrl(url),
-            ),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -363,13 +359,14 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
                   ),
                 ],
               ),
-              // Files shared FROM this device (downloadable on the PC)
+              // Files registered as the current send batch: the transfer
+              // page on the other device picks these up automatically.
               if (_service.sharedFiles.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Text(
-                      'Shared with computer',
+                      'Sending to computer',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),

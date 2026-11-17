@@ -102,6 +102,16 @@ private const val MAX_NAME_LEN = 120
         java.util.LinkedHashMap<String, Pair<String, Long>>(),
     )
 
+    /// Identifies ONE server run. The page stores it with the batch it last
+    /// saved, so a page reload never re-downloads files it already received
+    /// (and a NEW server run, which restarts [sharedSeq] at 0, is not
+    /// mistaken for the old one).
+    private val runId: String = java.util.UUID.randomUUID().toString()
+
+    /// Bumped on every [shareFiles] call - one "send" from the phone. The
+    /// page uses it to tell a new batch from one it already received.
+    @Volatile private var sharedSeq = 0
+
     /// Non-null while a Dart listener is attached. Every event must hop to
     /// the main thread: Flutter rejects EventChannel calls from any other.
     @Volatile private var eventSink: EventChannel.EventSink? = null
@@ -136,9 +146,15 @@ private const val MAX_NAME_LEN = 120
                         val size = (f["size"] as? Number)?.toLong() ?: 0L
                         sharedFiles[name] = uri to size
                     }
+                    // A new batch: the page starts receiving it on its next poll.
+                    sharedSeq += 1
                     result.success(mapOf("ok" to true, "count" to sharedFiles.size))
                 }
-                "clearSharedFiles" -> { sharedFiles.clear(); result.success(null) }
+                "clearSharedFiles" -> {
+                    sharedFiles.clear()
+                    sharedSeq = 0
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -275,6 +291,7 @@ private const val MAX_NAME_LEN = 120
     private fun stop() {
         running = false
         sharedFiles.clear()
+        sharedSeq = 0
         try { server?.close() } catch (_: IOException) {}
         server = null
         port = -1
@@ -374,17 +391,25 @@ private const val MAX_NAME_LEN = 120
                     respond(sock, 200, "application/json", """{"ok":true}""".toByteArray())
                 }
                 "$PATH_PREFIX/files" -> {
-                    // JSON list of files shared FROM this device (for the PC
-                    // to download). No file I/O - just the registered list.
+                    // JSON list of files shared FROM this device, for the page
+                    // to receive automatically. No file I/O - just the
+                    // registered list plus the batch identity the page needs
+                    // to know whether it already saved this send.
                     if (method != "GET") { respond(sock, 405, "text/plain", "method".toByteArray()); sock.close(); return }
                     val arr = org.json.JSONArray()
-                    for ((name, pair) in sharedFiles) {
-                        arr.put(org.json.JSONObject().apply {
-                            put("name", name)
-                            put("size", pair.second)
-                        })
+                    synchronized(sharedFiles) {
+                        for ((name, pair) in sharedFiles) {
+                            arr.put(org.json.JSONObject().apply {
+                                put("name", name)
+                                put("size", pair.second)
+                            })
+                        }
                     }
-                    respond(sock, 200, "application/json", arr.toString().toByteArray(StandardCharsets.UTF_8))
+                    val obj = org.json.JSONObject()
+                    obj.put("runId", runId)
+                    obj.put("seq", sharedSeq)
+                    obj.put("files", arr)
+                    respond(sock, 200, "application/json", obj.toString().toByteArray(StandardCharsets.UTF_8))
                 }
                 "$PATH_PREFIX/file" -> {
                     // Stream one shared file back OUT to the PC, straight from
@@ -797,6 +822,10 @@ private const val MAX_NAME_LEN = 120
   .actions .cancel:hover { background: #3a2a2a; color: #ffb3b3; border-color: #ff8a80; }
   .actions .clear { color: #9a9aa5; border-color: #3a3a46; }
   .actions .clear:hover { color: #e8e8ec; border-color: #666; }
+  .recvdir { width: 100%; margin: 4px 0 12px; padding: 11px 14px; border-radius: 11px;
+             border: 1px solid #7c4dff; background: #241d3d; color: #e8e8ec;
+             font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .recvdir:hover { background: #2e2650; color: #fff; }
   .foot { margin: 18px 0 0; font-size: 12px; line-height: 1.5; color: #6a6a75; text-align: center; }
 </style>
 </head>
@@ -827,12 +856,16 @@ private const val MAX_NAME_LEN = 120
       <button class="clear" id="clear" type="button">&#128465; Clear list</button>
     </div>
   </div>
-  <div class="card" id="deviceFilesCard" style="margin-top:16px;display:none;">
-    <p class="addr-label" style="margin:0 0 10px;">&#8595; Files on this device (tap to download)</p>
+  <div class="card" id="deviceFilesCard" style="margin-top:16px;">
+    <p class="addr-label" style="margin:0 0 10px;">&#8595; Receive from your phone</p>
+    <p class="hint" id="recvStatus">Waiting for files. Tap Send files on your phone.</p>
+    <button class="recvdir" id="recvDir" type="button" style="display:none;">Choose folder to save into</button>
     <ul id="deviceFiles"></ul>
   </div>
-  <p class="foot">Files are saved to this device's download folder and appear in DreamPlayer automatically.
-     The page is reachable while the transfer service is on in the app, even when the screen is locked.</p>
+  <p class="foot">Files you send from the phone arrive here automatically and are saved into the
+     folder you pick. Files you upload on this page land in the phone's download folder and
+     appear in DreamPlayer. The page is reachable while the transfer service is on in the app,
+     even when the screen is locked.</p>
 </div>
 <script>
 (function () {
@@ -852,118 +885,177 @@ private const val MAX_NAME_LEN = 120
     }
   }).catch(function () {});
 
-  // Load the device's shared files (picked in the app to send TO this PC).
-  // Poll every 3s so newly added files appear without a reload. The list is
-  // ONLY rebuilt when the file set actually changed - a naive re-render on
-  // every tick collapsed any folder the user had just opened.
-  // A picked FOLDER arrives as paths ("Photos/a.jpg", "Photos/Sub/b.jpg"),
-  // so files render as an expandable folder tree - the folder is ONE entry
-  // with the files inside (expanded by default).
+  // Receive station: the phone PUSHES to this page - there is nothing to
+  // click here. The moment the phone sends files or a folder, this page
+  // starts saving them itself. The destination folder is chosen once
+  // (Chromium's directory picker); other browsers fall back to their own
+  // downloads folder, so a large video is always streamed to disk rather
+  // than held in memory.
+  var recvStatus = document.getElementById('recvStatus');
+  var recvDirBtn = document.getElementById('recvDir');
+  var fsSupported = typeof window.showDirectoryPicker === 'function';
+  var destRoot = null;
+  var destName = 'your Downloads folder';
+  var receiving = false;
+  var doneKey = null, doneSeq = -1;
+  var announcedSeq = -1;
+  try {
+    var savedRecv = localStorage.getItem('dp.received');
+    if (savedRecv) {
+      var savedParts = savedRecv.split('|');
+      doneKey = savedParts[0];
+      doneSeq = parseInt(savedParts[1] || '-1', 10);
+    }
+  } catch (e) {}
   function fmtBytes(b) {
     if (!b) return '';
     var u = ['B','KB','MB','GB','TB'], i = 0;
     while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
     return b.toFixed(b < 10 && i > 0 ? 1 : 0) + ' ' + u[i];
   }
-  function fileUrl(path) {
-    return location.protocol + '//' + '$authInfo' + location.host + '$PATH_PREFIX/file?name=' + encodeURIComponent(path);
+  function fileUrl(name) {
+    return location.protocol + '//' + '$authInfo' + location.host + '$PATH_PREFIX/file?name=' + encodeURIComponent(name);
   }
-  function buildTree(files) {
-    var root = { dirs: {}, files: [] };
+  function setStatus(t) { recvStatus.textContent = t; }
+  function renderRows(files) {
+    deviceFilesList.innerHTML = '';
     files.forEach(function (f) {
-      var parts = f.name.split('/').filter(function (p) { return p.length > 0; });
-      if (!parts.length) return;
-      var node = root;
-      for (var i = 0; i < parts.length - 1; i++) {
-        var d = parts[i];
-        if (!node.dirs[d]) node.dirs[d] = { dirs: {}, files: [] };
-        node = node.dirs[d];
-      }
-      node.files.push({ name: parts[parts.length - 1], path: f.name, size: f.size });
+      var li = document.createElement('li');
+      var row = document.createElement('div');
+      row.className = 'row';
+      var nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = f.name;
+      var sz = document.createElement('span');
+      sz.className = 'sz';
+      sz.textContent = fmtBytes(f.size);
+      row.appendChild(nm); row.appendChild(sz);
+      var bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.appendChild(document.createElement('div'));
+      li.appendChild(row); li.appendChild(bar);
+      deviceFilesList.appendChild(li);
     });
-    return root;
   }
-  function countFiles(node) {
-    var n = node.files.length;
-    for (var k in node.dirs) n += countFiles(node.dirs[k]);
-    return n;
+  function markRow(i, cls) {
+    var li = deviceFilesList.children[i];
+    if (li) li.className = cls;
   }
-  function fileLi(f) {
-    var li = document.createElement('li');
-    var a = document.createElement('a');
-    // Credentials are embedded in the URL userinfo so external downloaders
-    // (which don't carry the browser's Basic-auth cache) authenticate.
-    a.href = fileUrl(f.path);
-    a.setAttribute('download', f.name);
-    a.style.color = '#e8e8ec';
-    a.style.textDecoration = 'none';
-    a.style.display = 'block';
-    var row = document.createElement('div');
-    row.className = 'row';
-    var nm = document.createElement('span');
-    nm.className = 'nm';
-    nm.textContent = '\u2913 ' + f.name;
-    var sz = document.createElement('span');
-    sz.className = 'sz';
-    sz.textContent = fmtBytes(f.size);
-    row.appendChild(nm); row.appendChild(sz);
-    a.appendChild(row);
-    li.appendChild(a);
-    return li;
+  function setBar(i, frac) {
+    var li = deviceFilesList.children[i];
+    if (!li) return;
+    var fill = li.querySelector('.bar > div');
+    if (fill) fill.style.width = Math.round(frac * 100) + '%';
   }
-  function dirLi(name, node) {
-    var li = document.createElement('li');
-    var head = document.createElement('div');
-    head.className = 'row';
-    head.style.cursor = 'pointer';
-    var arw = document.createElement('span');
-    arw.textContent = '\u25b8';
-    arw.style.cssText = 'display:inline-block;width:16px;color:#9a9aa5;transition:transform .15s;flex:none;';
-    var nm = document.createElement('span');
-    nm.className = 'nm';
-    nm.style.fontWeight = '600';
-    nm.textContent = name + ' (' + countFiles(node) + ' file' + (countFiles(node) === 1 ? '' : 's') + ')';
-    head.appendChild(arw); head.appendChild(nm);
-    var body = document.createElement('ul');
-    // Expanded by default: the point of sending a folder is to see what is
-    // inside it. The arrow rotates when collapsed.
-    body.style.display = 'block';
-    body.style.paddingLeft = '16px';
-    body.style.marginTop = '8px';
-    arw.style.transform = 'rotate(90deg)';
-    renderTree(node, body);
-    head.addEventListener('click', function () {
-      var open = body.style.display === 'none';
-      body.style.display = open ? 'block' : 'none';
-      arw.style.transform = open ? 'rotate(90deg)' : '';
-    });
-    li.appendChild(head);
-    li.appendChild(body);
-    return li;
-  }
-  function renderTree(node, ul) {
-    Object.keys(node.dirs).sort().forEach(function (name) {
-      ul.appendChild(dirLi(name, node.dirs[name]));
-    });
-    node.files.forEach(function (f) { ul.appendChild(fileLi(f)); });
-  }
-  var lastSharedSig = null;
   function loadDeviceFiles() {
-    fetch('$PATH_PREFIX/files', {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (files) {
-      var sig = (files || []).map(function (f) { return f.name + ':' + f.size; }).join('|');
-      if (sig === lastSharedSig) return;
-      lastSharedSig = sig;
-      deviceFilesList.innerHTML = '';
-      if (files && files.length) {
-        deviceFilesCard.style.display = 'block';
-        renderTree(buildTree(files), deviceFilesList);
-      } else {
-        deviceFilesCard.style.display = 'none';
+    fetch('$PATH_PREFIX/files', {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (data) {
+      var files = (data && data.files) || [];
+      deviceFilesCard.style.display = 'block';
+      if (!files.length) {
+        deviceFilesList.innerHTML = '';
+        recvDirBtn.style.display = 'none';
+        setStatus('Waiting for files. Tap Send files on your phone.');
+        return;
       }
+      if (receiving) return;
+      var key = (data && data.runId) || '';
+      var seq = (data && data.seq) || 0;
+      if (key === doneKey && seq <= doneSeq) {
+        // Say this ONCE. The 1s poll used to repeat it, which overwrote the
+        // "Saved N files to <folder>" line the moment it appeared - so a
+        // finished send read as "already saved", i.e. as nothing happening.
+        if (announcedSeq !== seq) {
+          announcedSeq = seq;
+          setStatus(files.length + (files.length === 1 ? ' file' : ' files') + ' already saved');
+        }
+        return;
+      }
+      if (fsSupported && !destRoot) {
+        recvDirBtn.style.display = '';
+        recvDirBtn.textContent = 'Receive ' + files.length + (files.length === 1 ? ' file' : ' files') + ' into a folder';
+        setStatus(files.length + (files.length === 1 ? ' file is' : ' files are') + ' ready');
+        return;
+      }
+      receive(files, key, seq);
     }).catch(function () {});
   }
+  async function saveWithFs(f, i) {
+    try {
+      var parts = f.name.split('/').filter(function (p) { return p.length > 0; });
+      if (!parts.length) return false;
+      var dir = destRoot;
+      for (var j = 0; j < parts.length - 1; j++) {
+        dir = await dir.getDirectoryHandle(parts[j], {create: true});
+      }
+      var fh = await dir.getFileHandle(parts[parts.length - 1], {create: true});
+      var w = await fh.createWritable();
+      var resp = await fetch(fileUrl(f.name), {credentials: 'include'});
+      if (!resp.ok) throw new Error('http ' + resp.status);
+      var total = parseInt(resp.headers.get('content-length') || '0', 10) || 0;
+      var got = 0;
+      var reader = resp.body.getReader();
+      for (;;) {
+        var r = await reader.read();
+        if (r.done) break;
+        got += r.value.length;
+        setBar(i, total > 0 ? got / total : 0.5);
+        await w.write(r.value);
+      }
+      await w.close();
+      setBar(i, 1);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  function saveWithDownload(f, i) {
+    // No directory picker here (Firefox/Safari): let the browser's own
+    // downloader take it, so a large video streams to disk instead of being
+    // buffered in the page.
+    var a = document.createElement('a');
+    a.href = fileUrl(f.name);
+    a.download = f.name.split('/').pop();
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { a.remove(); }, 60000);
+    setBar(i, 1);
+    return true;
+  }
+  async function receive(files, key, seq) {
+    receiving = true;
+    announcedSeq = seq;
+    renderRows(files);
+    recvDirBtn.style.display = 'none';
+    var usedDownloader = false;
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      setStatus('Receiving ' + (i + 1) + ' of ' + files.length + ' - ' + f.name);
+      var ok = destRoot ? await saveWithFs(f, i) : false;
+      if (!ok) { ok = await Promise.resolve(saveWithDownload(f, i)); usedDownloader = true; }
+      markRow(i, ok ? 'done' : 'err');
+    }
+    receiving = false;
+    doneKey = key;
+    doneSeq = seq;
+    try { localStorage.setItem('dp.received', key + '|' + seq); } catch (e) {}
+    setStatus('Saved ' + files.length + (files.length === 1 ? ' file' : ' files') + ' to ' +
+      (usedDownloader ? 'your Downloads folder' : destName));
+  }
+  function chooseDest() {
+    if (!fsSupported) return;
+    window.showDirectoryPicker({mode: 'readwrite'}).then(function (h) {
+      destRoot = h;
+      destName = h.name;
+      recvDirBtn.style.display = 'none';
+      setStatus('Ready - receiving into "' + h.name + '"');
+      loadDeviceFiles();
+    }).catch(function () {});
+  }
+  recvDirBtn.addEventListener('click', chooseDest);
   loadDeviceFiles();
-  setInterval(loadDeviceFiles, 3000);
+  setInterval(loadDeviceFiles, 1000);
+
 
 
 

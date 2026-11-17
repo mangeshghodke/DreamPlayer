@@ -186,27 +186,95 @@ void main() {
       expect(swift, contains('application/octet-stream'));
     });
 
-    test('both servers render the shared files as a folder tree', () {
-      // A picked folder arrives as "Photos/a.jpg" paths: the page groups them
-      // into one expandable folder entry instead of a flat list.
-      expect(kotlin, contains('buildTree'));
-      expect(kotlin, contains('countFiles'));
-      expect(kotlin, contains('deviceFilesCard'));
-      expect(swift, contains('buildTree'));
-      expect(swift, contains('countFiles'));
-      expect(swift, contains('deviceFilesCard'));
-      // Expanded by default - sending a folder means seeing its contents.
-      expect(kotlin.contains("body.style.display = 'block'"), isTrue);
-      expect(swift.contains("body.style.display = 'block'"), isTrue);
-      // The 3s poll must not rebuild an unchanged list, or the folder the
-      // user just opened collapses under them.
-      expect(kotlin.contains('lastSharedSig'), isTrue);
-      expect(swift.contains('lastSharedSig'), isTrue);
+    test('both servers tag each send batch so it is received once', () {
+      // runId identifies one server run, seq one send batch from the phone.
+      // The page stores the pair, so a page reload does not re-download a
+      // batch it already saved, while a NEW server run (whose seq restarts
+      // at 0) still delivers.
+      expect(kotlin, contains('private val runId'));
+      expect(kotlin, contains('sharedSeq'));
+      expect(swift, contains('private let runId'));
+      expect(swift, contains('sharedSeq'));
+      // Bumped when the phone shares, reset when the batch is cleared or
+      // the server stops.
+      expect(kotlin.contains('sharedSeq += 1'), isTrue);
+      expect(swift.contains('self.sharedSeq += 1'), isTrue);
+      expect(kotlin.contains('sharedSeq = 0'), isTrue);
+      expect(swift.contains('sharedSeq = 0'), isTrue);
     });
 
-    test('both servers embed credentials in the download URL', () {
-      // External download managers don't carry the browser's Basic-auth
-      // cache, so the credentials ride in the URL userinfo.
+    test('the /files response carries the batch identity', () {
+      expect(kotlin.contains('obj.put("runId", runId)'), isTrue);
+      expect(kotlin.contains('obj.put("seq", sharedSeq)'), isTrue);
+      expect(kotlin.contains('obj.put("files", arr)'), isTrue);
+      expect(swift.contains('"runId": runId'), isTrue);
+      expect(swift.contains('"seq": seq'), isTrue);
+      expect(swift.contains('"files": list'), isTrue);
+    });
+
+    test('the page receives the batch itself - nothing is a link', () {
+      // A picked FOLDER arrives as "Folder/sub/file" names, so the page
+      // walks that path back into real directories in the destination
+      // folder instead of showing the user a tree to click through.
+      expect(kotlin.contains('async function saveWithFs'), isTrue);
+      expect(swift.contains('async function saveWithFs'), isTrue);
+      expect(kotlin.contains('getDirectoryHandle'), isTrue);
+      expect(swift.contains('getDirectoryHandle'), isTrue);
+      // The only anchor the page ever creates is the invisible fallback
+      // download - no anchor is ever appended to the file list.
+      expect(kotlin.contains('deviceFilesList.appendChild(a)'), isFalse);
+      expect(swift.contains('deviceFilesList.appendChild(a)'), isFalse);
+      expect(kotlin.contains("a.style.display = 'none'"), isTrue);
+      expect(swift.contains("a.style.display = 'none'"), isTrue);
+      // ...and it clicks itself, so the user never has to.
+      expect(kotlin.contains('a.click();'), isTrue);
+      expect(swift.contains('a.click();'), isTrue);
+    });
+
+    test('the page says "already saved" only once', () {
+      // The 1s poll used to repeat that line, which overwrote the
+      // "Saved N files to <folder>" message the moment it appeared - so a
+      // finished send read as nothing happening (the reported bug).
+      expect(kotlin.contains('announcedSeq'), isTrue);
+      expect(swift.contains('announcedSeq'), isTrue);
+    });
+
+    test('the page saves each batch exactly once', () {
+      // The received runId|seq pair is remembered, so a reload inside the
+      // same server run does not download the same files again.
+      expect(kotlin.contains("localStorage.getItem('dp.received')"), isTrue);
+      expect(kotlin.contains("localStorage.setItem('dp.received'"), isTrue);
+      expect(swift.contains("localStorage.getItem('dp.received')"), isTrue);
+      expect(swift.contains("localStorage.setItem('dp.received'"), isTrue);
+    });
+
+    test('the page asks for a folder once, then never again', () {
+      // The directory picker needs a user gesture, so it is opened by the
+      // "Receive into a folder" button; every later batch is automatic.
+      expect(kotlin.contains('window.showDirectoryPicker'), isTrue);
+      expect(swift.contains('window.showDirectoryPicker'), isTrue);
+      expect(kotlin.contains('fsSupported && !destRoot'), isTrue);
+      expect(swift.contains('fsSupported && !destRoot'), isTrue);
+    });
+
+    test('the page falls back to the browser downloader without a picker', () {
+      // Firefox/Safari have no directory picker: the browser's own
+      // downloader takes each file, so a large video streams to disk
+      // instead of being buffered in the page.
+      expect(kotlin.contains('saveWithDownload'), isTrue);
+      expect(swift.contains('saveWithDownload'), isTrue);
+    });
+
+    test('the poll is fast enough to feel immediate', () {
+      // A send should start on the PC within about a second, not three.
+      expect(kotlin.contains('setInterval(loadDeviceFiles, 1000)'), isTrue);
+      expect(swift.contains('setInterval(loadDeviceFiles, 1000)'), isTrue);
+    });
+
+    test('both servers embed credentials in the fetch URL', () {
+      // The fallback anchor is a plain navigation, so the credentials ride
+      // in the URL userinfo; the fetch() calls rely on the page's own
+      // Basic-auth session.
       expect(
         kotlin.contains(r"location.protocol + '//' + '$authInfo'"),
         isTrue,
@@ -219,6 +287,13 @@ void main() {
   });
 
   group('send files + send folder to the computer', () {
+    test('the snackbar says it is sending and offers no link action', () {
+      // The transfer page receives the batch on its own now, so there is
+      // no URL to open and nothing to copy from the snackbar.
+      expect(screen, contains('Sending '));
+      expect(screen.contains("label: 'Copy URL'"), isFalse);
+    });
+
     test('the page offers both buttons while running', () {
       expect(screen, contains('Send files'));
       expect(screen, contains('Send folder'));

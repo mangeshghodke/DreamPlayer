@@ -30,8 +30,22 @@ void main() {
       expect(src, contains('flex: 1 1 0'));
       expect(src, contains('min-width: 0'));
       expect(src, contains('align-items: stretch'));
-      // The old full-width standalone rule must not come back.
-      expect(src, isNot(contains('width: 100%')));
+      // The old full-width standalone button rule must not come back: no
+      // rule that styles the transfers ACTIONS row may set a full width.
+      // (Other buttons on the page may - the receive-folder chooser is a
+      // single full-width button by design.)
+      final rule = RegExp(r'\.[a-zA-Z-]+[^{]*\{[^}]*\}');
+      var checked = 0;
+      for (final m in rule.allMatches(src)) {
+        final css = m.group(0)!;
+        if (css.startsWith('.actions') ||
+            css.startsWith('.cancel') ||
+            css.startsWith('.clear')) {
+          checked++;
+          expect(css, isNot(contains('width: 100%')));
+        }
+      }
+      expect(checked, greaterThan(0));
     });
   }
 }
