@@ -411,6 +411,28 @@ private const val MAX_NAME_LEN = 120
                     obj.put("files", arr)
                     respond(sock, 200, "application/json", obj.toString().toByteArray(StandardCharsets.UTF_8))
                 }
+                "$PATH_PREFIX/files.zip" -> {
+                    // ONE archive for the whole send batch (PairDrop zips the
+                    // same way): browsers without a directory picker
+                    // (Firefox/Safari) download this single store-only zip
+                    // instead of N files, so the "multiple downloads" prompt
+                    // never fires and the folder structure travels inside the
+                    // archive. Streamed straight from the URIs - no copy.
+                    if (method != "GET") { respond(sock, 405, "text/plain", "method".toByteArray()); sock.close(); return }
+                    val entries = synchronized(sharedFiles) {
+                        sharedFiles.map { (name, pair) ->
+                            StoreZip.Entry(name, pair.second) {
+                                openUriStream(pair.first)
+                                    ?: throw java.io.IOException("unreadable: $name")
+                            }
+                        }
+                    }
+                    if (entries.isEmpty()) {
+                        respond(sock, 404, "text/plain", "nothing shared".toByteArray())
+                        sock.close(); return
+                    }
+                    streamSharedZip(sock, entries)
+                }
                 "$PATH_PREFIX/file" -> {
                     // Stream one shared file back OUT to the PC, straight from
                     // its content URI. Supports Range for resume/progress.
@@ -499,6 +521,40 @@ private const val MAX_NAME_LEN = 120
     /// content/file URI to the PC browser. Supports HTTP Range so the
     /// browser can resume a partial download. Runs on the connection
     /// thread - never touches the UI thread.
+    /// Opens a picked content/file URI for streaming. Shared by the single
+    /// file endpoint and the whole-batch zip.
+    private fun openUriStream(uriString: String): java.io.InputStream? {
+        val uri = android.net.Uri.parse(uriString)
+        return when (uri.scheme) {
+            null, "file" -> java.io.File(uri.path ?: uriString).inputStream()
+            else -> context.contentResolver.openInputStream(uri)
+        }
+    }
+
+    /// Streams the whole shared batch as one store-only ZIP. No
+    /// Content-Length: the archive length depends on the bytes actually
+    /// read, so the body is close-delimited (the browser's download manager
+    /// handles that fine).
+    private fun streamSharedZip(sock: Socket, entries: List<StoreZip.Entry>) {
+        val head = buildString {
+            append("HTTP/1.1 200 OK\r\n")
+            append("Content-Type: application/zip\r\n")
+            append("Content-Disposition: attachment; filename=\"DreamPlayer_files.zip\"\r\n")
+            append("Accept-Ranges: none\r\n")
+            append("Connection: close\r\n\r\n")
+        }
+        try {
+            val out = sock.getOutputStream()
+            out.write(head.toByteArray(StandardCharsets.UTF_8))
+            StoreZip.write(entries, out)
+            out.flush()
+        } catch (e: Exception) {
+            Log.w(TAG, "zip stream error: $e")
+        } finally {
+            try { sock.close() } catch (_: IOException) {}
+        }
+    }
+
     private fun streamSharedFile(
         sock: Socket,
         name: String,
@@ -506,11 +562,7 @@ private const val MAX_NAME_LEN = 120
         size: Long,
         headers: Map<String, String>,
     ) {
-        val uri = android.net.Uri.parse(uriString)
-        val input = when (uri.scheme) {
-            null, "file" -> java.io.File(uri.path ?: uriString).inputStream()
-            else -> context.contentResolver.openInputStream(uri)
-        }
+        val input = openUriStream(uriString)
         if (input == null) {
             respond(sock, 404, "text/plain", "file unreadable".toByteArray())
             sock.close(); return
@@ -862,10 +914,10 @@ private const val MAX_NAME_LEN = 120
     <button class="recvdir" id="recvDir" type="button" style="display:none;">Choose folder to save into</button>
     <ul id="deviceFiles"></ul>
   </div>
-  <p class="foot">Files you send from the phone arrive here automatically and are saved into the
-     folder you pick. Files you upload on this page land in the phone's download folder and
-     appear in DreamPlayer. The page is reachable while the transfer service is on in the app,
-     even when the screen is locked.</p>
+  <p class="foot">Files you send from the phone arrive here automatically: into the folder you
+     pick, or as one zip archive in your Downloads folder on browsers without a folder picker.
+     Files you upload on this page land in the phone's download folder and appear in DreamPlayer.
+     The page is reachable while the transfer service is on in the app, even when the screen is locked.</p>
 </div>
 <script>
 (function () {
@@ -1009,9 +1061,9 @@ private const val MAX_NAME_LEN = 120
     }
   }
   function saveWithDownload(f, i) {
-    // No directory picker here (Firefox/Safari): let the browser's own
-    // downloader take it, so a large video streams to disk instead of being
-    // buffered in the page.
+    // No directory picker here (Firefox/Safari), single file: let the
+    // browser's own downloader take it, so a large video streams to disk
+    // instead of being buffered in the page.
     var a = document.createElement('a');
     a.href = fileUrl(f.name);
     a.download = f.name.split('/').pop();
@@ -1022,25 +1074,57 @@ private const val MAX_NAME_LEN = 120
     setBar(i, 1);
     return true;
   }
+  function zipUrl() {
+    return location.protocol + '//' + '$authInfo' + location.host + '$PATH_PREFIX/files.zip';
+  }
+  function zipName() {
+    // PairDrop names its client-side archive the same way.
+    var d = new Date();
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return 'DreamPlayer_files_' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) +
+           '_' + p(d.getHours()) + p(d.getMinutes()) + '.zip';
+  }
+  function saveZip(files) {
+    // ONE archive for the whole batch (PairDrop zips the same way): the
+    // server streams a single store-only zip, so the browser's "this site
+    // wants to download multiple files" prompt never fires and the folder
+    // structure travels inside the archive.
+    var a = document.createElement('a');
+    a.href = zipUrl();
+    a.download = zipName();
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { a.remove(); }, 60000);
+    for (var i = 0; i < files.length; i++) { setBar(i, 1); markRow(i, 'done'); }
+    return true;
+  }
   async function receive(files, key, seq) {
     receiving = true;
     announcedSeq = seq;
     renderRows(files);
     recvDirBtn.style.display = 'none';
-    var usedDownloader = false;
-    for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      setStatus('Receiving ' + (i + 1) + ' of ' + files.length + ' - ' + f.name);
-      var ok = destRoot ? await saveWithFs(f, i) : false;
-      if (!ok) { ok = await Promise.resolve(saveWithDownload(f, i)); usedDownloader = true; }
-      markRow(i, ok ? 'done' : 'err');
+    var dest = destName;
+    if (!destRoot && files.length > 1) {
+      // No directory picker (Firefox/Safari) and more than one file: take
+      // the whole batch as ONE zip instead of N separate downloads.
+      setStatus('Receiving ' + files.length + ' files as one archive');
+      saveZip(files);
+      dest = 'your Downloads folder (one archive)';
+    } else {
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        setStatus('Receiving ' + (i + 1) + ' of ' + files.length + ' - ' + f.name);
+        var ok = destRoot ? await saveWithFs(f, i) : false;
+        if (!ok) { ok = await Promise.resolve(saveWithDownload(f, i)); dest = 'your Downloads folder'; }
+        markRow(i, ok ? 'done' : 'err');
+      }
     }
     receiving = false;
     doneKey = key;
     doneSeq = seq;
     try { localStorage.setItem('dp.received', key + '|' + seq); } catch (e) {}
-    setStatus('Saved ' + files.length + (files.length === 1 ? ' file' : ' files') + ' to ' +
-      (usedDownloader ? 'your Downloads folder' : destName));
+    setStatus('Saved ' + files.length + (files.length === 1 ? ' file' : ' files') + ' to ' + dest);
   }
   function chooseDest() {
     if (!fsSupported) return;

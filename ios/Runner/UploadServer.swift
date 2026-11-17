@@ -487,6 +487,26 @@ final class UploadServer: NSObject, FlutterStreamHandler {
             respond(connection: connection, code: 200, contentType: "application/json", body: body)
             return
         }
+        if path == "\(Self.pathPrefix)/files.zip" {
+            // ONE archive for the whole send batch (PairDrop zips the same
+            // way): browsers without a directory picker (Firefox/Safari)
+            // download this single store-only zip instead of N files, so the
+            // "multiple downloads" prompt never fires and the folder structure
+            // travels inside the archive. Streamed straight from the URIs.
+            guard method == "GET" else {
+                respond(connection: connection, code: 405, contentType: "text/plain", body: Data("method not allowed".utf8))
+                return
+            }
+            sharedFilesLock.lock()
+            let entries = sharedFiles.map { (name: $0.key, uri: $0.value.uri, size: $0.value.size) }
+            sharedFilesLock.unlock()
+            guard !entries.isEmpty else {
+                respond(connection: connection, code: 404, contentType: "text/plain", body: Data("nothing shared".utf8))
+                return
+            }
+            streamSharedZip(connection: connection, entries: entries)
+            return
+        }
         if path == "\(Self.pathPrefix)/file" {
             guard method == "GET" else {
                 respond(connection: connection, code: 405, contentType: "text/plain", body: Data("method not allowed".utf8))
@@ -672,6 +692,200 @@ final class UploadServer: NSObject, FlutterStreamHandler {
             })
         }
         sendChunk()
+    }
+
+    // MARK: - Whole-batch ZIP (store-only, ZIP64-capable)
+
+    // The CRC of an entry is only known after its bytes are read, so each
+    // local header uses the data-descriptor flag (bit 3) and the real
+    // CRC/sizes follow the data; the central directory carries the real
+    // values, which is what every reader (browser, unzip) actually uses.
+    // Mirrors StoreZip.kt on Android byte for byte.
+    private static let crcTable: [UInt32] = {
+        var t = [UInt32](repeating: 0, count: 256)
+        for i in 0..<256 {
+            var c = UInt32(i)
+            for _ in 0..<8 { c = (c & 1) != 0 ? (0xEDB88320 ^ (c >> 1)) : (c >> 1) }
+            t[i] = c
+        }
+        return t
+    }()
+
+    private func crc32Update(_ crc: UInt32, _ data: Data) -> UInt32 {
+        var c = crc
+        for b in data { c = UploadServer.crcTable[Int((c ^ UInt32(b)) & 0xFF)] ^ (c >> 8) }
+        return c
+    }
+
+    private func le16(_ v: Int) -> Data { Data([UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF)]) }
+    private func le32(_ v: UInt32) -> Data {
+        Data([UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)])
+    }
+    private func le64(_ v: Int64) -> Data {
+        var d = Data()
+        let u = UInt64(bitPattern: v)
+        for i in 0..<8 { d.append(UInt8((u >> UInt64(8 * i)) & 0xFF)) }
+        return d
+    }
+
+    /// Streams the whole shared batch as one store-only ZIP. No
+    /// Content-Length: the archive length depends on the bytes actually
+    /// read, so the body is close-delimited.
+    private func streamSharedZip(connection: NWConnection, entries: [(name: String, uri: String, size: Int64)]) {
+        var head = "HTTP/1.1 200 OK\r\n"
+        head += "Content-Type: application/zip\r\n"
+        head += "Content-Disposition: attachment; filename=\"DreamPlayer_files.zip\"\r\n"
+        head += "Accept-Ranges: none\r\n"
+        head += "Connection: close\r\n\r\n"
+        connection.send(content: Data(head.utf8), completion: .contentProcessed { _ in })
+
+        struct Cent { var name: [UInt8]; var crc: UInt32; var size: Int64; var declared: Int64; var localOffset: Int64 }
+        var centrals: [Cent] = []
+        var offset: Int64 = 0
+        var idx = 0
+
+        func sendData(_ d: Data, then: @escaping () -> Void) {
+            if d.isEmpty { then(); return }
+            connection.send(content: d, completion: .contentProcessed { _ in then() })
+        }
+
+        func writeCentral(cdStart: Int64) {
+            var i = 0
+            func nextOne() {
+                guard i < centrals.count else { finish(cdStart: cdStart); return }
+                let c = centrals[i]; i += 1
+                // ZIP64 is decided on max(actual, declared) so the local
+                // header, the central directory and the ZIP64 EOCD can never
+                // disagree about whether an entry is oversized.
+                let size64 = c.size >= 0xFFFFFFFF || c.declared >= 0xFFFFFFFF
+                let off64 = c.localOffset >= 0xFFFFFFFF
+                // One 0x0001 field, spec order (usize, csize, local offset),
+                // only the values whose 32-bit slots are 0xFFFFFFFF.
+                var extraBody = Data()
+                if size64 { extraBody.append(le64(c.size)); extraBody.append(le64(c.size)) }
+                if off64 { extraBody.append(le64(c.localOffset)) }
+                var ch = Data()
+                ch.append(le32(0x02014b50))
+                ch.append(le16(45)); ch.append(le16(45))
+                ch.append(le16(0x0808)) // data descriptor + UTF-8
+                ch.append(le16(0)) // method: store
+                ch.append(le16(0)); ch.append(le16(0x0021))
+                ch.append(le32(c.crc))
+                ch.append(le32(size64 ? 0xFFFFFFFF : UInt32(truncatingIfNeeded: c.size)))
+                ch.append(le32(size64 ? 0xFFFFFFFF : UInt32(truncatingIfNeeded: c.size)))
+                ch.append(le16(c.name.count))
+                ch.append(le16(extraBody.isEmpty ? 0 : extraBody.count + 4))
+                ch.append(le16(0)); ch.append(le16(0)); ch.append(le16(0))
+                ch.append(le32(0))
+                ch.append(le32(off64 ? 0xFFFFFFFF : UInt32(truncatingIfNeeded: c.localOffset)))
+                ch.append(Data(c.name))
+                if !extraBody.isEmpty {
+                    ch.append(le16(0x0001)); ch.append(le16(extraBody.count)); ch.append(extraBody)
+                }
+                sendData(ch) { offset += Int64(ch.count); nextOne() }
+            }
+            nextOne()
+        }
+
+        func finish(cdStart: Int64) {
+            let cdSize = offset - cdStart
+            let need64 = cdStart >= 0xFFFFFFFF || cdSize >= 0xFFFFFFFF || centrals.count >= 0xFFFF ||
+                centrals.contains { $0.size >= 0xFFFFFFFF || $0.declared >= 0xFFFFFFFF || $0.localOffset >= 0xFFFFFFFF }
+            func writeEocd() {
+                var e = Data()
+                e.append(le32(0x06054b50))
+                e.append(le16(0)); e.append(le16(0))
+                e.append(le16(min(centrals.count, 0xFFFF))); e.append(le16(min(centrals.count, 0xFFFF)))
+                e.append(le32(cdSize >= 0xFFFFFFFF ? 0xFFFFFFFF : UInt32(truncatingIfNeeded: cdSize)))
+                e.append(le32(cdStart >= 0xFFFFFFFF ? 0xFFFFFFFF : UInt32(truncatingIfNeeded: cdStart)))
+                e.append(le16(0))
+                sendData(e) { connection.cancel() }
+            }
+            if need64 {
+                let z64Start = offset
+                var z = Data()
+                z.append(le32(0x06064b50))
+                z.append(le64(44))
+                z.append(le16(45)); z.append(le16(45))
+                z.append(le32(0)); z.append(le32(0))
+                z.append(le64(Int64(centrals.count))); z.append(le64(Int64(centrals.count)))
+                z.append(le64(cdSize)); z.append(le64(cdStart))
+                offset += 56
+                var loc = Data()
+                loc.append(le32(0x07064b50)); loc.append(le32(0)); loc.append(le64(z64Start)); loc.append(le32(1))
+                offset += 20
+                sendData(z) { sendData(loc) { writeEocd() } }
+            } else {
+                writeEocd()
+            }
+        }
+
+        func pumpData(_ input: FileHandle, crc: UInt32, total: Int64, nameBytes: [UInt8],
+                      declared: Int64, localOffset: Int64, zip64: Bool, done: @escaping () -> Void) {
+            let data = (try? input.read(upToCount: 256 * 1024)) ?? Data()
+            if data.isEmpty {
+                let finalCrc = crc ^ 0xFFFFFFFF
+                var dd = Data()
+                if total >= 0xFFFFFFFF || zip64 {
+                    dd.append(le32(0x08074b50)); dd.append(le32(finalCrc)); dd.append(le64(total)); dd.append(le64(total))
+                } else {
+                    dd.append(le32(0x08074b50)); dd.append(le32(finalCrc))
+                    dd.append(le32(UInt32(truncatingIfNeeded: total))); dd.append(le32(UInt32(truncatingIfNeeded: total)))
+                }
+                centrals.append(Cent(name: nameBytes, crc: finalCrc, size: total, declared: declared, localOffset: localOffset))
+                sendData(dd) { offset += Int64(dd.count); done() }
+                return
+            }
+            let newCrc = crc32Update(crc, data)
+            sendData(data) {
+                offset += Int64(data.count)
+                pumpData(input, crc: newCrc, total: total + Int64(data.count), nameBytes: nameBytes,
+                         localOffset: localOffset, zip64: zip64, done: done)
+            }
+        }
+
+        func writeEntry() {
+            guard idx < entries.count else {
+                writeCentral(cdStart: offset)
+                return
+            }
+            let e = entries[idx]; idx += 1
+            // Open BEFORE the header so an unreadable file is skipped whole.
+            guard let url = URL(string: e.uri) else { writeEntry(); return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            guard let input = try? FileHandle(forReadingFrom: url) else {
+                if scoped { url.stopAccessingSecurityScopedResource() }
+                writeEntry(); return
+            }
+            let nameBytes = Array(e.name.utf8)
+            let zip64 = e.size >= 0xFFFFFFFF
+            let localOffset = offset
+            var lh = Data()
+            lh.append(le32(0x04034b50))
+            lh.append(le16(45))
+            lh.append(le16(0x0808))
+            lh.append(le16(0)) // store
+            lh.append(le16(0)); lh.append(le16(0x0021))
+            lh.append(le32(0)) // crc in descriptor
+            lh.append(le32(zip64 ? 0xFFFFFFFF : 0))
+            lh.append(le32(zip64 ? 0xFFFFFFFF : 0))
+            lh.append(le16(nameBytes.count))
+            lh.append(le16(zip64 ? 20 : 0))
+            lh.append(Data(nameBytes))
+            if zip64 {
+                lh.append(le16(0x0001)); lh.append(le16(16)); lh.append(le64(e.size)); lh.append(le64(e.size))
+            }
+            sendData(lh) {
+                offset += Int64(lh.count)
+                pumpData(input, crc: 0xFFFFFFFF, total: 0, nameBytes: nameBytes,
+                         declared: e.size, localOffset: localOffset, zip64: zip64) {
+                    try? input.close()
+                    if scoped { url.stopAccessingSecurityScopedResource() }
+                    writeEntry()
+                }
+            }
+        }
+        writeEntry()
     }
 
     private func guessMime(_ name: String) -> String {
@@ -1018,10 +1232,10 @@ private func pageHtml() -> String {
         html += "    <button class=\"recvdir\" id=\"recvDir\" type=\"button\" style=\"display:none;\">Choose folder to save into</button>\n"
         html += "    <ul id=\"deviceFiles\"></ul>\n"
         html += "  </div>\n"
-        html += "  <p class=\"foot\">Files you send from the phone arrive here automatically and are saved into the\n"
-        html += "     folder you pick. Files you upload on this page land in the phone's download folder and\n"
-        html += "     appear in DreamPlayer. The page is reachable while the transfer service is on in the app,\n"
-        html += "     even when the screen is locked.</p>\n"
+        html += "  <p class=\"foot\">Files you send from the phone arrive here automatically: into the folder you\n"
+        html += "     pick, or as one zip archive in your Downloads folder on browsers without a folder picker.\n"
+        html += "     Files you upload on this page land in the phone's download folder and appear in DreamPlayer.\n"
+        html += "     The page is reachable while the transfer service is on in the app, even when the screen is locked.</p>\n"
         html += "</div>\n"
         html += "<script>\n"
         html += "(function () {\n"
@@ -1166,9 +1380,9 @@ private func pageHtml() -> String {
         html += "    }\n"
         html += "  }\n"
         html += "  function saveWithDownload(f, i) {\n"
-        html += "    // No directory picker here (Firefox/Safari): let the browser's own\n"
-        html += "    // downloader take it, so a large video streams to disk instead of being\n"
-        html += "    // buffered in the page.\n"
+        html += "    // No directory picker here (Firefox/Safari), single file: let the\n"
+        html += "    // browser's own downloader take it, so a large video streams to disk\n"
+        html += "    // instead of being buffered in the page.\n"
         html += "    var a = document.createElement('a');\n"
         html += "    a.href = fileUrl(f.name);\n"
         html += "    a.download = f.name.split('/').pop();\n"
@@ -1179,24 +1393,57 @@ private func pageHtml() -> String {
         html += "    setBar(i, 1);\n"
         html += "    return true;\n"
         html += "  }\n"
+        html += "  function zipUrl() {\n"
+        html += "    return location.protocol + '//' + '\(authInfo)' + location.host + '\(pathPrefix)/files.zip';\n"
+        html += "  }\n"
+        html += "  function zipName() {\n"
+        html += "    // PairDrop names its client-side archive the same way.\n"
+        html += "    var d = new Date();\n"
+        html += "    function p(n) { return (n < 10 ? '0' : '') + n; }\n"
+        html += "    return 'DreamPlayer_files_' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) +\n"
+        html += "           '_' + p(d.getHours()) + p(d.getMinutes()) + '.zip';\n"
+        html += "  }\n"
+        html += "  function saveZip(files) {\n"
+        html += "    // ONE archive for the whole batch (PairDrop zips the same way): the\n"
+        html += "    // server streams a single store-only zip, so the browser's \"this site\n"
+        html += "    // wants to download multiple files\" prompt never fires and the folder\n"
+        html += "    // structure travels inside the archive.\n"
+        html += "    var a = document.createElement('a');\n"
+        html += "    a.href = zipUrl();\n"
+        html += "    a.download = zipName();\n"
+        html += "    a.style.display = 'none';\n"
+        html += "    document.body.appendChild(a);\n"
+        html += "    a.click();\n"
+        html += "    setTimeout(function () { a.remove(); }, 60000);\n"
+        html += "    for (var i = 0; i < files.length; i++) { setBar(i, 1); markRow(i, 'done'); }\n"
+        html += "    return true;\n"
+        html += "  }\n"
         html += "  async function receive(files, key, seq) {\n"
         html += "    receiving = true;\n"
         html += "    announcedSeq = seq;\n"
         html += "    renderRows(files);\n"
         html += "    recvDirBtn.style.display = 'none';\n"
-        html += "    var usedDownloader = false;\n"
-        html += "    for (var i = 0; i < files.length; i++) {\n"
-        html += "      var f = files[i];\n"
-        html += "      setStatus('Receiving ' + (i + 1) + ' of ' + files.length + ' - ' + f.name);\n"
-        html += "      var ok = destRoot ? await saveWithFs(f, i) : false;\n"
-        html += "      if (!ok) { ok = await Promise.resolve(saveWithDownload(f, i)); usedDownloader = true; }\n"
-        html += "      markRow(i, ok ? 'done' : 'err');\n"
+        html += "    var dest = destName;\n"
+        html += "    if (!destRoot && files.length > 1) {\n"
+        html += "      // No directory picker (Firefox/Safari) and more than one file: take\n"
+        html += "      // the whole batch as ONE zip instead of N separate downloads.\n"
+        html += "      setStatus('Receiving ' + files.length + ' files as one archive');\n"
+        html += "      saveZip(files);\n"
+        html += "      dest = 'your Downloads folder (one archive)';\n"
+        html += "    } else {\n"
+        html += "      for (var i = 0; i < files.length; i++) {\n"
+        html += "        var f = files[i];\n"
+        html += "        setStatus('Receiving ' + (i + 1) + ' of ' + files.length + ' - ' + f.name);\n"
+        html += "        var ok = destRoot ? await saveWithFs(f, i) : false;\n"
+        html += "        if (!ok) { ok = await Promise.resolve(saveWithDownload(f, i)); dest = 'your Downloads folder'; }\n"
+        html += "        markRow(i, ok ? 'done' : 'err');\n"
+        html += "      }\n"
         html += "    }\n"
         html += "    receiving = false;\n"
         html += "    doneKey = key;\n"
         html += "    doneSeq = seq;\n"
         html += "    try { localStorage.setItem('dp.received', key + '|' + seq); } catch (e) {}\n"
-        html += "    setStatus('Saved ' + files.length + (files.length === 1 ? ' file' : ' files') + ' to ' + (usedDownloader ? 'your Downloads folder' : destName));\n"
+        html += "    setStatus('Saved ' + files.length + (files.length === 1 ? ' file' : ' files') + ' to ' + dest);\n"
         html += "  }\n"
         html += "  function chooseDest() {\n"
         html += "    if (!fsSupported) return;\n"

@@ -17,6 +17,9 @@ void main() {
   final kotlin = File(
     'android/app/src/main/kotlin/com/dreamplayer/app/UploadServer.kt',
   ).readAsStringSync();
+  final storeZip = File(
+    'android/app/src/main/kotlin/com/dreamplayer/app/StoreZip.kt',
+  ).readAsStringSync();
   final swift =
       File('ios/Runner/UploadServer.swift').readAsStringSync();
   final manager =
@@ -283,6 +286,43 @@ void main() {
         swift.contains(r"location.protocol + '//' + '\(authInfo)'"),
         isTrue,
       );
+    });
+
+    test('both servers stream the whole batch as one store-only zip', () {
+      // PairDrop's answer to multi-file sends: ONE archive, not N
+      // downloads, so the browser's "multiple downloads" prompt never
+      // fires and the folder structure travels inside the zip.
+      expect(kotlin, contains(r'"$PATH_PREFIX/files.zip"'));
+      expect(swift, contains('/files.zip'));
+      // The writer is STORE-only (method 0) with ZIP64 - a 50 GB remux
+      // must not cost CPU, and must not overflow the 4 GiB fields.
+      expect(storeZip, contains('object StoreZip'));
+      expect(storeZip, contains('0x04034b50')); // local header signature
+      expect(storeZip, contains('0x06064b50')); // ZIP64 EOCD
+      expect(kotlin, contains('StoreZip.write')); // the route uses it
+      expect(swift, contains('0x04034b50'));
+      expect(swift, contains('0x06064b50'));
+      // The zip route is authenticated like every other route (it sits
+      // after the auth check in the same when/if chain).
+      expect(kotlin.indexOf(r'"$PATH_PREFIX/files.zip"') > kotlin.indexOf('if (!authorized(headers))'), isTrue);
+      expect(swift.indexOf('/files.zip') > swift.indexOf('WWW-Authenticate'), isTrue);
+    });
+
+    test('the page takes a multi-file batch as ONE zip on fallback browsers', () {
+      // No directory picker (Firefox/Safari) + more than one file -> a
+      // single anchor to files.zip, never a per-file loop.
+      expect(kotlin.contains('!destRoot && files.length > 1'), isTrue);
+      expect(swift.contains('!destRoot && files.length > 1'), isTrue);
+      expect(kotlin.contains('saveZip(files)'), isTrue);
+      expect(swift.contains('saveZip(files)'), isTrue);
+      expect(kotlin.contains('files.zip'), isTrue);
+      expect(swift.contains('files.zip'), isTrue);
+      // The archive is named like PairDrop's: DreamPlayer_files_<date>.zip
+      expect(kotlin.contains("'DreamPlayer_files_'"), isTrue);
+      expect(swift.contains("'DreamPlayer_files_'"), isTrue);
+      // A single file still goes direct - no point wrapping one file.
+      expect(kotlin.contains('saveWithDownload(f, i)'), isTrue);
+      expect(swift.contains('saveWithDownload(f, i)'), isTrue);
     });
   });
 
