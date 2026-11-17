@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -94,6 +95,36 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
               files.length == 1
                   ? 'Sending 1 file'
                   : 'Sending ${files.length} files',
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      _picking = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// iOS only: opens the system Photos picker and sends the picked images
+  /// through the same push flow. The native side copies each photo to a
+  /// stable temp file (PHPicker URLs are temporary) and names it
+  /// `Photos/<name>`, so the receiving page groups them into a folder.
+  Future<void> _sendPhotosToComputer() async {
+    if (_picking || !_service.running) return;
+    _picking = true;
+    if (mounted) setState(() {});
+    try {
+      final photos = await FileBrowserService.instance.pickPhotos();
+      if (photos.isEmpty || !mounted) return;
+      await _service.shareFiles(photos);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              photos.length == 1
+                  ? 'Sending 1 photo'
+                  : 'Sending ${photos.length} photos',
             ),
             duration: const Duration(seconds: 3),
           ),
@@ -357,6 +388,33 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
                       ),
                     ),
                   ),
+                  // Photos-app picker exists on iOS only (PHPicker); Android
+                  // users pick images through "Send files" instead.
+                  if (Platform.isIOS) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SizedBox(
+                        height: 52,
+                        child: OutlinedButton.icon(
+                          onPressed: running && !_picking ? _sendPhotosToComputer : null,
+                          icon: const Icon(Icons.photo_library_outlined, size: 20),
+                          label: const Text(
+                            'Send photos',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colorScheme.primary,
+                            side: BorderSide(
+                              color: colorScheme.primary.withValues(alpha: 0.5),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               // Files registered as the current send batch: the transfer

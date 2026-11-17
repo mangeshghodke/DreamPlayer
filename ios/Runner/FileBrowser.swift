@@ -1,6 +1,7 @@
 import AVFoundation
 import Flutter
 import Foundation
+import PhotosUI
 import UniformTypeIdentifiers
 import UIKit
 import Security
@@ -49,6 +50,9 @@ final class FileBrowser: NSObject {
     private var bookmarkRoots: [String: URL] = [:]
     private var pickerCompletion: FlutterResult?
     private var pickerMode: PickerMode = .folder
+    /// Separate completion for the Photos (PHPicker) picker - it has its
+    /// own delegate protocol, so it cannot share `pickerCompletion`.
+    private var photoPickerCompletion: FlutterResult?
 
     private override init() { super.init() }
 
@@ -93,6 +97,8 @@ final class FileBrowser: NSObject {
             presentFilesPicker(result)
         case "pickFolderContents":
             presentFolderContentsPicker(result)
+        case "pickPhotos":
+            presentPhotosPicker(result)
         case "copyFontFile":
             let args = call.arguments as? [String: Any]
             let uri = args?["uri"] as? String ?? ""
@@ -458,6 +464,37 @@ final class FileBrowser: NSObject {
         top.present(picker, animated: true)
     }
 
+    /// Photos-app picker for "send photos to computer": opens PHPicker
+    /// limited to images, copies every picked photo to a STABLE temp file
+    /// (PHPicker's file-representation URLs are only valid inside its
+    /// callback, and the upload server streams them later, when the PC
+    /// downloads), and returns them as {uri, name, size} with names
+    /// "Photos/<file>" so the receiving page groups them into a folder.
+    private func presentPhotosPicker(_ result: @escaping FlutterResult) {
+        guard photoPickerCompletion == nil else {
+            result(FlutterError(code: "busy", message: "A picker is already open", details: nil))
+            return
+        }
+        guard let top = topViewController() else {
+            result(FlutterError(code: "no_vc", message: "No view controller", details: nil))
+            return
+        }
+        // A new photo send replaces the previous batch, so the previous
+        // batch's temp copies are no longer needed - drop them.
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("dp_photos", isDirectory: true)
+        try? FileManager.default.removeItem(at: dir)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        photoPickerCompletion = result
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.filter = .images
+        config.selectionLimit = 0 // unlimited
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        top.present(picker, animated: true)
+    }
+
     /// Copies a picked font to `destPath` inside the app's own storage, so the
     /// subtitle renderers can read it without a live security scope (iCloud
     /// files may not be resident; the picked scope is released when the
@@ -705,6 +742,62 @@ extension FileBrowser: UIDocumentPickerDelegate {
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
         pickerCompletion?(nil)
         pickerCompletion = nil
+    }
+}
+
+// MARK: - PHPickerViewControllerDelegate
+
+extension FileBrowser: PHPickerViewControllerDelegate {
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        guard let completion = photoPickerCompletion else { return }
+        photoPickerCompletion = nil
+        guard !results.isEmpty else { completion(nil); return }
+
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("dp_photos", isDirectory: true)
+        let group = DispatchGroup()
+        var out: [[String: Any]?] = Array(repeating: nil, count: results.count)
+
+        for (i, r) in results.enumerated() {
+            let provider = r.itemProvider
+            // Prefer the original format (HEIC/JPEG/RAW as registered);
+            // fall back to a JPEG export if the original cannot be loaded
+            // as a file representation.
+            let original = provider.registeredTypeIdentifiers.first
+            let typeId = original ?? UTType.jpeg.identifier
+            group.enter()
+            func load(_ id: String, isRetry: Bool) {
+                provider.loadFileRepresentation(forTypeIdentifier: id) { url, error in
+                    if error != nil || url == nil, !isRetry {
+                        group.leave()
+                        load(UTType.jpeg.identifier, isRetry: true)
+                        return
+                    }
+                    defer { group.leave() }
+                    guard let url, error == nil else { return }
+                    let suggested = provider.suggestedName ?? "photo_\(i + 1).jpg"
+                    let safe = suggested.replacingOccurrences(of: "/", with: "_")
+                    let dest = dir.appendingPathComponent("\(UUID().uuidString)_\(safe)")
+                    do {
+                        try FileManager.default.copyItem(at: url, to: dest)
+                        let attrs = try? FileManager.default.attributesOfItem(atPath: dest.path)
+                        let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+                        // "Photos/" prefix: the receiving page re-creates the
+                        // folder, exactly like a picked folder's tree.
+                        out[i] = ["uri": dest.absoluteString, "name": "Photos/\(safe)", "size": size]
+                    } catch {
+                        SBMLog.log("pickPhotos copy failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+            load(typeId, isRetry: false)
+        }
+
+        group.notify(queue: .main) {
+            let files = out.compactMap { $0 }
+            SBMLog.log("pickPhotos: \(files.count) of \(results.count) copied")
+            completion(files)
+        }
     }
 }
 

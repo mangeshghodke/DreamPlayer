@@ -392,6 +392,36 @@ void main() {
       expect(screen.contains('running && !_picking'), isTrue);
     });
 
+    test('iOS gets a third "Send photos" button wired to the Photos picker', () {
+      // The Photos-app picker is iOS-only (PHPicker); Android users pick
+      // images through "Send files".
+      expect(screen, contains('Send photos'));
+      expect(screen, contains('_sendPhotosToComputer'));
+      expect(screen.contains('if (Platform.isIOS)'), isTrue);
+      expect(screen.contains("'Sending 1 photo'"), isTrue);
+      // The Dart side hands the picked photos to the same shareFiles push
+      // flow - no copying in Dart.
+      expect(screen.contains('pickPhotos()'), isTrue);
+      expect(browser, contains("'pickPhotos'"));
+      expect(browser.contains('invokeListMethod<dynamic>(\'pickPhotos\')'), isTrue);
+    });
+
+    test('iOS copies picked photos to stable files named Photos/<name>', () {
+      final fb = File('ios/Runner/FileBrowser.swift').readAsStringSync();
+      expect(fb, contains('import PhotosUI'));
+      expect(fb, contains('case "pickPhotos":'));
+      expect(fb, contains('PHPickerViewController'));
+      expect(fb, contains('config.filter = .images'));
+      // PHPicker file URLs are temporary - they must be copied before the
+      // server streams them later.
+      expect(fb, contains('loadFileRepresentation'));
+      expect(fb, contains('dp_photos'));
+      expect(fb.contains('copyItem(at: url, to: dest)'), isTrue);
+      // The "Photos/" prefix makes the receiving page group them into a
+      // folder, like a picked folder's tree.
+      expect(fb.contains('"Photos/\\(safe)"'), isTrue);
+    });
+
     test('the page lists what is shared with the computer', () {
       expect(screen, contains('_service.sharedFiles.isNotEmpty'));
       expect(screen, contains('_SharedFileRow('));

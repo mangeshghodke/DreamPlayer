@@ -305,6 +305,27 @@ Future<List<Map<String, dynamic>>> pickFolderContents() async {
     }
   }
 
+  /// iOS only: opens the system PHOTOS picker (images) and returns the
+  /// picked photos as `{uri, name, size}` maps named `Photos/<file>`.
+  /// The native side copies each photo to a stable temp file first -
+  /// PHPicker's file-representation URLs are only valid inside the picker
+  /// callback, and the upload server streams the URIs later, when the PC
+  /// downloads. Empty list on Android (method not implemented) or cancel.
+  Future<List<Map<String, dynamic>>> pickPhotos() async {
+    try {
+      final result = await _channel.invokeListMethod<dynamic>('pickPhotos');
+      if (result == null) return const [];
+      return result
+          .whereType<Map>()
+          .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    } on PlatformException {
+      return const [];
+    } on MissingPluginException {
+      return const [];
+    }
+  }
+
   /// Presents the system file picker filtered to subtitle files (SRT/ASS/VTT).
   /// Returns the picked file's URI string (content:// on Android, file:// on
   /// iOS) or null if cancelled.
