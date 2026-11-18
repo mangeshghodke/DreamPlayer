@@ -925,66 +925,6 @@
   "@settingsConnected": {
     "description": "SIMKL connected state"
   },
-  "settingsTraktSync": "Sync watched to Trakt",
-  "@settingsTraktSync": {
-    "description": "Trakt sync button"
-  },
-  "settingsTraktSyncDesc": "Push watched movie history to Trakt",
-  "@settingsTraktSyncDesc": {
-    "description": "Trakt sync subtitle"
-  },
-  "settingsTraktDisconnect": "Disconnect from Trakt",
-  "@settingsTraktDisconnect": {
-    "description": "Trakt disconnect button"
-  },
-  "settingsTraktDisconnectDesc": "Remove the stored access token",
-  "@settingsTraktDisconnectDesc": {
-    "description": "Trakt disconnect subtitle"
-  },
-  "settingsTraktConnect": "Connect to Trakt",
-  "@settingsTraktConnect": {
-    "description": "Trakt connect button"
-  },
-  "settingsTraktConnectDesc": "Authorize DreamPlayer to read/write your Trakt watched history",
-  "@settingsTraktConnectDesc": {
-    "description": "Trakt connect subtitle"
-  },
-  "settingsTraktSyncedCount": "Synced {count} item(s) to Trakt",
-  "@settingsTraktSyncedCount": {
-    "description": "Trakt sync result message"
-  },
-  "settingsTraktPull": "Sync from Trakt",
-  "@settingsTraktPull": {
-    "description": "Trakt pull button (fetch watched state into this device)"
-  },
-  "settingsTraktPullDesc": "Mark watched what Trakt already knows about",
-  "@settingsTraktPullDesc": {
-    "description": "Trakt pull subtitle"
-  },
-  "settingsTraktNeverPulled": "Never pulled from Trakt",
-  "@settingsTraktNeverPulled": {
-    "description": "Trakt pull status when no pull has happened yet"
-  },
-  "settingsTraktPulledCount": "Marked {count} watched from Trakt",
-  "@settingsTraktPulledCount": {
-    "description": "Trakt pull result message"
-  },
-  "settingsTraktAuthTitle": "Connect to Trakt",
-  "@settingsTraktAuthTitle": {
-    "description": "Trakt auth dialog title"
-  },
-  "settingsTraktGoToAddress": "Go to the address below and enter this code:",
-  "@settingsTraktGoToAddress": {
-    "description": "Trakt auth instruction"
-  },
-  "settingsTraktWaitingAuth": "Waiting for authorization…",
-  "@settingsTraktWaitingAuth": {
-    "description": "Trakt auth waiting state"
-  },
-  "settingsTraktConnected": "Authorized!",
-  "@settingsTraktConnected": {
-    "description": "Trakt auth connected state"
-  },
   "settingsOpenSubtitles": "OpenSubtitles",
   "@settingsOpenSubtitles": {
     "description": "OpenSubtitles section header"

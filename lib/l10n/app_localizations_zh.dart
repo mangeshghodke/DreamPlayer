@@ -717,58 +717,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsConnected => 'Connected!';
 
   @override
-  String get settingsTraktSync => 'Sync watched to Trakt';
-
-  @override
-  String get settingsTraktSyncDesc => 'Push watched movie history to Trakt';
-
-  @override
-  String get settingsTraktDisconnect => 'Disconnect from Trakt';
-
-  @override
-  String get settingsTraktDisconnectDesc => 'Remove the stored access token';
-
-  @override
-  String get settingsTraktConnect => 'Connect to Trakt';
-
-  @override
-  String get settingsTraktConnectDesc =>
-      'Authorize DreamPlayer to read/write your Trakt watched history';
-
-  @override
-  String settingsTraktSyncedCount(Object count) {
-    return 'Synced $count item(s) to Trakt';
-  }
-
-  @override
-  String get settingsTraktPull => 'Sync from Trakt';
-
-  @override
-  String get settingsTraktPullDesc =>
-      'Mark watched what Trakt already knows about';
-
-  @override
-  String get settingsTraktNeverPulled => 'Never pulled from Trakt';
-
-  @override
-  String settingsTraktPulledCount(Object count) {
-    return 'Marked $count watched from Trakt';
-  }
-
-  @override
-  String get settingsTraktAuthTitle => 'Connect to Trakt';
-
-  @override
-  String get settingsTraktGoToAddress =>
-      'Go to the address below and enter this code:';
-
-  @override
-  String get settingsTraktWaitingAuth => 'Waiting for authorization…';
-
-  @override
-  String get settingsTraktConnected => 'Authorized!';
-
-  @override
   String get settingsOpenSubtitles => 'OpenSubtitles';
 
   @override

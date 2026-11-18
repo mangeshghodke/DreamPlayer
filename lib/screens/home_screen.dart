@@ -28,7 +28,6 @@ import '../services/smb_client.dart';
 
 import '../services/entitlements.dart';
 import '../services/tmdb_client.dart';
-import '../services/trakt_sync.dart';
 import '../services/the_tvdb_client.dart';
 import 'trial_intro_screen.dart';
 import '../services/upnp_client.dart';
@@ -136,7 +135,6 @@ class _HomeScreenState extends State<HomeScreen>
       unawaited(requestStartupPermissions(context));
       _showTrialIntroIfNeeded();
       unawaited(_maybeCheckForUpdates());
-      unawaited(_pullTraktWatched());
     });
   }
 
@@ -149,21 +147,6 @@ class _HomeScreenState extends State<HomeScreen>
     final update = await AppUpdater.checkIfDue();
     if (update == null || !mounted) return;
     await showAppUpdateDialog(context, update);
-  }
-
-  /// Pull watched state from Trakt (throttled to once per 6 h, skipped entirely
-  /// when Trakt is not configured/authorized). Best-effort: a failed pull must
-  /// never block the library, and marks applied here just add ticks to rows
-  /// the user already knows about.
-  Future<void> _pullTraktWatched() async {
-    await Future<void>.delayed(const Duration(seconds: 4));
-    final marked = await TraktSync.pullWatched();
-    if (marked > 0 && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(AppLocalizations.of(context)
-            .settingsTraktPulledCount(marked)),
-      ));
-    }
   }
 
   void _onMetadataChanged() {
