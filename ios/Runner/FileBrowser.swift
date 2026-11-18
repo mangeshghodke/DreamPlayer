@@ -12,7 +12,7 @@ import Security
 /// `UIFileSharingEnabled`), and any other folder is accessed through the system
 /// document picker (`pickFolder`). Picked folders are kept usable across
 /// launches with security-scoped bookmarks stored in UserDefaults.
-final class FileBrowser: NSObject {
+final class FileBrowser: NSObject, FlutterStreamHandler {
 
     static let shared = FileBrowser()
     private static let channelName = "dreamplayer/files"
@@ -53,6 +53,11 @@ final class FileBrowser: NSObject {
     /// Separate completion for the Photos (PHPicker) picker - it has its
     /// own delegate protocol, so it cannot share `pickerCompletion`.
     private var photoPickerCompletion: FlutterResult?
+    /// Progress sink for the photos picker: as each picked item is copied to a
+    /// stable temp file, `didFinishPicking` emits {done, total} so the Dart
+    /// side can show a progress bar under the Send buttons (the copy of large
+    /// videos is the slow part; without feedback the user force-closes).
+    private var pickProgressSink: FlutterEventSink?
 
     private override init() { super.init() }
 
@@ -66,6 +71,8 @@ final class FileBrowser: NSObject {
         channel.setMethodCallHandler { [weak shared] call, result in
             shared?.handle(call, result: result)
         }
+        FlutterEventChannel(name: "dreamplayer/pick_progress", binaryMessenger: messenger)
+            .setStreamHandler(shared)
     }
 
     // MARK: - Channel
@@ -770,6 +777,20 @@ extension FileBrowser: PHPickerViewControllerDelegate {
         let group = DispatchGroup()
         var out: [[String: Any]?] = Array(repeating: nil, count: results.count)
 
+        // Progress: one emit per item as it finishes copying, so the Dart side
+        // can drive a determinate bar (done/total) under the Send buttons.
+        let total = results.count
+        var doneCount = 0
+        let progressLock = NSLock()
+        func emitProgress() {
+            progressLock.lock()
+            doneCount += 1
+            let d = doneCount
+            progressLock.unlock()
+            let sink = pickProgressSink
+            DispatchQueue.main.async { sink?(["done": d, "total": total]) }
+        }
+
         for (i, r) in results.enumerated() {
             let provider = r.itemProvider
             // Keep the ORIGINAL format - photos come back as .heic, camera
@@ -787,25 +808,37 @@ extension FileBrowser: PHPickerViewControllerDelegate {
             // Safety net: loadFileRepresentation is documented to always call
             // its completion, but a wedged call must never hang the channel
             // (the Dart _picking flag would stick and grey out every Send
-            // button). 30 s per item is far beyond any real export.
+            // button). 30 s per item is far beyond any real export. The lock
+            // makes "finished" atomic so the dispatch group is left exactly
+            // once per item (a double leave underflows it and the completion
+            // never fires).
+            let itemLock = NSLock()
             var finished = false
-            let watchdog = DispatchWorkItem { [weak self] in
-                if !finished { finished = true; group.leave() }
-                _ = self
+            var watchdog: DispatchWorkItem!
+            func finish() {
+                itemLock.lock()
+                if finished { itemLock.unlock(); return }
+                finished = true
+                itemLock.unlock()
+                watchdog.cancel()
+                emitProgress()
+                group.leave()
             }
+            watchdog = DispatchWorkItem { finish() }
             DispatchQueue.main.asyncAfter(deadline: .now() + 30, execute: watchdog)
             func load(_ ids: [String], _ idx: Int) {
-                guard idx < ids.count else {
-                    if !finished { finished = true; group.leave() }
-                    return
-                }
+                guard idx < ids.count else { finish(); return }
                 provider.loadFileRepresentation(forTypeIdentifier: ids[idx]) { url, error in
-                    if (error != nil || url == nil) {
-                        load(ids, idx + 1) // try the next format; leaves once at the end
+                    if error != nil || url == nil {
+                        load(ids, idx + 1) // try the next format; finishes once at the end
                         return
                     }
-                    guard let url, !finished else { return }
-                    finished = true
+                    guard let url else { return }
+                    itemLock.lock()
+                    let proceed = !finished
+                    if proceed { finished = true }
+                    itemLock.unlock()
+                    if !proceed { return } // watchdog already finished this item
                     watchdog.cancel()
                     // suggestedName usually carries the real extension
                     // (IMG_0001.HEIC, IMG_0002.MOV) - but not always; add one
@@ -825,6 +858,7 @@ extension FileBrowser: PHPickerViewControllerDelegate {
                     } catch {
                         SBMLog.log("pickPhotos copy failed: \(error.localizedDescription)")
                     }
+                    emitProgress()
                     group.leave()
                 }
             }
@@ -836,6 +870,20 @@ extension FileBrowser: PHPickerViewControllerDelegate {
             SBMLog.log("pickPhotos: \(files.count) of \(results.count) copied")
             completion(files)
         }
+    }
+}
+
+// MARK: - FlutterStreamHandler (pick progress)
+
+extension FileBrowser {
+    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        pickProgressSink = events
+        return nil
+    }
+
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        pickProgressSink = nil
+        return nil
     }
 }
 

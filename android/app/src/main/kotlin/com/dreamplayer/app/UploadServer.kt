@@ -999,11 +999,12 @@ private const val MAX_NAME_LEN = 120
     return b.toFixed(b < 10 && i > 0 ? 1 : 0) + ' ' + u[i];
   }
   function fileUrl(name) {
-    // NO credentials in the href: a userinfo part makes browsers ignore
-    // the anchor's download attribute and open a NEW TAB instead of
-    // downloading. The page's own Basic-auth session already covers
-    // same-origin requests (fetch uses credentials: 'include').
-    return location.protocol + '//' + location.host + '$PATH_PREFIX/file?name=' + encodeURIComponent(name);
+    // Credentials ride in the URL userinfo: on iOS Safari an anchor click
+    // does NOT reliably send the cached Basic-auth header (that produced a
+    // 401). The server replies with Content-Disposition: attachment and a
+    // clean slash-free filename, so the browser downloads straight to disk
+    // instead of opening a new tab.
+    return location.protocol + '//' + '$authInfo' + location.host + '$PATH_PREFIX/file?name=' + encodeURIComponent(name);
   }
   function setStatus(t) { recvStatus.textContent = t; }
   function renderRows(files) {
@@ -1121,8 +1122,10 @@ private const val MAX_NAME_LEN = 120
     return true;
   }
   function zipUrl() {
-    // Same as fileUrl: no userinfo, so the download attribute works.
-    return location.protocol + '//' + location.host + '$PATH_PREFIX/files.zip';
+    // Same as fileUrl: credentials in the userinfo so the request is
+    // authenticated even on iOS Safari; the attachment header makes the
+    // browser save the archive to disk instead of opening a tab.
+    return location.protocol + '//' + '$authInfo' + location.host + '$PATH_PREFIX/files.zip';
   }
   function zipName() {
     // PairDrop names its client-side archive the same way.

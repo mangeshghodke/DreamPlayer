@@ -323,18 +323,23 @@ void main() {
       expect(swift.contains('setInterval(loadDeviceFiles, 1000)'), isTrue);
     });
 
-    test('anchor hrefs stay same-origin so the download attribute works', () {
-      // A user:pass@ part in the href makes browsers IGNORE the anchor's
-      // download attribute and open a NEW TAB instead of downloading (the
-      // reported "single image opens a tab, no download"). The page's own
-      // Basic-auth session covers same-origin requests, so the anchors use
-      // the plain host; the fetch keeps credentials: 'include'.
-      expect(kotlin.contains(r"location.host + '$PATH_PREFIX/file?name='"), isTrue);
-      expect(swift.contains(r"location.host + '\(pathPrefix)/file?name='"), isTrue);
-      expect(kotlin.contains(r"location.host + '$PATH_PREFIX/files.zip'"), isTrue);
-      expect(swift.contains(r"location.host + '\(pathPrefix)/files.zip'"), isTrue);
-      expect(kotlin.contains(r"'//' + '$authInfo'"), isFalse);
-      expect(swift.contains(r"'//' + '\(authInfo)'"), isFalse);
+    test('download anchors carry credentials in the URL so iOS Safari sends auth', () {
+      // An anchor click on iOS Safari does NOT reliably send the cached
+      // Basic-auth header (that produced the reported 401). The download
+      // URLs therefore embed the credentials in the userinfo
+      // (user:pass@host). A userinfo part makes browsers ignore the
+      // download attribute, so these URLs must NOT rely on it - the server
+      // replies with Content-Disposition: attachment and a clean (slash-free)
+      // filename, which is what forces the save to disk
+      // (both servers compute the download filename with lastPathComponent /
+      // substringAfterLast('/')).
+      expect(kotlin.contains(r"location.protocol + '//' + '$authInfo'"), isTrue);
+      expect(swift.contains(r"location.protocol + '//' + '\(authInfo)'"), isTrue);
+      // The attachment filename never carries a folder slash (that is what
+      // makes download managers save a broken ".part" file or open a tab).
+      expect(kotlin.contains("name.substringAfterLast('/')"), isTrue);
+      expect(swift.contains('(name as NSString).lastPathComponent'), isTrue);
+      // The JSON polls still use fetch with credentials (no userinfo there).
       expect(kotlin.contains("credentials: 'include'"), isTrue);
       expect(swift.contains("credentials: 'include'"), isTrue);
     });
@@ -450,6 +455,28 @@ void main() {
       // "IMG_0706" without one, which the PC then opens as a new tab).
       expect(fb.contains('if !suggested.contains(".")'), isTrue);
       expect(fb, contains('preferredFilenameExtension'));
+    });
+
+    test('the photos picker emits per-item progress the screen can render', () {
+      // The copy of large videos is slow and grey out every Send button;
+      // without feedback the user force-closes. The native picker emits
+      // {done, total} per item, and the screen renders a progress bar.
+      final fb = File('ios/Runner/FileBrowser.swift').readAsStringSync();
+      expect(fb, contains('dreamplayer/pick_progress'));
+      expect(fb, contains('pickProgressSink'));
+      expect(fb.contains('emitProgress'), isTrue);
+      // One leave per item, guarded by a lock: a double DispatchGroup.leave
+      // underflows it and the completion never fires (the original bug).
+      expect(fb.contains('itemLock'), isTrue);
+      // Dart service + screen wiring.
+      expect(browser.contains('pickProgressStream'), isTrue);
+      expect(browser.contains("EventChannel('dreamplayer/pick_progress')"), isTrue);
+      expect(screen.contains('_pickProgressSub'), isTrue);
+      expect(screen.contains('_pickDone'), isTrue);
+      expect(screen.contains('_pickTotal'), isTrue);
+      // The bar is actually rendered under the buttons while picking.
+      expect(screen.contains('LinearProgressIndicator'), isTrue);
+      expect(screen.contains('_pickDone / _pickTotal'), isTrue);
     });
 
     test('the download filename never carries a folder slash', () {

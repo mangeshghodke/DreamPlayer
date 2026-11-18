@@ -43,6 +43,42 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
   bool _obscurePassword = true;
   bool _picking = false;
 
+  /// Progress coming from the native picker (iOS photos): copying the picked
+  /// items to stable temp files is the slow part, and while it runs every
+  /// Send button is greyed out. This lets the UI show a determinate bar
+  /// (done/total) so the user can see it's working instead of force-closing.
+  StreamSubscription<Map<String, int>>? _pickProgressSub;
+  int _pickDone = 0;
+  int _pickTotal = 0;
+
+  /// Wraps every Send action with a progress subscription. The subscription
+  /// listens for `{done, total}` events emitted by the native picker (only
+  /// the iOS photos picker emits them; on Android the stream stays empty and
+  /// the bar shows indeterminate while `_picking` is true).
+  Future<void> _runPick(Future<void> Function() action) async {
+    if (_picking || !_service.running) return;
+    _picking = true;
+    _pickDone = 0;
+    _pickTotal = 0;
+    if (mounted) setState(() {});
+    final sub = FileBrowserService.instance.pickProgressStream().listen((p) {
+      if (!mounted) return;
+      setState(() {
+        _pickDone = p['done'] ?? 0;
+        _pickTotal = p['total'] ?? 0;
+      });
+    });
+    _pickProgressSub = sub;
+    try {
+      await action();
+    } finally {
+      await sub.cancel();
+      _pickProgressSub = null;
+      _picking = false;
+      if (mounted) setState(() {});
+    }
+  }
+
   /// Opens the system multi-file picker and registers the picked files with
   /// the native server as a new send BATCH. The transfer page on the other
   /// device polls for a batch it has not received yet and starts saving the
@@ -50,10 +86,7 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
   /// happens here: the server streams the picked URIs directly, so large
   /// videos never block the UI.
   Future<void> _sendFilesToComputer() async {
-    if (_picking || !_service.running) return;
-    _picking = true;
-    if (mounted) setState(() {});
-    try {
+    await _runPick(() async {
       final files = await FileBrowserService.instance.pickFiles();
       if (files.isEmpty || !mounted) return;
       await _service.shareFiles(files);
@@ -69,10 +102,7 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
           ),
         );
       }
-    } finally {
-      _picking = false;
-      if (mounted) setState(() {});
-    }
+    });
   }
 
   /// Opens the system FOLDER picker, walks every file inside (recursively),
@@ -81,10 +111,7 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
   /// folder structure travels in the names ("Folder/sub/file"), so the
   /// receiving page re-creates it in the folder the user picked there.
   Future<void> _sendFolderToComputer() async {
-    if (_picking || !_service.running) return;
-    _picking = true;
-    if (mounted) setState(() {});
-    try {
+    await _runPick(() async {
       final files = await FileBrowserService.instance.pickFolderContents();
       if (files.isEmpty || !mounted) return;
       await _service.shareFiles(files);
@@ -100,10 +127,7 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
           ),
         );
       }
-    } finally {
-      _picking = false;
-      if (mounted) setState(() {});
-    }
+    });
   }
 
   /// iOS only: opens the system Photos picker and sends the picked images
@@ -111,10 +135,7 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
   /// stable temp file (PHPicker URLs are temporary) and names it
   /// `Photos/<name>`, so the receiving page groups them into a folder.
   Future<void> _sendPhotosToComputer() async {
-    if (_picking || !_service.running) return;
-    _picking = true;
-    if (mounted) setState(() {});
-    try {
+    await _runPick(() async {
       final photos = await FileBrowserService.instance.pickPhotos();
       if (photos.isEmpty || !mounted) return;
       await _service.shareFiles(photos);
@@ -130,10 +151,7 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
           ),
         );
       }
-    } finally {
-      _picking = false;
-      if (mounted) setState(() {});
-    }
+    });
   }
 
   @override
@@ -151,6 +169,7 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
   @override
   void dispose() {
     _restartDebounce?.cancel();
+    _pickProgressSub?.cancel();
     _service.unsubscribeEvents();
     _userController.dispose();
     _passController.dispose();
@@ -417,6 +436,41 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
                   ],
                 ],
               ),
+              // Progress of the CURRENT send action. The pickers grey out
+              // every Send button while they run, and the iOS photos picker
+              // copies large videos one by one - so show how far along it is
+              // instead of leaving the user staring at dead buttons and
+              // force-closing the app. Determinate when the native picker
+              // reports progress (iOS photos), indeterminate otherwise.
+              if (_picking) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          LinearProgressIndicator(
+                            value: _pickTotal > 0 ? _pickDone / _pickTotal : null,
+                            minHeight: 6,
+                            backgroundColor:
+                                colorScheme.surfaceContainerHighest,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _pickTotal > 0
+                                ? 'Preparing $_pickDone of $_pickTotal...'
+                                : 'Preparing...',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               // Files registered as the current send batch: the transfer
               // page on the other device picks these up automatically.
               if (_service.sharedFiles.isNotEmpty) ...[

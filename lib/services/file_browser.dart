@@ -326,6 +326,22 @@ Future<List<Map<String, dynamic>>> pickFolderContents() async {
     }
   }
 
+  /// iOS only: progress events `{done, total}` emitted by the photos picker
+  /// as each picked item is copied to a stable temp file. Lets the transfer
+  /// screen show a determinate bar under the Send buttons while the copy of
+  /// large videos runs (otherwise the buttons sit greyed out with no
+  /// feedback and the user force-closes the app). Empty stream on Android.
+  Stream<Map<String, int>> pickProgressStream() {
+    if (!Platform.isIOS) return const Stream.empty();
+    return const EventChannel('dreamplayer/pick_progress')
+        .receiveBroadcastStream()
+        .cast<Map>()
+        .map((m) => m.map((k, v) => MapEntry(
+              k.toString(),
+              (v is num) ? v.toInt() : 0,
+            )));
+  }
+
   /// Presents the system file picker filtered to subtitle files (SRT/ASS/VTT).
   /// Returns the picked file's URI string (content:// on Android, file:// on
   /// iOS) or null if cancelled.
