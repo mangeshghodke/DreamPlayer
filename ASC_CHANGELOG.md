@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.8 | 11 | 853 |
+| 0.5.8 | 11 | 1179 |
 | 0.5.7 | 7 | 1446 |
 | 0.5.6 | 15 | 2607 |
 | 0.5.5 | 71 | 3761 |
@@ -39,6 +39,9 @@ Fixed:
 • Sending a single photo or video no longer fails with "file could not be read" - the transfer page now receives it complete instead of cutting it short partway through.
 • Multiple photos or videos again send as one zip archive instead of the page appearing to hang while preparing them.
 • The three send buttons now stack vertically on a phone and sit side by side on a tablet, so their labels never clip on a small screen.
+
+Changed:
+• The skip intro / recap / credits button now hides itself 5 seconds after the scene starts, so a long recap no longer keeps a button on the screen for its whole length. It still appears just before the scene and returns if you jump back into it - and the same skip commands stay in the player menu the entire time.
 
 ---
 

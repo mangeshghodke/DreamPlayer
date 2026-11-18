@@ -27,6 +27,46 @@ A video player app supporting:
   because the season endpoint carries no stills. Offline titles fall back to
   `S01E05` instead of the show name. See the roadmap section for the five traps
   (the 56px `ListTile` leading cap in particular).
+- **WiFi file transfer (home `+` -> WiFi file transfer) works both ways, and the
+  phone -> PC sends are solid (2026-11-17/18, builds 8-12 user-verified).**
+  PC -> phone is the `UploadServer` (Kotlin/Swift, both mirrors); phone -> PC is
+  `shareFiles` -> the same server's `/file`, `/files.zip` routes. Six rounds of
+  device reports were fixed, and the root causes are worth not re-learning:
+  (a) the iOS photos picker (`PHPicker`, `.any(of: [.images, .videos])`) keeps
+  each item's ORIGINAL format (`.heic` photos, `.mov`/`.mp4` videos) and must
+  complete its channel call on EVERY exit path - checkmark, cancel AND
+  swipe-down - or `_picking` sticks and every Send button greys out; (b) the
+  download URLs carry the credentials in the userinfo (`user:pass@host`) because
+  an anchor click on iOS Safari does NOT reliably send the cached Basic-auth
+  header, and since a userinfo makes browsers ignore `download`, these URLs rely
+  on the server's `Content-Disposition: attachment` + a slash-free filename
+  (`lastPathComponent`) to force the save; (c) they must STREAM (plain anchor
+  click) - `fetch()` + `resp.blob()` buffers the whole body and hangs on a
+  folder of videos; (d) **iOS `streamSharedFile` deletes the `defer {
+  input.close() }`** - it streams ASYNCHRONOUSLY via `sendChunk()`, so the
+  method returns after queuing the first 256 KB chunk and a defer would close the
+  `FileHandle` before the rest streams, truncating every file over 256 KB (the
+  "downloads but file could not be read" report); Android's synchronous loop
+  closed in `finally` at the right time, which is why only iOS broke;
+  (e) `dreamplayer/pick_progress` is an EventChannel emitting `{done, total}`
+  per copied item, surfaced by `FileBrowserService.pickProgressStream()` into a
+  determinate `LinearProgressIndicator` under the Send buttons (the copy of large
+  videos is the slow part); (f) the Send buttons go through a `LayoutBuilder`
+  and stack into a stretched Column below 480 dp, else an equal Row - three
+  buttons in one row clip their labels on a phone. See the roadmap
+  "### Skip intro" bullet for the skip-pill auto-hide, also from this cycle.
+- **Skip intro/recap/credits pill auto-hides 5 s after entering a segment**
+  (2026-11-16): a 1-2 minute recap no longer pins the button for its whole
+  length. Armed on ENTRY, not on the 5 s pre-roll lead; fires once per entry;
+  the ⋮ sheet rows stay available while it is hidden. See the roadmap section
+  for the two guards that stop it re-arming every tick.
+- **All episode stills + guest stars prefetched during the season sync (issue
+  #66).** `seasonFor` used to cache each episode's `still_path` only, so the
+  stills gallery and guest stars were fetched lazily per episode open. It now
+  calls `_prefetchSeasonEpisodeMetadata` (throttled to `maxStillsInFlight` = 3,
+  reusing `episodeDetailsFor` + `_prefetchStills`) so everything is cached for
+  offline use. Guest stars remain displayed only inside the individual episode
+  view; the season list layout is unchanged.
 - App **UI skeleton** done (library, player, settings; dark theme).
 - **iOS signed build + TestFlight upload working (2026-09-19)**: `ios.yml` workflow builds, signs, and uploads to App Store Connect via `flutter build ipa` + `ios/signing_setup.py`. Bundle ID: `com.dreamplayer.app`. First TestFlight build (0.4.7) uploaded successfully.
 - **HDR / codec on-screen display** done (Dolby Vision, HDR10+, HDR10, SDR; E-AC3, DTS-HD, TrueHD, AAC, ...).
@@ -2555,6 +2595,43 @@ the decoration.
   playing and not dragging/PiP). Lookup fires from the first event with
   chapters (`_maybeRemoteSkipLookup`), only when some kind is uncovered and
   the file is a TMDB TV episode (`resolvedPlayerEpisode`).
+- **The pill auto-hides 5 s after the playhead ENTERS a segment (user request,
+  2026-11-16).** Before this it stayed on the picture for the whole scene, so a
+  1-2 minute recap pinned the button for minutes. The reader reported it as
+  "hide in 5 seconds" and the user confirmed that was the right shape.
+  - `_skipPillVisibleFor = 5 s`, state = `_skipPillSegment` /
+    `_skipPillExpired` / `_skipPillTimer` / `_skipPillWasInside`, driven by
+    `_updateSkipPill()` and cleared by `_resetSkipPill()`. `_skipIntroVisible`
+    = `_backendReady && !_inPip && _promptSegment != null && !_skipPillExpired`.
+  - **Armed on ENTRY, not on the 5 s pre-roll lead.** `promptable` shows the
+    pill up to 5 s *before* a segment starts too; arming on that lead would
+    burn the hide window before the scene began, so `_updateSkipPill` gates the
+    timer on `SkipSegments.inside(...) == p`.
+  - **Fires exactly once per entry.** Two guards, both load-bearing:
+    `_skipPillTimer != null` (already armed) and the re-entry test
+    `(inside && _skipPillExpired && !_skipPillWasInside)`. Without the second,
+    "still inside and already expired" would read as a fresh re-entry on every
+    position tick, re-arm the timer, and the pill would NEVER hide - the exact
+    bug the feature was for.
+  - **Leaving clears the state** (`p == null`, pip, or backend not ready →
+    `_resetSkipPill()`), so seeking back into the same segment re-shows the
+    pill for another 5 s. Re-seeking to the pre-roll of the *same* segment does
+    not re-show (it is still the same `_skipPillSegment`); actually entering it
+    does.
+  - Called from BOTH engines' position updates (`_onExoEvent`, the mpv
+    `stream.position` listener) and from the segment-list changes
+    (`_mergeRemoteSegments`, `_introDbFallback`), so a segment that lands late
+    (issue #65) gets its window from the moment it lands rather than sitting
+    for its whole length. Cancelled in `dispose()` and `_openCurrent`.
+  - **The ⋮ menu's Skip intro / recap / credits rows do NOT share the pill's
+    visibility** - they are the fallback for the entire time the pill is
+    hidden, so skipping is never out of reach. Hidden on TV (no hover); the
+    sheet rows are the TV path.
+  - Pinned by `test/skip_pill_auto_hide_test.dart` (9 source-reading tests:
+    the 5 s constant, arms on entry not lead, fires once, reset re-shows, both
+    engines, late remote segments, cancel on open/dispose, sheet rows stay).
+  - **It shipped in `1e2903c`, whose message is about WiFi transfer - read the
+    code, not the log, when tracing this feature.**
 - Pure logic in `lib/utils/skip_segments.dart`, parsing in
   `AniskipClient.parseAniSkipResponse` / `parseAniListMalId` (both
   try/catch around `jsonDecode` - a non-JSON body must not throw).
