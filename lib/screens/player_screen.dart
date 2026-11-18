@@ -31,6 +31,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/tmdb_client.dart';
 import '../services/simkl_client.dart';
+import '../services/trakt_client.dart';
 import '../services/watched_store.dart';
 import '../services/sidecar_subtitle_service.dart';
 import '../services/spatial_audio_store.dart';
@@ -4166,6 +4167,7 @@ Future<void> _offerVc1Mpv() async {
       final key = _resumeKey;
       if (!_inTests && key.isNotEmpty) WatchedStore.set(key, true);
       if (!_inTests) _pushSimklHistory(key);
+      if (!_inTests) _pushTraktHistory(key);
       if (!_inTests) unawaited(_setJellyfinPlayed(true));
     }
     if (_sleepAtEnd) {
@@ -4291,6 +4293,25 @@ Future<void> _offerVc1Mpv() async {
       episode: parsed.isEpisode ? parsed.episode : null,
     );
     unawaited(client.addToHistoryOne(item).catchError((_) {}));
+  }
+
+  /// Fire-and-forget: push a finished video to Trakt history. Mirrors
+  /// [_pushSimklHistory]: one mark per video actually watched to the end, and
+  /// an episode goes up as a season/episode (not a movie).
+  void _pushTraktHistory(String key) {
+    final client = TraktClient();
+    if (!client.isConfigured) return;
+    final meta = TmdService.instance.metaFor(key);
+    final tmdbId = meta?.movie.tmdbId;
+    if (meta == null || tmdbId == null || tmdbId == 0) return;
+    final parsed = ParsedFileName.parse(_current.title);
+    final item = TraktWatchItem(
+      tmdbId: tmdbId,
+      isTv: meta.movie.kind == TmdKind.tv,
+      season: parsed.isEpisode ? parsed.season : null,
+      episode: parsed.isEpisode ? parsed.episode : null,
+    );
+    unawaited(client.markWatched([item]).catchError((_) {}));
   }
 
   /// Reopens the current Jellyfin video through the server's transcoder
@@ -4591,6 +4612,7 @@ Future<void> _offerVc1Mpv() async {
       final key = _resumeKey;
       if (!_inTests && key.isNotEmpty) WatchedStore.set(key, true);
       if (!_inTests) _pushSimklHistory(key);
+      if (!_inTests) _pushTraktHistory(key);
       if (!_inTests) unawaited(_setJellyfinPlayed(true));
     }
 

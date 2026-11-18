@@ -751,6 +751,21 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get settingsTraktPull => 'Sync from Trakt';
+
+  @override
+  String get settingsTraktPullDesc =>
+      'Mark watched what Trakt already knows about';
+
+  @override
+  String get settingsTraktNeverPulled => 'Never pulled from Trakt';
+
+  @override
+  String settingsTraktPulledCount(Object count) {
+    return 'Marked $count watched from Trakt';
+  }
+
+  @override
   String get settingsTraktAuthTitle => 'Connect to Trakt';
 
   @override

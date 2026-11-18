@@ -953,6 +953,22 @@
   "@settingsTraktSyncedCount": {
     "description": "Trakt sync result message"
   },
+  "settingsTraktPull": "Sync from Trakt",
+  "@settingsTraktPull": {
+    "description": "Trakt pull button (fetch watched state into this device)"
+  },
+  "settingsTraktPullDesc": "Mark watched what Trakt already knows about",
+  "@settingsTraktPullDesc": {
+    "description": "Trakt pull subtitle"
+  },
+  "settingsTraktNeverPulled": "Never pulled from Trakt",
+  "@settingsTraktNeverPulled": {
+    "description": "Trakt pull status when no pull has happened yet"
+  },
+  "settingsTraktPulledCount": "Marked {count} watched from Trakt",
+  "@settingsTraktPulledCount": {
+    "description": "Trakt pull result message"
+  },
   "settingsTraktAuthTitle": "Connect to Trakt",
   "@settingsTraktAuthTitle": {
     "description": "Trakt auth dialog title"

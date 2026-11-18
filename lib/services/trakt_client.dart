@@ -31,10 +31,140 @@ class TraktException implements Exception {
   String toString() => message;
 }
 
-/// Snapshot of watched movie IDs pulled from Trakt.
+/// A single item to mark watched on Trakt (POST /sync/history).
+///
+/// Mirrors [SimklWatchItem]: a TV item carries its season/episode so Trakt
+/// files it under `shows` with a `seasons` block, NOT as a movie. Pushing an
+/// episode as a movie is how the first version of this integration silently
+/// mis-filed every TV mark.
+class TraktWatchItem {
+  const TraktWatchItem({
+    required this.tmdbId,
+    required this.isTv,
+    this.season,
+    this.episode,
+    this.watchedAt,
+  });
+
+  final int tmdbId;
+  final bool isTv;
+
+  /// Season/episode for TV items (null for movies).
+  final int? season;
+  final int? episode;
+
+  /// When the item was watched; defaults to now.
+  final DateTime? watchedAt;
+
+  /// The API payload fragment for this item. Movies post to the `movies` array
+  /// and shows to `shows`; [traktHistoryBody] puts each in the right one.
+  Map<String, dynamic> toJson() {
+    final at = (watchedAt ?? DateTime.now()).toUtc().toIso8601String();
+    if (isTv) {
+      return {
+        'ids': {'tmdb': tmdbId},
+        'seasons': [
+          {
+            'number': season ?? 0,
+            'episodes': [
+              {'number': episode ?? 0, 'watched_at': at},
+            ],
+          },
+        ],
+      };
+    }
+    return {
+      'ids': {'tmdb': tmdbId},
+      'watched_at': at,
+    };
+  }
+}
+
+/// The POST /sync/history body for [items]: movies and shows in their own
+/// arrays, and an empty array omitted entirely rather than posted as [].
+/// Pure so the split can be unit-tested without a server.
+Map<String, dynamic> traktHistoryBody(List<TraktWatchItem> items) {
+  final movies = <Map<String, dynamic>>[];
+  final shows = <Map<String, dynamic>>[];
+  for (final item in items) {
+    final json = item.toJson();
+    if (item.isTv) {
+      shows.add(json);
+    } else {
+      movies.add(json);
+    }
+  }
+  return {
+    if (movies.isNotEmpty) 'movies': movies,
+    if (shows.isNotEmpty) 'shows': shows,
+  };
+}
+
+/// Watched state pulled from Trakt. Movies are a flat id set; TV shows report
+/// per-season watched episode *counts* (Trakt semantics: listing an episode
+/// under a season means the first N episodes are watched), not per-episode
+/// flags.
 class TraktWatched {
-  const TraktWatched({this.movieIds = const {}});
+  const TraktWatched({
+    this.movieIds = const {},
+    this.showSeasons = const {},
+  });
+
   final Set<int> movieIds;
+
+  /// tmdbShowId -> (seasonNumber -> watched episode count)
+  final Map<int, Map<int, int>> showSeasons;
+
+  bool isEpisodeWatched(int showId, int season, int episode) {
+    final seasons = showSeasons[showId];
+    if (seasons == null) return false;
+    final count = seasons[season];
+    return count != null && episode > 0 && episode <= count;
+  }
+
+  /// Parses the `/sync/watched/movies` response. Pure.
+  static Set<int> movieIdsFromJson(dynamic data) {
+    final ids = <int>{};
+    final list = data is List ? data : const [];
+    for (final entry in list) {
+      if (entry is! Map) continue;
+      final movie = entry['movie'];
+      if (movie is! Map) continue;
+      final idsMap = movie['ids'];
+      final id = idsMap is Map ? idsMap['tmdb'] : null;
+      if (id is int) ids.add(id);
+    }
+    return ids;
+  }
+
+  /// Parses the `/sync/watched/shows` response into per-season counts.
+  /// Pure.
+  static Map<int, Map<int, int>> showSeasonsFromJson(dynamic data) {
+    final out = <int, Map<int, int>>{};
+    final list = data is List ? data : const [];
+    for (final entry in list) {
+      if (entry is! Map) continue;
+      final show = entry['show'];
+      if (show is! Map) continue;
+      final idsMap = show['ids'];
+      final id = idsMap is Map ? idsMap['tmdb'] : null;
+      if (id is! int) continue;
+      final seasons = <int, int>{};
+      final seasonList = entry['seasons'];
+      if (seasonList is List) {
+        for (final s in seasonList) {
+          if (s is! Map) continue;
+          final number = (s['number'] as num?)?.toInt();
+          final epList = s['episodes'];
+          final episodes = epList is List ? epList.length : 0;
+          if (number == null || episodes == 0) continue;
+          seasons[number] = episodes;
+        }
+      }
+      out[id] = seasons;
+    }
+    return out;
+  }
 }
 
 /// Trakt API client (Standard API - free, no per-user fee).
@@ -45,6 +175,9 @@ class TraktClient {
   TraktClient([this._prefs]);
 
   static const String _prefsKey = 'dreamplayer.trakt';
+
+  /// Prefs key holding the last successful watched-pull timestamp.
+  static const String lastPullKey = 'dreamplayer.traktLastPullAt';
   static const String _base = 'https://api.trakt.tv';
   static const String _apiVersion = '2';
   static const String _userAgent = 'DreamPlayer';
@@ -173,36 +306,63 @@ class TraktClient {
 
   // MARK: - Watched
 
-  /// The set of watched TMDB movie IDs on Trakt.
-  Future<TraktWatched> watchedMovies() async {
+  /// Full watched snapshot: movies plus per-season episode counts for shows.
+  /// Two requests (Trakt has no combined endpoint); either failing throws, so
+  /// the caller treats the whole pull as failed rather than applying a half
+  /// snapshot.
+  Future<TraktWatched> fetchWatched() async {
     final token = await _accessToken;
-    final res = await _request('GET', Uri.parse('$_base/sync/watched/movies'),
+    final movies = await _getJson('$_base/sync/watched/movies', token,
+        what: 'watched movies');
+    final shows = await _getJson('$_base/sync/watched/shows', token,
+        what: 'watched shows');
+    return TraktWatched(
+      movieIds: TraktWatched.movieIdsFromJson(movies),
+      showSeasons: TraktWatched.showSeasonsFromJson(shows),
+    );
+  }
+
+  Future<dynamic> _getJson(String url, String token, {required String what}) async {
+    final res = await _request('GET', Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'});
     final data = await _readJson(res);
     if (res.statusCode != 200) {
       throw TraktException(
-          'watched movies failed: ${data?['error_description'] ?? data?['error'] ?? res.statusCode}');
+          '$what failed: ${data?['error_description'] ?? data?['error'] ?? res.statusCode}');
     }
-    final ids = <int>{};
-    for (final entry in (data as List? ?? const [])) {
-      final movie = entry['movie'] as Map?;
-      final id = movie?['ids']?['tmdb'];
-      if (id is int) ids.add(id);
-    }
-    return TraktWatched(movieIds: ids);
+    return data;
   }
 
-  /// Mark a list of movies as watched on Trakt (POST /sync/history).
-  Future<void> markWatched(List<Map<String, dynamic>> movies) async {
+  /// Mark [items] watched on Trakt (POST /sync/history). Movies and TV
+  /// episodes are split into their own arrays - a season/episode posted as a
+  /// movie lands on the wrong list on Trakt and can never come back correctly.
+  Future<void> markWatched(List<TraktWatchItem> items) async {
     final token = await _accessToken;
     final res = await _request('POST', Uri.parse('$_base/sync/history'),
         headers: {'Authorization': 'Bearer $token'},
-        body: jsonEncode({'movies': movies}));
+        body: jsonEncode(traktHistoryBody(items)));
     if (res.statusCode != 200 && res.statusCode != 201) {
       final data = await _readJson(res);
       throw TraktException(
           'mark watched failed: ${data?['error_description'] ?? data?['error'] ?? res.statusCode}');
     }
+  }
+
+  /// When watched state was last pulled from Trakt (drives the 6 h throttle
+  /// and the Settings subtitle). Null when never pulled.
+  ///
+  /// Kept in its own prefs key rather than inside the token blob: a pull stamp
+  /// must never rewrite (or be wiped by) token bookkeeping.
+  Future<DateTime?> lastPullAt() async {
+    final prefs = await _sharedPrefs;
+    final ms = prefs.getInt(lastPullKey) ?? 0;
+    return ms == 0 ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  Future<void> markPulled([DateTime? at]) async {
+    final prefs = await _sharedPrefs;
+    await prefs.setInt(
+        lastPullKey, (at ?? DateTime.now()).millisecondsSinceEpoch);
   }
 
   Future<String> get _accessToken async {

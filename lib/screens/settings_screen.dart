@@ -48,6 +48,7 @@ import '../config/simkl_keys.dart';
 import '../config/trakt_keys.dart';
 import '../services/simkl_client.dart';
 import '../services/trakt_client.dart';
+import '../services/trakt_sync.dart';
 import '../services/tmdb_client.dart';
 import '../services/the_tvdb_client.dart';
 import '../services/watched_store.dart';
@@ -97,6 +98,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _simklConnected = false;
   DateTime? _simklLastSync;
   bool _traktConnected = false;
+  DateTime? _traktLastPull;
   String? _osUsername;
   int? _osRemaining;
   bool _osLoggedIn = false;
@@ -192,8 +194,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!client.isConfigured) return;
     try {
       final connected = await client.isAuthenticated;
+      final lastPull = await client.lastPullAt();
       if (mounted) {
-        setState(() => _traktConnected = connected);
+        setState(() {
+          _traktConnected = connected;
+          _traktLastPull = lastPull;
+        });
       }
     } catch (_) {}
   }
@@ -2295,13 +2301,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: _syncTrakt,
                     ),
                     TvTile(
+                      leading: const Icon(Icons.cloud_download),
+                      title: Text(AppLocalizations.of(context).settingsTraktPull),
+                      subtitle: Text(
+                        _traktLastPull == null
+                            ? AppLocalizations.of(context).settingsTraktNeverPulled
+                            : 'Last pulled ${_formatWhen(_traktLastPull!)}',
+                      ),
+                      onTap: _pullTrakt,
+                    ),
+                    TvTile(
                       leading: const Icon(Icons.link_off),
                       title: Text(AppLocalizations.of(context).settingsTraktDisconnect),
                       subtitle: Text(AppLocalizations.of(context).settingsTraktDisconnectDesc),
                       onTap: () async {
                         await TraktClient().clear();
                         if (mounted) {
-                          setState(() => _traktConnected = false);
+                          setState(() {
+                            _traktConnected = false;
+                            _traktLastPull = null;
+                          });
                         }
                       },
                     ),
@@ -2619,7 +2638,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       if (granted == true) {
         await client.deviceToken(code.deviceCode);
+        // The new account's watched state is the whole point of signing in,
+        // so the 6 h throttle is bypassed for this one pull.
+        final marked = await TraktSync.pullWatched(force: true);
+        if (!mounted) return;
         await _loadTrakt();
+        if (mounted && marked > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                  AppLocalizations.of(context).settingsTraktPulledCount(marked))));
+        }
       }
     } on TraktException catch (e) {
       if (mounted) {
@@ -2634,12 +2662,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final items = await _collectTraktItems();
-      await client.markWatched(items
-          .map((e) => {
-                'ids': {'tmdb': e.tmdbId},
-                'watched_at': e.watchedAt.toUtc().toIso8601String()
-              })
-          .toList());
+      await client.markWatched(items);
       if (mounted) {
         final l = AppLocalizations.of(context);
         messenger.showSnackBar(SnackBar(
@@ -2650,25 +2673,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<List<_TraktWatchItem>> _collectTraktItems() async {
+  /// Manual pull: same as the startup pull but forced, so the button works
+  /// even inside the 6 h throttle window.
+  Future<void> _pullTrakt() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l = AppLocalizations.of(context);
+    try {
+      final marked = await TraktSync.pullWatched(force: true);
+      if (!mounted) return;
+      await _loadTrakt();
+      messenger.showSnackBar(SnackBar(
+          content: Text(l.settingsTraktPulledCount(marked))));
+    } on TraktException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  Future<List<TraktWatchItem>> _collectTraktItems() async {
     final keys = await WatchedStore.load();
-    final items = <_TraktWatchItem>[];
+    final items = <TraktWatchItem>[];
     for (final key in keys) {
       final meta = TmdService.instance.metaFor(key);
       if (meta == null) continue;
       final movie = meta.movie;
-      if (movie.id == 0) continue;
-      items.add(_TraktWatchItem(tmdbId: movie.id, watchedAt: DateTime.now()));
+      // Only TMDB-resolved titles: Trakt keys on TMDB ids, so an external
+      // provider match (TheTVDB/AVDb/r18.dev) has no id to send.
+      final tmdbId = movie.tmdbId;
+      if (tmdbId == null || tmdbId == 0) continue;
+      final parsed = ParsedFileName.parse(key);
+      items.add(TraktWatchItem(
+        tmdbId: tmdbId,
+        isTv: movie.kind == TmdKind.tv,
+        season: parsed.isEpisode ? parsed.season : null,
+        episode: parsed.isEpisode ? parsed.episode : null,
+        watchedAt: DateTime.now(),
+      ));
     }
     return items;
   }
-}
-
-/// A watched movie record to send to Trakt.
-class _TraktWatchItem {
-  const _TraktWatchItem({required this.tmdbId, required this.watchedAt});
-  final int tmdbId;
-  final DateTime watchedAt;
 }
 
 /// Device-flow dialog: shows the user code + activation URL and polls.

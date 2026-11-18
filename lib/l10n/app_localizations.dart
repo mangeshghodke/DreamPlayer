@@ -1502,6 +1502,30 @@ abstract class AppLocalizations {
   /// **'Synced {count} item(s) to Trakt'**
   String settingsTraktSyncedCount(Object count);
 
+  /// Trakt pull button (fetch watched state into this device)
+  ///
+  /// In en, this message translates to:
+  /// **'Sync from Trakt'**
+  String get settingsTraktPull;
+
+  /// Trakt pull subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Mark watched what Trakt already knows about'**
+  String get settingsTraktPullDesc;
+
+  /// Trakt pull status when no pull has happened yet
+  ///
+  /// In en, this message translates to:
+  /// **'Never pulled from Trakt'**
+  String get settingsTraktNeverPulled;
+
+  /// Trakt pull result message
+  ///
+  /// In en, this message translates to:
+  /// **'Marked {count} watched from Trakt'**
+  String settingsTraktPulledCount(Object count);
+
   /// Trakt auth dialog title
   ///
   /// In en, this message translates to:
