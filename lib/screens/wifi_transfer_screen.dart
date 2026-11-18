@@ -359,18 +359,25 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
               ),
               const SizedBox(height: 12),
               // ---- Send files from this device to a computer ----
-              // Two ways: pick individual files, or pick a whole folder.
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
+              // Pick individual files, a whole folder, or (iOS) photos/videos.
+              // THREE buttons crammed into one row clip their labels on a
+              // phone, so below a width threshold they stack vertically at
+              // full width; wider screens (iPad / landscape) keep them side
+              // by side, equally sized.
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  Widget sendButton(
+                      IconData icon, String label, VoidCallback? onPressed) {
+                    return SizedBox(
                       height: 52,
+                      width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: running && !_picking ? _sendFilesToComputer : null,
-                        icon: const Icon(Icons.send, size: 20),
-                        label: const Text(
-                          'Send files',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                        onPressed: onPressed,
+                        icon: Icon(icon, size: 20),
+                        label: Text(
+                          label,
+                          maxLines: 1,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: colorScheme.primary,
@@ -382,59 +389,42 @@ class _WifiTransferScreenState extends State<WifiTransferScreen> {
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SizedBox(
-                      height: 52,
-                      child: OutlinedButton.icon(
-                        onPressed: running && !_picking ? _sendFolderToComputer : null,
-                        icon: const Icon(Icons.folder_outlined, size: 20),
-                        label: const Text(
-                          'Send folder',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                          side: BorderSide(
-                            color: colorScheme.primary.withValues(alpha: 0.5),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Photos-app picker exists on iOS only (PHPicker); Android
-                  // users pick images through "Send files" instead.
-                  if (Platform.isIOS) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: OutlinedButton.icon(
-                          onPressed: running && !_picking ? _sendPhotosToComputer : null,
-                          icon: const Icon(Icons.photo_library_outlined, size: 20),
-                          label: const Text(
-                            'Send photos',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: colorScheme.primary,
-                            side: BorderSide(
-                              color: colorScheme.primary.withValues(alpha: 0.5),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+                    );
+                  }
+
+                  final buttons = <Widget>[
+                    sendButton(Icons.send, 'Send files',
+                        running && !_picking ? _sendFilesToComputer : null),
+                    sendButton(
+                        Icons.folder_outlined,
+                        'Send folder',
+                        running && !_picking ? _sendFolderToComputer : null),
+                    // Photos-app picker exists on iOS only (PHPicker); Android
+                    // users pick images through "Send files" instead.
+                    if (Platform.isIOS)
+                      sendButton(
+                          Icons.photo_library_outlined,
+                          'Send photos',
+                          running && !_picking ? _sendPhotosToComputer : null),
+                  ];
+                  final stacked = constraints.maxWidth < 480;
+                  final children = <Widget>[];
+                  for (var i = 0; i < buttons.length; i++) {
+                    if (i > 0) {
+                      children.add(stacked
+                          ? const SizedBox(height: 8)
+                          : const SizedBox(width: 8));
+                    }
+                    final b = buttons[i];
+                    children.add(stacked ? b : Expanded(child: b));
+                  }
+                  return stacked
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: children,
+                        )
+                      : Row(children: children);
+                },
               ),
               // Progress of the CURRENT send action. The pickers grey out
               // every Send button while they run, and the iOS photos picker

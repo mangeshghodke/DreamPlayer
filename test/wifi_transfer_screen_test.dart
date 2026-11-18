@@ -490,6 +490,19 @@ void main() {
       expect(swift.contains('try? input.close()'), isTrue);
     });
 
+    test('the three Send buttons stack on narrow screens, side by side on wide', () {
+      // Three buttons in one Row clip their labels on a phone; iOS has three
+      // (photos), Android two. The buttons now go through a LayoutBuilder that
+      // stacks them in a stretched Column below a width threshold and keeps
+      // an equally-sized Row above it.
+      expect(screen.contains('LayoutBuilder'), isTrue);
+      expect(screen.contains('crossAxisAlignment: CrossAxisAlignment.stretch'),
+          isTrue);
+      expect(screen.contains('constraints.maxWidth < 480'), isTrue);
+      // Labels are one line so they ellipsize instead of wrapping/clipping.
+      expect(screen.contains('maxLines: 1'), isTrue);
+    });
+
     test('the download filename never carries a folder slash', () {
       // Names like "Photos/IMG_0001.HEIC" must download as "IMG_0001.HEIC":
       // a slash in the Content-Disposition filename makes download managers
