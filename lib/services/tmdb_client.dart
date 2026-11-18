@@ -4309,6 +4309,10 @@ static int? _trailingPartNumber(String folderName) {
               .whereType<String>()
               .toList(),
         );
+        // Issue #66: enrich every episode with its full stills gallery +
+        // guest stars upfront, so they're cached without opening each episode.
+        _prefetchSeasonEpisodeMetadata(identityKey, seasonNumber,
+            season.episodes);
         return season;
       }
       // Fetch the full season endpoint - it includes poster_path, name,
@@ -4344,6 +4348,10 @@ static int? _trailingPartNumber(String folderName) {
             .whereType<String>()
             .toList(),
       );
+      // Issue #66: enrich every episode with its full stills gallery +
+      // guest stars upfront, so they're cached without opening each episode.
+      _prefetchSeasonEpisodeMetadata(identityKey, seasonNumber,
+          season.episodes);
       return season;
     } catch (_) {
       return null;
@@ -4351,6 +4359,37 @@ static int? _trailingPartNumber(String folderName) {
       _pendingDetail.remove(pendingKey);
       notifyListeners();
     }
+  }
+
+  /// Issue #66: enrich every episode of [season] with its full stills gallery
+  /// and guest stars upfront, so they're cached and ready without opening each
+  /// episode individually. Guest stars remain displayed only inside the
+  /// individual episode view - nothing changes on the season list layout.
+  ///
+  /// Throttled to [maxStillsInFlight] concurrent requests to stay under TMDB's
+  /// rate limit. TheTVDB short-circuits in [episodeDetailsFor], so this is a
+  /// no-op for TheTVDB shows.
+  void _prefetchSeasonEpisodeMetadata(
+    String identityKey,
+    int seasonNumber,
+    List<TmdEpisode> episodes,
+  ) {
+    if (episodes.isEmpty) return;
+    var inFlight = 0;
+    var index = 0;
+    void drain() {
+      while (inFlight < maxStillsInFlight && index < episodes.length) {
+        final ep = episodes[index++];
+        inFlight++;
+        episodeDetailsFor(identityKey, seasonNumber, ep.episodeNumber)
+            .whenComplete(() {
+          _prefetchStills(identityKey, seasonNumber, ep.episodeNumber);
+          inFlight--;
+          drain();
+        });
+      }
+    }
+    drain();
   }
 
   /// Fetches + caches the full details (guest cast, all stills) of one episode
