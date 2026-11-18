@@ -65,6 +65,14 @@ The full feature list. The README carries a short summary; everything below is t
 - **Files app "Open with"** on iPad with bookmarked folders
 - Encrypted credentials (Android Keystore / iOS Keychain)
 
+## WiFi file transfer
+A tiny HTTP server built into the app, started from the home **+** → *WiFi file transfer*. It works **both directions over the LAN**, no cable, no account:
+- **PC → phone:** start the service, set a username and password, and open `http://<ip>:<port>/wifi-transfer/` in any PC browser. Drag videos onto the page (or pick them) and they stream into the phone's download folder, listed with a live progress bar and appearing in the home *Downloaded* grid. Runs even while the screen is locked.
+- **phone → PC:** tap **Send files**, **Send folder**, or **Send photos** on the phone and pick what to push. The transfer page on the PC picks the batch up automatically - no link to click. On a desktop browser (Chromium) files stream straight into a folder you choose; on Firefox/Safari, or when you haven't picked a folder, a whole batch arrives as **one zip archive** so the multi-download prompt never fires and the folder names travel inside it.
+- **Send photos (iOS):** opens the Photos picker for both photos and camera videos, keeping each item's **original format** (`.heic` photos, `.mov`/`.mp4` videos); a progress bar under the buttons tracks the preparation so nothing looks frozen.
+- Downloads are authenticated with the credentials you set, and stream straight to disk.
+- The buttons stack vertically on a phone and sit side by side on a tablet, so labels never clip.
+
 ## Smart Library
 - **Continue watching** - resume any partially-watched video with progress bars
 - **Library search** - the Home app bar has a search button for everything already in the library: shows, season folders, episodes, movies and manual groups. It matches titles, file names, episode codes and original titles as you type, is accent- and case-insensitive, and works **offline** - metadata only enriches entries that are already there, it never adds results that cannot be played. Each row names its source

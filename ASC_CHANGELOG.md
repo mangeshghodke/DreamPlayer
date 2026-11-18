@@ -16,6 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
+| 0.5.8 | 11 | 853 |
 | 0.5.7 | 7 | 1446 |
 | 0.5.6 | 15 | 2607 |
 | 0.5.5 | 71 | 3761 |
@@ -26,6 +27,18 @@ that copying a block for App Store Connect can never pick up a stray note:
 A count is the length of the text you would paste - the block from its "New:"
 or "Fixed:" line down to its last character, including the final newline - so
 it can be reproduced with a plain character count after any edit.
+
+---
+
+## 0.5.8 (build 11)
+
+New:
+• Photos and videos now send from the phone the same way as files - tap **Send files**, **Send folder** or **Send photos**, pick what to push, and it arrives on your computer's transfer page. On iOS, **Send photos** opens the Photos picker and keeps each item's original format (.heic photos, .mov videos); a progress bar shows while the items are being prepared so nothing looks frozen.
+
+Fixed:
+• Sending a single photo or video no longer fails with "file could not be read" - the transfer page now receives it complete instead of cutting it short partway through.
+• Multiple photos or videos again send as one zip archive instead of the page appearing to hang while preparing them.
+• The three send buttons now stack vertically on a phone and sit side by side on a tablet, so their labels never clip on a small screen.
 
 ---
 

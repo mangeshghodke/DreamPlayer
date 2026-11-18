@@ -40,6 +40,7 @@ A cross-platform video player for **Android, iOS/iPad, and Android TV** - built 
 - **Smart library** - TMDB metadata, continue watching, offline search, grouping, watched marks, downloads to device
 - **Subtitles** - embedded + sideloaded sidecars auto-attach, full styling, OpenSubtitles search
 - **Two Android engines** - Media3 (DV/HDR) or MPV (user-chosen), plus PiP, chapters, skip-intro, gestures, AirPlay on iOS
+- **WiFi file transfer** - a built-in LAN server: type `http://<ip>:<port>/wifi-transfer/` in a PC browser to push videos straight into the phone, and tap **Send files / Send folder / Send photos** on the phone to push files, folders, photos and videos the other way (multiple photos/videos arrive as one zip)
 - Localization (EN/ES/ZH/RU/FR), Android TV 10-foot UI, alternate app icons
 
 👉 **[Full feature list →](docs/features.md)** · **[Playback engines →](docs/engines.md)** · **[Spatial audio →](docs/spatial-audio.md)** · **[Screenshots →](docs/screenshots.md)**

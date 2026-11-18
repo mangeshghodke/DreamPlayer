@@ -42,6 +42,7 @@ New:
 
 Fixed:
 • The "Skip intro / recap / credits" button now appears on the first watch of a new episode or movie, not only on the second play - the lookup waited for title metadata that arrives a moment after playback starts on a fresh title, and now re-checks as soon as it lands.
+• **Send photos / Send files / Send folder** transfers now arrive complete on your computer - a single photo or video no longer fails with a truncated "file could not be read", and multiple photos or videos again send as one zip archive instead of the page appearing to hang while preparing them. A progress bar under the buttons shows while the items are being prepared, and the three buttons stack vertically on a phone and sit side by side on a tablet so their labels never clip on a small screen.
 
 ---
 
