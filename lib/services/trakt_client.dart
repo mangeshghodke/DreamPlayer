@@ -337,6 +337,7 @@ class TraktClient {
   /// episodes are split into their own arrays - a season/episode posted as a
   /// movie lands on the wrong list on Trakt and can never come back correctly.
   Future<void> markWatched(List<TraktWatchItem> items) async {
+    if (items.isEmpty) return; // avoid posting an empty {} body
     final token = await _accessToken;
     final res = await _request('POST', Uri.parse('$_base/sync/history'),
         headers: {'Authorization': 'Bearer $token'},
