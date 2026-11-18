@@ -79,10 +79,10 @@ jobs:
           EOF
 
       - name: Build universal release APK
-        run: flutter build apk --release --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
+        run: flutter build apk --release --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} --dart-define=TRAKT_CLIENT_ID=${{ secrets.TRAKT_CLIENT_ID }} --dart-define=TRAKT_CLIENT_SECRET=${{ secrets.TRAKT_CLIENT_SECRET }}
 
       - name: Build split-per-abi release APKs
-        run: flutter build apk --release --split-per-abi --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
+        run: flutter build apk --release --split-per-abi --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }} --dart-define=TRAKT_CLIENT_ID=${{ secrets.TRAKT_CLIENT_ID }} --dart-define=TRAKT_CLIENT_SECRET=${{ secrets.TRAKT_CLIENT_SECRET }}
 
       - name: Rename artifacts with app name and version
         run: |

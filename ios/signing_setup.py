@@ -87,9 +87,11 @@ def main():
     ]
 
     # Pass dart-defines from env - OPENSUBTITLES_API_KEY + SIMKL_CLIENT_ID +
-    # the crash-report endpoint/secret (the in-app "App crashed?" upload).
+    # TRAKT_CLIENT_ID/SECRET + the crash-report endpoint/secret (the in-app
+    # "App crashed?" upload).
     # TMDB_API_KEY is NOT baked into production builds - users enter it via Settings.
     for key in ('OPENSUBTITLES_API_KEY', 'SIMKL_CLIENT_ID',
+                'TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET',
                 'CRASH_REPORT_ENDPOINT', 'CRASH_REPORT_SECRET'):
         val = os.environ.get(key, '').strip()
         if val:
