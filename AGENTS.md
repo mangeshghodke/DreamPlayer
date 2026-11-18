@@ -17,6 +17,12 @@ A video player app supporting:
 
 ## Current status
 
+- **Competitor-gap Phase 1 COMPLETE (2026-11-18)**: #1 WiFi upload server
+  shipped and user-verified (TestFlight builds 8-12, both directions); #2
+  Trakt and #3 iCloud cross-device sync both declined by the user and removed
+  from the tree (`trakt_*`, `icloud_sync.dart`, `sync_merge.dart` and their
+  tests all deleted). Next up is Phase 2 (trickplay, transcode picker,
+  Chromecast, extras, hide spoilers) - see the roadmap table below.
 - **Episode rows rebuilt (issue #38, 0.5.1+25, user-verified)**: one shared
   `EpisodeRow` replaces 9 copies of the row across the season, folder, SMB,
   WebDAV, Jellyfin, FTP, UPnP, file-browser and details screens, with a
@@ -4310,9 +4316,9 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 
 | # | Feature | Competitors that have it | Notes |
 |---|---|---|---|
-| 1 | **WiFi/web upload server** - built-in HTTP server on LAN; user opens `http://<device-ip>:<port>` in PC browser, drag-drops videos INTO the phone | VLC, Infuse, VidHub, FE, Documents, Outplayer | We only download TO device from network. Upload TO phone currently needs Files/iTunes. Store in Documents/DreamPlayer/ (iOS) or Download/DreamPlayer/ (Android) |
-| 2 | **Trakt sync** - 2-way watched history, ratings, scrobbling | Infuse, Vireko | We have Jellyfin server sync + SIMKL (TMDB-only). Trakt is the cross-service standard |
-| 3 | **iCloud cross-device sync** (iPhone ↔ iPad) - watch state, resume, library, settings via CloudKit or iCloud Drive JSON | Infuse Pro, VidHub, SenPlayer | User owns both iPhone and iPad Pro M2 - progress should follow them |
+| 1 | **WiFi/web upload server** - built-in HTTP server on LAN; user opens `http://<device-ip>:<port>` in PC browser, drag-drops videos INTO the phone | VLC, Infuse, VidHub, FE, Documents, Outplayer | DONE - `UploadServer` (Kotlin + Swift mirrors) serves the upload page on `0.0.0.0`; PC drag-drops videos into the phone. Works both ways (phone -> PC sends too). TestFlight builds 8-12 user-verified |
+| 2 | **Trakt sync** - 2-way watched history, ratings, scrobbling | Infuse, Vireko | REMOVED by user decision (2026-11-18) - needs a Trakt OAuth app with a redirect URI. SIMKL remains the free no-key watched sync |
+| 3 | **iCloud cross-device sync** (iPhone ↔ iPad) - watch state, resume, library, settings via CloudKit or iCloud Drive JSON | Infuse Pro, VidHub, SenPlayer | DECLINED by user (2026-11-18) - not needed. The Dart stub `lib/services/icloud_sync.dart` was removed with it |
 | 4 | **IPTV M3U/M3U8 player + EPG** - import playlist URL, channel list with logos, XMLTV guide grid, favorites, groups | SenPlayer, MovoHub, Vireko | Whole user segment. Jellyfin can proxy it server-side but a direct player is expected |
 | 5 | **Trickplay/chapter thumbnails on seek bar** | Streamyfin, Infuse (live previews) | We removed frame thumbnails (black on HDR Android). Jellyfin server-side trickplay + iOS AVAssetImageGenerator on SDR local files work |
 | 6 | **Chromecast / Google Cast (iOS)** | Infuse Pro, nPlayer, Streamyfin | We only have AirPlay on iOS. Huge for non-Apple TVs |
@@ -4344,7 +4350,7 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 
 **🟢 Lower priority (different app category - belongs to Documents/VLC, not a video player):** CarPlay video (parked only, Apple-restricted), podcasts, radio stations, PDF editor/scanner, photo Smart Eraser, format conversion, Jellyseerr request integration, admin session view.
 
-**Suggested implementation order:** Phase 1 = WiFi upload server (#1) + iCloud sync (#3) + Trakt (#2). Phase 2 = trickplay (#5) + transcode picker (#7) + Chromecast (#6) + extras (#9) + hide spoilers (#10). Phase 3 = IPTV M3U/EPG (#4) + app lock (#8) + NFS (#12) + in-app browser (#11). Phase 4 = screenshot (#16) + color controls on Media3 (#17) + deinterlacing (#19) + rename/move (#20) + Siri shortcuts (#24).
+**Suggested implementation order:** Phase 1 is COMPLETE (2026-11-18) - #1 WiFi upload server shipped and user-verified; #2 Trakt and #3 iCloud sync both declined by the user (removed from the tree). Next: Phase 2 = trickplay (#5) + transcode picker (#7) + Chromecast (#6) + extras (#9) + hide spoilers (#10). Phase 3 = IPTV M3U/EPG (#4) + app lock (#8) + NFS (#12) + in-app browser (#11). Phase 4 = screenshot (#16) + color controls on Media3 (#17) + deinterlacing (#19) + rename/move (#20) + Siri shortcuts (#24).
 
 ## Repository / Git
 
