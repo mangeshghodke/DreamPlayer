@@ -479,6 +479,17 @@ void main() {
       expect(screen.contains('_pickDone / _pickTotal'), isTrue);
     });
 
+    test('single-file streaming keeps the file handle open until the stream ends', () {
+      // streamSharedFile is ASYNC (recursive sendChunk with send callbacks), so
+      // the method returns after queuing the first chunk. A `defer { input
+      // .close() }` would run on that return and close the FileHandle before
+      // the rest streams - truncating every download to one 256 KB chunk (the
+      // "downloads but file could not be read" report). The handle must be
+      // closed in finish() instead, when streaming actually ends.
+      expect(swift.contains('func finish()'), isTrue);
+      expect(swift.contains('try? input.close()'), isTrue);
+    });
+
     test('the download filename never carries a folder slash', () {
       // Names like "Photos/IMG_0001.HEIC" must download as "IMG_0001.HEIC":
       // a slash in the Content-Disposition filename makes download managers

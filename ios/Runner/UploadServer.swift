@@ -632,13 +632,19 @@ final class UploadServer: NSObject, FlutterStreamHandler {
             return
         }
         let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-
         guard let input = try? FileHandle(forReadingFrom: url) else {
+            if scoped { url.stopAccessingSecurityScopedResource() }
             respond(connection: connection, code: 404, contentType: "text/plain", body: Data("file unreadable".utf8))
             return
         }
-        defer { try? input.close() }
+        // NOTE: NO `defer { input.close() }` here. This function streams
+        // ASYNCHRONOUSLY via sendChunk()'s send-completion callbacks, so it
+        // returns after the first chunk is queued - a defer would close the
+        // FileHandle (and drop the security scope) before the remaining chunks
+        // are read, truncating the download to ~one 256 KB chunk. The handle
+        // is closed in finish(), when streaming actually ends. (Streaming a
+        // synchronous loop like Android's does not have this trap, which is
+        // why the same code worked there.)
 
         let rangeHeader = headers["range"]
         var start: Int64 = 0
@@ -687,15 +693,20 @@ final class UploadServer: NSObject, FlutterStreamHandler {
 
         var remaining = length
         let chunkSize = 256 * 1024
+        func finish() {
+            try? input.close()
+            if scoped { url.stopAccessingSecurityScopedResource() }
+            connection.cancel()
+        }
         func sendChunk() {
             if remaining <= 0 {
-                connection.cancel()
+                finish()
                 return
             }
             let toRead = min(chunkSize, Int(remaining))
             let data = try? input.read(upToCount: toRead)
             guard let data, !data.isEmpty else {
-                connection.cancel()
+                finish()
                 return
             }
             remaining -= Int64(data.count)
@@ -703,7 +714,7 @@ final class UploadServer: NSObject, FlutterStreamHandler {
                 if error == nil && remaining > 0 {
                     sendChunk()
                 } else {
-                    connection.cancel()
+                    finish()
                 }
             })
         }
