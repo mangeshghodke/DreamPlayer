@@ -191,12 +191,8 @@ final class CastManager: NSObject, FlutterStreamHandler,
     metadata.setString(args["title"] as? String ?? "", forKey: kGCKMetadataKeyTitle)
     metadata.setString(args["subtitle"] as? String ?? "", forKey: kGCKMetadataKeySubtitle)
     builder.metadata = metadata
-    guard let info = builder.build() else {
-      result(FlutterError(code: "build_failed",
-                          message: "GCKMediaInformationBuilder.build() returned nil",
-                          details: nil))
-      return
-    }
+    // build() returns a non-optional GCKMediaInformation in SDK 4.8.
+    let info = builder.build()
 
     // loadMedia:autoplay:playPosition: is deprecated since 4.x; use
     // loadMedia:withOptions: instead. remoteMediaClient is optional, so use ?.
