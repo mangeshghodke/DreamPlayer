@@ -259,9 +259,6 @@ class EpisodeRow extends StatelessWidget {
     this.posterUrl,
     this.selected = false,
     this.showTrailingActions = true,
-    /// Whether this file already carries a watched mark. Only consulted when
-    /// the "Hide spoilers" setting is on; an unknown state counts as
-    /// unwatched (the safe direction for a binge watcher).
     this.watched = false,
     this.subtitle,
     this.progress,

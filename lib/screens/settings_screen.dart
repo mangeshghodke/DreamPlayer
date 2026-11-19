@@ -136,6 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(HideSpoilersStore.instance.load());
     _refreshDiskSize();
     _loadPassthrough();
     _loadSwipeGestures();

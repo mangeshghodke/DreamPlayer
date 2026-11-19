@@ -20,6 +20,7 @@ import 'services/language_service.dart';
 import 'services/metadata_provider_adapter.dart';
 import 'services/r18dev_adapter.dart';
 import 'services/layout_store.dart';
+import 'services/hide_spoilers_store.dart';
 import 'services/font_store.dart';
 import 'services/libsmb2_object_code.dart';
 import 'utils/tv_helper.dart';
@@ -39,6 +40,7 @@ Future<void> main() async {
   // Persisted accent colour + library layout (issue #34).
   unawaited(AccentStore.load());
   unawaited(LayoutStore.load());
+  unawaited(HideSpoilersStore.instance.load());
   unawaited(FontStore.load());
   // List / Grid choice for the network browsers.
   unawaited(BrowserViewStore.load());
