@@ -51,23 +51,12 @@ final class CastManager: NSObject, FlutterStreamHandler,
   private var _state: String = "notAvailable" {
     didSet { sendEvent(state: _state) }
   }
-  private var _deviceId: String? {
-    didSet { sendEvent(state: _state, deviceId: _deviceId, friendlyName: _deviceName) }
-  }
-  private var _deviceName: String? {
-    didSet { sendEvent(state: _state, deviceId: _deviceId, friendlyName: _deviceName) }
-  }
 
-  private func sendEvent(state: String? = nil, deviceId: String? = nil,
-                         friendlyName: String? = nil) {
+  private func sendEvent(state: String? = nil) {
     let s = state ?? _state
-    let d = deviceId ?? _deviceId
-    let n = friendlyName ?? _deviceName
     let event: [String: Any?] = [
       "kind": "sessionStateChanged",
       "state": s,
-      "deviceId": d as Any,
-      "friendlyName": n as Any,
     ]
     eventSink?(event)
   }
@@ -77,7 +66,7 @@ final class CastManager: NSObject, FlutterStreamHandler,
   func onListen(withArguments arguments: Any?,
                 eventSink: @escaping FlutterEventSink) -> FlutterError? {
     self.eventSink = eventSink
-    sendEvent(state: _state, deviceId: _deviceId, friendlyName: _deviceName)
+    sendEvent(state: _state)
     return nil
   }
 
@@ -127,11 +116,12 @@ final class CastManager: NSObject, FlutterStreamHandler,
     // Session lifecycle events come through GCKSessionManagerListener.
     context?.sessionManager.add(self)
     // Cast-state changes (device discovered / lost) come via this notification;
-    // discovery is asynchronous so the initial deviceCount is usually 0.
+    // discovery is asynchronous so the initial castState is usually
+    // .noDevicesAvailable.
     NotificationCenter.default.addObserver(
       self,
       selector: #selector(castStateChanged),
-      name: NSNotification.Name(kGCKCastStateDidChangeNotification),
+      name: kGCKCastStateDidChangeNotification,
       object: context)
 
     updateAvailability()
@@ -184,7 +174,7 @@ final class CastManager: NSObject, FlutterStreamHandler,
       result(FlutterError(code: "bad_args", message: "url is required", details: nil))
       return
     }
-    guard let session = session else {
+    guard let currentSession = session else {
       result(FlutterError(code: "no_session",
                           message: "No Cast session", details: nil))
       return
@@ -205,20 +195,25 @@ final class CastManager: NSObject, FlutterStreamHandler,
     metadata.setString(args["subtitle"] as? String, forKey: kGCKMetadataKeySubtitle)
     builder.metadata = metadata
     let info = builder.build()
-    session.remoteMediaClient.load(
-      info,
-      autoplay: true,
-      playPosition: 0)
+
+    // loadMedia:autoplay:playPosition: is deprecated since 4.x; use
+    // loadMedia:withOptions: instead. remoteMediaClient is optional, so use ?.
+    let options = GCKMediaLoadOptions()
+    options.autoplay = true
+    if durationMs > 0 {
+      options.playPosition = TimeInterval(durationMs) / 1000.0
+    }
+    currentSession.remoteMediaClient?.loadMedia(info, withOptions: options)
     result(true)
   }
 
   private func pause(result: @escaping FlutterResult) {
-    session?.remoteMediaClient.pause()
+    session?.remoteMediaClient?.pause()
     result(nil)
   }
 
   private func play(result: @escaping FlutterResult) {
-    session?.remoteMediaClient.play()
+    session?.remoteMediaClient?.play()
     result(nil)
   }
 
@@ -228,7 +223,7 @@ final class CastManager: NSObject, FlutterStreamHandler,
       result(FlutterError(code: "bad_args", message: "positionMs is required", details: nil))
       return
     }
-    session?.remoteMediaClient.seek(
+    session?.remoteMediaClient?.seek(
       toTimeInterval: TimeInterval(positionMs) / 1000.0)
     result(nil)
   }
@@ -237,20 +232,16 @@ final class CastManager: NSObject, FlutterStreamHandler,
 
   func sessionManager(_ sessionManager: GCKSessionManager,
                       didStart session: GCKCastSession) {
-    _deviceId = session.castDevice.deviceId
-    _deviceName = session.castDevice.friendlyName
     _state = "connected"
     session.remoteMediaClient.add(self)
-    sendEvent(state: _state, deviceId: _deviceId, friendlyName: _deviceName)
+    sendEvent(state: _state)
   }
 
   func sessionManager(_ sessionManager: GCKSessionManager,
                       didResumeCastSession session: GCKCastSession) {
-    _deviceId = session.castDevice.deviceId
-    _deviceName = session.castDevice.friendlyName
     _state = "connected"
     session.remoteMediaClient.add(self)
-    sendEvent(state: _state, deviceId: _deviceId, friendlyName: _deviceName)
+    sendEvent(state: _state)
   }
 
   func sessionManager(_ sessionManager: GCKSessionManager,
@@ -279,8 +270,6 @@ final class CastManager: NSObject, FlutterStreamHandler,
 
   private func _endSession() {
     _state = "notConnected"
-    _deviceId = nil
-    _deviceName = nil
     sendEvent(state: _state)
   }
 }
