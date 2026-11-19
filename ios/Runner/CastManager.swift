@@ -102,11 +102,9 @@ final class CastManager: NSObject, FlutterStreamHandler,
 
   @discardableResult
   private func initializeCast() -> Bool {
-    // Guard against double-initialization: setSharedInstanceWith throws if
-    // the shared instance already exists (e.g. a hot restart re-enters this).
-    if GCKCastContext.isSharedInstanceInitialized {
-      context = GCKCastContext.sharedInstance()
-    } else {
+    // Guard against double-initialization using our own stored context:
+    // setSharedInstanceWith throws if the shared instance already exists.
+    if context == nil {
       let criteria = GCKDiscoveryCriteria(
         applicationID: kGCKDefaultMediaReceiverApplicationID)
       let options = GCKCastOptions(discoveryCriteria: criteria)
@@ -121,7 +119,7 @@ final class CastManager: NSObject, FlutterStreamHandler,
     NotificationCenter.default.addObserver(
       self,
       selector: #selector(castStateChanged),
-      name: kGCKCastStateDidChangeNotification,
+      name: .gckCastStateDidChange,
       object: context)
 
     updateAvailability()
@@ -148,15 +146,14 @@ final class CastManager: NSObject, FlutterStreamHandler,
   // MARK: - Session
 
   private func startSession(result: @escaping FlutterResult) {
+    // The native GCKUICastButton opens the Cast device picker itself when
+    // tapped - no programmatic call is needed. Session state arrives via
+    // GCKSessionManagerListener once the user picks a device.
     guard context != nil else {
       result(FlutterError(code: "not_initialized",
                           message: "Cast context not initialized", details: nil))
       return
     }
-    // `presentCastInstructionsViewControllerOnce` shows the device picker the
-    // first time it is invoked; the native `GCKCastButton` handles the picker
-    // on subsequent taps. Session state arrives via GCKSessionManagerListener.
-    context?.presentCastInstructionsViewControllerOnce()
     result(nil)
   }
 
@@ -191,10 +188,15 @@ final class CastManager: NSObject, FlutterStreamHandler,
       builder.streamDuration = TimeInterval(durationMs) / 1000.0
     }
     let metadata = GCKMediaMetadata(metadataType: .movie)
-    metadata.setString(args["title"] as? String, forKey: kGCKMetadataKeyTitle)
-    metadata.setString(args["subtitle"] as? String, forKey: kGCKMetadataKeySubtitle)
+    metadata.setString(args["title"] as? String ?? "", forKey: kGCKMetadataKeyTitle)
+    metadata.setString(args["subtitle"] as? String ?? "", forKey: kGCKMetadataKeySubtitle)
     builder.metadata = metadata
-    let info = builder.build()
+    guard let info = builder.build() else {
+      result(FlutterError(code: "build_failed",
+                          message: "GCKMediaInformationBuilder.build() returned nil",
+                          details: nil))
+      return
+    }
 
     // loadMedia:autoplay:playPosition: is deprecated since 4.x; use
     // loadMedia:withOptions: instead. remoteMediaClient is optional, so use ?.
@@ -203,7 +205,7 @@ final class CastManager: NSObject, FlutterStreamHandler,
     if durationMs > 0 {
       options.playPosition = TimeInterval(durationMs) / 1000.0
     }
-    currentSession.remoteMediaClient?.loadMedia(info, withOptions: options)
+    currentSession.remoteMediaClient?.loadMedia(info, with: options)
     result(true)
   }
 
@@ -233,14 +235,14 @@ final class CastManager: NSObject, FlutterStreamHandler,
   func sessionManager(_ sessionManager: GCKSessionManager,
                       didStart session: GCKCastSession) {
     _state = "connected"
-    session.remoteMediaClient.add(self)
+    session.remoteMediaClient?.add(self)
     sendEvent(state: _state)
   }
 
   func sessionManager(_ sessionManager: GCKSessionManager,
                       didResumeCastSession session: GCKCastSession) {
     _state = "connected"
-    session.remoteMediaClient.add(self)
+    session.remoteMediaClient?.add(self)
     sendEvent(state: _state)
   }
 

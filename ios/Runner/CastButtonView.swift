@@ -44,7 +44,8 @@ final class CastButtonPlatformView: NSObject, FlutterPlatformView {
 /// by the system. When a Cast session is active the button is tinted by the
 /// system to indicate the active route.
 final class CastButtonContainer: UIView {
-  private let button = GCKCastButton()
+  // GCKUICastButton (renamed from GCKCastButton in the v4 sender API).
+  private let button = GCKUICastButton()
 
   override init(frame: CGRect) {
     super.init(frame: frame)
