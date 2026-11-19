@@ -38,8 +38,8 @@
 		A1B2C3D50000000000000017 /* MediaProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000017 /* MediaProbe.swift */; };
 		A1B2C3D50000000000000018 /* DownloadClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000018 /* DownloadClient.swift */; };
 		A1B2C3D50000000000000019 /* TrialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000019 /* TrialStore.swift */; };
-		A1B2C3D70000000000000001 /* CastManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D70000000000000001 /* CastManager.swift */; };
-		A1B2C3D70000000000000002 /* CastButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D70000000000000002 /* CastButtonView.swift */; };
+		A1B2C3D80000000000000001 /* CastManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D70000000000000001 /* CastManager.swift */; };
+		A1B2C3D80000000000000002 /* CastButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D70000000000000002 /* CastButtonView.swift */; };
 
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		A1B2C3D40000000000000006 /* AetherEngine in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000000000005 /* AetherEngine */; };
@@ -412,8 +412,8 @@
 				A1B2C3D50000000000000017 /* MediaProbe.swift in Sources */,
 				A1B2C3D50000000000000018 /* DownloadClient.swift in Sources */,
 				A1B2C3D50000000000000019 /* TrialStore.swift in Sources */,
-				A1B2C3D70000000000000001 /* CastManager.swift in Sources */,
-				A1B2C3D70000000000000002 /* CastButtonView.swift in Sources */,
+				A1B2C3D80000000000000001 /* CastManager.swift in Sources */,
+				A1B2C3D80000000000000002 /* CastButtonView.swift in Sources */,
 
 			);
 			runOnlyForDeploymentPostprocessing = 0;
