@@ -1,0 +1,22 @@
+platform :ios, '18.0'
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  # Google Cast SDK for iOS - Chromecast support (competitor-gap #6).
+  # Distributed via CocoaPods; no official Swift Package Manager distribution.
+  pod 'google-cast-sdk', '~> 4.8'
+
+  # Flutter plugins add their own dependencies here; do not edit manually.
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.0'
+    end
+  end
+end

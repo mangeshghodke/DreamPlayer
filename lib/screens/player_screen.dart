@@ -77,6 +77,7 @@ import '../utils/tv_helper.dart';
 import '../utils/thermal_policy.dart';
 import '../services/thermal_monitor.dart';
 import '../widgets/airplay_button.dart';
+import '../widgets/cast_button.dart';
 import '../widgets/format_chip.dart';
 import '../widgets/gesture_warning_pill.dart';
 import '../widgets/stats_hud.dart';
@@ -9493,6 +9494,11 @@ if (mounted) setState(_applySwipeValue);
                                 const AirPlayButton(),
                                 const SizedBox(width: 4),
                               ],
+                              // Chromecast / Google Cast route picker (iOS).
+                              // Shown beside AirPlay; only one of the two is
+                              // meaningful on a given device, and Cast is
+                              // hidden when no Cast device is on the LAN.
+                              const CastButtonTile(),
                               const SizedBox(width: 4),
                              _TvControlButton(
                                  onPressed: _openVideoInfoSheet,
