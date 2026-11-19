@@ -26,6 +26,7 @@ import '../services/simkl_client.dart';
 import '../services/smb_client.dart';
 import '../services/app_debug_log.dart';
 import '../services/tmdb_client.dart';
+import '../utils/extras_names.dart';
 import '../services/watched_store.dart';
 import '../services/download_manager.dart';
 import '../services/entitlements.dart';
@@ -2598,6 +2599,13 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                   _TrailersCard(trailers: details.trailers),
                 ],
 
+                // ── Extras card (competitor-gap #9): TMDB "Behind the
+                // Scenes" / "Featurette" / "Clip" / "Bloopers" videos ──
+                if (details != null && details.extras.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _ExtrasCard(extras: details.extras),
+                ],
+
                 // ── File info card (Nova-style) ──
                 if (infoVideo != null) ...[
                   const SizedBox(height: 20),
@@ -2663,14 +2671,21 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     // Recognize both SxxExx and E01/EP01 patterns as episodes.
     final episodes = videos
         .where((e) =>
-            ParsedFileName.parse(e.name).isEpisode ||
-            _epPattern.hasMatch(e.name))
+            !isExtrasFileName(e.name) &&
+            (ParsedFileName.parse(e.name).isEpisode ||
+                _epPattern.hasMatch(e.name)))
         .toList();
     final movies = videos
         .where((e) =>
+            !isExtrasFileName(e.name) &&
             !ParsedFileName.parse(e.name).isEpisode &&
             !_epPattern.hasMatch(e.name))
         .toList();
+    // Infuse-style local extras (`-deleted`, `-featurette`, ...) are pulled out
+    // of BOTH lists into their own playable section below (competitor-gap #9):
+    // an extra named `Show.S01E01-deleted.mkv` must not duplicate the real
+    // episode's row, and a folder shows one movie card plus its extras.
+    final extras = videos.where((e) => isExtrasFileName(e.name)).toList();
     final seasonGroups = sg.groupBySeason<FileEntry>(
       episodes,
       (e) {
@@ -2792,6 +2807,45 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
             childCount: movies.length,
           ),
         ),
+      // Local extras (`-deleted`, `-featurette`, ...) - Infuse's naming
+      // convention. Same play path as any other file, labelled by kind.
+      if (extras.isNotEmpty) ...[
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              'Extras',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final entry = extras[index];
+              final parsed = parseExtrasName(entry.name)!;
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                leading: const Icon(Icons.movie_creation_outlined,
+                    color: Colors.amber),
+                title: Text(
+                  parsed.baseName.isEmpty
+                      ? entry.name
+                      : parsed.baseName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(parsed.label),
+                trailing: const Icon(Icons.play_arrow, size: 18),
+                onTap: () => _openFolderEntry(entry),
+              );
+            },
+            childCount: extras.length,
+          ),
+        ),
+      ],
       const SliverToBoxAdapter(child: SizedBox(height: 24)),
     ];
   }
@@ -3586,6 +3640,16 @@ class _SubtitlesCard extends StatelessWidget {
   }
 }
 
+/// Opens a TMDB video (trailer or extra) in the external browser.
+Future<void> launchTmdVideo(BuildContext context, TmdTrailer video) async {
+  final url = video.watchUrl ?? video.youtubeUrl;
+  if (url == null) return;
+  final uri = Uri.parse(url);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
+
 /// Nova-style trailers card - YouTube links.
 class _TrailersCard extends StatelessWidget {
   const _TrailersCard({required this.trailers});
@@ -3614,21 +3678,52 @@ class _TrailersCard extends StatelessWidget {
                 title: Text(trailer.name),
                 subtitle: Text(AppLocalizations.of(context).badgeTranscoding),
                 trailing: const Icon(Icons.open_in_new, size: 18),
-                onTap: () => _launchTrailer(context, trailer),
+                onTap: () => launchTmdVideo(context, trailer),
               ),
           ],
         ),
       ),
     );
   }
+}
 
-  Future<void> _launchTrailer(BuildContext context, TmdTrailer trailer) async {
-    final url = trailer.youtubeUrl;
-    if (url == null) return;
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+/// Extras card (competitor-gap #9): TMDB "Behind the Scenes" / "Featurette" /
+/// "Clip" / "Bloopers" videos, each labelled with its TMDB type. Opens the
+/// YouTube/Vimeo link in the external browser, like the trailers card.
+class _ExtrasCard extends StatelessWidget {
+  const _ExtrasCard({required this.extras});
+  final List<TmdTrailer> extras;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Extras',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 10),
+            for (final extra in extras)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.movie_creation_outlined,
+                    color: Colors.amber),
+                title: Text(extra.name),
+                subtitle: Text(extra.type),
+                trailing: const Icon(Icons.open_in_new, size: 18),
+                onTap: () => launchTmdVideo(context, extra),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

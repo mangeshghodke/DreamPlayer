@@ -219,15 +219,41 @@ class TmdCastMember {
 class TmdTrailer {
   const TmdTrailer({required this.key,
     required this.name,
-    required this.site});
+    required this.site,
+    this.type = 'Trailer',
+  });
 
   final String key;
   final String name;
   final String site;
 
+  /// TMDB `videos.results[].type`: Trailer, Teaser, Clip, Behind the Scenes,
+  /// Featurette, Bloopers. Anything other than Trailer/Teaser is an "extra"
+  /// (competitor-gap #9) and is shown in the Extras card with its type.
+  final String type;
+
   String? get youtubeUrl => site == 'YouTube'
       ? 'https://www.youtube.com/watch?v=$key'
       : null;
+
+  /// A playable web URL - YouTube or Vimeo (some extras are Vimeo-hosted).
+  String? get watchUrl {
+    if (site == 'YouTube') return 'https://www.youtube.com/watch?v=$key';
+    if (site == 'Vimeo') return 'https://vimeo.com/$key';
+    return null;
+  }
+
+  bool get isExtra => type != 'Trailer' && type != 'Teaser';
+
+  Map<String, dynamic> toJson() =>
+      {'key': key, 'name': name, 'site': site, 'type': type};
+
+  factory TmdTrailer.fromJson(Map<String, dynamic> j) => TmdTrailer(
+        key: j['key'] as String? ?? '',
+        name: j['name'] as String? ?? 'Trailer',
+        site: j['site'] as String? ?? 'YouTube',
+        type: j['type'] as String? ?? 'Trailer',
+      );
 }
 
 class TmdDetails {
@@ -242,6 +268,7 @@ class TmdDetails {
     this.genres = const [],
     this.cast = const [],
     this.trailers = const [],
+    this.extras = const [],
     this.stills = const [],
     this.posterPath,
     this.backdropPath,
@@ -260,6 +287,11 @@ class TmdDetails {
   final List<String> genres;
   final List<TmdCastMember> cast;
   final List<TmdTrailer> trailers;
+
+  /// Non-trailer TMDB videos (Behind the Scenes / Featurette / Clip /
+  /// Bloopers) - competitor-gap #9, the details page's Extras card.
+  final List<TmdTrailer> extras;
+
   /// Backdrop file paths (no host) for a movie - the 16:9 stills gallery.
   /// TV shows populate this too via `images.backdrops` (harmless), but the
   /// per-episode gallery (_TmdEpisode.stills) is what episodes use instead.
@@ -294,6 +326,7 @@ class TmdDetails {
         genres: genres,
         cast: cast,
         trailers: trailers,
+        extras: extras,
         stills: stills,
         posterPath: posterPath ?? this.posterPath,
         backdropPath: backdropPath ?? this.backdropPath,
@@ -335,7 +368,8 @@ class TmdDetails {
           )
           .where((c) => c.name.isNotEmpty)
           .toList(),
-      trailers: _parseTrailers(json),
+      trailers: _parseVideos(json, extras: false),
+      extras: _parseVideos(json, extras: true),
       stills: ((json['images'] as Map<String, dynamic>?)?['backdrops'] as List? ??
               const [])
           .whereType<Map<String, dynamic>>()
@@ -357,18 +391,31 @@ class TmdDetails {
     return (runtimes.first as num).toInt();
   }
 
-  static List<TmdTrailer> _parseTrailers(Map<String, dynamic> json) {
+  /// Splits `videos.results` into trailers (Trailer/Teaser) and extras
+  /// (Clip / Behind the Scenes / Featurette / Bloopers) - competitor-gap #9.
+  /// Trailers keep the YouTube-only filter and the 5-item cap; extras allow
+  /// any site with a key (some are Vimeo-hosted) and cap at 10.
+  static List<TmdTrailer> _parseVideos(
+    Map<String, dynamic> json, {
+    required bool extras,
+  }) {
     final videos = json['videos'] as Map<String, dynamic>?;
     final results = videos?['results'] as List? ?? const [];
     return results
         .whereType<Map<String, dynamic>>()
-        .where((v) => v['site'] == 'YouTube' && v['key'] != null)
-        .take(5)
+        .where((v) => v['key'] != null && v['site'] != null)
+        .where((v) {
+          final type = v['type'] as String? ?? 'Trailer';
+          final isExtra = type != 'Trailer' && type != 'Teaser';
+          return isExtra == extras;
+        })
+        .take(extras ? 10 : 5)
         .map(
           (v) => TmdTrailer(
             key: v['key'] as String,
-            name: v['name'] as String? ?? 'Trailer',
+            name: v['name'] as String? ?? 'Video',
             site: v['site'] as String? ?? 'YouTube',
+            type: v['type'] as String? ?? 'Trailer',
           ),
         )
         .toList();
@@ -720,9 +767,8 @@ class TmdMeta {
         'year': d.year,
         'runtimeMinutes': d.runtimeMinutes,
         'genres': d.genres,
-    'trailers': d.trailers
-        .map((t) => {'key': t.key, 'name': t.name, 'site': t.site})
-        .toList(),
+    'trailers': d.trailers.map((t) => t.toJson()).toList(),
+    'extras': d.extras.map((t) => t.toJson()).toList(),
     'stills': d.stills,
         'cast': d.cast
             .map(
@@ -771,13 +817,12 @@ class TmdMeta {
       genres: (json['genres'] as List? ?? const []).cast<String>(),
       trailers: (json['trailers'] as List? ?? const [])
           .whereType<Map<String, dynamic>>()
-          .map(
-            (t) => TmdTrailer(
-              key: t['key'] as String? ?? '',
-              name: t['name'] as String? ?? 'Trailer',
-              site: t['site'] as String? ?? 'YouTube',
-            ),
-          )
+          .map(TmdTrailer.fromJson)
+          .where((t) => t.key.isNotEmpty)
+          .toList(),
+      extras: (json['extras'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(TmdTrailer.fromJson)
           .where((t) => t.key.isNotEmpty)
           .toList(),
       stills: (json['stills'] as List? ?? const [])
