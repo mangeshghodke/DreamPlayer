@@ -752,6 +752,7 @@ class _UpnpScreenState extends State<UpnpScreen> {
                                       );
 
                                       return EpisodeRow(
+                                        watched: watched,
                                         thumbBuilder: (size) => EpisodeStillThumb(
                                         stillUrl: stillUrl,
                                         posterUrl: posterUrl,

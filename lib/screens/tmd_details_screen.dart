@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -26,6 +28,7 @@ import '../services/simkl_client.dart';
 import '../services/smb_client.dart';
 import '../services/app_debug_log.dart';
 import '../services/tmdb_client.dart';
+import '../services/hide_spoilers_store.dart';
 import '../utils/extras_names.dart';
 import '../services/watched_store.dart';
 import '../services/download_manager.dart';
@@ -299,6 +302,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     super.initState();
     _scrollController.addListener(_onHeroScroll);
     _service.addListener(_onServiceChanged);
+    // "Hide spoilers" is a live setting: rebuild this screen's overview/
+    // gallery gates when it flips in Settings, and load it once on entry.
+    HideSpoilersStore.instance.addListener(_onSpoilersChanged);
+    unawaited(HideSpoilersStore.instance.load());
     _jellyfinInfo = widget.jellyfinInfo;
     _load();
     _refreshWatched();
@@ -308,6 +315,10 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
       _probing = true;
       _probeFile();
     }
+  }
+
+  void _onSpoilersChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onHeroScroll() {
@@ -322,6 +333,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   void dispose() {
     _scrollController.dispose();
     _service.removeListener(_onServiceChanged);
+    HideSpoilersStore.instance.removeListener(_onSpoilersChanged);
     super.dispose();
   }
 
@@ -533,6 +545,12 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   String? _watchedKeyForFile(FileEntry e) =>
       e.isDirectory ? null : (e.resumeKey ?? e.path);
+
+  /// The watched key of the single video this screen was opened for (an
+  /// episode's overview/stills are withheld when "Hide spoilers" is on and
+  /// this key carries no watched mark).
+  String get _watchedKeyForSingleEpisode =>
+      widget.folder == null ? _resumeKey : '';
 
   String? _watchedKeyForJellyfin(JellyfinItem i) {
     final s = _jellyfinServer;
@@ -2309,10 +2327,19 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     // synopsis - not a mismatched one - and TheTVDB simply does not provide a
     // season overview at all, which left every TheTVDB season folder blank
     // (issue #33).
-    final displayOverview = effectiveSeason > 0
-        ? (episodeOverview ??
-            firstNonEmptyOverview([seasonOverview, meta.overviewText()]))
-        : meta.overviewText(episodeOverview: episodeOverview);
+    // "Hide spoilers" (competitor-gap #10): an unwatched EPISODE's overview
+    // and stills are withheld, because a synopsis names the ending. Season
+    // and show overviews stay - they are not episode spoilers - and a
+    // watched/unknown-state file keeps its text.
+    final episodeSpoiled = singleEpisode != null &&
+        HideSpoilersStore.instance.spoils(
+            watched: _watchedKeys.contains(_watchedKeyForSingleEpisode));
+    final displayOverview = episodeSpoiled
+        ? null
+        : effectiveSeason > 0
+            ? (episodeOverview ??
+                firstNonEmptyOverview([seasonOverview, meta.overviewText()]))
+            : meta.overviewText(episodeOverview: episodeOverview);
     // Build episode label using effectiveSeason instead of parsed season (which
     // may be 0 for anime [01] bracket numbering).
     final effectiveEpisodeLabel = _parsed.isEpisode
@@ -2516,26 +2543,36 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  displayOverview,
-                  maxLines: _overviewExpanded ? null : 4,
-                  overflow: _overviewExpanded
-                      ? TextOverflow.visible
-                      : TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                ),
-                if (displayOverview.length > 200)
-                  GestureDetector(
-                    onTap: () =>
-                        setState(() => _overviewExpanded = !_overviewExpanded),
-                    child: Text(
-                      _overviewExpanded ? 'Less' : 'More',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w600,
+                if (displayOverview == null)
+                  Text(
+                    'Hidden until you watch this episode.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      height: 1.5,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else ...[
+                  Text(
+                    displayOverview,
+                    maxLines: _overviewExpanded ? null : 4,
+                    overflow: _overviewExpanded
+                        ? TextOverflow.visible
+                        : TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                  ),
+                  if (displayOverview.length > 200)
+                    GestureDetector(
+                      onTap: () => setState(
+                          () => _overviewExpanded = !_overviewExpanded),
+                      child: Text(
+                        _overviewExpanded ? 'Less' : 'More',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
 
                 // ── Fix match / Remove info (right below overview) ──
                 const SizedBox(height: 16),
@@ -2584,7 +2621,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
                         details != null &&
                         details.stills.isNotEmpty) ||
                     (singleEpisode != null &&
-                        singleEpisode.stills.isNotEmpty)) ...[
+                        singleEpisode.stills.isNotEmpty &&
+                        !episodeSpoiled)) ...[
                   const SizedBox(height: 20),
                   _StillsGallery(
                     stills: singleEpisode != null
@@ -4158,6 +4196,7 @@ class _FolderEntryTile extends StatelessWidget {
     );
 
     return EpisodeRow(
+      watched: watched,
       thumbBuilder: (size) => EpisodePosterThumb(
         posterUrl: posterUrl,
         size: size,
@@ -4263,6 +4302,7 @@ class _JellyfinEntryTile extends StatelessWidget {
           );
 
     return EpisodeRow(
+      watched: watched,
       thumbBuilder: (size) => EpisodePosterThumb(
         posterUrl: posterUrl,
         size: size,

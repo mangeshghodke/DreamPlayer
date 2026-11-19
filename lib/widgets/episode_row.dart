@@ -1,5 +1,8 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
+import '../services/hide_spoilers_store.dart';
 import '../services/layout_store.dart';
 import 'cached_image.dart';
 import 'tv_tile.dart';
@@ -188,6 +191,54 @@ class EpisodePosterThumb extends StatelessWidget {
   }
 }
 
+/// Wraps an episode thumbnail in a blur + eye-off scrim when "Hide spoilers"
+/// is on and the episode is unwatched (competitor-gap #10).
+///
+/// A veil, not a placeholder: the row keeps its size (so the list does not
+/// jump) and the artwork underneath survives, so toggling the setting off or
+/// marking the episode watched reveals it immediately. The blur applies to
+/// whatever the caller's thumbBuilder produced, so every browser gets it
+/// without a per-screen change.
+class _SpoilerThumb extends StatelessWidget {
+  const _SpoilerThumb({required this.enabled, required this.child});
+
+  final bool enabled;
+  final Widget child;
+
+  /// Enough to make a still unrecognisable without hiding the fact that
+  /// there IS artwork there.
+  static const double _blur = 9;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: _blur, sigmaY: _blur),
+            child: child,
+          ),
+          Positioned.fill(
+            child: ColoredBox(
+              color: Colors.black.withValues(alpha: 0.45),
+              child: Center(
+                child: Icon(
+                  Icons.visibility_off,
+                  size: 18,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// One episode / video row: thumbnail on the left, text and progress on the
 /// right (issue #38, item 2).
 ///
@@ -208,6 +259,10 @@ class EpisodeRow extends StatelessWidget {
     this.posterUrl,
     this.selected = false,
     this.showTrailingActions = true,
+    /// Whether this file already carries a watched mark. Only consulted when
+    /// the "Hide spoilers" setting is on; an unknown state counts as
+    /// unwatched (the safe direction for a binge watcher).
+    this.watched = false,
     this.subtitle,
     this.progress,
     this.trailing,
@@ -218,6 +273,11 @@ class EpisodeRow extends StatelessWidget {
   });
 
   final Widget title;
+
+  /// Whether this file already carries a watched mark. Only consulted when
+  /// the "Hide spoilers" setting is on; an unknown state counts as
+  /// unwatched, which is the safe direction for a binge watcher.
+  final bool watched;
 
   /// Builds the thumbnail at the size this row resolved for its own width.
   ///
@@ -339,15 +399,20 @@ class EpisodeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Rebuild every row when the layout preference changes, and on every
-    // relayout - rotation, split screen, a resized pane.
+    // Rebuild every row when the layout preference changes, AND when the
+    // spoiler setting flips, so toggling it in Settings updates the visible
+    // rows without a reload. Every relayout - rotation, split screen, a
+    // resized pane - rebuilds too.
     return ListenableBuilder(
-      listenable: LayoutStore.instance,
-      builder: (context, _) {
-        return LayoutBuilder(
-          builder: (context, constraints) => _build(context, constraints),
-        );
-      },
+      listenable: HideSpoilersStore.instance,
+      builder: (context, _) => ListenableBuilder(
+        listenable: LayoutStore.instance,
+        builder: (context, _) {
+          return LayoutBuilder(
+            builder: (context, constraints) => _build(context, constraints),
+          );
+        },
+      ),
     );
   }
 
@@ -369,7 +434,9 @@ class EpisodeRow extends StatelessWidget {
               : (trailingWidth ?? defaultTrailingWidth),
         );
         // Default thumbnail carries the poster fallback so the common case does not
-        // have to re-spell it at every call site (issue #47).
+        // have to re-spell it at every call site (issue #47). A caller's own
+        // thumbBuilder is honoured, and BOTH paths go through the same
+        // spoiler veil below, so nothing has to be re-spelled per screen.
         final thumb = thumbBuilder?.call(size) ??
             EpisodeStillThumb(
               stillUrl: stillUrl,
@@ -429,7 +496,11 @@ class EpisodeRow extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      thumb,
+                      _SpoilerThumb(
+                        enabled: HideSpoilersStore.instance
+                            .spoils(watched: watched),
+                        child: thumb,
+                      ),
                       const SizedBox(width: gap),
                       Expanded(child: text),
                       if (trailing != null && showTrailingActions) ...[

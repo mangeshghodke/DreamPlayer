@@ -1,4 +1,5 @@
 import 'package:dream_player/l10n/app_localizations.dart';
+import 'package:dream_player/services/hide_spoilers_store.dart';
 import 'package:dream_player/services/layout_store.dart';
 import 'package:dream_player/widgets/episode_row.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +26,7 @@ void main() {
     required EpisodeThumbSize size,
     Size surface = const Size(390, 844),
     bool usePoster = false,
+    bool watched = false,
   }) async {
     // tester.view, NOT binding.setSurfaceSize: the latter does not change what
     // MediaQuery reports, so MediaQuery.width stayed 800 and the phone/tablet
@@ -50,6 +52,7 @@ void main() {
                 progress: const LinearProgressIndicator(value: 0.4),
                 trailing: const Icon(Icons.check_circle, size: 22),
                 onTap: () {},
+                watched: watched,
               ),
             ],
           ),
@@ -59,7 +62,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await HideSpoilersStore.instance.setEnabled(false);
+  });
 
   group('EpisodeThumbGeometry', () {
     test('medium and large beat ListTile\'s 56px leading cap', () {
@@ -328,5 +334,30 @@ void main() {
         });
       }
     }
+  });
+
+  group('hide spoilers veil', () {
+    testWidgets('blurs the thumb and shows visibility_off when unwatched',
+        (tester) async {
+      await HideSpoilersStore.instance.setEnabled(true);
+      await pumpRow(tester,
+          size: EpisodeThumbSize.small, watched: false);
+      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
+    });
+
+    testWidgets('does not blur when the episode is watched',
+        (tester) async {
+      await HideSpoilersStore.instance.setEnabled(true);
+      await pumpRow(tester,
+          size: EpisodeThumbSize.small, watched: true);
+      expect(find.byIcon(Icons.visibility_off), findsNothing);
+    });
+
+    testWidgets('does not blur when the setting is off',
+        (tester) async {
+      await pumpRow(tester,
+          size: EpisodeThumbSize.small, watched: false);
+      expect(find.byIcon(Icons.visibility_off), findsNothing);
+    });
   });
 }

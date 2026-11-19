@@ -17,12 +17,15 @@ A video player app supporting:
 
 ## Current status
 
-- **Competitor-gap Phase 1 COMPLETE (2026-11-18)**: #1 WiFi upload server
-  shipped and user-verified (TestFlight builds 8-12, both directions); #2
-  Trakt and #3 iCloud cross-device sync both declined by the user and removed
-  from the tree (`trakt_*`, `icloud_sync.dart`, `sync_merge.dart` and their
-  tests all deleted). Next up is Phase 2 (trickplay, transcode picker,
-  Chromecast, extras, hide spoilers) - see the roadmap table below.
+- **Competitor-gap Phase 2 - #9 extras DONE (2026-11-19)**: TMDB "Behind the
+  Scenes"/"Featurette"/"Clip"/"Bloopers" videos render in an Extras card on
+  the details page; Infuse-style local files (`-deleted`, `-featurette`, …)
+  pull out of the folder list into their own playable Extras section.
+- **#10 hide spoilers DONE (2026-11-19)**: unwatched episodes' artwork is
+  blurred (eye-off icon) and their overview + stills gallery are withheld
+  until watched; Settings → Appearance → Hide spoilers tile; default off.
+- Remaining Phase 2: #5 trickplay/chapter thumbnails on seek bar, #7 server
+  transcode quality picker, #6 Chromecast on iOS - see the roadmap table below.
 - **Episode rows rebuilt (issue #38, 0.5.1+25, user-verified)**: one shared
   `EpisodeRow` replaces 9 copies of the row across the season, folder, SMB,
   WebDAV, Jellyfin, FTP, UPnP, file-browser and details screens, with a
@@ -4325,7 +4328,7 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 | 7 | **Server transcoding quality picker** - long-press Play on Jellyfin/Plex → choose 1080p/720p/low bitrate | Infuse 8.5 | Request optimized stream from server when bandwidth is limited |
 | 8 | **App lock (Face ID / passcode) + per-folder lock** | VLC, SenPlayer, nPlayer | Privacy for shared devices |
 | 9 | **Extras / deleted scenes / behind-the-scenes on details page** | Infuse 8.4 | TMDB extras + Infuse naming convention (`-trailer`, `-deleted`, `-behindthescenes`, `-featurette`, `-interview`, `-scene`, `-short`, `-other`) |
-| 10 | **Hide spoilers** - blur unwatched episode thumbnails/descriptions | Infuse | QoL for binge watchers |
+| 10 | **Hide spoilers** - blur unwatched episode thumbnails/descriptions | Infuse | DONE (2026-11-19): `HideSpoilersStore` + `EpisodeRow` veil (blur + eye-off icon), wired at the 12 row call sites that track watched state (`plex_screen` left off — it tracks no watched state); details page withholds an unwatched episode's overview + stills gallery; Settings → Appearance → Hide spoilers tile. Settings default off. |
 
 **🟡 MEDIUM-VALUE (Phase 3-4 roadmap):**
 

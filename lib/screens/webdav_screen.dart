@@ -942,6 +942,7 @@ class _WebDavTile extends StatelessWidget {
     );
 
     return EpisodeRow(
+      watched: watched,
       thumbBuilder: (size) => EpisodeStillThumb(
       stillUrl: stillUrl,
       posterUrl: posterUrl,

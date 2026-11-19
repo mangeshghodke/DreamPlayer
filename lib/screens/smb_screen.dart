@@ -2194,6 +2194,7 @@ class _SmbEpisodeTile extends StatelessWidget {
       tmdbName: episode?.nameLabel,
     );
     final tile = EpisodeRow(
+      watched: watched,
       thumbBuilder: (size) => EpisodeStillThumb(
         stillUrl: stillUrl,
         posterUrl: posterUrl,

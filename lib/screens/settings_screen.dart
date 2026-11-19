@@ -55,6 +55,7 @@ import '../utils/os_version.dart';
 import '../widgets/tv_overscan.dart';
 import '../services/accent_store.dart';
 import '../services/layout_store.dart';
+import '../services/hide_spoilers_store.dart';
 import '../services/font_store.dart';
 import '../widgets/tv_tile.dart';
 import 'licenses_screen.dart';
@@ -2967,6 +2968,22 @@ class _LayoutSection extends StatelessWidget {
                     _thumbSizeLabel(LayoutStore.instance.thumbSize),
                   ),
                   onTap: () => _pickThumbSize(context),
+                ),
+                // Competitor-gap #10: blur unwatched episodes' artwork and
+                // withhold their overviews/stills, so a season list does not
+                // hand away the ending.
+                ListenableBuilder(
+                  listenable: HideSpoilersStore.instance,
+                  builder: (context, _) => SwitchListTile(
+                    secondary: const Icon(Icons.visibility_off_outlined),
+                    title: const Text('Hide spoilers'),
+                    subtitle: const Text(
+                      'Blur artwork and hide descriptions of episodes you '
+                      'have not watched',
+                    ),
+                    value: HideSpoilersStore.instance.enabled,
+                    onChanged: (v) => HideSpoilersStore.instance.setEnabled(v),
+                  ),
                 ),
                 TvTile(
                   leading: const Icon(Icons.grid_on),

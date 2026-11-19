@@ -1805,6 +1805,7 @@ class _EntryTileState extends State<_EntryTile> {
     );
 
     return EpisodeRow(
+      watched: widget.watched,
       // No thumbBuilder: the row default already does still -> poster -> icon
     // (issue #47).
     stillUrl: stillUrl,

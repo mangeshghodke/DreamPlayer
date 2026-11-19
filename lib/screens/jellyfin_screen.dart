@@ -871,6 +871,7 @@ class _JellyfinTile extends StatelessWidget {
     if (item.isFolder) {
       if (artworkUrl != null) {
         return EpisodeRow(
+          watched: watched,
           thumbBuilder: (size) =>
               EpisodePosterThumb(posterUrl: artworkUrl, size: size),
           title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -991,6 +992,7 @@ class _JellyfinTile extends StatelessWidget {
     );
 
     return EpisodeRow(
+      watched: watched,
       thumbBuilder: (size) => EpisodeStillThumb(
       stillUrl: stillUrl ?? artworkUrl,
       posterUrl: posterUrl ?? artworkUrl,

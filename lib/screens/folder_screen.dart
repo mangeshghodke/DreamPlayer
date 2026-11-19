@@ -2427,6 +2427,7 @@ class _JellyfinFolderTile extends StatelessWidget {
       ),
       title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitleWidget,
+      watched: watched,
       // IconButton + chevron, plus the watched tick when shown.
       trailingWidth: watched ? 96 : 72,
       trailing: Row(
@@ -2621,6 +2622,7 @@ class _FolderTile extends StatelessWidget {
     posterUrl: posterUrl,
       title: titleWidget,
       subtitle: subtitleWidget,
+      watched: watched,
       onTap: onTap,
       onLongPress: onLongPress,
     );

@@ -840,6 +840,7 @@ class _FtpTile extends StatelessWidget {
     );
 
     return EpisodeRow(
+      watched: watched,
       thumbBuilder: (size) => EpisodeStillThumb(
       stillUrl: stillUrl,
       posterUrl: posterUrl,

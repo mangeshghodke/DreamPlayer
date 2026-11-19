@@ -951,6 +951,7 @@ class _FileTile extends StatelessWidget {
       ),
       title: titleWidget,
       subtitle: subtitleWidget,
+      watched: watched,
       // Watch + remove + download.
       trailingWidth: 144,
       trailing: Row(
