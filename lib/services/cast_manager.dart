@@ -164,11 +164,14 @@ class CastManager extends ChangeNotifier {
 
   /// Loads [url] onto the Cast receiver. Returns true if the load was
   /// accepted. Only call this once a session is connected.
+  ///
+  /// [streamType] is the GCKMediaStreamType raw value: 0 = none, 1 =
+  /// buffered (VOD), 2 = live.
   Future<bool> loadMedia({
     required String url,
     required String title,
     required String subtitle,
-    required String streamType, // 'NONE', 'BUFFERED', 'LIVE'
+    int streamType = 1, // 1 = GCKMediaStreamType.buffered
     required int durationMs,
     required String contentType, // MIME type, e.g. 'video/mp4'
   }) async {

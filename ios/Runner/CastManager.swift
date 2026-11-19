@@ -3,10 +3,14 @@ import GoogleCast
 
 /// Google Cast manager (iOS only).
 ///
-/// Wraps `GCKCastContext`, `GCKCastButton` and `GCKCastSession` and exposes
+/// Wraps `GCKCastContext` / `GCKSessionManager` / `GCKCastSession` and exposes
 /// them over the `dreamplayer/cast` MethodChannel / `dreamplayer/cast/events`
 /// EventChannel so Dart can start a session, load media and read the session
 /// state.
+///
+/// Uses the modern v4 sender API: session lifecycle events arrive via
+/// `GCKSessionManagerListener` (registered on `context.sessionManager`), NOT
+/// the deprecated v2 `GCKCastDelegate` castContext callbacks.
 ///
 /// Only sources the Cast receiver can reach are castable: `http`/`https`
 /// (non-loopback), `content://` and `file://`. Loopback proxies (127.0.0.1)
@@ -16,8 +20,8 @@ import GoogleCast
 /// Registration: `CastManager.register(with: messenger)` from `AppDelegate`.
 /// The Cast button platform view (`CastButtonFactory`, view id
 /// `dreamplayer/cast_button`) is registered alongside it.
-final class CastManager: NSObject, FlutterStreamHandler, GCKCastDelegate,
-    GCKRemoteMediaClientListener {
+final class CastManager: NSObject, FlutterStreamHandler,
+    GCKSessionManagerListener, GCKRemoteMediaClientListener {
 
   static let channelName = "dreamplayer/cast"
   static let eventsChannelName = "dreamplayer/cast/events"
@@ -37,19 +41,21 @@ final class CastManager: NSObject, FlutterStreamHandler, GCKCastDelegate,
   // MARK: - State
 
   private var context: GCKCastContext?
-  private var session: GCKCastSession? {
-    context?.currentSession
-  }
   private var eventSink: FlutterEventSink?
+
+  /// The current Cast session, if any.
+  private var session: GCKCastSession? {
+    context?.sessionManager.currentCastSession
+  }
 
   private var _state: String = "notAvailable" {
     didSet { sendEvent(state: _state) }
   }
   private var _deviceId: String? {
-    didSet { sendDeviceEvent(deviceId: _deviceId, friendlyName: _deviceName) }
+    didSet { sendEvent(state: _state, deviceId: _deviceId, friendlyName: _deviceName) }
   }
   private var _deviceName: String? {
-    didSet { sendDeviceEvent(deviceId: _deviceId, friendlyName: _deviceName) }
+    didSet { sendEvent(state: _state, deviceId: _deviceId, friendlyName: _deviceName) }
   }
 
   private func sendEvent(state: String? = nil, deviceId: String? = nil,
@@ -62,16 +68,6 @@ final class CastManager: NSObject, FlutterStreamHandler, GCKCastDelegate,
       "state": s,
       "deviceId": d as Any,
       "friendlyName": n as Any,
-    ]
-    eventSink?(event)
-  }
-
-  private func sendDeviceEvent(deviceId: String?, friendlyName: String?) {
-    let event: [String: Any?] = [
-      "kind": "sessionStateChanged",
-      "state": _state,
-      "deviceId": deviceId as Any,
-      "friendlyName": friendlyName as Any,
     ]
     eventSink?(event)
   }
@@ -117,18 +113,46 @@ final class CastManager: NSObject, FlutterStreamHandler, GCKCastDelegate,
 
   @discardableResult
   private func initializeCast() -> Bool {
-    let criteria = GCKDiscoveryCriteria(
-      applicationID: kGCKDefaultMediaReceiverApplicationID)
-    let options = GCKCastOptions(discoveryCriteria: criteria)
-    options.physicalConnectionType = .none
-    GCKCastContext.setSharedInstanceWith(options)
-    context = GCKCastContext.sharedInstance()
-    context?.castDelegate = self
+    // Guard against double-initialization: setSharedInstanceWith throws if
+    // the shared instance already exists (e.g. a hot restart re-enters this).
+    if GCKCastContext.isSharedInstanceInitialized {
+      context = GCKCastContext.sharedInstance()
+    } else {
+      let criteria = GCKDiscoveryCriteria(
+        applicationID: kGCKDefaultMediaReceiverApplicationID)
+      let options = GCKCastOptions(discoveryCriteria: criteria)
+      GCKCastContext.setSharedInstanceWith(options)
+      context = GCKCastContext.sharedInstance()
+    }
+    // Session lifecycle events come through GCKSessionManagerListener.
+    context?.sessionManager.add(self)
+    // Cast-state changes (device discovered / lost) come via this notification;
+    // discovery is asynchronous so the initial deviceCount is usually 0.
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(castStateChanged),
+      name: NSNotification.Name(kGCKCastStateDidChangeNotification),
+      object: context)
 
-    let available = context?.discoveryManager.deviceCount ?? 0 > 0
-    _state = available ? "notConnected" : "notAvailable"
+    updateAvailability()
+    return context?.castState != .noDevicesAvailable
+  }
+
+  @objc private func castStateChanged() {
+    updateAvailability()
+  }
+
+  private func updateAvailability() {
+    guard let context = context else { return }
+    // Only downgrade to notAvailable when there is genuinely no device AND no
+    // active session - a connected session must never be reported as
+    // "not available" just because discovery is momentarily empty.
+    if context.castState == .noDevicesAvailable && session == nil {
+      _state = "notAvailable"
+    } else if session == nil && _state != "connected" {
+      _state = "notConnected"
+    }
     sendEvent(state: _state)
-    return available
   }
 
   // MARK: - Session
@@ -139,15 +163,15 @@ final class CastManager: NSObject, FlutterStreamHandler, GCKCastDelegate,
                           message: "Cast context not initialized", details: nil))
       return
     }
-    // `presentCastInstructionsViewControllerOnce` shows the device picker
-    // the first time it is invoked; the native `GCKCastButton` handles the
-    // picker on subsequent taps. Session state arrives via castDelegate.
+    // `presentCastInstructionsViewControllerOnce` shows the device picker the
+    // first time it is invoked; the native `GCKCastButton` handles the picker
+    // on subsequent taps. Session state arrives via GCKSessionManagerListener.
     context?.presentCastInstructionsViewControllerOnce()
     result(nil)
   }
 
   private func endSession(result: @escaping FlutterResult) {
-    context?.currentSession?.end()
+    context?.sessionManager.endSession()
     result(nil)
   }
 
@@ -160,24 +184,27 @@ final class CastManager: NSObject, FlutterStreamHandler, GCKCastDelegate,
       result(FlutterError(code: "bad_args", message: "url is required", details: nil))
       return
     }
-    guard let session = context?.currentSession else {
+    guard let session = session else {
       result(FlutterError(code: "no_session",
                           message: "No Cast session", details: nil))
       return
     }
-    let metadata = GCKMediaMetadata()
+    // GCKMediaInformationBuilder is the non-deprecated path (the raw
+    // GCKMediaInformation initializer is deprecated since 4.3). contentURL is
+    // the required attribute; contentID alone is deprecated.
+    let builder = GCKMediaInformationBuilder(contentURL: url)
+    builder.contentType = args["contentType"] as? String ?? "video/mp4"
+    builder.streamType = GCKMediaStreamType(rawValue: args["streamType"] as? Int ?? 1)
+      ?? .buffered
+    let durationMs = args["durationMs"] as? Int ?? 0
+    if durationMs > 0 {
+      builder.streamDuration = TimeInterval(durationMs) / 1000.0
+    }
+    let metadata = GCKMediaMetadata(metadataType: .movie)
     metadata.setString(args["title"] as? String, forKey: kGCKMetadataKeyTitle)
     metadata.setString(args["subtitle"] as? String, forKey: kGCKMetadataKeySubtitle)
-    let info = GCKMediaInformation(
-      contentID: urlString,
-      contentType: args["contentType"] as? String ?? "video/mp4",
-      streamType: GCKMediaStreamType(rawValue: args["streamType"] as? Int ?? 0)
-        ?? .none,
-      duration: TimeInterval(args["durationMs"] as? Int ?? 0),
-      metadata: metadata,
-      textTracks: nil,
-      textTrackStyle: nil,
-      customData: nil)
+    builder.metadata = metadata
+    let info = builder.build()
     session.remoteMediaClient.load(
       info,
       autoplay: true,
@@ -186,12 +213,12 @@ final class CastManager: NSObject, FlutterStreamHandler, GCKCastDelegate,
   }
 
   private func pause(result: @escaping FlutterResult) {
-    context?.currentSession?.remoteMediaClient.pause()
+    session?.remoteMediaClient.pause()
     result(nil)
   }
 
   private func play(result: @escaping FlutterResult) {
-    context?.currentSession?.remoteMediaClient.play()
+    session?.remoteMediaClient.play()
     result(nil)
   }
 
@@ -201,35 +228,43 @@ final class CastManager: NSObject, FlutterStreamHandler, GCKCastDelegate,
       result(FlutterError(code: "bad_args", message: "positionMs is required", details: nil))
       return
     }
-    context?.currentSession?.remoteMediaClient.seek(
+    session?.remoteMediaClient.seek(
       toTimeInterval: TimeInterval(positionMs) / 1000.0)
     result(nil)
   }
 
-  // MARK: - GCKCastDelegate
+  // MARK: - GCKSessionManagerListener
 
-  func castContextDidChange(_ castContext: GCKCastContext) {
-    updateState()
-  }
-
-  func castContext(_ castContext: GCKCastContext,
-                   didStart session: GCKCastSession,
-                   with castDevice: GCKCastDevice) {
-    _deviceId = castDevice.deviceId
-    _deviceName = castDevice.friendlyName
+  func sessionManager(_ sessionManager: GCKSessionManager,
+                      didStart session: GCKCastSession) {
+    _deviceId = session.castDevice.deviceId
+    _deviceName = session.castDevice.friendlyName
     _state = "connected"
-    session.castDelegate = self
     session.remoteMediaClient.add(self)
     sendEvent(state: _state, deviceId: _deviceId, friendlyName: _deviceName)
   }
 
-  func castContext(_ castContext: GCKCastContext,
-                   didStop session: GCKCastSession,
-                   with castDevice: GCKCastDevice,
-                   error: Error?) {
-    if _deviceId == castDevice.deviceId {
-      _endSession()
-    }
+  func sessionManager(_ sessionManager: GCKSessionManager,
+                      didResumeCastSession session: GCKCastSession) {
+    _deviceId = session.castDevice.deviceId
+    _deviceName = session.castDevice.friendlyName
+    _state = "connected"
+    session.remoteMediaClient.add(self)
+    sendEvent(state: _state, deviceId: _deviceId, friendlyName: _deviceName)
+  }
+
+  func sessionManager(_ sessionManager: GCKSessionManager,
+                      didEnd session: GCKSession,
+                      withError error: Error?) {
+    _endSession()
+  }
+
+  func sessionManager(_ sessionManager: GCKSessionManager,
+                      didSuspend session: GCKCastSession,
+                      with reason: GCKConnectionSuspendReason) {
+    // App went to background; session may resume later. Keep the flag but
+    // report notConnected so Dart pauses its local UI.
+    _endSession()
   }
 
   // MARK: - GCKRemoteMediaClientListener
@@ -241,17 +276,6 @@ final class CastManager: NSObject, FlutterStreamHandler, GCKCastDelegate,
   }
 
   // MARK: - Private
-
-  private func updateState() {
-    guard let context = context else { return }
-    let available = context.discoveryManager.deviceCount > 0
-    _state = available ? "notConnected" : "notAvailable"
-    if _state == "notAvailable" {
-      _deviceId = nil
-      _deviceName = nil
-    }
-    sendEvent(state: _state)
-  }
 
   private func _endSession() {
     _state = "notConnected"
