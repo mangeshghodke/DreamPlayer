@@ -60,6 +60,12 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> with WidgetsBindingObse
       // App lock (competitor-gap #8): re-arm the gate on resume when the
       // user opted into lock-on-resume.
       AppLockStore.instance.relockOnResume();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      // Record when the app actually went to the background so the resume
+      // handler can ignore the flicker a system biometric dialog causes.
+      AppLockStore.instance.noteBackgrounded();
     }
   }
 
@@ -152,12 +158,9 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> with WidgetsBindingObse
               child: child!,
             );
           },
-          home: ListenableBuilder(
-            listenable: AppLockStore.instance,
-            builder: (context, _) => AppLockStore.instance.locked
-                ? const AppLockScreen()
-                : const RootShell(),
-          ),
+          // Stable gate widget: swaps lock screen / shell internally so the
+          // Navigator's initial route never changes.
+          home: const AppLockGate(),
         );
       },
     );

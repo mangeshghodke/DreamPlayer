@@ -1,6 +1,28 @@
 import 'package:flutter/material.dart';
 
+import '../app.dart' show RootShell;
+import '../services/app_debug_log.dart';
 import '../services/app_lock_store.dart';
+
+/// Stable [MaterialApp.home] that swaps between the lock gate and the real
+/// shell. Keeping the widget identity stable (instead of returning
+/// `AppLockScreen`/`RootShell` directly from `home:`) means the Navigator's
+/// initial route never has to change - only this widget's child swaps.
+class AppLockGate extends StatelessWidget {
+  const AppLockGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AppLockStore.instance,
+      builder: (context, _) {
+        final locked = AppLockStore.instance.locked;
+        AppDebugLog.mark('applock: gate rebuild locked=$locked');
+        return locked ? const AppLockScreen() : const RootShell();
+      },
+    );
+  }
+}
 
 /// Full-screen gate shown when [AppLockStore.locked] is true (app lock armed
 /// and not yet passed this session). The only way through is the device's

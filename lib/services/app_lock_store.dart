@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_debug_log.dart';
+
 /// App lock state (competitor-gap #8): Face ID / Touch ID / device passcode
 /// gate on app launch and on resume from background, plus per-folder locks.
 ///
@@ -145,15 +147,23 @@ class AppLockStore extends ChangeNotifier {
     String reason = 'Unlock DreamPlayer',
     bool biometricOnly = false,
   }) async {
+    AppDebugLog.mark('applock: authenticate() start reason="$reason"');
     try {
-      return await _auth.authenticate(
+      final ok = await _auth.authenticate(
         localizedReason: reason,
         options: AuthenticationOptions(
           biometricOnly: biometricOnly,
           stickyAuth: true,
         ),
       );
-    } on PlatformException {
+      AppDebugLog.mark('applock: authenticate() -> $ok');
+      return ok;
+    } on PlatformException catch (e) {
+      AppDebugLog.mark(
+          'applock: authenticate() PlatformException code=${e.code} msg=${e.message}');
+      return false;
+    } catch (e) {
+      AppDebugLog.mark('applock: authenticate() threw $e');
       return false;
     }
   }
@@ -161,21 +171,49 @@ class AppLockStore extends ChangeNotifier {
   /// Called when the app-level gate is passed. Returns true on success.
   Future<bool> unlockApp() async {
     final ok = await authenticate(reason: 'Unlock DreamPlayer');
+    AppDebugLog.mark('applock: unlockApp() -> $ok (was unlocked=$_unlockedThisSession)');
     if (ok) {
       _unlockedThisSession = true;
+      _lastUnlockAt = DateTime.now();
       notifyListeners();
+      AppDebugLog.mark('applock: unlocked this session, locked=$locked');
     }
     return ok;
   }
 
+  DateTime? _lastUnlockAt;
+  DateTime? _lastBackgroundAt;
+
+  /// Called by the app shell on lifecycle transitions. Records when the app
+  /// went to the background so [relockOnResume] can tell a REAL background
+  /// period apart from the flicker a system biometric dialog causes.
+  void noteBackgrounded() {
+    _lastBackgroundAt = DateTime.now();
+  }
+
   /// Re-locks the app (called when the app returns to the foreground and
-  /// [lockOnResume] is on). No-op when the feature is off.
+  /// [lockOnResume] is on). No-op when the feature is off, when the app was
+  /// only backgrounded for a moment (a biometric/system dialog flicker), or
+  /// when the gate was unlocked a couple of seconds ago.
   void relockOnResume() {
-    if (_enabled && _lockOnResume && _unlockedThisSession) {
-      _unlockedThisSession = false;
-      _unlockedFolderIds.clear();
-      notifyListeners();
+    if (!_enabled || !_lockOnResume || !_unlockedThisSession) return;
+    final now = DateTime.now();
+    final bg = _lastBackgroundAt;
+    if (bg != null && now.difference(bg) < const Duration(seconds: 2)) {
+      AppDebugLog.mark('applock: relock skipped (short background '
+          '${now.difference(bg).inMilliseconds}ms)');
+      return;
     }
+    final un = _lastUnlockAt;
+    if (un != null && now.difference(un) < const Duration(seconds: 5)) {
+      AppDebugLog.mark('applock: relock skipped (unlocked '
+          '${now.difference(un).inSeconds}s ago)');
+      return;
+    }
+    AppDebugLog.mark('applock: relocking on resume');
+    _unlockedThisSession = false;
+    _unlockedFolderIds.clear();
+    notifyListeners();
   }
 
   /// Per-folder lock toggle. Locking requires a successful auth so a folder

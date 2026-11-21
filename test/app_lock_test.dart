@@ -109,9 +109,13 @@ void main() {
     });
 
     test('app gate wraps RootShell and relocks on resume', () {
-      expect(appSource, contains('AppLockScreen'));
-      expect(appSource, contains('AppLockStore.instance.locked'));
+      expect(appSource, contains('AppLockGate'));
       expect(appSource, contains('relockOnResume()'));
+      expect(appSource, contains('noteBackgrounded()'));
+      final gateSource = File('lib/screens/app_lock_screen.dart').readAsStringSync();
+      expect(gateSource, contains('AppLockStore.instance.locked'));
+      expect(gateSource, contains('RootShell'));
+      expect(gateSource, contains('AppLockScreen'));
     });
 
     test('settings exposes the App lock section', () {
@@ -125,8 +129,18 @@ void main() {
     });
 
     test('folder screen has the lock toggle in its AppBar', () {
-      expect(folderSource, contains('setFolderLocked'));
-      expect(folderSource, contains('lockedFolderIds.contains'));
+      expect(folderSource, contains('FolderLockButton'));
+      final seriesSource =
+          File('lib/screens/series_seasons_screen.dart').readAsStringSync();
+      final detailsSource =
+          File('lib/screens/tmd_details_screen.dart').readAsStringSync();
+      // Every folder-representing screen offers the toggle, not just
+      // FolderScreen - a series folder never opens FolderScreen directly.
+      expect(seriesSource, contains('FolderLockButton'));
+      expect(detailsSource, contains('FolderLockButton'));
+      final buttonSource =
+          File('lib/widgets/folder_lock_button.dart').readAsStringSync();
+      expect(buttonSource, contains('setFolderLocked'));
     });
 
     test('MainActivity extends FlutterFragmentActivity (local_auth requires it)', () {
