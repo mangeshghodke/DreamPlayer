@@ -1,0 +1,4 @@
+Removed
+
+- Chromecast support removed (it was only in the previous TestFlight build).
+  AirPlay is still available from the player.
