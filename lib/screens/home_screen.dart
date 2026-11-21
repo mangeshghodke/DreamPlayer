@@ -9,7 +9,6 @@ import '../app.dart' show appRouteObserver;
 import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
 import '../models/library_video.dart';
-import '../services/app_lock_store.dart';
 import '../services/continue_watching.dart';
 import '../services/download_manager.dart';
 import '../services/file_browser.dart';
@@ -1073,24 +1072,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _openGroup(SeriesGroup group) {
-    // Per-folder app lock (competitor-gap #8): a locked folder requires the
-    // device credential before its contents are shown. The check is async,
-    // so it runs before any navigation.
-    final folderId = group.primary.id;
-    if (AppLockStore.instance.isFolderLocked(folderId)) {
-      _unlockFolderThenOpen(group, folderId);
-      return;
-    }
-    _openGroupUnlocked(group);
-  }
-
-  Future<void> _unlockFolderThenOpen(SeriesGroup group, String folderId) async {
-    final ok = await AppLockStore.instance.unlockFolder(folderId);
-    if (!mounted || !ok) return;
-    _openGroupUnlocked(group);
-  }
-
-  void _openGroupUnlocked(SeriesGroup group) {
     // Manual groups (user-selected cards) always open MovieGroupScreen -
     // the grid-of-cards pattern, header only when a member has TMDB info.
     if (_isManualGroup(group)) {

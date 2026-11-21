@@ -26,7 +26,6 @@ import '../services/webdav_client.dart';
 import '../utils/season_group.dart' as sg;
 import '../utils/tv_helper.dart';
 import '../widgets/tmdb_fix_match_dialog.dart';
-import '../widgets/folder_lock_button.dart';
 import '../widgets/episode_row.dart';
 import 'tmd_details_screen.dart';
 
@@ -845,10 +844,7 @@ class _SeriesSeasonsScreenState extends State<SeriesSeasonsScreen> {
             // series group opens THIS screen rather than TmdDetailsScreen, so
             // without this the artwork actions are simply absent for grouped
             // series.
-            actions: [
-              FolderLockButton(folderId: widget.group.primary.id),
-              if (_meta != null) _artworkMenuButton(),
-            ],
+            actions: [if (_meta != null) _artworkMenuButton()],
           ),
           if (_loading)
             const SliverFillRemaining(

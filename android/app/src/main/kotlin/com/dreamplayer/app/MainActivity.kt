@@ -12,17 +12,12 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.WindowManager
-import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
-// FlutterFragmentActivity (not plain FlutterActivity) is REQUIRED for the
-// local_auth plugin (app lock, competitor-gap #8): its AuthenticationHelper
-// casts the activity to androidx.fragment.app.FragmentActivity and refuses to
-// authenticate otherwise, so biometrics would silently fail with a plain
-// FlutterActivity. FlutterFragmentActivity supports every override used here.
-class MainActivity : FlutterFragmentActivity() {
+class MainActivity : FlutterActivity() {
 
     private var intentChannel: MethodChannel? = null
     private var systemChannel: MethodChannel? = null

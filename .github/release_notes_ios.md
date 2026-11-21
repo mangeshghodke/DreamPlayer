@@ -38,7 +38,6 @@ true of the intended build but not of the one that was reviewed. Verify with
 ## 0.5.8
 
 New:
-• **App lock**: Settings → General → "App lock" protects the app with Face ID or your device passcode. Choose to lock on every launch, when returning to the app from the background, or both. You can also lock individual library folders (lock icon in a folder's title bar) - opening a locked folder asks for authentication first.
 • Pick a subtitle font file from device storage: the subtitle font picker (CC → Subtitle settings → Font) has a "Pick a font file from this device…" row - choose any `.ttf` / `.otf` / `.ttc` / `.woff` from Files, iCloud Drive, Downloads or any provider. The font is copied into the app and its own name is read from the file, so it works offline and shows correctly in the preview and during playback.
 • **Extras on the details page**: "Behind the scenes", featurettes, clips and bloopers from the movie/TV database now show as their own section on the details page, and extra files saved next to a video with names like `-deleted`, `-featurette` or `-trailer` are pulled out of the file list into a playable Extras section.
 • **Hide spoilers** (Settings → Appearance): when on, artwork for episodes you have not watched yet is blurred and their description and still photos stay hidden until you watch them.

@@ -49,8 +49,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_displaymode: ^0.7.0
   permission_handler: ^13.0.0
-  # Biometric / device-credential auth for the app lock (competitor-gap #8).
-  local_auth: ^2.3.0
   in_app_purchase: ^3.2.1
   in_app_purchase_storekit: ^0.4.12
   shared_preferences: ^2.5.5

@@ -5,7 +5,6 @@ import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
-import '../widgets/folder_lock_button.dart';
 import '../services/file_browser.dart';
 import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
@@ -1499,9 +1498,6 @@ class _FolderScreenState extends State<FolderScreen> {
           onPressed: _goUp,
         ),
         actions: [
-          // Per-folder app lock (competitor-gap #8): toggle this folder's
-          // lock. Locking asks for the device credential first.
-          FolderLockButton(folderId: widget.folder.id),
           if (_enableSimklSync)
             IconButton(
               tooltip: 'Mark watched from SIMKL',

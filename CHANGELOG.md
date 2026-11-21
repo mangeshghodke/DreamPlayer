@@ -8,10 +8,6 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 ## 0.5.8
 
-### Added
-
-- **App lock (Face ID / Touch ID / device passcode).** Settings → General → "App lock" arms a gate that requires your device credential to open the app, with separate toggles for locking on every launch and when returning from the background. Arming the switch first proves the credential works, so you can never lock yourself out. Individual library folders can be locked too (lock icon in the folder screen's app bar) - opening a locked folder asks for authentication. Android uses `USE_BIOMETRIC`, iOS uses Face ID (`NSFaceIDUsageDescription`).
-
 ### Removed
 
 - **Chromecast / Google Cast removed** (was added in build 13). The Cast button, the `google-cast-sdk` CocoaPod and all supporting code are gone; iOS keeps AirPlay only.

@@ -39,7 +39,6 @@ import '../utils/storage_path.dart';
 import '../utils/season_group.dart' as sg;
 import '../widgets/season_progress_ring.dart';
 import '../widgets/tmdb_fix_match_dialog.dart';
-import '../widgets/folder_lock_button.dart';
 import '../widgets/episode_row.dart';
 import '../widgets/tv_tile.dart';
 import 'paywall_sheet.dart';
@@ -2021,8 +2020,6 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
           : AppBar(
         title: Text(title),
         actions: [
-          if (widget.folder != null)
-            FolderLockButton(folderId: widget.folder!.id),
           if (widget.folder != null && (_enableSimklSync))
             IconButton(
               tooltip: 'Mark watched from SIMKL',
