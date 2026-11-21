@@ -97,7 +97,7 @@ android {
         //
         // Last published: v0.5.6 -> 46. Next release must exceed the previous
         // tag's versionCode or release.yml fails the build.
-        versionCode = 49
+        versionCode = 50
         versionName = flutter.versionName
     }
 

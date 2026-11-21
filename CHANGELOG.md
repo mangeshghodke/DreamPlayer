@@ -8,6 +8,10 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 ## 0.5.8
 
+### Removed
+
+- **Chromecast / Google Cast removed** (was added in build 13). The Cast button, the `google-cast-sdk` CocoaPod and all supporting code are gone; iOS keeps AirPlay only.
+
 ### Added
 
 - **Pick a subtitle font file from device storage.** The subtitle font picker (CC sheet → Subtitle settings → Font) now has a "Pick a font file from this device…" row: choose any `.ttf` / `.otf` / `.ttc` / `.woff` from the SD card, Downloads, or any file provider via the system picker. The file is copied into the app's own storage and its internal name table gives the display name, so it works offline and survives the source provider going away. It applies to the Media3 caption view, the MPV (libass) overlay, and the settings preview.

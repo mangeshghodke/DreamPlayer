@@ -17,7 +17,7 @@ A video player app supporting:
 
 ## Current status
 
-- **TestFlight build 13 (0.5.8+13) live (2026-11-20, CI run 44577626648)**: signed IPA uploaded to App Store Connect ("UPLOAD SUCCEEDED with no errors"). Carries Phase 2 #9 extras and #10 hide spoilers. (#6 Chromecast was built in build 13 but REMOVED on 2026-11-21 by user decision - all Cast code, Podfile, pbxproj entries and CI pod step deleted.)
+- **TestFlight build 13 (0.5.8+13) live (2026-11-20, CI run 44577626648)**; **build 14 (0.5.8+14) is the current build** - same features (#9 extras, #10 hide spoilers) with the Chromecast feature REMOVED (user decision 2026-11-21: all Cast code, Podfile, pbxproj entries and CI pod step deleted in commit 8de0399).
 - **Competitor-gap Phase 2 - #9 extras DONE (2026-11-19)**: TMDB "Behind the
   Scenes"/"Featurette"/"Clip"/"Bloopers" videos render in an Extras card on
   the details page; Infuse-style local files (`-deleted`, `-featurette`, …)

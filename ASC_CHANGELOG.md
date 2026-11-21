@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.8 | 11 | 1179 |
+| 0.5.8 | 14 | 1672 |
 | 0.5.7 | 7 | 1446 |
 | 0.5.6 | 15 | 2607 |
 | 0.5.5 | 71 | 3761 |
@@ -30,10 +30,12 @@ it can be reproduced with a plain character count after any edit.
 
 ---
 
-## 0.5.8 (build 11)
+## 0.5.8 (build 14)
 
 New:
 • Photos and videos now send from the phone the same way as files - tap **Send files**, **Send folder** or **Send photos**, pick what to push, and it arrives on your computer's transfer page. On iOS, **Send photos** opens the Photos picker and keeps each item's original format (.heic photos, .mov videos); a progress bar shows while the items are being prepared so nothing looks frozen.
+• **Extras on the details page**: behind-the-scenes videos, featurettes, clips and deleted scenes now appear as their own section on a movie or episode's details page, and extra files saved next to a video (names like `-deleted`, `-featurette`, `-trailer`) show up as a playable Extras list instead of mixed into the file list.
+• **Hide spoilers** (Settings → Appearance): when enabled, the artwork for episodes you have not watched is blurred and their description and still photos stay hidden until you watch them.
 
 Fixed:
 • Sending a single photo or video no longer fails with "file could not be read" - the transfer page now receives it complete instead of cutting it short partway through.
