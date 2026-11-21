@@ -25,9 +25,21 @@ A video player app supporting:
 - **#10 hide spoilers DONE (2026-11-19)**: unwatched episodes' artwork is
   blurred (eye-off icon) and their overview + stills gallery are withheld
   until watched; Settings → Appearance → Hide spoilers tile; default off.
+- **Phase 3 #8 app lock DONE (2026-11-21)**: Face ID / Touch ID / device-passcode
+  gate via the `local_auth` plugin (`lib/services/app_lock_store.dart` +
+  `lib/screens/app_lock_screen.dart`). Master switch in Settings → General →
+  "App lock" (arming proves the credential works first, so the user can never
+  lock themselves out), plus lock-on-launch and lock-on-resume toggles. The
+  gate wraps `RootShell` in `app.dart` and re-locks on `resumed` when
+  lock-on-resume is on. Per-folder locks: lock/unlock icon in the folder
+  screen AppBar; home checks `isFolderLocked` before opening a group and
+  prompts auth. Android `USE_BIOMETRIC`, iOS `NSFaceIDUsageDescription`.
+  Session-only unlock state is never persisted. 13 tests in
+  `test/app_lock_test.dart`.
 - Remaining Phase 2: #5 trickplay/chapter thumbnails on seek bar, #6 Chromecast
   on iOS (removed 2026-11-21 - may return later), #7 server transcode quality
-  picker - see the roadmap table below.
+  picker - see the roadmap table below. Remaining Phase 3: #4 IPTV M3U/EPG,
+  #11 in-app browser, #12 NFS.
 - **Episode rows rebuilt (issue #38, 0.5.1+25, user-verified)**: one shared
   `EpisodeRow` replaces 9 copies of the row across the season, folder, SMB,
   WebDAV, Jellyfin, FTP, UPnP, file-browser and details screens, with a
@@ -4330,7 +4342,7 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 | 5 | **Trickplay/chapter thumbnails on seek bar** | Streamyfin, Infuse (live previews) | We removed frame thumbnails (black on HDR Android). Jellyfin server-side trickplay + iOS AVAssetImageGenerator on SDR local files work |
 | 6 | **Chromecast / Google Cast (iOS)** | Infuse Pro, nPlayer, Streamyfin | REMOVED by user decision (2026-11-21) after shipping in build 13. Was: `GCKUICastButton` platform view + `google-cast-sdk` CocoaPod. May return later |
 | 7 | **Server transcoding quality picker** - long-press Play on Jellyfin/Plex → choose 1080p/720p/low bitrate | Infuse 8.5 | Request optimized stream from server when bandwidth is limited |
-| 8 | **App lock (Face ID / passcode) + per-folder lock** | VLC, SenPlayer, nPlayer | Privacy for shared devices |
+| 8 | **App lock (Face ID / passcode) + per-folder lock** | VLC, SenPlayer, nPlayer | DONE (2026-11-21): `local_auth` plugin, gate in `app.dart` (launch + resume), per-folder lock via folder-screen AppBar + home tap check |
 | 9 | **Extras / deleted scenes / behind-the-scenes on details page** | Infuse 8.4 | TMDB extras + Infuse naming convention (`-trailer`, `-deleted`, `-behindthescenes`, `-featurette`, `-interview`, `-scene`, `-short`, `-other`) |
 | 10 | **Hide spoilers** - blur unwatched episode thumbnails/descriptions | Infuse | DONE (2026-11-19): `HideSpoilersStore` + `EpisodeRow` veil (blur + eye-off icon), wired at the 12 row call sites that track watched state (`plex_screen` left off — it tracks no watched state); details page withholds an unwatched episode's overview + stills gallery; Settings → Appearance → Hide spoilers tile. Settings default off. |
 
@@ -4357,7 +4369,7 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 
 **🟢 Lower priority (different app category - belongs to Documents/VLC, not a video player):** CarPlay video (parked only, Apple-restricted), podcasts, radio stations, PDF editor/scanner, photo Smart Eraser, format conversion, Jellyseerr request integration, admin session view.
 
-**Suggested implementation order:** Phase 1 is COMPLETE (2026-11-18) - #1 WiFi upload server shipped and user-verified; #2 Trakt and #3 iCloud sync both declined by the user (removed from the tree). Phase 2 partial (build 13, 2026-11-20): #9 extras + #10 hide spoilers shipped; #6 Chromecast was built then REMOVED (2026-11-21); remaining = #5 trickplay + #7 transcode picker. Phase 3 = IPTV M3U/EPG (#4) + app lock (#8) + NFS (#12) + in-app browser (#11). Phase 4 = screenshot (#16) + color controls on Media3 (#17) + deinterlacing (#19) + rename/move (#20) + Siri shortcuts (#24).
+**Suggested implementation order:** Phase 1 is COMPLETE (2026-11-18) - #1 WiFi upload server shipped and user-verified; #2 Trakt and #3 iCloud sync both declined by the user (removed from the tree). Phase 2 partial (build 14, 2026-11-21): #9 extras + #10 hide spoilers shipped; #6 Chromecast was built then REMOVED (2026-11-21); remaining = #5 trickplay + #7 transcode picker. Phase 3 partial: #8 app lock DONE (2026-11-21); remaining = IPTV M3U/EPG (#4) + NFS (#12) + in-app browser (#11). Phase 4 = screenshot (#16) + color controls on Media3 (#17) + deinterlacing (#19) + rename/move (#20) + Siri shortcuts (#24).
 
 ## Repository / Git
 
@@ -4461,6 +4473,7 @@ lib/
   services/library_folders.dart    # user-added library folders (LibraryFolder model + LibraryFoldersStore, prefs dreamplayer.libraryFolders; LibraryFolderSource.files|jellyfin|smb|webdav|ftp|upnp)
   services/folder_scanner.dart     # deep recursive folder scanner (up to 5 levels, all 6 sources; leaf-vs-container logic)
   services/local_library_rescan.dart # local-only rescan on pull-to-refresh (issue #39): add/remove cards when files change on device
+  services/app_lock_store.dart    # app lock (competitor-gap #8): local_auth gate, launch/resume toggles, per-folder locks
   utils/chapter_nav.dart         # pure chapter-jump arithmetic (indexAt/next/previous/current) + grace window
   services/webdav_client.dart     # WebDAV channel wrapper + WebDavServer model (channel dreamplayer/webdav)
   services/thumbnail_store.dart   # embedded cover-art cache for video cards (memory+disk, local sources only)
@@ -4485,6 +4498,7 @@ lib/
     app_zh.arb                    # Chinese Simplified
     app_ru.arb                    # Russian
   screens/
+    app_lock_screen.dart        # app-lock gate (competitor-gap #8): biometric/passcode prompt, shown when AppLockStore.locked
     home_screen.dart            # Continue watching grid (adaptive columns, grouped by TV show) + Your-library folder grid + **+** FAB menu (Jellyfin / WebDAV / Add folder / Internal storage)
     folder_screen.dart          # folder contents / episode list (subfolder navigation, SxxExx labels + sizes)
     player_screen.dart          # ExoPlayer/Media3 playback + live codec/HDR chips + controls + subtitle/audio pickers + gesture controls + libmpv fallback engine (_startMpvFallback / _mpvOpen / _attachMpvExternalSubtitles / _onPipPlayPause / _onPipRewind / _onPipForward)
@@ -4586,6 +4600,7 @@ test/
   episode_row_series_test.dart    # the REAL season-row title/subtitle widgets at phone widths
   episode_row_responsive_test.dart # size follows the ROW width; rotation, font scale, no overflow
   episode_row_real_test.dart      # real trailing chrome (2 IconButtons + chevron) declares its width
+  app_lock_test.dart              # app lock (#8): prefs round-trip + wiring source-reads (gate, settings, home/folder checks, permissions)
   HwSdrToneMapTest.kt (android/app/src/test/...) # pure tone-map decision logic (issue #55)
 ```
 

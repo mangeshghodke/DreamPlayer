@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/adult_content_store.dart';
+import '../services/app_lock_store.dart';
 import '../services/auto_play_store.dart';
 import '../services/avdb_adapter.dart';
 import '../services/r18dev_adapter.dart';
@@ -1408,6 +1409,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   onTap: _pickDownloadDir,
                 ),
+                // App lock (competitor-gap #8): Face ID / device passcode gate.
+                const _AppLockSection(),
                 // Debug: simulate free user (debug builds only).
                 if (kDebugMode) ...[
                   ListenableBuilder(
@@ -3331,6 +3334,94 @@ class _ProviderCell extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// App lock section (competitor-gap #8): master switch + lock-on-launch /
+/// lock-on-resume sub-toggles, all driven by [AppLockStore]. Enabling the
+/// master switch first proves the device credential works, so the user can
+/// never be locked out.
+class _AppLockSection extends StatefulWidget {
+  const _AppLockSection();
+
+  @override
+  State<_AppLockSection> createState() => _AppLockSectionState();
+}
+
+class _AppLockSectionState extends State<_AppLockSection> {
+  String? _error;
+
+  Future<void> _toggleEnabled(bool v) async {
+    setState(() => _error = null);
+    final ok = await AppLockStore.instance.setEnabled(v);
+    if (!mounted) return;
+    if (!ok && v) {
+      setState(() => _error =
+          'No biometric or device passcode is set up on this device.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AppLockStore.instance,
+      builder: (context, _) {
+        final store = AppLockStore.instance;
+        return Column(
+          children: [
+            SwitchListTile(
+              secondary: const Icon(Icons.lock_outline),
+              title: const Text('App lock'),
+              subtitle: Text(
+                store.enabled
+                    ? 'Face ID / device passcode required to open the app'
+                    : 'Off',
+              ),
+              value: store.enabled,
+              onChanged: _toggleEnabled,
+            ),
+            if (store.enabled) ...[
+              SwitchListTile(
+                secondary: const Icon(Icons.rocket_launch_outlined),
+                title: const Text('Lock on every launch'),
+                subtitle: const Text('Require authentication on each cold start'),
+                value: store.lockOnLaunch,
+                onChanged: (v) => store.setLockOnLaunch(v),
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.swap_horiz),
+                title: const Text('Lock when returning to the app'),
+                subtitle: const Text(
+                    'Require authentication after backgrounding'),
+                value: store.lockOnResume,
+                onChanged: (v) => store.setLockOnResume(v),
+              ),
+              if (store.lockedFolderIds.isNotEmpty)
+                TvTile(
+                  leading: const Icon(Icons.folder_off_outlined),
+                  title: const Text('Locked folders'),
+                  subtitle: Text('${store.lockedFolderIds.length} folder(s)'),
+                  onTap: () {
+                    // Locked folders are managed from the folder itself; this
+                    // row just reports the count.
+                  },
+                ),
+            ],
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  _error!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

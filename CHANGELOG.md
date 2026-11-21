@@ -8,11 +8,13 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
 ## 0.5.8
 
+### Added
+
+- **App lock (Face ID / Touch ID / device passcode).** Settings → General → "App lock" arms a gate that requires your device credential to open the app, with separate toggles for locking on every launch and when returning from the background. Arming the switch first proves the credential works, so you can never lock yourself out. Individual library folders can be locked too (lock icon in the folder screen's app bar) - opening a locked folder asks for authentication. Android uses `USE_BIOMETRIC`, iOS uses Face ID (`NSFaceIDUsageDescription`).
+
 ### Removed
 
 - **Chromecast / Google Cast removed** (was added in build 13). The Cast button, the `google-cast-sdk` CocoaPod and all supporting code are gone; iOS keeps AirPlay only.
-
-### Added
 
 - **Pick a subtitle font file from device storage.** The subtitle font picker (CC sheet → Subtitle settings → Font) now has a "Pick a font file from this device…" row: choose any `.ttf` / `.otf` / `.ttc` / `.woff` from the SD card, Downloads, or any file provider via the system picker. The file is copied into the app's own storage and its internal name table gives the display name, so it works offline and survives the source provider going away. It applies to the Media3 caption view, the MPV (libass) overlay, and the settings preview.
 - **Picture controls on the native (Media3) engine + saved picture profiles.** The tune (sliders) button in the player now opens a picture panel on the native engine too (it was MPV-only): brightness, contrast and saturation sliders applied live as GL video effects. For HDR / Dolby Vision content the panel explains that adjustments are SDR-only so the native HDR passthrough to the panel is preserved (the MPV engine remains the tone-mapped path). Both picture panels gained a **Profiles** section: save the current adjustments under a name, tap to apply, delete to remove - profiles persist across sessions and are shared between the two engines (gamma is MPV-only).

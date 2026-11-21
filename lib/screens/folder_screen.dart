@@ -5,6 +5,7 @@ import '../widgets/cached_image.dart';
 import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../models/video_item.dart';
+import '../services/app_lock_store.dart';
 import '../services/file_browser.dart';
 import '../services/ftp_client.dart';
 import '../services/jellyfin_client.dart';
@@ -1338,6 +1339,27 @@ class _FolderScreenState extends State<FolderScreen> {
 
   /// Backfills already-watched shows/movies from SIMKL into the local watched
   /// store for this folder's entries (mirrors smb_screen.dart's sync button).
+  /// Per-folder app lock toggle (competitor-gap #8). Locking requires the
+  /// device credential; unlocking just clears the persisted flag.
+  Future<void> _toggleFolderLock(bool currentlyLocked) async {
+    final ok = await AppLockStore.instance
+        .setFolderLocked(widget.folder.id, !currentlyLocked);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Authentication cancelled - folder not locked')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(currentlyLocked
+              ? 'Folder unlocked'
+              : 'Folder locked - authentication required to open it'),
+        ),
+      );
+    }
+  }
+
   Future<void> _syncFromSimkl() async {
     final client = SimklClient();
     if (!client.isConfigured) {
@@ -1496,6 +1518,20 @@ class _FolderScreenState extends State<FolderScreen> {
           onPressed: _goUp,
         ),
         actions: [
+          // Per-folder app lock (competitor-gap #8): toggle this folder's
+          // lock. Locking asks for the device credential first.
+          ListenableBuilder(
+            listenable: AppLockStore.instance,
+            builder: (context, _) {
+              final locked =
+                  AppLockStore.instance.lockedFolderIds.contains(widget.folder.id);
+              return IconButton(
+                tooltip: locked ? 'Unlock folder' : 'Lock folder',
+                icon: Icon(locked ? Icons.lock : Icons.lock_open),
+                onPressed: () => _toggleFolderLock(locked),
+              );
+            },
+          ),
           if (_enableSimklSync)
             IconButton(
               tooltip: 'Mark watched from SIMKL',

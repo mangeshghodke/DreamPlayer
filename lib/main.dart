@@ -21,6 +21,7 @@ import 'services/metadata_provider_adapter.dart';
 import 'services/r18dev_adapter.dart';
 import 'services/layout_store.dart';
 import 'services/hide_spoilers_store.dart';
+import 'services/app_lock_store.dart';
 import 'services/font_store.dart';
 import 'services/libsmb2_object_code.dart';
 import 'utils/tv_helper.dart';
@@ -41,6 +42,9 @@ Future<void> main() async {
   unawaited(AccentStore.load());
   unawaited(LayoutStore.load());
   unawaited(HideSpoilersStore.instance.load());
+  // App lock (competitor-gap #8): loads the persisted switch + folder locks.
+  // A fresh process always starts locked when the feature is on.
+  unawaited(AppLockStore.instance.load());
   unawaited(FontStore.load());
   // List / Grid choice for the network browsers.
   unawaited(BrowserViewStore.load());

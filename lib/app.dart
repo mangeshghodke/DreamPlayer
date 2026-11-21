@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'l10n/app_localizations.dart';
+import 'screens/app_lock_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/settings_screen.dart';
 import 'models/video_item.dart';
 import 'services/accent_store.dart';
+import 'services/app_lock_store.dart';
 import 'services/entitlements.dart';
 import 'services/font_store.dart';
 import 'services/default_engine_store.dart';
@@ -55,6 +57,9 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> with WidgetsBindingObse
     // until the next launch.
     if (state == AppLifecycleState.resumed) {
       unawaited(Entitlements.instance.revalidate());
+      // App lock (competitor-gap #8): re-arm the gate on resume when the
+      // user opted into lock-on-resume.
+      AppLockStore.instance.relockOnResume();
     }
   }
 
@@ -147,7 +152,12 @@ class _DreamPlayerAppState extends State<DreamPlayerApp> with WidgetsBindingObse
               child: child!,
             );
           },
-          home: const RootShell(),
+          home: ListenableBuilder(
+            listenable: AppLockStore.instance,
+            builder: (context, _) => AppLockStore.instance.locked
+                ? const AppLockScreen()
+                : const RootShell(),
+          ),
         );
       },
     );
