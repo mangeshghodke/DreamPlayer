@@ -34,8 +34,17 @@ A video player app supporting:
   lock-on-resume is on. Per-folder locks: lock/unlock icon in the folder
   screen AppBar; home checks `isFolderLocked` before opening a group and
   prompts auth. Android `USE_BIOMETRIC`, iOS `NSFaceIDUsageDescription`.
-  Session-only unlock state is never persisted. 13 tests in
+  Session-only unlock state is never persisted. 14 tests in
   `test/app_lock_test.dart`.
+  **Android trap:** `MainActivity` MUST extend `FlutterFragmentActivity`,
+  not plain `FlutterActivity` - `local_auth_android`'s `AuthenticationHelper`
+  casts the activity to `androidx.fragment.app.FragmentActivity` and refuses
+  to authenticate otherwise (LocalAuthPlugin.java:124), so biometrics would
+  silently fail on every Android device. Pinned by a source-reading test.
+  `FlutterFragmentActivity` supports every override MainActivity uses
+  (onCreate / configureFlutterEngine / onNewIntent / onActivityResult /
+  PiP / onUserLeaveHint), and the launcher `activity-alias` entries only
+  reference `.MainActivity` by name, so the superclass switch is safe.
 - Remaining Phase 2: #5 trickplay/chapter thumbnails on seek bar, #6 Chromecast
   on iOS (removed 2026-11-21 - may return later), #7 server transcode quality
   picker - see the roadmap table below. Remaining Phase 3: #4 IPTV M3U/EPG,

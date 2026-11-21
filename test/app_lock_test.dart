@@ -128,5 +128,17 @@ void main() {
       expect(folderSource, contains('setFolderLocked'));
       expect(folderSource, contains('lockedFolderIds.contains'));
     });
+
+    test('MainActivity extends FlutterFragmentActivity (local_auth requires it)', () {
+      final mainActivity = File(
+              'android/app/src/main/kotlin/com/dreamplayer/app/MainActivity.kt')
+          .readAsStringSync();
+      // local_auth_android's AuthenticationHelper casts the activity to
+      // androidx FragmentActivity and refuses otherwise - a plain
+      // FlutterActivity would make biometric auth fail on every Android
+      // device.
+      expect(mainActivity, contains('FlutterFragmentActivity'));
+      expect(mainActivity, isNot(contains(': FlutterActivity()')));
+    });
   });
 }
