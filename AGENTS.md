@@ -17,7 +17,7 @@ A video player app supporting:
 
 ## Current status
 
-- **TestFlight build 13 (0.5.8+13) live (2026-11-20, CI run 44577626648)**: signed IPA uploaded to App Store Connect ("UPLOAD SUCCEEDED with no errors"). Carries Phase 2 #9 extras, #10 hide spoilers, and #6 Chromecast on iOS.
+- **TestFlight build 13 (0.5.8+13) live (2026-11-20, CI run 44577626648)**: signed IPA uploaded to App Store Connect ("UPLOAD SUCCEEDED with no errors"). Carries Phase 2 #9 extras and #10 hide spoilers. (#6 Chromecast was built in build 13 but REMOVED on 2026-11-21 by user decision - all Cast code, Podfile, pbxproj entries and CI pod step deleted.)
 - **Competitor-gap Phase 2 - #9 extras DONE (2026-11-19)**: TMDB "Behind the
   Scenes"/"Featurette"/"Clip"/"Bloopers" videos render in an Extras card on
   the details page; Infuse-style local files (`-deleted`, `-featurette`, …)
@@ -25,14 +25,9 @@ A video player app supporting:
 - **#10 hide spoilers DONE (2026-11-19)**: unwatched episodes' artwork is
   blurred (eye-off icon) and their overview + stills gallery are withheld
   until watched; Settings → Appearance → Hide spoilers tile; default off.
-- **#6 Chromecast / Google Cast on iOS DONE (2026-11-20, build 13)**: native
-  `GCKUICastButton` in the player top bar (platform view `dreamplayer/cast_button`),
-  `google-cast-sdk ~> 4.8` CocoaPod + `pod install` in CI. Session/channel over
-  `dreamplayer/cast` + `dreamplayer/cast/events`; Dart `CastManager` + `CastSource.isCastable()`
-  rejects loopback/custom schemes. See "Chromecast on iOS" in Implemented features
-  for the SDK-4.8 rename traps (GCKUICastButton, `.gckCastStateDidChange`, `loadMedia(_:with:)`).
-- Remaining Phase 2: #5 trickplay/chapter thumbnails on seek bar, #7 server
-  transcode quality picker - see the roadmap table below.
+- Remaining Phase 2: #5 trickplay/chapter thumbnails on seek bar, #6 Chromecast
+  on iOS (removed 2026-11-21 - may return later), #7 server transcode quality
+  picker - see the roadmap table below.
 - **Episode rows rebuilt (issue #38, 0.5.1+25, user-verified)**: one shared
   `EpisodeRow` replaces 9 copies of the row across the season, folder, SMB,
   WebDAV, Jellyfin, FTP, UPnP, file-browser and details screens, with a
@@ -691,7 +686,7 @@ A video player app supporting:
 | **Second engine (Android)** | **media_kit + libmpv** (hardware-first via `hwdec=auto-safe`, FFmpeg software fallback, **`MpvSurfaceView` hybrid composition** - no Flutter Texture) | **User-chosen** second engine: `Play with MPV` on the TMDb details screen (or `Try with MPV` on the Media3 error surface). Video is a real SurfaceView (same pattern as Media3); media_kit `Player` is control-only (`media_kit_video` removed). Stock libmpv is SDR-only (tone-map no-ops safely); optional custom `libmpv.so` under `jniLibs/` (libplacebo/gpu-next) enables HDR tone-map. Ships `libmpv.so` via `media_kit_libs_android_video` - Android-only, so iOS doesn't pull in `Mpv.framework` (which breaks SideStore's `ldid` signer). iOS does not run mpv. |
 | Permissions | `permission_handler` | Runtime `READ_MEDIA_VIDEO` request on video open |
 | Refresh rate | `flutter_displaymode` | Selects highest refresh mode at startup |
-| Casting (iOS) | **`google-cast-sdk` 4.8 (CocoaPods)** + AirPlay (`AVRoutePickerView`) | Chromecast via `GCKUICastButton` platform view + `dreamplayer/cast` channel (build 13); AirPlay via `dreamplayer/airplay` platform view. Android has no Cast in this build. |
+| Casting (iOS) | AirPlay only (`AVRoutePickerView` platform view) | Chromecast was built (build 13) then removed 2026-11-21 by user decision. AirPlay via `dreamplayer/airplay` platform view remains. |
 
 ### Device research notes (user's Android phone)
 - Display: 1440x3168, supports 60/90/120 Hz, max luminance ~1400 nits.
@@ -3067,59 +3062,6 @@ AirPlay video needs an `AVPlayerLayer`. The picker is still shown for both - an
 audio-only route to a speaker is a valid use - and the release notes say so
 plainly rather than implying the picture moves.
 
-### Chromecast / Google Cast on iOS (2026-11-20, build 13, competitor-gap #6)
-
-- **The button is the native control in a platform view**, same pattern as
-  AirPlay: `ios/Runner/CastButtonView.swift` hosts `GCKUICastButton` (viewType
-  `dreamplayer/cast_button`), `lib/widgets/cast_button.dart` embeds it with
-  `EagerGestureRecognizer`. The button opens the Cast device picker itself
-  when tapped - there is no programmatic "open picker" API.
-- **Session/channel**: `ios/Runner/CastManager.swift` wraps `GCKCastContext` /
-  `GCKSessionManager` over `dreamplayer/cast` (MethodChannel) +
-  `dreamplayer/cast/events` (EventChannel). Dart `lib/services/cast_manager.dart`
-  (`CastManager` singleton, initialized in `main.dart`) reads state and calls
-  `castLoadMedia` / `castPause` / `castPlay` / `castSeek` / `castEndSession`.
-  `CastButtonTile` in the player top bar (next to AirPlay) shows the button
-  only when `CastManager.available` (a Cast device was discovered on the LAN).
-- **Castable sources** (`CastSource.isCastable`, pure + unit-tested): only
-  `http`/`https` (non-loopback - `127.0.0.1`/`localhost`/`0.0.0.0` rejected),
-  `content://`, `file://`. Loopback proxies (SmbHttpProxy, MPV bridge, CX
-  proxy) and custom schemes (`smb://`, `dreamplayersmb://`) cannot be cast -
-  the receiver cannot reach the phone's loopback. The receiver decodes the
-  media itself, so mpv-only formats do not cast.
-- **SDK**: `google-cast-sdk ~> 4.8` via CocoaPods (no SPM distribution) -
-  `ios/Podfile` uses the full Flutter template (`flutter_ios_podfile_setup` +
-  `flutter_install_all_ios_pods`), and CI runs `pod install` after
-  `flutter pub get`. Default Media Receiver app ID
-  (`kGCKDefaultMediaReceiverApplicationID`).
-- **SDK 4.8 Swift rename traps** (each cost one CI cycle, 2026-11-19/20):
-  (1) `GCKCastButton` -> **`GCKUICastButton`**; (2) `kGCKCastStateDidChangeNotification`
-  -> **`NSNotification.Name.gckCastStateDidChange`**; (3) `loadMedia(_:withOptions:)`
-  -> **`loadMedia(_:with:)`**; (4) `presentCastInstructionsViewControllerOnce()`
-  (no-arg) deprecated since 4.1 - removed, the button handles it;
-  (5) `GCKCastContext.isSharedInstanceInitialized` is a static **method** (needs
-  `()`), use our own `context != nil` guard instead; (6) `remoteMediaClient`
-  is **optional** - all calls need `?.` (`session?.remoteMediaClient?.pause()`);
-  (7) `GCKMediaMetadata.setString(_:forKey:)` takes **non-optional** String -
-  add `?? ""`; (8) `GCKMediaInformationBuilder.build()` returns
-  **non-optional** `GCKMediaInformation` - do NOT guard-let it;
-  (9) `GCKCastSession` has **no `castDevice`** on iOS - do not try to read
-  device id/name from the session; (10) pbxproj PBXBuildFile and
-  PBXFileReference IDs must **differ** (same UUID for both makes Xcodeproj
-  reject the project at `pod install` with a type-check error).
-- **Session lifecycle** comes via `GCKSessionManagerListener` on
-  `context.sessionManager` (`didStart` / `didResumeCastSession` / `didEnd` /
-  `didSuspend`), NOT the deprecated v2 `GCKCastDelegate` castContext callbacks.
-- **New Swift files must be registered in `project.pbxproj`** (PBXBuildFile +
-  PBXFileReference + group + Sources phase) - `tool/ios_native_check.py`
-  catches a missing Sources-phase entry.
-- **Verified**: `flutter analyze` clean, `ios_native_check.py` PASS, 1595
-  Dart tests pass (29 new Cast tests), CI run 44577626648 built + uploaded
-  signed IPA to TestFlight ("UPLOAD SUCCEEDED with no errors"). On-device Cast
-  behavior (button visibility, session start, receiver playback) still needs
-  confirmation on the iPad via build 13.
-- Tests: `test/cast_source_test.dart` (16), `test/cast_manager_test.dart` (13).
-
 ### GPU rendering + Cast - the ordered plan (2026-10-28)
 
 Derived from the Mpv∞ study above. **MPV-only for every rendering item** -
@@ -4278,7 +4220,7 @@ The home library shows **only folders the user explicitly adds** - nothing is au
   - Secrets needed: `IOS_CERT_BASE64`, `IOS_CERT_PASSWORD`, `IOS_PROFILE_BASE64`, `KEYCHAIN_PASSWORD`, `APPSTORE_TEAM_ID`, `APPSTORE_API_KEY`, `APPSTORE_API_KEY_ID`, `APPSTORE_ISSUER_ID`, `TMDB_API_KEY`, `OPENSUBTITLES_API_KEY`, `SIMKL_CLIENT_ID`.
   - **dSYMs (2026-10-30)**: the runner's xcarchive dSYM was never kept (only the IPA was), so our frames in ASC crash pages render as bare `Runner 0x…` addresses. `ios.yml` now uploads `build/ios/archive/Runner.xcarchive/dSYMs/` as a `DreamPlayer.dSYM` artifact. **Do NOT use the ASC API for this**: `GET /v1/builds/{id}/buildBundles` returns 403 (`The relationship 'buildBundles' has no allowed operations defined`) even for Admin-role team keys - an Apple-dev-forums-confirmed gap, reproduced live (run 41035689443: app + build discovery worked with our key, this one call rejected) - and `dSYMUrl` was a Bitcode-era attribute, dead since Xcode 14. The `ios_dsym.yml` workflow built on it shipped for one commit and was deleted: offering a choice that always 403s is worse than not offering it. Past builds: download the dSYM by hand from ASC web → build → Build Metadata → Download dSYM.
   - **Build command: `flutter build ipa`** (NOT raw `xcodebuild`). `flutter build ipa` handles plugin SPM resolution, `GeneratedPluginRegistrant` regeneration, and passes signing to xcodebuild internally. Raw `xcodebuild archive` bypasses Flutter's plugin reconciliation - any plugin without SPM support at the pinned version causes a hard `Module not found` error deep in compilation that Flutter would catch and name explicitly.
-  - **CocoaPods (2026-11-20, build 13)**: `ios/Podfile` uses the **full Flutter template** (`flutter_root` + `podhelper` + `flutter_ios_podfile_setup` + `flutter_install_all_ios_pods`) and adds `pod 'google-cast-sdk', '~> 4.8'` for Chromecast. CI runs `(cd ios && pod install)` right after `flutter pub get`. A minimal Podfile fails with `undefined method 'flutter_install_all_ios_pods'` because that helper is only defined after `flutter_ios_podfile_setup`. The Cast SDK is CocoaPods-only (no SPM distribution as of 4.8.x).
+  - **No CocoaPods**: the project has no `ios/Podfile` - all iOS deps are SPM. (A Podfile with `google-cast-sdk` existed for Chromecast in build 13 and was removed on 2026-11-21 together with the Cast feature; do not re-add `pod install` to CI without a Podfile.)
   - **iOS signing gotchas - full debug trail (2026-09)**:
     - **Keychain list must append, not replace**: `security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | tr -d '"')` - replacing kills `login.keychain-db` which `security cms` (used to decode the provisioning profile) and other system tools depend on.
     - **WWDR G3 intermediate cert must be imported** into the custom keychain: `curl -sSL -o /tmp/AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer && security import /tmp/AppleWWDRCAG3.cer -k $KEYCHAIN_PATH`. Without it, `codesign` finds the identity but can't validate the trust chain.
@@ -4386,7 +4328,7 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 | 3 | **iCloud cross-device sync** (iPhone ↔ iPad) - watch state, resume, library, settings via CloudKit or iCloud Drive JSON | Infuse Pro, VidHub, SenPlayer | DECLINED by user (2026-11-18) - not needed. The Dart stub `lib/services/icloud_sync.dart` was removed with it |
 | 4 | **IPTV M3U/M3U8 player + EPG** - import playlist URL, channel list with logos, XMLTV guide grid, favorites, groups | SenPlayer, MovoHub, Vireko | Whole user segment. Jellyfin can proxy it server-side but a direct player is expected |
 | 5 | **Trickplay/chapter thumbnails on seek bar** | Streamyfin, Infuse (live previews) | We removed frame thumbnails (black on HDR Android). Jellyfin server-side trickplay + iOS AVAssetImageGenerator on SDR local files work |
-| 6 | **Chromecast / Google Cast (iOS)** | Infuse Pro, nPlayer, Streamyfin | DONE (2026-11-20, build 13): `GCKUICastButton` platform view in player top bar; `google-cast-sdk` CocoaPod; `dreamplayer/cast` channel. Only http/https (non-loopback), content://, file:// castable |
+| 6 | **Chromecast / Google Cast (iOS)** | Infuse Pro, nPlayer, Streamyfin | REMOVED by user decision (2026-11-21) after shipping in build 13. Was: `GCKUICastButton` platform view + `google-cast-sdk` CocoaPod. May return later |
 | 7 | **Server transcoding quality picker** - long-press Play on Jellyfin/Plex → choose 1080p/720p/low bitrate | Infuse 8.5 | Request optimized stream from server when bandwidth is limited |
 | 8 | **App lock (Face ID / passcode) + per-folder lock** | VLC, SenPlayer, nPlayer | Privacy for shared devices |
 | 9 | **Extras / deleted scenes / behind-the-scenes on details page** | Infuse 8.4 | TMDB extras + Infuse naming convention (`-trailer`, `-deleted`, `-behindthescenes`, `-featurette`, `-interview`, `-scene`, `-short`, `-other`) |
@@ -4415,7 +4357,7 @@ Full research vs **Infuse 8.5, nPlayer Plus, VLC 3.7/4.0, Outplayer, VidHub, Sen
 
 **🟢 Lower priority (different app category - belongs to Documents/VLC, not a video player):** CarPlay video (parked only, Apple-restricted), podcasts, radio stations, PDF editor/scanner, photo Smart Eraser, format conversion, Jellyseerr request integration, admin session view.
 
-**Suggested implementation order:** Phase 1 is COMPLETE (2026-11-18) - #1 WiFi upload server shipped and user-verified; #2 Trakt and #3 iCloud sync both declined by the user (removed from the tree). Phase 2 is MOSTLY DONE (2026-11-20, build 13): #6 Chromecast, #9 extras, #10 hide spoilers shipped; remaining = #5 trickplay + #7 transcode picker. Phase 3 = IPTV M3U/EPG (#4) + app lock (#8) + NFS (#12) + in-app browser (#11). Phase 4 = screenshot (#16) + color controls on Media3 (#17) + deinterlacing (#19) + rename/move (#20) + Siri shortcuts (#24).
+**Suggested implementation order:** Phase 1 is COMPLETE (2026-11-18) - #1 WiFi upload server shipped and user-verified; #2 Trakt and #3 iCloud sync both declined by the user (removed from the tree). Phase 2 partial (build 13, 2026-11-20): #9 extras + #10 hide spoilers shipped; #6 Chromecast was built then REMOVED (2026-11-21); remaining = #5 trickplay + #7 transcode picker. Phase 3 = IPTV M3U/EPG (#4) + app lock (#8) + NFS (#12) + in-app browser (#11). Phase 4 = screenshot (#16) + color controls on Media3 (#17) + deinterlacing (#19) + rename/move (#20) + Siri shortcuts (#24).
 
 ## Repository / Git
 
@@ -4535,7 +4477,6 @@ lib/
   services/tone_map_store.dart    # dreamplayer.toneMapMode (sdr|native) for MPV HDR tone-map
   services/hw_sdr_tonemap_store.dart # dreamplayer.hwSdrToneMap - hardware SDR tone-mapping (issue #55)
   services/mpv_surface_view.dart  # MpvSurfaceView platform view (hybrid composition, no Flutter Texture)
-  services/cast_manager.dart      # Google Cast (iOS): CastManager ChangeNotifier + CastSource.isCastable (channel dreamplayer/cast)
   utils/mpv_audio_select.dart     # pickMpvDefaultAudioId + parseMpvDefaultFlag (container DEFAULT audio pin)
   config/tmdb_api_key.dart        # default TMDB key from --dart-define=TMDB_API_KEY (never committed)
   l10n/
@@ -4565,7 +4506,6 @@ lib/
     tv_text_field.dart          # TV-friendly TextField with skipTraversal inner node
     episode_row.dart            # shared episode/file row + still & poster thumbs (issue #38)
     update_dialog.dart          # in-app update sheet: notes, download progress, unknown-sources prompt, install retry
-    cast_button.dart            # CastButton (GCKUICastButton platform view) + CastButtonTile (iOS-only, competitor-gap #6)
 android/app/src/main/kotlin/com/dreamplayer/app/
   ExoPlayerView.kt              # native PlayerView platform view + channels (open/play/seek/tracks/subtitles) + OkHttp permissive DataSource for self-signed WebDAV
   HwSdrToneMap.kt               # hardware SDR tone-mapping state + pure shouldRequest() decision (issue #55)
@@ -4599,8 +4539,6 @@ ios/Runner/
   AppDelegate.swift             # registers the AvPlayerView factory + files/intent/webdav channels
   DownloadClient.swift          # download-to-device channel (getDownloadDir, notification progress); registered in AppDelegate
   SceneDelegate.swift           # forwards scene-opened URLs to IntentBridge
-  CastManager.swift             # Google Cast session manager (channels dreamplayer/cast + dreamplayer/cast/events; GCKSessionManagerListener)
-  CastButtonView.swift          # GCKUICastButton platform view (viewType dreamplayer/cast_button)
 test/
   test_helper.dart              # shared localizationDelegates for widget tests
   widget_test.dart              # shell/navigation/overflow tests
@@ -4648,8 +4586,6 @@ test/
   episode_row_series_test.dart    # the REAL season-row title/subtitle widgets at phone widths
   episode_row_responsive_test.dart # size follows the ROW width; rotation, font scale, no overflow
   episode_row_real_test.dart      # real trailing chrome (2 IconButtons + chevron) declares its width
-  cast_source_test.dart           # CastSource.isCastable / notCastableReason (loopback + custom schemes rejected)
-  cast_manager_test.dart          # Cast channel-name contract + iOS-only guard (source-reading, competitor-gap #6)
   HwSdrToneMapTest.kt (android/app/src/test/...) # pure tone-map decision logic (issue #55)
 ```
 

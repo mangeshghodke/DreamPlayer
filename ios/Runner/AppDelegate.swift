@@ -94,11 +94,6 @@ import Network
     UploadServer.shared.configure(messenger: messenger)
     IconSwitcher.configure(with: messenger)
     TrialStore.register(with: messenger)
-    CastManager.register(with: messenger)
-    registrar.register(
-      CastButtonFactory(),
-      withId: "dreamplayer/cast_button"
-    )
     // Same channel as Android's MainActivity: device facts. iOS answers the
     // OS major version (the MetalFX upscale stage needs iOS 26+); isTv is
     // always false here.

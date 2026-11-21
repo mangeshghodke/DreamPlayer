@@ -71,8 +71,6 @@ jobs:
           flutter config --enable-ios
           flutter clean
           flutter pub get
-          # CocoaPods for the Google Cast SDK (ios/Podfile).
-          (cd ios && pod install)
 
       - name: Run tests
         run: flutter test $(find test -name '*_test.dart' ! -name 'widget_test.dart' | sort)
