@@ -16,6 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
+| 0.5.8 | 15 | 279 |
 | 0.5.8 | 14 | 1672 |
 | 0.5.7 | 7 | 1446 |
 | 0.5.6 | 15 | 2607 |
@@ -27,6 +28,13 @@ that copying a block for App Store Connect can never pick up a stray note:
 A count is the length of the text you would paste - the block from its "New:"
 or "Fixed:" line down to its last character, including the final newline - so
 it can be reproduced with a plain character count after any edit.
+
+---
+
+## 0.5.8 (build 15)
+
+New:
+• Music files now play too: `.m4a`, `.flac`, `.wav`, `.mp3`, `.aac`, `.ogg`, `.opus`, `.wma` and more open in the player from Files, a network share, the WiFi transfer page, or the share sheet. Dolby Atmos in an `.m4a` is passed through to your TV or soundbar untouched.
 
 ---
 

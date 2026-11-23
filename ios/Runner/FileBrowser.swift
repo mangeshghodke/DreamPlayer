@@ -23,6 +23,13 @@ final class FileBrowser: NSObject, FlutterStreamHandler {
             "strm", "m3u", "m3u8",
     ]
 
+    /// Audio-only extensions are listed too (music libraries; .m4a Atmos is
+    /// playable and passes through on Apple TV via AVPlayer).
+    private static let audioExtensions: Set<String> = [
+        "m4a", "flac", "wav", "mp3", "aac", "ogg", "oga", "opus", "wma",
+        "aiff", "aif", "mka", "ape", "alac", "caf",
+    ]
+
     private static let bookmarksKey = "dreamplayer.folderBookmarks"
 
     /// Library-folder bookmarks ("Add folder to library") live in their own
@@ -286,7 +293,7 @@ final class FileBrowser: NSObject, FlutterStreamHandler {
     private static func isVideo(_ name: String) -> Bool {
         guard let dot = name.lastIndex(of: ".") else { return false }
         let ext = name[name.index(after: dot)...].lowercased()
-        return videoExtensions.contains(ext)
+        return videoExtensions.contains(ext) || audioExtensions.contains(ext)
     }
 
     // MARK: - Bookmarks

@@ -465,10 +465,14 @@ class UpnpClient(private val context: Context) {
         // Some servers report object.item.videoItem.* appropriately.
         if (upnpClass?.lowercase()?.contains("videoitem") == true) return true
         if (upnpClass?.lowercase()?.contains("movie") == true) return true
-        if (pi.contains("audio") || pi.contains("image")) return false
-        val videoExts = setOf("mkv", "mp4", "avi", "mov", "ts", "m2ts", "wmv", "flv", "mpg", "mpeg", "webm", "m4v", "3gp", "divx", "vob")
+        // Audio items (music via DLNA) are playable too - audio/* mime or an
+        // object.item.audioItem.* class. Images stay excluded.
+        if (pi.contains("audio") || upnpClass?.lowercase()?.contains("audioitem") == true) return true
+        if (pi.contains("image")) return false
+        val mediaExts = setOf("mkv", "mp4", "avi", "mov", "ts", "m2ts", "wmv", "flv", "mpg", "mpeg", "webm", "m4v", "3gp", "divx", "vob",
+            "m4a", "flac", "wav", "mp3", "aac", "ogg", "oga", "opus", "wma", "aiff", "aif", "mka")
         val ext = url.substringAfterLast('.', "").substringBefore('?').lowercase()
-        if (videoExts.contains(ext)) return true
+        if (mediaExts.contains(ext)) return true
         // Unknown - keep it rather than hide a video with a weird MIME.
         // Only hide obvious non-video.
         if (pi.isNotEmpty() && !pi.contains("video")) return false

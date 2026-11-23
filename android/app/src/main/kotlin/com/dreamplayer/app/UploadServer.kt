@@ -654,7 +654,14 @@ private const val MAX_NAME_LEN = 120
             "jpg", "jpeg" -> "image/jpeg"
             "png" -> "image/png"
             "mp3" -> "audio/mpeg"
+            "m4a", "aac" -> "audio/mp4"
             "flac" -> "audio/flac"
+            "wav" -> "audio/wav"
+            "ogg", "oga", "opus" -> "audio/ogg"
+            "wma" -> "audio/x-ms-wma"
+            "aiff", "aif" -> "audio/aiff"
+            "mka" -> "audio/x-matroska"
+            "caf" -> "audio/x-caf"
             "zip" -> "application/zip"
             else -> "application/octet-stream"
         }
@@ -922,7 +929,7 @@ private const val MAX_NAME_LEN = 120
       <div class="icon">&#8593;</div>
       <div class="title">Click to choose videos</div>
       <div class="hint">or drop them here</div>
-      <input type="file" id="files" multiple accept="video/*,.mkv,.mp4,.avi,.ts,.m2ts,.webm,.wmv,.flv,.mpg,.mpeg,.vob,.mov,.m4v,.3gp,.ogv,.rmvb,.divx">
+      <input type="file" id="files" multiple accept="video/*,audio/*,.mkv,.mp4,.avi,.ts,.m2ts,.webm,.wmv,.flv,.mpg,.mpeg,.vob,.mov,.m4v,.3gp,.ogv,.rmvb,.divx,.m4a,.flac,.wav,.mp3,.aac,.ogg,.opus,.wma,.aiff,.mka">
     </label>
     <ul id="list"></ul>
     <div class="actions">

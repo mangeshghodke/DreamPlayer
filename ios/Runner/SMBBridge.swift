@@ -1239,6 +1239,10 @@ final class SMBBridge: NSObject {
         let media = [
             "mkv", "mp4", "avi", "mov", "m2ts", "ts", "webm", "wmv", "flv", "ogv", "m4v",
             "mpg", "mpeg", "rmvb", "vob", "iso", "divx", "3gp", "strm", "m3u", "m3u8",
+            // Audio-only files are listed too (music libraries; .m4a Atmos
+            // passes through on Apple TV via AVPlayer).
+            "m4a", "flac", "wav", "mp3", "aac", "ogg", "oga", "opus", "wma",
+            "aiff", "aif", "mka", "ape", "alac", "caf",
         ]
         return !media.contains(ext)
     }

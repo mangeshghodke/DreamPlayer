@@ -22,11 +22,17 @@ final class FtpClient: NSObject {
     private static let keychainService = "com.dreamplayer.app.ftp"
     private static let keychainAccountPrefix = "password."
 
-    /// Same set as `VIDEO_EXTENSIONS` in FtpClient.kt.
+    /// Same set as `VIDEO_EXTENSIONS`/`AUDIO_EXTENSIONS` in FtpClient.kt.
     private static let videoExtensions: Set<String> = [
         "mkv", "mp4", "mov", "avi", "webm", "m4v", "ts", "m2ts", "mts",
         "wmv", "flv", "mpg", "mpeg", "3gp", "3g2", "vob", "divx", "xvid", "m2v",
             "strm", "m3u", "m3u8",
+    ]
+
+    /// Audio-only extensions are listed too (music libraries).
+    private static let audioExtensions: Set<String> = [
+        "m4a", "flac", "wav", "mp3", "aac", "ogg", "oga", "opus", "wma",
+        "aiff", "aif", "mka", "ape", "alac", "caf",
     ]
 
     static func register(with messenger: FlutterBinaryMessenger) {
@@ -350,7 +356,7 @@ final class FtpClient: NSObject {
         }
 
         return raw
-            .filter { videoOnly && !$0.1.isDir && !Self.videoExtensions.contains(ext($0.1.name)) ? false : true }
+            .filter { videoOnly && !$0.1.isDir && !(Self.videoExtensions.contains(ext($0.1.name)) || Self.audioExtensions.contains(ext($0.1.name))) ? false : true }
             .filter { $0.1.name != "." && $0.1.name != ".." }
             .sorted { a, b in
                 if a.1.isDir != b.1.isDir { return a.1.isDir }

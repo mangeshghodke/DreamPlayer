@@ -41,6 +41,7 @@ New:
 • Pick a subtitle font file from device storage: the subtitle font picker (CC → Subtitle settings → Font) has a "Pick a font file from this device…" row - choose any `.ttf` / `.otf` / `.ttc` / `.woff` from Files, iCloud Drive, Downloads or any provider. The font is copied into the app and its own name is read from the file, so it works offline and shows correctly in the preview and during playback.
 • **Extras on the details page**: "Behind the scenes", featurettes, clips and bloopers from the movie/TV database now show as their own section on the details page, and extra files saved next to a video with names like `-deleted`, `-featurette` or `-trailer` are pulled out of the file list into a playable Extras section.
 • **Hide spoilers** (Settings → Appearance): when on, artwork for episodes you have not watched yet is blurred and their description and still photos stay hidden until you watch them.
+• **Music files now play too**: `.m4a`, `.flac`, `.wav`, `.mp3`, `.aac`, `.ogg`, `.opus`, `.wma` and more open in the player from Files, any network share, the transfer page, or the share sheet ("Open in…"). Dolby Atmos in an `.m4a` is passed through to your TV or soundbar untouched.
 
 Fixed:
 • The "Skip intro / recap / credits" button now appears on the first watch of a new episode or movie, not only on the second play - the lookup waited for title metadata that arrives a moment after playback starts on a fresh title, and now re-checks as soon as it lands.

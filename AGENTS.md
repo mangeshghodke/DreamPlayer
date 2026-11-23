@@ -17,7 +17,7 @@ A video player app supporting:
 
 ## Current status
 
-- **TestFlight build 14 (0.5.8+14) live (2026-11-21, CI run 44881119856, "UPLOAD SUCCEEDED")**. Carries Phase 2 #9 extras + #10 hide spoilers, with Chromecast REMOVED (user decision 2026-11-21, commit 8de0399 deleted all Cast code/Podfile/pbxproj/CI-pod-step). Build 13 (0.5.8+13, run 44577626648) was the last build with Cast.
+- **TestFlight build 14 (0.5.8+14) live (2026-11-21, CI run 44881119856, "UPLOAD SUCCEEDED")**, then build 15 (0.5.8+15, run 45117713882) adds audio file playback. Carries Phase 2 #9 extras + #10 hide spoilers, with Chromecast REMOVED (user decision 2026-11-21, commit 8de0399 deleted all Cast code/Podfile/pbxproj/CI-pod-step). Build 13 (0.5.8+13, run 44577626648) was the last build with Cast.
 - **Competitor-gap Phase 2 - #9 extras DONE (2026-11-19)**: TMDB "Behind the
   Scenes"/"Featurette"/"Clip"/"Bloopers" videos render in an Extras card on
   the details page; Infuse-style local files (`-deleted`, `-featurette`, …)
@@ -25,6 +25,35 @@ A video player app supporting:
 - **#10 hide spoilers DONE (2026-11-19)**: unwatched episodes' artwork is
   blurred (eye-off icon) and their overview + stills gallery are withheld
   until watched; Settings → Appearance → Hide spoilers tile; default off.
+- **Audio file playback (2026-11-23, user request "have bunch of .m4a .flac
+  .wav files - .m4a is Atmos music")**: audio extensions (`.m4a .flac .wav
+  .mp3 .aac .ogg .oga .opus .wma .aiff .aif .mka .ape .alac .caf`) are now
+  listed as playable in EVERY browser - Dart `lib/utils/media_extensions.dart`
+  (`isPlayableMedia`) drives `folder_scanner`; the native sets
+  (FileBrowser/SMBClient/WebDAVClient/FtpClient/UpnpClient .kt,
+  FileBrowser/WebDAVClient/FtpClient/SMBBridge/UpnpClient .swift) gained an
+  `AUDIO_EXTENSIONS` set and the listing filters use video-or-audio. UPnP
+  also accepts `audio/*` protocolInfo and `object.item.audioItem.*` (images
+  stay excluded). Audio-only files play with a black video surface - the
+  player already guards `_videoW > 0` for aspect and PiP falls back to 16:9
+  when there is no video size, so no crash. **Atmos passthrough was already
+  there**: `PlayerCodecs.isPassthroughFormat` includes `AUDIO_E_AC3_JOC`, so
+  an Atmos `.m4a` on Android TV with "Audio passthrough" on bitstreams to
+  HDMI - now pinned by `PlayerCodecsTest.kt`. Media3 decodes AAC/MP3/WAV
+  natively, FLAC via the FFmpeg renderer (existing FLAC branch), OGG/OPUS/WMA
+  via FFmpeg; iOS: AVPlayer for m4a/mp3/wav, AetherEngine FFmpeg path for
+  flac/opus. "Open with": Android manifest already had `audio/*`; iOS
+  Info.plist gained `public.audio` + `com.apple.m4a-audio` in
+  `CFBundleDocumentTypes` and a custom `com.dreamplayer.app.flac` UTI
+  (+`mka`/`mks` on the matroska UTI). WiFi upload page accepts audio
+  (`accept="video/*,audio/*,…"` in both mirrors) and `guessMime` maps the
+  audio extensions. **Deliberate exclusions**: `tmdb_client._looksLikeVideoFile`
+  stays video-only so a track never resolves against TMDB/AVDb/r18.dev;
+  `SubtitleFormats.isVideoFile` stays video-only (subtitle pairing must not
+  attach .srt to a music file). Tests: `test/media_extensions_test.dart`
+  (19: unit + source-reading pins that all 12 native/upload files, the plist
+  and the manifest carry the audio extensions, TMDB stays video-only,
+  passthrough covers E-AC3-JOC).
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

@@ -40,6 +40,12 @@ class FtpClient(private val context: Context) {
             "strm", "m3u", "m3u8",
         )
 
+        /// Audio-only extensions are listed too (music libraries).
+        private val AUDIO_EXTENSIONS = setOf(
+            "m4a", "flac", "wav", "mp3", "aac", "ogg", "oga", "opus", "wma",
+            "aiff", "aif", "mka", "ape", "alac", "caf",
+        )
+
         /// Cap for a fetched sidecar subtitle file (50 MiB).
         private const val MAX_ALT_SUB_BYTES = 50 * 1024 * 1024
     }
@@ -613,6 +619,7 @@ class FtpClient(private val context: Context) {
     private fun isVideo(name: String): Boolean {
         val dot = name.lastIndexOf('.')
         if (dot < 0) return false
-        return name.substring(dot + 1).lowercase() in VIDEO_EXTENSIONS
+        val ext = name.substring(dot + 1).lowercase()
+        return ext in VIDEO_EXTENSIONS || ext in AUDIO_EXTENSIONS
     }
 }

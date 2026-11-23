@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dream_player/utils/media_junk_filter.dart';
+import 'package:dream_player/utils/media_extensions.dart';
 
 import 'file_browser.dart';
 import 'ftp_client.dart';
@@ -587,23 +588,9 @@ class FolderScanner {
     return (size: 0);
   }
 
-  /// Quick check: does the filename look like a video file?
-  static bool _isVideoFile(String name) {
-    final lower = name.toLowerCase();
-    return lower.endsWith('.mkv') ||
-        lower.endsWith('.mp4') ||
-        lower.endsWith('.avi') ||
-        lower.endsWith('.webm') ||
-        lower.endsWith('.mov') ||
-        lower.endsWith('.ts') ||
-        lower.endsWith('.m2ts') ||
-        lower.endsWith('.wmv') ||
-        lower.endsWith('.flv') ||
-        lower.endsWith('.ogv') ||
-        lower.endsWith('.rmvb') ||
-        lower.endsWith('.mpg') ||
-        lower.endsWith('.mpeg') ||
-        lower.endsWith('.vob') ||
-        lower.endsWith('.3gp');
-  }
+  /// Quick check: does the filename look like playable media (video OR
+  /// audio - a folder of .m4a/.flac/.wav is a music library and its tracks
+  /// become cards too)? Delegates to the shared list in
+  /// `lib/utils/media_extensions.dart`.
+  static bool _isVideoFile(String name) => isPlayableMedia(name);
 }

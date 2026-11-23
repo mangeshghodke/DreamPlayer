@@ -629,7 +629,8 @@ private final class DidlParser: NSObject, XMLParserDelegate {
     private var inContainer = false
     private var inItem = false
     private var text = ""
-    private let videoExts: Set<String> = ["mkv","mp4","avi","mov","ts","m2ts","wmv","flv","mpg","mpeg","webm","m4v","3gp","divx","vob"]
+    private let videoExts: Set<String> = ["mkv","mp4","avi","mov","ts","m2ts","wmv","flv","mpg","mpeg","webm","m4v","3gp","divx","vob",
+        "m4a","flac","wav","mp3","aac","ogg","oga","opus","wma","aiff","aif","mka"]
 
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
         // Namespaces OFF: elementName carries any prefix ("dc:title").
@@ -721,7 +722,9 @@ private final class DidlParser: NSObject, XMLParserDelegate {
         let pi = currentProtocolInfo?.lowercased() ?? ""
         if pi.contains("video") { return true }
         if currentClass?.lowercased().contains("videoitem") == true { return true }
-        if pi.contains("audio") || pi.contains("image") { return false }
+        // Audio items (music via DLNA) are playable too; images stay excluded.
+        if pi.contains("audio") || currentClass?.lowercased().contains("audioitem") == true { return true }
+        if pi.contains("image") { return false }
         if let url = currentRes, let ext = URL(string: url)?.pathExtension.lowercased(), videoExts.contains(ext) { return true }
         if !pi.isEmpty && !pi.contains("video") { return false }
         return true

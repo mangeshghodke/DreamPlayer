@@ -33,6 +33,12 @@
 				<string>com.dreamplayer.app.flv</string>
 				<string>com.dreamplayer.app.ogv</string>
 				<string>com.dreamplayer.app.realmedia</string>
+				<!-- Audio: system UTI covers mp3/wav/aiff/caf and m4a
+				     (com.apple.m4a-audio, incl. Dolby Atmos .m4a);
+				     flac gets a custom UTI below. -->
+				<string>public.audio</string>
+				<string>com.apple.m4a-audio</string>
+				<string>com.dreamplayer.app.flac</string>
 			</array>
 		</dict>
 	</array>
@@ -54,6 +60,8 @@
 				<array>
 					<string>mkv</string>
 					<string>mk3d</string>
+					<string>mka</string>
+					<string>mks</string>
 				</array>
 			</dict>
 		</dict>
@@ -208,6 +216,29 @@
 				<array>
 					<string>rmvb</string>
 					<string>rm</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.dreamplayer.app.flac</string>
+			<key>UTTypeDescription</key>
+			<string>FLAC Audio</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.audio</string>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>flac</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>audio/flac</string>
+					<string>audio/x-flac</string>
 				</array>
 			</dict>
 		</dict>

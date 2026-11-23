@@ -282,6 +282,13 @@ class SMBClient(private val context: Context) {
             "strm", "m3u", "m3u8",
         )
 
+        /// Audio-only extensions are listed too (music libraries; .m4a Atmos
+        /// passes through on TV - PlayerCodecs.isPassthroughFormat).
+        private val AUDIO_EXTENSIONS = setOf(
+            "m4a", "flac", "wav", "mp3", "aac", "ogg", "oga", "opus", "wma",
+            "aiff", "aif", "mka", "ape", "alac", "caf",
+        )
+
         /// Sideloaded subtitles auto-paired with a same-named video in a folder.
         private val SUBTITLE_EXTENSIONS = setOf("srt", "ass", "ssa", "vtt", "sub", "smi")
 
@@ -839,7 +846,7 @@ class SMBClient(private val context: Context) {
             val relPath = if (path.isEmpty()) name else "$path/$name"
             if (isDir) {
                 dirs.add(entryMap(name, relPath, true, 0L, 0L))
-            } else if (isVideo(name)) {
+            } else if (isMedia(name)) {
                 // Skip per-file length()/lastModified() - each is a separate
                 // SMB GetInfo round-trip; for large folders this adds minutes.
                 // Size is reported as 0 here; the streaming path fetches it.
@@ -947,7 +954,9 @@ class SMBClient(private val context: Context) {
         return sizes
     }
 
-    private fun isVideo(name: String): Boolean = hasExtension(name, VIDEO_EXTENSIONS)
+    /// Playable media = video OR audio. Listing filters use THIS.
+    private fun isMedia(name: String): Boolean =
+        hasExtension(name, VIDEO_EXTENSIONS) || hasExtension(name, AUDIO_EXTENSIONS)
 
     private fun isSubtitle(name: String): Boolean = hasExtension(name, SUBTITLE_EXTENSIONS)
 

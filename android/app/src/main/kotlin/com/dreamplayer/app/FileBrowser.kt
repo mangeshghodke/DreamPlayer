@@ -43,6 +43,15 @@ class FileBrowser(private val activity: MainActivity) {
             "wmv", "flv", "mpg", "mpeg", "3gp", "3g2", "vob", "divx", "xvid", "m2v",
             "strm", "m3u", "m3u8",
         )
+
+        /// Audio-only extensions are listed too (user request: a folder of
+        /// .m4a/.flac/.wav is a music library - the player opens them as
+        /// audio-only). .m4a carries Atmos as E-AC3-JOC, which the TV
+        /// passthrough path bitstreams (PlayerCodecs.isPassthroughFormat).
+        private val AUDIO_EXTENSIONS = setOf(
+            "m4a", "flac", "wav", "mp3", "aac", "ogg", "oga", "opus", "wma",
+            "aiff", "aif", "mka", "ape", "alac", "caf",
+        )
     }
 
     private var pendingFolderResult: MethodChannel.Result? = null
@@ -492,7 +501,7 @@ class FileBrowser(private val activity: MainActivity) {
             if (name.startsWith(".")) continue
             if (f.isDirectory) {
                 dirs.add(entry(f, isDirectory = true))
-            } else if (isVideo(name)) {
+            } else if (isMedia(name)) {
                 files.add(entry(f, isDirectory = false))
             }
         }
@@ -565,7 +574,7 @@ class FileBrowser(private val activity: MainActivity) {
                             "size" to 0L,
                         ),
                     )
-                } else if (isVideo(name)) {
+                } else if (isMedia(name)) {
                     files.add(
                         mapOf(
                             "name" to name,
@@ -619,10 +628,12 @@ class FileBrowser(private val activity: MainActivity) {
         return if (dir.exists() && dir.isDirectory) dir.absolutePath else null
     }
 
-    private fun isVideo(name: String): Boolean {
+    /// Playable media = video OR audio. Listing filters use THIS.
+    private fun isMedia(name: String): Boolean {
         val dot = name.lastIndexOf('.')
         if (dot < 0 || dot == name.length - 1) return false
-        return name.substring(dot + 1).lowercase(Locale.ROOT) in VIDEO_EXTENSIONS
+        val ext = name.substring(dot + 1).lowercase(Locale.ROOT)
+        return ext in VIDEO_EXTENSIONS || ext in AUDIO_EXTENSIONS
     }
 
     private fun entry(f: File, isDirectory: Boolean): Map<String, Any?> = mapOf(

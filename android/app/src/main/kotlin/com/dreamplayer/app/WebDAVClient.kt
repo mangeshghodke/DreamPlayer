@@ -58,6 +58,12 @@ class WebDAVClient(private val context: Context) {
             "strm", "m3u", "m3u8",
         )
 
+        /// Audio-only extensions are listed too (music libraries).
+        private val AUDIO_EXTENSIONS = setOf(
+            "m4a", "flac", "wav", "mp3", "aac", "ogg", "oga", "opus", "wma",
+            "aiff", "aif", "mka", "ape", "alac", "caf",
+        )
+
         /// Reasonable cap for a downloaded subtitle sidecar (50 MiB - far larger
         /// than any real .srt/.ass/.vtt/.sub; protects against a misconfigured
         /// server answering a wrong URL with a huge file, mirroring Nova's
@@ -631,9 +637,8 @@ class WebDAVClient(private val context: Context) {
             decodedPath
         }.let { if (it.isEmpty()) "/" else it }
         val name = decodedPath.trimEnd('/').substringAfterLast('/')
-        val isVideo = !isCollection && VIDEO_EXTENSIONS.contains(
-            name.substringAfterLast('.', "").lowercase(),
-        )
+        val ext = name.substringAfterLast('.', "").lowercase()
+        val isVideo = !isCollection && (VIDEO_EXTENSIONS.contains(ext) || AUDIO_EXTENSIONS.contains(ext))
         if (!isCollection && !isVideo) return null
         return WebDAVEntry(
             name = name,

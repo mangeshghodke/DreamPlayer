@@ -29,6 +29,12 @@ final class WebDAVClient: NSObject {
             "strm", "m3u", "m3u8",
     ]
 
+    /// Audio-only extensions are listed too (music libraries).
+    private static let audioExtensions: Set<String> = [
+        "m4a", "flac", "wav", "mp3", "aac", "ogg", "oga", "opus", "wma",
+        "aiff", "aif", "mka", "ape", "alac", "caf",
+    ]
+
     // MARK: - Networking
 
     /// Default-trust session (system certificate store).
@@ -444,7 +450,8 @@ final class WebDAVClient: NSObject {
         let name = rel.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             .components(separatedBy: "/").last ?? ""
         let ext = (name as NSString).pathExtension.lowercased()
-        if !builder.isCollection && !Self.videoExtensions.contains(ext) { return nil }
+        let isMedia = Self.videoExtensions.contains(ext) || Self.audioExtensions.contains(ext)
+        if !builder.isCollection && !isMedia { return nil }
         return [
             "name": name,
             "path": rel,
