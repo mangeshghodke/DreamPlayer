@@ -70,15 +70,8 @@ class CrashReportNote extends StatelessWidget {
         color: theme.colorScheme.onSurfaceVariant,
       ),
       title: const Text('App crashed?', style: TextStyle(fontSize: 14)),
-      subtitle: Text(
-        defaultTargetPlatform == TargetPlatform.android
-            ? 'Froze or crashed? Attach the debug logs (logcat included) and '
-                'send them to us.'
-            : 'Froze or crashed? Attach the debug logs and send them to '
-                '$supportEmail.',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+      subtitle: const Text(
+        'Froze or crashed? Click to send debug logs to developer',
       ),
       isThreeLine: true,
       onTap: () => _send(context),
