@@ -108,6 +108,110 @@ void main() {
     });
   });
 
+  group('browser defaults: WebView UA + origin Referer (mpv-infinity parity)', () {
+    test('originRefererFor returns scheme://host/ for standard ports', () {
+      expect(originRefererFor('https://example.com/video.mp4'),
+          'https://example.com/');
+      expect(originRefererFor('http://example.com:80/a'), 'http://example.com/');
+      expect(originRefererFor('https://example.com:443/a'),
+          'https://example.com/');
+    });
+
+    test('originRefererFor keeps non-standard ports', () {
+      expect(originRefererFor('http://nas.local:8096/x.mkv'),
+          'http://nas.local:8096/');
+      expect(originRefererFor('https://cdn.example.com:8443/v.mp4?token=1'),
+          'https://cdn.example.com:8443/');
+    });
+
+    test('originRefererFor is null for non-http(s) or junk', () {
+      expect(originRefererFor('smb://nas/share/f.mkv'), isNull);
+      expect(originRefererFor('/storage/emulated/0/f.mkv'), isNull);
+      expect(originRefererFor(''), isNull);
+      expect(originRefererFor(null), isNull);
+    });
+
+    test('a source URL gets a default Referer = its origin', () {
+      final opts = buildMpvHttpHeaderOptions(const {},
+          sourceUrl: 'https://torrent.example.com/files/movie.mkv?passkey=abc');
+      expect(opts.referrer, 'https://torrent.example.com/');
+      // The referer has a dedicated property - it must NOT also be in the
+      // comma-separated list (that would send it twice).
+      expect(opts.headerFields, isNull);
+    });
+
+    test('a source-supplied Referer wins over the origin default', () {
+      final opts = buildMpvHttpHeaderOptions(const {
+        'Referer': 'https://other.example/',
+      }, sourceUrl: 'https://torrent.example.com/f.mkv');
+      expect(opts.referrer, 'https://other.example/');
+      expect(opts.headerFields, isNull);
+    });
+
+    test('effectiveMpvHttpHeaders fills UA + Referer; source values win', () {
+      final eff = effectiveMpvHttpHeaders(const {
+        'Authorization': 'Basic abc',
+      }, 'http://nas:8096/share/m.mkv',
+          defaultUserAgent: 'WebViewUA/1.0');
+      expect(eff['User-Agent'], 'WebViewUA/1.0');
+      expect(eff['Referer'], 'http://nas:8096/');
+      expect(eff['Authorization'], 'Basic abc');
+
+      final eff2 = effectiveMpvHttpHeaders(const {
+        'user-agent': 'Custom/2.0',
+        'referrer': 'https://x/',
+      }, 'https://a.b/c.mp4', defaultUserAgent: 'WebViewUA/1.0');
+      expect(eff2['user-agent'], 'Custom/2.0');
+      expect(eff2['referrer'], 'https://x/');
+      // No duplicate UA/Referer under a different case.
+      expect(eff2.keys.where((k) => k.toLowerCase() == 'user-agent'),
+          hasLength(1));
+      expect(eff2.keys.where((k) => k.toLowerCase() == 'referer' ||
+          k.toLowerCase() == 'referrer'), hasLength(1));
+    });
+
+    test('no source URL means no referer default (local files unaffected)', () {
+      final opts = buildMpvHttpHeaderOptions(const {});
+      expect(opts.referrer, isNull);
+      expect(opts.isEmpty, isTrue);
+    });
+  });
+
+  group('player wiring: WebView UA + origin referer reach mpv AND the bridge', () {
+    test('player_screen passes sourceUrl and the WebView UA to the mapper',
+        () {
+      expect(player.contains('defaultUserAgent: _mpvDefaultUserAgent'), isTrue);
+      expect(player.contains('sourceUrl: src'), isTrue);
+    });
+
+    test('the bridge is started with the effective headers (UA + Referer)', () {
+      final startAt = player.indexOf('HttpStreamProxyClient.instance.start(');
+      expect(startAt, greaterThan(-1));
+      // The effective headers are computed just before the start() call.
+      final before = player.substring(
+          startAt - 400 < 0 ? 0 : startAt - 400, startAt);
+      expect(before, contains('effectiveMpvHttpHeaders('));
+    });
+
+    test('the WebView UA is loaded once and cached on the player', () {
+      expect(player.contains('webViewUserAgent()'), isTrue);
+      expect(player.contains('_mpvDefaultUserAgent = mpvBrowserUserAgent'),
+          isTrue);
+      expect(player.contains('_loadMpvDefaultUserAgent()'), isTrue);
+    });
+
+    test('Android answers webViewUserAgent via the device channel', () {
+      expect(mainActivity.contains('"webViewUserAgent"'), isTrue);
+      expect(mainActivity.contains('WebSettings'), isTrue);
+      expect(mainActivity.contains('getDefaultUserAgent'), isTrue);
+    });
+
+    test('Dart exposes webViewUserAgent() on the same channel', () {
+      final osSrc = File('lib/utils/os_version.dart').readAsStringSync();
+      expect(osSrc, contains("invokeMethod<String>('webViewUserAgent')"));
+    });
+  });
+
   group('mpv opens the direct URL first, the bridge only as fallback', () {
     test('_mpvOpen picks the bridge only when it serves THIS source', () {
       expect(player.contains('_mpvHttpBridgeSource == src'), isTrue);
@@ -176,8 +280,8 @@ void main() {
     });
 
     test('VideoItem.httpHeaders are the source of the mpv properties', () {
-      expect(player.contains('buildMpvHttpHeaderOptions(video.httpHeaders)'),
-          isTrue);
+      expect(player.contains('buildMpvHttpHeaderOptions('), isTrue);
+      expect(player.contains('video.httpHeaders'), isTrue);
     });
 
     test('user-agent / referrer / http-header-fields are all set', () {

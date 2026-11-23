@@ -24,9 +24,63 @@ library;
 /// A browser-ish `User-Agent` used for the mpv engine's http requests.
 ///
 /// ffmpeg's own default (`Lavf/63.1.100`) is on plenty of CDN blocklists.
+/// On Android the preferred value is the device's REAL WebView UA
+/// (`WebSettings.getDefaultUserAgent`, via the `dreamplayer/device` channel -
+/// see [webViewUserAgent]); this constant is the fallback for when that is
+/// unavailable (iOS does not run mpv; tests; old WebView). Mpv-infinity uses
+/// the same idea: the installed browser's UA beats a hardcoded one.
 const String mpvBrowserUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+/// The `Referer` a browser would send for [url]: just the origin
+/// (`scheme://host[:port]/`). Many streaming hosts (private trackers,
+/// some CDNs) require a Referer matching their own domain - browsers send it
+/// automatically, ffmpeg does not. Mpv-infinity does exactly this
+/// (`HttpUtils.extractRefererDomain`); without it URL streams that open in a
+/// browser still fail on the mpv engine. Returns null for non-http(s) URLs.
+String? originRefererFor(String? url) {
+  if (url == null || url.isEmpty) return null;
+  final uri = Uri.tryParse(url);
+  if (uri == null) return null;
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme != 'http' && scheme != 'https') return null;
+  final host = uri.host;
+  if (host.isEmpty) return null;
+  final port = uri.hasPort ? uri.port : -1;
+  final standard = (scheme == 'http' && port == 80) ||
+      (scheme == 'https' && port == 443);
+  return port > 0 && !standard
+      ? '$scheme://$host:$port/'
+      : '$scheme://$host/';
+}
+
+/// The headers to send for [sourceUrl]: [headers] plus the defaults a
+/// browser would add - `User-Agent: [defaultUserAgent]` and
+/// `Referer: origin of [sourceUrl]` - when the source does not supply them.
+/// Both the direct mpv open AND the loopback bridge use this map, so the
+/// two paths send identical requests.
+Map<String, String> effectiveMpvHttpHeaders(
+  Map<String, String> headers,
+  String sourceUrl, {
+  String defaultUserAgent = mpvBrowserUserAgent,
+}) {
+  final out = <String, String>{};
+  for (final e in headers.entries) {
+    final name = e.key.trim();
+    final value = e.value.trim();
+    if (name.isEmpty || value.isEmpty) continue;
+    out[name] = value;
+  }
+  bool has(String name) =>
+      out.keys.any((k) => k.toLowerCase() == name.toLowerCase());
+  if (!has('user-agent')) out['User-Agent'] = defaultUserAgent;
+  if (!has('referer') && !has('referrer')) {
+    final ref = originRefererFor(sourceUrl);
+    if (ref != null) out['Referer'] = ref;
+  }
+  return out;
+}
 
 /// The mpv properties that carry a remote source's HTTP headers.
 class MpvHttpHeaderOptions {
@@ -65,12 +119,20 @@ class MpvHttpHeaderOptions {
 MpvHttpHeaderOptions buildMpvHttpHeaderOptions(
   Map<String, String> headers, {
   String defaultUserAgent = mpvBrowserUserAgent,
+  String sourceUrl = '',
 }) {
+  // Fill in the browser defaults (UA + origin Referer) first, so a source
+  // that supplies its own still wins and the dedicated-property split below
+  // sees the final values.
+  final effective = sourceUrl.isEmpty
+      ? headers
+      : effectiveMpvHttpHeaders(headers, sourceUrl,
+          defaultUserAgent: defaultUserAgent);
   String? userAgent;
   String? referrer;
   final rest = <String>[];
 
-  for (final entry in headers.entries) {
+  for (final entry in effective.entries) {
     final name = entry.key.trim();
     final value = entry.value.trim();
     if (name.isEmpty || value.isEmpty) continue;

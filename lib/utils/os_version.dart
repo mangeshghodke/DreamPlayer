@@ -31,3 +31,26 @@ Future<bool> isIos26OrLater() async {
   final major = await osMajorVersion();
   return major != null && major >= 26;
 }
+
+String? _cachedWebViewUa;
+
+/// The installed Android WebView's real User-Agent, via the
+/// `dreamplayer/device` channel. Used as the default `User-Agent` for the
+/// mpv engine's http requests - a device-browser UA is accepted by CDNs that
+/// blocklist ffmpeg's `Lavf/…` (and by ones that check the UA version).
+/// Cached after the first call; null when unavailable (non-Android, or the
+/// channel answer failed) - callers fall back to [mpvBrowserUserAgent].
+Future<String?> webViewUserAgent() async {
+  if (_cachedWebViewUa != null) return _cachedWebViewUa;
+  if (defaultTargetPlatform != TargetPlatform.android) return null;
+  try {
+    final ua = await _deviceChannel.invokeMethod<String>('webViewUserAgent');
+    if (ua != null && ua.isNotEmpty) {
+      _cachedWebViewUa = ua;
+      return ua;
+    }
+  } catch (_) {
+    // notImplemented on iOS / older builds - fall through
+  }
+  return null;
+}

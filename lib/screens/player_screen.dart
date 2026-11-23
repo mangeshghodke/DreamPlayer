@@ -62,6 +62,7 @@ import '../utils/mpv_audio_select.dart';
 import '../utils/mpv_hdr_mode.dart';
 import '../utils/mpv_interpolation.dart';
 import '../utils/mpv_http_headers.dart';
+import '../utils/os_version.dart';
 import '../utils/mpv_volume.dart';
 import '../utils/subtitle_text_style.dart';
 import 'download_screen.dart';
@@ -1498,6 +1499,9 @@ Future<void> _offerVc1Mpv() async {
   /// software fallback.
   Future<void> _startMpvPrimary() async {
     if (_inTests) return;
+    // Load the device WebView UA once - used as the default User-Agent for
+    // every http(s) open on this engine (direct + bridge).
+    unawaited(_loadMpvDefaultUserAgent());
     try {
       final subs = await _resolveExternalSubtitles(_current);
       if (subs.isNotEmpty) _current = _current.withExternalSubtitles(subs);
@@ -1545,6 +1549,7 @@ Future<void> _offerVc1Mpv() async {
     // codec/error paths. Belt-and-braces: never instantiate libmpv on iOS.
     if (_mpvActive || _inTests) return;
     if (!Platform.isAndroid) return;
+    unawaited(_loadMpvDefaultUserAgent());
     // Always re-read the MPV-engine audio pick here: auto/manual fallback
     // after a Media3 open leaves `_pendingAudioTrackRestore` as a Media3
     // int, which the MPV tracks listener ignores.
@@ -3501,7 +3506,14 @@ Future<void> _offerVc1Mpv() async {
     if (!_isHttpSource(src)) return;
     final platform = player.platform;
     if (platform is! NativePlayer) return;
-    final opts = buildMpvHttpHeaderOptions(video.httpHeaders);
+    // Browser defaults (WebView UA + origin Referer) are filled in by
+    // buildMpvHttpHeaderOptions via effectiveMpvHttpHeaders - see
+    // lib/utils/mpv_http_headers.dart.
+    final opts = buildMpvHttpHeaderOptions(
+      video.httpHeaders,
+      defaultUserAgent: _mpvDefaultUserAgent,
+      sourceUrl: src,
+    );
     try {
       await platform.setProperty('user-agent', opts.userAgent);
       if (opts.referrer != null) {
@@ -3514,6 +3526,19 @@ Future<void> _offerVc1Mpv() async {
           'mpv: http headers applied (user-agent set, ${opts.headerFields ?? ''})');
     } catch (e) {
       debugPrint('mpv: http headers unavailable: $e');
+    }
+  }
+
+  /// Default UA for the mpv engine's http requests: the device's real WebView
+  /// UA when available (CDNs accept the actual browser identity; ffmpeg's
+  /// `Lavf/…` is blocklisted), else the hardcoded browser UA. Loaded once.
+  String _mpvDefaultUserAgent = mpvBrowserUserAgent;
+
+  Future<void> _loadMpvDefaultUserAgent() async {
+    final ua = await webViewUserAgent();
+    if (ua != null && ua.isNotEmpty) {
+      _mpvDefaultUserAgent = ua;
+      debugPrint('mpv: default user-agent = WebView UA');
     }
   }
 
@@ -3568,9 +3593,17 @@ Future<void> _offerVc1Mpv() async {
   Future<void> _startMpvHttpBridge(
       VideoItem video, int pos, String originalError) async {
     final src = _mpvSourceFor(video);
+    // The bridge must send the SAME request the direct open would have:
+    // source headers plus the browser defaults (WebView UA + origin
+    // Referer) - effectiveMpvHttpHeaders fills those in.
+    final headers = effectiveMpvHttpHeaders(
+      video.httpHeaders,
+      src,
+      defaultUserAgent: _mpvDefaultUserAgent,
+    );
     final bridged = await HttpStreamProxyClient.instance.start(
       url: src,
-      headers: video.httpHeaders,
+      headers: headers,
       allowSelfSigned: video.allowSelfSigned,
     );
     if (!mounted) return;

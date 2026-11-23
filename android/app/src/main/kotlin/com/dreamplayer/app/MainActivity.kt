@@ -199,6 +199,22 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "isTv" -> result.success(isTvBox(this))
                 "osMajorVersion" -> result.success(Build.VERSION.SDK_INT)
+                // The installed WebView's real User-Agent, for the mpv
+                // engine's http requests (a device-browser UA beats a
+                // hardcoded one; ffmpeg's own "Lavf/…" UA is blocklisted by
+                // many CDNs). Must not run on the main thread on older
+                // Androids, so resolve it on a worker.
+                "webViewUserAgent" -> {
+                    Thread {
+                        try {
+                            val ua = android.webkit.WebSettings
+                                .getDefaultUserAgent(this)
+                            result.success(if (ua.isNullOrBlank()) null else ua)
+                        } catch (e: Exception) {
+                            result.success(null)
+                        }
+                    }.start()
+                }
                 // Settings "App crashed?" on Android: dump this app's own
                 // logcat (no READ_LOGS needed since API 16 - logcat run from
                 // the app uid only sees the app's lines) into the Documents
