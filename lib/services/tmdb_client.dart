@@ -4429,12 +4429,44 @@ static int? _trailingPartNumber(String folderName) {
         episodeDetailsFor(identityKey, seasonNumber, ep.episodeNumber)
             .whenComplete(() {
           _prefetchStills(identityKey, seasonNumber, ep.episodeNumber);
+          // Issue #66 follow-up (2026-11-24): the season sync must also
+          // pre-download the IMAGE bytes - the whole stills gallery and the
+          // guest-star portraits - not just the first still the row shows,
+          // so the episode view renders completely offline.
+          _prefetchEpisodeGalleryImages(identityKey, seasonNumber, ep.episodeNumber);
           inFlight--;
           drain();
         });
       }
     }
     drain();
+  }
+
+  /// Pre-downloads every still of the episode's gallery plus the guest-star
+  /// portraits, at the EXACT widths the details screen renders (the image
+  /// cache key is the whole URL, so a width mismatch would prefetch a file
+  /// nothing ever asks for): `stillUrls()` = w500 gallery, `profileUrl()` =
+  /// w185 portraits. Fire-and-forget; [ImageCacheService] dedupes and caps
+  /// concurrency itself.
+  void _prefetchEpisodeGalleryImages(
+    String identityKey,
+    int seasonNumber,
+    int episodeNumber,
+  ) {
+    if (!ImageCacheService.instance.enabled) return;
+    final episode =
+        _cache[identityKey]?.seasons[seasonNumber]?.episode(episodeNumber);
+    if (episode == null) return;
+    final stillUrls = episode.stillUrls();
+    final profileUrls = episode.guestStars
+        .map((g) => g.profileUrl())
+        .whereType<String>()
+        .toList();
+    if (stillUrls.isEmpty && profileUrls.isEmpty) return;
+    ImageCacheService.instance.prefetchImages(
+      stillUrls: stillUrls,
+      profileUrls: profileUrls,
+    );
   }
 
   /// Fetches + caches the full details (guest cast, all stills) of one episode

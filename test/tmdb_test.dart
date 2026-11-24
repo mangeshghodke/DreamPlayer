@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1090,6 +1091,50 @@ void main() {
         ParsedFileName.parse('Home Alone 2 - Lost in New York (1992).mkv').title,
         'Home Alone 2 Lost in New York',
       );
+    });
+  });
+
+  group('issue #66 follow-up: season sync prefetches gallery + guest-star IMAGES', () {
+    // Reporter 2026-11-24: metadata (names/stills slots) cached fine, but the
+    // image BYTES for guest_stars and stills No.2-5 were not, so offline they
+    // rendered as initial avatars / blank placeholders.
+    final root = Directory.current.path;
+    String read(String p) => File('$root/$p').readAsStringSync();
+
+    test('season prefetch also calls the gallery image prefetch per episode', () {
+      final tmd = read('lib/services/tmdb_client.dart');
+      final at = tmd.indexOf('void _prefetchSeasonEpisodeMetadata(');
+      expect(at, greaterThan(-1));
+      final block = tmd.substring(at, at + 2200);
+      expect(block, contains('_prefetchStills('));
+      expect(block, contains('_prefetchEpisodeGalleryImages('));
+    });
+
+    test('gallery prefetch downloads ALL stills + guest-star portraits at the rendered widths', () {
+      final tmd = read('lib/services/tmdb_client.dart');
+      final at = tmd.indexOf('void _prefetchEpisodeGalleryImages(');
+      expect(at, greaterThan(-1));
+      final block = tmd.substring(at, at + 1200);
+      // whole gallery, not just the row thumb:
+      expect(block, contains('episode.stillUrls()'));
+      // guest star portraits:
+      expect(block, contains('guestStars'));
+      expect(block, contains('g.profileUrl()'));
+      expect(block, contains('prefetchImages('));
+      expect(block, contains('stillUrls: stillUrls'));
+      expect(block, contains('profileUrls: profileUrls'));
+      // widths must match the details screen - cache key is the whole URL
+      expect(block, isNot(contains('width:'))); // uses the model defaults
+    });
+
+    test('details screen renders exactly those default-width URLs', () {
+      final details = read('lib/screens/tmd_details_screen.dart');
+      expect(details, contains('singleEpisode.stillUrls()'));
+      expect(details, contains('member.profileUrl()'));
+      final tmd = read('lib/services/tmdb_client.dart');
+      // TmdEpisode.stillUrls default w500, TmdCastMember.profileUrl default w185
+      expect(tmd, contains('List<String> stillUrls({int width = 500})'));
+      expect(tmd, contains('String? profileUrl({int width = 185})'));
     });
   });
 }

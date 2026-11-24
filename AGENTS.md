@@ -156,12 +156,19 @@ A video player app supporting:
   the ⋮ sheet rows stay available while it is hidden. See the roadmap section
   for the two guards that stop it re-arming every tick.
 - **All episode stills + guest stars prefetched during the season sync (issue
-  #66).** `seasonFor` used to cache each episode's `still_path` only, so the
-  stills gallery and guest stars were fetched lazily per episode open. It now
-  calls `_prefetchSeasonEpisodeMetadata` (throttled to `maxStillsInFlight` = 3,
+  #66, image bytes added 2026-11-24 after the follow-up report).** `seasonFor`
+  used to cache each episode's `still_path` only, so the stills gallery and
+  guest stars were fetched lazily per episode open. It now calls
+  `_prefetchSeasonEpisodeMetadata` (throttled to `maxStillsInFlight` = 3,
   reusing `episodeDetailsFor` + `_prefetchStills`) so everything is cached for
-  offline use. Guest stars remain displayed only inside the individual episode
-  view; the season list layout is unchanged.
+  offline use, and each enriched episode additionally goes through
+  `_prefetchEpisodeGalleryImages`, which pre-downloads the WHOLE stills gallery
+  (`episode.stillUrls()`, w500) and every guest-star portrait
+  (`guestStars[].profileUrl()`, w185) - the exact default-width URLs the
+  details screen renders (the image cache key is the whole URL, so the widths
+  must match). The row path (`requestEpisodeStills`) still prefetches only the
+  first still. Guest stars remain displayed only inside the individual episode
+  view; the season list layout is unchanged. Pinned in `test/tmdb_test.dart`.
 - App **UI skeleton** done (library, player, settings; dark theme).
 - **iOS signed build + TestFlight upload working (2026-09-19)**: `ios.yml` workflow builds, signs, and uploads to App Store Connect via `flutter build ipa` + `ios/signing_setup.py`. Bundle ID: `com.dreamplayer.app`. First TestFlight build (0.4.7) uploaded successfully.
 - **HDR / codec on-screen display** done (Dolby Vision, HDR10+, HDR10, SDR; E-AC3, DTS-HD, TrueHD, AAC, ...).
