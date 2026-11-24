@@ -6,11 +6,16 @@
      output sink is a SurfaceTexture - verified on a OnePlus Pad 2 against
      mpv-infinity ("codec output transfer=3 (SDR (709))"). The SurfaceView
      path remains the default so native HDR/DV passthrough is untouched when
-     the setting is OFF. -->
+     the setting is OFF.
+     android:background=black is required because the activity window itself
+     is transparent (Fire TV fix) and setShutterBackgroundColor only paints
+     the inner shutter - without it the letterbox bars stay transparent and
+     the screen behind bleeds through (issue #67). -->
 <com.dreamplayer.app.ForcedAspectPlayerView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@android:color/black"
     app:surface_type="texture_view"
     app:use_controller="false" />

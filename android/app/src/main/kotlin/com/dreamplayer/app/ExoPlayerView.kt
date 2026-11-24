@@ -121,8 +121,15 @@ class ExoPlayerView(
                 "ExoPlayerView",
                 "hardware SDR tone-map ON: using TextureView-backed player view (issue #64)",
             )
-            return LayoutInflater.from(activity)
-                .inflate(R.layout.dream_texture_player_view, null) as ForcedAspectPlayerView
+            return (LayoutInflater.from(activity)
+                .inflate(R.layout.dream_texture_player_view, null) as ForcedAspectPlayerView)
+                // Issue #67: the window background is TRANSPARENT (Fire TV
+                // SurfaceView fix in MainActivity), and setShutterBackgroundColor
+                // only paints the inner shutter inside exo_content_frame - the
+                // letterbox area around a TextureView sink would otherwise stay
+                // transparent and the screen behind (e.g. the TMDB backdrop)
+                // bleeds through the black bars. Paint the outer PlayerView.
+                .apply { setBackgroundColor(android.graphics.Color.BLACK) }
         }
         return ForcedAspectPlayerView(activity)
     }

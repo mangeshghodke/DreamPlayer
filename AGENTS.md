@@ -954,6 +954,17 @@ A video player app supporting:
     `videoSurfaceView` uses are `as? SurfaceView`-guarded and become no-ops
     under TextureView. Setting OFF ⇒ plain SurfaceView ⇒ native HDR/DV
     passthrough untouched.
+  - **Issue #67 (2026-11-24, OnePlus Pad 2): letterbox bars transparent on the
+    TextureView path.** The activity window is transparent (Fire TV fix) and
+    `setShutterBackgroundColor(BLACK)` only paints the inner shutter inside
+    `exo_content_frame` - the area around a TextureView sink had no background,
+    so the details-screen backdrop bled through the bars on 2.39:1 movies.
+    Fix: `android:background="@android:color/black"` on
+    `res/layout/dream_texture_player_view.xml` AND
+    `setBackgroundColor(Color.BLACK)` on the inflated view in
+    `ExoPlayerView.createPlayerView` (parenthesized before `.apply` - a bare
+    `inflate(...) as T .apply{}` fails Kotlin type inference). Pinned in
+    `test/settings_hw_sdr_tonemap_test.dart`.
   - **Issue #64: never send the request to 8-bit AVC.** With an earlier
     "request whenever colorTransfer == null" rule, 8-bit x264 files froze to
     a grey picture ~3 s in while audio kept playing - Qualcomm logged

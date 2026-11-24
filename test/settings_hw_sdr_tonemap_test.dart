@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,5 +64,29 @@ void main() {
 
     expect(find.text(toneMapTitle(tester)), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  group('issue #67: TextureView path paints the letterbox bars black', () {
+    // The activity window is TRANSPARENT (Fire TV SurfaceView fix), and
+    // setShutterBackgroundColor only paints the inner shutter - without a
+    // background on the outer PlayerView, the letterbox bars around a
+    // TextureView sink stay transparent and the screen behind bleeds through.
+    test('the texture player-view layout has a black background', () {
+      final xml = File(
+        'android/app/src/main/res/layout/dream_texture_player_view.xml',
+      ).readAsStringSync();
+      expect(xml, contains('android:background="@android:color/black"'));
+      expect(xml, contains('app:surface_type="texture_view"'));
+    });
+
+    test('the inflated texture view also sets a black background in code', () {
+      final kt = File(
+        'android/app/src/main/kotlin/com/dreamplayer/app/ExoPlayerView.kt',
+      ).readAsStringSync();
+      final at = kt.indexOf('R.layout.dream_texture_player_view');
+      expect(at, greaterThan(-1));
+      final block = kt.substring(at, at + 900);
+      expect(block, contains('setBackgroundColor(android.graphics.Color.BLACK)'));
+    });
   });
 }
