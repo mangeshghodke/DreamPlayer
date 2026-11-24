@@ -461,6 +461,12 @@ class AppLocalizationsZh extends AppLocalizations {
       'Keep playing in a floating window when you leave the app';
 
   @override
+  String get settingsKeepScreenOn => '播放时保持屏幕常亮';
+
+  @override
+  String get settingsKeepScreenOnDesc => '播放器打开时屏幕不会自动锁定';
+
+  @override
   String get settingsDefaultEngine => '默认播放引擎';
 
   @override

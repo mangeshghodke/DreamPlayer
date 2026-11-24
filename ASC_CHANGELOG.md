@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.8 | 15 | 279 |
+| 0.5.8 | 15 | 449 |
 | 0.5.8 | 14 | 1672 |
 | 0.5.7 | 7 | 1446 |
 | 0.5.6 | 15 | 2607 |
@@ -35,6 +35,7 @@ it can be reproduced with a plain character count after any edit.
 
 New:
 • Music files now play too: `.m4a`, `.flac`, `.wav`, `.mp3`, `.aac`, `.ogg`, `.opus`, `.wma` and more open in the player from Files, a network share, the WiFi transfer page, or the share sheet. Dolby Atmos in an `.m4a` is passed through to your TV or soundbar untouched.
+• **"Keep screen on while playing"** (Settings → Player): the screen no longer auto-locks while the player is open - it used to follow the system's auto screen-off time.
 
 ---
 

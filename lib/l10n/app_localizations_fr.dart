@@ -464,6 +464,14 @@ class AppLocalizationsFr extends AppLocalizations {
       'Continuer la lecture dans une fenêtre flottante';
 
   @override
+  String get settingsKeepScreenOn =>
+      'Garder l\'écran allumé pendant la lecture';
+
+  @override
+  String get settingsKeepScreenOnDesc =>
+      'Empêche l\'écran de se verrouiller automatiquement pendant que le lecteur est ouvert';
+
+  @override
   String get settingsDefaultEngine => 'Moteur de lecture par défaut';
 
   @override

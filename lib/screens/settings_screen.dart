@@ -56,6 +56,7 @@ import '../widgets/tv_overscan.dart';
 import '../services/accent_store.dart';
 import '../services/layout_store.dart';
 import '../services/hide_spoilers_store.dart';
+import '../services/keep_screen_on_store.dart';
 import '../services/font_store.dart';
 import '../widgets/tv_tile.dart';
 import 'licenses_screen.dart';
@@ -78,6 +79,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _swipeGestures = true;
   bool _mpvNormalizeDownmix = false;
   bool _pipEnabled = true;
+
+  bool _keepScreenOn = true;
   bool _iosUpscale = false;
   bool _iosUpscaleSupported = false;
   SkipMode _skipMode = SkipMode.prompt;
@@ -141,6 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadPassthrough();
     _loadSwipeGestures();
     _loadPipEnabled();
+    _loadKeepScreenOn();
     _loadAutoPlayNext();
     _loadHwSdrToneMap();
     _loadDecoderMode();
@@ -1021,6 +1025,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {}
   }
 
+  Future<void> _loadKeepScreenOn() async {
+    try {
+      await KeepScreenOnStore.instance.load();
+      if (mounted) setState(() => _keepScreenOn = KeepScreenOnStore.instance.enabled);
+    } catch (_) {}
+  }
+
   Future<void> _loadAutoPlayNext() async {
     try {
       final enabled = await isAutoPlayNextEnabled();
@@ -1875,6 +1886,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
+                ),
+                // Added LAST in the Player section so the tiles above keep
+                // their positions (a layout test taps the engine row).
+                SwitchListTile(
+                  secondary: const Icon(Icons.stay_current_portrait),
+                  title: Text(AppLocalizations.of(context).settingsKeepScreenOn),
+                  subtitle: Text(
+                    AppLocalizations.of(context).settingsKeepScreenOnDesc,
+                  ),
+                  value: _keepScreenOn,
+                  onChanged: (value) async {
+                    await KeepScreenOnStore.instance.setEnabled(value);
+                    if (mounted) setState(() => _keepScreenOn = value);
+                  },
                 ),
               ],
             ),

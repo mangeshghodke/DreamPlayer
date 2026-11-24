@@ -21,6 +21,7 @@ import 'services/metadata_provider_adapter.dart';
 import 'services/r18dev_adapter.dart';
 import 'services/layout_store.dart';
 import 'services/hide_spoilers_store.dart';
+import 'services/keep_screen_on_store.dart';
 import 'services/font_store.dart';
 import 'services/libsmb2_object_code.dart';
 import 'utils/tv_helper.dart';
@@ -42,6 +43,7 @@ Future<void> main() async {
   unawaited(LayoutStore.load());
   unawaited(HideSpoilersStore.instance.load());
   unawaited(FontStore.load());
+  unawaited(KeepScreenOnStore.instance.load());
   // List / Grid choice for the network browsers.
   unawaited(BrowserViewStore.load());
   // Reconciles the launcher icon with the platform on every start and heals

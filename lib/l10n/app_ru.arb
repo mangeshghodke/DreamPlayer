@@ -591,6 +591,14 @@
   "@settingsPipDesc": {
     "description": "PiP subtitle"
   },
+  "settingsKeepScreenOn": "Не выключать экран во время воспроизведения",
+  "@settingsKeepScreenOn": {
+    "description": "Keep-screen-on toggle label"
+  },
+  "settingsKeepScreenOnDesc": "Экран не будет автоматически блокироваться, пока открыт плеер",
+  "@settingsKeepScreenOnDesc": {
+    "description": "Keep-screen-on subtitle"
+  },
   "settingsDefaultEngine": "Движок по умолчанию",
   "@settingsDefaultEngine": {
     "description": "Engine picker label"

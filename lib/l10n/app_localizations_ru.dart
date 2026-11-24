@@ -462,6 +462,14 @@ class AppLocalizationsRu extends AppLocalizations {
       'Keep playing in a floating window when you leave the app';
 
   @override
+  String get settingsKeepScreenOn =>
+      'Не выключать экран во время воспроизведения';
+
+  @override
+  String get settingsKeepScreenOnDesc =>
+      'Экран не будет автоматически блокироваться, пока открыт плеер';
+
+  @override
   String get settingsDefaultEngine => 'Движок по умолчанию';
 
   @override

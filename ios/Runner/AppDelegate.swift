@@ -108,5 +108,22 @@ import Network
         result(FlutterMethodNotImplemented)
       }
     }
+
+    // Engine-agnostic OS controls. `setKeepScreenOn` drives the idle timer:
+    // the player screen sets it from the `dreamplayer.keepScreenOn` pref on
+    // open and clears it on dispose (AvPlayerView also honors the pref at
+    // open() time - this channel is for live changes and as the safe path).
+    FlutterMethodChannel(name: "dreamplayer/system", binaryMessenger: messenger).setMethodCallHandler { call, result in
+      switch call.method {
+      case "setKeepScreenOn":
+        let enabled = (call.arguments as? [String: Any])?["enabled"] as? Bool ?? false
+        DispatchQueue.main.async {
+          UIApplication.shared.isIdleTimerDisabled = enabled
+        }
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 }

@@ -75,6 +75,20 @@ class SystemControls {
     }
   }
 
+  /// Keeps the display awake (Android: `FLAG_KEEP_SCREEN_ON` on the activity
+  /// window; iOS: `isIdleTimerDisabled`) or lets it auto-lock. The player
+  /// screen calls this with the `dreamplayer.keepScreenOn` setting on open
+  /// and with `false` on dispose. Setting the flag on the ACTIVITY window
+  /// (not a platform view) is what makes it reliable in hybrid composition -
+  /// a platform view's own window flag does not always reach the screen.
+  Future<void> setKeepScreenOn(bool enabled) async {
+    try {
+      await _channel.invokeMethod<void>('setKeepScreenOn', {'enabled': enabled});
+    } on Exception {
+      // Channel absent - nothing to do.
+    }
+  }
+
   Future<String> getSpatialAudioStatus({
     required int channels,
     required int sampleRate,

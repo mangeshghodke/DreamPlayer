@@ -460,6 +460,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPipDesc => 'Keep playing in a floating window';
 
   @override
+  String get settingsKeepScreenOn => 'Keep screen on while playing';
+
+  @override
+  String get settingsKeepScreenOnDesc =>
+      'Prevents the screen from auto-locking while the player is open';
+
+  @override
   String get settingsDefaultEngine => 'Default playback engine';
 
   @override

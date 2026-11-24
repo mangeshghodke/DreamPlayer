@@ -591,6 +591,14 @@
   "@settingsPipDesc": {
     "description": "PiP subtitle"
   },
+  "settingsKeepScreenOn": "Mantener la pantalla encendida al reproducir",
+  "@settingsKeepScreenOn": {
+    "description": "Keep-screen-on toggle label"
+  },
+  "settingsKeepScreenOnDesc": "Evita que la pantalla se bloquee automáticamente mientras el reproductor está abierto",
+  "@settingsKeepScreenOnDesc": {
+    "description": "Keep-screen-on subtitle"
+  },
   "settingsDefaultEngine": "Motor de reproducción predeterminado",
   "@settingsDefaultEngine": {
     "description": "Engine picker label"

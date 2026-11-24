@@ -1424,7 +1424,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         // Play audio even with the mute switch on.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
-        UIApplication.shared.isIdleTimerDisabled = true
+        // Keep the screen awake while playing - unless the user turned
+        // "Keep screen on" off in Settings → Player. The pref is read from
+        // UserDefaults directly (shared_preferences writes flutter.-prefixed
+        // keys there); default ON when unset.
+        let keepOn = UserDefaults.standard.object(forKey: "flutter.dreamplayer.keepScreenOn") as? Bool ?? true
+        UIApplication.shared.isIdleTimerDisabled = keepOn
 
          // Reset per-open state.
          // The subtitle handoff latch: a fresh load starts inline, so release

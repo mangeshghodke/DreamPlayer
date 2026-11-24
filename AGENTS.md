@@ -25,6 +25,20 @@ A video player app supporting:
 - **#10 hide spoilers DONE (2026-11-19)**: unwatched episodes' artwork is
   blurred (eye-off icon) and their overview + stills gallery are withheld
   until watched; Settings → Appearance → Hide spoilers tile; default off.
+- **"Keep screen on while playing" fixed (2026-11-24, user report: "screen
+  stay awake is not working, it follows auto screen off" on 0.5.7/0.5.8)**.
+  Root cause: only the Media3 platform view set `keepScreenOn`, and in hybrid
+  composition a platform view's own window flag does not reliably keep the
+  physical screen on; `MpvSurfaceView` set nothing. Fix: the player screen
+  now calls `setKeepScreenOn` on the `dreamplayer/system` channel at open
+  (and `false` in `dispose()`), which sets `FLAG_KEEP_SCREEN_ON` on the
+  ACTIVITY window in `MainActivity.kt` (Android) and `isIdleTimerDisabled`
+  in `AppDelegate.swift` (iOS; `AvPlayerView.open()` also reads the pref
+  directly). New Settings → Player → "Keep screen on while playing" toggle,
+  default ON (`KeepScreenOnStore`, pref `dreamplayer.keepScreenOn`, localized
+  in all 5 ARB files; iOS reads it as `flutter.dreamplayer.keepScreenOn`).
+  `WAKE_LOCK` was already declared. Pinned by `test/keep_screen_on_test.dart`
+  (8 tests: store default/persist + source-reading wiring on both platforms).
 - **Audio file playback (2026-11-23, user request "have bunch of .m4a .flac
   .wav files - .m4a is Atmos music")**: audio extensions (`.m4a .flac .wav
   .mp3 .aac .ogg .oga .opus .wma .aiff .aif .mka .ape .alac .caf`) are now

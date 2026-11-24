@@ -453,6 +453,14 @@
   "@settingsPipDesc": {
     "description": "PiP subtitle"
   },
+  "settingsKeepScreenOn": "Garder l'écran allumé pendant la lecture",
+  "@settingsKeepScreenOn": {
+    "description": "Keep-screen-on toggle label"
+  },
+  "settingsKeepScreenOnDesc": "Empêche l'écran de se verrouiller automatiquement pendant que le lecteur est ouvert",
+  "@settingsKeepScreenOnDesc": {
+    "description": "Keep-screen-on subtitle"
+  },
   "@settingsDefaultEngine": {
     "description": "Default playback engine setting"
   },

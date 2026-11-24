@@ -599,6 +599,14 @@
   "@settingsPipDesc": {
     "description": "PiP subtitle"
   },
+  "settingsKeepScreenOn": "Keep screen on while playing",
+  "@settingsKeepScreenOn": {
+    "description": "Keep-screen-on toggle label"
+  },
+  "settingsKeepScreenOnDesc": "Prevents the screen from auto-locking while the player is open",
+  "@settingsKeepScreenOnDesc": {
+    "description": "Keep-screen-on subtitle"
+  },
   "settingsDefaultEngine": "Default playback engine",
   "@settingsDefaultEngine": {
     "description": "Default playback engine setting"

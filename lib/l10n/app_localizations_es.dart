@@ -462,6 +462,14 @@ class AppLocalizationsEs extends AppLocalizations {
       'Keep playing in a floating window when you leave the app';
 
   @override
+  String get settingsKeepScreenOn =>
+      'Mantener la pantalla encendida al reproducir';
+
+  @override
+  String get settingsKeepScreenOnDesc =>
+      'Evita que la pantalla se bloquee automáticamente mientras el reproductor está abierto';
+
+  @override
   String get settingsDefaultEngine => 'Motor de reproducción predeterminado';
 
   @override

@@ -68,6 +68,7 @@ import '../utils/subtitle_text_style.dart';
 import 'download_screen.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
+import '../services/keep_screen_on_store.dart';
 import '../services/system_controls.dart';
 import 'subtitle_settings_screen.dart';
 import 'opensubtitles_sheet.dart';
@@ -678,6 +679,14 @@ class _PlayerScreenState extends State<PlayerScreen>
       _init();
       // Picture profiles are shared by the MPV and Media3 panels.
       unawaited(PictureProfileStore.instance.load());
+      // Keep the display awake while the player is open (user report
+      // 2026-11-24: the screen followed auto-off on 0.5.7/0.5.8). Set on the
+      // ACTIVITY window via the system channel - a platform view's own
+      // keepScreenOn does not reliably reach the screen in hybrid
+      // composition, and the MPV surface view had none at all. Cleared in
+      // dispose().
+      unawaited(SystemControls.instance
+          .setKeepScreenOn(KeepScreenOnStore.instance.enabled));
     }
   }
 
@@ -5101,6 +5110,9 @@ Future<void> _offerVc1Mpv() async {
         unawaited(SystemControls.instance.setBrightness(-1));
       }
     }
+    // Let the screen auto-lock again now that the player is closed (the
+    // inverse of the setKeepScreenOn call in initState).
+    unawaited(SystemControls.instance.setKeepScreenOn(false));
     _mpvBrightness = 1.0;
     _exoSub?.cancel();
     _exo?.dispose();

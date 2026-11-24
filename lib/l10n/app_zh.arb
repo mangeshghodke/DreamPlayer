@@ -591,6 +591,14 @@
   "@settingsPipDesc": {
     "description": "PiP subtitle"
   },
+  "settingsKeepScreenOn": "播放时保持屏幕常亮",
+  "@settingsKeepScreenOn": {
+    "description": "Keep-screen-on toggle label"
+  },
+  "settingsKeepScreenOnDesc": "播放器打开时屏幕不会自动锁定",
+  "@settingsKeepScreenOnDesc": {
+    "description": "Keep-screen-on subtitle"
+  },
   "settingsDefaultEngine": "默认播放引擎",
   "@settingsDefaultEngine": {
     "description": "Engine picker label"

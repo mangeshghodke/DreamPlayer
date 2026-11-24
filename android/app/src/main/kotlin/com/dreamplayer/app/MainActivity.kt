@@ -289,6 +289,15 @@ class MainActivity : FlutterActivity() {
                         val curVol = am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
                         result.success(if (maxVol > 0f) curVol / maxVol else 1f)
                     }
+                    "setKeepScreenOn" -> {
+                        val enabled = call.argument<Boolean>("enabled") ?: false
+                        if (enabled) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        } else {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        }
+                        result.success(null)
+                    }
                     "getSpatialAudioStatus" -> {
                         val channels = call.argument<Number>("channels")?.toInt() ?: 0
                         val sampleRate = call.argument<Number>("sampleRate")?.toInt() ?: 0

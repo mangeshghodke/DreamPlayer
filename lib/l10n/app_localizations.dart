@@ -980,6 +980,18 @@ abstract class AppLocalizations {
   /// **'Keep playing in a floating window'**
   String get settingsPipDesc;
 
+  /// Keep-screen-on toggle label
+  ///
+  /// In en, this message translates to:
+  /// **'Keep screen on while playing'**
+  String get settingsKeepScreenOn;
+
+  /// Keep-screen-on subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Prevents the screen from auto-locking while the player is open'**
+  String get settingsKeepScreenOnDesc;
+
   /// Default playback engine setting
   ///
   /// In en, this message translates to:
