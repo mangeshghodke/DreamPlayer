@@ -475,12 +475,26 @@ final class MediaProbe: NSObject {
         } catch {
         }
 
+        // Embedded tag text (title/artist/album) - shown under the vinyl disc
+        // for audio-only files (user request 2026-11-24).
+        if let items = try? await asset.load(.commonMetadata) {
+            for item in items {
+                guard let key = item.commonKey else { continue }
+                let value = (try? await item.load(.stringValue)) ?? (item.value as? String)
+                guard let value, !value.isEmpty else { continue }
+                switch key {
+                case .commonKeyTitle: out["audioTitle"] = value
+                case .commonKeyArtist: out["audioArtist"] = value
+                case .commonKeyAlbumName: out["audioAlbum"] = value
+                default: break
+                }
+            }
+        }
         do {
             let tracks = try await asset.load(.tracks)
             for track in tracks {
                 let mediaType = track.mediaType
-                if mediaType == .video {
-                    let dim = track.naturalSize.applying(track.preferredTransform)
+                if mediaType == .video {                    let dim = track.naturalSize.applying(track.preferredTransform)
                     if !out.keys.contains("width") { out["width"] = Int(dim.width) }
                     if !out.keys.contains("height") { out["height"] = Int(dim.height) }
                     if let desc = track.formatDescriptions.first {

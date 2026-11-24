@@ -9077,69 +9077,73 @@ if (mounted) setState(_applySwipeValue);
         // surface with a rotating vinyl disc + the file's format metadata
         // (user request 2026-11-24). Drawn ON TOP of the platform view; the
         // view stays mounted underneath so engine lifecycle is untouched.
+        // Layout mirrors Mpv-infinity's audio screen: format BADGES at the
+        // TOP (under the header), disc in the center, song title/artist
+        // BELOW the disc.
         if (_isAudioOnly && _error == null)
           Positioned.fill(
             child: IgnorePointer(
               child: ColoredBox(
                 color: colorScheme.surface,
-                child: Center(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final discSize =
-                          (math.min(constraints.maxWidth, constraints.maxHeight) *
-                                  0.52)
-                              .clamp(160.0, 320.0);
-                      final probe = _audioProbe;
-                      final summary = audioFormatSummary(
-                        mimeOrCodec: probe?.audioMime ?? _liveAudioCodec,
-                        sampleRate: probe?.audioSampleRate,
-                        bits: probe?.audioBits,
-                        channels: probe?.audioChannels,
-                        bitrate: probe?.audioBitrate ?? probe?.bitrate,
-                      );
-                      final badges = audioQualityBadges(
-                        mimeOrCodec: probe?.audioMime ?? _liveAudioCodec,
-                        sampleRate: probe?.audioSampleRate,
-                        bits: probe?.audioBits,
-                      );
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          VinylDisc(
-                            spinning: _playing && !_buffering,
-                            artBytes: _audioArt,
-                            size: discSize,
-                          ),
-                          if (summary.isNotEmpty) ...[
-                            const SizedBox(height: 20),
-                            Text(
-                              summary,
-                              style: TextStyle(
-                                color: colorScheme.onSurfaceVariant,
-                                fontSize: 14,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                          if (badges.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Wrap(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final discSize =
+                        (math.min(constraints.maxWidth, constraints.maxHeight) *
+                                0.46)
+                            .clamp(150.0, 300.0);
+                    final probe = _audioProbe;
+                    final codecMime = probe?.audioMime ?? _liveAudioCodec;
+                    // Format badges on TOP: codec, kHz, bit depth, channels,
+                    // bitrate, then Lossless/Hi-Res (user request: "bit rate,
+                    // channel, kilohertz as badges only, on top of screen").
+                    final badgeLabels = audioBadgeLabels(
+                      mimeOrCodec: codecMime,
+                      sampleRate: probe?.audioSampleRate,
+                      bits: probe?.audioBits,
+                      channels: probe?.audioChannels,
+                      bitrate: probe?.audioBitrate ?? probe?.bitrate,
+                    );
+                    final songTitle = (probe?.audioTitle?.isNotEmpty == true)
+                        ? probe!.audioTitle!
+                        : _displayTitle;
+                    final songSub = [
+                      if (probe?.audioArtist?.isNotEmpty == true)
+                        probe!.audioArtist!,
+                      if (probe?.audioAlbum?.isNotEmpty == true)
+                        probe!.audioAlbum!,
+                    ].join(' · ');
+                    return Stack(
+                      children: [
+                        // Badges row at the top, clear of the player top bar.
+                        if (badgeLabels.isNotEmpty)
+                          Positioned(
+                            top: MediaQuery.paddingOf(context).top +
+                                kToolbarHeight +
+                                8,
+                            left: 12,
+                            right: 12,
+                            child: Wrap(
                               spacing: 6,
+                              runSpacing: 6,
                               alignment: WrapAlignment.center,
                               children: [
-                                for (final b in badges)
+                                for (final b in badgeLabels)
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: b == 'Hi-Res'
                                           ? Colors.amber.withValues(alpha: 0.18)
-                                          : colorScheme.primaryContainer,
+                                          : b == 'Lossless'
+                                              ? colorScheme.secondaryContainer
+                                              : colorScheme.primaryContainer,
                                       borderRadius: BorderRadius.circular(999),
                                       border: Border.all(
                                         color: b == 'Hi-Res'
                                             ? Colors.amber
-                                            : colorScheme.primary,
+                                            : b == 'Lossless'
+                                                ? colorScheme.secondary
+                                                : colorScheme.primary,
                                         width: 1,
                                       ),
                                     ),
@@ -9148,7 +9152,9 @@ if (mounted) setState(_applySwipeValue);
                                       style: TextStyle(
                                         color: b == 'Hi-Res'
                                             ? Colors.amber
-                                            : colorScheme.onPrimaryContainer,
+                                            : b == 'Lossless'
+                                                ? colorScheme.onSecondaryContainer
+                                                : colorScheme.onPrimaryContainer,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -9156,11 +9162,56 @@ if (mounted) setState(_applySwipeValue);
                                   ),
                               ],
                             ),
-                          ],
-                        ],
-                      );
-                    },
-                  ),
+                          ),
+                        // Disc center + song name below it.
+                        Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              VinylDisc(
+                                spinning: _playing && !_buffering,
+                                artBytes: _audioArt,
+                                size: discSize,
+                              ),
+                              const SizedBox(height: 20),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 24),
+                                child: Text(
+                                  songTitle,
+                                  style: TextStyle(
+                                    color: colorScheme.onSurface,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              if (songSub.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 24),
+                                  child: Text(
+                                    songSub,
+                                    style: TextStyle(
+                                      color: colorScheme.onSurfaceVariant,
+                                      fontSize: 14,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),

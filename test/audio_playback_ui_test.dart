@@ -99,6 +99,37 @@ void main() {
     });
   });
 
+  group('audioBadgeLabels (top-of-screen chips)', () {
+    test('hi-res flac: codec, kHz, bit depth, channels, kbps, badges', () {
+      expect(
+        audioBadgeLabels(
+          mimeOrCodec: 'audio/flac',
+          sampleRate: 96000,
+          bits: 24,
+          channels: 2,
+          bitrate: 1411000,
+        ),
+        ['FLAC', '96 kHz', '24-bit', '2 ch', '1411 kbps', 'Lossless', 'Hi-Res'],
+      );
+    });
+
+    test('mp3: MP3, 44.1 kHz, 2 ch, 320 kbps - no quality badges', () {
+      expect(
+        audioBadgeLabels(
+          mimeOrCodec: 'audio/mpeg',
+          sampleRate: 44100,
+          channels: 2,
+          bitrate: 320000,
+        ),
+        ['MP3', '44.1 kHz', '2 ch', '320 kbps'],
+      );
+    });
+
+    test('empty info yields no labels', () {
+      expect(audioBadgeLabels(mimeOrCodec: null), isEmpty);
+    });
+  });
+
   group('player wiring (source-reading)', () {
     final player = File('lib/screens/player_screen.dart').readAsStringSync();
     final probeKt = File(
@@ -106,6 +137,43 @@ void main() {
         .readAsStringSync();
     final probeSwift = File('ios/Runner/MediaProbe.swift').readAsStringSync();
     final probeDart = File('lib/services/media_probe.dart').readAsStringSync();
+
+    test('format badges are at the TOP of the audio overlay, not below the disc', () {
+      final overlayAt = player.indexOf('if (_isAudioOnly && _error == null)');
+      expect(overlayAt, greaterThan(-1));
+      final overlay = player.substring(overlayAt, overlayAt + 6500);
+      // Badges rendered via audioBadgeLabels in a top-anchored Positioned...
+      final badgesAt = overlay.indexOf('audioBadgeLabels(');
+      final topAt = overlay.indexOf('top: MediaQuery.paddingOf(context).top');
+      final discAt = overlay.indexOf('VinylDisc(');
+      expect(badgesAt, greaterThan(-1));
+      expect(topAt, greaterThan(-1));
+      // ...both BEFORE the centered disc + title column.
+      expect(discAt, greaterThan(badgesAt));
+      expect(discAt, greaterThan(topAt));
+      // Song title + artist/album below the disc (Mpv-infinity pattern).
+      expect(overlay, contains('songTitle'));
+      expect(overlay, contains('songSub'));
+      expect(overlay, contains('audioTitle'));
+      expect(overlay, contains('audioArtist'));
+    });
+
+    test('info sheet keeps the probed audio detail rows', () {
+      expect(player.contains("label: 'Sample rate'"), isTrue);
+      expect(player.contains("label: 'Bit depth'"), isTrue);
+      expect(player.contains("label: 'Bitrate'"), isTrue);
+      expect(player.contains('audioQualityBadges('), isTrue);
+    });
+
+    test('native probes expose embedded tag text (title/artist/album)', () {
+      for (final key in ['audioTitle', 'audioArtist', 'audioAlbum']) {
+        expect(probeKt, contains(key), reason: 'MediaProbe.kt missing $key');
+        expect(probeSwift, contains(key), reason: 'MediaProbe.swift missing $key');
+        expect(probeDart, contains(key), reason: 'media_probe.dart missing $key');
+      }
+      expect(probeKt, contains('METADATA_KEY_ARTIST'));
+      expect(probeSwift, contains('commonKeyArtist'));
+    });
 
     test('audio-only detection: extension seed + video-size event flips it', () {
       expect(player.contains('_hasVideoTrack = !isAudioFile(name)'), isTrue);
@@ -127,12 +195,12 @@ void main() {
       expect(player.contains('MediaProbe.instance.probe('), isTrue);
     });
 
-    test('metadata summary + badges shown under the disc and in the info sheet', () {
-      expect(player.contains('audioFormatSummary('), isTrue);
+    test('audio format helpers are wired into the player', () {
+      // audioFormatSummary is no longer on the overlay (badges moved to the
+      // top); it is still exercised by the unit tests above. The overlay uses
+      // audioBadgeLabels; the info sheet uses audioQualityBadges.
+      expect(player.contains('audioBadgeLabels('), isTrue);
       expect(player.contains('audioQualityBadges('), isTrue);
-      expect(player.contains("label: 'Sample rate'"), isTrue);
-      expect(player.contains("label: 'Bit depth'"), isTrue);
-      expect(player.contains("label: 'Bitrate'"), isTrue);
     });
 
     test('native probes expose sample rate / bit depth / track bitrate', () {

@@ -81,17 +81,22 @@ A video player app supporting:
   `lib/widgets/vinyl_disc.dart` - an `AnimationController` `RotationTransition`
   disc that spins only while `_playing && !_buffering`, using
   `ThumbnailStore.artFor(_current)` (embedded cover art) as the face, else a
-  painted vinyl (grooves/label/spindle via CustomPainter). Under the disc:
-  `audioFormatSummary(...)` = codec · kHz · bit-depth · ch · kbps, plus
-  `audioQualityBadges(...)` = Lossless (flac/alac/ape/wav/pcm/aiff) and Hi-Res
-  (lossless && (rate >= 96k || (bits >= 24 && rate >= 48k))). Data from a
+  painted vinyl (grooves/label/spindle via CustomPainter). Layout mirrors
+  Mpv-infinity's audio screen (badge pill at the TOP under the header, disc
+  center, title below): format info renders as BADGE CHIPS at the top of the
+  overlay via `audioBadgeLabels(...)` = codec, kHz, bit-depth, ch, kbps,
+  Lossless, Hi-Res (Hi-Res = lossless && (rate >= 96k || (bits >= 24 && rate >=
+  48k))); below the disc the SONG TITLE (embedded tag `audioTitle`, else the
+  display title) and artist/album (`audioArtist`/`audioAlbum`). Data from a
   one-shot native probe on open: `MediaProbe.kt`/`MediaProbe.swift` now report
   `audioSampleRate`, `audioBits` (`KEY_PCM_ENCODING`->bits on Android; ASBD
   `mSampleRate`/`mBitsPerChannel` on iOS; MKV parser reads SamplingFrequency
-  0xB5/BitDepth 0x6264), `audioBitrate` (`KEY_BIT_RATE` / `estimatedDataRate`).
-  Same rows added to the ⋮ "Video info" sheet. Pure helpers in
+  0xB5/BitDepth 0x6264), `audioBitrate` (`KEY_BIT_RATE` / `estimatedDataRate`),
+  plus embedded tag text `audioTitle`/`audioArtist`/`audioAlbum`
+  (MediaMetadataRetriever METADATA_KEY_* on Android, AVAsset commonMetadata
+  on iOS). Same rows added to the ⋮ "Video info" sheet. Pure helpers in
   `lib/utils/audio_format_info.dart`. Pinned by
-  `test/audio_playback_ui_test.dart` (20 tests).
+  `test/audio_playback_ui_test.dart` (26 tests).
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

@@ -96,6 +96,11 @@ class MediaProbe(private val context: Context) {
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)?.let { out["hasAudio"] = it }
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.let { out["bitrate"] = it }
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)?.let { out["mime"] = it }
+            // ID3/embedded tag text (title/artist/album) - shown under the
+            // vinyl disc for audio-only files (user request 2026-11-24).
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.let { if (it.isNotBlank()) out["audioTitle"] = it }
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)?.let { if (it.isNotBlank()) out["audioArtist"] = it }
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.let { if (it.isNotBlank()) out["audioAlbum"] = it }
         } catch (_: Exception) {
         } finally {
             try { retriever?.release() } catch (_: Exception) {}
@@ -177,6 +182,11 @@ class MediaProbe(private val context: Context) {
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)?.let { out["hasAudio"] = it }
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.let { out["bitrate"] = it }
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)?.let { out["mime"] = it }
+            // ID3/embedded tag text (title/artist/album) - shown under the
+            // vinyl disc for audio-only files (user request 2026-11-24).
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.let { if (it.isNotBlank()) out["audioTitle"] = it }
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)?.let { if (it.isNotBlank()) out["audioArtist"] = it }
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.let { if (it.isNotBlank()) out["audioAlbum"] = it }
         } catch (_: Exception) {
         } finally {
             try { retriever?.release() } catch (_: Exception) {}
@@ -289,6 +299,11 @@ class MediaProbe(private val context: Context) {
                 retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)?.let { out["hasAudio"] = it }
                 retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.let { out["bitrate"] = it }
                 retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)?.let { out["mime"] = it }
+                // ID3/embedded tag text (title/artist/album) - shown under the
+                // vinyl disc for audio-only files (user request 2026-11-24).
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.let { if (it.isNotBlank()) out["audioTitle"] = it }
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)?.let { if (it.isNotBlank()) out["audioArtist"] = it }
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.let { if (it.isNotBlank()) out["audioAlbum"] = it }
             }
         } catch (_: Exception) {
         } finally {
