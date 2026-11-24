@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
@@ -19,6 +20,8 @@ import '../services/anime4k_shader_store.dart';
 import '../services/hdr_toys_shader_store.dart';
 import '../services/default_engine_store.dart';
 import '../services/exo_player.dart';
+import '../services/media_probe.dart';
+import '../services/thumbnail_store.dart';
 import '../services/file_browser.dart';
 import '../services/jellyfin_client.dart';
 import '../services/playback_modes.dart';
@@ -82,6 +85,9 @@ import '../widgets/airplay_button.dart';
 import '../widgets/format_chip.dart';
 import '../widgets/gesture_warning_pill.dart';
 import '../widgets/stats_hud.dart';
+import '../widgets/vinyl_disc.dart';
+import '../utils/audio_format_info.dart';
+import '../utils/media_extensions.dart';
 import '../utils/playback_stats.dart';
 import 'player_error.dart';
 import '../services/entitlements.dart';
@@ -454,6 +460,47 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// screen-relative slider would look oversized.
   int _videoW = 0;
   int _videoH = 0;
+
+  /// False when the current file has no video track (audio-only: mp3/m4a/
+  /// flac/…) - seeded from the extension in `_openCurrent`, flipped to true
+  /// by the first real video-size event. Drives the vinyl disc overlay.
+  bool _hasVideoTrack = true;
+
+  /// True when the current file is audio-only and the backend is up.
+  bool get _isAudioOnly => _backendReady && !_hasVideoTrack;
+
+  /// Embedded cover art for the vinyl disc (audio-only playback).
+  Uint8List? _audioArt;
+
+  /// One-shot format probe of an audio-only file (sample rate / bit depth /
+  /// bitrate shown under the disc). Null until the probe lands.
+  MediaProbeResult? _audioProbe;
+
+  /// Probes [video]'s audio format via the native MediaExtractor
+  /// (`dreamplayer/mediaProbe`). Best-effort - a failure leaves
+  /// [_audioProbe] null and the metadata line simply omits.
+  Future<void> _probeAudioFile(VideoItem video) async {
+    try {
+      final uri = video.uri;
+      MediaProbeResult? r;
+      if (uri != null && uri.startsWith('ftp://')) {
+        r = await MediaProbe.instance.probeViaTempDownload(
+          uri,
+          headers: video.httpHeaders,
+        );
+      } else {
+        r = await MediaProbe.instance.probe(
+          path: video.path,
+          uri: uri,
+          headers: video.httpHeaders,
+          allowSelfSigned: video.allowSelfSigned,
+        );
+      }
+      if (mounted && r != null) setState(() => _audioProbe = r);
+    } catch (_) {
+      // probe is best-effort
+    }
+  }
 
   HdrFormat _liveHdr = HdrFormat.sdr;
 
@@ -929,6 +976,22 @@ class _PlayerScreenState extends State<PlayerScreen>
     // from the new file's aspect (not the old one's) until the first event.
     _videoW = 0;
     _videoH = 0;
+    // Audio-only detection (vinyl disc, user request 2026-11-24): seed from
+    // the extension - an audio-only file never emits a video size, so the
+    // first size event flips this to false for real videos.
+    final name = _current.path ?? _current.uri ?? '';
+    _hasVideoTrack = !isAudioFile(name);
+    _audioArt = null;
+    _audioProbe = null;
+    if (!_hasVideoTrack) {
+      // Embedded cover art for the disc face + a one-shot format probe for
+      // the metadata line under it (codec / sample rate / bit depth / ch /
+      // bitrate). Best-effort: a failed probe just leaves the line out.
+      unawaited(ThumbnailStore.artFor(_current).then((a) {
+        if (mounted) setState(() => _audioArt = a);
+      }));
+      unawaited(_probeAudioFile(_current));
+    }
     // TMDB title for the top bar - cache hit when the home screen
     // pre-fetched this file; a miss resolves fire-and-forget (intent-opened
     // files never hit the home prefetch).
@@ -2764,6 +2827,10 @@ Future<void> _offerVc1Mpv() async {
 
   void _onMpvVideoParams(Player player, VideoParams params) {
     if (!mounted) return;
+    if (params.w != null && params.h != null &&
+        params.w! > 0 && params.h! > 0) {
+      _hasVideoTrack = true; // a real video track exists - not audio-only
+    }
     setState(() {
       _mpvVideoParams = params;
     });
@@ -4544,6 +4611,7 @@ Future<void> _offerVc1Mpv() async {
       unawaited(_checkHdrGate());
     }
     if (e.videoWidth > 0 && e.videoHeight > 0) {
+      _hasVideoTrack = true; // a real video track exists - not audio-only
       _liveResolution = friendlyResolution(e.videoWidth, e.videoHeight);
       _videoW = e.videoWidth;
       _videoH = e.videoHeight;
@@ -6271,6 +6339,29 @@ if (mounted) setState(_applySwipeValue);
           label: AppLocalizations.of(context).playerAudioCh,
           value: '${_mpvReady ? _mpvAudioChannels! : _liveAudioChannelCount!} ch',
         ),
+      // Audio-only files: the probed format details under the vinyl disc,
+      // also listed here (user request 2026-11-24).
+      if (_isAudioOnly && _audioProbe != null) ...[
+        if (_audioProbe!.audioSampleRate != null && _audioProbe!.audioSampleRate! > 0)
+          (
+            label: 'Sample rate',
+            value: '${(_audioProbe!.audioSampleRate! / 1000).toStringAsFixed(1)} kHz',
+          ),
+        if (_audioProbe!.audioBits != null && _audioProbe!.audioBits! > 0)
+          (label: 'Bit depth', value: '${_audioProbe!.audioBits}-bit'),
+        if ((_audioProbe!.audioBitrate ?? _audioProbe!.bitrate) != null &&
+            (_audioProbe!.audioBitrate ?? _audioProbe!.bitrate)! > 0)
+          (
+            label: 'Bitrate',
+            value:
+                '${((_audioProbe!.audioBitrate ?? _audioProbe!.bitrate)! / 1000).round()} kbps',
+          ),
+        ...audioQualityBadges(
+          mimeOrCodec: _audioProbe!.audioMime,
+          sampleRate: _audioProbe!.audioSampleRate,
+          bits: _audioProbe!.audioBits,
+        ).map((b) => (label: 'Quality', value: b)),
+      ],
       if (_transcodeActive ||
           video.isTranscoded ||
           JellyfinClient.isTranscodeUri(video.uri ?? ''))
@@ -8981,6 +9072,98 @@ if (mounted) setState(_applySwipeValue);
                 ],
               );
             },
+          ),
+        // Audio-only playback (mp3/m4a/flac/…): replace the black video
+        // surface with a rotating vinyl disc + the file's format metadata
+        // (user request 2026-11-24). Drawn ON TOP of the platform view; the
+        // view stays mounted underneath so engine lifecycle is untouched.
+        if (_isAudioOnly && _error == null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ColoredBox(
+                color: colorScheme.surface,
+                child: Center(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final discSize =
+                          (math.min(constraints.maxWidth, constraints.maxHeight) *
+                                  0.52)
+                              .clamp(160.0, 320.0);
+                      final probe = _audioProbe;
+                      final summary = audioFormatSummary(
+                        mimeOrCodec: probe?.audioMime ?? _liveAudioCodec,
+                        sampleRate: probe?.audioSampleRate,
+                        bits: probe?.audioBits,
+                        channels: probe?.audioChannels,
+                        bitrate: probe?.audioBitrate ?? probe?.bitrate,
+                      );
+                      final badges = audioQualityBadges(
+                        mimeOrCodec: probe?.audioMime ?? _liveAudioCodec,
+                        sampleRate: probe?.audioSampleRate,
+                        bits: probe?.audioBits,
+                      );
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          VinylDisc(
+                            spinning: _playing && !_buffering,
+                            artBytes: _audioArt,
+                            size: discSize,
+                          ),
+                          if (summary.isNotEmpty) ...[
+                            const SizedBox(height: 20),
+                            Text(
+                              summary,
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                                fontSize: 14,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                          if (badges.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                for (final b in badges)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: b == 'Hi-Res'
+                                          ? Colors.amber.withValues(alpha: 0.18)
+                                          : colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: b == 'Hi-Res'
+                                            ? Colors.amber
+                                            : colorScheme.primary,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      b,
+                                      style: TextStyle(
+                                        color: b == 'Hi-Res'
+                                            ? Colors.amber
+                                            : colorScheme.onPrimaryContainer,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
           ),
       ],
     );

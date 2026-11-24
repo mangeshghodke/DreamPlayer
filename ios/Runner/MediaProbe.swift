@@ -23,6 +23,9 @@ private struct MkvInfo {
     var fps: Double?
     var audioChannels: UInt64?
     var audioLanguage: String?
+    var audioSampleRate: Double?
+    var audioBits: UInt64?
+    var audioBitrate: Int?
 }
 
 /// Minimal random-access reader over a local file.
@@ -244,6 +247,8 @@ private func mkvParseTrackEntry(_ reader: inout MkvReader, _ info: inout MkvInfo
     var defaultDurationNs: UInt64?
     var videoW: UInt64?, videoH: UInt64?, dispW: UInt64?, dispH: UInt64?
     var channels: UInt64?
+    var sampleRate: Double?
+    var bits: UInt64?
 
     while reader.pos < end && reader.pos + 2 <= reader.fileSize {
         let id = reader.readID() ?? 0
@@ -262,7 +267,7 @@ private func mkvParseTrackEntry(_ reader: inout MkvReader, _ info: inout MkvInfo
             mkvParseVideo(&reader, &videoW, &videoH, &dispW, &dispH, Int(size))
             reader.seek(childStart + size)
         case 0xE1: // Audio
-            mkvParseAudio(&reader, &channels, Int(size))
+            mkvParseAudio(&reader, &channels, &sampleRate, &bits, Int(size))
             reader.seek(childStart + size)
         default:
             _ = reader.readBytes(Int(size))
@@ -282,6 +287,8 @@ private func mkvParseTrackEntry(_ reader: inout MkvReader, _ info: inout MkvInfo
     } else if trackType == 2 {
         if info.audioCodecId == nil { info.audioCodecId = codecId }
         if let c = channels, info.audioChannels == nil { info.audioChannels = c }
+        if let r = sampleRate, r > 0, info.audioSampleRate == nil { info.audioSampleRate = r }
+        if let b = bits, b > 0, info.audioBits == nil { info.audioBits = b }
         if let l = language, !l.isEmpty, l != "und", info.audioLanguage == nil { info.audioLanguage = l }
     }
 }
@@ -303,13 +310,16 @@ private func mkvParseVideo(_ reader: inout MkvReader, _ w: inout UInt64?, _ h: i
     reader.seek(reader.pos)
 }
 
-private func mkvParseAudio(_ reader: inout MkvReader, _ ch: inout UInt64?, _ len: Int) {
+private func mkvParseAudio(_ reader: inout MkvReader, _ ch: inout UInt64?, _ rate: inout Double?, _ bits: inout UInt64?, _ len: Int) {
     let end = reader.pos + UInt64(len)
     while reader.pos < end && reader.pos + 2 <= reader.fileSize {
         let id = reader.readID() ?? 0
         guard let size = reader.readSize(), reader.pos + size <= end else { break }
         switch id {
-        case 0x9F: if size > 0 { ch = reader.readUInt(Int(size)) }
+        case 0x9F: if size > 0 { ch = reader.readUInt(Int(size)) }              // Channels
+        case 0xB5: if size == 4 { rate = reader.readFloat(4) }                // SamplingFrequency (float)
+                  else if size == 8 { rate = reader.readFloat(8) }             // (double, widened)
+        case 0x6264: if size > 0 { bits = reader.readUInt(Int(size)) }          // BitDepth
         default: _ = reader.readBytes(Int(size))
         }
     }
@@ -437,6 +447,9 @@ final class MediaProbe: NSObject {
         if let v = info.videoCodecId, let m = mkvCodecToMime(v) { out["videoMime"] = m }
         if let a = info.audioCodecId, let m = mkvCodecToMime(a) { out["audioMime"] = m }
         if let c = info.audioChannels { out["audioChannels"] = Int(c) }
+        if let r = info.audioSampleRate { out["audioSampleRate"] = Int(r) }
+        if let b = info.audioBits { out["audioBits"] = Int(b) }
+        if let br = info.audioBitrate, br > 0 { out["audioBitrate"] = Int(br) }
         if let l = info.audioLanguage { out["audioLanguage"] = l }
         if let f = info.fps { out["fps"] = Int(round(f)) }
         return out
@@ -480,7 +493,17 @@ final class MediaProbe: NSObject {
                     if let desc = track.formatDescriptions.first {
                         let fourCC = CMFormatDescriptionGetMediaSubType(desc as! CMFormatDescription)
                         out["audioMime"] = fourCCtoString(fourCC)
+                        // Sample rate / bit depth / bitrate from the format
+                        // description (shown under the vinyl disc for
+                        // audio-only files, user request 2026-11-24).
+                        if let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(desc as! CMFormatDescription) {
+                            let rate = asbd.pointee.mSampleRate
+                            if rate > 0 { out["audioSampleRate"] = Int(rate.rounded()) }
+                            let bits = asbd.pointee.mBitsPerChannel
+                            if bits > 0 { out["audioBits"] = Int(bits) }
+                        }
                     }
+                    if let br = track.estimatedDataRate, br > 0 { out["audioBitrate"] = Int(br) }
                     let lang = track.languageCode ?? ""
                     if !lang.isEmpty && lang != "und" { out["audioLanguage"] = lang }
                 }

@@ -15,6 +15,9 @@ class MediaProbeResult {
     this.audioLanguage,
     this.fps,
     this.bitrate,
+    this.audioSampleRate,
+    this.audioBits,
+    this.audioBitrate,
   });
 
   final int? durationMs;
@@ -26,6 +29,9 @@ class MediaProbeResult {
   final String? audioLanguage;
   final int? fps;
   final int? bitrate;
+  final int? audioSampleRate;
+  final int? audioBits;
+  final int? audioBitrate;
 
   /// Delegates to [friendlyResolution] so the file-info card and the player's
   /// resolution chip can never disagree about the same file.
@@ -45,6 +51,9 @@ class MediaProbeResult {
       audioLanguage: m['audioLanguage'] as String?,
       fps: (m['fps'] as num?)?.toInt(),
       bitrate: (m['bitrate'] as num?)?.toInt(),
+      audioSampleRate: (m['audioSampleRate'] as num?)?.toInt(),
+      audioBits: (m['audioBits'] as num?)?.toInt(),
+      audioBitrate: (m['audioBitrate'] as num?)?.toInt(),
     );
   }
 }

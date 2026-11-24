@@ -68,6 +68,30 @@ A video player app supporting:
   (19: unit + source-reading pins that all 12 native/upload files, the plist
   and the manifest carry the audio extensions, TMDB stays video-only,
   passthrough covers E-AC3-JOC).
+- **Audio-only playback UI: rotating vinyl disc + format metadata (2026-11-24,
+  user request "vinyl disc rotating animation… which file is playing, its
+  metadata info, hi-res/lossless bit info")**. Mpv-infinity was checked first
+  (`~/.cache/opencode/Mpv-infinity`, PolyForm - ideas only): their audio
+  screen is a circular embedded-artwork card + title/artist marquee
+  (`AudioPlayerControls.kt`, `EmbeddedArtworkResolver` - metadata-only
+  `MediaMetadataRetriever.getEmbeddedPicture`, same as our ThumbnailStore).
+  DreamPlayer: when the playing file has no video track (`_hasVideoTrack`,
+  seeded from `isAudioFile(ext)` in `_openCurrent`, flipped true by the first
+  real video-size event on Media3 or mpv `video-params`), the player overlays
+  `lib/widgets/vinyl_disc.dart` - an `AnimationController` `RotationTransition`
+  disc that spins only while `_playing && !_buffering`, using
+  `ThumbnailStore.artFor(_current)` (embedded cover art) as the face, else a
+  painted vinyl (grooves/label/spindle via CustomPainter). Under the disc:
+  `audioFormatSummary(...)` = codec · kHz · bit-depth · ch · kbps, plus
+  `audioQualityBadges(...)` = Lossless (flac/alac/ape/wav/pcm/aiff) and Hi-Res
+  (lossless && (rate >= 96k || (bits >= 24 && rate >= 48k))). Data from a
+  one-shot native probe on open: `MediaProbe.kt`/`MediaProbe.swift` now report
+  `audioSampleRate`, `audioBits` (`KEY_PCM_ENCODING`->bits on Android; ASBD
+  `mSampleRate`/`mBitsPerChannel` on iOS; MKV parser reads SamplingFrequency
+  0xB5/BitDepth 0x6264), `audioBitrate` (`KEY_BIT_RATE` / `estimatedDataRate`).
+  Same rows added to the ⋮ "Video info" sheet. Pure helpers in
+  `lib/utils/audio_format_info.dart`. Pinned by
+  `test/audio_playback_ui_test.dart` (20 tests).
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

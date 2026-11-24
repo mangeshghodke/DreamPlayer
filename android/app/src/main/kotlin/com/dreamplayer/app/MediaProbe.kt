@@ -1,6 +1,7 @@
 package com.dreamplayer.app
 
 import android.content.Context
+import android.media.AudioFormat
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
@@ -124,6 +125,26 @@ class MediaProbe(private val context: Context) {
                     } else if (mime.startsWith("audio/")) {
                         try { out["audioMime"] = mime } catch (_: Exception) {}
                         try { out["audioChannels"] = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) } catch (_: Exception) {}
+                        // Sample rate / bit depth / track bitrate - shown under
+                        // the vinyl disc for audio-only files (user request
+                        // 2026-11-24). Bit depth comes from KEY_PCM_ENCODING for
+                        // PCM codecs (wav/aiff); compressed codecs leave it null.
+                        try { out["audioSampleRate"] = format.getInteger(MediaFormat.KEY_SAMPLE_RATE) } catch (_: Exception) {}
+                        try {
+                            val br = format.getInteger(MediaFormat.KEY_BIT_RATE)
+                            if (br > 0) out["audioBitrate"] = br
+                        } catch (_: Exception) {}
+                        try {
+                            val bits = when (format.getInteger(MediaFormat.KEY_PCM_ENCODING)) {
+                                AudioFormat.ENCODING_PCM_8BIT -> 8
+                                AudioFormat.ENCODING_PCM_16BIT -> 16
+                                AudioFormat.ENCODING_PCM_24BIT_PACKED -> 24
+                                AudioFormat.ENCODING_PCM_32BIT -> 32
+                                AudioFormat.ENCODING_PCM_FLOAT -> 32
+                                else -> null
+                            }
+                            if (bits != null) out["audioBits"] = bits
+                        } catch (_: Exception) {}
                         try {
                             val lang = format.getString(MediaFormat.KEY_LANGUAGE)
                             if (!lang.isNullOrEmpty() && lang != "und") out["audioLanguage"] = lang
@@ -185,6 +206,26 @@ class MediaProbe(private val context: Context) {
                     } else if (mime.startsWith("audio/")) {
                         try { out["audioMime"] = mime } catch (_: Exception) {}
                         try { out["audioChannels"] = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) } catch (_: Exception) {}
+                        // Sample rate / bit depth / track bitrate - shown under
+                        // the vinyl disc for audio-only files (user request
+                        // 2026-11-24). Bit depth comes from KEY_PCM_ENCODING for
+                        // PCM codecs (wav/aiff); compressed codecs leave it null.
+                        try { out["audioSampleRate"] = format.getInteger(MediaFormat.KEY_SAMPLE_RATE) } catch (_: Exception) {}
+                        try {
+                            val br = format.getInteger(MediaFormat.KEY_BIT_RATE)
+                            if (br > 0) out["audioBitrate"] = br
+                        } catch (_: Exception) {}
+                        try {
+                            val bits = when (format.getInteger(MediaFormat.KEY_PCM_ENCODING)) {
+                                AudioFormat.ENCODING_PCM_8BIT -> 8
+                                AudioFormat.ENCODING_PCM_16BIT -> 16
+                                AudioFormat.ENCODING_PCM_24BIT_PACKED -> 24
+                                AudioFormat.ENCODING_PCM_32BIT -> 32
+                                AudioFormat.ENCODING_PCM_FLOAT -> 32
+                                else -> null
+                            }
+                            if (bits != null) out["audioBits"] = bits
+                        } catch (_: Exception) {}
                         try {
                             val lang = format.getString(MediaFormat.KEY_LANGUAGE)
                             if (!lang.isNullOrEmpty() && lang != "und") out["audioLanguage"] = lang
@@ -290,6 +331,22 @@ class MediaProbe(private val context: Context) {
                         } else if (mime.startsWith("audio/")) {
                             try { out["audioMime"] = mime } catch (_: Exception) {}
                             try { out["audioChannels"] = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) } catch (_: Exception) {}
+                            try { out["audioSampleRate"] = format.getInteger(MediaFormat.KEY_SAMPLE_RATE) } catch (_: Exception) {}
+                            try {
+                                val br = format.getInteger(MediaFormat.KEY_BIT_RATE)
+                                if (br > 0) out["audioBitrate"] = br
+                            } catch (_: Exception) {}
+                            try {
+                                val bits = when (format.getInteger(MediaFormat.KEY_PCM_ENCODING)) {
+                                    AudioFormat.ENCODING_PCM_8BIT -> 8
+                                    AudioFormat.ENCODING_PCM_16BIT -> 16
+                                    AudioFormat.ENCODING_PCM_24BIT_PACKED -> 24
+                                    AudioFormat.ENCODING_PCM_32BIT -> 32
+                                    AudioFormat.ENCODING_PCM_FLOAT -> 32
+                                    else -> null
+                                }
+                                if (bits != null) out["audioBits"] = bits
+                            } catch (_: Exception) {}
                             try {
                                 val lang = format.getString(MediaFormat.KEY_LANGUAGE)
                                 if (!lang.isNullOrEmpty() && lang != "und") out["audioLanguage"] = lang
