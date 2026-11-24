@@ -175,6 +175,14 @@ void main() {
       expect(probeSwift, contains('commonKeyArtist'));
     });
 
+    test('top-bar format chips are suppressed for audio-only (no overlap with the new badges)', () {
+      final at = player.indexOf('final chips = <Widget>[];');
+      expect(at, greaterThan(-1));
+      final block = player.substring(at, at + 400);
+      expect(block, contains('if (_badgeEnabled && !_isAudioOnly)'), reason:
+          'the SDR/AAC top-bar pills must not render under the audio badge row');
+    });
+
     test('audio-only detection: extension seed + video-size event flips it', () {
       expect(player.contains('_hasVideoTrack = !isAudioFile(name)'), isTrue);
       expect(player.contains('_hasVideoTrack = true'), isTrue);

@@ -8848,7 +8848,11 @@ if (mounted) setState(_applySwipeValue);
     // HDR chip on MPV follows the tone-map toggle (Native = detected format;
     // SDR tone-map = "Tone-mapped SDR").
     final chips = <Widget>[];
-    if (_badgeEnabled) {
+    // Audio-only playback: the top-bar format chips are skipped - the audio
+    // overlay renders its own badge chips at the top (codec/kHz/bits/ch/kbps/
+    // Lossless/Hi-Res), and the two rows overlapped (user screenshot
+    // 2026-11-24: SDR + "AAC 2.0" pills colliding with the new badges).
+    if (_badgeEnabled && !_isAudioOnly) {
       // HDR - Media3 shows the real format. MPV follows tone-map mode:
       // Native = detected source (DV/HDR10); SDR tone-map = "Tone-mapped SDR";
       // SDR content or stock libmpv = plain "SDR".
