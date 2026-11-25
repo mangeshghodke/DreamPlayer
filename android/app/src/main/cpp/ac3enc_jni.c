@@ -3,7 +3,7 @@
  * contains ONLY the AC3 encoder (tool/build_ffmpeg_ac3.sh). This is the same
  * encoder Kodi's CAEEncoderFFmpeg uses for "transcode to Dolby Digital"
  * (xbmc/cores/AudioEngine/Encoders/AEEncoderFFmpeg.cpp: avcodec_find_encoder(
- * AV_CODEC_ID_AC3), S16P planar input, 1536-sample frames).
+ * AV_CODEC_ID_AC3), S32P planar input, 1536-sample frames).
  *
  * The resulting raw AC3 frames are IEC61937-packed in Kotlin
  * (Ac3Iec61937.kt, per IEC 61937-1 / Kodi's CAEPackIEC61937::PackAC3) and
@@ -28,8 +28,8 @@ typedef struct {
     AVCodecContext *ctx;
     AVFrame *frame;
     AVPacket *pkt;
-    /* planar s16 FIFO: fifo[ch * fifoCap + sample] */
-    int16_t *fifo;
+    /* planar s32 FIFO: fifo[ch * fifoCap + sample] */
+    int32_t *fifo;
     int fifoCap;       /* per-channel capacity in samples */
     int fifoSamples;   /* samples per channel currently buffered */
     int channels;

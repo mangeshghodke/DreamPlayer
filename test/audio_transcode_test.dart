@@ -62,7 +62,7 @@ void main() {
       expect(enc, contains('AV_CODEC_ID_AC3'));
       final c = read('android/app/src/main/cpp/ac3enc_jni.c');
       expect(c, contains('avcodec_find_encoder(AV_CODEC_ID_AC3)'));
-      expect(c, contains('AV_SAMPLE_FMT_S16P'));
+      expect(c, contains('AV_SAMPLE_FMT_S32P')); // ac3_fixed accepts S32P, not S16P
       final cmake = read('android/app/src/main/cpp/CMakeLists.txt');
       expect(cmake, contains('add_library(ac3enc SHARED ac3enc_jni.c)'));
       expect(cmake, contains('target_link_libraries(ac3enc avcodec avutil'));
@@ -70,7 +70,7 @@ void main() {
 
     test('ffmpeg ac3 build script pins encoder-only build for both ABIs', () {
       final sh = read('tool/build_ffmpeg_ac3.sh');
-      expect(sh, contains('--disable-everything --enable-encoder=ac3'));
+      expect(sh, contains('--disable-everything --enable-encoder=ac3_fixed'));
       expect(sh, contains('arm64-v8a'));
       expect(sh, contains('armeabi-v7a'));
     });

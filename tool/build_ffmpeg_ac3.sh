@@ -11,8 +11,8 @@
 # yields a libavcodec with just the AC3 fixed-point encoder (~1 MB), not
 # the ~4 MB full decoder build that media3ext already ships. ac3_fixed is
 # required (not ac3): the floating-point "ac3" encoder only accepts FLTP
-# input, while ac3_fixed accepts S16P - the format Kodi's AEEncoderFFmpeg
-# feeds it.
+# input, while ac3_fixed accepts S32P - the format our JNI feeds it after
+# sign-extending Media3's PCM16 output.
 #
 # Usage: tool/build_ffmpeg_ac3.sh [ffmpeg-tag]   (default: $FFMPEG_TAG below)
 set -euo pipefail

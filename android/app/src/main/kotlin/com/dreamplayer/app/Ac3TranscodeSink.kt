@@ -100,7 +100,6 @@ class Ac3TranscodeSink(
             1 -> AudioFormat.CHANNEL_OUT_MONO
             2 -> AudioFormat.CHANNEL_OUT_STEREO
             6 -> AudioFormat.CHANNEL_OUT_5POINT1
-            8 -> AudioFormat.CHANNEL_OUT_7POINT1_SURROUND
             else -> AudioFormat.CHANNEL_OUT_STEREO
         }
         val audioFormat = AudioFormat.Builder()

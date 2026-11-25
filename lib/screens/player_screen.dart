@@ -2139,6 +2139,10 @@ Future<void> _offerVc1Mpv() async {
       if (transcodeAc3) {
         await platform.setProperty('audio-spdif', 'ac3');
         debugPrint('mpv: audio-spdif=ac3 (AC3 transcode active)');
+      } else {
+        // Reset to mpv's default passthrough list so a toggle OFF takes effect.
+        await platform.setProperty('audio-spdif', 'ac3,eac3,dts,dts-hd,truehd');
+        debugPrint('mpv: audio-spdif reset to default (ac3,eac3,dts,dts-hd,truehd)');
       }
       debugPrint('mpv: audio configured (volume-max=400, pitch-correction, '
           'normalize-downmix=${normalizeDownmix ? 'yes' : 'no'}, '
