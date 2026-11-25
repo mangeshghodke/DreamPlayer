@@ -41,3 +41,15 @@ set_source_files_properties(${DCERPC_SRCS} PROPERTIES
 
 find_library(log-lib log)
 target_link_libraries(smb2jni ${log-lib})
+
+# AC3-transcode encoder (issue #70): static minimal FFmpeg (AC3 encoder only,
+# built by tool/build_ffmpeg_ac3.sh into ac3enc/prebuilt/<abi>/).
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ac3enc/prebuilt/${ANDROID_ABI}/lib/libavcodec.a")
+    add_library(ac3enc SHARED ac3enc_jni.c)
+    set(AC3_PREBUILT "${CMAKE_CURRENT_SOURCE_DIR}/ac3enc/prebuilt/${ANDROID_ABI}")
+    target_include_directories(ac3enc PRIVATE "${AC3_PREBUILT}/include")
+    target_link_directories(ac3enc PRIVATE "${AC3_PREBUILT}/lib")
+    target_link_libraries(ac3enc avcodec avutil ${log-lib})
+else()
+    message(WARNING "ac3enc prebuilt libs missing for ${ANDROID_ABI} - run tool/build_ffmpeg_ac3.sh; AC3 transcoding will be unavailable on this ABI")
+endif()

@@ -69,3 +69,4 @@ jwt.txt
 login.json
 *.jwt
 *.auth.json
+android/app/src/main/cpp/ac3enc/prebuilt/

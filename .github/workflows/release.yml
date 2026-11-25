@@ -78,6 +78,16 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
+      - name: Install Android NDK (AC3-encoder ffmpeg build needs it)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.0.12077973" >/dev/null
+
+      - name: Build minimal FFmpeg (AC3 encoder) into cpp/ac3enc/prebuilt
+        run: ./tool/build_ffmpeg_ac3.sh
+        env:
+          NDK_DIR: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
+
       - name: Build universal release APK
         run: flutter build apk --release --dart-define=OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }} --dart-define=SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
 

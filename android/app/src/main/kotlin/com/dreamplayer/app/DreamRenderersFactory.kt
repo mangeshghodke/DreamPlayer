@@ -48,14 +48,22 @@ class DreamRenderersFactory(private val appContext: Context) : DefaultRenderersF
         context: Context,
         enableFloatOutput: Boolean,
         enableAudioTrackPlaybackParams: Boolean,
-    ): AudioSink =
-        DefaultAudioSink.Builder(context)
+    ): AudioSink {
+        val base = DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(enableFloatOutput)
             .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
             .setAudioProcessors(
                 arrayOf(audioDelayProcessor, audioDownmixProcessor, audioBoostProcessor),
             )
             .build()
+        // Issue #70: with "Transcode audio to AC3" ON and an HDMI output
+        // present, wrap the sink so PCM audio is re-encoded to AC3 and written
+        // as IEC61937 (bitstream formats still pass through via the delegate).
+        if (PlayerCodecs.transcodeAc3Active(context)) {
+            return Ac3TranscodeSink(context, base)
+        }
+        return base
+    }
 
     /// Injects the hardware SDR tone-mapping request into the video codec
     /// (GitHub issue #55).

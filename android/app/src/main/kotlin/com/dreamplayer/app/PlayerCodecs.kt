@@ -27,6 +27,17 @@ import javax.net.ssl.X509TrustManager
 ///    layers are HDR10 HEVC).
 object PlayerCodecs {
 
+    /// Whether an HDMI output (TV / soundbar / AVR) is currently connected.
+    fun hasHdmiOutput(context: Context): Boolean {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        return devices.any { d ->
+            d.type == AudioDeviceInfo.TYPE_HDMI ||
+                (Build.VERSION.SDK_INT >= 31 && d.type == AudioDeviceInfo.TYPE_HDMI_ARC) ||
+                (Build.VERSION.SDK_INT >= 31 && d.type == AudioDeviceInfo.TYPE_HDMI_EARC)
+        }
+    }
+
     /// Whether audio passthrough is active: user toggle ON in Settings AND an
     /// HDMI output (TV / soundbar / AVR) is currently connected.
     fun passthroughEnabled(context: Context): Boolean {
@@ -36,15 +47,24 @@ object PlayerCodecs {
         if (!prefs.getBoolean("flutter.dreamplayer.audioPassthrough", false)) {
             return false
         }
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        val hdmi = devices.any { d ->
-            d.type == AudioDeviceInfo.TYPE_HDMI ||
-                (Build.VERSION.SDK_INT >= 31 && d.type == AudioDeviceInfo.TYPE_HDMI_ARC) ||
-                (Build.VERSION.SDK_INT >= 31 && d.type == AudioDeviceInfo.TYPE_HDMI_EARC)
-        }
+        val hdmi = hasHdmiOutput(context)
         android.util.Log.i("PlayerCodecs", "Audio passthrough: setting=ON, hdmi=$hdmi")
         return hdmi
+    }
+
+    /// Issue #70: "Transcode audio to AC3" (Settings → Audio, Android only).
+    /// Active when the toggle is ON and an HDMI output is connected - the
+    /// point is feeding a receiver that only supports Dolby Digital (AC3).
+    fun transcodeAc3Active(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(
+            "FlutterSharedPreferences", Context.MODE_PRIVATE,
+        )
+        val on = prefs.getBoolean("flutter.dreamplayer.audioTranscodeAc3", false)
+        if (!on) return false
+        // Debug/testing escape hatch: force the transcode path on devices
+        // without HDMI (e.g. a phone) so the sink can be exercised on-device.
+        val force = prefs.getBoolean("flutter.dreamplayer.audioTranscodeAc3Force", false)
+        return force || hasHdmiOutput(context)
     }
 
     fun isPassthroughFormat(mimeType: String?): Boolean = when (mimeType) {
@@ -52,6 +72,19 @@ object PlayerCodecs {
         MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_DTS_HD, MimeTypes.AUDIO_TRUEHD -> true
         else -> false
     }
+
+    /// Issue #70: when AC3 transcoding is active, only AC3 itself may pass
+    /// through as a bitstream - everything else (E-AC3/DTS/TrueHD/…) must be
+    /// decoded to PCM so the sink can re-encode it to AC3. A receiver that
+    /// only supports Dolby Digital cannot take the other formats.
+    /// Pure so it can be unit-tested without a Context.
+    fun passthroughFormatWithTranscode(mimeType: String?, transcodeActive: Boolean): Boolean {
+        if (transcodeActive) return mimeType == MimeTypes.AUDIO_AC3
+        return isPassthroughFormat(mimeType)
+    }
+
+    fun effectivePassthroughFormat(context: Context, mimeType: String?): Boolean =
+        passthroughFormatWithTranscode(mimeType, transcodeAc3Active(context))
 
     /// OkHttp HTTP data source factory. When [allowSelfSigned] is set the
     /// client trusts any certificate (per-server opt-in for self-signed WebDAV
@@ -93,6 +126,7 @@ object PlayerCodecs {
             // for passthrough (HDMI may be plugged/unplugged between files).
             val modeLive = decoderMode(context)
             val passthroughLive = passthroughEnabled(context)
+            val transcodeLive = transcodeAc3Active(context)
             val isVideo = mimeType?.startsWith("video/") == true
             fun filterByMode(list: List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo>): List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> = when (modeLive) {
                 "hw" -> list.filterNot { isSoftwareVideoDecoder(it.name) }
@@ -108,7 +142,13 @@ object PlayerCodecs {
                 // DefaultAudioSink routes them to AudioTrack passthrough mode.
                 // Checked BEFORE the FFmpeg-audio branch on purpose: on a TV
                 // this must stay a raw bitstream, not get decoded to PCM.
-                passthroughLive && isPassthroughFormat(mimeType) -> emptyList()
+                // Issue #70: with AC3 transcoding active only AC3 passes through
+                // (see effectivePassthroughFormat) - the rest is decoded and
+                // re-encoded to AC3 by Ac3TranscodeSink.
+                passthroughLive && effectivePassthroughFormat(context, mimeType) -> emptyList()
+                // Same rule when only transcoding is on (passthrough toggle off):
+                // AC3 bitstreams may still pass through; everything else decodes.
+                transcodeLive && mimeType == MimeTypes.AUDIO_AC3 -> emptyList()
                 mimeType == MimeTypes.AUDIO_E_AC3 || mimeType == MimeTypes.AUDIO_E_AC3_JOC ->
                     MediaCodecSelector.DEFAULT.getDecoderInfos(
                         mimeType,

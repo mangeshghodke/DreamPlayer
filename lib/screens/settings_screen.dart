@@ -32,6 +32,7 @@ import '../services/metadata_provider_adapter.dart';
 import '../services/opensubtitles_client.dart';
 import '../services/spatial_audio_store.dart';
 import '../services/audio_downmix_store.dart';
+import '../services/audio_transcode_store.dart';
 import '../services/subtitle_encodings.dart';
 import '../services/subtitle_languages.dart';
 import '../services/subtitle_prefs.dart';
@@ -98,6 +99,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _nightMode = false;
   bool _spatialAudio = false;
   bool _audioDownmix = false;
+  bool _audioTranscodeAc3 = false;
   bool _simklConnected = false;
   DateTime? _simklLastSync;
   String? _osUsername;
@@ -1078,12 +1080,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final spatial = await SpatialAudioStore.effectiveEnabled();
       // Not paywall-gated (unlike the DSP trio above): see the row comment.
       final downmix = await AudioDownmixStore.load();
+      final transcodeAc3 = await AudioTranscodeStore.load();
       if (mounted) {
         setState(() {
           _nightMode = night;
           _volumeBoostEnabled = boostEnabled;
           _spatialAudio = spatial;
           _audioDownmix = downmix;
+          _audioTranscodeAc3 = transcodeAc3;
         });
       }
     } catch (_) {}
@@ -1990,6 +1994,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (mounted) setState(() => _audioDownmix = value);
                     },
                   ),
+                  // === Transcode audio to AC3 (issue #70, Android only) ===
+                  // For HDMI receivers that only support plain Dolby Digital
+                  // (AC3): everything else (E-AC3/DTS/TrueHD/…) is decoded and
+                  // re-encoded to AC3 (Ac3TranscodeSink + libac3enc FFmpeg AC3
+                  // encoder - same approach as Kodi's AEEncoderFFmpeg). AC3
+                  // sources still pass through untouched. Media3 engine only.
+                  if (defaultTargetPlatform == TargetPlatform.android)
+                    SwitchListTile(
+                      secondary: const Icon(Icons.cable_outlined),
+                      title: const Text('Transcode audio to AC3 (Dolby Digital)'),
+                      subtitle: const Text(
+                        'For HDMI receivers that only support AC3 - re-encodes other audio to AC3. Android, Media3 engine.',
+                      ),
+                      value: _audioTranscodeAc3,
+                      onChanged: (value) async {
+                        await AudioTranscodeStore.save(value);
+                        if (mounted) setState(() => _audioTranscodeAc3 = value);
+                      },
+                    ),
                   // === Volume Boost / Night Mode (both engines) ===
                   // MPV only: an mpv engine property. Defaults off so the two
                   // Android engines play at the same level (issue #37).
