@@ -770,6 +770,19 @@ class ExoPlayerView(
     /// and engages the OPLUS EDR headroom path.
     @Volatile private var hdr10Content = false
 
+    /// Set when BOTH SEI probes (hdr10 + hdr10plus) have finished for the
+    /// current open. The picture-effects gate waits for this so it never
+    /// engages the GL pipeline for an MKV that omits the Colour element
+    /// (colorInfo=null) but is actually HDR10 — the probe is the only signal
+    /// that catches those, and it runs async so it can complete after
+    /// onVideoSizeChanged. Issue #72.
+    @Volatile private var hdrProbesDone = false
+
+    /// Counts completed SEI probes (hdr10 + hdr10plus) for the current open.
+    /// When it reaches 2, hdrProbesDone is set and the picture-effects gate is
+    /// re-run (issue #72).
+    @Volatile private var hdrProbesCompleted = 0
+
     /// MKV chapters parsed from the local container on open (Media3 has no
     /// chapters API). Empty for network sources or files without chapters.
     @Volatile private var chapters: List<MkvChapters.Chapter> = emptyList()
@@ -857,13 +870,23 @@ class ExoPlayerView(
 
     private fun enforcePictureEffectsHdrGate() {
         if (!pictureEffectsArmed || pictureEffectsEngaged) return
+        // Issue #72: don't engage the GL pipeline until the SEI probes have
+        // finished. An MKV that omits the Colour element has colorInfo=null,
+        // so colorTransfer alone cannot tell HDR10 from SDR — the bitstream
+        // probe (hdr10Content/hdr10PlusContent) is the only signal that catches
+        // it, and it runs on a background thread that can complete after this
+        // gate first fires (onVideoSizeChanged). Once the GL pipeline exists,
+        // frames go through it even with an empty effect list and the native
+        // HDR dataspace is stripped — so we must NOT engage before we know.
+        if (!hdrProbesDone) return
         val fmt = player.videoFormat ?: return
         val ct = fmt.colorInfo?.colorTransfer
         val isHdr = ct == C.COLOR_TRANSFER_ST2084 || ct == C.COLOR_TRANSFER_HLG ||
-            (fmt.codecs?.startsWith("dv") == true)
+            (fmt.codecs?.startsWith("dv") == true) ||
+            hdr10Content || hdr10PlusContent
         if (isHdr) {
             pictureEffectsArmed = false
-            Log.i("ExoPlayerView", "content is HDR/DV (${fmt.codecs}) - GL effect pipeline never engaged, direct passthrough kept")
+            Log.i("ExoPlayerView", "content is HDR/DV (${fmt.codecs}, hdr10=$hdr10Content, hdr10+=$hdr10PlusContent) - GL effect pipeline never engaged, direct passthrough kept")
             return
         }
         pictureEffectsEngaged = true
@@ -873,6 +896,17 @@ class ExoPlayerView(
         } catch (e: Exception) {
             Log.w("ExoPlayerView", "engaging picture effects failed", e)
             pictureEffectsEngaged = false
+        }
+    }
+
+    /// Called from each SEI probe thread when it finishes (found or not).
+    /// When both probes are done, re-runs the picture-effects gate so the
+    /// GL pipeline is only engaged for confirmed SDR (issue #72).
+    private fun hdrProbeFinished() {
+        val n = synchronized(this) { ++hdrProbesCompleted }
+        if (n >= 2 && !hdrProbesDone) {
+            hdrProbesDone = true
+            handler.post { if (!disposed) enforcePictureEffectsHdrGate() }
         }
     }
 
@@ -893,6 +927,8 @@ class ExoPlayerView(
                 }
             } catch (_: Throwable) {
                 // Best-effort probe; never let it affect playback.
+            } finally {
+                hdrProbeFinished()
             }
         }.apply { isDaemon = true }.start()
     }
@@ -1190,7 +1226,16 @@ class ExoPlayerView(
 
     private fun fireDeferredProbes() {
         if (probesFired) return
-        val p = pendingProbes ?: return
+        val p = pendingProbes
+        if (p == null) {
+            // No probes were scheduled (e.g. an error path in open()) - mark
+            // them done so the picture-effects gate is not blocked forever.
+            if (!hdrProbesDone) {
+                hdrProbesDone = true
+                handler.post { if (!disposed) enforcePictureEffectsHdrGate() }
+            }
+            return
+        }
         probesFired = true
         pendingProbes = null
         val (path, uri, headers) = p
@@ -1218,6 +1263,8 @@ class ExoPlayerView(
                 }
             } catch (_: Throwable) {
                 // Best-effort probe; never let it affect playback.
+            } finally {
+                hdrProbeFinished()
             }
         }.apply { isDaemon = true }.start()
     }
@@ -1481,6 +1528,8 @@ class ExoPlayerView(
                     dvRejectionShown = false
                     hdr10PlusContent = false
                     hdr10Content = false
+                    hdrProbesDone = false
+                    hdrProbesCompleted = 0
                     // Per-open state for the hardware SDR tone-map request
                     // (issue #55): the next codec decides again whether it
                     // gets the request, and the previous codec's output

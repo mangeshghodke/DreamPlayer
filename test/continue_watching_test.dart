@@ -86,4 +86,21 @@ void main() {
     expect(gate, contains('setVideoEffects(buildPictureEffects())'));
     expect(gate, contains('HDR/DV'));
   });
+
+  test('issue #72: gate waits for SEI probes and checks hdr10Content before engaging GL pipeline', () {
+    // An MKV without a Colour element has colorInfo=null, so colorTransfer
+    // alone cannot tell HDR10 from SDR. The bitstream SEI probe is the only
+    // signal, and it runs async - the gate must not engage the GL pipeline
+    // (which strips HDR dataspace permanently) until the probe has finished.
+    final kt = File('android/app/src/main/kotlin/com/dreamplayer/app/ExoPlayerView.kt').readAsStringSync();
+    final gate = kt.substring(kt.indexOf('private fun enforcePictureEffectsHdrGate()'));
+    // waits for probes to complete before deciding
+    expect(gate, contains('!hdrProbesDone'));
+    // checks the SEI probe results, not just colorInfo
+    expect(gate, contains('hdr10Content'));
+    expect(gate, contains('hdr10PlusContent'));
+    // probes call the gate again when they finish
+    expect(kt, contains('hdrProbeFinished()'));
+    expect(kt, contains('enforcePictureEffectsHdrGate()'));
+  });
 }
