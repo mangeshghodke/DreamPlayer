@@ -842,26 +842,37 @@ class ExoPlayerView(
         }
     }
 
-    /// Once the real video format is known (onVideoSizeChanged fires right
-    /// after it), a file that looked SDR at open() but is actually HDR/DV must
-    /// not keep the GL effect pipeline: clear the effects so the frame
-    /// processor passes frames through unmodified. (The pipeline itself
-    /// cannot be removed after prepare, but an empty/no-op effect list is
-    /// skipped by Media3 via the isNoOp hint, so colors are preserved.)
+    /// Runs when the real video format is known (onVideoSizeChanged fires right
+    /// after it). Two jobs:
+    ///  1. A file that looked SDR at open() (filename hint) but is actually
+    ///     HDR/DV must never engage the GL effect pipeline - the pipeline would
+    ///     strip the native HDR/DV layer from the surface. So when the format is
+    ///     HDR/DV we simply leave the pipeline off and keep the direct
+    ///     decoder→SurfaceView passthrough.
+    ///  2. When the format really is SDR and the user armed the controls, engage
+    ///     the pipeline NOW (setVideoEffects after prepare is the supported live
+    ///     path) so the initial slider/profile values are active from the first
+    ///     rendered frame.
+    private var pictureEffectsEngaged = false
+
     private fun enforcePictureEffectsHdrGate() {
-        if (!pictureEffectsArmed) return
+        if (!pictureEffectsArmed || pictureEffectsEngaged) return
         val fmt = player.videoFormat ?: return
         val ct = fmt.colorInfo?.colorTransfer
         val isHdr = ct == C.COLOR_TRANSFER_ST2084 || ct == C.COLOR_TRANSFER_HLG ||
             (fmt.codecs?.startsWith("dv") == true)
         if (isHdr) {
             pictureEffectsArmed = false
-            Log.i("ExoPlayerView", "content turned out HDR/DV (${fmt.codecs}) - clearing picture effects to keep passthrough")
-            try {
-                player.setVideoEffects(emptyList())
-            } catch (e: Exception) {
-                Log.w("ExoPlayerView", "clearing picture effects failed", e)
-            }
+            Log.i("ExoPlayerView", "content is HDR/DV (${fmt.codecs}) - GL effect pipeline never engaged, direct passthrough kept")
+            return
+        }
+        pictureEffectsEngaged = true
+        try {
+            player.setVideoEffects(buildPictureEffects())
+            Log.i("ExoPlayerView", "SDR content: engaged GL picture-effects pipeline")
+        } catch (e: Exception) {
+            Log.w("ExoPlayerView", "engaging picture effects failed", e)
+            pictureEffectsEngaged = false
         }
     }
 
@@ -1651,25 +1662,23 @@ class ExoPlayerView(
                         .build()
                     player.setMediaItem(mediaItem)
                     applyReadingLanguage(readingLanguage)
-                    // Picture controls (Media3 GL video effects): setVideoEffects
-                    // must be called at least once BEFORE prepare() to set up
-                    // the effect pipeline. Armed only when Dart says the content
-                    // is not HDR/DV (a filename/probe hint) - HDR keeps the
-                    // direct decoder→SurfaceView passthrough. The initial slider
-                    // values ride along in the open args so an applied profile
-                    // is active from the first frame.
+                    // Picture controls (Media3 GL video effects): the filename
+                    // hint (`pictureEffectsArmed`) only says the user WANTS the
+                    // pipeline. It is NOT applied before prepare() anymore:
+                    // arming there creates the GL pipeline up front, and once
+                    // it exists the decoder frames go through GL even with an
+                    // empty effect list - the native HDR/DV dataspace is lost
+                    // and the picture washes out to SDR (seen when a
+                    // continue-watching entry lost its hdrHint and looked SDR
+                    // at open). Instead the pipeline is engaged lazily in
+                    // enforcePictureEffectsHdrGate(), only once the REAL video
+                    // format is known to be SDR - HDR/DV never engages it and
+                    // keeps the direct decoder→SurfaceView passthrough.
                     pictureEffectsArmed = call.argument<Boolean>("pictureEffectsArmed") == true
+                    pictureEffectsEngaged = false
                     picBrightness = (call.argument<Number>("pictureBrightness")?.toFloat() ?: 0f).coerceIn(-100f, 100f)
                     picContrast = (call.argument<Number>("pictureContrast")?.toFloat() ?: 0f).coerceIn(-100f, 100f)
                     picSaturation = (call.argument<Number>("pictureSaturation")?.toFloat() ?: 0f).coerceIn(-100f, 100f)
-                    if (pictureEffectsArmed) {
-                        try {
-                            player.setVideoEffects(buildPictureEffects())
-                        } catch (e: Exception) {
-                            Log.w("ExoPlayerView", "arming picture effects failed", e)
-                            pictureEffectsArmed = false
-                        }
-                    }
                     player.prepare()
                     if (startMs > 0L) player.seekTo(startMs)
                     player.play()

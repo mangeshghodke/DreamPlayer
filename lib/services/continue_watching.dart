@@ -79,15 +79,13 @@ class ContinueWatchingStore {
     if (position.inMilliseconds < 10000) return;
     final key = keyFor(video);
     if (key.isEmpty) return;
-    final entryVideo = VideoItem(
-      id: video.id,
-      title: video.title,
-      path: video.path,
-      uri: video.uri,
-      resumeKey: video.resumeKey,
-      duration: video.duration,
-      sizeBytes: video.sizeBytes,
-    );
+    // Persist the FULL item, not a stripped copy: dropping fields like
+    // `hdrHint` made a restored continue-watching entry look SDR, which
+    // armed the Media3 GL picture-effects pipeline and stripped the native
+    // HDR/DV layer (washed-out colors when playing from Home vs. fine from
+    // the source browser, where the fresh item carries the hint). Subtitle
+    // tracks, headers and chapters are restored the same way.
+    final entryVideo = video;
     final all = await load();
     all.removeWhere((e) => keyFor(e.video) == key);
     all.insert(
