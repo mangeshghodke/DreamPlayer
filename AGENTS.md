@@ -12,7 +12,7 @@ A video player app supporting:
 
 ## Writing conventions
 
-- Use **single hyphens** (`-`), **not em-dashes** (`-`) in prose. Write `Wi-Fi upload server` instead of `Wi-Fi upload server - ...`, `10-foot UI` instead of `10-foot UI - ...`, etc. Em-dashes are reserved for code/API names only where they already exist.
+- Use **single hyphens** (`-`), **not em-dashes** (`-`) in prose. This applies to ALL text: chat replies, GitHub issue/PR comments and replies, README, CHANGELOG, AGENTS.md, commit messages, release notes, code comments. Write `Wi-Fi upload server` instead of `Wi-Fi upload server - ...`, `10-foot UI` instead of `10-foot UI - ...`, etc. Em-dashes are reserved for code/API names only where they already exist. If you catch an em-dash in a posted GitHub comment, edit the comment immediately and replace it with a hyphen.
 - Keep sentences short and layman-friendly; avoid parenthetical em-dash clauses.
 
 ## Current status
