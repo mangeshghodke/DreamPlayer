@@ -23,6 +23,7 @@ import '../services/entitlements.dart';
 import '../services/exo_player.dart';
 import '../services/image_cache_service.dart';
 import '../services/aniskip_store.dart';
+import '../services/skip_pill_autohide_store.dart';
 import '../services/introdb_client.dart';
 import '../services/ios_upscale_store.dart';
 import '../l10n/app_localizations.dart';
@@ -84,6 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _iosUpscale = false;
   bool _iosUpscaleSupported = false;
   SkipMode _skipMode = SkipMode.prompt;
+  bool _skipPillAutoHide = true;
   bool _autoPlayNext = false;
   bool _hwSdrToneMap = false;
   DecoderMode _decoderMode = DecoderMode.auto;
@@ -228,7 +230,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _iosUpscale = prefs.getBool(IosUpscaleStore.prefsKey) ?? false;
         });
         final skipMode = await AniskipStore.loadMode();
-        if (mounted) setState(() => _skipMode = skipMode);
+        final skipAutoHide = await SkipPillAutoHideStore.load();
+        if (mounted) {
+          setState(() {
+            _skipMode = skipMode;
+            _skipPillAutoHide = skipAutoHide;
+          });
+        }
       }
     } catch (_) {}
   }
@@ -1589,6 +1597,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       }
                     },
                   ),
+                // Issue #68: let the user choose between the 5 s auto-hide
+                // and a pill that stays for the whole segment. Placed AFTER
+                // the engine row on purpose - the landscape dialog-overflow
+                // test taps the engine row at a fixed viewport offset, and a
+                // row above it pushes it off the 360 px-tall test viewport.
+                SwitchListTile(
+                  secondary: const Icon(Icons.timer_off_outlined),
+                  title: const Text('Auto-hide skip button after 5 s'),
+                  subtitle: const Text(
+                    'Off = keep the skip button visible for the whole intro/recap/credits',
+                  ),
+                  value: _skipPillAutoHide,
+                  onChanged: (v) async {
+                    await SkipPillAutoHideStore.save(v);
+                    if (mounted) setState(() => _skipPillAutoHide = v);
+                  },
+                ),
                 if (defaultTargetPlatform == TargetPlatform.android &&
                     _showMpvSettings)
                   ListTile(

@@ -56,6 +56,7 @@ import '../services/intro_db.dart';
 import '../utils/chapter_nav.dart';
 import '../services/aniskip_client.dart';
 import '../services/aniskip_store.dart';
+import '../services/skip_pill_autohide_store.dart';
 import '../services/introdb_client.dart';
 import '../utils/skip_segments.dart';
 import '../utils/episode_label.dart';
@@ -570,6 +571,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _skipPillExpired = false;
   bool _skipPillWasInside = false;
 
+  /// Issue #68: when false, the skip pill is never auto-hidden and stays up
+  /// for the whole segment (loaded from [SkipPillAutoHideStore]).
+  bool _skipPillAutoHide = true;
+
   /// Guard so an ended video is marked watched exactly once per session.
   bool _markedWatched = false;
   bool _autoPlayFired = false;
@@ -1023,6 +1028,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     _resetSkipPill();
     unawaited(AniskipStore.loadMode().then((m) {
       if (mounted) setState(() => _skipMode = m);
+    }));
+    // Issue #68: whether the skip pill auto-hides 5 s after entering a
+    // segment (default) or stays for the whole segment.
+    unawaited(SkipPillAutoHideStore.load().then((v) {
+      if (mounted) setState(() => _skipPillAutoHide = v);
     }));
     // Seed chapters from the VideoItem (e.g. Jellyfin `MediaSources[].Chapters`);
     // native MKV parsing (`e.chapters`) will override once available.
@@ -8140,7 +8150,14 @@ if (mounted) setState(_applySwipeValue);
       _skipPillTimer = null;
     }
     _skipPillWasInside = inside;
-    if (_skipPillExpired || _skipPillTimer != null || !inside) return;
+    // Issue #68: with auto-hide OFF the pill stays visible for the whole
+    // segment - the timer is simply never armed.
+    if (!_skipPillAutoHide ||
+        _skipPillExpired ||
+        _skipPillTimer != null ||
+        !inside) {
+      return;
+    }
     _skipPillTimer = Timer(_skipPillVisibleFor, () {
       if (!mounted) return;
       setState(() => _skipPillExpired = true);

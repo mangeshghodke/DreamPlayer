@@ -1,6 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:dream_player/services/skip_pill_autohide_store.dart';
 
 /// Pins the skip-pill auto-hide (user request): the "Skip
 /// intro/recap/credits" pill disappears 5 s after the playhead ENTERS a
@@ -53,7 +56,9 @@ void main() {
     // The 5 s pre-roll lead (pill shown up to 5 s before a segment starts)
     // must not consume the hide window, so arming is gated on `inside`.
     expect(updater, contains('SkipSegments.inside(_allSkipSegments,'));
-    expect(updater, contains('|| !inside) return;'));
+    // (multi-line guard since issue #68 added the auto-hide toggle)
+    expect(updater, contains('!_skipPillAutoHide ||'));
+    expect(updater, contains('!inside)'));
   });
 
   test('the timer fires exactly once, not once per tick', () {
@@ -119,5 +124,30 @@ void main() {
     );
     expect(rows, contains('_tvListTile('));
     expect(rows, contains('_skipSegment(s);'));
+  });
+
+  group('issue #68: auto-hide is a user toggle (default ON)', () {
+    test('store: pref key, default true, persists', () async {
+      SharedPreferences.setMockInitialValues({});
+      expect(await SkipPillAutoHideStore.load(), isTrue);
+      await SkipPillAutoHideStore.save(false);
+      expect(await SkipPillAutoHideStore.load(), isFalse);
+      expect(SkipPillAutoHideStore.prefsKey, 'dreamplayer.skipPillAutoHide');
+    });
+
+    test('player loads the store and never arms the timer when OFF', () {
+      expect(source, contains('SkipPillAutoHideStore.load()'));
+      expect(source, contains('bool _skipPillAutoHide = true;'));
+      // the arm guard must include the toggle:
+      expect(updater, contains('!_skipPillAutoHide ||'));
+    });
+
+    test('settings exposes the switch next to the skip-mode row', () {
+      final settings = File('lib/screens/settings_screen.dart').readAsStringSync();
+      expect(settings, contains("title: const Text('Auto-hide skip button after 5 s')"));
+      expect(settings, contains('value: _skipPillAutoHide'));
+      expect(settings, contains('SkipPillAutoHideStore.save(v)'));
+      expect(settings, contains('SkipPillAutoHideStore.load()'));
+    });
   });
 }

@@ -2748,6 +2748,16 @@ the decoration.
     engines, late remote segments, cancel on open/dispose, sheet rows stay).
   - **It shipped in `1e2903c`, whose message is about WiFi transfer - read the
     code, not the log, when tracing this feature.**
+  - **The 5 s auto-hide is now a user toggle (issue #68, 2026-11-25).** A
+    reporter found the auto-hide makes the one-tap skip easy to miss, so
+    Settings → Player → "Auto-hide skip button after 5 s" (default ON =
+    current behavior; OFF = the pill stays for the whole segment,
+    Netflix/Prime-style). Store: `SkipPillAutoHideStore` (pref
+    `dreamplayer.skipPillAutoHide`); the player loads it at open and simply
+    never arms `_skipPillTimer` when OFF. The toggle sits AFTER the engine
+    row in the Player section on purpose - the landscape dialog-overflow test
+    taps the engine row at a fixed viewport offset. Pinned in
+    `test/skip_pill_auto_hide_test.dart`.
 - Pure logic in `lib/utils/skip_segments.dart`, parsing in
   `AniskipClient.parseAniSkipResponse` / `parseAniListMalId` (both
   try/catch around `jsonDecode` - a non-JSON body must not throw).
