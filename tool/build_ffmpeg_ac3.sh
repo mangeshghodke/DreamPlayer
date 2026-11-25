@@ -6,10 +6,13 @@
 # link it statically. Run locally before a debug build and in release.yml
 # before the APKs; the prebuilt output is gitignored.
 #
-#   ffmpeg --disable-everything --enable-encoder=ac3
+#   ffmpeg --disable-everything --enable-encoder=ac3_fixed
 #
-# yields a libavcodec with just the AC3 encoder (~1 MB), not the ~4 MB full
-# decoder build that media3ext already ships.
+# yields a libavcodec with just the AC3 fixed-point encoder (~1 MB), not
+# the ~4 MB full decoder build that media3ext already ships. ac3_fixed is
+# required (not ac3): the floating-point "ac3" encoder only accepts FLTP
+# input, while ac3_fixed accepts S16P - the format Kodi's AEEncoderFFmpeg
+# feeds it.
 #
 # Usage: tool/build_ffmpeg_ac3.sh [ffmpeg-tag]   (default: $FFMPEG_TAG below)
 set -euo pipefail
@@ -42,7 +45,7 @@ build_abi() {
   (cd "$src" && ./configure \
       --target-os=android --arch="$arch" --cpu=generic \
       --cc="$TOOLCHAIN/$clang" --enable-cross-compile \
-      --disable-everything --enable-encoder=ac3 \
+      --disable-everything --enable-encoder=ac3_fixed \
       --enable-avcodec --enable-avutil --enable-swresample \
       --disable-programs --disable-doc --disable-network \
       --disable-x86asm --disable-asm \

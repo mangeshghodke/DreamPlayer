@@ -64,6 +64,12 @@ object PlayerCodecs {
         // Debug/testing escape hatch: force the transcode path on devices
         // without HDMI (e.g. a phone) so the sink can be exercised on-device.
         val force = prefs.getBoolean("flutter.dreamplayer.audioTranscodeAc3Force", false)
+        // Debug builds: the AC3 toggle alone also engages the path, so it can
+        // be verified on a phone (release builds still require HDMI).
+        if (BuildConfig.DEBUG) {
+            android.util.Log.i("PlayerCodecs", "AC3 transcode: toggle=ON (debug build, hdmi=${hasHdmiOutput(context)})")
+            return true
+        }
         return force || hasHdmiOutput(context)
     }
 

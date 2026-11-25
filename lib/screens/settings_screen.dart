@@ -2005,7 +2005,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       secondary: const Icon(Icons.cable_outlined),
                       title: const Text('Transcode audio to AC3 (Dolby Digital)'),
                       subtitle: const Text(
-                        'For HDMI receivers that only support AC3 - re-encodes other audio to AC3. Android, Media3 engine.',
+                        'For HDMI receivers that only support AC3 - AC3 sources '
+                        'bitstream on MPV; other audio (E-AC3/DTS/TrueHD) plays '
+                        'as PCM on MPV or is re-encoded to AC3 on Media3. Android.',
                       ),
                       value: _audioTranscodeAc3,
                       onChanged: (value) async {

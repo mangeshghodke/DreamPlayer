@@ -39,7 +39,10 @@ class Ac3TranscodeSink(
     private var audioTrack: AudioTrack? = null
     private var encoderHandle: Long = 0
     private var pcmSampleRate = 48000
+    /** Channels sent to the AC3 encoder (clamped to 6 max - AC3 supports 5.1, not 7.1). */
     private var pcmChannels = 2
+    /** Actual input channel count from the decoder (may exceed encoder max). */
+    private var inputChannels = 2
     private var volume = 1f
     private var playbackParameters = PlaybackParameters.DEFAULT
     private var skipSilence = false
@@ -75,7 +78,9 @@ class Ac3TranscodeSink(
         }
         transcoding = true
         pcmSampleRate = inputFormat.sampleRate
-        pcmChannels = inputFormat.channelCount.coerceAtLeast(1)
+        inputChannels = inputFormat.channelCount.coerceAtLeast(1)
+        // AC3 encoder max is 5.1 (6 channels) - 7.1/8ch input must be downmixed.
+        pcmChannels = inputChannels.coerceAtMost(6)
         if (!Ac3Encoder.ensureLoaded()) {
             Log.w(TAG, "ac3enc lib unavailable - falling back to delegate PCM sink")
             transcoding = false
@@ -145,9 +150,10 @@ class Ac3TranscodeSink(
         val track = audioTrack ?: return true
         val bytes = ByteArray(buffer.remaining())
         buffer.get(bytes)
-        val samplesPerChannel = bytes.size / 2 / pcmChannels
+        val samplesPerChannel = bytes.size / 2 / inputChannels
         if (samplesPerChannel <= 0) return true
-        val frames = Ac3Encoder.nativeEncode(encoderHandle, bytes, samplesPerChannel)
+        val pcmToEncode = if (inputChannels == pcmChannels) bytes else downmix(bytes, inputChannels, pcmChannels, samplesPerChannel)
+        val frames = Ac3Encoder.nativeEncode(encoderHandle, pcmToEncode, samplesPerChannel)
             ?: return true
         // The encoder returns concatenated raw AC3 frames; each starts with
         // the 0x0B77 syncword. Split on syncwords and IEC-pack each frame.
@@ -168,6 +174,29 @@ class Ac3TranscodeSink(
         val frame = data.copyOfRange(from, to)
         val packed = packAc3Iec61937(frame)
         track.write(packed, 0, packed.size)
+    }
+
+    /// Downmixes interleaved s16 PCM from `fromChannels` to `toChannels` by
+    /// taking the first `toChannels` channels of each interleaved frame.
+    /// For 7.1→5.1 this keeps FL,FR,FC,LFE,SL,SR and drops the two surround-back
+    /// channels (AC3 does not support 7.1).
+    private fun downmix(pcm: ByteArray, fromChannels: Int, toChannels: Int, samplesPerChannel: Int): ByteArray {
+        val out = ByteArray(samplesPerChannel * toChannels * 2)
+        val s = ShortArray(samplesPerChannel * fromChannels)
+        for (i in s.indices) {
+            val b0 = pcm[i * 2].toInt() and 0xFF
+            val b1 = pcm[i * 2 + 1].toInt() and 0xFF
+            s[i] = (b0 or (b1 shl 8)).toShort()
+        }
+        var o = 0
+        for (i in 0 until samplesPerChannel) {
+            for (c in 0 until toChannels) {
+                val v = s[i * fromChannels + c].toInt()
+                out[o++] = (v and 0xFF).toByte()
+                out[o++] = (v shr 8).toByte()
+            }
+        }
+        return out
     }
 
     override fun play() {

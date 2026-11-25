@@ -38,6 +38,7 @@ import '../services/watched_store.dart';
 import '../services/sidecar_subtitle_service.dart';
 import '../services/spatial_audio_store.dart';
 import '../services/audio_downmix_store.dart';
+import '../services/audio_transcode_store.dart';
 import '../services/ios_upscale_store.dart';
 import '../services/mpv_pip.dart';
 import '../services/mpv_surface_view.dart';
@@ -2127,6 +2128,18 @@ Future<void> _offerVc1Mpv() async {
         'audio-channels',
         downmix ? 'stereo' : 'auto',
       );
+      // Issue #70: AC3 transcode on MPV. mpv has no AC3 encoder, so it cannot
+      // re-encode PCM to AC3. Setting audio-spdif=ac3 makes ONLY AC3 pass
+      // through as a bitstream to AudioTrack(ENCODING_IEC61937); E-AC3/DTS/
+      // TrueHD are decoded to PCM instead (true PCM→AC3 transcode is
+      // Media3-only via Ac3TranscodeSink + libac3enc.so). On an AC3-only
+      // HDMI receiver, PCM output is still audible (receivers accept PCM),
+      // just not bitstream-AC3.
+      final transcodeAc3 = await AudioTranscodeStore.load();
+      if (transcodeAc3) {
+        await platform.setProperty('audio-spdif', 'ac3');
+        debugPrint('mpv: audio-spdif=ac3 (AC3 transcode active)');
+      }
       debugPrint('mpv: audio configured (volume-max=400, pitch-correction, '
           'normalize-downmix=${normalizeDownmix ? 'yes' : 'no'}, '
           'audio-channels=${downmix ? 'stereo' : 'auto'})');

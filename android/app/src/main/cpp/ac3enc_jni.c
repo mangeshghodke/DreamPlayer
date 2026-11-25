@@ -12,6 +12,7 @@
 #include <jni.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <android/log.h>
 
 #include <libavcodec/avcodec.h>
@@ -44,12 +45,26 @@ static void ac3enc_close_ctx(Ac3Enc *e) {
     free(e);
 }
 
+static void ac3enc_av_log_cb(void *avcl, int level, const char *fmt, va_list vl) {
+    if (level > AV_LOG_DEBUG) return;
+    char line[1024];
+    vsnprintf(line, sizeof(line), fmt, vl);
+    __android_log_print(level <= AV_LOG_ERROR ? ANDROID_LOG_ERROR
+                        : level <= AV_LOG_WARNING ? ANDROID_LOG_WARN
+                        : ANDROID_LOG_INFO, "ffmpeg", "%s", line);
+}
+
 JNIEXPORT jlong JNICALL
 Java_com_dreamplayer_app_Ac3Encoder_nativeOpen(JNIEnv *env, jclass clazz,
                                                 jint sampleRate, jint channels,
                                                 jint bitRate) {
+    /* Route FFmpeg's av_log to Android logcat so the encoder's own validation
+     * errors (e.g. "sample_fmt not supported") are visible. */
+    av_log_set_level(AV_LOG_DEBUG);
+    av_log_set_callback(ac3enc_av_log_cb);
     const AVCodec *codec = avcodec_find_encoder(AV_CODEC_ID_AC3);
     if (!codec) { LOGE("no AC3 encoder in this ffmpeg build"); return 0; }
+    LOGI("found encoder: name=%s", codec->name);
     Ac3Enc *e = calloc(1, sizeof(Ac3Enc));
     if (!e) return 0;
     e->ctx = avcodec_alloc_context3(codec);
@@ -58,9 +73,11 @@ Java_com_dreamplayer_app_Ac3Encoder_nativeOpen(JNIEnv *env, jclass clazz,
     e->ctx->sample_rate = sampleRate;
     e->ctx->bit_rate = bitRate;
     av_channel_layout_default(&e->ctx->ch_layout, channels);
-    e->ctx->sample_fmt = AV_SAMPLE_FMT_S16P; /* the fixed-point AC3 encoder's input */
-    if (avcodec_open2(e->ctx, codec, NULL) < 0) {
-        LOGE("avcodec_open2 failed");
+    e->ctx->sample_fmt = AV_SAMPLE_FMT_S32P; /* ac3_fixed accepts S32P input */
+    int open_ret = avcodec_open2(e->ctx, codec, NULL);
+    if (open_ret < 0) {
+        LOGE("avcodec_open2 failed err=%d (rate=%d ch=%d br=%d codec=%s)",
+             open_ret, sampleRate, channels, bitRate, codec->name);
         ac3enc_close_ctx(e);
         return 0;
     }
@@ -68,12 +85,12 @@ Java_com_dreamplayer_app_Ac3Encoder_nativeOpen(JNIEnv *env, jclass clazz,
     e->frame = av_frame_alloc();
     e->pkt = av_packet_alloc();
     if (!e->frame || !e->pkt) { ac3enc_close_ctx(e); return 0; }
-    e->frame->format = AV_SAMPLE_FMT_S16P;
+    e->frame->format = AV_SAMPLE_FMT_S32P;
     e->frame->nb_samples = e->frameSize;
     e->frame->sample_rate = sampleRate;
     av_channel_layout_copy(&e->frame->ch_layout, &e->ctx->ch_layout);
     if (av_frame_get_buffer(e->frame, 0) < 0) { ac3enc_close_ctx(e); return 0; }
-    e->fifo = malloc((size_t)e->frameSize * channels * sizeof(int16_t));
+    e->fifo = malloc((size_t)e->frameSize * channels * sizeof(int32_t));
     if (!e->fifo) { ac3enc_close_ctx(e); return 0; }
     e->fifoCap = e->frameSize;
     e->fifoSamples = 0;
@@ -84,6 +101,7 @@ Java_com_dreamplayer_app_Ac3Encoder_nativeOpen(JNIEnv *env, jclass clazz,
 /*
  * Feeds interleaved little-endian s16 PCM; returns concatenated raw AC3
  * frames (may be empty while the encoder buffers a partial frame).
+ * Media3 outputs PCM16; ac3_fixed needs S32P, so we sign-extend here.
  */
 JNIEXPORT jbyteArray JNICALL
 Java_com_dreamplayer_app_Ac3Encoder_nativeEncode(JNIEnv *env, jclass clazz,
@@ -99,20 +117,21 @@ Java_com_dreamplayer_app_Ac3Encoder_nativeEncode(JNIEnv *env, jclass clazz,
     if (needed > e->fifoCap) {
         int newCap = e->fifoCap;
         while (newCap < needed) newCap *= 2;
-        int16_t *nf = malloc((size_t)newCap * e->channels * sizeof(int16_t));
+        int32_t *nf = malloc((size_t)newCap * e->channels * sizeof(int32_t));
         if (nf) {
             for (int c = 0; c < e->channels; c++) {
                 memcpy(nf + (size_t)c * newCap, e->fifo + (size_t)c * e->fifoCap,
-                       (size_t)e->fifoSamples * sizeof(int16_t));
+                       (size_t)e->fifoSamples * sizeof(int32_t));
             }
             free(e->fifo);
             e->fifo = nf;
             e->fifoCap = newCap;
         }
     }
-    /* de-interleave appended at the tail: fifo[ch * fifoCap + sample] */
+    /* de-interleave appended at the tail: fifo[ch * fifoCap + sample]
+     * (interleaved s16 input → planar s32 output, sign-extended) */
     for (int c = 0; c < e->channels; c++) {
-        int16_t *dst = e->fifo + (size_t)c * e->fifoCap + e->fifoSamples;
+        int32_t *dst = e->fifo + (size_t)c * e->fifoCap + e->fifoSamples;
         const int16_t *src = (const int16_t *)(in + c * 2);
         for (int i = 0; i < samplesPerChannel; i++) {
             dst[i] = src[(size_t)i * e->channels];
@@ -126,10 +145,10 @@ Java_com_dreamplayer_app_Ac3Encoder_nativeEncode(JNIEnv *env, jclass clazz,
     while (e->fifoSamples >= e->frameSize) {
         av_frame_make_writable(e->frame);
         for (int c = 0; c < e->channels; c++) {
-            int16_t *src = e->fifo + (size_t)c * e->fifoCap;
-            memcpy(e->frame->data[c], src, (size_t)e->frameSize * sizeof(int16_t));
+            int32_t *src = e->fifo + (size_t)c * e->fifoCap;
+            memcpy(e->frame->data[c], src, (size_t)e->frameSize * sizeof(int32_t));
             memmove(src, src + e->frameSize,
-                    (size_t)(e->fifoSamples - e->frameSize) * sizeof(int16_t));
+                    (size_t)(e->fifoSamples - e->frameSize) * sizeof(int32_t));
         }
         e->fifoSamples -= e->frameSize;
         if (avcodec_send_frame(e->ctx, e->frame) < 0) continue;

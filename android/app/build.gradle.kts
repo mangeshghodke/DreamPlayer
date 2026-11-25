@@ -19,6 +19,9 @@ val hasUploadKeystore =
         file(keystoreProps.getProperty("storeFile")).isFile
 
 android {
+    buildFeatures {
+        buildConfig = true
+    }
     packaging {
         jniLibs {
             // Custom libmpv (libplacebo/gpu-next, Phase 3) overrides media_kit's
