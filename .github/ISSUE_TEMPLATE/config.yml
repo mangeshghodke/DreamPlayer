@@ -1,0 +1,14 @@
+# Template chooser configuration (see
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository)
+#
+# Blank issues stay enabled: this is a small community project and "Blank
+# issue" is useful for reports that don't fit a template.
+blank_issues_enabled: true
+
+contact_links:
+  - name: Community Discord
+    url: https://discord.gg/sAnXAAA8R
+    about: Quick chat with the community and the developer - for things that don't need a tracked issue.
+  - name: Website and docs
+    url: https://dreamplayer.isroot.in/
+    about: Download links, FAQ, privacy policy and terms of service.
