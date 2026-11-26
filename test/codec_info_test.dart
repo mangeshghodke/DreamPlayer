@@ -56,6 +56,8 @@ void main() {
       expect(formatAudioCodec('dts'), 'DTS');
       expect(formatAudioCodec('dts_hd'), 'DTS-HD');
       expect(formatAudioCodec('truehd'), 'TrueHD');
+      expect(formatAudioCodec('true-hd'), 'TrueHD');
+      expect(formatAudioCodec('audio/true-hd'), 'TrueHD');
       expect(formatAudioCodec('aac'), 'AAC');
       expect(formatAudioCodec('flac'), 'FLAC');
     });

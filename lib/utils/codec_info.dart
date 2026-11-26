@@ -111,6 +111,7 @@ String formatAudioCodec(String? codec) {
     'dtsx': 'DTS:X',
     'dts_x': 'DTS:X',
     'truehd': 'TrueHD',
+    'true-hd': 'TrueHD',
     'mlp': 'TrueHD',
     'aac': 'AAC',
     'mp4a': 'AAC',
