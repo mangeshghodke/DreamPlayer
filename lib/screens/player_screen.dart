@@ -6389,7 +6389,7 @@ if (mounted) setState(_applySwipeValue);
       // Video frame rate + bitrate (MediaInfo: Frame rate / Bit rate).
       if (videoFps != null && videoFps > 0)
         (label: 'Video fps', value: formatFps(videoFps)),
-      if (videoBitrateKbps != null)
+      if (videoBitrateKbps != null && videoBitrateKbps > 0)
         (label: 'Video bitrate', value: formatBitrate(videoBitrateKbps)),
       // Video decoder (issue #71: MediaInfo-style HW/SW marker).
       if (_mpvReady)
@@ -6410,16 +6410,18 @@ if (mounted) setState(_applySwipeValue);
               ? '${_audioInfoLabel ?? "Audio"} · Passthrough'
               : _audioInfoLabel!,
         ),
-      // Audio channels (MediaInfo: Channel(s)).
+      // Audio channels (MediaInfo: Channel(s)). Just the label, e.g. "5.1"
+      // or "7.1.4" - no redundant raw count.
       if ((_liveAudioChannelCount != null && _liveAudioChannelCount! > 0) ||
           (_mpvReady && _mpvAudioChannels != null))
         (
           label: 'Audio channels',
-          value: '${_mpvReady ? _mpvAudioChannels! : _liveAudioChannelCount!} '
-              '${channelsLabel(_mpvReady ? _mpvAudioChannels : _liveAudioChannelCount)}',
+          value: channelsLabel(
+              _mpvReady ? _mpvAudioChannels : _liveAudioChannelCount),
         ),
       // Audio bitrate + sample rate (MediaInfo: Bit rate / Sampling rate).
-      if (audioBitrateKbps != null)
+      // Skip when the engine reports 0 (unknown bitrate).
+      if (audioBitrateKbps != null && audioBitrateKbps > 0)
         (label: 'Audio bitrate', value: formatBitrate(audioBitrateKbps)),
       if (audioSampleRateText != null)
         (label: 'Audio sample rate', value: audioSampleRateText),

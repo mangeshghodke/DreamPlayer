@@ -189,6 +189,8 @@ String formatMedia3Audio(String? mime, String? codecs) {
     'audio/eac3-joc': 'E-AC3',
     'audio/ac3': 'AC-3',
     'audio/vnd.dolby.truehd': 'TrueHD',
+    'audio/true-hd': 'TrueHD',
+    'audio/truehd': 'TrueHD',
     'audio/mp4a-latm': 'AAC',
     'audio/aac': 'AAC',
     'audio/flac': 'FLAC',
@@ -210,6 +212,7 @@ String formatMedia3Audio(String? mime, String? codecs) {
     'dtsx': 'DTS:X',
     'mlp': 'TrueHD',
     'truehd': 'TrueHD',
+    'true-hd': 'TrueHD',
     'ac-3': 'AC-3',
     'ac3': 'AC-3',
     'ec-3': 'E-AC3',
@@ -236,6 +239,12 @@ String formatMedia3Audio(String? mime, String? codecs) {
   final fromCodecs = codecMap[primary];
   if (fromCodecs != null) return fromCodecs;
 
+  // Last resort: strip the "audio/" MIME prefix so an unknown MIME like
+  // "audio/true-hd" renders "TRUE-HD" instead of "AUDIO/TRUE-HD".
+  if (m.startsWith('audio/')) {
+    final tail = m.substring(6);
+    if (tail.isNotEmpty) return tail.toUpperCase();
+  }
   if (m.isNotEmpty) return m.toUpperCase();
   if (c.isNotEmpty) return c.toUpperCase();
   return 'Unknown';

@@ -105,7 +105,7 @@ void main() {
 
     test('unknown input', () {
       expect(formatMedia3Audio(null, null), 'Unknown');
-      expect(formatMedia3Audio('audio/x-odd', 'zzz'), 'AUDIO/X-ODD');
+      expect(formatMedia3Audio('audio/x-odd', 'zzz'), 'X-ODD');
     });
   });
 
