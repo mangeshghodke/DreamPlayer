@@ -778,7 +778,7 @@
     "description": "Night mode subtitle"
   },
   "settingsAudioDownmix": "Downmix to stereo",
-  "settingsAudioDownmixDesc": "Fold 5.1/7.1 tracks into 2.0 so dialogue stays loud on stereo headphones and speakers. Applies on the next playback; ignored for HDMI passthrough.",
+  "settingsAudioDownmixDesc": "Fold 5.1/7.1 into 2.0 for stereo speakers; ignored on HDMI passthrough.",
   "@settingsAudioDownmix": {
     "description": "Settings → Audio: switch that folds 5.1/7.1 audio into stereo."
   },

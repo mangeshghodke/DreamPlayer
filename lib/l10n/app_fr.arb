@@ -591,7 +591,7 @@
     "description": "Night mode subtitle"
   },
   "settingsAudioDownmix": "Mixage vers la stéréo",
-  "settingsAudioDownmixDesc": "Réduit les pistes 5.1/7.1 en 2.0 pour que les dialogues restent forts sur un casque ou des enceintes stéréo. S'applique à la prochaine lecture ; ignoré en passthrough HDMI.",
+  "settingsAudioDownmixDesc": "Réduit 5.1/7.1 en 2.0 pour enceintes stéréo ; ignoré en passthrough HDMI.",
   "@settingsSpatialAudio": {
     "description": "Spatial audio section title"
   },

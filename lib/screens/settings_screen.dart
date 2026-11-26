@@ -1610,7 +1610,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   secondary: const Icon(Icons.timer_off_outlined),
                   title: const Text('Auto-hide skip button after 5 s'),
                   subtitle: const Text(
-                    'Off = keep the skip button visible for the whole intro/recap/credits',
+                    'Off = keep the button for the whole segment',
                   ),
                   value: _skipPillAutoHide,
                   onChanged: (v) async {
@@ -2005,10 +2005,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       secondary: const Icon(Icons.cable_outlined),
                       title: const Text('Transcode audio to AC3 (Dolby Digital)'),
                       subtitle: const Text(
-                        'For HDMI receivers that only support AC3 - on Media3, '
-                        'E-AC3/DTS/TrueHD are re-encoded to AC3; on MPV all '
-                        'bitstream-capable formats pass through untouched '
-                        '(MPV has no AC3 encoder). Android.',
+                        'AC3-only HDMI receivers. Media3 re-encodes; MPV passes '
+                        'through. Android.',
                       ),
                       value: _audioTranscodeAc3,
                       onChanged: (value) async {

@@ -770,7 +770,7 @@
     "description": "Night mode subtitle"
   },
   "settingsAudioDownmix": "Даунмикс в стерео",
-  "settingsAudioDownmixDesc": "Сводит дорожки 5.1/7.1 к стерео (2.0), чтобы диалоги оставались громкими в наушниках и колонках. Применяется при следующем воспроизведении; при сквозной передаче HDMI игнорируется.",
+  "settingsAudioDownmixDesc": "Сводит 5.1/7.1 в 2.0 для стереодинамиков; игнорируется при HDMI-пробросе.",
   "settingsSpatialAudio": "Пространственный звук",
   "@settingsSpatialAudio": {
     "description": "Spatial audio section title"
