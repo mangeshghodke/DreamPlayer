@@ -284,6 +284,7 @@ class ExoPlayerEvent {
     this.audioCodecs,
     this.audioMime,
     this.audioChannels = 0,
+    this.audioSampleRate,
     this.audioTracks = const [],
     this.selectedAudioTrack = -1,
     this.subtitleLabel,
@@ -351,6 +352,7 @@ class ExoPlayerEvent {
   final String? audioCodecs;
   final String? audioMime;
   final int audioChannels;
+  final int? audioSampleRate;
   final List<ExoAudioTrack> audioTracks;
   final int selectedAudioTrack;
 
@@ -457,6 +459,7 @@ class ExoPlayerEvent {
       audioCodecs: m['audioCodecs'] as String?,
       audioMime: m['audioMime'] as String?,
       audioChannels: asInt(m['audioChannels']),
+      audioSampleRate: asInt(m['audioSampleRate']),
       audioTracks: (m['audioTracks'] as List? ?? const [])
           .map((e) => ExoAudioTrack.fromMap(e as Map<dynamic, dynamic>))
           .toList(),

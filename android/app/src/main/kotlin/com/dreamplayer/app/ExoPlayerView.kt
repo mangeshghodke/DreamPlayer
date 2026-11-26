@@ -1850,6 +1850,9 @@ class ExoPlayerView(
                             // Format bitrate is BITS per second.
                             "videoBitrate" to vf?.bitrate,
                             "audioBitrate" to af?.bitrate,
+                            // Issue #71: MediaInfo-style info sheet fields.
+                            "audioSampleRate" to af?.sampleRate,
+                            "audioChannels" to af?.channelCount,
                             "renderedOutputBufferCount" to
                                 dc?.renderedOutputBufferCount,
                             "droppedBufferCount" to

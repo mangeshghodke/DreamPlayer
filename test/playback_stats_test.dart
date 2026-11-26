@@ -280,6 +280,30 @@ void main() {
       expect(nativeSrc, contains('map["isHwAudioDecoder"]'));
     });
 
+    test('issue #71: info sheet shows raw WxH resolution and MediaInfo-style rows', () {
+      // Resolution in the info sheet must be raw dimensions, not the 4K badge label.
+      final resBlock = screenSrc.substring(
+        screenSrc.indexOf('String? get _resolutionInfoLabel'),
+        screenSrc.indexOf('String? get _statsDecoderLine'),
+      );
+      expect(resBlock, contains("return '\$_videoW x \$_videoH'"));
+      // MediaInfo-style rows present in the sheet.
+      expect(screenSrc, contains("label: 'Video codec'"));
+      expect(screenSrc, contains("label: 'Audio codec'"));
+      expect(screenSrc, contains("label: 'Video decoder'"));
+      expect(screenSrc, contains("label: 'Audio decoder'"));
+      expect(screenSrc, contains("label: 'Audio channels'"));
+      expect(screenSrc, contains("label: 'Audio sample rate'"));
+      expect(screenSrc, contains("label: 'Video fps'"));
+      expect(screenSrc, contains("label: 'Video bitrate'"));
+      expect(screenSrc, contains("label: 'Audio bitrate'"));
+      expect(screenSrc, contains("label: 'Duration'"));
+      // The sheet pulls live telemetry on demand.
+      expect(screenSrc, contains('getStats()'));
+      // Native getStats carries the audio sample rate.
+      expect(nativeSrc, contains('"audioSampleRate" to af?.sampleRate'));
+    });
+
     test('issue #71: decoder badges work on every platform, not Android-only', () {
       // iOS emits VideoToolbox/AudioToolbox (native path) vs FFmpeg
       // (software path) in the same state map keys.

@@ -6327,59 +6327,105 @@ if (mounted) setState(_applySwipeValue);
   /// channel / sample-rate, chapter count, full decoder path, and file size.
   Future<void> _openVideoInfoSheet() async {
     if (_touchLocked) return;
+    if (!mounted) return;
     _showControls();
     final video = _current;
+    final l = AppLocalizations.of(context);
     // Resolve a few helpers outside the rows list to keep the literal tidy.
     final sourceLabel = _sourceLabel(video);
     final sourceUrl = (video.uri?.isNotEmpty == true)
         ? video.uri!
         : (video.path?.isNotEmpty == true ? video.path! : '');
     final fileSize = (video.sizeBytes ?? 0) > 0 ? _formatBytes(video.sizeBytes!) : null;
-    final speedLabel = (_playbackSpeed - 1.0).abs() > 0.001
-        ? '${_playbackSpeed.toStringAsFixed(2)}×'
+    // Pull live engine telemetry (fps / bitrate / sample rate) on demand for
+    // the MediaInfo-style sheet. Media3 answers once via getStats(); MPV via
+    // its property reads - both are best-effort and may return null.
+    final rawStats = _mpvReady
+        ? null
+        : (_exo is ExoPlayerController
+            ? await (_exo as ExoPlayerController).getStats()
+            : null);
+    final videoFps = rawStats != null
+        ? doubleOrNullFieldNum(rawStats, 'videoFps')?.toDouble()
+        : (await _mpvReadPropertyNumber('container-fps')) ??
+            (await _mpvReadPropertyNumber('estimated-vf-fps'));
+    final videoBitrateRaw = rawStats != null
+        ? doubleOrNullFieldNum(rawStats, 'videoBitrate')
+        : await _mpvReadPropertyNumber('video-bitrate');
+    final audioBitrateRaw = rawStats != null
+        ? doubleOrNullFieldNum(rawStats, 'audioBitrate')
+        : await _mpvReadPropertyNumber('audio-bitrate');
+    final videoBitrateKbps = videoBitrateRaw != null ? videoBitrateRaw / 1000.0 : null;
+    final audioBitrateKbps = audioBitrateRaw != null ? audioBitrateRaw / 1000.0 : null;
+    final audioSampleRateHz = rawStats != null
+        ? doubleOrNullFieldNum(rawStats, 'audioSampleRate')?.round()
+        : (await _mpvReadPropertyNumber('audio-params/samplerate'))?.round();
+    final asr = audioSampleRateHz;
+    final audioSampleRateText = asr != null && asr > 0
+        ? '${(asr / 1000).toStringAsFixed(1)} kHz'
         : null;
     final rows = <({String label, String value})>[
-      (label: AppLocalizations.of(context).playerTitle, value: video.title),
-      (label: AppLocalizations.of(context).playerSource, value: sourceLabel),
+      (label: l.playerTitle, value: video.title),
+      (label: l.playerSource, value: sourceLabel),
       if (sourceUrl.isNotEmpty && sourceUrl != video.title)
-        (label: AppLocalizations.of(context).playerUrl, value: sourceUrl),
-      if (fileSize != null) (label: AppLocalizations.of(context).playerFileSize, value: fileSize),
+        (label: l.playerUrl, value: sourceUrl),
+      if (fileSize != null)
+        (label: l.playerFileSize, value: fileSize),
+      if (_resolutionInfoLabel != null)
+        (label: l.playerResolution, value: _resolutionInfoLabel!),
+      // Duration, from the probe / engine (MediaInfo shows it).
+      if (_duration.inMilliseconds > 0)
+        (label: 'Duration', value: _formatDuration(_duration)),
+      // HDR format.
       (
         label: 'HDR',
         value: _mpvReady
             ? _mpvHdrChipLabel
             : (_toneMappedToSdr ? 'Tone-mapped SDR · $_hdrLabel' : _hdrLabel),
       ),
+      // Video codec (MediaInfo: Codec / Format).
       if (_videoCodecInfoLabel != null)
-        (label: 'Video', value: _videoCodecInfoLabel!),
-      if (_resolutionInfoLabel != null)
-        (label: AppLocalizations.of(context).playerResolution, value: _resolutionInfoLabel!),
+        (label: 'Video codec', value: _videoCodecInfoLabel!),
+      // Video frame rate + bitrate (MediaInfo: Frame rate / Bit rate).
+      if (videoFps != null && videoFps > 0)
+        (label: 'Video fps', value: formatFps(videoFps)),
+      if (videoBitrateKbps != null)
+        (label: 'Video bitrate', value: formatBitrate(videoBitrateKbps)),
+      // Video decoder (issue #71: MediaInfo-style HW/SW marker).
       if (_mpvReady)
         (
-          label: 'Decoder',
+          label: 'Video decoder',
           value: 'libmpv · ${_mpvHwdecMode == "no" ? "software" : _mpvHwdecMode == "mediacodec" ? "hardware" : _mpvHwdecMode == "mediacodec-copy" ? "hardware (copy)" : "hardware (auto)"}',
         )
       else if (_liveDecoderName != null)
         (
-          label: 'Decoder',
+          label: 'Video decoder',
           value: '$_liveDecoderName${(_isHwDecoder ?? true) ? " · hardware" : " · software"}',
         ),
-      // Audio decoder name alongside the video decoder (issue #71).
-      if (_statsAudioDecoderLine != null)
-        (label: 'Audio decoder', value: _statsAudioDecoderLine!),
+      // Audio codec + language (MediaInfo: Format / Language).
       if (_audioInfoLabel != null || _liveAudioPassthrough)
         (
-          label: AppLocalizations.of(context).playerAudioCh,
+          label: 'Audio codec',
           value: _liveAudioPassthrough
               ? '${_audioInfoLabel ?? "Audio"} · Passthrough'
               : _audioInfoLabel!,
         ),
+      // Audio channels (MediaInfo: Channel(s)).
       if ((_liveAudioChannelCount != null && _liveAudioChannelCount! > 0) ||
           (_mpvReady && _mpvAudioChannels != null))
         (
-          label: AppLocalizations.of(context).playerAudioCh,
-          value: '${_mpvReady ? _mpvAudioChannels! : _liveAudioChannelCount!} ch',
+          label: 'Audio channels',
+          value: '${_mpvReady ? _mpvAudioChannels! : _liveAudioChannelCount!} '
+              '${channelsLabel(_mpvReady ? _mpvAudioChannels : _liveAudioChannelCount)}',
         ),
+      // Audio bitrate + sample rate (MediaInfo: Bit rate / Sampling rate).
+      if (audioBitrateKbps != null)
+        (label: 'Audio bitrate', value: formatBitrate(audioBitrateKbps)),
+      if (audioSampleRateText != null)
+        (label: 'Audio sample rate', value: audioSampleRateText),
+      // Audio decoder (issue #71).
+      if (_statsAudioDecoderLine != null)
+        (label: 'Audio decoder', value: _statsAudioDecoderLine!),
       // Audio-only files: the probed format details under the vinyl disc,
       // also listed here (user request 2026-11-24).
       if (_isAudioOnly && _audioProbe != null) ...[
@@ -6406,24 +6452,24 @@ if (mounted) setState(_applySwipeValue);
       if (_transcodeActive ||
           video.isTranscoded ||
           JellyfinClient.isTranscodeUri(video.uri ?? ''))
-        (label: AppLocalizations.of(context).playerStream, value: 'Server transcoding'),
+        (label: l.playerStream, value: 'Server transcoding'),
       if (_liveSpatial == 'on')
-        (label: AppLocalizations.of(context).playerSpatialAudio, value: 'On'),
+        (label: l.playerSpatialAudio, value: 'On'),
       if (_volumeBoostEnabled)
         (
-          label: AppLocalizations.of(context).playerVolumeBoost,
+          label: l.playerVolumeBoost,
           value: _audioBoost > 1.01
               ? '${(_audioBoost * 100).round()}%'
               : 'Off'
         ),
       if (_nightMode)
-        (label: AppLocalizations.of(context).playerNightMode, value: 'On'),
+        (label: l.playerNightMode, value: 'On'),
       if (_liveBass > 0)
-        (label: AppLocalizations.of(context).playerBassBoost, value: '$_liveBass/3'),
-      if (speedLabel != null) (label: AppLocalizations.of(context).playerSpeed, value: speedLabel),
+        (label: l.playerBassBoost, value: '$_liveBass/3'),
       if (_chapters.isNotEmpty)
-        (label: AppLocalizations.of(context).playerChapters, value: '${_chapters.length}'),
+        (label: l.playerChapters, value: '${_chapters.length}'),
     ];
+    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
@@ -8737,8 +8783,18 @@ if (mounted) setState(_applySwipeValue);
     return null;
   }
 
+  /// Resolution for the info (i) sheet: raw `width x height` (issue #71 -
+  /// the user wants `3840 x 2160` there, not the `4K` badge label; the short
+  /// label stays on the on-screen badge via [resolutionBadgeLabel]).
   String? get _resolutionInfoLabel {
-    if (_mpvReady) return _mpvResolution;
+    if (_mpvReady) {
+      final p = _mpvVideoParams;
+      final w = p?.w;
+      final h = p?.h;
+      if (w != null && h != null && w > 0 && h > 0) return '$w x $h';
+      return _mpvResolution;
+    }
+    if (_videoW > 0 && _videoH > 0) return '$_videoW x $_videoH';
     return _liveResolution ?? _current.resolution;
   }
 
@@ -8859,6 +8915,19 @@ if (mounted) setState(_applySwipeValue);
       },
     );
     if (!stats.isEmpty) _statsSnapshot = stats;
+  }
+
+  /// Reads a single libmpv property on demand (used by the info sheet).
+  /// Returns null when mpv isn't ready or the property isn't exposed.
+  Future<double?> _mpvReadPropertyNumber(String name) async {
+    final platform = _mpvPlayer?.platform;
+    if (platform is! NativePlayer) return null;
+    try {
+      final v = await platform.getProperty(name);
+      return double.tryParse(v);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Media3: one `getStats` channel call returns the format fps/bitrate and
