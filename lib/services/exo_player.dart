@@ -411,9 +411,9 @@ class ExoPlayerEvent {
   /// True = hardware decoder, false = software, null = unknown yet.
   final bool? isHwDecoder;
 
-  /// Audio decoder component name (e.g. `c2.qti.eac3.decoder`), surfaced for
-  /// the playback-stats HUD (issue #71). Null until the audio decoder is
-  /// initialized (and always on iOS, which does not report decoder names).
+  /// Audio decoder component name (e.g. `c2.qti.eac3.decoder` on Android,
+  /// `AudioToolbox`/`FFmpeg (software)` on iOS), surfaced for the
+  /// playback-stats HUD (issue #71). Null until the decoder is initialized.
   final String? audioDecoderName;
 
   /// True = hardware audio decoder, false = software, null = unknown yet.

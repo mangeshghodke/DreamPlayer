@@ -8826,7 +8826,7 @@ if (mounted) setState(_applySwipeValue);
   /// Audio decoder line for the stats HUD and the ⓘ sheet (issue #71:
   /// the audio decoder name next to the video decoder, not just in chips).
   /// MPV decodes audio in its bundled FFmpeg unless the sink takes a
-  /// bitstream; iOS reports no decoder name, so the line is simply omitted.
+  /// bitstream; iOS reports AudioToolbox (native path) / FFmpeg (software).
   String? get _statsAudioDecoderLine {
     if (_mpvReady) {
       return _liveAudioPassthrough ? 'Passthrough' : 'FFmpeg (software)';
