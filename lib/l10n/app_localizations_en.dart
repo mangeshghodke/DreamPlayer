@@ -607,7 +607,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsAudioDownmixDesc =>
-      'Fold 5.1/7.1 tracks into 2.0 so dialogue stays loud on stereo headphones and speakers. Applies on the next playback; ignored for HDMI passthrough.';
+      'Fold 5.1/7.1 into 2.0 for stereo speakers; ignored on HDMI passthrough.';
 
   @override
   String get settingsSpatialAudio => 'Spatial audio';

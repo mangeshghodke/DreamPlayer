@@ -1247,7 +1247,7 @@ abstract class AppLocalizations {
   /// Subtitle of the downmix-to-stereo switch in Settings → Audio.
   ///
   /// In en, this message translates to:
-  /// **'Fold 5.1/7.1 tracks into 2.0 so dialogue stays loud on stereo headphones and speakers. Applies on the next playback; ignored for HDMI passthrough.'**
+  /// **'Fold 5.1/7.1 into 2.0 for stereo speakers; ignored on HDMI passthrough.'**
   String get settingsAudioDownmixDesc;
 
   /// Spatial audio section title

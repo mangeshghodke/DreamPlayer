@@ -613,7 +613,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get settingsAudioDownmixDesc =>
-      'Convierte pistas 5.1/7.1 a 2.0 para que los diálogos sigan altos en auriculares o altavoces estéreo. Se aplica en la siguiente reproducción; se ignora en la salida HDMI directa.';
+      'Convierte 5.1/7.1 a 2.0 para altavoces estéreo; se ignora en HDMI directo.';
 
   @override
   String get settingsSpatialAudio => 'Audio espacial';

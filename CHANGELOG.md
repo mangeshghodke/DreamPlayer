@@ -6,6 +6,13 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 This file is **Android-only** - it feeds the GitHub Releases (APKs). iOS changes are
 documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
+## 0.5.9
+
+### Fixed
+
+- **MPV playback stalled on Dolby Vision / TrueHD files (e.g. Avengers Endgame 4K DoVi TrueHD Atmos)**: an earlier pass set `audio-spdif=ac3` on MPV when the AC3 transcode toggle was on, but mpv has no AC3 encoder, so this restricted bitstream passthrough to AC3-only and left TrueHD/Atmos/DTS-HD with no playable audio path (video-sync=audio never advanced). MPV now leaves `audio-spdif` at mpv's default so all bitstream-capable formats pass through; PCM-to-AC3 transcode remains Media3-only.
+- **On-screen badge fixes**: Dolby Vision files now show `HEVC` as the video codec badge (instead of hiding it once live detection replaces the filename hint); audio codec labels no longer show a raw `AUDIO/` MIME prefix (TrueHD renders as `TrueHD`, not `AUDIO/TRUE-HD`); the info panel no longer shows `0 kbps` when the engine reports no bitrate, and audio channels show just the layout (e.g. `7.1`, not `8 7.1`).
+
 ## 0.5.8
 
 ### Added

@@ -1,0 +1,1 @@
+Fixed MPV playback stalling on Dolby Vision / TrueHD files (audio-spdif passthrough restored). Badge fixes: DV shows HEVC codec, no AUDIO/ prefix, no 0 kbps, clean channel layouts.

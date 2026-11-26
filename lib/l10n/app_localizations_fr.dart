@@ -613,7 +613,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get settingsAudioDownmixDesc =>
-      'Réduit les pistes 5.1/7.1 en 2.0 pour que les dialogues restent forts sur un casque ou des enceintes stéréo. S\'applique à la prochaine lecture ; ignoré en passthrough HDMI.';
+      'Réduit 5.1/7.1 en 2.0 pour enceintes stéréo ; ignoré en passthrough HDMI.';
 
   @override
   String get settingsSpatialAudio => 'Audio spatial';

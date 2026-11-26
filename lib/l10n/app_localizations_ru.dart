@@ -613,7 +613,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get settingsAudioDownmixDesc =>
-      'Сводит дорожки 5.1/7.1 к стерео (2.0), чтобы диалоги оставались громкими в наушниках и колонках. Применяется при следующем воспроизведении; при сквозной передаче HDMI игнорируется.';
+      'Сводит 5.1/7.1 в 2.0 для стереодинамиков; игнорируется при HDMI-пробросе.';
 
   @override
   String get settingsSpatialAudio => 'Пространственный звук';
