@@ -81,7 +81,12 @@ void main() {
         speed: 1.0,
         durationMs: 60000,
         positionMs: 5000,
-        labels: {'video': 'HEVC', 'audio': 'DTS-HD MA', 'decoder': 'software'},
+        labels: {
+          'video': 'HEVC',
+          'audio': 'DTS-HD MA',
+          'decoder': 'software',
+          'audioDecoder': 'FFmpeg (software)',
+        },
       );
       expect(s.sourceFps, closeTo(23.976, 0.01));
       expect(s.renderedFps, 60.0);
@@ -91,6 +96,7 @@ void main() {
       expect(s.videoCodec, 'HEVC');
       expect(s.audioLabel, 'DTS-HD MA');
       expect(s.decoderLine, 'software');
+      expect(s.audioDecoderLine, 'FFmpeg (software)');
       expect(s.width, 3840);
       expect(s.positionMs, 5000);
     });
@@ -157,27 +163,43 @@ void main() {
       frameDropCount: '2',
       width: 3840,
       height: 2160,
-      speed: 1.0,
+      speed: 1.5,
       durationMs: 605000,
       positionMs: 5000,
       labels: {
         'video': 'HEVC',
         'audio': 'DTS-HD MA · 5.1',
-        'decoder': 'software',
+        'decoder': 'c2.qti.hevc.decoder · hardware',
+        'audioDecoder': 'c2.android.eac3.decoder · software',
       },
     );
     final lines = s.toLines();
     expect(lines['Resolution'], '3840 x 2160');
     expect(lines['Video'], 'HEVC');
     expect(lines['Audio'], 'DTS-HD MA · 5.1');
-    expect(lines['Decoder'], 'software');
+    // Issue #71: video AND audio decoder names in the stats.
+    expect(lines['Video decoder'], 'c2.qti.hevc.decoder · hardware');
+    expect(lines['Audio decoder'], 'c2.android.eac3.decoder · software');
     expect(lines['Source fps'], '23.98');
     expect(lines['Rendered fps'], '60');
     expect(lines['Video bitrate'], '12.5 Mbps');
     expect(lines['Audio bitrate'], '640 kbps');
     expect(lines['Dropped frames'], '2');
-    expect(lines['Speed'], '1.0x');
-    expect(lines['Position'], '0:05 / 10:05');
+  });
+
+  test('issue #71: speed and position are NOT rendered in the stats lines', () {
+    // The seek bar already shows the position and the speed lives in the
+    // quick controls, so the HUD keeps only performance data.
+    final s = statsFromMpvProperties(
+      speed: 2.0,
+      durationMs: 605000,
+      positionMs: 5000,
+      containerFps: '24',
+    );
+    final lines = s.toLines();
+    expect(lines.containsKey('Speed'), isFalse);
+    expect(lines.containsKey('Position'), isFalse);
+    expect(lines['Source fps'], '24');
   });
 
   group('HUD wiring (source-reading pins)', () {
@@ -224,6 +246,58 @@ void main() {
         screenSrc,
         contains('if (_statsHudVisible && !_inPip)\n              Positioned('),
       );
+    });
+
+    test('issue #71: stats HUD is anchored to the RIGHT side of the screen', () {
+      final hudI = screenSrc.indexOf('PlaybackStatsHud(stats: _statsSnapshot)');
+      final positioned = screenSrc.lastIndexOf('Positioned(', hudI);
+      final block = screenSrc.substring(positioned, hudI);
+      expect(block, contains('right: 12'));
+      expect(block, isNot(contains('left:')));
+    });
+
+    test('issue #71: badges are two lines - format on line 1, HW/SW decoders on line 2', () {
+      // line 1 carries the resolution via the SHORT badge label (4K/FHD/HD/SD)
+      expect(screenSrc, contains('resolutionBadgeLabel('));
+      expect(screenSrc, contains('final chipLine1 = <Widget>[];'));
+      expect(screenSrc, contains('final chipLine2 = <Widget>[];'));
+      // decoders sit on line 2 below their codecs, with v/a markers
+      expect(screenSrc, contains("(v decode)"));
+      expect(screenSrc, contains("(a decode)"));
+      // bitrate is deliberately NOT a badge (user decision) - it stays in stats
+      final chipBlock = screenSrc.substring(
+        screenSrc.indexOf('final chipLine1 = <Widget>[];'),
+        screenSrc.indexOf('final episodeLine = _episodeLine;'),
+      );
+      expect(chipBlock, isNot(contains('itrate')));
+    });
+
+    test('issue #71: audio decoder name is wired into both stats polls and the info sheet', () {
+      expect(screenSrc, contains("'audioDecoder': _statsAudioDecoderLine"));
+      expect(screenSrc, contains("label: 'Audio decoder'"));
+      expect(nativeSrc, contains('onAudioDecoderInitialized'));
+      expect(nativeSrc, contains('map["audioDecoderName"]'));
+      expect(nativeSrc, contains('map["isHwAudioDecoder"]'));
+    });
+
+    test('issue #71: decoder badges work on every platform, not Android-only', () {
+      // iOS emits VideoToolbox/AudioToolbox (native path) vs FFmpeg
+      // (software path) in the same state map keys.
+      final iosSrc = File('ios/Runner/AvPlayerView.swift').readAsStringSync();
+      expect(iosSrc, contains('"videoDecoderName": nativePathLive ? "VideoToolbox" : "FFmpeg (software)"'));
+      expect(iosSrc, contains('"audioDecoderName": nativePathLive ? "AudioToolbox" : "FFmpeg (software)"'));
+      // The Dart side must NOT gate the decoder chips/sheet on Android -
+      // the names arrive from both platforms now.
+      final chipBlock = screenSrc.substring(
+        screenSrc.indexOf('final chipLine1 = <Widget>[];'),
+        screenSrc.indexOf('final episodeLine = _episodeLine;'),
+      );
+      expect(chipBlock, isNot(contains('Platform.isAndroid && _liveDecoderName')));
+      final statsBlock = screenSrc.substring(
+        screenSrc.indexOf('String? get _statsDecoderLine'),
+        screenSrc.indexOf('void _toggleStatsHud()'),
+      );
+      expect(statsBlock, isNot(contains('!Platform.isAndroid')));
     });
   });
 }

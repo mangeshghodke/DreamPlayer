@@ -23,16 +23,19 @@ class BadgePrefs {
       (await SharedPreferences.getInstance()).getBool(_kHdr) ?? true;
   static Future<bool> audio() async =>
       (await SharedPreferences.getInstance()).getBool(_kAudio) ?? true;
+  // Resolution / video codec / decoder default ON (issue #71): the badge
+  // row is meant to read "4K HDR HEVC DTS 5.1" with the decoders below, so
+  // those three are part of the default set, not opt-in extras.
   static Future<bool> resolution() async =>
-      (await SharedPreferences.getInstance()).getBool(_kResolution) ?? false;
+      (await SharedPreferences.getInstance()).getBool(_kResolution) ?? true;
   static Future<bool> videoCodec() async =>
-      (await SharedPreferences.getInstance()).getBool(_kVideoCodec) ?? false;
+      (await SharedPreferences.getInstance()).getBool(_kVideoCodec) ?? true;
   static Future<bool> spatialAudio() async =>
       (await SharedPreferences.getInstance()).getBool(_kSpatialAudio) ?? true;
   static Future<bool> serverTranscode() async =>
       (await SharedPreferences.getInstance()).getBool(_kServerTranscode) ?? true;
   static Future<bool> decoder() async =>
-      (await SharedPreferences.getInstance()).getBool(_kDecoder) ?? false;
+      (await SharedPreferences.getInstance()).getBool(_kDecoder) ?? true;
 
   static Future<void> setEnabled(bool v) async =>
       (await SharedPreferences.getInstance()).setBool(_kEnabled, v);
@@ -58,11 +61,11 @@ class BadgePrefs {
       enabled: p.getBool(_kEnabled) ?? true,
       hdr: p.getBool(_kHdr) ?? true,
       audio: p.getBool(_kAudio) ?? true,
-      resolution: p.getBool(_kResolution) ?? false,
-      videoCodec: p.getBool(_kVideoCodec) ?? false,
+      resolution: p.getBool(_kResolution) ?? true,
+      videoCodec: p.getBool(_kVideoCodec) ?? true,
       spatialAudio: p.getBool(_kSpatialAudio) ?? true,
       serverTranscode: p.getBool(_kServerTranscode) ?? true,
-      decoder: p.getBool(_kDecoder) ?? false,
+      decoder: p.getBool(_kDecoder) ?? true,
     );
   }
 }

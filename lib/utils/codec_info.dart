@@ -426,6 +426,12 @@ String languageName(String? code) {
 }
 
 /// Converts a channel count to a display label (e.g. `6` -> `5.1`).
+///
+/// Standard SMPTE layouts are mapped explicitly (issue #71: some files
+/// displayed a wrong layout - an E-AC3 JOC Atmos track reports 16 channels
+/// and showed "16.0", a 7-channel track showed "7.0" instead of "6.1").
+/// 16 channels in a movie file is Dolby Atmos (7.1.4 object layout) carried
+/// in the JOC dependent substream.
 String channelsLabel(int? channels) {
   if (channels == null || channels <= 0) return '?';
   switch (channels) {
@@ -433,10 +439,20 @@ String channelsLabel(int? channels) {
       return 'Mono';
     case 2:
       return '2.0';
+    case 3:
+      return '2.1';
+    case 4:
+      return '4.0';
+    case 5:
+      return '5.0';
     case 6:
       return '5.1';
+    case 7:
+      return '6.1';
     case 8:
       return '7.1';
+    case 16:
+      return '7.1.4';
     default:
       return '$channels.0';
   }
@@ -515,4 +531,32 @@ String friendlyResolution(int width, int height) {
   if (longEdge >= 1280) return '720p';
   if (longEdge >= 720) return '480p';
   return '${longEdge}p';
+}
+
+/// Short resolution label for the on-screen badge (issue #71): `4K`, `8K`,
+/// `QHD`, `FHD`, `HD`, `SD` instead of `1920x1080`-style text, which takes
+/// too much space in the chip row. Input is a [friendlyResolution] label
+/// (or a filename-extracted one); unknown values pass through unchanged.
+/// The exact pixel dimensions stay in the playback-stats HUD, not here.
+String? resolutionBadgeLabel(String? res) {
+  if (res == null || res.isEmpty) return null;
+  switch (res) {
+    case '8K':
+      return '8K';
+    case '4K':
+      return '4K';
+    case '2K':
+      return 'QHD';
+    case '1080p':
+    case '1080i':
+      return 'FHD';
+    case '720p':
+      return 'HD';
+    case '576p':
+    case '480p':
+    case 'SD':
+      return 'SD';
+    default:
+      return res;
+  }
 }

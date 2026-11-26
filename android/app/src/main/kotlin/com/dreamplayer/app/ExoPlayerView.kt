@@ -591,6 +591,15 @@ class ExoPlayerView(
                         currentVideoDecoderName = decoderName
                         handler.post { emit() }
                     }
+                    override fun onAudioDecoderInitialized(
+                        eventTime: AnalyticsListener.EventTime,
+                        decoderName: String,
+                        initializedTimestampMs: Long,
+                        initializationDurationMs: Long,
+                    ) {
+                        currentAudioDecoderName = decoderName
+                        handler.post { emit() }
+                    }
                     override fun onVideoDecoderReleased(
                         eventTime: AnalyticsListener.EventTime,
                         decoderName: String,
@@ -811,6 +820,11 @@ class ExoPlayerView(
     /// for HW, `c2.android.hevc.decoder` for SW). Updated via
     /// `AnalyticsListener.onVideoDecoderInitialized`.
     @Volatile private var currentVideoDecoderName: String? = null
+
+    /// `AnalyticsListener.onAudioDecoderInitialized` - surfaced for the
+    /// playback-stats HUD (issue #71: audio decoder name next to the video
+    /// decoder).
+    @Volatile private var currentAudioDecoderName: String? = null
 
     // ---- In-player picture controls (Media3 GL video effects) ----
     // Wire range shared with the MPV panel: -100…100, 0 = neutral. Mapped to
@@ -1537,6 +1551,7 @@ class ExoPlayerView(
                     HwSdrToneMap.reset()
                     chapters = emptyList()
                     currentVideoDecoderName = null
+                    currentAudioDecoderName = null
                     probesFired = true
                     pendingProbes = null
                     openGeneration++
@@ -2578,6 +2593,8 @@ class ExoPlayerView(
         map["selectedSubtitleTrack"] = selectedSubtitle
         map["videoDecoderName"] = currentVideoDecoderName
         map["isHwDecoder"] = currentVideoDecoderName?.let { !isSoftwareDecoder(it) }
+        map["audioDecoderName"] = currentAudioDecoderName
+        map["isHwAudioDecoder"] = currentAudioDecoderName?.let { !isSoftwareDecoder(it) }
         map["error"] = errorCodeName
         map["errorMessage"] = errorMessage
         map["errorCause"] = errorCause

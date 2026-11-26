@@ -14,6 +14,7 @@ class PlaybackStats {
     this.videoCodec,
     this.audioLabel,
     this.decoderLine,
+    this.audioDecoderLine,
     this.droppedFrames,
     this.speed,
     this.durationMs,
@@ -37,8 +38,17 @@ class PlaybackStats {
   /// e.g. "c2.qti.hevc.decoder · hardware" or "software".
   final String? decoderLine;
 
+  /// Audio decoder component name (issue #71), e.g.
+  /// "c2.android.eac3.decoder · hardware". Null when the engine does not
+  /// report one (MPV, iOS).
+  final String? audioDecoderLine;
+
   /// Frames dropped since the last snapshot (VO + decoder), engine-dependent.
   final int? droppedFrames;
+
+  /// Kept in the snapshot for completeness but NOT rendered in the HUD
+  /// (issue #71): the position is already on the seek bar and the speed is
+  /// set from the quick controls, so the stats panel omits both.
   final double? speed;
   final int? durationMs;
   final int? positionMs;
@@ -52,7 +62,8 @@ class PlaybackStats {
     final lines = <String, String>{};
     if (videoCodec != null) lines['Video'] = videoCodec!;
     if (resolutionLabel.isNotEmpty) lines['Resolution'] = resolutionLabel;
-    if (decoderLine != null) lines['Decoder'] = decoderLine!;
+    if (decoderLine != null) lines['Video decoder'] = decoderLine!;
+    if (audioDecoderLine != null) lines['Audio decoder'] = audioDecoderLine!;
     if (sourceFps != null) lines['Source fps'] = formatFps(sourceFps);
     if (renderedFps != null) lines['Rendered fps'] = formatFps(renderedFps);
     if (videoBitrateKbps != null) {
@@ -63,10 +74,9 @@ class PlaybackStats {
     }
     if (audioLabel != null) lines['Audio'] = audioLabel!;
     if (droppedFrames != null) lines['Dropped frames'] = '$droppedFrames';
-    if (speed != null) lines['Speed'] = '${speed!}x';
-    if (positionMs != null && durationMs != null) {
-      lines['Position'] = '${_hmss(positionMs!)} / ${_hmss(durationMs!)}';
-    }
+    // Issue #71: speed and position are deliberately NOT rendered - the
+    // seek bar already shows the position and the speed lives in the quick
+    // controls, so the stats panel keeps only performance data.
     return lines;
   }
 
@@ -80,6 +90,7 @@ class PlaybackStats {
       videoCodec == null &&
       audioLabel == null &&
       decoderLine == null &&
+      audioDecoderLine == null &&
       droppedFrames == null;
 }
 
@@ -147,6 +158,7 @@ PlaybackStats statsFromMpvProperties({
     videoCodec: _clean(labels['video']),
     audioLabel: _clean(labels['audio']),
     decoderLine: _clean(labels['decoder']),
+    audioDecoderLine: _clean(labels['audioDecoder']),
     droppedFrames: _sumDrops(frameDropCount, decoderFrameDropCount),
     speed: speed,
     durationMs: durationMs,
@@ -170,6 +182,7 @@ PlaybackStats statsFromGetStatsMap(
     videoCodec: _clean(labels['video']),
     audioLabel: _clean(labels['audio']),
     decoderLine: _clean(labels['decoder']),
+    audioDecoderLine: _clean(labels['audioDecoder']),
     droppedFrames: intOrNullField(raw, 'droppedBufferCount'),
     speed: doubleOrNullFieldNum(raw, 'playbackSpeed'),
     durationMs: intOrNullField(raw, 'durationMs'),
@@ -264,11 +277,4 @@ String _trimZeros(String s) {
   return t;
 }
 
-String _hmss(int ms) {
-  final totalSeconds = ms ~/ 1000;
-  final h = totalSeconds ~/ 3600;
-  final m = (totalSeconds % 3600) ~/ 60;
-  final s = totalSeconds % 60;
-  final mm = h > 0 ? '$m'.padLeft(2, '0') : '$m';
-  return '${h > 0 ? '$h:' : ''}$mm:${'$s'.padLeft(2, '0')}';
-}
+

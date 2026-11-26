@@ -384,11 +384,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _badgeEnabled = true;
   bool _badgeHdr = true;
   bool _badgeAudio = true;
-  bool _badgeResolution = false;
-  bool _badgeVideoCodec = false;
+  // Issue #71: the badge row reads "4K HDR HEVC DTS 5.1" with the decoders
+  // below, so resolution / video codec / decoder default ON (they match
+  // the BadgePrefs defaults).
+  bool _badgeResolution = true;
+  bool _badgeVideoCodec = true;
   bool _badgeSpatialAudio = true;
   bool _badgeServerTranscode = true;
-  bool _badgeDecoder = false;
+  bool _badgeDecoder = true;
 
   /// Saved audio track to restore after the next open (index for Media3,
   /// track id string for MPV). Set from [AudioTrackStore] in [_openCurrent]
@@ -525,6 +528,10 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   String? _liveDecoderName;
   bool? _isHwDecoder;
+  /// Audio decoder component name (issue #71: shown in the stats HUD and as
+  /// the "a decode" chip under the audio codec badge).
+  String? _liveAudioDecoderName;
+  bool? _isHwAudioDecoder;
   /// Source URI scheme, used to label the source in the ⓘ info sheet
   /// (Local / SMB / WebDAV / FTP / HTTP / etc.).
   String _liveSourceScheme = '';
@@ -4665,6 +4672,10 @@ Future<void> _offerVc1Mpv() async {
       _liveDecoderName = e.videoDecoderName;
     }
     if (e.isHwDecoder != null) _isHwDecoder = e.isHwDecoder;
+    if (e.audioDecoderName != null && e.audioDecoderName!.isNotEmpty) {
+      _liveAudioDecoderName = e.audioDecoderName;
+    }
+    if (e.isHwAudioDecoder != null) _isHwAudioDecoder = e.isHwAudioDecoder;
     _liveSpatial = e.spatialAudio;
     _liveBass = e.bassBoost;
     _liveSourceScheme = e.sourceScheme;
@@ -6348,11 +6359,14 @@ if (mounted) setState(_applySwipeValue);
           label: 'Decoder',
           value: 'libmpv · ${_mpvHwdecMode == "no" ? "software" : _mpvHwdecMode == "mediacodec" ? "hardware" : _mpvHwdecMode == "mediacodec-copy" ? "hardware (copy)" : "hardware (auto)"}',
         )
-      else if (Platform.isAndroid && _liveDecoderName != null)
+      else if (_liveDecoderName != null)
         (
           label: 'Decoder',
           value: '$_liveDecoderName${(_isHwDecoder ?? true) ? " · hardware" : " · software"}',
         ),
+      // Audio decoder name alongside the video decoder (issue #71).
+      if (_statsAudioDecoderLine != null)
+        (label: 'Audio decoder', value: _statsAudioDecoderLine!),
       if (_audioInfoLabel != null || _liveAudioPassthrough)
         (
           label: AppLocalizations.of(context).playerAudioCh,
@@ -8744,10 +8758,26 @@ if (mounted) setState(_applySwipeValue);
           return 'hardware (auto)';
       }
     }
-    if (!Platform.isAndroid) return null;
+    // Android reports the MediaCodec component name; iOS reports
+    // VideoToolbox/AudioToolbox (native path) vs FFmpeg (software path).
     if (_liveDecoderName != null) {
       final hw = (_isHwDecoder ?? true) ? 'hardware' : 'software';
       return '$_liveDecoderName · $hw';
+    }
+    return null;
+  }
+
+  /// Audio decoder line for the stats HUD and the ⓘ sheet (issue #71:
+  /// the audio decoder name next to the video decoder, not just in chips).
+  /// MPV decodes audio in its bundled FFmpeg unless the sink takes a
+  /// bitstream; iOS reports no decoder name, so the line is simply omitted.
+  String? get _statsAudioDecoderLine {
+    if (_mpvReady) {
+      return _liveAudioPassthrough ? 'Passthrough' : 'FFmpeg (software)';
+    }
+    if (_liveAudioDecoderName != null) {
+      final hw = (_isHwAudioDecoder ?? true) ? 'hardware' : 'software';
+      return '$_liveAudioDecoderName · $hw';
     }
     return null;
   }
@@ -8825,6 +8855,7 @@ if (mounted) setState(_applySwipeValue);
         'video': _videoCodecInfoLabel,
         'audio': _audioInfoLabel,
         'decoder': _statsDecoderLine,
+        'audioDecoder': _statsAudioDecoderLine,
       },
     );
     if (!stats.isEmpty) _statsSnapshot = stats;
@@ -8847,6 +8878,7 @@ if (mounted) setState(_applySwipeValue);
         'video': _videoCodecInfoLabel,
         'audio': _audioInfoLabel,
         'decoder': _statsDecoderLine,
+        'audioDecoder': _statsAudioDecoderLine,
       },
     );
   }
@@ -8881,102 +8913,129 @@ if (mounted) setState(_applySwipeValue);
     // Both engines show the same set of badges when data is available - the
     // HDR chip on MPV follows the tone-map toggle (Native = detected format;
     // SDR tone-map = "Tone-mapped SDR").
-    final chips = <Widget>[];
+    // Issue #71: the badge row is TWO fixed lines, on every device (phone,
+    // tablet, Android TV / Fire TV, iOS) - a Wrap per line so narrow screens
+    // still wrap within a line:
+    //   line 1 (format):  4K · HDR · HEVC · DTS 5.1   (+ Upscaled/Spatial/
+    //                     Transcoding state pills at the end)
+    //   line 2 (decode):  HW (v decode) · HW (a decode)
+    // The resolution chip uses the short badge label (4K/FHD/HD/SD), NOT
+    // raw pixels - exact dimensions stay in the playback-stats HUD.
+    // Bitrate is deliberately NOT a badge (user decision 2026-11-26, issue
+    // #71); it lives in the stats HUD.
+    final chipLine1 = <Widget>[];
+    final chipLine2 = <Widget>[];
     // Audio-only playback: the top-bar format chips are skipped - the audio
     // overlay renders its own badge chips at the top (codec/kHz/bits/ch/kbps/
     // Lossless/Hi-Res), and the two rows overlapped (user screenshot
     // 2026-11-24: SDR + "AAC 2.0" pills colliding with the new badges).
     if (_badgeEnabled && !_isAudioOnly) {
+      // Resolution - both engines; short label (4K/FHD/HD/SD) in the badge.
+      if (_badgeResolution) {
+        final res = resolutionBadgeLabel(
+          _mpvReady ? _mpvResolution : (_liveResolution ?? _current.resolution),
+        );
+        if (res != null) {
+          chipLine1.add(FormatChip(
+            label: res,
+            color: const Color(0xFF90A4AE),
+          ));
+        }
+      }
       // HDR - Media3 shows the real format. MPV follows tone-map mode:
       // Native = detected source (DV/HDR10); SDR tone-map = "Tone-mapped SDR";
       // SDR content or stock libmpv = plain "SDR".
       if (_badgeHdr) {
         if (_mpvReady) {
-          chips.add(FormatChip(
+          chipLine1.add(FormatChip(
             label: _mpvHdrChipLabel,
             color: _mpvHdrChipColor,
           ));
         } else {
-          chips.add(hdrChip);
+          chipLine1.add(hdrChip);
         }
       }
+      // Video codec - both engines.
+      if (_badgeVideoCodec) {
+        final vc = _mpvReady ? _mpvVideoCodecLabel : _videoCodecInfoLabel;
+        if (vc != null) {
+          chipLine1.add(FormatChip(
+            label: vc,
+            color: const Color(0xFF4FC3F7),
+          ));
+        }
+      }
+      // Audio codec - both engines.
+      if (_badgeAudio && audioChip != null) chipLine1.add(audioChip);
       if (_mpvReady &&
           _mpvAnime4kEnabled &&
           _mpvAnime4kApplied &&
           _mpvAnime4kError == null) {
-        chips.add(const FormatChip(
+        chipLine1.add(const FormatChip(
           label: 'Upscaled',
           color: Color(0xFFB388FF),
         ));
       }
       // iOS MetalFX upscale stage (engine #846) - SDR SD/720p/1080p only.
       if (_liveUpscaleActive) {
-        chips.add(FormatChip(
+        chipLine1.add(FormatChip(
           label: _liveUpscaleLabel.isNotEmpty
               ? 'Upscaled · $_liveUpscaleLabel'
               : 'Upscaled',
           color: const Color(0xFF80CBC4),
         ));
       }
-      // Audio codec - both engines.
-      if (_badgeAudio && audioChip != null) chips.add(audioChip);
-      // Video codec - both engines.
-      if (_badgeVideoCodec) {
-        final vc = _mpvReady ? _mpvVideoCodecLabel : _videoCodecInfoLabel;
-        if (vc != null) {
-          chips.add(FormatChip(
-            label: vc,
-            color: const Color(0xFF4FC3F7),
-          ));
-        }
-      }
-      // Resolution - both engines.
-      if (_badgeResolution) {
-        final res = _mpvReady ? _mpvResolution : (_liveResolution ?? _current.resolution);
-        if (res != null) {
-          chips.add(FormatChip(
-            label: res,
-            color: const Color(0xFF90A4AE),
-          ));
-        }
-      }
       // Spatial audio - the state comes from the platform (Android: the
       // system Spatializer; iOS: Apple's system spatialization, which the
       // premium Settings toggle opts into).
       if (_badgeSpatialAudio && _liveSpatial == 'on') {
-        chips.add(FormatChip(
+        chipLine1.add(FormatChip(
           label: 'Spatial',
           color: Color(0xFF26A69A),
         ));
       }
       // Server transcoding - both engines.
       if (_badgeServerTranscode && _transcodeActive) {
-        chips.add(FormatChip(
+        chipLine1.add(FormatChip(
           label: AppLocalizations.of(context).sourceTranscoding,
           color: Color(0xFFEF5350),
         ));
       }
-      // Decoder - both engines.
+      // Decoders on their own line, below the codecs (issue #71).
       if (_badgeDecoder) {
         if (_mpvReady) {
           final label = _mpvHwdecMode == 'no'
-              ? 'SW decode'
+              ? 'SW (v decode)'
               : _mpvHwdecMode == 'mediacodec'
-                  ? 'HW decode'
-                  : 'HW decode (auto)';
-          chips.add(FormatChip(
+                  ? 'HW (v decode)'
+                  : 'HW (v decode, auto)';
+          chipLine2.add(FormatChip(
             label: label,
             color: const Color(0xFFFFB74D),
           ));
-        } else if (Platform.isAndroid && _liveDecoderName != null) {
-          final hw = _isHwDecoder ?? true;
-          chips.add(FormatChip(
-            label: '${hw ? 'HW' : 'SW'} decode',
+          // MPV decodes audio with its bundled FFmpeg unless the sink takes
+          // a bitstream, so the audio decode is software there.
+          chipLine2.add(FormatChip(
+            label: _liveAudioPassthrough ? 'Passthrough (a decode)' : 'SW (a decode)',
             color: const Color(0xFFFFB74D),
           ));
+        } else if (_liveDecoderName != null) {
+          final hw = _isHwDecoder ?? true;
+          chipLine2.add(FormatChip(
+            label: '${hw ? 'HW' : 'SW'} (v decode)',
+            color: const Color(0xFFFFB74D),
+          ));
+          if (_liveAudioDecoderName != null) {
+            final ahw = _isHwAudioDecoder ?? true;
+            chipLine2.add(FormatChip(
+              label: '${ahw ? 'HW' : 'SW'} (a decode)',
+              color: const Color(0xFFFFB74D),
+            ));
+          }
         }
       }
     }
+    // (chipLine1 / chipLine2 are rendered as two Wraps in the top bar below)
 
     final episodeLine = _episodeLine;
 
@@ -9654,14 +9713,15 @@ if (mounted) setState(_applySwipeValue);
                   ),
                 ),
               ),
-            // Playback stats HUD (Infuse-style), top-left below the top bar.
-            // The top bar can overlap it briefly while controls are visible;
-            // the chips flash for 5 s per open and then the HUD owns the
-            // corner again.
+            // Playback stats HUD (Infuse-style), top-RIGHT below the top bar
+            // (issue #71: moved to the right side so it never collides with
+            // the back button / title on narrow phones). The top bar can
+            // overlap it briefly while controls are visible; the chips flash
+            // for 5 s per open and then the HUD owns the corner again.
             if (_statsHudVisible && !_inPip)
               Positioned(
                 top: MediaQuery.paddingOf(context).top + 52,
-                left: 12,
+                right: 12,
                 child: IgnorePointer(
                   child: PlaybackStatsHud(stats: _statsSnapshot),
                 ),
@@ -9839,15 +9899,35 @@ if (mounted) setState(_applySwipeValue);
                         // rendering the chip row if _inPip is true. The pip
                         // window must show ONLY the video - no chips, no
                         // network indicator, no title bar.
-                        if (!_inPip && chips.isNotEmpty) ...[
+                        if (!_inPip &&
+                            (chipLine1.isNotEmpty || chipLine2.isNotEmpty)) ...[
                           SizedBox(height: 4),
                           Padding(
                             padding:
                                 const EdgeInsets.symmetric(horizontal: 8),
-                            child: Wrap(
-                              spacing: 8,
-                              runSpacing: 4,
-                              children: chips,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Line 1: format badges (resolution, HDR,
+                                // video codec, audio codec, state pills).
+                                if (chipLine1.isNotEmpty)
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: chipLine1,
+                                  ),
+                                if (chipLine1.isNotEmpty && chipLine2.isNotEmpty)
+                                  const SizedBox(height: 4),
+                                // Line 2: HW/SW decoders below their codecs
+                                // (issue #71).
+                                if (chipLine2.isNotEmpty)
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: chipLine2,
+                                  ),
+                              ],
                             ),
                           ),
                         ],

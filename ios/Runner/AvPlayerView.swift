@@ -2705,6 +2705,15 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
             "inPip": inPip,
             "error": lastError ?? "",
             "sourceScheme": currentSourceScheme,
+            // Issue #71: decoder names for the badge line 2 and the stats HUD,
+            // on iOS too. The native AVPlayer path decodes in VideoToolbox /
+            // AudioToolbox (hardware); the engine's software path decodes in
+            // its bundled FFmpeg (software). `nativePathLive` is exactly the
+            // engine's own route split, so the label is honest per pipeline.
+            "videoDecoderName": nativePathLive ? "VideoToolbox" : "FFmpeg (software)",
+            "isHwDecoder": nativePathLive,
+            "audioDecoderName": nativePathLive ? "AudioToolbox" : "FFmpeg (software)",
+            "isHwAudioDecoder": nativePathLive,
         ]
         return map
     }

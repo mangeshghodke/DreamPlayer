@@ -176,9 +176,9 @@ void main() {
     });
 
     test('top-bar format chips are suppressed for audio-only (no overlap with the new badges)', () {
-      final at = player.indexOf('final chips = <Widget>[];');
+      final at = player.indexOf('final chipLine1 = <Widget>[];');
       expect(at, greaterThan(-1));
-      final block = player.substring(at, at + 400);
+      final block = player.substring(at, at + 500);
       expect(block, contains('if (_badgeEnabled && !_isAudioOnly)'), reason:
           'the SDR/AAC top-bar pills must not render under the audio badge row');
     });

@@ -16,7 +16,9 @@ class PlaybackStatsHud extends StatelessWidget {
   Widget build(BuildContext context) {
     final lines = stats?.toLines() ?? const <String, String>{};
     return Container(
-      constraints: const BoxConstraints(maxWidth: 250),
+      // Wide enough for full decoder component names ("c2.qti.hevc.decoder ·
+      // hardware") plus the audio decoder line (issue #71).
+      constraints: const BoxConstraints(maxWidth: 290),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xB2000000),

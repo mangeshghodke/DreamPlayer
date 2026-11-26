@@ -306,6 +306,8 @@ class ExoPlayerEvent {
     this.chapters = const [],
     this.videoDecoderName,
     this.isHwDecoder,
+    this.audioDecoderName,
+    this.isHwAudioDecoder,
     this.inPip = false,
     this.sourceScheme = '',
   });
@@ -407,6 +409,14 @@ class ExoPlayerEvent {
   /// True = hardware decoder, false = software, null = unknown yet.
   final bool? isHwDecoder;
 
+  /// Audio decoder component name (e.g. `c2.qti.eac3.decoder`), surfaced for
+  /// the playback-stats HUD (issue #71). Null until the audio decoder is
+  /// initialized (and always on iOS, which does not report decoder names).
+  final String? audioDecoderName;
+
+  /// True = hardware audio decoder, false = software, null = unknown yet.
+  final bool? isHwAudioDecoder;
+
   /// True while the activity is in picture-in-picture mode (Dart hides all
   /// overlay controls; only the video floats).
   final bool inPip;
@@ -475,6 +485,8 @@ class ExoPlayerEvent {
           .toList(),
       videoDecoderName: m['videoDecoderName'] as String?,
       isHwDecoder: m['isHwDecoder'] as bool?,
+      audioDecoderName: m['audioDecoderName'] as String?,
+      isHwAudioDecoder: m['isHwAudioDecoder'] as bool?,
       inPip: m['inPip'] == true,
       sourceScheme: m['sourceScheme'] as String? ?? '',
     );

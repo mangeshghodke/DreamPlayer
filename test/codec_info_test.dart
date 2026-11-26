@@ -179,12 +179,41 @@ void main() {
 
     test('falls back to N.0', () {
       expect(channelsLabel(4), '4.0');
-      expect(channelsLabel(7), '7.0');
+    });
+
+    test('issue #71: full SMPTE layouts instead of N.0 (Atmos JOC reports 16ch)', () {
+      expect(channelsLabel(3), '2.1');
+      expect(channelsLabel(5), '5.0');
+      // 7 channels was shown as "7.0" - it is a 6.1 layout.
+      expect(channelsLabel(7), '6.1');
+      // E-AC3 JOC (Dolby Atmos) carries 16 channels in the frame - it is a
+      // 7.1.4 object layout, not "16.0".
+      expect(channelsLabel(16), '7.1.4');
     });
 
     test('unknown count', () {
       expect(channelsLabel(null), '?');
       expect(channelsLabel(0), '?');
+    });
+  });
+
+  group('resolutionBadgeLabel', () {
+    test('issue #71: short badge labels instead of pixel sizes', () {
+      expect(resolutionBadgeLabel('8K'), '8K');
+      expect(resolutionBadgeLabel('4K'), '4K');
+      expect(resolutionBadgeLabel('2K'), 'QHD');
+      expect(resolutionBadgeLabel('1080p'), 'FHD');
+      expect(resolutionBadgeLabel('1080i'), 'FHD');
+      expect(resolutionBadgeLabel('720p'), 'HD');
+      expect(resolutionBadgeLabel('480p'), 'SD');
+      expect(resolutionBadgeLabel('576p'), 'SD');
+      expect(resolutionBadgeLabel('SD'), 'SD');
+    });
+
+    test('null/empty stays null, unknown labels pass through', () {
+      expect(resolutionBadgeLabel(null), isNull);
+      expect(resolutionBadgeLabel(''), isNull);
+      expect(resolutionBadgeLabel('1440p'), '1440p');
     });
   });
 
