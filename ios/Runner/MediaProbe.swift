@@ -517,7 +517,8 @@ final class MediaProbe: NSObject {
                             if bits > 0 { out["audioBits"] = Int(bits) }
                         }
                     }
-                    if let br = track.estimatedDataRate, br > 0 { out["audioBitrate"] = Int(br) }
+                    let br = track.estimatedDataRate
+                    if br > 0 { out["audioBitrate"] = Int(br) }
                     let lang = track.languageCode ?? ""
                     if !lang.isEmpty && lang != "und" { out["audioLanguage"] = lang }
                 }
