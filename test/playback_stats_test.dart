@@ -314,7 +314,11 @@ void main() {
       );
       expect(label, contains("label.startsWith('Dolby Vision')"));
       expect(label, contains("return 'HEVC';"));
-      expect(label, isNot(contains('return null;'))); // no DV suppression
+      // The DV branch returns 'HEVC', not null - the only remaining
+      // 'return null' is the label==null guard at the top.
+      final dvBranch = label.substring(label.indexOf("label.startsWith('Dolby Vision')"));
+      expect(dvBranch, contains("return 'HEVC';"));
+      expect(dvBranch, isNot(contains('return null;')));
     });
 
     test('issue #71: decoder badges work on every platform, not Android-only', () {
