@@ -304,6 +304,19 @@ void main() {
       expect(nativeSrc, contains('"audioSampleRate" to af?.sampleRate'));
     });
 
+    test('issue #71: DV files show HEVC as the video codec badge, not null', () {
+      // The HDR chip already carries "Dolby Vision P8"; the codec chip must
+      // still show the base codec (HEVC) so the badge row never loses the
+      // video codec on DV files when live detection replaces the hint.
+      final label = screenSrc.substring(
+        screenSrc.indexOf('String? get _videoCodecInfoLabel'),
+        screenSrc.indexOf('String? get _audioInfoLabel'),
+      );
+      expect(label, contains("label.startsWith('Dolby Vision')"));
+      expect(label, contains("return 'HEVC';"));
+      expect(label, isNot(contains('return null;'))); // no DV suppression
+    });
+
     test('issue #71: decoder badges work on every platform, not Android-only', () {
       // iOS emits VideoToolbox/AudioToolbox (native path) vs FFmpeg
       // (software path) in the same state map keys.

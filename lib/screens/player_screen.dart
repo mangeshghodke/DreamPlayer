@@ -8721,14 +8721,17 @@ if (mounted) setState(_applySwipeValue);
   /// True when the current source is a live http/https stream (Jellyfin
   /// direct-play, URL playback, CX-Explorer "Open with" handoff, etc.)
   /// Live video codec label for the chip / info sheet, or null when unknown.
-  /// For Dolby Vision the HDR chip already says "Dolby Vision", so the
-  /// duplicate codec label is suppressed.
+  /// For Dolby Vision the HDR chip already says "Dolby Vision P8", so the
+  /// video-codec chip shows the BASE codec "HEVC" instead - DV profiles are
+  /// HEVC-based, and the user wants the codec badge visible on every file
+  /// (issue #71: "video codec vanishes" on DV files when live detection
+  /// replaces the filename hint).
   String? get _videoCodecInfoLabel {
     if (_mpvReady) return _mpvVideoCodecLabel;
     final label = _liveVideoCodec ?? _current.videoCodecLabel;
     if (label == null) return null;
     if (_effectiveHdr == HdrFormat.dolbyVision && label.startsWith('Dolby Vision')) {
-      return null;
+      return 'HEVC';
     }
     return label;
   }
