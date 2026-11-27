@@ -35,6 +35,13 @@ true of the intended build but not of the one that was reviewed. Verify with
 
 ---
 
+## 0.5.10
+
+New:
+• Music files played from a network share (SMB, WebDAV, Jellyfin, DLNA) now show their embedded cover art on the player's disc, plus the song's title, artist and album from the file's own tags - no online lookup needed. FTP and self-signed servers are supported too.
+
+---
+
 ## 0.5.9
 
 New:

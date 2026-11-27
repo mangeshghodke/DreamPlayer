@@ -6,6 +6,12 @@ pulled into the GitHub Release body automatically by `.github/workflows/release.
 This file is **Android-only** - it feeds the GitHub Releases (APKs). iOS changes are
 documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 
+## 0.5.10
+
+### Added
+
+- **Audio files now show their embedded metadata from every source, not just local files** (user report 2026-11-27: a track played from SMB but showed no artwork or tags). The cover art on the vinyl disc and the title/artist/album under it are now read from the file itself on SMB (through the loopback HTTP proxy), WebDAV/Jellyfin/DLNA and other http(s) streams (probed directly with the saved auth headers), and FTP/self-signed servers via a sparse head+tail temp download (MP4/M4A metadata sits at the end of non-fast-start files). TMDB matching deliberately stays video-only - music metadata always comes from the file. Pinned by `test/remote_audio_metadata_test.dart`.
+
 ## 0.5.9
 
 ### Changed

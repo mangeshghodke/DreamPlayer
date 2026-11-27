@@ -16,6 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
+| 0.5.10 | 1 | 273 |
 | 0.5.9 | 1 | 1346 |
 | 0.5.8 | 15 | 732 |
 | 0.5.8 | 14 | 1672 |
@@ -29,6 +30,13 @@ that copying a block for App Store Connect can never pick up a stray note:
 A count is the length of the text you would paste - the block from its "New:"
 or "Fixed:" line down to its last character, including the final newline - so
 it can be reproduced with a plain character count after any edit.
+
+---
+
+## 0.5.10 (build 1)
+
+New:
+• Music files played from a network share (SMB, WebDAV, Jellyfin, DLNA) now show their embedded cover art on the player's disc, plus the song's title, artist and album from the file's own tags - no online lookup needed. FTP and self-signed servers are supported too.
 
 ---
 
