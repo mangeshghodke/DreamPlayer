@@ -193,6 +193,17 @@ A video player app supporting:
     artwork, bitstream passthrough, and PCM at the SOURCE sample rate so a
     USB DAC gets true high-res (24-bit/96 kHz+ FLAC via the FFmpeg renderer
     outputs at native rate through AudioTrack). MPV has no media session.
+  - **Info sheet reworked for audio (2026-11-27, user screenshots of Mpv∞'s
+    AudioPropertiesSheet.kt)**: audio-only playback opens an "Audio info"
+    sheet (new `playerAudioInfo` l10n key, all 5 locales) titled with an
+    `ENGINE · <engine>` pill; every row is a rounded theme card
+    (`surfaceContainerHighest` 55%, radius 12, label small-caps primary,
+    value below) instead of the flat two-column list; video-only rows
+    (resolution/HDR/video codec/fps/bitrate/decoder) are omitted for audio.
+    The top-bar tune (picture settings) button is hidden while audio plays.
+    Also fixed: bare PCM reported as `audio/raw`/`audio/L16` showed the
+    unrecognizable pill "RAW" - `formatAudioCodec` now maps raw/l16/l24/l32/
+    wav/aiff, and `isLosslessCodec` counts them as lossless.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

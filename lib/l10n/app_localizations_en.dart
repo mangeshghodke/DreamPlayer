@@ -236,6 +236,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerVideoInfo => 'Video info';
 
   @override
+  String get playerAudioInfo => 'Audio info';
+
+  @override
   String get playerResolution => 'Resolution';
 
   @override

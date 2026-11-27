@@ -35,8 +35,10 @@ bool isLosslessCodec(String? mimeOrCodec) {
   final m = mimeOrCodec.toLowerCase();
   const lossless = [
     'flac', 'alac', 'ape', 'wav', 'pcm', 'lpcm', 'aiff', 'aif',
+    'raw', 'l16', 'l24', 'l32', // bare PCM (`audio/raw`, `audio/L16`) is lossless
     'audio/x-flac', 'audio/flac', 'audio/x-wav', 'audio/wav', 'audio/wave',
     'audio/x-aiff', 'audio/aiff', 'audio/vnd.wave', 'audio/x-ape',
+    'audio/raw',
   ];
   return lossless.any(m.contains);
 }

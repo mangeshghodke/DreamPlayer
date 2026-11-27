@@ -6458,33 +6458,37 @@ if (mounted) setState(_applySwipeValue);
         (label: l.playerUrl, value: sourceUrl),
       if (fileSize != null)
         (label: l.playerFileSize, value: fileSize),
-      if (_resolutionInfoLabel != null)
+      // Video-only rows are omitted for audio-only files - the sheet becomes
+      // an "Audio info" sheet with audio properties only (user request
+      // 2026-11-27, Mpv-infinity's AudioProperties sheet).
+      if (!_isAudioOnly && _resolutionInfoLabel != null)
         (label: l.playerResolution, value: _resolutionInfoLabel!),
       // Duration, from the probe / engine (MediaInfo shows it).
       if (_duration.inMilliseconds > 0)
         (label: 'Duration', value: _formatDuration(_duration)),
       // HDR format.
-      (
-        label: 'HDR',
-        value: _mpvReady
-            ? _mpvHdrChipLabel
-            : (_toneMappedToSdr ? 'Tone-mapped SDR · $_hdrLabel' : _hdrLabel),
-      ),
+      if (!_isAudioOnly)
+        (
+          label: 'HDR',
+          value: _mpvReady
+              ? _mpvHdrChipLabel
+              : (_toneMappedToSdr ? 'Tone-mapped SDR · $_hdrLabel' : _hdrLabel),
+        ),
       // Video codec (MediaInfo: Codec / Format).
-      if (_videoCodecInfoLabel != null)
+      if (!_isAudioOnly && _videoCodecInfoLabel != null)
         (label: 'Video codec', value: _videoCodecInfoLabel!),
       // Video frame rate + bitrate (MediaInfo: Frame rate / Bit rate).
-      if (videoFps != null && videoFps > 0)
+      if (!_isAudioOnly && videoFps != null && videoFps > 0)
         (label: 'Video fps', value: formatFps(videoFps)),
-      if (videoBitrateKbps != null && videoBitrateKbps > 0)
+      if (!_isAudioOnly && videoBitrateKbps != null && videoBitrateKbps > 0)
         (label: 'Video bitrate', value: formatBitrate(videoBitrateKbps)),
       // Video decoder (issue #71: MediaInfo-style HW/SW marker).
-      if (_mpvReady)
+      if (!_isAudioOnly && _mpvReady)
         (
           label: 'Video decoder',
           value: 'libmpv · ${_mpvHwdecMode == "no" ? "software" : _mpvHwdecMode == "mediacodec" ? "hardware" : _mpvHwdecMode == "mediacodec-copy" ? "hardware (copy)" : "hardware (auto)"}',
-        )
-      else if (_liveDecoderName != null)
+        ),
+      if (!_isAudioOnly && !_mpvReady && _liveDecoderName != null)
         (
           label: 'Video decoder',
           value: '$_liveDecoderName${(_isHwDecoder ?? true) ? " · hardware" : " · software"}',
@@ -6590,66 +6594,121 @@ if (mounted) setState(_applySwipeValue);
         (label: l.playerChapters, value: '${_chapters.length}'),
     ];
     if (!mounted) return;
+    final audioSheet = _isAudioOnly;
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      builder: (sheetContext) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.6,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
-                child: Text(
-                  AppLocalizations.of(context).playerVideoInfo,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        // Mpv-infinity's properties sheet (AudioPropertiesSheet.kt): a header
+        // with the small-caps title and an engine pill, then each property as
+        // its own rounded card in the app theme (label small-caps primary,
+        // value below) - not a flat two-column list (user request 2026-11-27).
+        final cs = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.72,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: cs.surfaceContainer,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: rows.length,
-                  itemBuilder: (context, i) {
-                    final r = rows[i];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 6),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 110,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            audioSheet
+                                ? AppLocalizations.of(context).playerAudioInfo
+                                : AppLocalizations.of(context).playerVideoInfo,
+                            style: TextStyle(
+                              color: cs.onSurfaceVariant,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ),
+                        if (audioSheet)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: cs.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                             child: Text(
-                              r.label,
-                              style: const TextStyle(
-                                  color: Colors.white54, fontSize: 13),
+                              'ENGINE · ${_mpvReady ? 'MPV' : 'Media3'}'
+                                  .toUpperCase(),
+                              style: TextStyle(
+                                color: cs.onPrimaryContainer,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                          Expanded(
-                            child: SelectableText(
-                              r.value,
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 13),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: rows.length,
+                      itemBuilder: (context, i) {
+                        final r = rows[i];
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: cs.surfaceContainerHighest
+                                  .withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  r.label.toUpperCase(),
+                                  style: TextStyle(
+                                    color: cs.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                SelectableText(
+                                  r.value.isEmpty ? 'Unknown' : r.value,
+                                  style: TextStyle(
+                                    color: cs.onSurface,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -10276,7 +10335,9 @@ if (mounted) setState(_applySwipeValue);
                                  onFocusChange: (_) => _showControls(),
                                ),
                              ],
-                             if (_mpvReady || _exo != null) ...[
+                                                          // The tune (picture settings) button is hidden for audio-only
+                             // playback - it is video-only (user request 2026-11-27).
+                             if ((_mpvReady || _exo != null) && !_isAudioOnly) ...[
                                SizedBox(width: 4),
                                _TvControlButton(
                                  onPressed: _touchLocked

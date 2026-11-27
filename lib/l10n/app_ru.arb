@@ -293,6 +293,10 @@
     "description": "Info sheet row label"
   },
   "playerVideoInfo": "Инфо о видео",
+  "playerAudioInfo": "Сведения об аудио",
+  "@playerAudioInfo": {
+    "description": "Кнопка открытия панели сведений об аудио"
+  },
   "@playerVideoInfo": {
     "description": "Button to open video info sheet"
   },

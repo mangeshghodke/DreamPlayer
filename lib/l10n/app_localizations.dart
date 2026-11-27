@@ -548,6 +548,12 @@ abstract class AppLocalizations {
   /// **'Video info'**
   String get playerVideoInfo;
 
+  /// Button to open the audio info sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Audio info'**
+  String get playerAudioInfo;
+
   /// Info sheet row label
   ///
   /// In en, this message translates to:

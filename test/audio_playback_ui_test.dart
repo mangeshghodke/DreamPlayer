@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dream_player/utils/audio_format_info.dart';
+import 'package:dream_player/utils/codec_info.dart';
 import 'package:dream_player/widgets/vinyl_disc.dart';
 
 /// Pins the audio-only playback UI (user request 2026-11-24: rotating vinyl
@@ -271,6 +272,27 @@ void main() {
       expect(player.contains("label: 'Format / codec'"), isTrue);
       expect(player.contains("label: 'File location'"), isTrue);
       expect(player.contains('channelsDisplay('), isTrue);
+    });
+
+    test('info sheet: audio-only shows Audio info title, themed cards, no video rows', () {
+      expect(player.contains('playerAudioInfo'), isTrue);
+      expect(player.contains("'ENGINE ·"), isTrue);
+      // video rows are gated off for audio-only
+      expect(player.contains('if (!_isAudioOnly && _resolutionInfoLabel != null)'), isTrue);
+      expect(player.contains('if (!_isAudioOnly && _videoCodecInfoLabel != null)'), isTrue);
+      expect(player.contains('if (!_isAudioOnly && _mpvReady)'), isTrue);
+      // themed cards (Mpv-infinity AudioPropertiesSheet style)
+      expect(player.contains('surfaceContainerHighest'), isTrue);
+      expect(player.contains('BorderRadius.circular(12)'), isTrue);
+      // tune (picture settings) button hidden for audio-only
+      expect(player.contains('(_mpvReady || _exo != null) && !_isAudioOnly'), isTrue);
+    });
+
+    test('raw PCM codec no longer shows as RAW', () {
+      expect(formatAudioCodec('raw'), 'PCM');
+      expect(formatAudioCodec('audio/L16'), 'PCM');
+      expect(formatAudioCodec('audio/wav'), 'WAV');
+      expect(audioCodecBadge(mimeOrCodec: 'audio/raw', sampleRate: 48000, bits: 16), 'LOSSLESS');
     });
 
     test('native probes expose sample rate / bit depth / track bitrate', () {

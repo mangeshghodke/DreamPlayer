@@ -125,6 +125,14 @@ String formatAudioCodec(String? codec) {
     'pcm_s16le': 'PCM',
     'pcm_s24le': 'PCM 24-bit',
     'pcm_f32le': 'PCM 32-bit float',
+    'raw': 'PCM', // bare `raw` / `audio/L16` style PCM shows as RAW otherwise
+    'l16': 'PCM',
+    'l24': 'PCM 24-bit',
+    'l32': 'PCM 32-bit',
+    'wav': 'WAV',
+    'wave': 'WAV',
+    'aiff': 'AIFF',
+    'aif': 'AIFF',
     's302m': 'AES3',
   };
   if (map.containsKey(c)) return map[c]!;

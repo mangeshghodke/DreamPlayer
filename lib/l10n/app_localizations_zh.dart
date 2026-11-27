@@ -236,6 +236,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerVideoInfo => '视频信息';
 
   @override
+  String get playerAudioInfo => '音频信息';
+
+  @override
   String get playerResolution => 'Resolution';
 
   @override

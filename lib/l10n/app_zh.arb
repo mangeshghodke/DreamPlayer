@@ -293,6 +293,10 @@
     "description": "Info sheet row label"
   },
   "playerVideoInfo": "视频信息",
+  "playerAudioInfo": "音频信息",
+  "@playerAudioInfo": {
+    "description": "打开音频信息面板的按钮"
+  },
   "@playerVideoInfo": {
     "description": "Button to open video info sheet"
   },

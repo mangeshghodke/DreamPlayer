@@ -1863,6 +1863,10 @@
   "playerUrl": "URL",
   "playerFileSize": "Taille du fichier",
   "playerVideoInfo": "Infos vidéo",
+  "playerAudioInfo": "Infos audio",
+  "@playerAudioInfo": {
+    "description": "Bouton pour ouvrir la fiche d’infos audio"
+  },
   "playerResolution": "Résolution",
   "playerDecoder": "Décodeur",
   "playerAudioCh": "Canaux audio",

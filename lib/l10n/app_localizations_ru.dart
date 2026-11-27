@@ -236,6 +236,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get playerVideoInfo => 'Инфо о видео';
 
   @override
+  String get playerAudioInfo => 'Сведения об аудио';
+
+  @override
   String get playerResolution => 'Resolution';
 
   @override

@@ -293,6 +293,10 @@
     "description": "Info sheet row label"
   },
   "playerVideoInfo": "Video info",
+  "playerAudioInfo": "Audio info",
+  "@playerAudioInfo": {
+    "description": "Button to open the audio info sheet"
+  },
   "@playerVideoInfo": {
     "description": "Button to open video info sheet"
   },
