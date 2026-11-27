@@ -30,6 +30,7 @@ import '../services/app_debug_log.dart';
 import '../services/tmdb_client.dart';
 import '../services/hide_spoilers_store.dart';
 import '../utils/extras_names.dart';
+import '../utils/media_extensions.dart';
 import '../services/watched_store.dart';
 import '../services/download_manager.dart';
 import '../services/entitlements.dart';
@@ -1467,6 +1468,8 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
   /// continuous.
   PlayEngine _resolveEngine({PlayEngine? engine, bool fromBeginning = false}) {
     if (engine != null) return engine;
+    // Audio always plays on the primary engine (see _isAudioEntry).
+    if (_isAudioEntry) return PlayEngine.media3;
     if (_defaultEngine == DefaultEngine.mpv) return PlayEngine.mpv;
     if (_defaultEngine == DefaultEngine.media3) return PlayEngine.media3;
     if (!fromBeginning && _lastEngine == 'mpv') return PlayEngine.mpv;
@@ -1475,6 +1478,7 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
 
   /// Same as [_resolveEngine] for the folder-mode standalone movie.
   PlayEngine _resolveFolderEngine({bool fromBeginning = false}) {
+    if (_isAudioEntry) return PlayEngine.media3;
     if (_defaultEngine == DefaultEngine.mpv) return PlayEngine.mpv;
     if (_defaultEngine == DefaultEngine.media3) return PlayEngine.media3;
     if (!fromBeginning && _folderMovieLastEngine == 'mpv') {
@@ -1538,13 +1542,28 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     await _refreshPositions();
   }
 
+  /// True when the entry is an audio-only file - audio always plays on the
+  /// primary engine (Media3 / AetherEngine): best audio support and output
+  /// (media session, lock-screen art, USB-DAC high-res PCM), and MPV has no
+  /// media session. User decision 2026-11-27.
+  bool get _isAudioEntry {
+    final name = widget.video?.path ??
+        widget.video?.uri ??
+        widget.video?.title ??
+        widget.folder?.name ??
+        '';
+    return isAudioFile(name);
+  }
+
   /// The libmpv engine is Android-only (iOS playback is AetherEngine), so the
   /// "Play with MPV" option only shows on Android - iOS keeps its single Play.
   /// When the user has set a default engine, only the "Ask every time" mode
   /// shows both buttons. Auto mode shows only Media3 (mpv is the silent
-  /// fallback if Media3 fails).
+  /// fallback if Media3 fails). Audio files never offer MPV.
   bool get showMpvOption =>
-      Platform.isAndroid && _defaultEngine == DefaultEngine.ask;
+      Platform.isAndroid &&
+      _defaultEngine == DefaultEngine.ask &&
+      !_isAudioEntry;
 
   /// Suffix shown on the Play button when a specific engine is the default.
   String get _engineSuffix => switch (_defaultEngine) {

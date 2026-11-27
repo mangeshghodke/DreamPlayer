@@ -177,6 +177,22 @@ A video player app supporting:
     no disc ticker. The disc is NOT interactive. Title is anchored BELOW the
     disc with a Positioned (`maxHeight/2 + discSize/2 + 12`, clamped to
     `maxHeight - 96`) - a centered spacer overlapped the disc.
+  - **Audio overlay = one codec badge + Mpv-infinity-style Audio Properties
+    sheet; audio locked to the primary engine (2026-11-27, user screenshots of
+    Mpv∞)**: the top of the audio overlay now shows a SINGLE pill
+    (`audioCodecBadge`: "HI-RES LOSSLESS" / "LOSSLESS" / codec e.g. "AAC" -
+    the multi-badge row was removed). The info (i) sheet for audio-only files
+    lists Mpv∞'s Audio Properties rows: Title / Artist / Album (embedded tags),
+    Format / codec (`M4A (AAC)`), Sample rate, Bit depth, Bitrate, Channels
+    (`channelsDisplay` -> "Stereo (2.0)"), Quality, File location, Engine.
+    Audio files ALWAYS play on the primary engine (Media3 Android / AetherEngine
+    iOS) - the details screen hides "Play with MPV" for them, `_resolveEngine`
+    forces media3, the player's `_engine` ignores `initialEngine` for audio,
+    and the error surface hides "Try with MPV". Rationale (user decision):
+    Media3 has the best audio support + output - media session / lock-screen
+    artwork, bitstream passthrough, and PCM at the SOURCE sample rate so a
+    USB DAC gets true high-res (24-bit/96 kHz+ FLAC via the FFmpeg renderer
+    outputs at native rate through AudioTrack). MPV has no media session.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

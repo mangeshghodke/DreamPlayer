@@ -39,9 +39,9 @@ true of the intended build but not of the one that was reviewed. Verify with
 
 New:
 • Music files played from a network share (SMB, WebDAV, Jellyfin, DLNA) now show their embedded cover art on the player's disc, plus the song's title, artist and album from the file's own tags - no online lookup needed. FTP and self-signed servers are supported too.
-• While playing a music file, the player now looks like a music app: the controls (shuffle, previous, play/pause, next, repeat) sit at the bottom under the progress bar, and the notification and lock screen show the song's own title and cover art instead of the file name. In landscape, the disc moves to the right half of the screen and the song details stay on the left.
-• The vinyl disc is now touchable like a turntable: spin it to scrub the song, flick it fast to speed playback up temporarily.
+• While playing a music file, the player now looks like a music app: one codec badge (AAC, Lossless, Hi-Res) at the top, the controls (shuffle, previous, play/pause, next, repeat) at the bottom under the progress bar, and the notification and lock screen show the song's own title and cover art instead of the file name. The info panel lists full audio properties: title, artist, album, format, sample rate, bitrate, channels, file size and location. In landscape, the disc moves to the right half of the screen and the song details stay on the left.
 • A button in the top bar switches between the vinyl disc and a plain cover-art display.
+• Music files always use the built-in audio engine, which also supports true high-resolution output to USB DACs.
 
 ---
 

@@ -130,6 +130,60 @@ void main() {
     });
   });
 
+  group('audioCodecBadge (single Mpv-infinity-style pill)', () {
+    test('lossy codec -> uppercased codec name', () {
+      expect(audioCodecBadge(mimeOrCodec: 'audio/mp4', sampleRate: 44100),
+          'AAC');
+      expect(audioCodecBadge(mimeOrCodec: 'audio/mpeg'), 'MP3');
+    });
+
+    test('lossless -> LOSSLESS, hi-res lossless -> HI-RES LOSSLESS', () {
+      expect(audioCodecBadge(mimeOrCodec: 'audio/flac', sampleRate: 44100),
+          'LOSSLESS');
+      expect(
+        audioCodecBadge(mimeOrCodec: 'audio/flac', sampleRate: 96000, bits: 24),
+        'HI-RES LOSSLESS',
+      );
+      // 24-bit/48k also counts as hi-res
+      expect(
+        audioCodecBadge(mimeOrCodec: 'audio/flac', sampleRate: 48000, bits: 24),
+        'HI-RES LOSSLESS',
+      );
+    });
+
+    test('unknown -> empty', () {
+      expect(audioCodecBadge(mimeOrCodec: null), isEmpty);
+      expect(audioCodecBadge(mimeOrCodec: 'audio/x-weird'), 'WEIRD');
+    });
+  });
+
+  group('channelsDisplay (Mpv-infinity properties sheet style)', () {
+    test('maps counts to name + layout', () {
+      expect(channelsDisplay(2), 'Stereo (2.0)');
+      expect(channelsDisplay(1), 'Mono (Mono)');
+      expect(channelsDisplay(6), '5.1 (5.1)');
+      expect(channelsDisplay(16), '7.1.4 (7.1.4)');
+      expect(channelsDisplay(null), isEmpty);
+    });
+  });
+
+  group('audio is locked to the primary engine (source-reading)', () {
+    test('player forces Media3 for audio files, hides Try-with-MPV', () {
+      final player =
+          File('lib/screens/player_screen.dart').readAsStringSync();
+      expect(player.contains('? PlayEngine.media3'), isTrue);
+      expect(player.contains(': widget.initialEngine;'), isTrue);
+      expect(player.contains('isAudioFile('), isTrue);
+      expect(player.contains('_hasVideoTrack &&'), isTrue);
+      final details =
+          File('lib/screens/tmd_details_screen.dart').readAsStringSync();
+      expect(details.contains('bool get _isAudioEntry'), isTrue);
+      expect(details.contains('!_isAudioEntry'), isTrue);
+      expect(details.contains('if (_isAudioEntry) return PlayEngine.media3;'),
+          isTrue);
+    });
+  });
+
   group('player wiring (source-reading)', () {
     final player = File('lib/screens/player_screen.dart').readAsStringSync();
     final probeKt = File(
@@ -143,7 +197,7 @@ void main() {
       expect(overlayAt, greaterThan(-1));
       // Slice the PORTRAIT branch (the landscape half-split branch comes first
       // in the source since 2026-11-27).
-      final portraitAt = player.indexOf('// Badges row at the top', overlayAt);
+      final portraitAt = player.indexOf('// Single codec badge at the top', overlayAt);
       expect(portraitAt, greaterThan(-1));
       final overlay = player.substring(portraitAt, portraitAt + 4000);
       // Badges rendered in a top-anchored Positioned BEFORE the title column
@@ -209,11 +263,14 @@ void main() {
     });
 
     test('audio format helpers are wired into the player', () {
-      // audioFormatSummary is no longer on the overlay (badges moved to the
-      // top); it is still exercised by the unit tests above. The overlay uses
-      // audioBadgeLabels; the info sheet uses audioQualityBadges.
-      expect(player.contains('audioBadgeLabels('), isTrue);
+      // The overlay shows ONE codec badge (Mpv-infinity style); the info
+      // sheet lists the full audio properties (tags + format rows).
+      expect(player.contains('audioCodecBadge('), isTrue);
+      expect(player, isNot(contains('audioBadgeLabels(')));
       expect(player.contains('audioQualityBadges('), isTrue);
+      expect(player.contains("label: 'Format / codec'"), isTrue);
+      expect(player.contains("label: 'File location'"), isTrue);
+      expect(player.contains('channelsDisplay('), isTrue);
     });
 
     test('native probes expose sample rate / bit depth / track bitrate', () {

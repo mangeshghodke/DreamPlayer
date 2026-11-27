@@ -327,7 +327,18 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Engine chosen by the user on the details screen ("Play" = Media3,
   /// "Play with MPV" = libmpv). Media3 is the default and is also used for
   /// every non-details entry point (intents, "Open with", play-next).
-  late final PlayEngine _engine = widget.initialEngine;
+  ///
+  /// Audio-only files are ALWAYS on the primary engine (Media3 on Android /
+  /// AetherEngine on iOS), ignoring the picker (user decision 2026-11-27):
+  /// it has the best audio support (native + FFmpeg decode, bitstream
+  /// passthrough) and the best output path - the media session / lock-screen
+  /// artwork, and PCM at the source sample rate so a USB DAC gets true
+  /// high-res. MPV gets no media session at all.
+  late final PlayEngine _engine = isAudioFile(
+          widget.video.path ?? widget.video.uri ?? widget.video.title,
+        )
+        ? PlayEngine.media3
+        : widget.initialEngine;
 
   bool _controlsVisible = true;
   bool _fullscreen = false;
@@ -6504,28 +6515,59 @@ if (mounted) setState(_applySwipeValue);
       // Audio decoder (issue #71).
       if (_statsAudioDecoderLine != null)
         (label: 'Audio decoder', value: _statsAudioDecoderLine!),
-      // Audio-only files: the probed format details under the vinyl disc,
-      // also listed here (user request 2026-11-24).
-      if (_isAudioOnly && _audioProbe != null) ...[
-        if (_audioProbe!.audioSampleRate != null && _audioProbe!.audioSampleRate! > 0)
+      // Audio-only files: an "Audio properties" block like Mpv-infinity's info
+      // sheet (user screenshots 2026-11-27): title/artist/album tags,
+      // format/codec, sample rate, bitrate, channels, file location.
+      if (_isAudioOnly) ...[
+        if (_audioProbe?.audioTitle case final t? when t.isNotEmpty)
+          (label: 'Title', value: t),
+        if (_audioProbe?.audioArtist case final a? when a.isNotEmpty)
+          (label: 'Artist', value: a),
+        if (_audioProbe?.audioAlbum case final al? when al.isNotEmpty)
+          (label: 'Album', value: al),
+        if (_audioProbe != null) ...[
           (
-            label: 'Sample rate',
-            value: '${(_audioProbe!.audioSampleRate! / 1000).toStringAsFixed(1)} kHz',
+            label: 'Format / codec',
+            value: () {
+              final name = video.path ?? video.uri ?? video.title;
+              final dot = name.lastIndexOf('.');
+              final ext =
+                  dot > 0 ? name.substring(dot + 1).toUpperCase() : '';
+              final codec = audioCodecName(_audioProbe!.audioMime ?? _liveAudioCodec);
+              return ext.isEmpty
+                  ? codec
+                  : codec == 'Unknown'
+                      ? ext
+                      : '$ext ($codec)';
+            }(),
           ),
-        if (_audioProbe!.audioBits != null && _audioProbe!.audioBits! > 0)
-          (label: 'Bit depth', value: '${_audioProbe!.audioBits}-bit'),
-        if ((_audioProbe!.audioBitrate ?? _audioProbe!.bitrate) != null &&
-            (_audioProbe!.audioBitrate ?? _audioProbe!.bitrate)! > 0)
-          (
-            label: 'Bitrate',
-            value:
-                '${((_audioProbe!.audioBitrate ?? _audioProbe!.bitrate)! / 1000).round()} kbps',
-          ),
-        ...audioQualityBadges(
-          mimeOrCodec: _audioProbe!.audioMime,
-          sampleRate: _audioProbe!.audioSampleRate,
-          bits: _audioProbe!.audioBits,
-        ).map((b) => (label: 'Quality', value: b)),
+          if (_audioProbe!.audioSampleRate != null && _audioProbe!.audioSampleRate! > 0)
+            (
+              label: 'Sample rate',
+              value: '${(_audioProbe!.audioSampleRate! / 1000).toStringAsFixed(1)} kHz',
+            ),
+          if (_audioProbe!.audioBits != null && _audioProbe!.audioBits! > 0)
+            (label: 'Bit depth', value: '${_audioProbe!.audioBits}-bit'),
+          if ((_audioProbe!.audioBitrate ?? _audioProbe!.bitrate) != null &&
+              (_audioProbe!.audioBitrate ?? _audioProbe!.bitrate)! > 0)
+            (
+              label: 'Bitrate',
+              value:
+                  '${((_audioProbe!.audioBitrate ?? _audioProbe!.bitrate)! / 1000).round()} kbps',
+            ),
+          if (channelsDisplay(_audioProbe!.audioChannels).isNotEmpty)
+            (
+              label: 'Channels',
+              value: channelsDisplay(_audioProbe!.audioChannels),
+            ),
+          ...audioQualityBadges(
+            mimeOrCodec: _audioProbe!.audioMime,
+            sampleRate: _audioProbe!.audioSampleRate,
+            bits: _audioProbe!.audioBits,
+          ).map((b) => (label: 'Quality', value: b)),
+        ],
+        (label: 'File location', value: video.path ?? video.uri ?? sourceUrl),
+        (label: 'Engine', value: _mpvReady ? 'libmpv' : 'Media3'),
       ],
       if (_transcodeActive ||
           video.isTranscoded ||
@@ -9496,15 +9538,15 @@ if (mounted) setState(_applySwipeValue);
                             .clamp(150.0, 300.0);
                     final probe = _audioProbe;
                     final codecMime = probe?.audioMime ?? _liveAudioCodec;
-                    // Format badges on TOP: codec, kHz, bit depth, channels,
-                    // bitrate, then Lossless/Hi-Res (user request: "bit rate,
-                    // channel, kilohertz as badges only, on top of screen").
-                    final badgeLabels = audioBadgeLabels(
+                    // ONE badge on top, like Mpv-infinity's 1st screenshot (a
+                    // single `AAC` pill): HI-RES LOSSLESS / LOSSLESS for
+                    // lossless content, else the codec name (user request
+                    // 2026-11-27: the multi-badge row is removed for audio; the
+                    // full details live in the info (i) sheet instead).
+                    final badgeLabel = audioCodecBadge(
                       mimeOrCodec: codecMime,
                       sampleRate: probe?.audioSampleRate,
                       bits: probe?.audioBits,
-                      channels: probe?.audioChannels,
-                      bitrate: probe?.audioBitrate ?? probe?.bitrate,
                     );
                     final songTitle = (probe?.audioTitle?.isNotEmpty == true)
                         ? probe!.audioTitle!
@@ -9516,47 +9558,41 @@ if (mounted) setState(_applySwipeValue);
                         probe!.audioAlbum!,
                     ].join(' · ');
                     // Shared pieces so portrait and landscape cannot drift.
-                    final badges = badgeLabels.isEmpty
+                    final hiRes = badgeLabel.startsWith('HI-RES');
+                    final lossless = badgeLabel == 'LOSSLESS';
+                    final badges = badgeLabel.isEmpty
                         ? const SizedBox.shrink()
-                        : Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            alignment: WrapAlignment.center,
-                            children: [
-                              for (final b in badgeLabels)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: b == 'Hi-Res'
-                                        ? Colors.amber.withValues(alpha: 0.18)
-                                        : b == 'Lossless'
-                                            ? colorScheme.secondaryContainer
-                                            : colorScheme.primaryContainer,
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                      color: b == 'Hi-Res'
-                                          ? Colors.amber
-                                          : b == 'Lossless'
-                                              ? colorScheme.secondary
-                                              : colorScheme.primary,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    b,
-                                    style: TextStyle(
-                                      color: b == 'Hi-Res'
-                                          ? Colors.amber
-                                          : b == 'Lossless'
-                                              ? colorScheme.onSecondaryContainer
-                                              : colorScheme.onPrimaryContainer,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                        : Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: hiRes
+                                  ? Colors.amber.withValues(alpha: 0.18)
+                                  : lossless
+                                      ? colorScheme.secondaryContainer
+                                      : colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: hiRes
+                                    ? Colors.amber
+                                    : lossless
+                                        ? colorScheme.secondary
+                                        : colorScheme.primary,
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              badgeLabel,
+                              style: TextStyle(
+                                color: hiRes
+                                    ? Colors.amber
+                                    : lossless
+                                        ? colorScheme.onSecondaryContainer
+                                        : colorScheme.onPrimaryContainer,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           );
                     final titleText = Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -9623,8 +9659,9 @@ if (mounted) setState(_applySwipeValue);
                     }
                     return Stack(
                       children: [
-                        // Badges row at the top, clear of the player top bar.
-                        if (badgeLabels.isNotEmpty)
+                        // Single codec badge at the top, clear of the player
+                        // top bar (Mpv-infinity style).
+                        if (badgeLabel.isNotEmpty)
                           Positioned(
                             top: MediaQuery.paddingOf(context).top +
                                 kToolbarHeight +
@@ -9955,7 +9992,10 @@ if (mounted) setState(_applySwipeValue);
                                               color: Colors.white38),
                                         ),
                                       ),
+                                      // Audio files always use the primary
+                                      // engine (see _engine) - no MPV switch.
                                       if (Platform.isAndroid &&
+                                          _hasVideoTrack &&
                                           _mpvSourceFor(_current).isNotEmpty) ...[
                                         SizedBox(width: 12),
                                         OutlinedButton.icon(

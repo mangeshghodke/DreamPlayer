@@ -60,6 +60,47 @@ List<String> audioQualityBadges({
   return badges;
 }
 
+/// Clean display name for an audio codec/MIME (`audio/mp4` -> `AAC`,
+/// `audio/x-weird` -> `WEIRD`).
+String audioCodecName(String? mimeOrCodec) {
+  final raw = mimeOrCodec?.toLowerCase();
+  if (raw != null && _audioMimeAlias.containsKey(raw)) {
+    return formatAudioCodec(_audioMimeAlias[raw]);
+  }
+  if (raw != null && raw.contains('/')) {
+    var sub = raw.substring(raw.indexOf('/') + 1);
+    if (sub.startsWith('x-')) sub = sub.substring(2);
+    return formatAudioCodec(sub);
+  }
+  return formatAudioCodec(mimeOrCodec);
+}
+
+/// The ONE badge shown at the top of the audio-only overlay (Mpv-infinity's
+/// `collapsedAudioBadgeLabel`, its 1st screenshot shows a single `AAC` pill):
+/// "HI-RES LOSSLESS" / "LOSSLESS" for lossless content, else the clean codec
+/// name uppercased. Empty when nothing is known.
+String audioCodecBadge({String? mimeOrCodec, int? sampleRate, int? bits}) {
+  if (isLosslessCodec(mimeOrCodec)) {
+    final rate = sampleRate ?? 0;
+    final depth = bits ?? 0;
+    if (rate >= 96000 || (depth >= 24 && rate >= 48000)) return 'HI-RES LOSSLESS';
+    return 'LOSSLESS';
+  }
+  final codec = audioCodecName(mimeOrCodec);
+  if (mimeOrCodec == null || codec == 'Unknown') return '';
+  return codec.toUpperCase();
+}
+
+/// Channels display like Mpv-infinity's properties sheet: "Stereo (2.0)",
+/// "5.1 (5.1)", "7.1.4 (16)".
+String channelsDisplay(int? count) {
+  if (count == null || count <= 0) return '';
+  const names = {1: 'Mono', 2: 'Stereo', 6: '5.1', 7: '6.1', 8: '7.1'};
+  final layout = channelsLabel(count);
+  final name = names[count] ?? layout;
+  return '$name ($layout)';
+}
+
 /// Badge chips for the TOP of the audio-only overlay (Mpv-infinity puts its
 /// LOSSLESS/HI-RES pill at the top under the header, not under the artwork).
 /// Order: codec, sample rate (kHz), bit depth, channels, bitrate, then the
