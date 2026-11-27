@@ -198,7 +198,7 @@ void main() {
       expect(overlayAt, greaterThan(-1));
       // Slice the PORTRAIT branch (the landscape half-split branch comes first
       // in the source since 2026-11-27).
-      final portraitAt = player.indexOf('// Single codec badge at the top', overlayAt);
+      final portraitAt = player.indexOf('// Single codec badge, CENTERED at the top', overlayAt);
       expect(portraitAt, greaterThan(-1));
       final overlay = player.substring(portraitAt, portraitAt + 4000);
       // Badges rendered in a top-anchored Positioned BEFORE the title column
@@ -269,6 +269,12 @@ void main() {
       expect(player.contains('audioCodecBadge('), isTrue);
       expect(player, isNot(contains('audioBadgeLabels(')));
       expect(player.contains('audioQualityBadges('), isTrue);
+      // one Title row only: embedded tag title wins, file name not repeated
+      expect(player.contains('audioTagTitle ?? video.title'), isTrue);
+      expect(player.contains("(label: 'Title', value: t)"), isFalse);
+      // pill: centered + compact
+      expect(player.contains('child: Center(child: badges)'), isTrue);
+      expect(player.contains('fontSize: 11'), isTrue);
       expect(player.contains("label: 'Format / codec'"), isTrue);
       expect(player.contains("label: 'File location'"), isTrue);
       expect(player.contains('channelsDisplay('), isTrue);

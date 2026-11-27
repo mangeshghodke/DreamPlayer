@@ -6451,8 +6451,15 @@ if (mounted) setState(_applySwipeValue);
     final audioSampleRateText = asr != null && asr > 0
         ? '${(asr / 1000).toStringAsFixed(1)} kHz'
         : null;
+    // For audio-only files the Title row is the EMBEDDED tag title (the file
+    // name is already shown in File location) - one title only (user request
+    // 2026-11-28: no duplicate file-name + tag title rows).
+    final audioTagTitle =
+        _isAudioOnly && (_audioProbe?.audioTitle?.isNotEmpty ?? false)
+            ? _audioProbe!.audioTitle!
+            : null;
     final rows = <({String label, String value})>[
-      (label: l.playerTitle, value: video.title),
+      (label: l.playerTitle, value: audioTagTitle ?? video.title),
       (label: l.playerSource, value: sourceLabel),
       if (sourceUrl.isNotEmpty && sourceUrl != video.title)
         (label: l.playerUrl, value: sourceUrl),
@@ -6523,8 +6530,7 @@ if (mounted) setState(_applySwipeValue);
       // sheet (user screenshots 2026-11-27): title/artist/album tags,
       // format/codec, sample rate, bitrate, channels, file location.
       if (_isAudioOnly) ...[
-        if (_audioProbe?.audioTitle case final t? when t.isNotEmpty)
-          (label: 'Title', value: t),
+        // (Title row is the shared playerTitle row above, using the tag.)
         if (_audioProbe?.audioArtist case final a? when a.isNotEmpty)
           (label: 'Artist', value: a),
         if (_audioProbe?.audioAlbum case final al? when al.isNotEmpty)
@@ -9619,11 +9625,15 @@ if (mounted) setState(_applySwipeValue);
                     // Shared pieces so portrait and landscape cannot drift.
                     final hiRes = badgeLabel.startsWith('HI-RES');
                     final lossless = badgeLabel == 'LOSSLESS';
+                    // Small centered pill - just the codec/quality word, like
+                    // Mpv-infinity's 1st screenshot (user request 2026-11-28:
+                    // "the pill should be what codec is used, that much only -
+                    // right now it's too big").
                     final badges = badgeLabel.isEmpty
                         ? const SizedBox.shrink()
                         : Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                                horizontal: 9, vertical: 2),
                             decoration: BoxDecoration(
                               color: hiRes
                                   ? Colors.amber.withValues(alpha: 0.18)
@@ -9648,7 +9658,7 @@ if (mounted) setState(_applySwipeValue);
                                     : lossless
                                         ? colorScheme.onSecondaryContainer
                                         : colorScheme.onPrimaryContainer,
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -9718,8 +9728,8 @@ if (mounted) setState(_applySwipeValue);
                     }
                     return Stack(
                       children: [
-                        // Single codec badge at the top, clear of the player
-                        // top bar (Mpv-infinity style).
+                        // Single codec badge, CENTERED at the top, clear of
+                        // the player top bar (Mpv-infinity style).
                         if (badgeLabel.isNotEmpty)
                           Positioned(
                             top: MediaQuery.paddingOf(context).top +
@@ -9727,7 +9737,7 @@ if (mounted) setState(_applySwipeValue);
                                 8,
                             left: 12,
                             right: 12,
-                            child: badges,
+                            child: Center(child: badges),
                           ),
                         // The disc lives in the main stack, centered - anchor
                         // the title BELOW it explicitly (a centered spacer
