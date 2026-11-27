@@ -14,12 +14,8 @@ void main() {
     test(
       'centre pill swaps to the music row only for audio-only, not in PiP',
       () {
-        expect(
-          player.contains(
-            '_isAudioOnly && !_inPip\n                      ? _audioTransportRow()',
-          ),
-          isTrue,
-        );
+        expect(player.contains('_isAudioOnly && !_inPip'), isTrue);
+        expect(player.contains('? _audioTransportRow()'), isTrue);
       },
     );
 
@@ -77,6 +73,35 @@ void main() {
       expect(player.contains('(_siblingCount ?? 0) > 1'), isTrue);
       expect(player.contains('_siblingCount = null;'), isTrue);
       expect(player.contains('_orderedSiblings().then'), isTrue);
+    });
+
+    test('transport pill scales down instead of overflowing narrow screens', () {
+      // Reported 2026-11-27: 14 px right overflow in portrait.
+      final rowStart = player.indexOf('Widget _audioTransportRow()');
+      final row = player.substring(rowStart, rowStart + 4600);
+      expect(row.contains('FittedBox('), isTrue);
+      expect(row.contains('BoxFit.scaleDown'), isTrue);
+    });
+
+    test('landscape audio-only splits the screen: badges/title left, disc right', () {
+      expect(
+        player.contains('if (constraints.maxWidth > constraints.maxHeight)'),
+        isTrue,
+      );
+      // Right half hosts the disc, left half hosts badges + title.
+      expect(player.contains('width: halfW'), isTrue);
+      expect(player.contains('right: 0,\n                            top: 0,\n                            bottom: 0,\n                            width: halfW,'), isTrue);
+      expect(player.contains('VinylDisc('), isTrue);
+    });
+
+    test('transport row sits in the left half in landscape audio-only', () {
+      expect(
+        player.contains('MediaQuery.orientationOf(context) ==\n                              Orientation.landscape'),
+        isTrue,
+      );
+      expect(player.contains('FractionallySizedBox('), isTrue);
+      expect(player.contains('widthFactor: 0.5'), isTrue);
+      expect(player.contains('Alignment.centerLeft'), isTrue);
     });
   });
 }

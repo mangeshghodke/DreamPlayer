@@ -145,6 +145,13 @@ A video player app supporting:
   `PlaybackModesStore` prefs as the ⋮ sheet (+ live `setRepeatMode`), icons tint
   active. TV gets focusable `_TvControlButton`s. Pinned by
   `test/audio_transport_row_test.dart`.
+  - **Audio overlay layout fixes (2026-11-27, on-device report)**: the transport
+    pill is wrapped in `FittedBox(scaleDown)` so it can never overflow a narrow
+    portrait screen (was 14 px right overflow). In LANDSCAPE the audio overlay is
+    now a half-split: badges + title/artist in the LEFT half, vinyl disc in the
+    RIGHT half (`constraints.maxWidth > constraints.maxHeight` branch), and the
+    transport row is centred in the left half only (`FractionallySizedBox(
+    widthFactor: 0.5, Alignment.centerLeft)`). Portrait layout unchanged.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

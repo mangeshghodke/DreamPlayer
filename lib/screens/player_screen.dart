@@ -8567,54 +8567,60 @@ if (mounted) setState(_applySwipeValue);
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          small(
-            icon: Icons.shuffle,
-            active: _shuffle ? activeColor : null,
-            onPressed: ready ? _toggleShuffleButton : null,
-          ),
-          const SizedBox(width: 16),
-          small(
-            icon: Icons.skip_previous,
-            onPressed: canSkip ? () => _skipTrack(-1) : null,
-          ),
-          const SizedBox(width: 16),
-          _TvControlButton(
-            focusNode: _playPauseFocusNode,
-            onPressed: ready ? _togglePlayPause : null,
-            iconSize: 64,
-            autofocus: true,
-            alwaysShowRing: !_isTv,
-            icon: Icon(
-              _completed
-                  ? Icons.replay
-                  : _playing
-                      ? Icons.pause_circle_filled
-                      : Icons.play_circle_fill,
+    // FittedBox(scaleDown) so the pill can never overflow a narrow portrait
+    // screen (reported 2026-11-27: 14 px right overflow) - it shrinks only
+    // when it actually has to.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            small(
+              icon: Icons.shuffle,
+              active: _shuffle ? activeColor : null,
+              onPressed: ready ? _toggleShuffleButton : null,
             ),
-            color: Colors.white,
-            onFocusChange: (_) => _showControls(),
-          ),
-          const SizedBox(width: 16),
-          small(
-            icon: Icons.skip_next,
-            onPressed: canSkip ? () => _skipTrack(1) : null,
-          ),
-          const SizedBox(width: 16),
-          small(
-            icon: _repeat == LoopMode.one ? Icons.repeat_one : Icons.repeat,
-            active: _repeat == LoopMode.off ? null : activeColor,
-            onPressed: ready ? _cycleRepeatButton : null,
-          ),
-        ],
+            const SizedBox(width: 16),
+            small(
+              icon: Icons.skip_previous,
+              onPressed: canSkip ? () => _skipTrack(-1) : null,
+            ),
+            const SizedBox(width: 16),
+            _TvControlButton(
+              focusNode: _playPauseFocusNode,
+              onPressed: ready ? _togglePlayPause : null,
+              iconSize: 64,
+              autofocus: true,
+              alwaysShowRing: !_isTv,
+              icon: Icon(
+                _completed
+                    ? Icons.replay
+                    : _playing
+                        ? Icons.pause_circle_filled
+                        : Icons.play_circle_fill,
+              ),
+              color: Colors.white,
+              onFocusChange: (_) => _showControls(),
+            ),
+            const SizedBox(width: 16),
+            small(
+              icon: Icons.skip_next,
+              onPressed: canSkip ? () => _skipTrack(1) : null,
+            ),
+            const SizedBox(width: 16),
+            small(
+              icon: _repeat == LoopMode.one ? Icons.repeat_one : Icons.repeat,
+              active: _repeat == LoopMode.off ? null : activeColor,
+              onPressed: ready ? _cycleRepeatButton : null,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -9441,6 +9447,126 @@ if (mounted) setState(_applySwipeValue);
                       if (probe?.audioAlbum?.isNotEmpty == true)
                         probe!.audioAlbum!,
                     ].join(' · ');
+                    // Shared pieces so portrait and landscape cannot drift.
+                    final badges = badgeLabels.isEmpty
+                        ? const SizedBox.shrink()
+                        : Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              for (final b in badgeLabels)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: b == 'Hi-Res'
+                                        ? Colors.amber.withValues(alpha: 0.18)
+                                        : b == 'Lossless'
+                                            ? colorScheme.secondaryContainer
+                                            : colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: b == 'Hi-Res'
+                                          ? Colors.amber
+                                          : b == 'Lossless'
+                                              ? colorScheme.secondary
+                                              : colorScheme.primary,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    b,
+                                    style: TextStyle(
+                                      color: b == 'Hi-Res'
+                                          ? Colors.amber
+                                          : b == 'Lossless'
+                                              ? colorScheme.onSecondaryContainer
+                                              : colorScheme.onPrimaryContainer,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                    final titleText = Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        songTitle,
+                        style: TextStyle(
+                          color: colorScheme.onSurface,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                    final subText = songSub.isEmpty
+                        ? const SizedBox.shrink()
+                        : Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 24),
+                            child: Text(
+                              songSub,
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                          );
+                    // Landscape (user request 2026-11-27): half-split screen -
+                    // badges + title/artist on the LEFT half, vinyl disc on
+                    // the RIGHT half. Portrait keeps the stacked layout.
+                    if (constraints.maxWidth > constraints.maxHeight) {
+                      final halfW = constraints.maxWidth / 2;
+                      final landDiscSize =
+                          (constraints.maxHeight * 0.72).clamp(150.0, 320.0);
+                      return Stack(
+                        children: [
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: halfW,
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    child: badges,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  titleText,
+                                  const SizedBox(height: 4),
+                                  subText,
+                                ],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: halfW,
+                            child: Center(
+                              child: VinylDisc(
+                                spinning: _playing && !_buffering,
+                                artBytes: _audioArt,
+                                size: landDiscSize,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
                     return Stack(
                       children: [
                         // Badges row at the top, clear of the player top bar.
@@ -9451,46 +9577,7 @@ if (mounted) setState(_applySwipeValue);
                                 8,
                             left: 12,
                             right: 12,
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              alignment: WrapAlignment.center,
-                              children: [
-                                for (final b in badgeLabels)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: b == 'Hi-Res'
-                                          ? Colors.amber.withValues(alpha: 0.18)
-                                          : b == 'Lossless'
-                                              ? colorScheme.secondaryContainer
-                                              : colorScheme.primaryContainer,
-                                      borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(
-                                        color: b == 'Hi-Res'
-                                            ? Colors.amber
-                                            : b == 'Lossless'
-                                                ? colorScheme.secondary
-                                                : colorScheme.primary,
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      b,
-                                      style: TextStyle(
-                                        color: b == 'Hi-Res'
-                                            ? Colors.amber
-                                            : b == 'Lossless'
-                                                ? colorScheme.onSecondaryContainer
-                                                : colorScheme.onPrimaryContainer,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
+                            child: badges,
                           ),
                         // Disc center + song name below it.
                         Center(
@@ -9503,37 +9590,10 @@ if (mounted) setState(_applySwipeValue);
                                 size: discSize,
                               ),
                               const SizedBox(height: 20),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 24),
-                                child: Text(
-                                  songTitle,
-                                  style: TextStyle(
-                                    color: colorScheme.onSurface,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
+                              titleText,
                               if (songSub.isNotEmpty) ...[
                                 const SizedBox(height: 4),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 24),
-                                  child: Text(
-                                    songSub,
-                                    style: TextStyle(
-                                      color: colorScheme.onSurfaceVariant,
-                                      fontSize: 14,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
+                                subText,
                               ],
                             ],
                           ),
@@ -10178,9 +10238,21 @@ if (mounted) setState(_applySwipeValue);
                   // Audio-only playback gets the music transport row
                   // (shuffle / prev / play-pause / next / repeat, mirroring
                   // Mpv-infinity's audio screen) instead of the video pill.
-                  child: _isAudioOnly && !_inPip
-                      ? _audioTransportRow()
-                      : Row(
+                  // In LANDSCAPE the vinyl disc owns the right half of the
+                  // screen, so the row is centred in the LEFT half only
+                  // (user request 2026-11-27).
+                  child: _isAudioOnly &&
+                          !_inPip &&
+                          MediaQuery.orientationOf(context) ==
+                              Orientation.landscape
+                      ? FractionallySizedBox(
+                          widthFactor: 0.5,
+                          alignment: Alignment.centerLeft,
+                          child: Center(child: _audioTransportRow()),
+                        )
+                      : _isAudioOnly && !_inPip
+                          ? _audioTransportRow()
+                          : Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Chapter jump, beside play/pause on every platform

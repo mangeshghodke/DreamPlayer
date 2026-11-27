@@ -141,21 +141,25 @@ void main() {
     test('format badges are at the TOP of the audio overlay, not below the disc', () {
       final overlayAt = player.indexOf('if (_isAudioOnly && _error == null)');
       expect(overlayAt, greaterThan(-1));
-      final overlay = player.substring(overlayAt, overlayAt + 6500);
+      // Slice the PORTRAIT branch (the landscape half-split branch comes first
+      // in the source since 2026-11-27 and also contains a VinylDisc).
+      final portraitAt = player.indexOf('// Badges row at the top', overlayAt);
+      expect(portraitAt, greaterThan(-1));
+      final overlay = player.substring(portraitAt, portraitAt + 4000);
       // Badges rendered via audioBadgeLabels in a top-anchored Positioned...
-      final badgesAt = overlay.indexOf('audioBadgeLabels(');
       final topAt = overlay.indexOf('top: MediaQuery.paddingOf(context).top');
       final discAt = overlay.indexOf('VinylDisc(');
-      expect(badgesAt, greaterThan(-1));
       expect(topAt, greaterThan(-1));
+      expect(discAt, greaterThan(-1));
       // ...both BEFORE the centered disc + title column.
-      expect(discAt, greaterThan(badgesAt));
       expect(discAt, greaterThan(topAt));
-      // Song title + artist/album below the disc (Mpv-infinity pattern).
-      expect(overlay, contains('songTitle'));
-      expect(overlay, contains('songSub'));
-      expect(overlay, contains('audioTitle'));
-      expect(overlay, contains('audioArtist'));
+      // Song title + artist/album from the probe (Mpv-infinity pattern) -
+      // checked on the whole overlay, the widgets are extracted into locals.
+      final whole = player.substring(overlayAt, overlayAt + 9000);
+      expect(whole, contains('songTitle'));
+      expect(whole, contains('songSub'));
+      expect(whole, contains('audioTitle'));
+      expect(whole, contains('audioArtist'));
     });
 
     test('info sheet keeps the probed audio detail rows', () {
