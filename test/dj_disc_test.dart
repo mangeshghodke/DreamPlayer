@@ -33,12 +33,17 @@ void main() {
       expect(player.contains('angle: _discAngle'), isTrue);
     });
 
-    test('angular delta maps to scratch seek, clockwise forward', () {
+    test('angular delta maps to scratch seek on an ABSOLUTE position (no runaway)', () {
       expect(player.contains('math.atan2'), isTrue);
       expect(player.contains('scratchSecondsPerTurn'), isTrue);
+      // The drag owns _scratchPos (seeded from _position at pan start) and
+      // seeks absolutely - relative seeks on the stale ~1/s _position made
+      // the audio run away forward (reported 2026-11-27).
+      expect(player.contains('_scratchPos = _position;'), isTrue);
+      expect(player.contains('_scratchPos += Duration('), isTrue);
+      expect(player.contains('_seekBackend(_scratchPos)'), isTrue);
       // delta sign is preserved (no abs) so anticlockwise scrubs backwards.
-      expect(player.contains('_scratchAccumSec += delta'), isTrue);
-      expect(player.contains('_seekBy(Duration(milliseconds: ms))'), isTrue);
+      expect(player.contains('_scratchAccumAngle += delta'), isTrue);
     });
 
     test('fast flick on release spins the disc and changes playback rate', () {

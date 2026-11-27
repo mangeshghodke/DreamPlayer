@@ -8720,7 +8720,10 @@ if (mounted) setState(_applySwipeValue);
   double _lastPanAngle = 0;
   DateTime _lastPanTime = DateTime.now();
   double _panVelocity = 0;
-  double _scratchAccumSec = 0;
+  // Absolute scratch position, owned by the drag (NOT the ~1/s _position,
+  // which is stale mid-drag and made relative seeks run away forward).
+  Duration _scratchPos = Duration.zero;
+  double _scratchAccumAngle = 0;
   Timer? _spinDecayTimer;
   static const double scratchSecondsPerTurn = 8.0;
   static const double spinVelocityThreshold = 1.0; // rad/s
@@ -8755,7 +8758,8 @@ if (mounted) setState(_applySwipeValue);
     _discDragging = true;
     _spinDecayTimer?.cancel();
     _discSpinRevPerSec = 0;
-    _scratchAccumSec = 0;
+    _scratchPos = _position;
+    _scratchAccumAngle = 0;
     _panVelocity = 0;
     _lastPanAngle = _angleAt(d.localPosition, _discSizeNow());
     _lastPanTime = DateTime.now();
@@ -8779,12 +8783,19 @@ if (mounted) setState(_applySwipeValue);
     }
     // The disc follows the finger exactly...
     _discAngle += delta;
-    // ...and the playhead scratches with it (throttled to 150 ms steps).
-    _scratchAccumSec += delta * scratchSecondsPerTurn / (2 * math.pi);
-    if (_scratchAccumSec.abs() >= 0.15) {
-      final ms = (_scratchAccumSec * 1000).round();
-      _scratchAccumSec = 0;
-      _seekBy(Duration(milliseconds: ms));
+    // ...and the playhead scratches with it. The scratch position is ABSOLUTE
+    // and owned by this drag (the ~1/s _position is stale mid-drag - seeking
+    // relative to it made every delta stack on the same old base and the audio
+    // ran away forward, reported 2026-11-27). Dense small absolute seeks
+    // while playing are what produce the audible scratch.
+    _scratchPos += Duration(
+      milliseconds: (delta * scratchSecondsPerTurn / (2 * math.pi) * 1000)
+          .round(),
+    );
+    _scratchAccumAngle += delta;
+    if (_scratchAccumAngle.abs() > 0.05) {
+      _scratchAccumAngle = 0;
+      _seekBackend(_scratchPos);
     }
     setState(() {});
   }
@@ -8792,6 +8803,8 @@ if (mounted) setState(_applySwipeValue);
   Future<void> _onDiscPanEnd(DragEndDetails d) async {
     if (!_discDragging) return;
     _discDragging = false;
+    // Land the final scratch position exactly.
+    _seekBackend(_scratchPos);
     final v = _panVelocity;
     _panVelocity = 0;
     if (v.abs() < spinVelocityThreshold || !mounted) {
@@ -8837,7 +8850,8 @@ if (mounted) setState(_applySwipeValue);
     _discAngle = 0;
     _discDragging = false;
     _panVelocity = 0;
-    _scratchAccumSec = 0;
+    _scratchPos = Duration.zero;
+    _scratchAccumAngle = 0;
     _spinRate = _playbackSpeed;
   }
 

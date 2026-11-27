@@ -166,6 +166,14 @@ A video player app supporting:
     persisted `dreamplayer.audioPlainArt` (`AudioArtStyleStore`, default
     vinyl). Plain-art mode renders `ClipRRect`+`Image.memory` (non-
     interactive); no embedded art keeps the vinyl. DJ disc unchanged.
+  - **DJ scratch fix (2026-11-27, on-device report: "no scratching noise, audio
+    plays fast")**: the drag now owns an ABSOLUTE scratch position
+    (`_scratchPos`, seeded from `_position` at pan start) and issues dense
+    small `_seekBackend(_scratchPos)` seeks while dragging. The previous
+    version seeked RELATIVE to `_position`, which only updates ~1/s - every
+    drag delta stacked on the same stale base, so the target ran away forward
+    ("audio plays fast"). Reverse playback is not supported by Media3/mpv, so
+    anticlockwise scratching is heard through the backward seek jumps.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,
