@@ -618,6 +618,11 @@ abstract class PlaybackController {
   /// icon and MediaSession metadata; iOS uses it for Now Playing.
   Future<void> setNowPlayingArtwork(String? url);
 
+  /// Same as [setNowPlayingArtwork] but with raw image BYTES - used for audio
+  /// files whose embedded cover art lives inside the file (no URL to fetch).
+  /// Pass null to clear.
+  Future<void> setNowPlayingArtworkData(Uint8List? data);
+
   /// Sets the title shown on the lock screen / system media controls. Pass
   /// null to clear it. Callers should send the resolved metadata title (and
   /// episode identity) rather than the raw file name.
@@ -883,6 +888,10 @@ class ExoPlayerController implements PlaybackController {
   @override
   Future<void> setNowPlayingArtwork(String? url) =>
       _send('setNowPlayingArtwork', {'url': url ?? ''});
+
+  @override
+  Future<void> setNowPlayingArtworkData(Uint8List? data) =>
+      _send('setNowPlayingArtworkData', {'data': data});
 
   @override
   Future<void> setNowPlayingTitle(String? title) =>

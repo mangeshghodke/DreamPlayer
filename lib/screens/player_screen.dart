@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -37,6 +38,7 @@ import '../services/simkl_client.dart';
 import '../services/watched_store.dart';
 import '../services/sidecar_subtitle_service.dart';
 import '../services/spatial_audio_store.dart';
+import '../services/audio_art_style_store.dart';
 import '../services/audio_downmix_store.dart';
 import '../services/ios_upscale_store.dart';
 import '../services/mpv_pip.dart';
@@ -183,7 +185,7 @@ class PlayerScreen extends StatefulWidget {
 enum PlayEngine { media3, mpv }
 
 class _PlayerScreenState extends State<PlayerScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   /// Native playback backend: the in-app ExoPlayer platform view (the same
   /// hybrid-composition SurfaceView on phones and Android TV / Fire TV).
   PlaybackController? _exo;
@@ -731,6 +733,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // DJ vinyl ticker (2026-11-27) is created lazily in _openCurrent, only
+    // when an audio-only file actually opens - an always-running ticker would
+    // keep pumpAndSettle from settling in widget tests that push the player.
     // Keep the system UI mode constant (immersive) for the whole player
     // screen. Toggling immersive/edgeToEdge during the rotation transition
     // fights the system's own rotation animation and makes the video jitter.
@@ -780,15 +785,29 @@ class _PlayerScreenState extends State<PlayerScreen>
     final exo = _exo;
     if (exo == null) return;
     unawaited(exo.setNowPlayingTitle(_nowPlayingTitle));
-    unawaited(exo.setNowPlayingArtwork(_tmdbMeta?.movie.posterUrl(width: 500)));
+    if (_isAudioOnly && _audioArt != null) {
+      // Audio file: the embedded cover art IS the artwork - push the bytes
+      // (notification large icon + lock-screen card), no TMDB poster.
+      unawaited(exo.setNowPlayingArtworkData(_audioArt));
+    } else {
+      unawaited(
+        exo.setNowPlayingArtwork(_tmdbMeta?.movie.posterUrl(width: 500)),
+      );
+    }
   }
 
-  /// Top-bar title: the TMDB-fetched title when a match resolved, else the
-  /// raw video title with its extension stripped ("cocktail 2.mkv" →
+  /// Top-bar title: the TMDB-fetched title when a match resolved, else - for
+  /// audio-only files - the embedded tag title (user report 2026-11-27: the
+  /// top bar / notification / lock screen showed the raw file name for songs),
+  /// else the raw video title with its extension stripped ("cocktail 2.mkv" →
   /// "cocktail 2").
   String get _displayTitle {
     final tmdb = _tmdbMeta?.movie.title;
     if (tmdb != null && tmdb.isNotEmpty) return tmdb;
+    if (_isAudioOnly) {
+      final tag = _audioProbe?.audioTitle;
+      if (tag != null && tag.isNotEmpty) return tag;
+    }
     final raw = _current.title.trim();
     final dot = raw.lastIndexOf('.');
     if (dot > 0) {
@@ -847,6 +866,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         _defaultEngine = await DefaultEngineStore.load();
         _toneMapMode = await ToneMapStore.load();
         _mpvInterpolation = await MpvInterpolationStore.load();
+        await AudioArtStyleStore.instance.load();
+        _audioPlainArt = AudioArtStyleStore.instance.plainArt;
       } catch (_) {
         // Persistence unavailable; keep the defaults.
       }
@@ -1000,14 +1021,23 @@ class _PlayerScreenState extends State<PlayerScreen>
     // first size event flips this to false for real videos.
     final name = _current.path ?? _current.uri ?? '';
     _hasVideoTrack = !isAudioFile(name);
+    if (_hasVideoTrack) _discTicker?.stop();
     _audioArt = null;
     _audioProbe = null;
+    _resetDiscSpin();
     if (!_hasVideoTrack) {
+      // DJ vinyl ticker runs only while an audio-only file is open.
+      _discTicker ??= createTicker(_discTick);
+      if (!_discTicker!.isActive) _discTicker!.start();
       // Embedded cover art for the disc face + a one-shot format probe for
       // the metadata line under it (codec / sample rate / bit depth / ch /
       // bitrate). Best-effort: a failed probe just leaves the line out.
       unawaited(ThumbnailStore.artFor(_current).then((a) {
-        if (mounted) setState(() => _audioArt = a);
+        if (mounted) {
+          setState(() => _audioArt = a);
+          // The embedded art also feeds the notification / lock screen.
+          _pushNowPlayingMetadata();
+        }
       }));
       unawaited(_probeAudioFile(_current));
       // Sibling count for the audio transport row's prev/next buttons.
@@ -5239,6 +5269,9 @@ Future<void> _offerVc1Mpv() async {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     TmdService.instance.removeListener(_onTmdbChanged);
+    _discTicker?.stop();
+    _discTicker?.dispose();
+    _spinDecayTimer?.cancel();
     _hideTimer?.cancel();
     _sleepTicker?.cancel();
     _swipeOverlayTimer?.cancel();
@@ -8520,6 +8553,16 @@ if (mounted) setState(_applySwipeValue);
   /// row disables prev/next when there is only one track). Null while loading.
   int? _siblingCount;
 
+  /// Audio-only cover style (user request 2026-11-27): false = vinyl disc
+  /// (default, scratchable), true = plain rounded cover-art card. Persisted
+  /// via [AudioArtStyleStore]; toggled from the player top bar.
+  bool _audioPlainArt = false;
+
+  void _toggleAudioArtStyle() {
+    setState(() => _audioPlainArt = !_audioPlainArt);
+    unawaited(AudioArtStyleStore.instance.setPlainArt(_audioPlainArt));
+  }
+
   /// Manual track skip from the audio transport row (delta = -1 previous,
   /// +1 next). No-op when the folder holds a single file.
   Future<void> _skipTrack(int delta) async {
@@ -8529,11 +8572,13 @@ if (mounted) setState(_applySwipeValue);
     await _playSibling(next);
   }
 
-  /// Music transport row for audio-only playback - one pill with shuffle,
-  /// previous, play/pause, next, repeat (Mpv-infinity's audio screen has the
-  /// same buttons: transport row + shuffle/repeat row). Replaces the centre
-  /// video pill while `_isAudioOnly`; TV gets real focusable buttons.
-  Widget _audioTransportRow() {
+  /// Music transport row for audio-only playback (Mpv-infinity's audio
+  /// screen, per the user's screenshot 2026-11-27): shuffle, previous,
+  /// play/pause, next, repeat. It lives in the BOTTOM BAR under the seekbar
+  /// ([inBottomBar: true] - no pill background, big white play circle like
+  /// Mpv∞); the centre video pill is hidden while `_isAudioOnly`. TV gets
+  /// real focusable buttons.
+  Widget _audioTransportRow({bool inBottomBar = false}) {
     final ready = _backendReady && !_inPip;
     final canSkip = ready && (_siblingCount ?? 0) > 1;
     const activeColor = Color(0xFF7C8BFF); // same accent as the ⋮ sheet
@@ -8567,62 +8612,233 @@ if (mounted) setState(_applySwipeValue);
       );
     }
 
-    // FittedBox(scaleDown) so the pill can never overflow a narrow portrait
+    final playIcon = Icon(
+      _completed
+          ? Icons.replay
+          : _playing
+              ? Icons.pause
+              : Icons.play_arrow,
+      color: inBottomBar && !_isTv ? Colors.black : Colors.white,
+    );
+    final Widget playButton = _isTv || !inBottomBar
+        ? _TvControlButton(
+            focusNode: _playPauseFocusNode,
+            onPressed: ready ? _togglePlayPause : null,
+            iconSize: inBottomBar ? 40 : 64,
+            autofocus: true,
+            alwaysShowRing: !_isTv,
+            icon: Icon(
+              _completed
+                  ? Icons.replay
+                  : _playing
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_fill,
+            ),
+            color: Colors.white,
+            onFocusChange: (_) => _showControls(),
+          )
+        : GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: ready ? _togglePlayPause : null,
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: Center(child: playIcon),
+            ),
+          );
+
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: inBottomBar
+          ? MainAxisAlignment.spaceEvenly
+          : MainAxisAlignment.center,
+      children: [
+        small(
+          icon: Icons.shuffle,
+          active: _shuffle ? activeColor : null,
+          onPressed: ready ? _toggleShuffleButton : null,
+        ),
+        const SizedBox(width: 16),
+        small(
+          icon: Icons.skip_previous,
+          onPressed: canSkip ? () => _skipTrack(-1) : null,
+        ),
+        const SizedBox(width: 16),
+        playButton,
+        const SizedBox(width: 16),
+        small(
+          icon: Icons.skip_next,
+          onPressed: canSkip ? () => _skipTrack(1) : null,
+        ),
+        const SizedBox(width: 16),
+        small(
+          icon: _repeat == LoopMode.one ? Icons.repeat_one : Icons.repeat,
+          active: _repeat == LoopMode.off ? null : activeColor,
+          onPressed: ready ? _cycleRepeatButton : null,
+        ),
+      ],
+    );
+
+    // FittedBox(scaleDown) so the row can never overflow a narrow portrait
     // screen (reported 2026-11-27: 14 px right overflow) - it shrinks only
-    // when it actually has to.
+    // when it actually has to. In the bottom bar there is no pill background
+    // (the bar's own gradient is the backdrop, like Mpv∞).
     return FittedBox(
       fit: BoxFit.scaleDown,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.72),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            small(
-              icon: Icons.shuffle,
-              active: _shuffle ? activeColor : null,
-              onPressed: ready ? _toggleShuffleButton : null,
-            ),
-            const SizedBox(width: 16),
-            small(
-              icon: Icons.skip_previous,
-              onPressed: canSkip ? () => _skipTrack(-1) : null,
-            ),
-            const SizedBox(width: 16),
-            _TvControlButton(
-              focusNode: _playPauseFocusNode,
-              onPressed: ready ? _togglePlayPause : null,
-              iconSize: 64,
-              autofocus: true,
-              alwaysShowRing: !_isTv,
-              icon: Icon(
-                _completed
-                    ? Icons.replay
-                    : _playing
-                        ? Icons.pause_circle_filled
-                        : Icons.play_circle_fill,
+      child: inBottomBar
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: SizedBox(width: 340, child: row),
+            )
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(999),
               ),
-              color: Colors.white,
-              onFocusChange: (_) => _showControls(),
+              child: row,
             ),
-            const SizedBox(width: 16),
-            small(
-              icon: Icons.skip_next,
-              onPressed: canSkip ? () => _skipTrack(1) : null,
-            ),
-            const SizedBox(width: 16),
-            small(
-              icon: _repeat == LoopMode.one ? Icons.repeat_one : Icons.repeat,
-              active: _repeat == LoopMode.off ? null : activeColor,
-              onPressed: ready ? _cycleRepeatButton : null,
-            ),
-          ],
-        ),
-      ),
     );
+  }
+
+  // ---- DJ vinyl disc (user request 2026-11-27) ----
+  // The disc is interactive like a turntable: dragging around it scrubs the
+  // audio (clockwise = forward, anticlockwise = back - one full turn scrubs
+  // [scratchSecondsPerTurn]), and a fast flick on release keeps the disc
+  // spinning and speeds playback up in the flick direction, decaying back to
+  // normal. The angle is parent-driven so the spin ticker and the gesture
+  // handlers share one value.
+  Ticker? _discTicker;
+  double _discAngle = 0;
+  double _discSpinRevPerSec = 0;
+  double _spinRate = 1.0;
+  bool _discDragging = false;
+  double _lastPanAngle = 0;
+  DateTime _lastPanTime = DateTime.now();
+  double _panVelocity = 0;
+  double _scratchAccumSec = 0;
+  Timer? _spinDecayTimer;
+  static const double scratchSecondsPerTurn = 8.0;
+  static const double spinVelocityThreshold = 1.0; // rad/s
+
+  double _discSizeNow() {
+    final mq = MediaQuery.sizeOf(context);
+    return mq.width > mq.height
+        ? (mq.height * 0.72).clamp(150.0, 320.0)
+        : (math.min(mq.width, mq.height) * 0.46).clamp(150.0, 300.0);
+  }
+
+  void _discTick(Duration elapsed) {
+    if (!_isAudioOnly || !mounted) return;
+    final base = _discDragging
+        ? 0.0
+        : (_playing && !_buffering)
+            ? 1 / 4.0
+            : 0.0; // ~1 rev per 4 s at normal play
+    final revPerSec = base + _discSpinRevPerSec;
+    if (revPerSec == 0) return;
+    _discAngle += revPerSec * 2 * math.pi * elapsed.inMicroseconds / 1e6;
+    setState(() {});
+  }
+
+  double _angleAt(Offset local, double discSize) {
+    final c = discSize / 2;
+    return math.atan2(local.dy - c, local.dx - c);
+  }
+
+  void _onDiscPanStart(DragStartDetails d) {
+    if (!_isAudioOnly || _touchLocked || _inPip || !_backendReady) return;
+    _discDragging = true;
+    _spinDecayTimer?.cancel();
+    _discSpinRevPerSec = 0;
+    _scratchAccumSec = 0;
+    _panVelocity = 0;
+    _lastPanAngle = _angleAt(d.localPosition, _discSizeNow());
+    _lastPanTime = DateTime.now();
+    _hideTimer?.cancel();
+    _showControls();
+    setState(() {});
+  }
+
+  void _onDiscPanUpdate(DragUpdateDetails d) {
+    if (!_discDragging) return;
+    final now = DateTime.now();
+    final angle = _angleAt(d.localPosition, _discSizeNow());
+    var delta = angle - _lastPanAngle;
+    if (delta > math.pi) delta -= 2 * math.pi;
+    if (delta < -math.pi) delta += 2 * math.pi;
+    _lastPanAngle = angle;
+    final dt = now.difference(_lastPanTime).inMicroseconds / 1e6;
+    _lastPanTime = now;
+    if (dt > 0) {
+      _panVelocity = _panVelocity * 0.7 + (delta / dt) * 0.3;
+    }
+    // The disc follows the finger exactly...
+    _discAngle += delta;
+    // ...and the playhead scratches with it (throttled to 150 ms steps).
+    _scratchAccumSec += delta * scratchSecondsPerTurn / (2 * math.pi);
+    if (_scratchAccumSec.abs() >= 0.15) {
+      final ms = (_scratchAccumSec * 1000).round();
+      _scratchAccumSec = 0;
+      _seekBy(Duration(milliseconds: ms));
+    }
+    setState(() {});
+  }
+
+  Future<void> _onDiscPanEnd(DragEndDetails d) async {
+    if (!_discDragging) return;
+    _discDragging = false;
+    final v = _panVelocity;
+    _panVelocity = 0;
+    if (v.abs() < spinVelocityThreshold || !mounted) {
+      setState(() {});
+      return;
+    }
+    // Fast flick: keep spinning and play fast in the flick direction. A
+    // non-1x rate is gated on iOS (#19), same as the hold-2x gesture.
+    if (!await _gate()) {
+      if (mounted) setState(() {});
+      return;
+    }
+    if (!mounted) return;
+    final cw = v > 0;
+    // Reverse playback is not supported by either engine, so an anticlockwise
+    // flick slows the audio down instead (still reads as a backspin).
+    _spinRate = cw
+        ? (1 + v / 3).clamp(1.0, 4.0)
+        : (1 - v.abs() / 6).clamp(0.25, 1.0);
+    _applyHoldRate(_spinRate);
+    _discSpinRevPerSec = (v / (2 * math.pi) * 2).clamp(-2.0, 2.0);
+    _spinDecayTimer?.cancel();
+    _spinDecayTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      _discSpinRevPerSec *= 0.85;
+      _spinRate += (_playbackSpeed - _spinRate) * 0.3;
+      if (_discSpinRevPerSec.abs() < 0.05 &&
+          (_spinRate - _playbackSpeed).abs() < 0.05) {
+        _discSpinRevPerSec = 0;
+        _spinRate = _playbackSpeed;
+        _applyHoldRate(_playbackSpeed);
+        _spinDecayTimer?.cancel();
+      } else {
+        _applyHoldRate(_spinRate.clamp(0.25, 4.0));
+      }
+      if (mounted) setState(() {});
+    });
+    setState(() {});
+  }
+
+  void _resetDiscSpin() {
+    _spinDecayTimer?.cancel();
+    _discSpinRevPerSec = 0;
+    _discAngle = 0;
+    _discDragging = false;
+    _panVelocity = 0;
+    _scratchAccumSec = 0;
+    _spinRate = _playbackSpeed;
   }
 
   void _showChapterToast(String message) {
@@ -9521,12 +9737,11 @@ if (mounted) setState(_applySwipeValue);
                             ),
                           );
                     // Landscape (user request 2026-11-27): half-split screen -
-                    // badges + title/artist on the LEFT half, vinyl disc on
-                    // the RIGHT half. Portrait keeps the stacked layout.
+                    // badges + title/artist on the LEFT half. The vinyl disc
+                    // itself is rendered as an INTERACTIVE layer in the main
+                    // stack (right half), so this overlay holds text only.
                     if (constraints.maxWidth > constraints.maxHeight) {
                       final halfW = constraints.maxWidth / 2;
-                      final landDiscSize =
-                          (constraints.maxHeight * 0.72).clamp(150.0, 320.0);
                       return Stack(
                         children: [
                           Positioned(
@@ -9551,19 +9766,6 @@ if (mounted) setState(_applySwipeValue);
                               ),
                             ),
                           ),
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: halfW,
-                            child: Center(
-                              child: VinylDisc(
-                                spinning: _playing && !_buffering,
-                                artBytes: _audioArt,
-                                size: landDiscSize,
-                              ),
-                            ),
-                          ),
                         ],
                       );
                     }
@@ -9579,17 +9781,13 @@ if (mounted) setState(_applySwipeValue);
                             right: 12,
                             child: badges,
                           ),
-                        // Disc center + song name below it.
+                        // The interactive disc lives in the main stack; this
+                        // spacer keeps the title just below where the disc is.
                         Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              VinylDisc(
-                                spinning: _playing && !_buffering,
-                                artBytes: _audioArt,
-                                size: discSize,
-                              ),
-                              const SizedBox(height: 20),
+                              SizedBox(height: discSize * 0.5 + 24),
                               titleText,
                               if (songSub.isNotEmpty) ...[
                                 const SizedBox(height: 4),
@@ -10169,6 +10367,17 @@ if (mounted) setState(_applySwipeValue);
                                  color: Colors.white,
                                  onFocusChange: (_) => _showControls(),
                                ),
+                             if (_isAudioOnly && !_inPip) ...[
+                               SizedBox(width: 4),
+                               _TvControlButton(
+                                 onPressed: _toggleAudioArtStyle,
+                                 icon: Icon(_audioPlainArt
+                                     ? Icons.album
+                                     : Icons.image),
+                                 color: Colors.white,
+                                 onFocusChange: (_) => _showControls(),
+                               ),
+                             ],
                              if (_mpvReady || _exo != null) ...[
                                SizedBox(width: 4),
                                _TvControlButton(
@@ -10235,24 +10444,12 @@ if (mounted) setState(_applySwipeValue);
               child: IgnorePointer(
                 ignoring: !_controlsVisible,
                 child: Center(
-                  // Audio-only playback gets the music transport row
-                  // (shuffle / prev / play-pause / next / repeat, mirroring
-                  // Mpv-infinity's audio screen) instead of the video pill.
-                  // In LANDSCAPE the vinyl disc owns the right half of the
-                  // screen, so the row is centred in the LEFT half only
-                  // (user request 2026-11-27).
-                  child: _isAudioOnly &&
-                          !_inPip &&
-                          MediaQuery.orientationOf(context) ==
-                              Orientation.landscape
-                      ? FractionallySizedBox(
-                          widthFactor: 0.5,
-                          alignment: Alignment.centerLeft,
-                          child: Center(child: _audioTransportRow()),
-                        )
-                      : _isAudioOnly && !_inPip
-                          ? _audioTransportRow()
-                          : Row(
+                  // Audio-only playback hides the centre pill entirely - the
+                  // music transport row lives in the bottom bar under the
+                  // seekbar (Mpv-infinity layout, user request 2026-11-27).
+                  child: _isAudioOnly && !_inPip
+                      ? const SizedBox.shrink()
+                      : Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Chapter jump, beside play/pause on every platform
@@ -10323,6 +10520,71 @@ if (mounted) setState(_applySwipeValue);
                 ),
               ),
             ),
+            // Interactive DJ vinyl disc (user request 2026-11-27). Rendered in
+            // the MAIN stack (above the tap/swipe catcher) so pans on the disc
+            // reach the scratch handlers; everywhere else taps/swipes still
+            // fall through to the player gestures. Portrait: centered;
+            // landscape: right half (the text overlay owns the left half).
+            if (_isAudioOnly && _error == null && !_inPip)
+              Positioned.fill(
+                child: Builder(
+                  builder: (context) {
+                    final mq = MediaQuery.sizeOf(context);
+                    final landscape = mq.width > mq.height;
+                    final discSize = landscape
+                        ? (mq.height * 0.72).clamp(150.0, 320.0)
+                        : (math.min(mq.width, mq.height) * 0.46)
+                            .clamp(150.0, 300.0);
+                    // Vinyl disc by default; when the user toggled "plain
+                    // cover art" (top-bar button) and the file HAS embedded
+                    // art, show a rounded art card instead (Mpv-infinity's
+                    // look) - non-interactive, the DJ scratch stays on the
+                    // vinyl. No art -> keep the vinyl.
+                    final showPlainArt = _audioPlainArt && _audioArt != null;
+                    final Widget disc = showPlainArt
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: Image.memory(
+                              _audioArt!,
+                              width: discSize,
+                              height: discSize,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, _, _) => VinylDisc(
+                                angle: _discAngle,
+                                artBytes: null,
+                                size: discSize,
+                              ),
+                            ),
+                          )
+                        : GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onPanStart: _onDiscPanStart,
+                            onPanUpdate: _onDiscPanUpdate,
+                            onPanEnd: _onDiscPanEnd,
+                            child: VinylDisc(
+                              angle: _discAngle,
+                              artBytes: _audioArt,
+                              size: discSize,
+                            ),
+                          );
+                    if (landscape) {
+                      return Stack(
+                        children: [
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: mq.width / 2,
+                            child: Center(child: disc),
+                          ),
+                        ],
+                      );
+                    }
+                    return Center(child: disc);
+                  },
+                ),
+              ),
             // Chapter jump confirmation. Anchored above the bottom bar so it
             // never covers the seekbar markers the user just clicked.
             if (_chapterToast != null)
@@ -10414,6 +10676,15 @@ if (mounted) setState(_applySwipeValue);
                                 chapters: _chapters,
                                 onDoubleTap: _gotoNextChapter,
                               ),
+                              // Audio-only: the bottom bar shows the MUSIC
+                              // transport row (shuffle/prev/play/next/repeat)
+                              // under the seekbar, like Mpv-infinity's audio
+                              // screen (user screenshot 2026-11-27).
+                              if (_isAudioOnly && !_inPip)
+                                Center(
+                                  child: _audioTransportRow(inBottomBar: true),
+                                )
+                              else
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,

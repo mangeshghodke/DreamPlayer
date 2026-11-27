@@ -64,6 +64,9 @@ object PlaybackManager {
     /// so a slow response cannot repaint a notification for another video.
     private var artworkUrl: String? = null
     private var artworkBitmap: Bitmap? = null
+    /// True when the current artwork came from raw bytes (setArtworkData)
+    /// rather than a URL - so a later URL fetch knows it must replace it.
+    private var hasArtworkData = false
     private var artworkRequestId = 0
     private val artworkClient: OkHttpClient by lazy { OkHttpClient() }
     private val mainHandler: Handler by lazy { Handler(Looper.getMainLooper()) }
@@ -150,6 +153,7 @@ object PlaybackManager {
     /// ignores a response whose video has already been replaced.
     fun setArtwork(context: Context, value: String?) {
         val url = value?.takeIf { it.isNotBlank() }
+        hasArtworkData = false
         if (url == artworkUrl) {
             // The title may have changed with no artwork (or the same artwork)
             // - still rebuild so the notification shows the new title.
@@ -193,6 +197,26 @@ object PlaybackManager {
                 }
             }
         })
+    }
+
+    /// Sets the lock-screen / media-card artwork from raw image BYTES - used
+    /// for audio files whose embedded cover art has no URL. Mirrors
+    /// [setArtwork]: null clears, and a later URL-based [setArtwork] replaces
+    /// the bytes (and vice versa).
+    fun setArtworkData(context: Context, bytes: ByteArray?) {
+        artworkUrl = null
+        hasArtworkData = true
+        artworkRequestId++
+        val bitmap = bytes?.let {
+            try {
+                BitmapFactory.decodeByteArray(it, 0, it.size)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        artworkBitmap = bitmap
+        lastNotifyKey = null
+        sync(context.applicationContext)
     }
 
     /**

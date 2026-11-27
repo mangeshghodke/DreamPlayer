@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.9 | 2 | 574 |
+| 0.5.9 | 2 | 862 |
 | 0.5.9 | 1 | 1346 |
 | 0.5.8 | 15 | 732 |
 | 0.5.8 | 14 | 1672 |
@@ -37,7 +37,9 @@ it can be reproduced with a plain character count after any edit.
 
 New:
 • Music files played from a network share (SMB, WebDAV, Jellyfin, DLNA) now show their embedded cover art on the player's disc, plus the song's title, artist and album from the file's own tags - no online lookup needed. FTP and self-signed servers are supported too.
-• While playing a music file, the player now shows music controls: shuffle, previous track, play/pause, next track and repeat in one row. Previous/next move through the tracks in the same folder. In landscape, the cover art moves to the right half of the screen and the song details stay on the left.
+• While playing a music file, the player now looks like a music app: the controls (shuffle, previous, play/pause, next, repeat) sit at the bottom under the progress bar, and the notification and lock screen show the song's own title and cover art instead of the file name. In landscape, the disc moves to the right half of the screen and the song details stay on the left.
+• The vinyl disc is now touchable like a turntable: spin it to scrub the song, flick it fast to speed playback up temporarily.
+• A button in the top bar switches between the vinyl disc and a plain cover-art display.
 
 ---
 

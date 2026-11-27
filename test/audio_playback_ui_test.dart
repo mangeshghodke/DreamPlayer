@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -142,17 +143,18 @@ void main() {
       final overlayAt = player.indexOf('if (_isAudioOnly && _error == null)');
       expect(overlayAt, greaterThan(-1));
       // Slice the PORTRAIT branch (the landscape half-split branch comes first
-      // in the source since 2026-11-27 and also contains a VinylDisc).
+      // in the source since 2026-11-27).
       final portraitAt = player.indexOf('// Badges row at the top', overlayAt);
       expect(portraitAt, greaterThan(-1));
       final overlay = player.substring(portraitAt, portraitAt + 4000);
-      // Badges rendered via audioBadgeLabels in a top-anchored Positioned...
+      // Badges rendered in a top-anchored Positioned BEFORE the title column
+      // (the disc itself moved to the interactive main-stack layer in the
+      // DJ-disc change, leaving a spacer where it sits).
       final topAt = overlay.indexOf('top: MediaQuery.paddingOf(context).top');
-      final discAt = overlay.indexOf('VinylDisc(');
+      final titleAt = overlay.indexOf('titleText');
       expect(topAt, greaterThan(-1));
-      expect(discAt, greaterThan(-1));
-      // ...both BEFORE the centered disc + title column.
-      expect(discAt, greaterThan(topAt));
+      expect(titleAt, greaterThan(-1));
+      expect(titleAt, greaterThan(topAt));
       // Song title + artist/album from the probe (Mpv-infinity pattern) -
       // checked on the whole overlay, the widgets are extracted into locals.
       final whole = player.substring(overlayAt, overlayAt + 9000);
@@ -197,7 +199,7 @@ void main() {
     test('vinyl disc is rendered for audio-only, spinning while playing', () {
       expect(player.contains('if (_isAudioOnly && _error == null)'), isTrue);
       expect(player.contains('VinylDisc('), isTrue);
-      expect(player.contains('spinning: _playing && !_buffering'), isTrue);
+      expect(player.contains('angle: _discAngle'), isTrue);
       expect(player.contains('artBytes: _audioArt'), isTrue);
     });
 
@@ -235,45 +237,44 @@ void main() {
       expect(probeSwift, contains('mSampleRate'));
     });
 
-    test('vinyl widget rotates via AnimationController and stops when paused', () {
+    test('vinyl widget renders via parent-driven Transform.rotate', () {
       final vinyl = File('lib/widgets/vinyl_disc.dart').readAsStringSync();
-      expect(vinyl, contains('AnimationController'));
-      expect(vinyl, contains('_controller.repeat()'));
-      expect(vinyl, contains('_controller.stop()'));
-      expect(vinyl, contains('RotationTransition'));
+      // Rotation is parent-driven (angle in radians) so the DJ scratch
+      // gestures and the spin ticker share one source of truth.
+      expect(vinyl, contains('Transform.rotate('));
+      expect(vinyl, contains('angle: angle'));
+      expect(vinyl, contains('required this.angle'));
       expect(vinyl, contains('ClipOval'));
     });
   });
 
   group('vinyl disc widget', () {
-    testWidgets('renders painted vinyl without art and rotates while spinning',
+    testWidgets('renders painted vinyl without art at a given angle',
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: Center(child: VinylDisc(spinning: true))),
+          home: Scaffold(body: Center(child: VinylDisc(angle: 1.25))),
         ),
       );
       expect(find.byType(VinylDisc), findsOneWidget);
       expect(find.byType(CustomPaint), findsWidgets);
-      // Advance time - the RotationTransition must be animating.
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(Transform), findsWidgets);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('stops rotating when spinning goes false', (tester) async {
+    testWidgets('renders embedded art when provided', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: Center(child: VinylDisc(spinning: true))),
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: VinylDisc(angle: 0, artBytes: Uint8List.fromList([1, 2])),
+            ),
+          ),
         ),
       );
+      // Invalid image bytes fall back to the painted vinyl via errorBuilder.
       await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: Center(child: VinylDisc(spinning: false))),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(VinylDisc), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

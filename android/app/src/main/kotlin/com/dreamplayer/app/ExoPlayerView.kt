@@ -1922,6 +1922,12 @@ class ExoPlayerView(
                     PlaybackManager.setArtwork(activity, call.argument<String>("url"))
                     result.success(null)
                 }
+                "setNowPlayingArtworkData" -> {
+                    // Embedded cover art BYTES (audio files carry their art in
+                    // the file itself - no URL to fetch).
+                    PlaybackManager.setArtworkData(activity, call.argument<ByteArray>("data"))
+                    result.success(null)
+                }
                 "setNowPlayingTitle" -> {
                     // Replaces the raw file name used at open() with the
                     // resolved TMDB/provider title (plus episode identity).

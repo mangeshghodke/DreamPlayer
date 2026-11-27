@@ -3,75 +3,45 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-/// A rotating vinyl disc shown while an audio-only file plays (user request
-/// 2026-11-24). If the file has embedded cover art ([artBytes]) it fills the
-/// disc face (like Mpv-infinity's circular cover card); otherwise a painted
-/// vinyl (grooves + label + spindle hole) is drawn. The disc spins only while
-/// [spinning] is true (i.e. playback is running) - 33⅓ rpm ≈ 1.8 s per rev,
-/// slowed to [spinSecondsPerRev] for a calm look.
-class VinylDisc extends StatefulWidget {
+/// A vinyl disc shown while an audio-only file plays (user request 2026-11-24).
+/// If the file has embedded cover art ([artBytes]) it fills the disc face (like
+/// Mpv-infinity's circular cover card); otherwise a painted vinyl (grooves +
+/// label + spindle hole) is drawn.
+///
+/// The rotation is PARENT-DRIVEN: the parent owns [angle] (radians) and advances
+/// it - normally at ~1 rev per 4 s while playing, and directly from the user's
+/// finger during a DJ-style scratch drag (user request 2026-11-27: spin the disc
+/// clockwise to scrub forward, anticlockwise to scrub back, spin it fast and it
+/// keeps spinning and plays fast on release). Keeping the angle in the parent
+/// lets the gesture layer and the spin ticker share one source of truth.
+class VinylDisc extends StatelessWidget {
   const VinylDisc({
     super.key,
-    required this.spinning,
+    required this.angle,
     this.artBytes,
     this.size = 240,
-    this.spinSecondsPerRev = 4.0,
   });
 
-  final bool spinning;
+  /// Current rotation in radians. Advanced by the parent (player screen).
+  final double angle;
   final Uint8List? artBytes;
   final double size;
-  final double spinSecondsPerRev;
-
-  @override
-  State<VinylDisc> createState() => _VinylDiscState();
-}
-
-class _VinylDiscState extends State<VinylDisc>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: (widget.spinSecondsPerRev * 1000).round()),
-    );
-    if (widget.spinning) _controller.repeat();
-  }
-
-  @override
-  void didUpdateWidget(covariant VinylDisc oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.spinning && !_controller.isAnimating) {
-      _controller.repeat();
-    } else if (!widget.spinning && _controller.isAnimating) {
-      _controller.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final size = widget.size;
+    final size = this.size;
     return SizedBox(
       width: size,
       height: size,
-      child: RotationTransition(
-        turns: _controller,
+      child: Transform.rotate(
+        angle: angle,
         child: Stack(
           fit: StackFit.expand,
           children: [
             ClipOval(
-              child: widget.artBytes != null
+              child: artBytes != null
                   ? Image.memory(
-                      widget.artBytes!,
+                      artBytes!,
                       fit: BoxFit.cover,
                       gaplessPlayback: true,
                       errorBuilder: (_, _, _) => const _VinylPainter(),

@@ -1226,6 +1226,12 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
                     let url = (args?["url"] as? String) ?? ""
                     self.setNowPlayingArtwork(url.isEmpty ? nil : url)
                     result(nil)
+                case "setNowPlayingArtworkData":
+                    // Embedded cover-art BYTES (audio files carry their art in
+                    // the file itself - no URL to fetch).
+                    let typed = args?["data"] as? FlutterStandardTypedData
+                    self.setNowPlayingArtworkData(typed?.data)
+                    result(nil)
                 case "setNowPlayingTitle":
                     let title = (args?["title"] as? String) ?? ""
                     self.mediaTitle = title.isEmpty ? nil : title
@@ -2843,6 +2849,16 @@ final class AvPlayerView: NSObject, FlutterPlatformView, FlutterStreamHandler {
         }
         artworkTask = task
         task.resume()
+    }
+
+    /// Sets the Now Playing artwork from raw image bytes (embedded cover art
+    /// of an audio file). nil clears it. A later URL-based call replaces it.
+    private func setNowPlayingArtworkData(_ data: Data?) {
+        artworkURLString = nil
+        artworkTask?.cancel()
+        artworkTask = nil
+        artworkImage = data.flatMap { UIImage(data: $0) }
+        updateNowPlaying()
     }
 
     /// Mirrors engine state into MPNowPlayingInfoCenter so the lock screen /

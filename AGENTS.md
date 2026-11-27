@@ -149,9 +149,23 @@ A video player app supporting:
     pill is wrapped in `FittedBox(scaleDown)` so it can never overflow a narrow
     portrait screen (was 14 px right overflow). In LANDSCAPE the audio overlay is
     now a half-split: badges + title/artist in the LEFT half, vinyl disc in the
-    RIGHT half (`constraints.maxWidth > constraints.maxHeight` branch), and the
-    transport row is centred in the left half only (`FractionallySizedBox(
-    widthFactor: 0.5, Alignment.centerLeft)`). Portrait layout unchanged.
+    RIGHT half (`constraints.maxWidth > constraints.maxHeight` branch). Portrait
+    layout unchanged.
+  - **Audio player chrome moved to Mpv-infinity's layout (2026-11-27, user
+    screenshot of Mpv∞)**: the music transport row (shuffle/prev/play/next/
+    repeat) now lives in the BOTTOM BAR under the seekbar (`inBottomBar: true` -
+    no pill background, big white play circle, `SizedBox(width: 340)` +
+    `FittedBox(scaleDown)`); the centre pill is hidden while audio plays. The
+    top bar / notification / lock screen now show the EMBEDDED tag title for
+    audio (`_displayTitle` checks `_audioProbe.audioTitle` when `_isAudioOnly`)
+    and the embedded cover art as Now Playing artwork via a new
+    `setNowPlayingArtworkData` channel method (bytes; Android decodes to a
+    Bitmap for the notification large icon + MediaSession metadata, iOS to
+    `UIImage` for `MPMediaItemPropertyArtwork`). Top-bar button (album/image
+    icon, audio-only) toggles vinyl disc vs plain rounded cover-art card -
+    persisted `dreamplayer.audioPlainArt` (`AudioArtStyleStore`, default
+    vinyl). Plain-art mode renders `ClipRRect`+`Image.memory` (non-
+    interactive); no embedded art keeps the vinyl. DJ disc unchanged.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,
