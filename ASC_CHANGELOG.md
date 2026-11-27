@@ -16,6 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
+| 0.5.9 | 1 | 1346 |
 | 0.5.8 | 15 | 732 |
 | 0.5.8 | 14 | 1672 |
 | 0.5.7 | 7 | 1446 |
@@ -28,6 +29,21 @@ that copying a block for App Store Connect can never pick up a stray note:
 A count is the length of the text you would paste - the block from its "New:"
 or "Fixed:" line down to its last character, including the final newline - so
 it can be reproduced with a plain character count after any edit.
+
+---
+
+## 0.5.9 (build 1)
+
+New:
+• On-screen badges during playback are now two tidy lines: resolution (8K, 4K, QHD, FHD, HD or SD), HDR format, video codec and audio codec on the first line; the video and audio decoder (hardware or software) below them on the second line. Resolution, codec and decoder badges are on by default now, so they no longer go missing on phones.
+• The playback stats panel moved to the right side of the screen and now also shows the audio decoder next to the video decoder, so you can see at a glance whether audio is decoded in hardware or software. Speed and position were removed from it - the seek bar already shows the position.
+• The info (i) panel is now a full media details view: exact resolution, duration, video and audio codecs, frame rate, bitrates, sample rate, channel layout and both decoders.
+
+Fixed:
+• Audio channel layouts now display correctly for every layout - Dolby Atmos shows 7.1.4 instead of 16.0, and 7-channel audio shows 6.1 instead of 7.0.
+• Dolby Vision titles now keep their video codec badge visible instead of it disappearing once playback starts.
+• Audio codec names render cleanly (TrueHD shows as TrueHD, not a raw internal label).
+• The info panel no longer shows 0 kbps when a file has no reported bitrate, and channel counts show just the layout (5.1, 7.1) without a redundant number.
 
 ---
 
