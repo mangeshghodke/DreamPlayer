@@ -2,64 +2,52 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// DJ-style interactive vinyl disc (user request 2026-11-27): dragging around
-/// the disc scrubs the audio (clockwise forward / anticlockwise back), a fast
-/// flick on release keeps the disc spinning and speeds playback up, decaying
-/// back to normal. The player screen needs a live platform view, so the wiring
-/// is pinned by reading the source.
+/// Vinyl disc behavior (2026-11-27): the disc just SPINS while audio plays.
+/// The DJ scratch (drag-to-scrub, flick-to-spin) was built, then removed the
+/// same day - relative seeks on the stale ~1/s _position made the audio run
+/// away and neither engine can reverse, so it never felt like a turntable
+/// (user report). Pins: no gesture handlers on the disc, spin via ticker,
+/// title anchored below the disc. The player screen needs a live platform
+/// view, so the wiring is pinned by reading the source.
 void main() {
   final player = File('lib/screens/player_screen.dart').readAsStringSync();
   final vinyl = File('lib/widgets/vinyl_disc.dart').readAsStringSync();
 
-  group('DJ disc (source-reading)', () {
-    test('disc rotation is parent-driven, shared by ticker and gestures', () {
+  group('vinyl disc: spin only, no DJ scratch (source-reading)', () {
+    test('disc rotation is parent-driven by the spin ticker', () {
       expect(vinyl, contains('Transform.rotate('));
       expect(vinyl, contains('required this.angle'));
-      expect(vinyl, isNot(contains('AnimationController')));
       expect(player.contains('TickerProviderStateMixin'), isTrue);
       expect(player.contains('createTicker(_discTick)'), isTrue);
       expect(player.contains('_discAngle +='), isTrue);
+      // spins only while playing
+      expect(player.contains('if (!(_playing && !_buffering)) return;'), isTrue);
     });
 
-    test('disc sits in the main stack inside a pan GestureDetector', () {
+    test('DJ scratch removed: no pan handlers, no scratch seek, no rate flick', () {
+      expect(player, isNot(contains('_onDiscPanUpdate')));
+      expect(player, isNot(contains('_onDiscPanStart')));
+      expect(player, isNot(contains('_onDiscPanEnd')));
+      expect(player, isNot(contains('_scratchPos')));
+      expect(player, isNot(contains('_seekBackend(_scratchPos)')));
+      expect(player, isNot(contains('_spinDecayTimer')));
+      expect(player, isNot(contains('scratchSecondsPerTurn')));
+      expect(player, isNot(contains('spinVelocityThreshold')));
+      // the disc layer has no GestureDetector anymore
+      final layerAt = player.indexOf('if (_isAudioOnly && _error == null && !_inPip)');
+      expect(layerAt, greaterThan(-1));
+      final layer = player.substring(layerAt, layerAt + 3200);
+      expect(layer, isNot(contains('GestureDetector')));
+      expect(layer, contains('VinylDisc('));
+    });
+
+    test('title is anchored BELOW the disc, not behind it', () {
       expect(
-        player.contains('if (_isAudioOnly && _error == null && !_inPip)'),
+        player.contains('constraints.maxHeight / 2 + discSize / 2 + 12'),
         isTrue,
       );
-      expect(player.contains('onPanStart: _onDiscPanStart'), isTrue);
-      expect(player.contains('onPanUpdate: _onDiscPanUpdate'), isTrue);
-      expect(player.contains('onPanEnd: _onDiscPanEnd'), isTrue);
-      expect(player.contains('VinylDisc('), isTrue);
-      expect(player.contains('angle: _discAngle'), isTrue);
-    });
-
-    test('angular delta maps to scratch seek on an ABSOLUTE position (no runaway)', () {
-      expect(player.contains('math.atan2'), isTrue);
-      expect(player.contains('scratchSecondsPerTurn'), isTrue);
-      // The drag owns _scratchPos (seeded from _position at pan start) and
-      // seeks absolutely - relative seeks on the stale ~1/s _position made
-      // the audio run away forward (reported 2026-11-27).
-      expect(player.contains('_scratchPos = _position;'), isTrue);
-      expect(player.contains('_scratchPos += Duration('), isTrue);
-      expect(player.contains('_seekBackend(_scratchPos)'), isTrue);
-      // delta sign is preserved (no abs) so anticlockwise scrubs backwards.
-      expect(player.contains('_scratchAccumAngle += delta'), isTrue);
-    });
-
-    test('fast flick on release spins the disc and changes playback rate', () {
-      expect(player.contains('spinVelocityThreshold'), isTrue);
-      expect(player.contains('_discSpinRevPerSec'), isTrue);
-      expect(player.contains('_applyHoldRate(_spinRate)'), isTrue);
-      // non-1x rate is paywall-gated on iOS like the hold-2x
-      expect(player.contains('if (!await _gate())'), isTrue);
-      // decays back to the user's speed
-      expect(player.contains('_playbackSpeed - _spinRate'), isTrue);
-    });
-
-    test('disc state resets on new file and on dispose', () {
-      expect(player.contains('_resetDiscSpin();'), isTrue);
-      expect(player.contains('_discTicker?.stop();'), isTrue);
-      expect(player.contains('_spinDecayTimer?.cancel();'), isTrue);
+      // clamped so short screens cannot push it off the bottom
+      expect(player.contains('constraints.maxHeight - 96'), isTrue);
     });
 
     test('landscape keeps the disc in the right half', () {

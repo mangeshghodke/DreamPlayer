@@ -1024,7 +1024,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_hasVideoTrack) _discTicker?.stop();
     _audioArt = null;
     _audioProbe = null;
-    _resetDiscSpin();
+    _discAngle = 0;
     if (!_hasVideoTrack) {
       // DJ vinyl ticker runs only while an audio-only file is open.
       _discTicker ??= createTicker(_discTick);
@@ -5271,7 +5271,6 @@ Future<void> _offerVc1Mpv() async {
     TmdService.instance.removeListener(_onTmdbChanged);
     _discTicker?.stop();
     _discTicker?.dispose();
-    _spinDecayTimer?.cancel();
     _hideTimer?.cancel();
     _sleepTicker?.cancel();
     _swipeOverlayTimer?.cancel();
@@ -8705,154 +8704,22 @@ if (mounted) setState(_applySwipeValue);
     );
   }
 
-  // ---- DJ vinyl disc (user request 2026-11-27) ----
-  // The disc is interactive like a turntable: dragging around it scrubs the
-  // audio (clockwise = forward, anticlockwise = back - one full turn scrubs
-  // [scratchSecondsPerTurn]), and a fast flick on release keeps the disc
-  // spinning and speeds playback up in the flick direction, decaying back to
-  // normal. The angle is parent-driven so the spin ticker and the gesture
-  // handlers share one value.
+  // ---- Vinyl disc spin (2026-11-27) ----
+  // The disc is NOT interactive: the DJ scratch attempt (drag-to-scrub,
+  // flick-to-spin) was removed the same day - relative seeks on the stale
+  // ~1/s _position made the audio run away and neither engine can reverse,
+  // so it never felt like a real turntable (user report 2026-11-27). The
+  // disc just spins while audio plays; the angle is parent-driven by this
+  // ticker.
   Ticker? _discTicker;
   double _discAngle = 0;
-  double _discSpinRevPerSec = 0;
-  double _spinRate = 1.0;
-  bool _discDragging = false;
-  double _lastPanAngle = 0;
-  DateTime _lastPanTime = DateTime.now();
-  double _panVelocity = 0;
-  // Absolute scratch position, owned by the drag (NOT the ~1/s _position,
-  // which is stale mid-drag and made relative seeks run away forward).
-  Duration _scratchPos = Duration.zero;
-  double _scratchAccumAngle = 0;
-  Timer? _spinDecayTimer;
-  static const double scratchSecondsPerTurn = 8.0;
-  static const double spinVelocityThreshold = 1.0; // rad/s
-
-  double _discSizeNow() {
-    final mq = MediaQuery.sizeOf(context);
-    return mq.width > mq.height
-        ? (mq.height * 0.72).clamp(150.0, 320.0)
-        : (math.min(mq.width, mq.height) * 0.46).clamp(150.0, 300.0);
-  }
 
   void _discTick(Duration elapsed) {
     if (!_isAudioOnly || !mounted) return;
-    final base = _discDragging
-        ? 0.0
-        : (_playing && !_buffering)
-            ? 1 / 4.0
-            : 0.0; // ~1 rev per 4 s at normal play
-    final revPerSec = base + _discSpinRevPerSec;
-    if (revPerSec == 0) return;
-    _discAngle += revPerSec * 2 * math.pi * elapsed.inMicroseconds / 1e6;
+    if (!(_playing && !_buffering)) return;
+    // ~1 rev per 4 s at normal play.
+    _discAngle += (1 / 4.0) * 2 * math.pi * elapsed.inMicroseconds / 1e6;
     setState(() {});
-  }
-
-  double _angleAt(Offset local, double discSize) {
-    final c = discSize / 2;
-    return math.atan2(local.dy - c, local.dx - c);
-  }
-
-  void _onDiscPanStart(DragStartDetails d) {
-    if (!_isAudioOnly || _touchLocked || _inPip || !_backendReady) return;
-    _discDragging = true;
-    _spinDecayTimer?.cancel();
-    _discSpinRevPerSec = 0;
-    _scratchPos = _position;
-    _scratchAccumAngle = 0;
-    _panVelocity = 0;
-    _lastPanAngle = _angleAt(d.localPosition, _discSizeNow());
-    _lastPanTime = DateTime.now();
-    _hideTimer?.cancel();
-    _showControls();
-    setState(() {});
-  }
-
-  void _onDiscPanUpdate(DragUpdateDetails d) {
-    if (!_discDragging) return;
-    final now = DateTime.now();
-    final angle = _angleAt(d.localPosition, _discSizeNow());
-    var delta = angle - _lastPanAngle;
-    if (delta > math.pi) delta -= 2 * math.pi;
-    if (delta < -math.pi) delta += 2 * math.pi;
-    _lastPanAngle = angle;
-    final dt = now.difference(_lastPanTime).inMicroseconds / 1e6;
-    _lastPanTime = now;
-    if (dt > 0) {
-      _panVelocity = _panVelocity * 0.7 + (delta / dt) * 0.3;
-    }
-    // The disc follows the finger exactly...
-    _discAngle += delta;
-    // ...and the playhead scratches with it. The scratch position is ABSOLUTE
-    // and owned by this drag (the ~1/s _position is stale mid-drag - seeking
-    // relative to it made every delta stack on the same old base and the audio
-    // ran away forward, reported 2026-11-27). Dense small absolute seeks
-    // while playing are what produce the audible scratch.
-    _scratchPos += Duration(
-      milliseconds: (delta * scratchSecondsPerTurn / (2 * math.pi) * 1000)
-          .round(),
-    );
-    _scratchAccumAngle += delta;
-    if (_scratchAccumAngle.abs() > 0.05) {
-      _scratchAccumAngle = 0;
-      _seekBackend(_scratchPos);
-    }
-    setState(() {});
-  }
-
-  Future<void> _onDiscPanEnd(DragEndDetails d) async {
-    if (!_discDragging) return;
-    _discDragging = false;
-    // Land the final scratch position exactly.
-    _seekBackend(_scratchPos);
-    final v = _panVelocity;
-    _panVelocity = 0;
-    if (v.abs() < spinVelocityThreshold || !mounted) {
-      setState(() {});
-      return;
-    }
-    // Fast flick: keep spinning and play fast in the flick direction. A
-    // non-1x rate is gated on iOS (#19), same as the hold-2x gesture.
-    if (!await _gate()) {
-      if (mounted) setState(() {});
-      return;
-    }
-    if (!mounted) return;
-    final cw = v > 0;
-    // Reverse playback is not supported by either engine, so an anticlockwise
-    // flick slows the audio down instead (still reads as a backspin).
-    _spinRate = cw
-        ? (1 + v / 3).clamp(1.0, 4.0)
-        : (1 - v.abs() / 6).clamp(0.25, 1.0);
-    _applyHoldRate(_spinRate);
-    _discSpinRevPerSec = (v / (2 * math.pi) * 2).clamp(-2.0, 2.0);
-    _spinDecayTimer?.cancel();
-    _spinDecayTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      _discSpinRevPerSec *= 0.85;
-      _spinRate += (_playbackSpeed - _spinRate) * 0.3;
-      if (_discSpinRevPerSec.abs() < 0.05 &&
-          (_spinRate - _playbackSpeed).abs() < 0.05) {
-        _discSpinRevPerSec = 0;
-        _spinRate = _playbackSpeed;
-        _applyHoldRate(_playbackSpeed);
-        _spinDecayTimer?.cancel();
-      } else {
-        _applyHoldRate(_spinRate.clamp(0.25, 4.0));
-      }
-      if (mounted) setState(() {});
-    });
-    setState(() {});
-  }
-
-  void _resetDiscSpin() {
-    _spinDecayTimer?.cancel();
-    _discSpinRevPerSec = 0;
-    _discAngle = 0;
-    _discDragging = false;
-    _panVelocity = 0;
-    _scratchPos = Duration.zero;
-    _scratchAccumAngle = 0;
-    _spinRate = _playbackSpeed;
   }
 
   void _showChapterToast(String message) {
@@ -9795,13 +9662,19 @@ if (mounted) setState(_applySwipeValue);
                             right: 12,
                             child: badges,
                           ),
-                        // The interactive disc lives in the main stack; this
-                        // spacer keeps the title just below where the disc is.
-                        Center(
+                        // The disc lives in the main stack, centered - anchor
+                        // the title BELOW it explicitly (a centered spacer
+                        // overlapped the disc, reported 2026-11-27).
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: math.min(
+                            constraints.maxHeight / 2 + discSize / 2 + 12,
+                            constraints.maxHeight - 96,
+                          ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              SizedBox(height: discSize * 0.5 + 24),
                               titleText,
                               if (songSub.isNotEmpty) ...[
                                 const SizedBox(height: 4),
@@ -10534,11 +10407,10 @@ if (mounted) setState(_applySwipeValue);
                 ),
               ),
             ),
-            // Interactive DJ vinyl disc (user request 2026-11-27). Rendered in
-            // the MAIN stack (above the tap/swipe catcher) so pans on the disc
-            // reach the scratch handlers; everywhere else taps/swipes still
-            // fall through to the player gestures. Portrait: centered;
-            // landscape: right half (the text overlay owns the left half).
+            // Spinning vinyl disc (audio-only). Rendered in the MAIN stack;
+            // not interactive (DJ scratch removed 2026-11-27). Portrait:
+            // centered; landscape: right half (the text overlay owns the
+            // left half).
             if (_isAudioOnly && _error == null && !_inPip)
               Positioned.fill(
                 child: Builder(
@@ -10552,8 +10424,8 @@ if (mounted) setState(_applySwipeValue);
                     // Vinyl disc by default; when the user toggled "plain
                     // cover art" (top-bar button) and the file HAS embedded
                     // art, show a rounded art card instead (Mpv-infinity's
-                    // look) - non-interactive, the DJ scratch stays on the
-                    // vinyl. No art -> keep the vinyl.
+                    // look). The disc is NOT interactive - the DJ scratch
+                    // gestures were removed 2026-11-27 (see the field docs).
                     final showPlainArt = _audioPlainArt && _audioArt != null;
                     final Widget disc = showPlainArt
                         ? ClipRRect(
@@ -10571,16 +10443,10 @@ if (mounted) setState(_applySwipeValue);
                               ),
                             ),
                           )
-                        : GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onPanStart: _onDiscPanStart,
-                            onPanUpdate: _onDiscPanUpdate,
-                            onPanEnd: _onDiscPanEnd,
-                            child: VinylDisc(
-                              angle: _discAngle,
-                              artBytes: _audioArt,
-                              size: discSize,
-                            ),
+                        : VinylDisc(
+                            angle: _discAngle,
+                            artBytes: _audioArt,
+                            size: discSize,
                           );
                     if (landscape) {
                       return Stack(
