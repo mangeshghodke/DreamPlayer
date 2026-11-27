@@ -2,38 +2,37 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Vinyl disc behavior (2026-11-27): the disc just SPINS while audio plays.
-/// The DJ scratch (drag-to-scrub, flick-to-spin) was built, then removed the
-/// same day - relative seeks on the stale ~1/s _position made the audio run
-/// away and neither engine can reverse, so it never felt like a turntable
-/// (user report). Pins: no gesture handlers on the disc, spin via ticker,
-/// title anchored below the disc. The player screen needs a live platform
-/// view, so the wiring is pinned by reading the source.
+/// Vinyl disc (audio-only playback): the disc just SPINS while audio plays,
+/// via its own AnimationController (the pre-DJ implementation, restored
+/// 2026-11-27 after the parent-driven Transform.rotate variant spun ever
+/// faster - a Ticker callback receives TOTAL elapsed time, not the per-frame
+/// delta, so accumulating it quadratically sped the disc up). The DJ scratch
+/// (drag-to-scrub, flick-to-spin) was removed the same day: no engine can
+/// reverse, so it never felt like a turntable. Pins: no gesture handlers on
+/// the disc, spin via spinning prop, title anchored below the disc. The
+/// player screen needs a live platform view, so wiring is pinned by source.
 void main() {
   final player = File('lib/screens/player_screen.dart').readAsStringSync();
   final vinyl = File('lib/widgets/vinyl_disc.dart').readAsStringSync();
 
-  group('vinyl disc: spin only, no DJ scratch (source-reading)', () {
-    test('disc rotation is parent-driven by the spin ticker', () {
-      expect(vinyl, contains('Transform.rotate('));
-      expect(vinyl, contains('required this.angle'));
-      expect(player.contains('TickerProviderStateMixin'), isTrue);
-      expect(player.contains('createTicker(_discTick)'), isTrue);
-      expect(player.contains('_discAngle +='), isTrue);
-      // spins only while playing
-      expect(player.contains('if (!(_playing && !_buffering)) return;'), isTrue);
+  group('vinyl disc: spin only (source-reading)', () {
+    test('widget spins via its own AnimationController, not a parent ticker', () {
+      expect(vinyl, contains('AnimationController'));
+      expect(vinyl, contains('RotationTransition'));
+      expect(vinyl, contains('_controller.repeat()'));
+      expect(vinyl, contains('required this.spinning'));
+      // no parent-driven angle, no Ticker in the player
+      expect(vinyl, isNot(contains('Transform.rotate')));
+      expect(player, isNot(contains('TickerProviderStateMixin')));
+      expect(player, isNot(contains('createTicker')));
+      expect(player.contains('spinning: _playing && !_buffering'), isTrue);
     });
 
-    test('DJ scratch removed: no pan handlers, no scratch seek, no rate flick', () {
+    test('no DJ scratch: no pan handlers or scratch state left', () {
       expect(player, isNot(contains('_onDiscPanUpdate')));
       expect(player, isNot(contains('_onDiscPanStart')));
-      expect(player, isNot(contains('_onDiscPanEnd')));
       expect(player, isNot(contains('_scratchPos')));
-      expect(player, isNot(contains('_seekBackend(_scratchPos)')));
       expect(player, isNot(contains('_spinDecayTimer')));
-      expect(player, isNot(contains('scratchSecondsPerTurn')));
-      expect(player, isNot(contains('spinVelocityThreshold')));
-      // the disc layer has no GestureDetector anymore
       final layerAt = player.indexOf('if (_isAudioOnly && _error == null && !_inPip)');
       expect(layerAt, greaterThan(-1));
       final layer = player.substring(layerAt, layerAt + 3200);

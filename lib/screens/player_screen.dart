@@ -8,7 +8,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -185,7 +184,7 @@ class PlayerScreen extends StatefulWidget {
 enum PlayEngine { media3, mpv }
 
 class _PlayerScreenState extends State<PlayerScreen>
-    with WidgetsBindingObserver, TickerProviderStateMixin {
+    with WidgetsBindingObserver {
   /// Native playback backend: the in-app ExoPlayer platform view (the same
   /// hybrid-composition SurfaceView on phones and Android TV / Fire TV).
   PlaybackController? _exo;
@@ -733,9 +732,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // DJ vinyl ticker (2026-11-27) is created lazily in _openCurrent, only
-    // when an audio-only file actually opens - an always-running ticker would
-    // keep pumpAndSettle from settling in widget tests that push the player.
     // Keep the system UI mode constant (immersive) for the whole player
     // screen. Toggling immersive/edgeToEdge during the rotation transition
     // fights the system's own rotation animation and makes the video jitter.
@@ -1021,14 +1017,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     // first size event flips this to false for real videos.
     final name = _current.path ?? _current.uri ?? '';
     _hasVideoTrack = !isAudioFile(name);
-    if (_hasVideoTrack) _discTicker?.stop();
     _audioArt = null;
     _audioProbe = null;
-    _discAngle = 0;
     if (!_hasVideoTrack) {
-      // DJ vinyl ticker runs only while an audio-only file is open.
-      _discTicker ??= createTicker(_discTick);
-      if (!_discTicker!.isActive) _discTicker!.start();
       // Embedded cover art for the disc face + a one-shot format probe for
       // the metadata line under it (codec / sample rate / bit depth / ch /
       // bitrate). Best-effort: a failed probe just leaves the line out.
@@ -5269,8 +5260,6 @@ Future<void> _offerVc1Mpv() async {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     TmdService.instance.removeListener(_onTmdbChanged);
-    _discTicker?.stop();
-    _discTicker?.dispose();
     _hideTimer?.cancel();
     _sleepTicker?.cancel();
     _swipeOverlayTimer?.cancel();
@@ -8704,24 +8693,6 @@ if (mounted) setState(_applySwipeValue);
     );
   }
 
-  // ---- Vinyl disc spin (2026-11-27) ----
-  // The disc is NOT interactive: the DJ scratch attempt (drag-to-scrub,
-  // flick-to-spin) was removed the same day - relative seeks on the stale
-  // ~1/s _position made the audio run away and neither engine can reverse,
-  // so it never felt like a real turntable (user report 2026-11-27). The
-  // disc just spins while audio plays; the angle is parent-driven by this
-  // ticker.
-  Ticker? _discTicker;
-  double _discAngle = 0;
-
-  void _discTick(Duration elapsed) {
-    if (!_isAudioOnly || !mounted) return;
-    if (!(_playing && !_buffering)) return;
-    // ~1 rev per 4 s at normal play.
-    _discAngle += (1 / 4.0) * 2 * math.pi * elapsed.inMicroseconds / 1e6;
-    setState(() {});
-  }
-
   void _showChapterToast(String message) {
     _hideTimer?.cancel();
     setState(() => _chapterToast = message);
@@ -10437,14 +10408,14 @@ if (mounted) setState(_applySwipeValue);
                               fit: BoxFit.cover,
                               gaplessPlayback: true,
                               errorBuilder: (_, _, _) => VinylDisc(
-                                angle: _discAngle,
+                                spinning: _playing && !_buffering,
                                 artBytes: null,
                                 size: discSize,
                               ),
                             ),
                           )
                         : VinylDisc(
-                            angle: _discAngle,
+                            spinning: _playing && !_buffering,
                             artBytes: _audioArt,
                             size: discSize,
                           );

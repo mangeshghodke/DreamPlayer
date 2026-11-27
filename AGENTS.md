@@ -166,14 +166,17 @@ A video player app supporting:
     persisted `dreamplayer.audioPlainArt` (`AudioArtStyleStore`, default
     vinyl). Plain-art mode renders `ClipRRect`+`Image.memory` (non-
     interactive); no embedded art keeps the vinyl. DJ disc unchanged.
-  - **DJ scratch REMOVED (2026-11-27, second on-device report: "still didn't
-    work" - no scratch sound, audio ran fast)**: even with an absolute
-    drag-owned scratch position, neither Media3 nor mpv can play in reverse,
-    so it never felt like a real turntable (edjing/djay reference). The disc
-    is now NOT interactive - it just spins (~1 rev/4 s) while audio plays via
-    the `_discTick` ticker. Title is anchored BELOW the disc with a Positioned
-    (`maxHeight/2 + discSize/2 + 12`, clamped to `maxHeight - 96`) - a centered
-    spacer overlapped the disc.
+  - **DJ scratch REMOVED + disc spin reverted to the pre-DJ widget (2026-11-27,
+    reports: "still didn't work", then "spinning fast")**. Two root causes,
+    both recorded: (1) no engine can reverse, so scratch never felt real;
+    (2) the parent-driven `Transform.rotate(angle:)` + `Ticker` variant spun
+    ever faster because a Ticker callback receives TOTAL elapsed since start,
+    not the per-frame delta - accumulating it made the angle grow
+    quadratically. `vinyl_disc.dart` is back to the 224bd2f version (own
+    `AnimationController`, `spinning:` prop, 1 rev / 4 s) and the player has
+    no disc ticker. The disc is NOT interactive. Title is anchored BELOW the
+    disc with a Positioned (`maxHeight/2 + discSize/2 + 12`, clamped to
+    `maxHeight - 96`) - a centered spacer overlapped the disc.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

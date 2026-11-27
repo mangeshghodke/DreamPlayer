@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -199,7 +198,7 @@ void main() {
     test('vinyl disc is rendered for audio-only, spinning while playing', () {
       expect(player.contains('if (_isAudioOnly && _error == null)'), isTrue);
       expect(player.contains('VinylDisc('), isTrue);
-      expect(player.contains('angle: _discAngle'), isTrue);
+      expect(player.contains('spinning: _playing && !_buffering'), isTrue);
       expect(player.contains('artBytes: _audioArt'), isTrue);
     });
 
@@ -237,44 +236,49 @@ void main() {
       expect(probeSwift, contains('mSampleRate'));
     });
 
-    test('vinyl widget renders via parent-driven Transform.rotate', () {
+    test('vinyl widget spins via its own AnimationController (pre-DJ code)', () {
       final vinyl = File('lib/widgets/vinyl_disc.dart').readAsStringSync();
-      // Rotation is parent-driven (angle in radians) so the DJ scratch
-      // gestures and the spin ticker share one source of truth.
-      expect(vinyl, contains('Transform.rotate('));
-      expect(vinyl, contains('angle: angle'));
-      expect(vinyl, contains('required this.angle'));
+      // The parent-driven Transform.rotate variant spun ever faster (the
+      // Ticker callback gets total elapsed, not per-frame dt) - reverted
+      // 2026-11-27 to this AnimationController version.
+      expect(vinyl, contains('AnimationController'));
+      expect(vinyl, contains('_controller.repeat()'));
+      expect(vinyl, contains('_controller.stop()'));
+      expect(vinyl, contains('RotationTransition'));
+      expect(vinyl, contains('required this.spinning'));
       expect(vinyl, contains('ClipOval'));
     });
   });
 
   group('vinyl disc widget', () {
-    testWidgets('renders painted vinyl without art at a given angle',
+    testWidgets('renders painted vinyl without art and spins while playing',
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: Center(child: VinylDisc(angle: 1.25))),
+          home: Scaffold(body: Center(child: VinylDisc(spinning: true))),
         ),
       );
       expect(find.byType(VinylDisc), findsOneWidget);
       expect(find.byType(CustomPaint), findsWidgets);
-      expect(find.byType(Transform), findsWidgets);
+      // Advance time - the RotationTransition must be animating.
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('renders embedded art when provided', (tester) async {
+    testWidgets('stops spinning when spinning goes false', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Center(
-              child: VinylDisc(angle: 0, artBytes: Uint8List.fromList([1, 2])),
-            ),
-          ),
+        const MaterialApp(
+          home: Scaffold(body: Center(child: VinylDisc(spinning: true))),
         ),
       );
-      // Invalid image bytes fall back to the painted vinyl via errorBuilder.
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.byType(VinylDisc), findsOneWidget);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: VinylDisc(spinning: false))),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
     });
   });
