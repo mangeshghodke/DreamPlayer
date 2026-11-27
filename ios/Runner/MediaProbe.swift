@@ -380,7 +380,8 @@ final class MediaProbe: NSObject {
             let path = args["path"] as? String
             let uri = args["uri"] as? String
             let headers = args["headers"] as? [String: String] ?? [:]
-            Task { result(await self.probe(path: path, uri: uri, headers: headers)) }
+            let resumeKey = args["resumeKey"] as? String
+            Task { result(await self.probe(path: path, uri: uri, headers: headers, resumeKey: resumeKey)) }
         case "probeFile":
             guard let args = call.arguments as? [String: Any],
                   let filePath = args["filePath"] as? String else {
@@ -395,11 +396,18 @@ final class MediaProbe: NSObject {
 
     // MARK: - Probe dispatch
 
-    private func probe(path: String?, uri: String?, headers: [String: String]) async -> [String: Any] {
+    private func probe(path: String?, uri: String?, headers: [String: String], resumeKey: String? = nil) async -> [String: Any] {
         if let u = uri ?? path, u.hasPrefix("http://") || u.hasPrefix("https://") {
             return await probeHttp(url: u, headers: headers)
         }
-        if let p = path, !p.hasPrefix("smb://") && !p.hasPrefix("ftp://") &&
+        // AVFoundation cannot open smb:// URLs, so the head+tail is fetched
+        // through libsmb2 into a sparse temp file (original extension kept, so
+        // the .mkv EBML dispatch still fires) and probed from there. This is
+        // what gives SMB audio files their embedded tags on iPad.
+        if let u = uri ?? path, u.hasPrefix("smb://") {
+            return await probeSmb(uri: u, resumeKey: resumeKey)
+        }
+        if let p = path, !p.hasPrefix("ftp://") &&
             !p.hasPrefix("sftp://") && !p.hasPrefix("content://") {
             return await probeLocal(filePath: p)
         }
@@ -407,6 +415,19 @@ final class MediaProbe: NSObject {
             return await probeContentUri(u)
         }
         return [:]
+    }
+
+    private func probeSmb(uri: String, resumeKey: String?) async -> [String: Any] {
+        let serverId: String? = {
+            guard let k = resumeKey, k.hasPrefix("smb:") else { return nil }
+            let first = k.dropFirst(4).split(separator: "/").first
+            return (first == nil || first!.isEmpty) ? nil : String(first!)
+        }()
+        guard let tmp = SMBBridge.shared.fetchHeadTailToTemp(smbUri: uri, serverId: serverId) else {
+            return [:]
+        }
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        return await probeLocal(filePath: tmp.path)
     }
 
     // MARK: - HTTP

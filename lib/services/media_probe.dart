@@ -1,8 +1,6 @@
-import 'dart:io';
-
 import '../utils/codec_info.dart';
+import '../utils/remote_head_fetch.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 
 class MediaProbeResult {
   const MediaProbeResult({
@@ -73,13 +71,16 @@ class MediaProbe {
   static const MethodChannel _channel = MethodChannel('dreamplayer/mediaProbe');
 
   /// Probe a file by path/uri. For smb:// URIs the native side starts an
-  /// HTTP loopback; for http(s) URIs it probes directly; for local/content://
-  /// it reads the file directly.
+  /// HTTP loopback (Android) or a libsmb2 head+tail temp fetch (iOS); for
+  /// http(s) URIs it probes directly with [headers]; for local/content:// it
+  /// reads the file directly. [resumeKey] carries the `smb:<serverId>/...`
+  /// identity so iOS can find the saved SMB credentials.
   Future<MediaProbeResult?> probe({
     String? path,
     String? uri,
     Map<String, String> headers = const {},
     bool allowSelfSigned = false,
+    String? resumeKey,
   }) async {
     try {
       final res = await _channel.invokeMapMethod<String, dynamic>('probe', {
@@ -87,6 +88,7 @@ class MediaProbe {
         'uri': uri,
         'headers': headers,
         'allowSelfSigned': allowSelfSigned,
+        'resumeKey': resumeKey,
       });
       if (res == null || res.isEmpty) return null;
       return MediaProbeResult.fromMap(res);
@@ -109,47 +111,27 @@ class MediaProbe {
     }
   }
 
-  /// For ftp:// or sftp:// URIs that MediaExtractor can't open directly:
-  /// download the first [maxBytes] to a temp file, probe it, clean up.
+  /// For ftp:// or sftp:// URIs (and self-signed https) that the native reader
+  /// can't open directly: download a sparse head+tail window to a temp file
+  /// (the tail carries the MP4 `moov` with tags/artwork for non-fast-start
+  /// files), probe it, clean up.
   Future<MediaProbeResult?> probeViaTempDownload(
     String uri, {
     Map<String, String> headers = const {},
-    int maxBytes = 8 * 1024 * 1024,
+    bool allowSelfSigned = true,
   }) async {
-    final tempDir = await getTemporaryDirectory();
-    final tempFile = File(
-      '${tempDir.path}/probe_${DateTime.now().microsecondsSinceEpoch}.tmp',
+    final temp = await fetchHeadTailTempFile(
+      uri,
+      headers: headers,
+      allowSelfSigned: allowSelfSigned,
     );
+    if (temp == null) return null;
     try {
-      final client = HttpClient();
-      client.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-      try {
-        final request = await client.getUrl(Uri.parse(uri));
-        headers.forEach(request.headers.set);
-        final response = await request.close();
-        final sink = tempFile.openWrite();
-        int total = 0;
-        await for (final chunk in response) {
-          final len = chunk.length;
-          if (total + len > maxBytes) {
-            final remaining = maxBytes - total;
-            sink.add(chunk.sublist(0, remaining));
-            break;
-          }
-          sink.add(chunk);
-          total += len;
-        }
-        await sink.flush();
-        await sink.close();
-      } finally {
-        client.close(force: true);
-      }
-      return await probeFile(tempFile.path);
-    } catch (_) {
-      return null;
+      return await probeFile(temp.path);
     } finally {
       try {
-        if (tempFile.existsSync()) tempFile.deleteSync();
+        if (temp.existsSync()) temp.deleteSync();
+        temp.parent.deleteSync();
       } catch (_) {}
     }
   }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/video_item.dart';
+import '../utils/remote_head_fetch.dart';
 import 'file_browser.dart';
 import 'tmdb_client.dart';
 
@@ -58,13 +59,17 @@ class ThumbnailStore {
     return dir;
   }
 
-  /// Cover-art bytes for [video], or null when it has none. Local sources
-  /// only - remote http(s) streams rely on TMDB posters instead. Results are
-  /// cached in memory and on disk keyed by the same stable identity the TMDB
-  /// cache uses, so a lookup is one disk read after the first time.
+  /// Cover-art bytes for [video], or null when it has none. Works for ANY
+  /// source: the native side reads local/content files directly, `smb://` via
+  /// the loopback proxy (Android) or a libsmb2 head+tail temp file (iOS), and
+  /// `http(s)://` through the URL with the item's headers. Only `ftp(s)://` and
+  /// self-signed https go through a Dart-side head+tail temp download
+  /// ([needsTempDownload]). Results are cached in memory and on disk keyed by
+  /// the same stable identity the TMDB cache uses, so a lookup is one disk
+  /// read after the first time.
   static Future<Uint8List?> artFor(VideoItem video) {
     final key = TmdStore.identityKeyFor(video);
-    if (key.isEmpty || _isRemote(video) || !_isLocal(video)) {
+    if (key.isEmpty) {
       return Future.value(null);
     }
     final memo = _memory[key];
@@ -79,28 +84,6 @@ class ThumbnailStore {
     });
     _inFlight[key] = future;
     return future;
-  }
-
-  static bool _isRemote(VideoItem v) {
-    final uri = v.uri;
-    if (uri == null) return false;
-    return uri.startsWith('http://') ||
-        uri.startsWith('https://') ||
-        uri.startsWith('rtmp') ||
-        uri.startsWith('rtsp');
-  }
-
-  /// Only plain files / content URIs / SAF trees are readable by the native
-  /// metadata reader. Bookmark-relative synthetic paths (`tree:`), SMB/FTP/
-  /// WebDAV/Jellyfin keys etc. are not - they fall back to their TMDB poster.
-  static bool _isLocal(VideoItem v) {
-    final path = v.path;
-    final uri = v.uri;
-    if (path != null && (path.startsWith('/') || path.startsWith('tree:'))) {
-      return true;
-    }
-    return uri != null &&
-        (uri.startsWith('file:') || uri.startsWith('content:'));
   }
 
   /// Drops the in-memory negative cache so a retry can happen (e.g. after a
@@ -120,7 +103,7 @@ class ThumbnailStore {
       // Timeout guard: a wedged channel must never stall card builds (and
       // keeps pure unit tests deterministic without an engine).
       final bytes =
-          await _fetch(video).timeout(const Duration(seconds: 10));
+          await _fetch(video).timeout(const Duration(seconds: 20));
       _memory[key] = bytes;
       if (bytes != null) {
         try {
@@ -133,6 +116,39 @@ class ThumbnailStore {
     }
   }
 
-  static Future<Uint8List?> _fetch(VideoItem item) =>
-      _files.getThumbnail(path: item.path, uri: item.uri);
+  static Future<Uint8List?> _fetch(VideoItem item) async {
+    final uri = item.uri ?? item.path;
+    if (needsTempDownload(uri, item.allowSelfSigned)) {
+      return _artViaTempDownload(item, uri!);
+    }
+    return _files.getThumbnail(
+      path: item.path,
+      uri: item.uri,
+      headers: item.httpHeaders,
+      allowSelfSigned: item.allowSelfSigned,
+      resumeKey: item.resumeKey,
+    );
+  }
+
+  /// Sources the native metadata reader cannot open itself (ftp(s), self-signed
+  /// https): download a sparse head+tail window to a temp file and probe that.
+  static Future<Uint8List?> _artViaTempDownload(
+    VideoItem item,
+    String uri,
+  ) async {
+    final temp = await fetchHeadTailTempFile(
+      uri,
+      headers: item.httpHeaders,
+      allowSelfSigned: item.allowSelfSigned,
+    );
+    if (temp == null) return null;
+    try {
+      return await _files.getThumbnailFile(temp.path);
+    } finally {
+      try {
+        if (temp.existsSync()) temp.deleteSync();
+        temp.parent.deleteSync();
+      } catch (_) {}
+    }
+  }
 }

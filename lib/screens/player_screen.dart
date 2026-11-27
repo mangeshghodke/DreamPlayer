@@ -90,6 +90,7 @@ import '../widgets/vinyl_disc.dart';
 import '../utils/audio_format_info.dart';
 import '../utils/media_extensions.dart';
 import '../utils/playback_stats.dart';
+import '../utils/remote_head_fetch.dart';
 import 'player_error.dart';
 import '../services/entitlements.dart';
 import 'paywall_sheet.dart';
@@ -487,10 +488,15 @@ class _PlayerScreenState extends State<PlayerScreen>
     try {
       final uri = video.uri;
       MediaProbeResult? r;
-      if (uri != null && uri.startsWith('ftp://')) {
+      // ftp(s) and self-signed https cannot be opened by the native metadata
+      // readers - download a head+tail window to a temp file and probe that.
+      // Everything else (local, content, smb://, plain http(s)) is probed
+      // natively so embedded tags work from SMB/WebDAV/Jellyfin/UPnP too.
+      if (uri != null && needsTempDownload(uri, video.allowSelfSigned)) {
         r = await MediaProbe.instance.probeViaTempDownload(
           uri,
           headers: video.httpHeaders,
+          allowSelfSigned: video.allowSelfSigned,
         );
       } else {
         r = await MediaProbe.instance.probe(
@@ -498,6 +504,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           uri: uri,
           headers: video.httpHeaders,
           allowSelfSigned: video.allowSelfSigned,
+          resumeKey: video.resumeKey,
         );
       }
       if (mounted && r != null) setState(() => _audioProbe = r);

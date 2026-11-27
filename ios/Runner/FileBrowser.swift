@@ -130,8 +130,18 @@ final class FileBrowser: NSObject, FlutterStreamHandler {
             let args = call.arguments as? [String: Any]
             let path = args?["path"] as? String
             let uri = args?["uri"] as? String
+            let headers = args?["headers"] as? [String: String]
+            let resumeKey = args?["resumeKey"] as? String
             DispatchQueue.global(qos: .utility).async { [weak self] in
-                let data = self?.embeddedArtwork(path: path, uri: uri)
+                let data = self?.embeddedArtwork(path: path, uri: uri, headers: headers, resumeKey: resumeKey)
+                Task { @MainActor in result(data) }
+            }
+        case "getThumbnailFile":
+            // A local temp file holding a Dart-side head+tail download of a
+            // remote source (ftp(s), self-signed https).
+            let filePath = (call.arguments as? [String: Any])?["filePath"] as? String
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let data = self?.embeddedArtwork(path: filePath, uri: nil, headers: nil, resumeKey: nil)
                 Task { @MainActor in result(data) }
             }
         case "removeBookmark":
@@ -564,11 +574,28 @@ final class FileBrowser: NSObject, FlutterStreamHandler {
 
     // MARK: - Imported videos
 
-    /// Embedded cover-art bytes for a local file (metadata-only read via
-    /// AVAsset's `commonKeyArtwork` - never decodes video, so HDR content is
-    /// safe). MP4/MOV carry `covr` atoms; MKV attachments aren't readable by
-    /// AVFoundation, so those files simply return nil (TMDB poster fallback).
-    private func embeddedArtwork(path: String?, uri: String?) -> Data? {
+    /// Embedded cover-art bytes for a media file of ANY source (metadata-only
+    /// read via AVAsset's `commonKeyArtwork` - never decodes video, so HDR
+    /// content is safe). MP4/MOV carry `covr` atoms; MKV attachments aren't
+    /// readable by AVFoundation, so those files simply return nil.
+    /// - `http(s)://` is read straight from the URL with the caller's headers
+    ///   (WebDAV/Jellyfin auth) via `AVURLAssetHTTPHeaderFieldsKey`.
+    /// - `smb://` cannot be opened by AVFoundation, so the head+tail is fetched
+    ///   through libsmb2 into a sparse temp file (SMBBridge.fetchHeadTailToTemp)
+    ///   and probed from there - this is what gives SMB audio files their
+    ///   embedded artwork on iPad.
+    /// - local paths / file:// are read directly.
+    private func embeddedArtwork(path: String?, uri: String?, headers: [String: String]? = nil, resumeKey: String? = nil) -> Data? {
+        if let u = uri ?? path, u.hasPrefix("http://") || u.hasPrefix("https://") {
+            guard let url = URL(string: u) else { return nil }
+            let opts: [String: Any]? = (headers != nil && !headers!.isEmpty)
+                ? ["AVURLAssetHTTPHeaderFieldsKey": headers]
+                : nil
+            return artworkFromAsset(AVURLAsset(url: url, options: opts))
+        }
+        if let u = uri ?? path, u.hasPrefix("smb://") {
+            return smbArtwork(smbUri: u, resumeKey: resumeKey)
+        }
         var fileURL: URL?
         if let path, FileManager.default.fileExists(atPath: path) {
             fileURL = URL(fileURLWithPath: path)
@@ -576,14 +603,30 @@ final class FileBrowser: NSObject, FlutterStreamHandler {
             fileURL = u
         }
         guard let url = fileURL else { return nil }
-        let asset = AVURLAsset(url: url)
-        // "itsk" = the common-key artwork identifier (AVMetadataKey
-        // .commonKeyArtwork) - matched via rawValue so the lookup is stable
-        // across SDK spellings. Metadata-only: never decodes video.
+        return artworkFromAsset(AVURLAsset(url: url))
+    }
+
+    /// "itsk" = the common-key artwork identifier (AVMetadataKey
+    /// .commonKeyArtwork) - matched via rawValue so the lookup is stable
+    /// across SDK spellings. Metadata-only: never decodes video.
+    private func artworkFromAsset(_ asset: AVAsset) -> Data? {
         for item in asset.commonMetadata where item.identifier?.rawValue == "itsk" {
             if let data = item.dataValue, !data.isEmpty { return data }
         }
         return nil
+    }
+
+    private func smbArtwork(smbUri: String, resumeKey: String?) -> Data? {
+        let serverId: String? = {
+            guard let k = resumeKey, k.hasPrefix("smb:") else { return nil }
+            let first = k.dropFirst(4).split(separator: "/").first
+            return (first == nil || first!.isEmpty) ? nil : String(first!)
+        }()
+        guard let tmp = SMBBridge.shared.fetchHeadTailToTemp(smbUri: smbUri, serverId: serverId) else {
+            return nil
+        }
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        return artworkFromAsset(AVURLAsset(url: tmp))
     }
 
     /// Re-grants security-scoped access to an imported video's file path (the

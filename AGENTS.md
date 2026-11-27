@@ -103,6 +103,35 @@ A video player app supporting:
   on iOS). Same rows added to the ⋮ "Video info" sheet. Pure helpers in
   `lib/utils/audio_format_info.dart`. Pinned by
   `test/audio_playback_ui_test.dart` (26 tests).
+- **Embedded audio metadata works from EVERY source (2026-11-27, user report:
+  "file plays from smb but no metadata is fetched from within the file")**.
+  The 2026-11-24 probe/artwork was local-only: `ThumbnailStore.artFor` gated
+  remote sources off and both native `getThumbnail` implementations only read
+  local files, and iOS `MediaProbe` returned nothing for `smb://`. Now:
+  - Dart `ThumbnailStore.artFor` has NO source gate; it passes
+    `path/uri/headers/allowSelfSigned/resumeKey` to `getThumbnail`. Only
+    `ftp(s)://` and self-signed https use a Dart-side fallback:
+    `lib/utils/remote_head_fetch.dart` `fetchHeadTailTempFile` downloads a
+    SPARSE head (8 MiB) + tail (4 MiB, Range request) window to a temp file
+    (original extension kept so the iOS .mkv EBML dispatch still fires), then
+    `getThumbnailFile`/`probeFile` reads it. The tail matters: MP4/M4A `moov`
+    (covr artwork + tags) sits at the END of non-fast-start files.
+  - Android `FileBrowser.embeddedArt`: `smb://` via the `SmbHttpProxy`
+    loopback (same trick as `MediaProbe.probeSmb`), `http(s)://` via
+    `setDataSource(url, headers)`, plus the old local/content paths; new
+    `getThumbnailFile` channel method for temp files. Tag text
+    (title/artist/album) already came from `MediaProbe.probe` for smb/http.
+  - iOS: `FileBrowser.embeddedArtwork` reads `http(s)://` via `AVURLAsset`
+    with `AVURLAssetHTTPHeaderFieldsKey` headers; `smb://` via the new
+    `SMBBridge.fetchHeadTailToTemp` (libsmb2 `pread` head+tail into a sparse
+    temp file, serverId parsed from the `smb:<id>/...` resume key). iOS
+    `MediaProbe.probe` gained a `smb://` branch using the same temp fetch, so
+    tag text works on iPad SMB too. New `getThumbnailFile` case.
+  - `MediaProbe.probe` (Dart) passes `resumeKey`; `player_screen._probeAudioFile`
+    routes ftp(s)/self-signed through `needsTempDownload`, everything else
+    natively. TMDB stays video-only - audio metadata is in-file only.
+  - Pinned by `test/remote_audio_metadata_test.dart` (pure helpers unit-tested
+    + source pins on all six touched files).
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,
@@ -3473,6 +3502,18 @@ Root-cause class: the two engines must be **mutually exclusive platform views** 
 5. Optional later: Anime4K / shader path on the same raw surface (SDR only; DV/HDR stay Media3).
 
 Related: "Player engine choice" below still says Media3 is the right *default*; this plan only replaces how the **optional** MPV engine renders - it does not demote Media3.
+
+### Second engine on iOS: libmpv via MPVKit (planned 2026-11-27, not started)
+
+User decision 2026-11-27: implement an mpv-based second engine on iOS "soon" (VLC-as-engine was considered and dropped the same day). Facts verified 2026-11-27:
+
+- **MPVKit** (`github.com/mpvkit/MPVKit`) is an SPM package shipping libmpv + FFmpeg xcframeworks for iOS/macOS/tvOS/visionOS. LGPL variant (GPL variant adds Samba). Its own README says "for production use, consider AetherEngine" - we already use AetherEngine as primary, so this is only the fallback engine. **Outplayer** (App Store id1449923287) is the precedent that a libmpv app passes App Store review.
+- **mpv 0.40.0** (2026) added VideoToolbox hwdec on iOS and libplacebo rendering on Apple platforms, so the 2026-08 pink/green DV bug (mpv 0.36 + FFmpeg 6.0 could not parse the DOVI RPU) is fixed in current mpv - DV tone-maps to SDR with correct colors via gpu-next/Metal.
+- **SDR-only on iOS**: mpv renders into its own view, there is no `AVPlayerLayer`, so no HDR/DV passthrough to the panel. AetherEngine stays the DV/HDR engine. The engine must be labeled "SDR only" in the UI, same as MPV on Android.
+- **Do NOT use media_kit's `Mpv.framework`** - it breaks SideStore's ldid signer (recorded above). MPVKit is a single xcframework and should sign fine, but verify on a SideStore install first. Prefer building our own libmpv xcframework in CI (ios.yml runs on macOS) with libplacebo, mirroring the Android `jniLibs` custom build - never a stock libmpv.
+- **Plan**: SPM dep on MPVKit (pin exact tag) or our own built xcframework; new `ios/Runner/MpvPlayerView.swift` as a `UiKitView` (viewType `dreamplayer/mpv_player`) implementing the same method/event channel contract as `AvPlayerView`; Dart `PlayEngine.mpv` enabled on iOS, "Play with MPV" on the details screen + "Try with MPV" on the error surface, mirroring Android. Reuse the existing Android MPV plumbing: user config parser, picture panel, HDR mode matrix, interpolation, Anime4K, external subtitle attach, default audio pin.
+- **Paywall**: gates live in the Dart layer before engine open, so a third engine inherits them unchanged (verified 2026-11-27). Only per-engine feature plumbing needs iOS wiring (subtitle styles via mpv `sub-*` options; spatial audio via the session lever; upscaling/night-mode become labeled no-ops unless mapped to mpv options). Any pref the native view reads directly must be corrected by `effectiveEnabled()` BEFORE the mpv open, same as before `AvPlayerView.open()` - or better, pass gated settings as explicit channel args at open.
+- LGPL object-code gate: extend the `verify_ipa_*` pattern used for libsmb2 to the libmpv xcframework.
 
 ### Player engine choice (2026-08-28, user feedback response)
 

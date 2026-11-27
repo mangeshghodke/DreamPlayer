@@ -1472,6 +1472,50 @@ final class SMBBridge: NSObject {
         return open(server: server, share: share, path: path, started: started, tag: "uri")
     }
 
+    /// Fetches the HEAD and TAIL of an SMB file into a SPARSE temp file (keeping
+    /// the original extension) and returns its URL. The caller must delete it.
+    ///
+    /// Metadata reads (embedded artwork/tags) need the ID3/FLAC header at the
+    /// start and the MP4 `moov` atom at the end, not the whole file - so AVAsset
+    /// and friends can probe a 30-50 MB audio file from a 12 MB sparse copy.
+    /// Returns nil on any failure; probing is best-effort.
+    func fetchHeadTailToTemp(
+        smbUri: String,
+        serverId: String?,
+        headBytes: Int = 8 * 1024 * 1024,
+        tailBytes: Int = 4 * 1024 * 1024
+    ) -> URL? {
+        guard let playback = openFromSmbUri(smbUri, serverId: serverId) else { return nil }
+        defer { playback.close() }
+        let file = playback.libsmb2File
+        let size = file.fileSize
+        guard size > 0 else { return nil }
+        let name = smbUri.split(separator: "/").last.map(String.init) ?? "file"
+        let dot = name.lastIndex(of: ".")
+        let ext = (dot != nil && dot! < name.index(before: name.endIndex)) ? String(name[name.index(after: dot!)...]) : ""
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("dp_headtail_\(UUID().uuidString)\(ext.isEmpty ? "" : ".\(ext)")")
+        guard FileManager.default.createFile(atPath: tmp.path, contents: nil) else { return nil }
+        guard let fh = try? FileHandle(forWritingAtPath: tmp.path) else {
+            try? FileManager.default.removeItem(at: tmp)
+            return nil
+        }
+        defer { try? fh.close() }
+        let headLen = Int64(min(Int64(headBytes), size))
+        if let head = file.read(atOffset: 0, length: NSUInteger(headLen)), !head.isEmpty {
+            try? fh.write(contentsOf: head)
+        }
+        let tailStart = size - Int64(min(Int64(tailBytes), size - headLen))
+        if tailStart > headLen {
+            let tailLen = size - tailStart
+            if let tail = file.read(atOffset: tailStart, length: NSUInteger(tailLen)), !tail.isEmpty {
+                try? fh.seek(toOffset: UInt64(tailStart))
+                try? fh.write(contentsOf: tail)
+            }
+        }
+        return tmp
+    }
+
     /// Shared connect: login, tree connect and open the file on a background
     /// thread, then publish the session under [tag] so it can be found again.
     private func open(

@@ -114,8 +114,19 @@ class FileBrowser(private val activity: MainActivity) {
                 "getThumbnail" -> {
                     val path = call.argument<String>("path")
                     val uri = call.argument<String>("uri")
+                    @Suppress("UNCHECKED_CAST")
+                    val headers = call.argument<Map<String, String>>("headers")
                     Thread {
-                        val bytes = embeddedArt(path, uri)
+                        val bytes = embeddedArt(path, uri, headers)
+                        mainHandler.post { result.success(bytes) }
+                    }.start()
+                }
+                "getThumbnailFile" -> {
+                    // A local temp file holding a Dart-side head+tail download
+                    // of a remote source (ftp(s), self-signed https).
+                    val filePath = call.argument<String>("filePath")
+                    Thread {
+                        val bytes = embeddedArt(filePath, null, null)
                         mainHandler.post { result.success(bytes) }
                     }.start()
                 }
@@ -347,19 +358,49 @@ class FileBrowser(private val activity: MainActivity) {
     private fun hasAllFilesAccess(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
 
-    /// Embedded cover-art bytes for a local file or content URI. This is a
+    /// Embedded cover-art bytes for a media file of ANY source. This is a
     /// METADATA-ONLY read - `MediaMetadataRetriever.getEmbeddedPicture()` never
     /// touches the video decoder, so DV/HDR content is safe (unlike frame
-    /// extraction, which returns black frames on Qualcomm for HDR). http(s)
-    /// sources are skipped: network artwork belongs to TMDB posters instead.
-    private fun embeddedArt(path: String?, uri: String?): ByteArray? {
+    /// extraction, which returns black frames on Qualcomm for HDR).
+    /// - `smb://serverId/share/path` goes through the SmbHttpProxy HTTP loopback
+    ///   (same trick MediaProbe.probeSmb uses), so SMB audio files get their
+    ///   embedded artwork too.
+    /// - `http(s)://` is probed directly with the caller's headers (WebDAV/Jellyfin
+    ///   auth). Self-signed servers are NOT handled here (system trust store) -
+    ///   Dart falls back to a temp download for those (`allowSelfSigned`).
+    /// - local paths / content:// / file:// are read directly.
+    private fun embeddedArt(path: String?, uri: String?, headers: Map<String, String>?): ByteArray? {
+        val smbUri = listOfNotNull(uri, path).firstOrNull { it.startsWith("smb://") }
+        if (smbUri != null) {
+            val parts = smbUri.removePrefix("smb://").split("/", limit = 3)
+            if (parts.size < 3) return null
+            val httpUrl = SmbHttpProxy.start(
+                activity, parts[0], parts[1], java.net.URLDecoder.decode(parts[2], "UTF-8")
+            ) ?: return null
+            try {
+                return retrieverArt { it.setDataSource(httpUrl, headers ?: emptyMap()) }
+            } finally {
+                SmbHttpProxy.stop(httpUrl.substringAfterLast("/"))
+            }
+        }
+        val httpUri = listOfNotNull(uri, path)
+            .firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
+        if (httpUri != null) {
+            return retrieverArt { it.setDataSource(httpUri, headers ?: emptyMap()) }
+        }
         val isLocalPath = !path.isNullOrEmpty() && !path.startsWith("http")
         val localUri = uri?.takeIf { it.startsWith("content:") || it.startsWith("file:") }
         if (!isLocalPath && localUri == null) return null
+        return retrieverArt {
+            if (localUri != null) it.setDataSource(activity, Uri.parse(localUri))
+            else it.setDataSource(path)
+        }
+    }
+
+    private fun retrieverArt(configure: (android.media.MediaMetadataRetriever) -> Unit): ByteArray? {
         val retriever = android.media.MediaMetadataRetriever()
         return try {
-            if (localUri != null) retriever.setDataSource(activity, Uri.parse(localUri))
-            else retriever.setDataSource(path)
+            configure(retriever)
             retriever.embeddedPicture
         } catch (_: Exception) {
             null

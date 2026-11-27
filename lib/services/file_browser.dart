@@ -412,19 +412,45 @@ Future<List<Map<String, dynamic>>> pickFolderContents() async {
     }
   }
 
-  /// Embedded cover-art bytes for a local video (metadata-only read - safe for
-  /// DV/HDR). Returns null when the file has no attached artwork or the source
-  /// is remote (http(s) is skipped natively).
-  Future<Uint8List?> getThumbnail({String? path, String? uri}) async {
+  /// Embedded cover-art bytes for a media file, any source (metadata-only read
+  /// - safe for DV/HDR). The native side reads local/content files directly,
+  /// `smb://` via the loopback proxy (Android) or a libsmb2 head+tail temp file
+  /// (iOS), and `http(s)://` via the URL with [headers]. Returns null when the
+  /// file has no attached artwork or the source cannot be read.
+  Future<Uint8List?> getThumbnail({
+    String? path,
+    String? uri,
+    Map<String, String>? headers,
+    bool allowSelfSigned = false,
+    String? resumeKey,
+  }) async {
     try {
       return await _channel.invokeMethod<Uint8List>('getThumbnail', {
         'path': path,
         'uri': uri,
+        'headers': headers,
+        'allowSelfSigned': allowSelfSigned,
+        'resumeKey': resumeKey,
       });
     } on PlatformException {
       return null;
     } on MissingPluginException {
       // Engine not attached (tests / teardown).
+      return null;
+    }
+  }
+
+  /// Embedded cover-art bytes for a LOCAL temp file (Dart-side head+tail
+  /// download of a remote source the native side cannot read, e.g. ftp:// or
+  /// self-signed https). Same metadata-only read as [getThumbnail].
+  Future<Uint8List?> getThumbnailFile(String filePath) async {
+    try {
+      return await _channel.invokeMethod<Uint8List>('getThumbnailFile', {
+        'filePath': filePath,
+      });
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
       return null;
     }
   }
