@@ -39,6 +39,7 @@ true of the intended build but not of the one that was reviewed. Verify with
 
 New:
 • Music files played from a network share (SMB, WebDAV, Jellyfin, DLNA) now show their embedded cover art on the player's disc, plus the song's title, artist and album from the file's own tags - no online lookup needed. FTP and self-signed servers are supported too.
+• While playing a music file, the player now shows music controls: shuffle, previous track, play/pause, next track and repeat in one row. Previous/next move through the tracks in the same folder.
 
 ---
 

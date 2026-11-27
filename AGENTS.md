@@ -132,6 +132,19 @@ A video player app supporting:
     natively. TMDB stays video-only - audio metadata is in-file only.
   - Pinned by `test/remote_audio_metadata_test.dart` (pure helpers unit-tested
     + source pins on all six touched files).
+- **Music transport buttons while playing audio (2026-11-27, user request -
+  "same as Mpv-infinity"; Mpv∞'s `AudioPlayerControls.kt` transport row studied,
+  PolyForm so ideas only)**: while `_isAudioOnly`, the centre video pill is
+  replaced by `_audioTransportRow()` - one dark pill with **shuffle, previous
+  track, play/pause, next track, repeat** (Mpv∞'s transport row + shuffle/repeat
+  row collapsed into one). Prev/next use `_pickSibling(delta)` over the existing
+  `_orderedSiblings()` listing (audio extensions are already listed), sequential
+  and wrapping (`nextPlaybackIndex(..., wrap: true, shuffle: false)` - shuffle
+  only affects auto-advance); disabled when the folder holds a single track
+  (`_siblingCount`, loaded on audio open). Shuffle/repeat buttons drive the same
+  `PlaybackModesStore` prefs as the ⋮ sheet (+ live `setRepeatMode`), icons tint
+  active. TV gets focusable `_TvControlButton`s. Pinned by
+  `test/audio_transport_row_test.dart`.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

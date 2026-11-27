@@ -1010,6 +1010,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (mounted) setState(() => _audioArt = a);
       }));
       unawaited(_probeAudioFile(_current));
+      // Sibling count for the audio transport row's prev/next buttons.
+      _siblingCount = null;
+      unawaited(_orderedSiblings().then((s) {
+        if (mounted) setState(() => _siblingCount = s?.length);
+      }));
     }
     // TMDB title for the top bar - cache hit when the home screen
     // pre-fetched this file; a miss resolves fire-and-forget (intent-opened
@@ -4946,6 +4951,59 @@ Future<void> _offerVc1Mpv() async {
     return siblings[nextIdx];
   }
 
+  /// Manual previous/next TRACK (audio-only transport row, mirrors
+  /// Mpv-infinity's skip buttons). Sequential in folder order, wrapping at
+  /// both ends - shuffle only affects auto-advance, a manual skip is always
+  /// the neighbour. Returns null when there is nothing to move to.
+  Future<VideoItem?> _pickSibling(int delta) async {
+    final siblings = await _orderedSiblings();
+    if (siblings == null || siblings.length < 2) return null;
+    final cur = _current;
+    final idx = siblings.indexWhere(
+      (v) => v.path == cur.path && v.uri == cur.uri,
+    );
+    if (idx < 0) return null;
+    final nextIdx = delta > 0
+        ? nextPlaybackIndex(idx, siblings.length, wrap: true, shuffle: false)
+        : (idx - 1 < 0 ? siblings.length - 1 : idx - 1);
+    if (nextIdx == null || nextIdx == idx) return null;
+    return siblings[nextIdx];
+  }
+
+  /// Opens a sibling picked by [_pickSibling] (manual track skip - no grace
+  /// delay, unlike the auto-advance path which waits 2 s at the end).
+  Future<void> _playSibling(VideoItem next) async {
+    if (_mpvReady) {
+      await _reloadMpv(next, 0);
+      return;
+    }
+    _current = next;
+    setState(() => _error = null);
+    await _openCurrent();
+  }
+
+  /// Shuffle toggle button (audio transport row) - same store as the ⋮
+  /// sheet's switch.
+  void _toggleShuffleButton() {
+    setState(() => _shuffle = !_shuffle);
+    if (!_inTests) PlaybackModesStore.saveShuffle(_shuffle);
+  }
+
+  /// Repeat cycle button (audio transport row) - off -> one -> all -> off,
+  /// applied to the live engine exactly like the ⋮ sheet rows.
+  void _cycleRepeatButton() {
+    final next = switch (_repeat) {
+      LoopMode.off => LoopMode.one,
+      LoopMode.one => LoopMode.all,
+      LoopMode.all => LoopMode.off,
+    };
+    setState(() => _repeat = next);
+    if (!_mpvReady) {
+      _exo?.setRepeatMode(next.index);
+    }
+    if (!_inTests) PlaybackModesStore.saveRepeat(next);
+  }
+
   /// Lists the current folder's videos in playback order (season/episode
   /// aware when the folder looks episodic, else alphabetical). Returns null
   /// when the current video isn't in a listable file folder. Jellyfin
@@ -8458,6 +8516,109 @@ if (mounted) setState(_applySwipeValue);
     );
   }
 
+  /// Number of playable siblings in the current folder (audio-only transport
+  /// row disables prev/next when there is only one track). Null while loading.
+  int? _siblingCount;
+
+  /// Manual track skip from the audio transport row (delta = -1 previous,
+  /// +1 next). No-op when the folder holds a single file.
+  Future<void> _skipTrack(int delta) async {
+    if (_touchLocked || !_backendReady) return;
+    final next = await _pickSibling(delta);
+    if (next == null || !mounted) return;
+    await _playSibling(next);
+  }
+
+  /// Music transport row for audio-only playback - one pill with shuffle,
+  /// previous, play/pause, next, repeat (Mpv-infinity's audio screen has the
+  /// same buttons: transport row + shuffle/repeat row). Replaces the centre
+  /// video pill while `_isAudioOnly`; TV gets real focusable buttons.
+  Widget _audioTransportRow() {
+    final ready = _backendReady && !_inPip;
+    final canSkip = ready && (_siblingCount ?? 0) > 1;
+    const activeColor = Color(0xFF7C8BFF); // same accent as the ⋮ sheet
+    Widget small({
+      required IconData icon,
+      required VoidCallback? onPressed,
+      Color? active,
+    }) {
+      final color =
+          active ?? (onPressed == null ? Colors.white24 : Colors.white);
+      final iconWidget = Icon(icon, color: color);
+      if (_isTv) {
+        return _TvControlButton(
+          onPressed: onPressed,
+          iconSize: 30,
+          icon: iconWidget,
+          color: color,
+          onFocusChange: (_) => _showControls(),
+        );
+      }
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: IconTheme.merge(
+            data: IconThemeData(size: 30, color: color),
+            child: iconWidget,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          small(
+            icon: Icons.shuffle,
+            active: _shuffle ? activeColor : null,
+            onPressed: ready ? _toggleShuffleButton : null,
+          ),
+          const SizedBox(width: 16),
+          small(
+            icon: Icons.skip_previous,
+            onPressed: canSkip ? () => _skipTrack(-1) : null,
+          ),
+          const SizedBox(width: 16),
+          _TvControlButton(
+            focusNode: _playPauseFocusNode,
+            onPressed: ready ? _togglePlayPause : null,
+            iconSize: 64,
+            autofocus: true,
+            alwaysShowRing: !_isTv,
+            icon: Icon(
+              _completed
+                  ? Icons.replay
+                  : _playing
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_fill,
+            ),
+            color: Colors.white,
+            onFocusChange: (_) => _showControls(),
+          ),
+          const SizedBox(width: 16),
+          small(
+            icon: Icons.skip_next,
+            onPressed: canSkip ? () => _skipTrack(1) : null,
+          ),
+          const SizedBox(width: 16),
+          small(
+            icon: _repeat == LoopMode.one ? Icons.repeat_one : Icons.repeat,
+            active: _repeat == LoopMode.off ? null : activeColor,
+            onPressed: ready ? _cycleRepeatButton : null,
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showChapterToast(String message) {
     _hideTimer?.cancel();
     setState(() => _chapterToast = message);
@@ -10014,7 +10175,12 @@ if (mounted) setState(_applySwipeValue);
               child: IgnorePointer(
                 ignoring: !_controlsVisible,
                 child: Center(
-                  child: Row(
+                  // Audio-only playback gets the music transport row
+                  // (shuffle / prev / play-pause / next / repeat, mirroring
+                  // Mpv-infinity's audio screen) instead of the video pill.
+                  child: _isAudioOnly && !_inPip
+                      ? _audioTransportRow()
+                      : Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Chapter jump, beside play/pause on every platform

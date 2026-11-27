@@ -11,6 +11,7 @@ documented in `.github/release_notes_ios.md` and `ASC_CHANGELOG.md`.
 ### Added
 
 - **Audio files now show their embedded metadata from every source, not just local files** (user report 2026-11-27: a track played from SMB but showed no artwork or tags). The cover art on the vinyl disc and the title/artist/album under it are now read from the file itself on SMB (through the loopback HTTP proxy), WebDAV/Jellyfin/DLNA and other http(s) streams (probed directly with the saved auth headers), and FTP/self-signed servers via a sparse head+tail temp download (MP4/M4A metadata sits at the end of non-fast-start files). TMDB matching deliberately stays video-only - music metadata always comes from the file. Pinned by `test/remote_audio_metadata_test.dart`.
+- **Music playback now has player-style transport buttons** (user request 2026-11-27, same as Mpv-infinity's audio screen). While an audio file is playing, the centre transport pill becomes a music row: shuffle, previous track, play/pause, next track, repeat. Previous/next move through the current folder's tracks (disabled when there is only one), shuffle and repeat toggle the same settings as the player menu and highlight when active. Pinned by `test/audio_transport_row_test.dart`.
 
 ### Changed
 
