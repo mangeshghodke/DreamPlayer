@@ -1,0 +1,1 @@
+Tapping a music file plays it directly, skipping the empty details page. Audio codec pill moved below, just above the progress bar. Audio info sheet redesigned (one song title, themed cards, no video rows). PCM/WAV files show PCM instead of RAW. Picture settings button hidden while playing music.
