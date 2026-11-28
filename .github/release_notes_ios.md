@@ -48,6 +48,8 @@ New:
 
 Fixed:
 • Files in plain PCM/WAV format no longer show an unreadable "RAW" codec badge - they show PCM or WAV and count as lossless.
+• Music files on a network share (SMB) now show their song title, artist, album and cover art on iPad too - the share's streaming link previously hid the file's own tags.
+• The info panel while playing music no longer says "Media3" as the engine on iPhone/iPad - it now correctly names the built-in player engine used on this device.
 
 ---
 

@@ -1,0 +1,1 @@
+iOS: SMB music files now show title, artist, album and cover art; the audio info sheet names the correct engine on iOS instead of Media3. No Android behavior change.

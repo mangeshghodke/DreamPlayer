@@ -107,15 +107,30 @@ void main() {
       expect(src.contains('"getThumbnailFile"'), isTrue);
       expect(src.contains('AVURLAssetHTTPHeaderFieldsKey'), isTrue);
       expect(src.contains('fetchHeadTailToTemp'), isTrue);
-      expect(src.contains('u.hasPrefix("smb://")'), isTrue);
+      // smb:// must be matched on uri OR path: on iOS the playback uri is a
+      // dreamplayersmb:// token, so a `uri ?? path` check alone would miss it
+      // (user report 2026-11-28: no album art on iPad for SMB audio).
+      expect(src.contains('[uri, path].compactMap({ \$0 }).first(where: { \$0.hasPrefix("smb://") })'), isTrue);
     });
 
     test('iOS MediaProbe probes smb:// through a libsmb2 head+tail temp file', () {
       final src = File('ios/Runner/MediaProbe.swift').readAsStringSync();
       expect(src.contains('probeSmb'), isTrue);
       expect(src.contains('fetchHeadTailToTemp'), isTrue);
-      expect(src.contains('u.hasPrefix("smb://")'), isTrue);
+      // same uri-vs-path shadowing fix as getThumbnail (2026-11-28: no tags on
+      // iPad for SMB audio because the dreamplayersmb:// uri hid the smb:// path).
+      expect(src.contains('[uri, path].compactMap({ \$0 }).first(where: { \$0.hasPrefix("smb://") })'), isTrue);
       expect(src.contains('"resumeKey"'), isTrue);
+    });
+
+    test('engine label is platform-aware: AetherEngine on iOS, never Media3 there', () {
+      final player = File('lib/screens/player_screen.dart').readAsStringSync();
+      expect(player.contains("String get _engineDisplayName"), isTrue);
+      expect(player.contains("Platform.isIOS ? 'AetherEngine' : 'Media3'"), isTrue);
+      // both the info-sheet Engine row and the audio sheet ENGINE pill use it
+      expect(player.contains("(label: 'Engine', value: _engineDisplayName)"), isTrue);
+      expect(player.contains("'ENGINE · \${_engineDisplayName.toUpperCase()}'"), isTrue);
+      expect(player.contains("_mpvReady ? 'MPV' : 'Media3'"), isFalse);
     });
 
     test('SMBBridge exposes the shared head+tail temp fetch', () {

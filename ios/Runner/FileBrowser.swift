@@ -586,15 +586,19 @@ final class FileBrowser: NSObject, FlutterStreamHandler {
     ///   embedded artwork on iPad.
     /// - local paths / file:// are read directly.
     private func embeddedArtwork(path: String?, uri: String?, headers: [String: String]? = nil, resumeKey: String? = nil) -> Data? {
+        // The smb:// branch must match the PATH even when a uri is set: on iOS
+        // SMB playback the uri is a `dreamplayersmb://` token URL, so a plain
+        // `uri ?? path` check would hide the smb:// scheme and return nil -
+        // no cover art on iPad for SMB audio files (user report 2026-11-28).
+        if let smb = [uri, path].compactMap({ $0 }).first(where: { $0.hasPrefix("smb://") }) {
+            return smbArtwork(smbUri: smb, resumeKey: resumeKey)
+        }
         if let u = uri ?? path, u.hasPrefix("http://") || u.hasPrefix("https://") {
             guard let url = URL(string: u) else { return nil }
             let opts: [String: Any]? = (headers != nil && !headers!.isEmpty)
                 ? ["AVURLAssetHTTPHeaderFieldsKey": headers]
                 : nil
             return artworkFromAsset(AVURLAsset(url: url, options: opts))
-        }
-        if let u = uri ?? path, u.hasPrefix("smb://") {
-            return smbArtwork(smbUri: u, resumeKey: resumeKey)
         }
         var fileURL: URL?
         if let path, FileManager.default.fileExists(atPath: path) {

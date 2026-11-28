@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.9 | 2 | 1766 |
+| 0.5.9 | 2 | 2100 |
 | 0.5.9 | 1 | 1346 |
 | 0.5.8 | 15 | 732 |
 | 0.5.8 | 14 | 1672 |
@@ -46,6 +46,8 @@ New:
 
 Fixed:
 • Files in plain PCM/WAV format no longer show an unreadable "RAW" codec badge - they show PCM or WAV and count as lossless.
+• Music files on a network share (SMB) now show their song title, artist, album and cover art on iPad too - the share's streaming link previously hid the file's own tags.
+• The info panel while playing music no longer says "Media3" as the engine on iPhone/iPad - it now correctly names the built-in player engine used on this device.
 
 ---
 

@@ -486,6 +486,15 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// True when the current file is audio-only and the backend is up.
   bool get _isAudioOnly => _backendReady && !_hasVideoTrack;
 
+  /// Display name of the active playback engine. Media3/libmpv exist only on
+  /// Android - iOS plays through AetherEngine and must never be labeled
+  /// "Media3" there (user report 2026-11-28: the audio info sheet showed
+  /// "ENGINE · Media3" on the iPad).
+  String get _engineDisplayName {
+    if (_mpvReady) return 'libmpv';
+    return Platform.isIOS ? 'AetherEngine' : 'Media3';
+  }
+
   /// Embedded cover art for the vinyl disc (audio-only playback).
   Uint8List? _audioArt;
 
@@ -6577,7 +6586,7 @@ if (mounted) setState(_applySwipeValue);
           ).map((b) => (label: 'Quality', value: b)),
         ],
         (label: 'File location', value: video.path ?? video.uri ?? sourceUrl),
-        (label: 'Engine', value: _mpvReady ? 'libmpv' : 'Media3'),
+        (label: 'Engine', value: _engineDisplayName),
       ],
       if (_transcodeActive ||
           video.isTranscoded ||
@@ -6651,8 +6660,7 @@ if (mounted) setState(_applySwipeValue);
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              'ENGINE · ${_mpvReady ? 'MPV' : 'Media3'}'
-                                  .toUpperCase(),
+                              'ENGINE · ${_engineDisplayName.toUpperCase()}',
                               style: TextStyle(
                                 color: cs.onPrimaryContainer,
                                 fontSize: 11,

@@ -218,6 +218,17 @@ A video player app supporting:
     the browser. Movies/series still open the details page. TMDB stays
     video-only by design; the details page showed nothing for a song anyway.
     Pinned in `test/audio_playback_ui_test.dart`.
+  - **iOS SMB audio metadata + engine label fixed (2026-11-28, user report)**:
+    on iPad an SMB audio file showed no tags and no cover art because iOS
+    playback uses a `dreamplayersmb://` token as `uri` while `path` holds the
+    real `smb://` URI, and both native dispatchers did `uri ?? path`, so the
+    `smb://` branch never fired. `MediaProbe.swift` and `FileBrowser.swift`
+    now match `smb://` on EITHER field (`[uri, path].compactMap...first(where:
+    hasPrefix("smb://"))`) - Android was unaffected because its `openShare`
+    returns the `smb://` URI itself. Also the audio info sheet's `ENGINE` pill
+    and the Engine row showed "Media3" on iOS; `_engineDisplayName` now returns
+    `AetherEngine` on iOS, `Media3`/`libmpv` on Android. Pinned in
+    `test/remote_audio_metadata_test.dart`.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

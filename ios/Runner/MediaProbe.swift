@@ -397,15 +397,20 @@ final class MediaProbe: NSObject {
     // MARK: - Probe dispatch
 
     private func probe(path: String?, uri: String?, headers: [String: String], resumeKey: String? = nil) async -> [String: Any] {
+        // The smb:// branch must match the PATH even when a uri is set: on iOS
+        // SMB playback the uri is a `dreamplayersmb://` token URL, so a plain
+        // `uri ?? path` check would hide the smb:// scheme and fall through to
+        // a local probe of a non-existent path - no tags/artwork on iPad
+        // (user report 2026-11-28).
+        if let smb = [uri, path].compactMap({ $0 }).first(where: { $0.hasPrefix("smb://") }) {
+            // AVFoundation cannot open smb:// URLs, so the head+tail is fetched
+            // through libsmb2 into a sparse temp file (original extension kept,
+            // so the .mkv EBML dispatch still fires) and probed from there.
+            // This is what gives SMB audio files their embedded tags on iPad.
+            return await probeSmb(uri: smb, resumeKey: resumeKey)
+        }
         if let u = uri ?? path, u.hasPrefix("http://") || u.hasPrefix("https://") {
             return await probeHttp(url: u, headers: headers)
-        }
-        // AVFoundation cannot open smb:// URLs, so the head+tail is fetched
-        // through libsmb2 into a sparse temp file (original extension kept, so
-        // the .mkv EBML dispatch still fires) and probed from there. This is
-        // what gives SMB audio files their embedded tags on iPad.
-        if let u = uri ?? path, u.hasPrefix("smb://") {
-            return await probeSmb(uri: u, resumeKey: resumeKey)
         }
         if let p = path, !p.hasPrefix("ftp://") &&
             !p.hasPrefix("sftp://") && !p.hasPrefix("content://") {
