@@ -16,7 +16,7 @@ that copying a block for App Store Connect can never pick up a stray note:
 
 | Version | Build | Characters (limit 4000) |
 |---|---|---|
-| 0.5.9 | 2 | 1026 |
+| 0.5.9 | 2 | 1766 |
 | 0.5.9 | 1 | 1346 |
 | 0.5.8 | 15 | 732 |
 | 0.5.8 | 14 | 1672 |
@@ -40,6 +40,12 @@ New:
 • While playing a music file, the player now looks like a music app: one codec badge (AAC, Lossless, Hi-Res) at the top, the controls (shuffle, previous, play/pause, next, repeat) at the bottom under the progress bar, and the notification and lock screen show the song's own title and cover art instead of the file name. The info panel lists full audio properties: title, artist, album, format, sample rate, bitrate, channels, file size and location. In landscape, the disc moves to the right half of the screen and the song details stay on the left.
 • A button in the top bar switches between the vinyl disc and a plain cover-art display.
 • Music files always use the built-in audio engine, which also supports true high-resolution output to USB DACs.
+• Tapping a music file now plays it right away instead of opening an empty details page. Movies and series still open their details page first.
+• While playing music, the codec badge (AAC, Lossless, Hi-Res) moved below the video area, just above the progress bar, and is smaller - it shows only the codec in use.
+• The info panel while playing music is now a tidy "Audio info" sheet: song title, artist, album, format, sample rate, bit depth, bitrate, channels, file size and location, each on its own card. It shows one title only (the song's own tag), and the picture settings button is hidden for music.
+
+Fixed:
+• Files in plain PCM/WAV format no longer show an unreadable "RAW" codec badge - they show PCM or WAV and count as lossless.
 
 ---
 

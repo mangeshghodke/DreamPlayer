@@ -306,6 +306,20 @@ class _TmdDetailsScreenState extends State<TmdDetailsScreen> {
     // "Hide spoilers" is a live setting: rebuild this screen's overview/
     // gallery gates when it flips in Settings, and load it once on entry.
     HideSpoilersStore.instance.addListener(_onSpoilersChanged);
+    // Audio files skip this screen entirely: tapping a song plays it
+    // directly (user request 2026-11-28). TMDB resolves videos only, so the
+    // details page would show no info for a song anyway (no baked API key).
+    // Movies and series still open here. The route is REPLACED so Back from
+    // the player returns to the browser, not to this blank page.
+    if (widget.video != null && _isAudioEntry) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          PlayerScreen.route(video: widget.video!),
+        );
+      });
+      return;
+    }
     unawaited(HideSpoilersStore.instance.load());
     _jellyfinInfo = widget.jellyfinInfo;
     _load();

@@ -290,6 +290,17 @@ void main() {
       expect(player.contains('(_mpvReady || _exo != null) && !_isAudioOnly'), isTrue);
     });
 
+    test('audio file taps skip the TMDB details page and play directly', () {
+      final details = File('lib/screens/tmd_details_screen.dart').readAsStringSync();
+      // initState redirects audio entries straight to the player, replacing
+      // the route so Back returns to the browser (user request 2026-11-28).
+      expect(details.contains('if (widget.video != null && _isAudioEntry)'), isTrue);
+      expect(details.contains('pushReplacement'), isTrue);
+      expect(details.contains('PlayerScreen.route(video: widget.video!)'), isTrue);
+      // the audio-entry detection keys off the file name/uri/path
+      expect(details.contains('return isAudioFile(name);'), isTrue);
+    });
+
     test('raw PCM codec no longer shows as RAW', () {
       expect(formatAudioCodec('raw'), 'PCM');
       expect(formatAudioCodec('audio/L16'), 'PCM');

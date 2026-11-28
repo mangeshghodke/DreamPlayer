@@ -210,6 +210,14 @@ A video player app supporting:
     the time row and the `_BufferedSeekBar`, compact (11 sp, 9x2 padding),
     showing only the codec/quality word. The overlay (portrait and landscape
     half-split) now holds just the disc + title/artist/album.
+  - **Tapping a song plays it directly (2026-11-28, user request)**: audio
+    files tapped in ANY browser (local, SMB, WebDAV, FTP, UPnP, Jellyfin,
+    library, search, Continue Watching) skip the TMDB details page and open
+    the player immediately - `TmdDetailsScreen.initState` pushReplaces the
+    route when `_isAudioEntry` (`isAudioFile`) is true, so Back returns to
+    the browser. Movies/series still open the details page. TMDB stays
+    video-only by design; the details page showed nothing for a song anyway.
+    Pinned in `test/audio_playback_ui_test.dart`.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,
