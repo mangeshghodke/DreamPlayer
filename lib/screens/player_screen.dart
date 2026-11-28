@@ -8667,6 +8667,57 @@ if (mounted) setState(_applySwipeValue);
     await _playSibling(next);
   }
 
+  /// The single audio codec pill (HI-RES LOSSLESS / LOSSLESS / codec name,
+  /// like Mpv-infinity's audio screen). It lives in the BOTTOM BAR just
+  /// above the seekbar (user request 2026-11-28: "move the audio codec pill
+  /// below, just above seekbar") - compact, showing only the codec/quality
+  /// word (user request 2026-11-28: "the pill should be what codec is used,
+  /// that much only - right now it's too big").
+  Widget _audioCodecPill() {
+    final probe = _audioProbe;
+    final codecMime = probe?.audioMime ?? _liveAudioCodec;
+    final badgeLabel = audioCodecBadge(
+      mimeOrCodec: codecMime,
+      sampleRate: probe?.audioSampleRate,
+      bits: probe?.audioBits,
+    );
+    if (badgeLabel.isEmpty) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    final hiRes = badgeLabel.startsWith('HI-RES');
+    final lossless = badgeLabel == 'LOSSLESS';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+      decoration: BoxDecoration(
+        color: hiRes
+            ? Colors.amber.withValues(alpha: 0.18)
+            : lossless
+                ? cs.secondaryContainer
+                : cs.primaryContainer,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: hiRes
+              ? Colors.amber
+              : lossless
+                  ? cs.secondary
+                  : cs.primary,
+          width: 1,
+        ),
+      ),
+      child: Text(
+        badgeLabel,
+        style: TextStyle(
+          color: hiRes
+              ? Colors.amber
+              : lossless
+                  ? cs.onSecondaryContainer
+                  : cs.onPrimaryContainer,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   /// Music transport row for audio-only playback (Mpv-infinity's audio
   /// screen, per the user's screenshot 2026-11-27): shuffle, previous,
   /// play/pause, next, repeat. It lives in the BOTTOM BAR under the seekbar
@@ -9602,17 +9653,10 @@ if (mounted) setState(_applySwipeValue);
                                 0.46)
                             .clamp(150.0, 300.0);
                     final probe = _audioProbe;
-                    final codecMime = probe?.audioMime ?? _liveAudioCodec;
-                    // ONE badge on top, like Mpv-infinity's 1st screenshot (a
-                    // single `AAC` pill): HI-RES LOSSLESS / LOSSLESS for
-                    // lossless content, else the codec name (user request
-                    // 2026-11-27: the multi-badge row is removed for audio; the
-                    // full details live in the info (i) sheet instead).
-                    final badgeLabel = audioCodecBadge(
-                      mimeOrCodec: codecMime,
-                      sampleRate: probe?.audioSampleRate,
-                      bits: probe?.audioBits,
-                    );
+                    // The single codec pill is NOT in this overlay anymore - it
+                    // lives in the bottom bar just above the seekbar (user
+                    // request 2026-11-28: "move the audio codec pill below,
+                    // just above seekbar").
                     final songTitle = (probe?.audioTitle?.isNotEmpty == true)
                         ? probe!.audioTitle!
                         : _displayTitle;
@@ -9622,47 +9666,6 @@ if (mounted) setState(_applySwipeValue);
                       if (probe?.audioAlbum?.isNotEmpty == true)
                         probe!.audioAlbum!,
                     ].join(' · ');
-                    // Shared pieces so portrait and landscape cannot drift.
-                    final hiRes = badgeLabel.startsWith('HI-RES');
-                    final lossless = badgeLabel == 'LOSSLESS';
-                    // Small centered pill - just the codec/quality word, like
-                    // Mpv-infinity's 1st screenshot (user request 2026-11-28:
-                    // "the pill should be what codec is used, that much only -
-                    // right now it's too big").
-                    final badges = badgeLabel.isEmpty
-                        ? const SizedBox.shrink()
-                        : Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 9, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: hiRes
-                                  ? Colors.amber.withValues(alpha: 0.18)
-                                  : lossless
-                                      ? colorScheme.secondaryContainer
-                                      : colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: hiRes
-                                    ? Colors.amber
-                                    : lossless
-                                        ? colorScheme.secondary
-                                        : colorScheme.primary,
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              badgeLabel,
-                              style: TextStyle(
-                                color: hiRes
-                                    ? Colors.amber
-                                    : lossless
-                                        ? colorScheme.onSecondaryContainer
-                                        : colorScheme.onPrimaryContainer,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          );
                     final titleText = Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
@@ -9694,9 +9697,10 @@ if (mounted) setState(_applySwipeValue);
                             ),
                           );
                     // Landscape (user request 2026-11-27): half-split screen -
-                    // badges + title/artist on the LEFT half. The vinyl disc
-                    // itself is rendered as an INTERACTIVE layer in the main
-                    // stack (right half), so this overlay holds text only.
+                    // title/artist on the LEFT half. The vinyl disc itself is
+                    // rendered as a layer in the main stack (right half), so
+                    // this overlay holds text only. The codec pill moved to
+                    // the bottom bar above the seekbar (2026-11-28).
                     if (constraints.maxWidth > constraints.maxHeight) {
                       final halfW = constraints.maxWidth / 2;
                       return Stack(
@@ -9710,12 +9714,6 @@ if (mounted) setState(_applySwipeValue);
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                    child: badges,
-                                  ),
-                                  const SizedBox(height: 20),
                                   titleText,
                                   const SizedBox(height: 4),
                                   subText,
@@ -9728,17 +9726,6 @@ if (mounted) setState(_applySwipeValue);
                     }
                     return Stack(
                       children: [
-                        // Single codec badge, CENTERED at the top, clear of
-                        // the player top bar (Mpv-infinity style).
-                        if (badgeLabel.isNotEmpty)
-                          Positioned(
-                            top: MediaQuery.paddingOf(context).top +
-                                kToolbarHeight +
-                                8,
-                            left: 12,
-                            right: 12,
-                            child: Center(child: badges),
-                          ),
                         // The disc lives in the main stack, centered - anchor
                         // the title BELOW it explicitly (a centered spacer
                         // overlapped the disc, reported 2026-11-27).
@@ -10625,6 +10612,13 @@ if (mounted) setState(_applySwipeValue);
                                   ),
                                 ],
                               ),
+                              // Audio-only: the codec pill sits CENTERED just
+                              // above the seekbar (user request 2026-11-28).
+                              if (_isAudioOnly && !_inPip)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 2),
+                                  child: Center(child: _audioCodecPill()),
+                                ),
                               _BufferedSeekBar(
                                 value: sliderValue,
                                 max: maxMs,

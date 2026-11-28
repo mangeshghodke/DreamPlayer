@@ -204,6 +204,12 @@ A video player app supporting:
     Also fixed: bare PCM reported as `audio/raw`/`audio/L16` showed the
     unrecognizable pill "RAW" - `formatAudioCodec` now maps raw/l16/l24/l32/
     wav/aiff, and `isLosslessCodec` counts them as lossless.
+  - **Codec pill moved below, above the seekbar (2026-11-28, user request)**:
+    the single audio codec pill (`_audioCodecPill()`) is no longer at the
+    top of the audio overlay; it renders CENTERED in the bottom bar between
+    the time row and the `_BufferedSeekBar`, compact (11 sp, 9x2 padding),
+    showing only the codec/quality word. The overlay (portrait and landscape
+    half-split) now holds just the disc + title/artist/album.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

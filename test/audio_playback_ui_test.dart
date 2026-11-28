@@ -193,22 +193,18 @@ void main() {
     final probeSwift = File('ios/Runner/MediaProbe.swift').readAsStringSync();
     final probeDart = File('lib/services/media_probe.dart').readAsStringSync();
 
-    test('format badges are at the TOP of the audio overlay, not below the disc', () {
+    test('codec pill is in the BOTTOM BAR just above the seekbar, not in the overlay', () {
       final overlayAt = player.indexOf('if (_isAudioOnly && _error == null)');
       expect(overlayAt, greaterThan(-1));
-      // Slice the PORTRAIT branch (the landscape half-split branch comes first
-      // in the source since 2026-11-27).
-      final portraitAt = player.indexOf('// Single codec badge, CENTERED at the top', overlayAt);
-      expect(portraitAt, greaterThan(-1));
-      final overlay = player.substring(portraitAt, portraitAt + 4000);
-      // Badges rendered in a top-anchored Positioned BEFORE the title column
-      // (the disc itself moved to the interactive main-stack layer in the
-      // DJ-disc change, leaving a spacer where it sits).
-      final topAt = overlay.indexOf('top: MediaQuery.paddingOf(context).top');
-      final titleAt = overlay.indexOf('titleText');
-      expect(topAt, greaterThan(-1));
-      expect(titleAt, greaterThan(-1));
-      expect(titleAt, greaterThan(topAt));
+      // The overlay no longer renders the pill (moved 2026-11-28).
+      final overlay = player.substring(overlayAt, overlayAt + 9000);
+      expect(overlay, isNot(contains('_audioCodecPill()')));
+      // The pill sits between the time row and the seekbar in the bottom bar.
+      final seekAt = player.indexOf('_BufferedSeekBar(');
+      expect(seekAt, greaterThan(-1));
+      final bottomBar = player.substring(seekAt - 800, seekAt);
+      expect(bottomBar, contains('if (_isAudioOnly && !_inPip)'));
+      expect(bottomBar, contains('Center(child: _audioCodecPill())'));
       // Song title + artist/album from the probe (Mpv-infinity pattern) -
       // checked on the whole overlay, the widgets are extracted into locals.
       final whole = player.substring(overlayAt, overlayAt + 9000);
@@ -272,8 +268,8 @@ void main() {
       // one Title row only: embedded tag title wins, file name not repeated
       expect(player.contains('audioTagTitle ?? video.title'), isTrue);
       expect(player.contains("(label: 'Title', value: t)"), isFalse);
-      // pill: centered + compact
-      expect(player.contains('child: Center(child: badges)'), isTrue);
+      // pill: centered in the bottom bar above the seekbar + compact
+      expect(player.contains('Center(child: _audioCodecPill())'), isTrue);
       expect(player.contains('fontSize: 11'), isTrue);
       expect(player.contains("label: 'Format / codec'"), isTrue);
       expect(player.contains("label: 'File location'"), isTrue);
