@@ -1502,13 +1502,16 @@ final class SMBBridge: NSObject {
         }
         defer { try? fh.close() }
         let headLen = Int64(min(Int64(headBytes), size))
-        if let head = file.read(atOffset: 0, length: NSUInteger(headLen)), !head.isEmpty {
+        // length is ObjC NSUInteger - bridge explicitly as UInt, same as
+        // SMBSource.swift's read (NSUInteger the TYPE is not in scope under
+        // the Swift 6 mode, only its bridged values are).
+        if let head = file.read(atOffset: 0, length: UInt(headLen)), !head.isEmpty {
             try? fh.write(contentsOf: head)
         }
         let tailStart = size - Int64(min(Int64(tailBytes), size - headLen))
         if tailStart > headLen {
             let tailLen = size - tailStart
-            if let tail = file.read(atOffset: tailStart, length: NSUInteger(tailLen)), !tail.isEmpty {
+            if let tail = file.read(atOffset: tailStart, length: UInt(tailLen)), !tail.isEmpty {
                 try? fh.seek(toOffset: UInt64(tailStart))
                 try? fh.write(contentsOf: tail)
             }
