@@ -607,7 +607,13 @@ final class FileBrowser: NSObject, FlutterStreamHandler {
             fileURL = u
         }
         guard let url = fileURL else { return nil }
-        return artworkFromAsset(AVURLAsset(url: url))
+        if let data = artworkFromAsset(AVURLAsset(url: url)) { return data }
+        // FLAC PICTURE block / MP3 APIC: AVAsset cannot read these containers,
+        // so fall back to the direct head parser (user request 2026-11-28).
+        if AudioFileTags.isSupported(url.path) {
+            return AudioFileTags.parse(fileAt: url.path).artwork
+        }
+        return nil
     }
 
     /// "itsk" = the common-key artwork identifier (AVMetadataKey

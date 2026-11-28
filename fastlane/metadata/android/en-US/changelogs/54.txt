@@ -1,0 +1,1 @@
+Embedded lyrics: audio files with synced LRC lyrics (FLAC/ID3/MP4) now show the current line highlighted under the song title while playing. iOS: FLAC/WAV/MP3 tags, cover art and lyrics now load (AVFoundation cannot read those formats); SMB audio art fixed. Audio info sheet lists Lyrics. Engine label on iOS now says AetherEngine.

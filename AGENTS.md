@@ -229,6 +229,21 @@ A video player app supporting:
     and the Engine row showed "Media3" on iOS; `_engineDisplayName` now returns
     `AetherEngine` on iOS, `Media3`/`libmpv` on Android. Pinned in
     `test/remote_audio_metadata_test.dart`.
+  - **Embedded synced lyrics + iOS FLAC/WAV/MP3 tags (2026-11-28, user
+    request)**: audio files with LRC lyrics (FLAC `LYRICS`, ID3v2 `USLT`,
+    MP4 `©lyr`, WAV `ICMT`) show previous/current/next lines under the song
+    title on the audio overlay, the current line highlighted and following
+    the playhead (`_audioLyricsBlock` + pure Dart `lib/utils/lrc_lyrics.dart`);
+    the info sheet gains a Lyrics row. Android: new `AudioTagParser.kt`
+    parses FLAC/ID3v2/WAV heads for local, http and SMB-loopback sources
+    (MediaMetadataRetriever has NO lyrics key). iOS: `AudioFileTags` in
+    `MediaProbe.swift` does the same because AVFoundation cannot read
+    FLAC/WAV at all - this also fixes title/artist/album/cover art for those
+    formats on iPad (FLAC PICTURE / ID3 APIC feed the vinyl disc and the
+    plain-art card, so the top-bar art-style toggle works again once art
+    exists; `FileBrowser.embeddedArtwork` falls back to the parser when
+    AVAsset yields nothing). Pinned in `test/lrc_lyrics_test.dart` +
+    `test/remote_audio_metadata_test.dart`.
 - **Phase 3 #8 app lock REMOVED (2026-11-21)**: the app/folder lock was built
   (local_auth gate, per-folder locks) and then removed the same day per user
   decision - not needed. All Cast/lock code, the `local_auth` dependency,

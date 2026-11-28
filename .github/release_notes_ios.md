@@ -50,6 +50,8 @@ Fixed:
 • Files in plain PCM/WAV format no longer show an unreadable "RAW" codec badge - they show PCM or WAV and count as lossless.
 • Music files on a network share (SMB) now show their song title, artist, album and cover art on iPad too - the share's streaming link previously hid the file's own tags.
 • The info panel while playing music no longer says "Media3" as the engine on iPhone/iPad - it now correctly names the built-in player engine used on this device.
+• Music files in FLAC, WAV and MP3 format now show their embedded song title, artist, album and cover art on iPhone/iPad too (previously only MP4/M4A showed tags there), including files on network shares.
+• Songs with embedded synced lyrics now show them while playing: the current line is highlighted under the song title and follows the playback position. The info panel lists whether lyrics are synced.
 
 ---
 

@@ -123,6 +123,45 @@ void main() {
       expect(src.contains('"resumeKey"'), isTrue);
     });
 
+    test('iOS parses FLAC/ID3/WAV tags + lyrics + artwork from the file head', () {
+      final src = File('ios/Runner/MediaProbe.swift').readAsStringSync();
+      expect(src.contains('enum AudioFileTags'), isTrue);
+      expect(src.contains('parseFlac'), isTrue);
+      expect(src.contains('parseId3'), isTrue);
+      expect(src.contains('parseWav'), isTrue);
+      expect(src.contains('"LYRICS"'), isTrue);
+      expect(src.contains('case .commonKeyLyrics'), isTrue);
+      expect(src.contains('AudioFileTags.isSupported(filePath)'), isTrue);
+      final fb = File('ios/Runner/FileBrowser.swift').readAsStringSync();
+      // artwork falls back to the FLAC PICTURE / ID3 APIC parser when AVAsset
+      // yields nothing (iOS cannot read FLAC/WAV at all)
+      expect(fb.contains('AudioFileTags.parse(fileAt: url.path).artwork'), isTrue);
+    });
+
+    test('Android parses embedded lyrics from the file head (FLAC/ID3/WAV)', () {
+      final parser = File('android/app/src/main/kotlin/com/dreamplayer/app/AudioTagParser.kt')
+          .readAsStringSync();
+      expect(parser.contains('"LYRICS"'), isTrue);
+      expect(parser.contains('"USLT"'), isTrue);
+      expect(parser.contains('parseFlac'), isTrue);
+      expect(parser.contains('audioLyrics'), isTrue);
+      final probe = File('android/app/src/main/kotlin/com/dreamplayer/app/MediaProbe.kt')
+          .readAsStringSync();
+      expect(probe.contains('mergeHeadTagsHttp'), isTrue);
+      expect(probe.contains('mergeHeadTagsLocal'), isTrue);
+      expect(probe.contains('AudioTagParser.parse'), isTrue);
+    });
+
+    test('Dart probe result carries audioLyrics and the player renders synced lyrics', () {
+      final model = File('lib/services/media_probe.dart').readAsStringSync();
+      expect(model.contains("m['audioLyrics'] as String?"), isTrue);
+      final player = File('lib/screens/player_screen.dart').readAsStringSync();
+      expect(player.contains('parseLrcLines(probe.audioLyrics)'), isTrue);
+      expect(player.contains('_audioLyricsBlock(colorScheme)'), isTrue);
+      expect(player.contains("label: 'Lyrics'"), isTrue);
+      expect(player.contains('lrcIndexAt(_lyrics, _position.inMilliseconds)'), isTrue);
+    });
+
     test('engine label is platform-aware: AetherEngine on iOS, never Media3 there', () {
       final player = File('lib/screens/player_screen.dart').readAsStringSync();
       expect(player.contains("String get _engineDisplayName"), isTrue);

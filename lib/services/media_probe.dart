@@ -19,6 +19,7 @@ class MediaProbeResult {
     this.audioTitle,
     this.audioArtist,
     this.audioAlbum,
+    this.audioLyrics,
   });
 
   final int? durationMs;
@@ -36,6 +37,10 @@ class MediaProbeResult {
   final String? audioTitle;
   final String? audioArtist;
   final String? audioAlbum;
+
+  /// Raw embedded lyrics (LRC when time-synced) - FLAC `LYRICS` comment, ID3v2
+  /// `USLT`, MP4 `©lyr`. Parsed by `lib/utils/lrc_lyrics.dart`.
+  final String? audioLyrics;
 
   /// Delegates to [friendlyResolution] so the file-info card and the player's
   /// resolution chip can never disagree about the same file.
@@ -61,6 +66,7 @@ class MediaProbeResult {
       audioTitle: m['audioTitle'] as String?,
       audioArtist: m['audioArtist'] as String?,
       audioAlbum: m['audioAlbum'] as String?,
+      audioLyrics: m['audioLyrics'] as String?,
     );
   }
 }

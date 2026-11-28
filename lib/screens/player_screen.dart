@@ -89,6 +89,7 @@ import '../widgets/gesture_warning_pill.dart';
 import '../widgets/stats_hud.dart';
 import '../widgets/vinyl_disc.dart';
 import '../utils/audio_format_info.dart';
+import '../utils/lrc_lyrics.dart';
 import '../utils/media_extensions.dart';
 import '../utils/playback_stats.dart';
 import '../utils/remote_head_fetch.dart';
@@ -502,6 +503,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// bitrate shown under the disc). Null until the probe lands.
   MediaProbeResult? _audioProbe;
 
+  /// Parsed embedded lyrics (LRC) of the playing audio file, if any.
+  List<LrcLine> _lyrics = const [];
+
   /// Probes [video]'s audio format via the native MediaExtractor
   /// (`dreamplayer/mediaProbe`). Best-effort - a failure leaves
   /// [_audioProbe] null and the metadata line simply omits.
@@ -528,7 +532,15 @@ class _PlayerScreenState extends State<PlayerScreen>
           resumeKey: video.resumeKey,
         );
       }
-      if (mounted && r != null) setState(() => _audioProbe = r);
+      if (mounted && r != null) {
+        final probe = r;
+        setState(() {
+          _audioProbe = probe;
+          // Embedded (LRC) lyrics - shown synced under the song title on the
+          // audio overlay (user request 2026-11-28).
+          _lyrics = parseLrcLines(probe.audioLyrics);
+        });
+      }
     } catch (_) {
       // probe is best-effort
     }
@@ -1039,6 +1051,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _hasVideoTrack = !isAudioFile(name);
     _audioArt = null;
     _audioProbe = null;
+    _lyrics = const [];
     if (!_hasVideoTrack) {
       // Embedded cover art for the disc face + a one-shot format probe for
       // the metadata line under it (codec / sample rate / bit depth / ch /
@@ -6544,6 +6557,8 @@ if (mounted) setState(_applySwipeValue);
           (label: 'Artist', value: a),
         if (_audioProbe?.audioAlbum case final al? when al.isNotEmpty)
           (label: 'Album', value: al),
+        if (_audioProbe?.audioLyrics case final l? when l.isNotEmpty)
+          (label: 'Lyrics', value: isSyncedLrc(l) ? 'Synced (LRC)' : 'Embedded'),
         if (_audioProbe != null) ...[
           (
             label: 'Format / codec',
@@ -8726,6 +8741,45 @@ if (mounted) setState(_applySwipeValue);
     );
   }
 
+  /// Time-synced embedded lyrics (LRC) for audio-only playback, shown under
+  /// the song title: previous / current / next line, the current one
+  /// highlighted. Rebuilds on every position tick, so the highlight follows
+  /// the playhead. Hidden when the file has no synced lyrics (user request
+  /// 2026-11-28).
+  Widget _audioLyricsBlock(ColorScheme colorScheme) {
+    final raw = _audioProbe?.audioLyrics;
+    if (raw == null || _lyrics.length < 2 || !isSyncedLrc(raw)) {
+      return const SizedBox.shrink();
+    }
+    final idx = lrcIndexAt(_lyrics, _position.inMilliseconds);
+    final cur = idx < 0 ? 0 : (idx >= _lyrics.length ? _lyrics.length - 1 : idx);
+    final from = cur > 0 ? cur - 1 : 0;
+    final to = cur < _lyrics.length - 1 ? cur + 1 : _lyrics.length - 1;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 68),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = from; i <= to; i++)
+            Text(
+              _lyrics[i].text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: i == cur
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                fontSize: i == cur ? 15 : 12.5,
+                fontWeight: i == cur ? FontWeight.w700 : FontWeight.w400,
+                height: 1.35,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   /// Music transport row for audio-only playback (Mpv-infinity's audio
   /// screen, per the user's screenshot 2026-11-27): shuffle, previous,
   /// play/pause, next, repeat. It lives in the BOTTOM BAR under the seekbar
@@ -9725,6 +9779,8 @@ if (mounted) setState(_applySwipeValue);
                                   titleText,
                                   const SizedBox(height: 4),
                                   subText,
+                                  const SizedBox(height: 6),
+                                  _audioLyricsBlock(colorScheme),
                                 ],
                               ),
                             ),
@@ -9752,6 +9808,8 @@ if (mounted) setState(_applySwipeValue);
                                 const SizedBox(height: 4),
                                 subText,
                               ],
+                              const SizedBox(height: 6),
+                              _audioLyricsBlock(colorScheme),
                             ],
                           ),
                         ),

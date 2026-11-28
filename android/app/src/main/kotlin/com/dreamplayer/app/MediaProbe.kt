@@ -8,8 +8,12 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
+import java.io.InputStream
 import java.net.URLDecoder
 import java.util.concurrent.Executors
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 class MediaProbe(private val context: Context) {
     companion object {
@@ -80,6 +84,48 @@ class MediaProbe(private val context: Context) {
             val token = httpUrl.substringAfterLast("/")
             SmbHttpProxy.stop(token)
         }
+    }
+
+    /// Reads up to [max] bytes from [input] (manual loop - InputStream.readNBytes
+    /// is not available on older API levels).
+    private fun readHead(input: InputStream, max: Int = 4 * 1024 * 1024): ByteArray {
+        val buf = ByteArray(minOf(max, 64 * 1024))
+        val out = java.io.ByteArrayOutputStream()
+        var total = 0
+        while (total < max) {
+            val n = input.read(buf, 0, minOf(buf.size, max - total))
+            if (n < 0) break
+            out.write(buf, 0, n)
+            total += n
+        }
+        return out.toByteArray()
+    }
+
+    /// Embedded lyrics (and FLAC/WAV fallback tags): MediaMetadataRetriever
+    /// has NO lyrics key, so the file head is parsed directly (FLAC vorbis
+    /// comment / ID3v2 USLT / WAV INFO) - user request 2026-11-28.
+    private fun mergeHeadTagsHttp(url: String, headers: Map<String, String>?, out: MutableMap<String, Any?>) {
+        try {
+            val req = Request.Builder().url(url).apply {
+                headers?.forEach { (k, v) -> header(k, v) }
+            }.build()
+            OkHttpClient().newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    resp.body?.byteStream()?.use { AudioTagParser.parse(readHead(it)).mergeInto(out) }
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun mergeHeadTagsLocal(filePath: String?, contentUri: String?, out: MutableMap<String, Any?>) {
+        try {
+            val bytes = when {
+                filePath != null -> File(filePath).takeIf { it.isFile }?.inputStream()?.use(::readHead)
+                contentUri != null -> context.contentResolver.openInputStream(Uri.parse(contentUri))?.use(::readHead)
+                else -> null
+            }
+            if (bytes != null) AudioTagParser.parse(bytes).mergeInto(out)
+        } catch (_: Exception) {}
     }
 
     private fun probeHttp(url: String, headers: Map<String, String>?): Map<String, Any?> {
@@ -165,6 +211,7 @@ class MediaProbe(private val context: Context) {
         } finally {
             try { extractor?.release() } catch (_: Exception) {}
         }
+        mergeHeadTagsHttp(url, headers, out)
         return out
     }
 
@@ -251,6 +298,7 @@ class MediaProbe(private val context: Context) {
         } finally {
             try { extractor?.release() } catch (_: Exception) {}
         }
+        mergeHeadTagsLocal(filePath, null, out)
         return out
     }
 
@@ -378,6 +426,7 @@ class MediaProbe(private val context: Context) {
         } finally {
             try { extractor?.release() } catch (_: Exception) {}
         }
+        mergeHeadTagsLocal(localPath, contentUri, out)
         return out
     }
 }
